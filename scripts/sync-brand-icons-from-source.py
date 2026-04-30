@@ -7,7 +7,7 @@ Requires (macOS only): `sips` and `iconutil` for `.icns` output.
 Default source: assets/app-icon-source.png (square raster; outer cream background is removed).
 
 Writes:
-  - apps/desktop/resources/icon.png, icon.icns, icon.ico (production artwork)
+  - packages/desktop/resources/icon.png, icon.icns, icon.ico (production artwork)
   - assets/prod/* (mac/linux/ios 1024, web PNGs + ICOs)
   - assets/dev/blueprint-* and assets/nightly/blueprint-* — same geometry with a generated
     cool “blueprint” tint (semi-transparent blue veil on non-transparent pixels only)
@@ -224,7 +224,7 @@ def main() -> int:
         NIGHTLY_BLUEPRINT_RGB,
         NIGHTLY_BLUEPRINT_VEIL_STRENGTH,
     )
-    desktop_res = repo / "apps" / "desktop" / "resources"
+    desktop_res = repo / "packages" / "desktop" / "resources"
 
     with tempfile.TemporaryDirectory(prefix="multi-icon-src-") as tmp:
         tmp1024 = Path(tmp) / "master-1024.png"
@@ -263,9 +263,9 @@ def main() -> int:
             write_ico(base / f"{prefix}-windows.ico", ch_master)
             write_ico(base / f"{prefix}-web-favicon.ico", ch_master)
 
-        # Vite dev serves `apps/web/public` directly (no server dist/client copy). Mirror dev web
+        # Vite dev serves `packages/app/public` directly (no server dist/client copy). Mirror dev web
         # icons so the browser + boot shell pick up the blueprint-tinted assets immediately.
-        web_public = repo / "apps" / "web" / "public"
+        web_public = repo / "packages" / "app" / "public"
         dev_base = repo / "assets" / "dev"
         shutil.copyfile(dev_base / "blueprint-web-favicon.ico", web_public / "favicon.ico")
         shutil.copyfile(dev_base / "blueprint-web-favicon-16x16.png", web_public / "favicon-16x16.png")

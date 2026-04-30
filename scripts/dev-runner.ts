@@ -23,7 +23,7 @@ export const DEFAULT_MULTI_HOME = Effect.map(Effect.service(Path.Path), (path) =
 const MODE_ARGS = {
   dev: ["run", "dev:stack", "--ui=tui", "--filter=usemulti"],
   "dev:server": ["run", "dev", "--filter=usemulti"],
-  "dev:web": ["run", "dev", "--filter=@multi/web"],
+  "dev:app": ["run", "dev", "--filter=@multi/app"],
   "dev:desktop": ["run", "dev", "--filter=@multi/desktop"],
 } as const satisfies Record<string, ReadonlyArray<string>>;
 
@@ -190,7 +190,7 @@ export function createDevRunnerEnv({
       delete output.MULTI_DESKTOP_WS_URL;
     }
 
-    if (mode === "dev:server" || mode === "dev:web") {
+    if (mode === "dev:server" || mode === "dev:app") {
       output.MULTI_MODE = "web";
       delete output.MULTI_DESKTOP_WS_URL;
     }
@@ -315,7 +315,7 @@ export function resolveModePortOffsets<R = NetService>({
     const checkPort = (checkPortAvailability ??
       defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
 
-    if (mode === "dev:web") {
+    if (mode === "dev:app") {
       if (hasExplicitDevUrl) {
         return { serverOffset: startOffset, webOffset: startOffset };
       }

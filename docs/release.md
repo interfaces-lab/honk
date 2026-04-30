@@ -21,7 +21,7 @@ This document covers the unified release workflow for stable and nightly desktop
   - Nightly runs are always GitHub prereleases and never marked latest.
   - Automatically generated release notes are pinned to the previous tag in the same channel, so stable compares to the previous stable tag and nightly compares to the previous nightly tag.
 - Includes Electron auto-update metadata (for example `latest*.yml`, `nightly*.yml`, and `*.blockmap`) in release assets.
-- Publishes the CLI package (`apps/server`, npm package `t3`) with OIDC trusted publishing from the same workflow file:
+- Publishes the CLI package (`packages/server`, npm package `usemulti`) with OIDC trusted publishing from the same workflow file:
   - stable releases publish npm dist-tag `latest`
   - nightly releases publish npm dist-tag `nightly`
 - Signing is optional and auto-detected per platform from secrets.
@@ -37,14 +37,14 @@ This document covers the unified release workflow for stable and nightly desktop
   - tag format: `nightly-vX.Y.Z-nightly.YYYYMMDD.<run_number>`
   - release name includes the short commit SHA
   - `make_latest` is always `false`
-- Uses the current `apps/desktop/package.json` semver core (`X.Y.Z`) as the nightly base, then appends a nightly prerelease suffix.
+- Uses the current `packages/desktop/package.json` semver core (`X.Y.Z`) as the nightly base, then appends a nightly prerelease suffix.
 - Publishes Electron auto-update metadata to the dedicated `nightly` updater channel, so desktop users can opt into that track independently from stable.
-- Publishes the CLI package (`apps/server`, npm package `t3`) to the `nightly` npm dist-tag using the same nightly version.
+- Publishes the CLI package (`packages/server`, npm package `usemulti`) to the `nightly` npm dist-tag using the same nightly version.
 - Does not commit version bumps back to `main`.
 
 ## Desktop auto-update notes
 
-- Runtime updater: `electron-updater` in `apps/desktop/src/main.ts`.
+- Runtime updater: `electron-updater` in `packages/desktop/src/main.ts`.
 - Update UX:
   - Background checks run on startup delay + interval.
   - No automatic download or install.
@@ -66,12 +66,12 @@ This document covers the unified release workflow for stable and nightly desktop
 
 ## 0) npm OIDC trusted publishing setup (CLI)
 
-The workflow publishes the CLI with `npm publish` from `apps/server` after bumping
+The workflow publishes the CLI with `npm publish` from `packages/server` after bumping
 the package version to the release tag version.
 
 Checklist:
 
-1. Confirm npm org/user owns package `t3` (or rename package first if needed).
+1. Confirm npm org/user owns package `usemulti`.
 2. In npm package settings, configure Trusted Publisher:
    - Provider: GitHub Actions
    - Repository: this repo
@@ -79,7 +79,7 @@ Checklist:
    - Environment (if used): match your npm trusted publishing config
 3. Ensure npm account and org policies allow trusted publishing for the package.
 4. Create release tag `vX.Y.Z` and push; workflow will:
-   - set `apps/server/package.json` version to `X.Y.Z`
+   - set `packages/server/package.json` version to `X.Y.Z`
    - build web + server
    - run `npm publish --access public --tag latest`
 5. Nightly runs from the same workflow file publish with `npm publish --access public --tag nightly`.

@@ -1,0 +1,30 @@
+{
+  "name": "@multi/desktop",
+  "version": "0.0.17",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "node scripts/dev-electron.mjs",
+    "dev:vite": "bun run --cwd ../app dev",
+    "dev:bundle": "tsdown --watch",
+    "build": "tsdown",
+    "start": "node scripts/start-electron.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "smoke-test": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "effect": "catalog:",
+    "electron": "40.6.0",
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "@multi/contracts": "workspace:*",
+    "@multi/shared": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "productName": "Multi (Alpha)"
+}

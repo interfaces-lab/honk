@@ -1,0 +1,170 @@
+{
+  "name": "@multi/ui",
+  "version": "0.0.17",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./alert": {
+      "types": "./src/alert.tsx",
+      "import": "./src/alert.tsx"
+    },
+    "./alert-dialog": {
+      "types": "./src/alert-dialog.tsx",
+      "import": "./src/alert-dialog.tsx"
+    },
+    "./autocomplete": {
+      "types": "./src/autocomplete.tsx",
+      "import": "./src/autocomplete.tsx"
+    },
+    "./badge": {
+      "types": "./src/badge.tsx",
+      "import": "./src/badge.tsx"
+    },
+    "./button": {
+      "types": "./src/button.tsx",
+      "import": "./src/button.tsx"
+    },
+    "./card": {
+      "types": "./src/card.tsx",
+      "import": "./src/card.tsx"
+    },
+    "./checkbox": {
+      "types": "./src/checkbox.tsx",
+      "import": "./src/checkbox.tsx"
+    },
+    "./collapsible": {
+      "types": "./src/collapsible.tsx",
+      "import": "./src/collapsible.tsx"
+    },
+    "./combobox": {
+      "types": "./src/combobox.tsx",
+      "import": "./src/combobox.tsx"
+    },
+    "./command": {
+      "types": "./src/command.tsx",
+      "import": "./src/command.tsx"
+    },
+    "./dialog": {
+      "types": "./src/dialog.tsx",
+      "import": "./src/dialog.tsx"
+    },
+    "./empty": {
+      "types": "./src/empty.tsx",
+      "import": "./src/empty.tsx"
+    },
+    "./field": {
+      "types": "./src/field.tsx",
+      "import": "./src/field.tsx"
+    },
+    "./fieldset": {
+      "types": "./src/fieldset.tsx",
+      "import": "./src/fieldset.tsx"
+    },
+    "./form": {
+      "types": "./src/form.tsx",
+      "import": "./src/form.tsx"
+    },
+    "./group": {
+      "types": "./src/group.tsx",
+      "import": "./src/group.tsx"
+    },
+    "./input": {
+      "types": "./src/input.tsx",
+      "import": "./src/input.tsx"
+    },
+    "./input-group": {
+      "types": "./src/input-group.tsx",
+      "import": "./src/input-group.tsx"
+    },
+    "./kbd": {
+      "types": "./src/kbd.tsx",
+      "import": "./src/kbd.tsx"
+    },
+    "./label": {
+      "types": "./src/label.tsx",
+      "import": "./src/label.tsx"
+    },
+    "./menu": {
+      "types": "./src/menu.tsx",
+      "import": "./src/menu.tsx"
+    },
+    "./popover": {
+      "types": "./src/popover.tsx",
+      "import": "./src/popover.tsx"
+    },
+    "./qr-code": {
+      "types": "./src/qr-code.tsx",
+      "import": "./src/qr-code.tsx"
+    },
+    "./radio-group": {
+      "types": "./src/radio-group.tsx",
+      "import": "./src/radio-group.tsx"
+    },
+    "./scroll-area": {
+      "types": "./src/scroll-area.tsx",
+      "import": "./src/scroll-area.tsx"
+    },
+    "./select": {
+      "types": "./src/select.tsx",
+      "import": "./src/select.tsx"
+    },
+    "./separator": {
+      "types": "./src/separator.tsx",
+      "import": "./src/separator.tsx"
+    },
+    "./sheet": {
+      "types": "./src/sheet.tsx",
+      "import": "./src/sheet.tsx"
+    },
+    "./sidebar": {
+      "types": "./src/sidebar.tsx",
+      "import": "./src/sidebar.tsx"
+    },
+    "./skeleton": {
+      "types": "./src/skeleton.tsx",
+      "import": "./src/skeleton.tsx"
+    },
+    "./spinner": {
+      "types": "./src/spinner.tsx",
+      "import": "./src/spinner.tsx"
+    },
+    "./switch": {
+      "types": "./src/switch.tsx",
+      "import": "./src/switch.tsx"
+    },
+    "./textarea": {
+      "types": "./src/textarea.tsx",
+      "import": "./src/textarea.tsx"
+    },
+    "./toggle": {
+      "types": "./src/toggle.tsx",
+      "import": "./src/toggle.tsx"
+    },
+    "./toggle-group": {
+      "types": "./src/toggle-group.tsx",
+      "import": "./src/toggle-group.tsx"
+    },
+    "./tooltip": {
+      "types": "./src/tooltip.tsx",
+      "import": "./src/tooltip.tsx"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.4.1",
+    "@multi/shared": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "lucide-react": "^1.11.0",
+    "react": "^19.2.5",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

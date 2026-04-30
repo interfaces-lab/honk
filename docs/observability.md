@@ -33,7 +33,7 @@ Important fields in each record:
 - `events`: embedded logs and custom events
 - `exit`: `Success`, `Failure`, or `Interrupted`
 
-The schema lives in `apps/server/src/observability/TraceRecord.ts`.
+The schema lives in `packages/server/src/observability/TraceRecord.ts`.
 
 ### Metrics
 
@@ -41,7 +41,7 @@ Metrics are not written to a local file.
 
 - local persistence: none
 - remote export: OTLP only, when configured
-- current definitions: `apps/server/src/observability/Metrics.ts`
+- current definitions: `packages/server/src/observability/Metrics.ts`
 
 If OTLP is not configured, metrics still exist in-process, but you will not have a local artifact to inspect.
 
@@ -467,7 +467,7 @@ const program = doWork().pipe(
 
 ### Runtime Wiring
 
-The server observability layer is assembled in `apps/server/src/observability/Layers/Observability.ts`.
+The server observability layer is assembled in `packages/server/src/observability/Observability.ts`.
 
 It provides:
 
@@ -503,7 +503,7 @@ If the OTLP URLs are unset, local tracing still works and metrics stay in-proces
 Current high-value span and metric boundaries include:
 
 - Effect RPC websocket request spans from `effect/rpc`
-- RPC request metrics in `apps/server/src/observability/RpcInstrumentation.ts`
+- RPC request metrics in `packages/server/src/observability/RpcInstrumentation.ts`
 - startup phases
 - orchestration command processing
 - orchestration command acknowledgment latency

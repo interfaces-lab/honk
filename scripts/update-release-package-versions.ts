@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "@multi/shared/cli-args";
 
 export const releasePackageFiles = [
-  "apps/server/package.json",
-  "apps/desktop/package.json",
-  "apps/web/package.json",
+  "packages/server/package.json",
+  "packages/desktop/package.json",
+  "packages/app/package.json",
   "packages/contracts/package.json",
 ] as const;
 

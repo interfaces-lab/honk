@@ -5,8 +5,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import rootPackageJson from "../package.json" with { type: "json" };
-import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
-import serverPackageJson from "../apps/server/package.json" with { type: "json" };
+import desktopPackageJson from "../packages/desktop/package.json" with { type: "json" };
+import serverPackageJson from "../packages/server/package.json" with { type: "json" };
 
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
@@ -449,7 +449,7 @@ function resolveDesktopRuntimeDependencies(
     Object.entries(dependencies).filter(([dependencyName]) => dependencyName !== "electron"),
   );
 
-  return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
+  return resolveCatalogDependencies(runtimeDependencies, catalog, "packages/desktop");
 }
 
 function resolveGitHubPublishConfig(updateChannel: "latest" | "nightly"):
@@ -522,7 +522,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     productName: resolveDesktopProductName(version),
     artifactName: "Multi-${version}-${arch}.${ext}",
     directories: {
-      buildResources: "apps/desktop/resources",
+      buildResources: "packages/desktop/resources",
     },
   };
   const updateChannel = resolveDesktopUpdateChannel(version);
@@ -614,7 +614,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   const serverDependencies = serverPackageJson.dependencies;
   if (!serverDependencies || Object.keys(serverDependencies).length === 0) {
     return yield* new BuildScriptError({
-      message: "Could not resolve production dependencies from apps/server/package.json.",
+      message: "Could not resolve production dependencies from packages/server/package.json.",
     });
   }
 
@@ -623,7 +623,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       resolveCatalogDependencies(
         rootPackageJson.overrides,
         rootPackageJson.workspaces.catalog,
-        "apps/desktop",
+        "packages/desktop",
       ),
     catch: (cause) =>
       new BuildScriptError({
@@ -637,11 +637,11 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       resolveCatalogDependencies(
         serverDependencies,
         rootPackageJson.workspaces.catalog,
-        "apps/server",
+        "packages/server",
       ),
     catch: (cause) =>
       new BuildScriptError({
-        message: "Could not resolve production dependencies from apps/server/package.json.",
+        message: "Could not resolve production dependencies from packages/server/package.json.",
         cause,
       }),
   });
@@ -653,7 +653,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       ),
     catch: (cause) =>
       new BuildScriptError({
-        message: "Could not resolve desktop runtime dependencies from apps/desktop/package.json.",
+        message:
+          "Could not resolve desktop runtime dependencies from packages/desktop/package.json.",
         cause,
       }),
   });
@@ -667,11 +668,11 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   });
 
   const stageAppDir = path.join(stageRoot, "app");
-  const stageResourcesDir = path.join(stageAppDir, "apps/desktop/resources");
+  const stageResourcesDir = path.join(stageAppDir, "packages/desktop/resources");
   const distDirs = {
-    desktopDist: path.join(repoRoot, "apps/desktop/dist-electron"),
-    desktopResources: path.join(repoRoot, "apps/desktop/resources"),
-    serverDist: path.join(repoRoot, "apps/server/dist"),
+    desktopDist: path.join(repoRoot, "packages/desktop/dist-electron"),
+    desktopResources: path.join(repoRoot, "packages/desktop/resources"),
+    serverDist: path.join(repoRoot, "packages/server/dist"),
   };
   const bundledClientEntry = path.join(distDirs.serverDist, "client/index.html");
 
@@ -703,13 +704,13 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
   yield* validateBundledClientAssets(path.dirname(bundledClientEntry));
 
-  yield* fs.makeDirectory(path.join(stageAppDir, "apps/desktop"), { recursive: true });
-  yield* fs.makeDirectory(path.join(stageAppDir, "apps/server"), { recursive: true });
+  yield* fs.makeDirectory(path.join(stageAppDir, "packages/desktop"), { recursive: true });
+  yield* fs.makeDirectory(path.join(stageAppDir, "packages/server"), { recursive: true });
 
   yield* Effect.log("[desktop-artifact] Staging release app...");
-  yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
+  yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "packages/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
-  yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
+  yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "packages/server/dist"));
 
   yield* assertPlatformBuildResources(
     options.platform,
@@ -723,7 +724,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   );
 
   // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
-  yield* fs.copy(stageResourcesDir, path.join(stageAppDir, "apps/desktop/prod-resources"));
+  yield* fs.copy(stageResourcesDir, path.join(stageAppDir, "packages/desktop/prod-resources"));
 
   const stagePackageJson: StagePackageJson = {
     name: "multi",
@@ -733,7 +734,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     private: true,
     description: "Multi desktop build",
     author: "Interfaces Co",
-    main: "apps/desktop/dist-electron/main.js",
+    main: "packages/desktop/dist-electron/main.js",
     build: yield* createBuildConfig(
       options.platform,
       options.target,

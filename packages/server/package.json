@@ -1,0 +1,54 @@
+{
+  "name": "usemulti",
+  "version": "0.0.17",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/interfaces-co/Multi",
+    "directory": "packages/server"
+  },
+  "bin": {
+    "multi": "./dist/bin.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/bin.ts",
+    "dev:stack": "bun run src/bin.ts",
+    "build": "node scripts/cli.ts build",
+    "start": "node dist/bin.mjs",
+    "prepare": "effect-language-service patch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.119",
+    "@effect/platform-bun": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-bun": "catalog:",
+    "@opencode-ai/sdk": "^1.3.15",
+    "@pierre/diffs": "^1.1.19",
+    "effect": "catalog:",
+    "node-pty": "^1.1.0",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@effect/language-service": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@multi/app": "workspace:*",
+    "@multi/contracts": "workspace:*",
+    "@multi/shared": "workspace:*",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "effect-acp": "workspace:*",
+    "effect-codex-app-server": "workspace:*",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "^22.16 || ^23.11 || >=24.10"
+  }
+}

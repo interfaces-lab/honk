@@ -55,7 +55,7 @@ const readDesktopBaseVersion = Effect.fn("readDesktopBaseVersion")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const workspaceRoot = rootDir ? path.resolve(rootDir) : yield* RepoRoot;
-  const packageJsonPath = path.join(workspaceRoot, "apps/desktop/package.json");
+  const packageJsonPath = path.join(workspaceRoot, "packages/desktop/package.json");
   const packageJson = yield* fs
     .readFileString(packageJsonPath)
     .pipe(Effect.flatMap(decodeDesktopPackageJson));
@@ -107,7 +107,7 @@ const command = Command.make(
       Flag.withDefault(false),
     ),
     root: Flag.string("root").pipe(
-      Flag.withDescription("Workspace root used to resolve apps/desktop/package.json."),
+      Flag.withDescription("Workspace root used to resolve packages/desktop/package.json."),
       Flag.optional,
     ),
   },

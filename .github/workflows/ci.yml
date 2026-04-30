@@ -60,19 +60,19 @@ jobs:
 
       - name: Install browser test runtime
         run: |
-          cd apps/web
+          cd packages/app
           bunx playwright install --with-deps chromium
 
       - name: Browser test
-        run: bun run --cwd apps/web test:browser
+        run: bun run --cwd packages/app test:browser
 
       - name: Build desktop pipeline
         run: bun run build:desktop
 
       - name: Verify preload bundle output
         run: |
-          test -f apps/desktop/dist-electron/preload.js
-          grep -nE "desktopBridge|getLocalEnvironmentBootstrap|PICK_FOLDER_CHANNEL|wsUrl" apps/desktop/dist-electron/preload.js
+          test -f packages/desktop/dist-electron/preload.js
+          grep -nE "desktopBridge|getLocalEnvironmentBootstrap|PICK_FOLDER_CHANNEL|wsUrl" packages/desktop/dist-electron/preload.js
 
   release_smoke:
     name: Release Smoke

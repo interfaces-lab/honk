@@ -17,6 +17,9 @@ import type {
   GitStatusInput,
   GitStatusResult,
   GitCreateBranchResult,
+  GitDiscardPathsInput,
+  GitFilePatchInput,
+  GitFilePatchResult,
 } from "./git";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem";
 import type {
@@ -352,6 +355,8 @@ export interface EnvironmentApi {
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
     pull: (input: GitPullInput) => Promise<GitPullResult>;
+    discardPaths: (input: GitDiscardPathsInput) => Promise<void>;
+    getFilePatch: (input: GitFilePatchInput) => Promise<GitFilePatchResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
     onStatus: (
       input: GitStatusInput,

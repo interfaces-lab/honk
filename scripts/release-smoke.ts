@@ -9,10 +9,9 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceFiles = [
   "package.json",
   "bun.lock",
-  "apps/server/package.json",
-  "apps/desktop/package.json",
-  "apps/web/package.json",
-  "apps/marketing/package.json",
+  "packages/server/package.json",
+  "packages/desktop/package.json",
+  "packages/app/package.json",
   "packages/client-runtime/package.json",
   "packages/contracts/package.json",
   "packages/shared/package.json",

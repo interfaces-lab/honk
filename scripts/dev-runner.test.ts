@@ -306,11 +306,11 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
-    it.effect("keeps server offset stable for dev:web and only shifts web offset", () =>
+    it.effect("keeps server offset stable for dev:app and only shifts web offset", () =>
       Effect.gen(function* () {
         const taken = new Set([5733]);
         const offsets = yield* resolveModePortOffsets({
-          mode: "dev:web",
+          mode: "dev:app",
           startOffset: 0,
           hasExplicitServerPort: false,
           hasExplicitDevUrl: false,
@@ -336,10 +336,10 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
-    it.effect("respects explicit dev-url override for dev:web", () =>
+    it.effect("respects explicit dev-url override for dev:app", () =>
       Effect.gen(function* () {
         const offsets = yield* resolveModePortOffsets({
-          mode: "dev:web",
+          mode: "dev:app",
           startOffset: 0,
           hasExplicitServerPort: false,
           hasExplicitDevUrl: true,
