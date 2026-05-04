@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { IconChevronRight } from "central-icons";
+import { IconCheckmark1, IconChevronRight } from "central-icons";
 import type * as React from "react";
 
 import { cn } from "./utils";
@@ -13,7 +13,7 @@ const Menu = MenuPrimitive.Root;
 const MenuPortal = MenuPrimitive.Portal;
 
 const workbenchMenuPopupClassName =
-  "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-[12px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-[12px]/[16px] text-multi-fg-primary shadow-multi-popup outline-none backdrop-blur-xl focus:outline-none focus-visible:outline-none";
+  "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-[12px]/[16px] text-multi-fg-primary shadow-multi-popup outline-none backdrop-blur-xl focus:outline-none focus-visible:outline-none";
 
 const workbenchMenuViewportClassName = "max-h-(--available-height) w-full overflow-y-auto p-1";
 
@@ -33,7 +33,7 @@ const workbenchMenuLabelClassName =
 const workbenchMenuSeparatorClassName = "mx-0 my-1 h-px shrink-0 bg-multi-stroke-tertiary";
 
 const workbenchMenuRadioItemClassName =
-  "grid min-h-6 cursor-pointer grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-[12px]/[16px] text-multi-fg-secondary outline-none transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0";
+  "grid min-h-6 cursor-pointer select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-[12px]/[16px] text-multi-fg-secondary outline-none transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0";
 
 /**
  * For custom triggers (e.g. `Button`), pass `render={<Button … />}` and put the
@@ -165,19 +165,7 @@ function MenuCheckboxItem({
       ) : (
         <>
           <MenuPrimitive.CheckboxItemIndicator className="col-start-1">
-            <svg
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
-            </svg>
+            <IconCheckmark1 />
           </MenuPrimitive.CheckboxItemIndicator>
           <span className="col-start-2">{children}</span>
         </>
@@ -207,27 +195,26 @@ function MenuRadioItem({
       data-slot="menu-radio-item"
       {...props}
     >
-      <MenuPrimitive.RadioItemIndicator
-        className={cn(
-          "col-start-1",
-          variant === "workbench" && "[&_svg:not([class*='size-'])]:size-3",
-        )}
-      >
-        <svg
-          fill="none"
-          height="24"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-          width="24"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
-        </svg>
-      </MenuPrimitive.RadioItemIndicator>
-      <span className="col-start-2">{children}</span>
+      {variant === "workbench" ? (
+        <>
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+            <MenuPrimitive.RadioItemIndicator
+              className="inline-flex h-4 w-4 items-center justify-center text-multi-fg-primary data-unchecked:opacity-0 [&_svg:not([class*='size-'])]:size-3"
+              keepMounted
+            >
+              <IconCheckmark1 />
+            </MenuPrimitive.RadioItemIndicator>
+          </span>
+          <span className="min-w-0 truncate text-multi-fg-primary">{children}</span>
+        </>
+      ) : (
+        <>
+          <MenuPrimitive.RadioItemIndicator className="col-start-1">
+            <IconCheckmark1 />
+          </MenuPrimitive.RadioItemIndicator>
+          <span className="col-start-2">{children}</span>
+        </>
+      )}
     </MenuPrimitive.RadioItem>
   );
 }

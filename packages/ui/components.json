@@ -10,7 +10,7 @@
     "cssVariables": true,
     "prefix": ""
   },
-  "iconLibrary": "lucide",
+  "iconLibrary": "central-icons",
   "rtl": false,
   "menuColor": "default",
   "menuAccent": "bold",

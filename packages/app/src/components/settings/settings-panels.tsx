@@ -2,10 +2,9 @@ import {
   IconArchive,
   IconArchiveJunk,
   IconArrowRotateClockwise,
-  IconCrossMediumDefault,
   IconLoader,
+  IconPlusLarge,
 } from "central-icons";
-import { type VariantProps } from "class-variance-authority";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   type ReactNode,
@@ -17,15 +16,16 @@ import {
 } from "react";
 import {
   type DesktopUpdateChannel,
+  defaultInstanceIdForDriver,
+  type ProviderInstanceConfig,
+  type ProviderInstanceId,
   type ScopedThreadRef,
   ProviderDriverKind,
-  ProviderInstanceId,
   type ServerProvider,
-  type ServerProviderModel,
 } from "@multi/contracts";
 import { scopeThreadRef } from "@multi/client-runtime";
 import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
-import { normalizeModelSlug } from "@multi/shared/model";
+import { createModelSelection } from "@multi/shared/model";
 import { Equal } from "effect";
 import { APP_VERSION } from "../../branding";
 import {
@@ -60,7 +60,6 @@ import {
   useDesktopUpdateState,
 } from "../../lib/desktop-update-react-query";
 import {
-  MAX_CUSTOM_MODEL_LENGTH,
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
 } from "../../model-selection";
@@ -77,8 +76,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@m
 import { Input } from "@multi/ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
 import { Switch } from "@multi/ui/switch";
-import { List } from "@multi/ui/list";
-import { StatusDot, statusDotVariants } from "@multi/ui/status-dot";
 import { Text } from "@multi/ui/text";
 import { toastManager } from "~/app/toast";
 import {
@@ -99,6 +96,10 @@ import {
   useServerObservability,
   useServerProviders,
 } from "../../rpc/server-state";
+import { AddProviderInstanceDialog } from "./add-provider-instance-dialog";
+import { ProviderInstanceCard } from "./provider-instance-card";
+import { DRIVER_OPTIONS, getDriverOption } from "./provider-driver-meta";
+import { buildProviderInstanceUpdatePatch } from "./settings-panels.logic";
 
 const THEME_OPTIONS = [
   {
@@ -121,27 +122,15 @@ const TIMESTAMP_FORMAT_LABELS = {
   "24-hour": "24-hour",
 } as const;
 
-type InstallProviderSettings = {
+type ProviderSettingsDescriptor = {
   provider: typeof ProviderDriverKind.Type;
-  title: string;
-  binaryPlaceholder: string;
-  binaryDescription: ReactNode;
-  homePathKey?: "codexHomePath";
-  homePlaceholder?: string;
-  homeDescription?: ReactNode;
 };
 
-const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
-  {
-    provider: ProviderDriverKind.make("codex"),
-    title: "Codex",
-    binaryPlaceholder: "Codex binary path",
-    binaryDescription: "Path to the Codex binary",
-    homePathKey: "codexHomePath",
-    homePlaceholder: "CODEX_HOME",
-    homeDescription: "Optional custom Codex home and config directory.",
-  },
-] as const;
+const PROVIDER_SETTINGS: readonly ProviderSettingsDescriptor[] = DRIVER_OPTIONS.map(
+  (definition) => ({
+    provider: definition.value,
+  }),
+);
 
 const DEFAULT_APPEARANCE_SNAPSHOT = {
   palette: "multi",
@@ -166,81 +155,6 @@ function useAppearanceSettingsSnapshot() {
     readAppearanceSnapshotForSettings,
     () => DEFAULT_APPEARANCE_SNAPSHOT,
   );
-}
-
-function codexProviderHealthDotState(
-  status: string | undefined,
-): NonNullable<VariantProps<typeof statusDotVariants>["state"]> {
-  switch (status) {
-    case "disabled":
-      return "inactive";
-    case "error":
-      return "critical";
-    case "ready":
-      return "success";
-    case "warning":
-      return "needsAttention";
-    default:
-      return "inactive";
-  }
-}
-
-function getProviderSummary(provider: ServerProvider | undefined) {
-  if (!provider) {
-    return {
-      headline: "Checking provider status",
-      detail: "Waiting for the server to report installation and credential details.",
-    };
-  }
-  if (!provider.enabled) {
-    return {
-      headline: "Disabled",
-      detail:
-        provider.message ?? "This provider is installed but disabled for new sessions in Multi.",
-    };
-  }
-  if (!provider.installed) {
-    return {
-      headline: "Not found",
-      detail: provider.message ?? "CLI not detected on PATH.",
-    };
-  }
-  if (provider.auth.status === "authenticated") {
-    const authLabel = provider.auth.label ?? provider.auth.type;
-    return {
-      headline: authLabel ? `Authenticated · ${authLabel}` : "Authenticated",
-      detail: provider.message ?? null,
-    };
-  }
-  if (provider.auth.status === "unauthenticated") {
-    return {
-      headline: "Not authenticated",
-      detail: provider.message ?? null,
-    };
-  }
-  if (provider.status === "warning") {
-    return {
-      headline: "Needs attention",
-      detail:
-        provider.message ?? "The provider is installed, but the server could not fully verify it.",
-    };
-  }
-  if (provider.status === "error") {
-    return {
-      headline: "Unavailable",
-      detail: provider.message ?? "The provider failed its startup checks.",
-    };
-  }
-  return {
-    headline: "Available",
-    detail:
-      provider.message ?? "Installed and ready, but provider credentials could not be verified.",
-  };
-}
-
-function getProviderVersionLabel(version: string | null | undefined) {
-  if (!version) return null;
-  return version.startsWith("v") ? version : `v${version}`;
 }
 
 function AboutVersionTitle() {
@@ -1156,50 +1070,53 @@ export function AgentsSettingsPanel() {
   );
 }
 
+function withoutProviderInstanceKey<V>(
+  record: Readonly<Record<ProviderInstanceId, V>> | undefined,
+  key: ProviderInstanceId,
+): Record<ProviderInstanceId, V> {
+  const next = { ...record } as Record<ProviderInstanceId, V>;
+  delete next[key];
+  return next;
+}
+
+function withoutProviderInstanceFavorites(
+  favorites: ReadonlyArray<{ readonly provider: ProviderInstanceId; readonly model: string }>,
+  instanceId: ProviderInstanceId,
+) {
+  return favorites.filter((favorite) => favorite.provider !== instanceId);
+}
+
+const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
+
 export function ModelsSettingsPanel() {
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
   const serverProviders = useServerProviders();
-  const [customModelInput, setCustomModelInput] = useState("");
-  const [customModelError, setCustomModelError] = useState<string | null>(null);
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
+  const [isAddInstanceDialogOpen, setIsAddInstanceDialogOpen] = useState(false);
+  const [openInstanceDetails, setOpenInstanceDetails] = useState<Record<string, boolean>>({});
   const refreshingRef = useRef(false);
-  const codexDriver = ProviderDriverKind.make("codex");
-  const codexInstanceId = ProviderInstanceId.make("codex");
-  const instanceEntries = sortProviderInstanceEntries(
+
+  const visibleProviderSettings = PROVIDER_SETTINGS;
+
+  const textGenerationModelSelection = resolveAppModelSelectionState(settings, serverProviders);
+  const textGenInstanceId = textGenerationModelSelection.instanceId;
+  const textGenModel = textGenerationModelSelection.model;
+  const textGenModelOptions = textGenerationModelSelection.options;
+  const gitModelInstanceEntries = sortProviderInstanceEntries(
     deriveProviderInstanceEntries(serverProviders),
   );
-  const codexProvider = serverProviders.find((provider) => provider.instanceId === codexInstanceId);
-  const providerConfig = settings.providers.codex;
-  const summary = getProviderSummary(codexProvider);
-  const versionLabel = getProviderVersionLabel(codexProvider?.version);
-  const statusKey = codexProvider?.status ?? (providerConfig.enabled ? "warning" : "disabled");
-  const models: ReadonlyArray<ServerProviderModel> =
-    codexProvider?.models ??
-    providerConfig.customModels.map((slug) => ({
-      slug,
-      name: slug,
-      isCustom: true,
-      capabilities: null,
-    }));
-  const textGenerationModelSelection = resolveAppModelSelectionState(
-    {
-      ...settings,
-      textGenerationModelSelection:
-        settings.textGenerationModelSelection?.instanceId === codexInstanceId
-          ? settings.textGenerationModelSelection
-          : DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
-    },
-    serverProviders,
+  const textGenInstanceEntry = gitModelInstanceEntries.find(
+    (entry) => entry.instanceId === textGenInstanceId,
   );
-  const textGenModelOptions = textGenerationModelSelection.options;
-  const modelOptionsByInstance = getCustomModelOptionsByInstance(
+  const textGenProvider: ProviderDriverKind =
+    textGenInstanceEntry?.driverKind ?? DEFAULT_DRIVER_KIND;
+  const gitModelOptionsByInstance = getCustomModelOptionsByInstance(
     settings,
     serverProviders,
-    codexInstanceId,
-    textGenerationModelSelection.model,
+    textGenInstanceId,
+    textGenModel,
   );
-  const isCodexDirty = !Equal.equals(providerConfig, DEFAULT_UNIFIED_SETTINGS.providers.codex);
   const isGitWritingModelDirty = !Equal.equals(
     settings.textGenerationModelSelection ?? null,
     DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
@@ -1211,77 +1128,186 @@ export function ModelsSettingsPanel() {
     setIsRefreshingProviders(true);
     void ensureLocalApi()
       .server.refreshProviders()
+      .catch((error: unknown) => {
+        console.warn("Failed to refresh providers", error);
+      })
       .finally(() => {
         refreshingRef.current = false;
         setIsRefreshingProviders(false);
       });
   }, []);
 
-  const addCustomModel = useCallback(() => {
-    const normalized = normalizeModelSlug(customModelInput, codexDriver);
-    if (!normalized) {
-      setCustomModelError("Enter a model slug.");
-      return;
-    }
-    if (models.some((option) => option.slug === normalized)) {
-      setCustomModelError("That model is already saved.");
-      return;
-    }
-    if (normalized.length > MAX_CUSTOM_MODEL_LENGTH) {
-      setCustomModelError(`Model slugs must be ${MAX_CUSTOM_MODEL_LENGTH} characters or less.`);
-      return;
-    }
+  interface InstanceRow {
+    readonly instanceId: ProviderInstanceId;
+    readonly instance: ProviderInstanceConfig;
+    readonly driver: ProviderDriverKind;
+    readonly isDefault: boolean;
+    readonly isDirty?: boolean;
+  }
 
+  const instancesByDriver = new Map<
+    ProviderDriverKind,
+    Array<[ProviderInstanceId, ProviderInstanceConfig]>
+  >();
+  for (const [rawId, instance] of Object.entries(settings.providerInstances ?? {})) {
+    const driver = instance.driver;
+    const list = instancesByDriver.get(driver) ?? [];
+    list.push([rawId as ProviderInstanceId, instance]);
+    instancesByDriver.set(driver, list);
+  }
+
+  const defaultSlotIdsBySource = new Set<string>(
+    visibleProviderSettings.map((providerSettings) =>
+      String(defaultInstanceIdForDriver(providerSettings.provider)),
+    ),
+  );
+
+  const rows: InstanceRow[] = [];
+  const visibleDriverKinds = new Set<ProviderDriverKind>(
+    visibleProviderSettings.map((providerSettings) => providerSettings.provider),
+  );
+
+  for (const providerSettings of visibleProviderSettings) {
+    type LegacyProviderSettings = (typeof settings.providers)[keyof typeof settings.providers];
+    const legacyProviders = settings.providers as Record<string, LegacyProviderSettings>;
+    const defaultLegacyProviders = DEFAULT_UNIFIED_SETTINGS.providers as Record<
+      string,
+      LegacyProviderSettings
+    >;
+    const driver = providerSettings.provider;
+    const defaultInstanceId = defaultInstanceIdForDriver(driver);
+    const explicitInstance = settings.providerInstances?.[defaultInstanceId];
+    const legacyConfig = legacyProviders[providerSettings.provider]!;
+    const defaultLegacyConfig = defaultLegacyProviders[providerSettings.provider]!;
+    const effectiveInstance: ProviderInstanceConfig =
+      explicitInstance ??
+      ({
+        driver,
+        enabled: legacyConfig.enabled,
+        config: legacyConfig,
+      } satisfies ProviderInstanceConfig);
+    const isDirty =
+      explicitInstance !== undefined || !Equal.equals(legacyConfig, defaultLegacyConfig);
+    rows.push({
+      instanceId: defaultInstanceId,
+      instance: effectiveInstance,
+      driver,
+      isDefault: true,
+      isDirty,
+    });
+    for (const [id, instance] of instancesByDriver.get(providerSettings.provider) ?? []) {
+      if (id === defaultInstanceId) continue;
+      rows.push({ instanceId: id, instance, driver: instance.driver, isDefault: false });
+    }
+  }
+
+  for (const [driver, list] of instancesByDriver) {
+    if (visibleDriverKinds.has(driver)) continue;
+    for (const [id, instance] of list) {
+      const isDefaultSlot = defaultSlotIdsBySource.has(String(id));
+      rows.push({
+        instanceId: id,
+        instance,
+        driver: instance.driver,
+        isDefault: isDefaultSlot,
+      });
+    }
+  }
+
+  const updateProviderInstance = (
+    row: InstanceRow,
+    next: ProviderInstanceConfig,
+    options?: {
+      readonly textGenerationModelSelection?: Parameters<
+        typeof buildProviderInstanceUpdatePatch
+      >[0]["textGenerationModelSelection"];
+    },
+  ) => {
+    updateSettings(
+      buildProviderInstanceUpdatePatch({
+        settings,
+        instanceId: row.instanceId,
+        instance: next,
+        driver: row.driver,
+        isDefault: row.isDefault,
+        textGenerationModelSelection: options?.textGenerationModelSelection,
+      }),
+    );
+  };
+
+  const deleteProviderInstance = (id: ProviderInstanceId) => {
+    updateSettings({
+      providerInstances: withoutProviderInstanceKey(settings.providerInstances, id),
+      providerModelPreferences: withoutProviderInstanceKey(settings.providerModelPreferences, id),
+      favorites: withoutProviderInstanceFavorites(settings.favorites ?? [], id),
+    });
+  };
+
+  const updateProviderModelPreferences = (
+    instanceId: ProviderInstanceId,
+    next: {
+      readonly hiddenModels: ReadonlyArray<string>;
+      readonly modelOrder: ReadonlyArray<string>;
+    },
+  ) => {
+    const hiddenModels = [...new Set(next.hiddenModels.filter((slug) => slug.trim().length > 0))];
+    const modelOrder = [...new Set(next.modelOrder.filter((slug) => slug.trim().length > 0))];
+    const rest = withoutProviderInstanceKey(settings.providerModelPreferences, instanceId);
+    updateSettings({
+      providerModelPreferences:
+        hiddenModels.length === 0 && modelOrder.length === 0
+          ? rest
+          : {
+              ...rest,
+              [instanceId]: {
+                hiddenModels,
+                modelOrder,
+              },
+            },
+    });
+  };
+
+  const updateProviderFavoriteModels = (
+    instanceId: ProviderInstanceId,
+    nextFavoriteModels: ReadonlyArray<string>,
+  ) => {
+    const favoriteModels = [
+      ...new Set(nextFavoriteModels.map((slug) => slug.trim()).filter((slug) => slug.length > 0)),
+    ];
+    updateSettings({
+      favorites: [
+        ...withoutProviderInstanceFavorites(settings.favorites ?? [], instanceId),
+        ...favoriteModels.map((model) => ({ provider: instanceId, model })),
+      ],
+    });
+  };
+
+  const resetDefaultInstance = (driverKind: ProviderDriverKind) => {
+    type LegacyProviderSettings = (typeof settings.providers)[keyof typeof settings.providers];
+    const defaultLegacyProviders = DEFAULT_UNIFIED_SETTINGS.providers as Record<
+      string,
+      LegacyProviderSettings | undefined
+    >;
+    const defaultInstanceId = defaultInstanceIdForDriver(driverKind);
+    const defaultLegacyProvider = defaultLegacyProviders[driverKind];
+    if (defaultLegacyProvider === undefined) return;
     updateSettings({
       providers: {
         ...settings.providers,
-        codex: {
-          ...settings.providers.codex,
-          customModels: [...settings.providers.codex.customModels, normalized],
-        },
-      },
+        [driverKind]: defaultLegacyProvider,
+      } as typeof settings.providers,
+      providerInstances: withoutProviderInstanceKey(settings.providerInstances, defaultInstanceId),
+      providerModelPreferences: withoutProviderInstanceKey(
+        settings.providerModelPreferences,
+        defaultInstanceId,
+      ),
+      favorites: withoutProviderInstanceFavorites(settings.favorites ?? [], defaultInstanceId),
     });
-    setCustomModelInput("");
-    setCustomModelError(null);
-  }, [customModelInput, models, settings.providers, updateSettings]);
-
-  const removeCustomModel = useCallback(
-    (slug: string) => {
-      updateSettings({
-        providers: {
-          ...settings.providers,
-          codex: {
-            ...settings.providers.codex,
-            customModels: settings.providers.codex.customModels.filter((model) => model !== slug),
-          },
-        },
-      });
-      setCustomModelError(null);
-    },
-    [settings.providers, updateSettings],
-  );
+  };
 
   return (
     <SettingsPageContainer>
-      <SettingsSection
-        title="Models"
-        headerAction={
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-7 shrink-0 text-multi-fg-tertiary hover:text-multi-fg-primary"
-            disabled={isRefreshingProviders}
-            onClick={() => void refreshProviders()}
-            aria-label="Refresh provider status"
-          >
-            {isRefreshingProviders ? (
-              <IconLoader className="size-3.5 animate-spin" />
-            ) : (
-              <IconArrowRotateClockwise className="size-3.5" />
-            )}
-          </Button>
-        }
-      >
+      <SettingsSection title="Models">
         <SettingsRow
           title="Text generation model"
           description="Configure the model used for generated commit messages, PR titles, and similar Git text."
@@ -1301,19 +1327,19 @@ export function ModelsSettingsPanel() {
           control={
             <div className="flex flex-wrap items-center justify-end gap-1.5">
               <ProviderModelPicker
-                activeInstanceId={codexInstanceId}
-                model={textGenerationModelSelection.model}
-                lockedProvider={codexDriver}
-                instanceEntries={instanceEntries}
-                modelOptionsByInstance={modelOptionsByInstance}
+                activeInstanceId={textGenInstanceId}
+                model={textGenModel}
+                lockedProvider={null}
+                instanceEntries={gitModelInstanceEntries}
+                modelOptionsByInstance={gitModelOptionsByInstance}
                 triggerVariant="outline"
-                triggerClassName="h-6 min-w-0 max-w-none shrink-0 text-[12px] text-foreground/90 hover:text-foreground"
-                onInstanceModelChange={(_, model: string) => {
+                triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
+                onInstanceModelChange={(instanceId, model) => {
                   updateSettings({
                     textGenerationModelSelection: resolveAppModelSelectionState(
                       {
                         ...settings,
-                        textGenerationModelSelection: { instanceId: codexInstanceId, model },
+                        textGenerationModelSelection: createModelSelection(instanceId, model),
                       },
                       serverProviders,
                     ),
@@ -1321,25 +1347,25 @@ export function ModelsSettingsPanel() {
                 }}
               />
               <TraitsPicker
-                provider={codexDriver}
-                models={codexProvider?.models ?? []}
-                model={textGenerationModelSelection.model}
+                provider={textGenProvider}
+                models={textGenInstanceEntry?.models ?? []}
+                model={textGenModel}
                 prompt=""
                 onPromptChange={() => {}}
                 modelOptions={textGenModelOptions}
                 allowPromptInjectedEffort={false}
                 triggerVariant="outline"
-                triggerClassName="h-6 min-w-0 max-w-none shrink-0 text-[12px] text-foreground/90 hover:text-foreground"
+                triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
                 onModelOptionsChange={(nextOptions) => {
                   updateSettings({
                     textGenerationModelSelection: resolveAppModelSelectionState(
                       {
                         ...settings,
-                        textGenerationModelSelection: {
-                          instanceId: codexInstanceId,
-                          model: textGenerationModelSelection.model,
-                          ...(nextOptions ? { options: nextOptions } : {}),
-                        },
+                        textGenerationModelSelection: createModelSelection(
+                          textGenInstanceId,
+                          textGenModel,
+                          nextOptions,
+                        ),
                       },
                       serverProviders,
                     ),
@@ -1349,150 +1375,128 @@ export function ModelsSettingsPanel() {
             </div>
           }
         />
-        <SettingsRow
-          title="Codex app-server"
-          description={
-            summary.detail ? `${summary.headline} - ${summary.detail}` : summary.headline
-          }
-          status={
-            versionLabel ? (
-              <Text render={<code />} size="xs" tone="secondary" className="font-multi-mono">
-                {versionLabel}
-              </Text>
-            ) : null
-          }
-          resetAction={
-            isCodexDirty ? (
-              <SettingResetButton
-                label="Codex provider settings"
-                onClick={() =>
-                  updateSettings({
-                    providers: {
-                      ...settings.providers,
-                      codex: DEFAULT_UNIFIED_SETTINGS.providers.codex,
-                    },
-                  })
-                }
-              />
-            ) : null
-          }
-          control={
-            <div className="flex items-center gap-2">
-              <span className="inline-flex shrink-0" aria-hidden>
-                <StatusDot state={codexProviderHealthDotState(statusKey)} />
-              </span>
-              <Switch
-                checked={providerConfig.enabled}
-                aria-label="Enable Codex"
-                onCheckedChange={(checked) =>
-                  updateSettings({
-                    providers: {
-                      ...settings.providers,
-                      codex: { ...settings.providers.codex, enabled: Boolean(checked) },
-                    },
-                  })
-                }
-              />
-            </div>
-          }
-        />
-        <SettingsRow
-          title="Codex binary path"
-          description="Path to the Codex binary."
-          control={
-            <Input
-              size="sm"
-              className="w-full sm:w-44"
-              value={settings.providers.codex.binaryPath}
-              placeholder="codex"
-              spellCheck={false}
-              onChange={(event) =>
-                updateSettings({
-                  providers: {
-                    ...settings.providers,
-                    codex: { ...settings.providers.codex, binaryPath: event.target.value },
-                  },
-                })
-              }
-            />
-          }
-        />
-        <SettingsRow
-          title="CODEX_HOME path"
-          description="Optional custom Codex home and config directory."
-          control={
-            <Input
-              size="sm"
-              className="w-full sm:w-44"
-              value={settings.providers.codex.homePath}
-              placeholder="CODEX_HOME"
-              spellCheck={false}
-              onChange={(event) =>
-                updateSettings({
-                  providers: {
-                    ...settings.providers,
-                    codex: { ...settings.providers.codex, homePath: event.target.value },
-                  },
-                })
-              }
-            />
-          }
-        />
-        <SettingsRow
-          title="Available models"
-          description={`${models.length} Codex models available.`}
-        >
-          <List gap="none" className="mt-2 max-h-48 overflow-y-auto pb-1">
-            {models.map((model) => (
-              <li
-                key={`codex:${model.slug}`}
-                className="flex min-h-7 items-center gap-2 border-t border-(color:--multi-stroke-quaternary) first:border-t-0"
-              >
-                <Text size="sm" tone="primary" truncate className="min-w-0 flex-1">
-                  {model.name}
-                </Text>
-                {model.isCustom ? (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-7 shrink-0 text-multi-fg-tertiary hover:text-multi-fg-primary"
-                    aria-label={`Remove ${model.slug}`}
-                    onClick={() => removeCustomModel(model.slug)}
-                  >
-                    <IconCrossMediumDefault className="size-3.5" />
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </List>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <Input
-              size="sm"
-              value={customModelInput}
-              onChange={(event) => {
-                setCustomModelInput(event.target.value);
-                setCustomModelError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                event.preventDefault();
-                addCustomModel();
-              }}
-              placeholder="gpt-6.7-codex-ultra-preview"
-              spellCheck={false}
-            />
-            <Button size="sm" variant="outline" className="shrink-0" onClick={addCustomModel}>
-              Add
-            </Button>
-          </div>
-          {customModelError ? (
-            <Text render={<p />} size="xs" className="mt-2 text-destructive">
-              {customModelError}
-            </Text>
-          ) : null}
-        </SettingsRow>
       </SettingsSection>
+
+      <SettingsSection
+        title="Providers"
+        headerAction={
+          <div className="flex items-center gap-1.5">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => setIsAddInstanceDialogOpen(true)}
+                    aria-label="Add provider instance"
+                  >
+                    <IconPlusLarge className="size-3" />
+                  </Button>
+                }
+              />
+              <TooltipPopup side="top">Add provider instance</TooltipPopup>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground"
+                    disabled={isRefreshingProviders}
+                    onClick={() => void refreshProviders()}
+                    aria-label="Refresh provider status"
+                  >
+                    {isRefreshingProviders ? (
+                      <IconLoader className="size-3 animate-spin" />
+                    ) : (
+                      <IconArrowRotateClockwise className="size-3" />
+                    )}
+                  </Button>
+                }
+              />
+              <TooltipPopup side="top">Refresh provider status</TooltipPopup>
+            </Tooltip>
+          </div>
+        }
+      >
+        {rows.map((row) => {
+          const driverOption = getDriverOption(row.driver);
+          const liveProvider = serverProviders.find(
+            (candidate) => candidate.instanceId === row.instanceId,
+          );
+          const modelPreferences = settings.providerModelPreferences?.[row.instanceId] ?? {
+            hiddenModels: [],
+            modelOrder: [],
+          };
+          const favoriteModels = (settings.favorites ?? [])
+            .filter((favorite) => favorite.provider === row.instanceId)
+            .map((favorite) => favorite.model);
+          const resetLabel = driverOption?.label ?? String(row.driver);
+          const headerAction =
+            row.isDefault && row.isDirty ? (
+              <SettingResetButton
+                label={`${resetLabel} provider settings`}
+                onClick={() => resetDefaultInstance(row.driver)}
+              />
+            ) : null;
+          return (
+            <ProviderInstanceCard
+              key={row.instanceId}
+              instanceId={row.instanceId}
+              instance={row.instance}
+              driverOption={driverOption}
+              liveProvider={liveProvider}
+              isExpanded={openInstanceDetails[row.instanceId] ?? false}
+              onExpandedChange={(open) =>
+                setOpenInstanceDetails((existing) => ({
+                  ...existing,
+                  [row.instanceId]: open,
+                }))
+              }
+              onUpdate={(next) => {
+                const wasEnabled = row.instance.enabled ?? true;
+                const isDisabling = next.enabled === false && wasEnabled;
+                const shouldClearTextGen = isDisabling && textGenInstanceId === row.instanceId;
+                if (shouldClearTextGen) {
+                  updateProviderInstance(row, next, {
+                    textGenerationModelSelection:
+                      DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
+                  });
+                } else {
+                  updateProviderInstance(row, next);
+                }
+              }}
+              onDelete={row.isDefault ? undefined : () => deleteProviderInstance(row.instanceId)}
+              headerAction={headerAction}
+              hiddenModels={modelPreferences.hiddenModels}
+              favoriteModels={favoriteModels}
+              modelOrder={modelPreferences.modelOrder}
+              onHiddenModelsChange={(hiddenModels) =>
+                updateProviderModelPreferences(row.instanceId, {
+                  ...modelPreferences,
+                  hiddenModels,
+                })
+              }
+              onFavoriteModelsChange={(favoriteModels) =>
+                updateProviderFavoriteModels(row.instanceId, favoriteModels)
+              }
+              onModelOrderChange={(modelOrder) =>
+                updateProviderModelPreferences(row.instanceId, {
+                  ...modelPreferences,
+                  modelOrder,
+                })
+              }
+            />
+          );
+        })}
+      </SettingsSection>
+
+      <AddProviderInstanceDialog
+        open={isAddInstanceDialogOpen}
+        onOpenChange={setIsAddInstanceDialogOpen}
+      />
     </SettingsPageContainer>
   );
 }

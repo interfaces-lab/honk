@@ -18,6 +18,12 @@
 - Never hardcode key checks with, eg. `matchesKey(keyData, "ctrl+x")`. All keybindings must be configurable. Add default to matching object (`DEFAULT_EDITOR_KEYBINDINGS` or `DEFAULT_APP_KEYBINDINGS`)
 - **Tailwind `className`**: No decorative kebab-case labels or constants (including `AGENT_*_CLASSNAME`) used only as utility buckets unless the string is a required CSS or test selector; put Tailwind on the element or use `cva` (`class-variance-authority`) for variants and conditionals.
 
+t## Icons
+
+UI icons use **Central Icons** (`central-icons`, resolved to `@central-icons-react/round-outlined-radius-2-stroke-1.5`). Do not add Lucide or import from `lucide-react`.
+
+**Browse names and categories:** open `node_modules/central-icons/icons-index.json` after install (lists every export under `categories` plus metadata). **Types:** `node_modules/central-icons/index.d.ts` exports all `Icon*` components. **Usage:** `import { IconName } from "central-icons"` (or `import type { CentralIconBaseProps } from "central-icons"`). Product site: [iconists.co/central](https://iconists.co/central).
+
 ## Commands
 
 - After code changes (not documentation changes): `bun run typecheck` (get full output, no tail). Fix all errors, warnings, and infos before committing.

@@ -108,7 +108,7 @@ import { resolveAppModelSelectionForInstance } from "../model-selection";
 import { isTerminalFocused } from "../lib/terminal-focus";
 import { deriveLogicalProjectKey } from "../logical-project";
 import { useSavedEnvironmentRuntimeStore } from "../environments/runtime";
-import { buildDraftThreadRouteParams } from "../thread-routes";
+import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../thread-routes";
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
@@ -212,17 +212,17 @@ function HeroComposerActionCard(props: HeroComposerActionCardProps) {
       type="button"
       onClick={props.onClick}
       style={heroActionStyle(props.tone)}
-      className="group flex h-24 min-h-24 flex-col justify-between rounded-[8px] border border-[color-mix(in_srgb,var(--hero-action-accent)_20%,var(--multi-stroke-tertiary))] bg-[color-mix(in_srgb,var(--hero-action-accent)_6%,var(--multi-color-bubble))] p-3 text-left shadow-sm transition-colors hover:border-[color-mix(in_srgb,var(--hero-action-accent)_42%,var(--multi-stroke-secondary))] hover:bg-[color-mix(in_srgb,var(--hero-action-accent)_10%,var(--multi-color-bubble))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="group flex h-20 min-h-20 flex-col justify-between rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated p-3 text-left text-multi-fg-primary shadow-none transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-[color-mix(in_srgb,var(--hero-action-accent)_28%,transparent)] bg-[color-mix(in_srgb,var(--hero-action-accent)_13%,transparent)] text-(color:--hero-action-accent)">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-multi-stroke-tertiary bg-multi-bg-tertiary text-(color:--hero-action-accent)">
           <Icon className="size-3.5" />
         </span>
-        <IconChevronRight className="size-4 shrink-0 text-muted-foreground/42 transition-transform group-hover:translate-x-0.5 group-hover:text-(color:--hero-action-accent)" />
+        <IconChevronRight className="size-4 shrink-0 text-multi-fg-tertiary transition-colors group-hover:text-multi-fg-primary" />
       </span>
       <span className="grid gap-0.5">
-        <span className="truncate text-body/[1.25] font-medium text-foreground">{props.title}</span>
-        <span className="truncate text-detail/[1.3] text-muted-foreground">{props.detail}</span>
+        <span className="truncate text-body/[1.25] font-medium">{props.title}</span>
+        <span className="truncate text-detail/[1.3] text-multi-fg-secondary">{props.detail}</span>
       </span>
     </button>
   );
@@ -2650,6 +2650,13 @@ export default function ChatView(props: ChatViewProps) {
         createdAt: messageCreatedAt,
       });
       turnStartSucceeded = true;
+      if (isLocalDraftThread) {
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(scopeThreadRef(environmentId, threadIdForSend)),
+          replace: true,
+        });
+      }
     })().catch(async (err: unknown) => {
       if (
         !turnStartSucceeded &&

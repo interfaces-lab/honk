@@ -30,7 +30,7 @@ function CommandDialogBackdrop({ className, ...props }: CommandDialogPrimitive.B
   return (
     <CommandDialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-50 bg-background/60 transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-[90] bg-background/60 transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="command-dialog-backdrop"
@@ -43,7 +43,7 @@ function CommandDialogViewport({ className, ...props }: CommandDialogPrimitive.V
   return (
     <CommandDialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-50 flex flex-col items-center px-4 py-[max(--spacing(4),4vh)] sm:py-[10vh]",
+        "fixed inset-0 z-[91] flex flex-col items-center justify-center px-4 py-4",
         className,
       )}
       data-slot="command-dialog-viewport"
@@ -59,7 +59,7 @@ function CommandDialogPopup({ className, children, ...props }: CommandDialogPrim
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup
           className={cn(
-            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-105 min-h-0 w-full min-w-0 max-w-xl scale-[calc(1-0.1*var(--nested-dialogs))] flex-col overflow-hidden rounded-multi-card border border-multi-border/70 bg-multi-bubble-opaque font-multi text-popover-foreground opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-multi-popup outline-none backdrop-blur-xl transition-[scale,opacity,translate] duration-150 ease-out will-change-transform data-nested:data-ending-style:translate-y-8 data-nested:data-starting-style:translate-y-8 data-nested-dialog-open:origin-top data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-xl scale-[calc(1-0.1*var(--nested-dialogs))] flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-multi-fg-primary opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-multi-popup outline-none backdrop-blur-xl transition-[scale,opacity,translate] duration-150 ease-out will-change-transform data-nested:data-ending-style:translate-y-8 data-nested:data-starting-style:translate-y-8 data-nested-dialog-open:origin-top data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
             className,
           )}
           data-slot="command-dialog-popup"
@@ -196,7 +196,7 @@ function CommandFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-2 border-t border-multi-border/45 px-4 py-2 font-multi text-[11px]/[14px] text-muted-foreground",
+        "flex min-h-9 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-3 py-2 font-multi text-[11px]/[14px] text-multi-fg-secondary",
         className,
       )}
       data-slot="command-footer"

@@ -918,10 +918,6 @@ body {
   border-top: 1px solid var(--multi-stroke-quaternary);
 }
 
-.agent-window-account-row:hover {
-  background: var(--multi-bg-quaternary);
-}
-
 .agent-window-account-avatar {
   background: var(--multi-bg-tertiary);
   color: var(--multi-fg-secondary);
