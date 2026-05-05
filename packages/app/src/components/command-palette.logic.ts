@@ -127,7 +127,8 @@ export function buildThreadActionItems(input: {
     input.limit === undefined ? sortedThreads : sortedThreads.slice(0, input.limit);
 
   return visibleThreads.map((thread) => {
-    const projectTitle = input.projectTitleById.get(thread.projectId);
+    const projectTitle =
+      thread.projectId === null ? "General" : input.projectTitleById.get(thread.projectId);
     const descriptionParts: string[] = [];
 
     if (projectTitle) {

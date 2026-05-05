@@ -12,8 +12,20 @@ import {
   type RuntimeMode,
   type TurnId,
 } from "@multi/contracts";
+import * as OS from "node:os";
 import { isTemporaryWorktreeBranch, WORKTREE_BRANCH_PREFIX } from "@multi/shared/git";
-import { Cache, Cause, Duration, Effect, Equal, Layer, Option, Schema, Stream } from "effect";
+import {
+  Cache,
+  Cause,
+  Duration,
+  Effect,
+  Equal,
+  FileSystem,
+  Layer,
+  Option,
+  Schema,
+  Stream,
+} from "effect";
 import { makeDrainableWorker } from "@multi/shared/DrainableWorker";
 
 import { GitCore } from "../git/GitCore.service.ts";
@@ -155,6 +167,7 @@ const make = Effect.gen(function* () {
   const textGeneration = yield* TextGeneration;
   const serverSettingsService = yield* ServerSettingsService;
   const serverConfig = yield* ServerConfig;
+  const fileSystem = yield* FileSystem.FileSystem;
   const handledTurnStartKeys = yield* Cache.make<string, true>({
     capacity: HANDLED_TURN_START_KEY_MAX,
     timeToLive: HANDLED_TURN_START_KEY_TTL,
@@ -169,6 +182,13 @@ const make = Effect.gen(function* () {
     );
 
   const threadModelSelections = new Map<string, ModelSelection>();
+  const getProjectlessChatCwd = Effect.fn("ProviderCommandReactor.getProjectlessChatCwd")(
+    function* () {
+      const cwd = OS.homedir();
+      yield* fileSystem.makeDirectory(cwd, { recursive: true });
+      return cwd;
+    },
+  );
 
   const appendProviderFailureActivity = (input: {
     readonly threadId: ThreadId;
@@ -256,19 +276,22 @@ const make = Effect.gen(function* () {
       });
     }
     const desiredModelSelection = requestedModelSelection ?? thread.modelSelection;
-    const effectiveCwd = yield* coerceThreadProjectCwd({
-      operation: "ProviderCommandReactor.ensureSessionForThread",
-      thread: {
-        id: thread.id,
-        projectId: thread.projectId,
-        worktreePath: thread.worktreePath,
-      },
-      projects: readModel.projects,
-      fallbackCwds: [
-        { label: "server.cwd", cwd: serverConfig.cwd },
-        { label: "process.cwd", cwd: process.cwd() },
-      ],
-    });
+    const effectiveCwd =
+      thread.projectId === null
+        ? yield* getProjectlessChatCwd()
+        : yield* coerceThreadProjectCwd({
+            operation: "ProviderCommandReactor.ensureSessionForThread",
+            thread: {
+              id: thread.id,
+              projectId: thread.projectId,
+              worktreePath: thread.worktreePath,
+            },
+            projects: readModel.projects,
+            fallbackCwds: [
+              { label: "server.cwd", cwd: serverConfig.cwd },
+              { label: "process.cwd", cwd: process.cwd() },
+            ],
+          });
 
     const resolveActiveSession = (threadId: ThreadId) =>
       providerService
@@ -563,19 +586,21 @@ const make = Effect.gen(function* () {
     if (isFirstUserMessageTurn) {
       const readModel = yield* orchestrationEngine.getReadModel();
       const generationCwd =
-        (yield* coerceThreadProjectCwd({
-          operation: "ProviderCommandReactor.generateThreadTitle",
-          thread: {
-            id: thread.id,
-            projectId: thread.projectId,
-            worktreePath: thread.worktreePath,
-          },
-          projects: readModel.projects,
-          fallbackCwds: [
-            { label: "server.cwd", cwd: serverConfig.cwd },
-            { label: "process.cwd", cwd: process.cwd() },
-          ],
-        })) ?? process.cwd();
+        thread.projectId === null
+          ? yield* getProjectlessChatCwd()
+          : ((yield* coerceThreadProjectCwd({
+              operation: "ProviderCommandReactor.generateThreadTitle",
+              thread: {
+                id: thread.id,
+                projectId: thread.projectId,
+                worktreePath: thread.worktreePath,
+              },
+              projects: readModel.projects,
+              fallbackCwds: [
+                { label: "server.cwd", cwd: serverConfig.cwd },
+                { label: "process.cwd", cwd: process.cwd() },
+              ],
+            })) ?? process.cwd());
       const generationInput = {
         messageText: message.text,
         ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),

@@ -6,14 +6,7 @@ import {
   IconPlusLarge,
 } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  type ReactNode,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   type DesktopUpdateChannel,
   defaultInstanceIdForDriver,
@@ -21,7 +14,6 @@ import {
   type ProviderInstanceId,
   type ScopedThreadRef,
   ProviderDriverKind,
-  type ServerProvider,
 } from "@multi/contracts";
 import { scopeThreadRef } from "@multi/client-runtime";
 import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";

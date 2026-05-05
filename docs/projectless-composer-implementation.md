@@ -99,7 +99,7 @@ In `packages/contracts/src/orchestration.ts`:
 Expected shape:
 
 ```ts
-projectId: Schema.NullOr(ProjectId)
+projectId: Schema.NullOr(ProjectId);
 ```
 
 ### 3. Update Persistence Schema

@@ -106,8 +106,7 @@ describe("ProviderCommandReactor", () => {
     const baseDir = input?.baseDir ?? fs.mkdtempSync(path.join(os.tmpdir(), "multi-reactor-"));
     createdBaseDirs.add(baseDir);
     const projectProjectRoot =
-      input?.projectProjectRoot ??
-      fs.mkdtempSync(path.join(os.tmpdir(), "multi-reactor-project-"));
+      input?.projectProjectRoot ?? fs.mkdtempSync(path.join(os.tmpdir(), "multi-reactor-project-"));
     if (input?.projectProjectRoot === undefined) {
       createdBaseDirs.add(projectProjectRoot);
     }

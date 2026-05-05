@@ -546,12 +546,12 @@ const readErrorMessageFromResponse = (response: HttpClientResponse.HttpClientRes
     }),
   );
 
-const normalizeProjectRootForProjectCommand = Effect.fn(
-  "normalizeProjectRootForProjectCommand",
-)(function* (projectRoot: string) {
-  const projectPaths = yield* ProjectPaths;
-  return yield* projectPaths.normalizeProjectRoot(projectRoot);
-});
+const normalizeProjectRootForProjectCommand = Effect.fn("normalizeProjectRootForProjectCommand")(
+  function* (projectRoot: string) {
+    const projectPaths = yield* ProjectPaths;
+    return yield* projectPaths.normalizeProjectRoot(projectRoot);
+  },
+);
 
 const resolveProjectTitle = Effect.fn("resolveProjectTitle")(function* (
   projectRoot: string,
@@ -1124,9 +1124,7 @@ const projectRelocateCommand = Command.make("relocate", {
           snapshot,
           identifier: flags.project,
         });
-        const nextProjectRoot = yield* normalizeProjectRootForProjectCommand(
-          flags.projectRoot,
-        );
+        const nextProjectRoot = yield* normalizeProjectRootForProjectCommand(flags.projectRoot);
         if (nextProjectRoot === project.projectRoot) {
           return `Project ${project.id} is already located at ${nextProjectRoot}.`;
         }

@@ -1427,15 +1427,14 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       .map(([filePath, stat]) => {
         insertions += stat.insertions;
         deletions += stat.deletions;
-        return {
+        const file = {
           path: filePath,
-          ...(previousPathByPath.get(filePath)
-            ? { prevPath: previousPathByPath.get(filePath)! }
-            : {}),
           insertions: stat.insertions,
           deletions: stat.deletions,
           status: statusByPath.get(filePath) ?? "modified",
         };
+        const prevPath = previousPathByPath.get(filePath);
+        return prevPath ? Object.assign(file, { prevPath }) : file;
       })
       .toSorted((a, b) => a.path.localeCompare(b.path));
 

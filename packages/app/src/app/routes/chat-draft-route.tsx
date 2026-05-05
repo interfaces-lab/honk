@@ -51,7 +51,7 @@ export function DraftChatThreadRouteView() {
       params: buildThreadRouteParams(canonicalThreadRef),
       replace: true,
     });
-  }, [canonicalThreadRef, navigate]);
+  }, [canonicalThreadRef, draftId, navigate]);
 
   useEffect(() => {
     if (draftSession || canonicalThreadRef) {
@@ -59,7 +59,7 @@ export function DraftChatThreadRouteView() {
     }
     traceBrowserEvent("route.draft.missing.navigate-home", { draftId }, "warn");
     void navigate({ to: "/", replace: true });
-  }, [canonicalThreadRef, draftSession, navigate]);
+  }, [canonicalThreadRef, draftId, draftSession, navigate]);
 
   if (canonicalThreadRef) {
     return (

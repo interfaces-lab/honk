@@ -40,10 +40,7 @@ export interface ProjectFileSystemShape {
    */
   readonly readFile: (
     input: ProjectReadFileInput,
-  ) => Effect.Effect<
-    ProjectReadFileResult,
-    ProjectFileSystemError | ProjectPathOutsideRootError
-  >;
+  ) => Effect.Effect<ProjectReadFileResult, ProjectFileSystemError | ProjectPathOutsideRootError>;
 
   /**
    * Write a file relative to the project root.
@@ -53,16 +50,12 @@ export interface ProjectFileSystemShape {
    */
   readonly writeFile: (
     input: ProjectWriteFileInput,
-  ) => Effect.Effect<
-    ProjectWriteFileResult,
-    ProjectFileSystemError | ProjectPathOutsideRootError
-  >;
+  ) => Effect.Effect<ProjectWriteFileResult, ProjectFileSystemError | ProjectPathOutsideRootError>;
 }
 
 /**
  * ProjectFileSystem - Service tag for project file operations.
  */
-export class ProjectFileSystem extends Context.Service<
-  ProjectFileSystem,
-  ProjectFileSystemShape
->()("multi/project/ProjectFileSystem.service") {}
+export class ProjectFileSystem extends Context.Service<ProjectFileSystem, ProjectFileSystemShape>()(
+  "multi/project/ProjectFileSystem.service",
+) {}

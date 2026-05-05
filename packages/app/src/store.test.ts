@@ -101,7 +101,7 @@ function makeState(thread: Thread): AppState {
     scripts: [],
   };
   const threadIdsByProjectId: EnvironmentState["threadIdsByProjectId"] = {
-    [thread.projectId]: [thread.id],
+    [projectId]: [thread.id],
   };
   const environmentState = {
     projectIds: [projectId],
@@ -110,6 +110,7 @@ function makeState(thread: Thread): AppState {
     },
     threadIds: [thread.id],
     threadIdsByProjectId,
+    projectlessThreadIds: [],
     threadShellById: {
       [thread.id]: {
         id: thread.id,
@@ -185,6 +186,7 @@ function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): A
     projectById: {},
     threadIds: [],
     threadIdsByProjectId: {},
+    projectlessThreadIds: [],
     threadShellById: {},
     threadSessionById: {},
     threadTurnStateById: {},
@@ -654,7 +656,7 @@ describe("incremental orchestration updates", () => {
         ...baseEnvironmentState.sidebarThreadSummaryById,
       },
       threadIdsByProjectId: {
-        [thread1.projectId]: [thread1.id, thread2.id],
+        [ProjectId.make("project-1")]: [thread1.id, thread2.id],
       },
     });
 

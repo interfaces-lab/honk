@@ -154,9 +154,7 @@ describe("resolveCurrentProjectLabel", () => {
   });
 
   it("describes the active checkout as a worktree when one is attached", () => {
-    expect(resolveCurrentProjectLabel("/repo/.multi/worktrees/feature-a")).toBe(
-      "Current worktree",
-    );
+    expect(resolveCurrentProjectLabel("/repo/.multi/worktrees/feature-a")).toBe("Current worktree");
   });
 });
 

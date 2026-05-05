@@ -200,9 +200,10 @@ function GitPanelInner(props: {
     setDiscardAllPending(false);
   }, [git, files]);
 
+  const { onAgentAction } = props;
   const handleCommitAndPush = useCallback(() => {
-    props.onAgentAction(GIT_AGENT_PRIMARY_ACTION);
-  }, [props.onAgentAction]);
+    onAgentAction(GIT_AGENT_PRIMARY_ACTION);
+  }, [onAgentAction]);
 
   const handleSelectFile = useCallback((file: DiffRow) => {
     setSelectedId(file.id);

@@ -511,19 +511,11 @@ it.live("runs multi-turn file edits and persists checkpoint diffs", () =>
       assert.equal(fullDiff.includes("README.md"), true);
 
       assert.equal(
-        gitShowFileAtRef(
-          harness.projectDir,
-          checkpointRefForThreadTurn(THREAD_ID, 1),
-          "README.md",
-        ),
+        gitShowFileAtRef(harness.projectDir, checkpointRefForThreadTurn(THREAD_ID, 1), "README.md"),
         "v2\n",
       );
       assert.equal(
-        gitShowFileAtRef(
-          harness.projectDir,
-          checkpointRefForThreadTurn(THREAD_ID, 2),
-          "README.md",
-        ),
+        gitShowFileAtRef(harness.projectDir, checkpointRefForThreadTurn(THREAD_ID, 2), "README.md"),
         "v3\n",
       );
     }),

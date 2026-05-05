@@ -110,7 +110,6 @@ export interface ThreadProjectionShape {
 /**
  * ThreadProjection - Service tag for thread projection queries.
  */
-export class ThreadProjection extends Context.Service<
-  ThreadProjection,
-  ThreadProjectionShape
->()("multi/orchestration/ThreadProjection.service") {}
+export class ThreadProjection extends Context.Service<ThreadProjection, ThreadProjectionShape>()(
+  "multi/orchestration/ThreadProjection.service",
+) {}

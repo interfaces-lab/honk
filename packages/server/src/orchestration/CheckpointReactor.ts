@@ -21,12 +21,13 @@ type ReactorInput =
       readonly event: OrchestrationEvent;
     };
 
+const errorDetail = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
   const checkpointLifecycle = yield* CheckpointLifecycle;
-  const errorDetail = (error: unknown): string =>
-    error instanceof Error ? error.message : String(error);
 
   const processDomainEvent = Effect.fn("processDomainEvent")(function* (event: OrchestrationEvent) {
     if (event.type === "thread.turn-start-requested" || event.type === "thread.message-sent") {
@@ -90,7 +91,9 @@ const make = Effect.gen(function* () {
     }
   });
 
-  const processInput = (input: ReactorInput): Effect.Effect<void, CheckpointLifecycleError, never> =>
+  const processInput = (
+    input: ReactorInput,
+  ): Effect.Effect<void, CheckpointLifecycleError, never> =>
     input.source === "domain" ? processDomainEvent(input.event) : processRuntimeEvent(input.event);
 
   const processInputSafely = (input: ReactorInput) =>

@@ -28,6 +28,7 @@ export interface EnvironmentState {
   // ---------------------------------------------------------------------------
   threadIds: ThreadId[];
   threadIdsByProjectId: Record<ProjectId, ThreadId[]>;
+  projectlessThreadIds: ThreadId[];
 
   // ---------------------------------------------------------------------------
   // Thread shell / session / turn — written by BOTH shell stream and detail
@@ -68,18 +69,17 @@ export interface EnvironmentState {
   bootstrapComplete: boolean;
 }
 
-
 export interface AppState {
   activeEnvironmentId: EnvironmentId | null;
   environmentStateById: Record<string, EnvironmentState>;
 }
-
 
 export const initialEnvironmentState: EnvironmentState = {
   projectIds: [],
   projectById: {},
   threadIds: [],
   threadIdsByProjectId: {},
+  projectlessThreadIds: [],
   threadShellById: {},
   threadSessionById: {},
   threadTurnStateById: {},
@@ -95,11 +95,9 @@ export const initialEnvironmentState: EnvironmentState = {
   bootstrapComplete: false,
 };
 
-
 export const initialState: AppState = {
   activeEnvironmentId: null,
   environmentStateById: {},
 };
-
 
 export const EMPTY_THREAD_IDS: ThreadId[] = [];

@@ -265,6 +265,7 @@ function setStoreThreads(threads: ReadonlyArray<ReturnType<typeof makeThread>>) 
     threadIdsByProjectId: {
       [projectId]: threads.map((thread) => thread.id),
     },
+    projectlessThreadIds: [],
     threadShellById: Object.fromEntries(
       threads.map((thread) => [
         thread.id,

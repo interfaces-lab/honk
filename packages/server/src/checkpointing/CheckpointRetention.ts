@@ -19,11 +19,13 @@ export function getCheckpointRetainedTurnIds(
   );
 }
 
-export function retainMessagesAfterCheckpointRevert<Message extends {
-  readonly role: string;
-  readonly turnId: string | null;
-  readonly createdAt: string;
-}>(input: {
+export function retainMessagesAfterCheckpointRevert<
+  Message extends {
+    readonly role: string;
+    readonly turnId: string | null;
+    readonly createdAt: string;
+  },
+>(input: {
   readonly messages: ReadonlyArray<Message>;
   readonly retainedTurnIds: ReadonlySet<string>;
   readonly turnCount: number;
@@ -66,8 +68,7 @@ export function retainMessagesAfterCheckpointRevert<Message extends {
   }
 
   const retainedAssistantCount = input.messages.filter(
-    (message) =>
-      message.role === "assistant" && retainedMessageIds.has(input.messageId(message)),
+    (message) => message.role === "assistant" && retainedMessageIds.has(input.messageId(message)),
   ).length;
   const missingAssistantCount = Math.max(0, input.turnCount - retainedAssistantCount);
   if (missingAssistantCount > 0) {
@@ -92,9 +93,8 @@ export function retainMessagesAfterCheckpointRevert<Message extends {
   return input.messages.filter((message) => retainedMessageIds.has(input.messageId(message)));
 }
 
-export function retainTurnFactsAfterCheckpointRevert<Fact extends { readonly turnId: string | null }>(
-  facts: ReadonlyArray<Fact>,
-  retainedTurnIds: ReadonlySet<string>,
-): ReadonlyArray<Fact> {
+export function retainTurnFactsAfterCheckpointRevert<
+  Fact extends { readonly turnId: string | null },
+>(facts: ReadonlyArray<Fact>, retainedTurnIds: ReadonlySet<string>): ReadonlyArray<Fact> {
   return facts.filter((fact) => fact.turnId === null || retainedTurnIds.has(fact.turnId));
 }

@@ -513,7 +513,10 @@ export function projectEvent(
             thread.proposedPlans,
             retainedTurnIds,
           ).slice(-200);
-          const activities = retainTurnFactsAfterCheckpointRevert(thread.activities, retainedTurnIds);
+          const activities = retainTurnFactsAfterCheckpointRevert(
+            thread.activities,
+            retainedTurnIds,
+          );
 
           const latestCheckpoint = checkpoints.at(-1) ?? null;
           const latestTurn =

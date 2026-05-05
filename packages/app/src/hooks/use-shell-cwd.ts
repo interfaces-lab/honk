@@ -27,7 +27,7 @@ function subscribe(listener: () => void) {
 
 export function resolveShellCwd(input: {
   projects: ReadonlyArray<{ id: string; cwd: string }>;
-  threads: ReadonlyArray<{ id: string; projectId: string; worktreePath: string | null }>;
+  threads: ReadonlyArray<{ id: string; projectId: string | null; worktreePath: string | null }>;
   routeThreadId: string | null;
   stored: string | null;
 }) {
@@ -35,6 +35,9 @@ export function resolveShellCwd(input: {
   const thread = input.routeThreadId
     ? (input.threads.find((item) => item.id === input.routeThreadId) ?? null)
     : null;
+  if (thread?.projectId === null) {
+    return "~";
+  }
   const storedProject = input.projects.find((item) => item.cwd === input.stored) ?? null;
   const threadProject = thread ? (byId.get(thread.projectId) ?? null) : null;
   const project = threadProject ?? storedProject ?? input.projects[0] ?? null;

@@ -25,7 +25,7 @@ User and server preferences that configure Multi itself rather than a specific c
 _Avoid_: Project config when describing global preferences
 
 **Thread**:
-A conversation with a coding agent inside one Project.
+A conversation with a coding agent. It may be general chat with no Project context, or codebase-scoped inside one Project.
 _Avoid_: Chat, session, conversation as a named concept
 
 **Agent**:
@@ -108,8 +108,8 @@ _Avoid_: Approval
 
 - An **Environment** hosts zero or more **Projects**
 - A **Project** belongs to one configured code root through its **Project Root**
-- A **Project** owns zero or more **Threads**
-- A **Thread** belongs to exactly one **Project**
+- A **Project** owns zero or more codebase-scoped **Threads**
+- A **Thread** may be projectless for general chat, or belong to exactly one **Project** for codebase-scoped work
 - A **Thread** can contain zero or more **Proposed Plans**
 - A **Thread** contains user-visible messages and internal **Turns**
 - A **Turn** can have an internal **Checkpoint**

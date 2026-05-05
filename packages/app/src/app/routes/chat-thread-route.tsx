@@ -256,7 +256,15 @@ export function ChatThreadRouteView() {
       );
       void navigate({ to: "/", replace: true });
     }
-  }, [bootstrapComplete, environmentHasAnyThreads, navigate, routeThreadExists, threadRef]);
+  }, [
+    bootstrapComplete,
+    draftThreadExists,
+    environmentHasAnyThreads,
+    navigate,
+    routeThreadExists,
+    threadExists,
+    threadRef,
+  ]);
 
   useEffect(() => {
     if (!threadRef || !serverThreadStarted || !draftThread?.promotedTo) {

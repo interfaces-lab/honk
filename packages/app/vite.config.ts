@@ -10,6 +10,7 @@ const host = process.env.HOST?.trim() || "localhost";
 const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
 const configuredWsUrl = process.env.VITE_WS_URL?.trim();
 const sourcemapEnv = process.env.MULTI_WEB_SOURCEMAP?.trim().toLowerCase();
+// oxlint-disable-next-line eslint/no-control-regex
 const rolldownRuntimeModulePattern = new RegExp("^\\u0000rolldown/runtime\\.js$");
 
 const buildSourcemap =

@@ -18,7 +18,7 @@ export interface SidebarDraftSummary {
   firstAttachmentName: string | null;
   cwd: string;
   environmentId: EnvironmentId;
-  projectId: ProjectId;
+  projectId: ProjectId | null;
   projectCwd: string;
   updatedAt: string;
 }
@@ -26,7 +26,7 @@ export interface SidebarDraftSummary {
 export interface SidebarThreadSummary {
   id: ThreadId;
   environmentId: EnvironmentId;
-  projectId: ProjectId;
+  projectId: ProjectId | null;
   projectCwd: string;
   harness?: HarnessKind;
   path: string;
@@ -50,7 +50,7 @@ interface SidebarChatItemBase {
   ago: string;
   cwd: string;
   environmentId: EnvironmentId;
-  projectId: ProjectId;
+  projectId: ProjectId | null;
   projectCwd: string;
 }
 
@@ -190,6 +190,9 @@ export function buildProjectChatSections(
 
   const threadRefsByProjectKey = new Map<string, ScopedThreadRef[]>();
   for (const sum of threadSummaries) {
+    if (sum.projectId === null) {
+      continue;
+    }
     const key = scopedProjectKey(scopeProjectRef(sum.environmentId, sum.projectId));
     const refs = threadRefsByProjectKey.get(key) ?? [];
     refs.push(scopeThreadRef(sum.environmentId, sum.id));
@@ -203,6 +206,9 @@ export function buildProjectChatSections(
     const rootProjectsByKey = new Map(
       group.sorted.flatMap((item) => {
         if (item.projectCwd !== group.dir) {
+          return [];
+        }
+        if (item.projectId === null) {
           return [];
         }
         return [
@@ -226,21 +232,22 @@ export function buildProjectChatSections(
       ? (threadRefsByProjectKey.get(rootProjectKey) ?? [])
       : sectionThreadRefs;
 
-    return {
+    const section = {
       id: `ws:${group.dir}`,
       label: group.label,
       cwd: group.dir,
       active: group.dir === cwd,
-      ...(rootProject
-        ? {
-            environmentId: rootProject.environmentId,
-            projectId: rootProject.projectId,
-            projectCwd: rootProject.projectCwd,
-          }
-        : {}),
       sectionThreadRefs,
       threadRefs,
       items: group.sorted,
     } satisfies SidebarSectionModel;
+    if (!rootProject) {
+      return section;
+    }
+    return Object.assign(section, {
+      environmentId: rootProject.environmentId,
+      projectId: rootProject.projectId,
+      projectCwd: rootProject.projectCwd,
+    } satisfies Pick<SidebarSectionModel, "environmentId" | "projectId" | "projectCwd">);
   });
 }

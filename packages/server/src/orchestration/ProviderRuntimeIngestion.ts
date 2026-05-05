@@ -1,3 +1,5 @@
+import * as OS from "node:os";
+
 import {
   ApprovalRequestId,
   type AssistantDeliveryMode,
@@ -28,7 +30,10 @@ import {
 } from "./ProviderRuntimeIngestion.service.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { ServerConfig } from "../config.ts";
-import { coerceThreadProjectCwd } from "../project/AccessibleProjectCwd.ts";
+import {
+  coerceAccessibleProjectCwd,
+  coerceThreadProjectCwd,
+} from "../project/AccessibleProjectCwd.ts";
 
 const providerTurnKey = (threadId: ThreadId, turnId: TurnId) => `${threadId}:${turnId}`;
 const providerCommandId = (event: ProviderRuntimeEvent, tag: string): CommandId =>
@@ -544,19 +549,26 @@ const make = Effect.fn("make")(function* () {
     if (!thread) {
       return false;
     }
-    const projectCwd = yield* coerceThreadProjectCwd({
-      operation: "ProviderRuntimeIngestion.isGitRepoForThread",
-      thread: {
-        id: thread.id,
-        projectId: thread.projectId,
-        worktreePath: thread.worktreePath,
-      },
-      projects: readModel.projects,
-      fallbackCwds: [
-        { label: "server.cwd", cwd: serverConfig.cwd },
-        { label: "process.cwd", cwd: process.cwd() },
-      ],
-    });
+    const projectCwd =
+      thread.projectId === null
+        ? yield* coerceAccessibleProjectCwd({
+            operation: "ProviderRuntimeIngestion.isGitRepoForThread",
+            candidates: [{ label: "projectless.home", cwd: OS.homedir() }],
+            threadId: thread.id,
+          })
+        : yield* coerceThreadProjectCwd({
+            operation: "ProviderRuntimeIngestion.isGitRepoForThread",
+            thread: {
+              id: thread.id,
+              projectId: thread.projectId,
+              worktreePath: thread.worktreePath,
+            },
+            projects: readModel.projects,
+            fallbackCwds: [
+              { label: "server.cwd", cwd: serverConfig.cwd },
+              { label: "process.cwd", cwd: process.cwd() },
+            ],
+          });
     if (!projectCwd) {
       return false;
     }

@@ -368,10 +368,7 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
     );
 
     yield* Effect.logDebug("startup phase: validating project project roots");
-    yield* runStartupPhase(
-      "projects.validate-project-roots",
-      logInaccessibleProjectProjectRoots,
-    );
+    yield* runStartupPhase("projects.validate-project-roots", logInaccessibleProjectProjectRoots);
 
     const welcomeBase = yield* resolveWelcomeBase;
     const environment = yield* serverEnvironment.getDescriptor;

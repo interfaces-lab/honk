@@ -1,29 +1,16 @@
 import {
-  ChatAttachment,
-  IsoDateTime,
-  MessageId,
-  NonNegativeInt,
-  OrchestrationCheckpointFile,
-  OrchestrationProposedPlanId,
-  OrchestrationReadModel,
-  OrchestrationShellSnapshot,
-  OrchestrationThread,
-  ProjectScript,
-  TurnId,
   type OrchestrationCheckpointSummary,
   type OrchestrationLatestTurn,
   type OrchestrationMessage,
-  type OrchestrationProjectShell,
   type OrchestrationProposedPlan,
   type OrchestrationProject,
+  type OrchestrationProjectShell,
   type OrchestrationSession,
+  type OrchestrationThread,
   type OrchestrationThreadActivity,
   type OrchestrationThreadShell,
-  ModelSelection,
-  ProjectId,
-  ThreadId,
 } from "@multi/contracts";
-import { Effect, Layer, Option, Schema, Struct } from "effect";
+import { Effect, Layer, Option, Schema } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
@@ -33,16 +20,7 @@ import {
   toPersistenceSqlError,
   type ProjectionRepositoryError,
 } from "../persistence/Errors.ts";
-import { ProjectionCheckpoint } from "../persistence/ProjectionCheckpoints.service.ts";
-import { ProjectionProject } from "../persistence/ProjectionProjects.service.ts";
-import { ProjectionState } from "../persistence/ProjectionState.service.ts";
-import { ProjectionThreadActivity } from "../persistence/ProjectionThreadActivities.service.ts";
-import { ProjectionThreadMessage } from "../persistence/ProjectionThreadMessages.service.ts";
-import { ProjectionThreadProposedPlan } from "../persistence/ProjectionThreadProposedPlans.service.ts";
-import { ProjectionThreadSession } from "../persistence/ProjectionThreadSessions.service.ts";
-import { ProjectionThread } from "../persistence/ProjectionThreads.service.ts";
 import { RepositoryIdentityResolver } from "../project/RepositoryIdentityResolver.service.ts";
-import { ORCHESTRATION_PROJECTOR_NAMES } from "./ProjectionPipeline.ts";
 import {
   computeSnapshotSequence,
   mapLatestTurn,
@@ -64,7 +42,6 @@ import {
   ProjectionThreadMessageDbRowSchema,
   ProjectionThreadProposedPlanDbRowSchema,
   ProjectionThreadSessionDbRowSchema,
-  REQUIRED_SNAPSHOT_PROJECTORS,
   ThreadCheckpointContextThreadRowSchema,
   ThreadIdLookupInput,
 } from "./ThreadProjectionRows.ts";
@@ -939,9 +916,7 @@ const makeThreadProjection = Effect.gen(function* () {
 
             return yield* decodeShellSnapshot(snapshot).pipe(
               Effect.mapError(
-                toPersistenceDecodeError(
-                  "ThreadProjection.getShellSnapshot:decodeShellSnapshot",
-                ),
+                toPersistenceDecodeError("ThreadProjection.getShellSnapshot:decodeShellSnapshot"),
               ),
             );
           }),
@@ -970,35 +945,36 @@ const makeThreadProjection = Effect.gen(function* () {
       ),
     );
 
-  const getActiveProjectByProjectRoot: ThreadProjectionShape["getActiveProjectByProjectRoot"] =
-    (projectRoot) =>
-      getActiveProjectRowByProjectRoot({ projectRoot }).pipe(
-        Effect.mapError(
-          toPersistenceSqlOrDecodeError(
-            "ThreadProjection.getActiveProjectByProjectRoot:query",
-            "ThreadProjection.getActiveProjectByProjectRoot:decodeRow",
-          ),
+  const getActiveProjectByProjectRoot: ThreadProjectionShape["getActiveProjectByProjectRoot"] = (
+    projectRoot,
+  ) =>
+    getActiveProjectRowByProjectRoot({ projectRoot }).pipe(
+      Effect.mapError(
+        toPersistenceSqlOrDecodeError(
+          "ThreadProjection.getActiveProjectByProjectRoot:query",
+          "ThreadProjection.getActiveProjectByProjectRoot:decodeRow",
         ),
-        Effect.flatMap((option) =>
-          Option.isNone(option)
-            ? Effect.succeed(Option.none<OrchestrationProject>())
-            : repositoryIdentityResolver.resolve(option.value.projectRoot).pipe(
-                Effect.map((repositoryIdentity) =>
-                  Option.some({
-                    id: option.value.projectId,
-                    title: option.value.title,
-                    projectRoot: option.value.projectRoot,
-                    repositoryIdentity,
-                    defaultModelSelection: option.value.defaultModelSelection,
-                    scripts: option.value.scripts,
-                    createdAt: option.value.createdAt,
-                    updatedAt: option.value.updatedAt,
-                    deletedAt: option.value.deletedAt,
-                  } satisfies OrchestrationProject),
-                ),
+      ),
+      Effect.flatMap((option) =>
+        Option.isNone(option)
+          ? Effect.succeed(Option.none<OrchestrationProject>())
+          : repositoryIdentityResolver.resolve(option.value.projectRoot).pipe(
+              Effect.map((repositoryIdentity) =>
+                Option.some({
+                  id: option.value.projectId,
+                  title: option.value.title,
+                  projectRoot: option.value.projectRoot,
+                  repositoryIdentity,
+                  defaultModelSelection: option.value.defaultModelSelection,
+                  scripts: option.value.scripts,
+                  createdAt: option.value.createdAt,
+                  updatedAt: option.value.updatedAt,
+                  deletedAt: option.value.deletedAt,
+                } satisfies OrchestrationProject),
               ),
-        ),
-      );
+            ),
+      ),
+    );
 
   const getProjectShellById: ThreadProjectionShape["getProjectShellById"] = (projectId) =>
     getActiveProjectRowById({ projectId }).pipe(
@@ -1291,7 +1267,4 @@ const makeThreadProjection = Effect.gen(function* () {
   } satisfies ThreadProjectionShape;
 });
 
-export const ThreadProjectionLive = Layer.effect(
-  ThreadProjection,
-  makeThreadProjection,
-);
+export const ThreadProjectionLive = Layer.effect(ThreadProjection, makeThreadProjection);

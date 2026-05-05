@@ -109,9 +109,7 @@ function toToolCall(workEntry: WorkLogEntry, projectRoot: string | undefined): T
   const command = workEntry.command ?? null;
   const output = resolveOutput(workEntry, toolCase);
   const firstChangedFile = workEntry.changedFiles?.[0] ?? null;
-  const path = firstChangedFile
-    ? formatProjectRelativePath(firstChangedFile, projectRoot)
-    : null;
+  const path = firstChangedFile ? formatProjectRelativePath(firstChangedFile, projectRoot) : null;
 
   return {
     tool: {

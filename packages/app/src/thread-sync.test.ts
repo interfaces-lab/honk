@@ -10,11 +10,7 @@ import {
 } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
-import {
-  applyShellEvent,
-  syncServerShellSnapshot,
-  syncServerThreadDetail,
-} from "./thread-sync";
+import { applyShellEvent, syncServerShellSnapshot, syncServerThreadDetail } from "./thread-sync";
 import { initialState } from "./thread-state";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "./types";
 
@@ -217,8 +213,6 @@ describe("thread sync", () => {
       environmentId,
     );
 
-    expect(state.environmentStateById[environmentId]?.projectById[projectId]?.name).toBe(
-      "Project",
-    );
+    expect(state.environmentStateById[environmentId]?.projectById[projectId]?.name).toBe("Project");
   });
 });

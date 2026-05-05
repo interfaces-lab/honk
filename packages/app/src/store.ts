@@ -11,7 +11,13 @@ import type {
 import { create } from "zustand";
 import type { Project, SidebarThreadSummary, Thread, ThreadShell } from "./types";
 import { getThreadFromEnvironmentState } from "./thread-derivation";
-import { EMPTY_THREAD_IDS, initialEnvironmentState, initialState, type AppState, type EnvironmentState } from "./thread-state";
+import {
+  EMPTY_THREAD_IDS,
+  initialEnvironmentState,
+  initialState,
+  type AppState,
+  type EnvironmentState,
+} from "./thread-state";
 import {
   applyOrchestrationEvent,
   applyOrchestrationEvents,

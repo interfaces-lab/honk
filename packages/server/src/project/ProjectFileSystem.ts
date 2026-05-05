@@ -127,42 +127,42 @@ export const makeProjectFileSystem = Effect.gen(function* () {
     },
   );
 
-  const writeFile: ProjectFileSystemShape["writeFile"] = Effect.fn(
-    "ProjectFileSystem.writeFile",
-  )(function* (input) {
-    const normalizedCwd = yield* normalizeProjectRoot(input.cwd, input.relativePath);
-    const target = yield* projectPaths.resolveRelativePathWithinRoot({
-      projectRoot: normalizedCwd,
-      relativePath: input.relativePath,
-    });
+  const writeFile: ProjectFileSystemShape["writeFile"] = Effect.fn("ProjectFileSystem.writeFile")(
+    function* (input) {
+      const normalizedCwd = yield* normalizeProjectRoot(input.cwd, input.relativePath);
+      const target = yield* projectPaths.resolveRelativePathWithinRoot({
+        projectRoot: normalizedCwd,
+        relativePath: input.relativePath,
+      });
 
-    yield* fileSystem.makeDirectory(path.dirname(target.absolutePath), { recursive: true }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectFileSystemError({
-            cwd: normalizedCwd,
-            relativePath: input.relativePath,
-            operation: "projectFileSystem.makeDirectory",
-            detail: cause.message,
-            cause,
-          }),
-      ),
-    );
-    yield* fileSystem.writeFileString(target.absolutePath, input.contents).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectFileSystemError({
-            cwd: normalizedCwd,
-            relativePath: input.relativePath,
-            operation: "projectFileSystem.writeFile",
-            detail: cause.message,
-            cause,
-          }),
-      ),
-    );
-    yield* projectEntries.invalidate(normalizedCwd);
-    return { relativePath: target.relativePath };
-  });
+      yield* fileSystem.makeDirectory(path.dirname(target.absolutePath), { recursive: true }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectFileSystemError({
+              cwd: normalizedCwd,
+              relativePath: input.relativePath,
+              operation: "projectFileSystem.makeDirectory",
+              detail: cause.message,
+              cause,
+            }),
+        ),
+      );
+      yield* fileSystem.writeFileString(target.absolutePath, input.contents).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectFileSystemError({
+              cwd: normalizedCwd,
+              relativePath: input.relativePath,
+              operation: "projectFileSystem.writeFile",
+              detail: cause.message,
+              cause,
+            }),
+        ),
+      );
+      yield* projectEntries.invalidate(normalizedCwd);
+      return { relativePath: target.relativePath };
+    },
+  );
   return { readFile, writeFile } satisfies ProjectFileSystemShape;
 });
 

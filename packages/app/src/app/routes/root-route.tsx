@@ -33,7 +33,7 @@ import {
   useServerConfigUpdatedSubscription,
   useServerWelcomeSubscription,
 } from "~/rpc/server-state";
-import { selectProjectByRef, useStore } from "~/store";
+import { selectEnvironmentState, selectProjectByRef, useStore } from "~/store";
 import {
   selectBootstrapCompleteForActiveEnvironment,
   selectProjectsForEnvironment,
@@ -255,10 +255,9 @@ function EventRouter() {
   const draftThreadsByThreadKey = useComposerDraftStore((state) => state.draftThreadsByThreadKey);
   const drafts = useMemo(
     () =>
-      Object.entries(draftThreadsByThreadKey).map(([draftId, draft]) => ({
-        draftId: draftId as DraftId,
-        ...draft,
-      })),
+      Object.entries(draftThreadsByThreadKey).map(([draftId, draft]) =>
+        Object.assign({ draftId: draftId as DraftId }, draft),
+      ),
     [draftThreadsByThreadKey],
   );
   const lastIndexRedirectTargetKeyRef = useRef<string | null>(null);
@@ -386,6 +385,32 @@ function EventRouter() {
 
     updatePrimaryEnvironmentDescriptor(serverEnvironment);
     setActiveEnvironmentId(serverEnvironment.environmentId);
+
+    if (
+      selectEnvironmentState(useStore.getState(), serverEnvironment.environmentId).bootstrapComplete
+    ) {
+      return;
+    }
+
+    let disposed = false;
+    void (async () => {
+      traceBrowserEvent("root.server-environment.ensure-bootstrap.start", {
+        environmentId: serverEnvironment.environmentId,
+      });
+      await ensureEnvironmentConnectionBootstrapped(serverEnvironment.environmentId);
+      if (disposed) {
+        return;
+      }
+      traceBrowserEvent("root.server-environment.ensure-bootstrap.done", {
+        environmentId: serverEnvironment.environmentId,
+      });
+    })().catch((error) => {
+      traceBrowserEvent("root.server-environment.ensure-bootstrap.failed", { error }, "error");
+    });
+
+    return () => {
+      disposed = true;
+    };
   }, [serverEnvironment, setActiveEnvironmentId]);
 
   useEffect(() => {

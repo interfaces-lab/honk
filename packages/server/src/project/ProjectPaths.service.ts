@@ -88,10 +88,7 @@ export interface ProjectPathsShape {
   readonly resolveRelativePathWithinRoot: (input: {
     projectRoot: string;
     relativePath: string;
-  }) => Effect.Effect<
-    { absolutePath: string; relativePath: string },
-    ProjectPathOutsideRootError
-  >;
+  }) => Effect.Effect<{ absolutePath: string; relativePath: string }, ProjectPathOutsideRootError>;
 }
 
 /**

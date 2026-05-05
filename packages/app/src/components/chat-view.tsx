@@ -513,9 +513,13 @@ const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerminalDra
   const serverThread = useStore(useMemo(() => createThreadSelectorByRef(threadRef), [threadRef]));
   const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
   const projectRef = serverThread
-    ? scopeProjectRef(serverThread.environmentId, serverThread.projectId)
+    ? serverThread.projectId === null
+      ? null
+      : scopeProjectRef(serverThread.environmentId, serverThread.projectId)
     : draftThread
-      ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
+      ? draftThread.projectId === null
+        ? null
+        : scopeProjectRef(draftThread.environmentId, draftThread.projectId)
       : null;
   const project = useStore(useMemo(() => createProjectSelectorByRef(projectRef), [projectRef]));
   const terminalState = useTerminalStateStore((state) =>
@@ -858,7 +862,9 @@ export default function ChatView(props: ChatViewProps) {
   );
 
   const fallbackDraftProjectRef = draftThread
-    ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
+    ? draftThread.projectId === null
+      ? null
+      : scopeProjectRef(draftThread.environmentId, draftThread.projectId)
     : null;
   const fallbackDraftProject = useStore(
     useMemo(() => createProjectSelectorByRef(fallbackDraftProjectRef), [fallbackDraftProjectRef]),
@@ -931,7 +937,9 @@ export default function ChatView(props: ChatViewProps) {
   }, [activeThreadKey, existingOpenTerminalThreadKeys, terminalState.terminalOpen]);
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
   const activeProjectRef = activeThread
-    ? scopeProjectRef(activeThread.environmentId, activeThread.projectId)
+    ? activeThread.projectId === null
+      ? null
+      : scopeProjectRef(activeThread.environmentId, activeThread.projectId)
     : null;
   const activeProject = useStore(
     useMemo(() => createProjectSelectorByRef(activeProjectRef), [activeProjectRef]),
@@ -2475,18 +2483,17 @@ export default function ChatView(props: ChatViewProps) {
       }
       return;
     }
-    if (!activeProject) return;
     const threadIdForSend = activeThread.id;
     const isFirstMessage = !isServerThread || activeThread.messages.length === 0;
     const baseBranchForWorktree =
-      isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath
+      activeProject && isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath
         ? activeThreadBranch
         : null;
 
     // In worktree mode, require an explicit base branch so we don't silently
     // fall back to local execution when branch selection is missing.
     const shouldCreateWorktree =
-      isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath;
+      activeProject && isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath;
     if (shouldCreateWorktree && !activeThreadBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
       return;
@@ -2597,7 +2604,7 @@ export default function ChatView(props: ChatViewProps) {
       const title = truncate(titleSeed);
       const threadCreateModelSelection: ModelSelection = {
         instanceId: ctxSelectedModelSelection.instanceId,
-        model: ctxSelectedModel || activeProject.defaultModelSelection?.model || DEFAULT_MODEL,
+        model: ctxSelectedModel || activeProject?.defaultModelSelection?.model || DEFAULT_MODEL,
         ...(ctxSelectedModelSelection.options
           ? { options: ctxSelectedModelSelection.options }
           : {}),
@@ -2630,7 +2637,7 @@ export default function ChatView(props: ChatViewProps) {
               ...(isLocalDraftThread
                 ? {
                     createThread: {
-                      projectId: activeProject.id,
+                      projectId: activeProject?.id ?? null,
                       title,
                       modelSelection: threadCreateModelSelection,
                       runtimeMode,
@@ -2644,7 +2651,7 @@ export default function ChatView(props: ChatViewProps) {
               ...(baseBranchForWorktree
                 ? {
                     prepareWorktree: {
-                      projectCwd: activeProject.cwd,
+                      projectCwd: activeProject!.cwd,
                       baseBranch: baseBranchForWorktree,
                       branch: buildTemporaryWorktreeBranchName(),
                     },

@@ -35,7 +35,12 @@ import type {
 import { resolveEnvironmentHttpUrl } from "./environments/runtime";
 import { sanitizeThreadErrorMessage } from "./rpc/transport-error";
 import { getThreadFromEnvironmentState } from "./thread-derivation";
-import { EMPTY_THREAD_IDS, initialEnvironmentState, type AppState, type EnvironmentState } from "./thread-state";
+import {
+  EMPTY_THREAD_IDS,
+  initialEnvironmentState,
+  type AppState,
+  type EnvironmentState,
+} from "./thread-state";
 
 const MAX_THREAD_MESSAGES = 2_000;
 const MAX_THREAD_CHECKPOINTS = 500;
@@ -403,20 +408,6 @@ function buildTurnDiffSlice(thread: Thread): {
   };
 }
 
-function getProjects(state: EnvironmentState): Project[] {
-  return state.projectIds.flatMap((projectId) => {
-    const project = state.projectById[projectId];
-    return project ? [project] : [];
-  });
-}
-
-function getThreads(state: EnvironmentState): Thread[] {
-  return state.threadIds.flatMap((threadId) => {
-    const thread = getThreadFromEnvironmentState(state, threadId);
-    return thread ? [thread] : [];
-  });
-}
-
 /**
  * Ensure a thread is registered in the bookkeeping indices (threadIds,
  * threadIdsByProjectId).  Shared by both the shell stream and detail stream
@@ -426,8 +417,8 @@ function getThreads(state: EnvironmentState): Thread[] {
 function ensureThreadRegistered(
   state: EnvironmentState,
   threadId: ThreadId,
-  nextProjectId: ProjectId,
-  previousProjectId: ProjectId | undefined,
+  nextProjectId: ProjectId | null,
+  previousProjectId: ProjectId | null | undefined,
 ): EnvironmentState {
   let nextState = state;
 
@@ -440,6 +431,7 @@ function ensureThreadRegistered(
 
   if (previousProjectId !== nextProjectId) {
     let threadIdsByProjectId = nextState.threadIdsByProjectId;
+    let projectlessThreadIds = nextState.projectlessThreadIds;
     if (previousProjectId) {
       const previousIds = threadIdsByProjectId[previousProjectId] ?? EMPTY_THREAD_IDS;
       const nextIds = removeId(previousIds, threadId);
@@ -452,19 +444,35 @@ function ensureThreadRegistered(
           [previousProjectId]: nextIds,
         };
       }
+    } else if (previousProjectId === null) {
+      const nextProjectlessThreadIds = removeId(projectlessThreadIds, threadId);
+      if (!arraysEqual(projectlessThreadIds, nextProjectlessThreadIds)) {
+        projectlessThreadIds = nextProjectlessThreadIds;
+      }
     }
-    const projectThreadIds = threadIdsByProjectId[nextProjectId] ?? EMPTY_THREAD_IDS;
-    const nextProjectThreadIds = appendId(projectThreadIds, threadId);
-    if (!arraysEqual(projectThreadIds, nextProjectThreadIds)) {
-      threadIdsByProjectId = {
-        ...threadIdsByProjectId,
-        [nextProjectId]: nextProjectThreadIds,
-      };
+    if (nextProjectId === null) {
+      const nextProjectlessThreadIds = appendId(projectlessThreadIds, threadId);
+      if (!arraysEqual(projectlessThreadIds, nextProjectlessThreadIds)) {
+        projectlessThreadIds = nextProjectlessThreadIds;
+      }
+    } else {
+      const projectThreadIds = threadIdsByProjectId[nextProjectId] ?? EMPTY_THREAD_IDS;
+      const nextProjectThreadIds = appendId(projectThreadIds, threadId);
+      if (!arraysEqual(projectThreadIds, nextProjectThreadIds)) {
+        threadIdsByProjectId = {
+          ...threadIdsByProjectId,
+          [nextProjectId]: nextProjectThreadIds,
+        };
+      }
     }
-    if (threadIdsByProjectId !== nextState.threadIdsByProjectId) {
+    if (
+      threadIdsByProjectId !== nextState.threadIdsByProjectId ||
+      projectlessThreadIds !== nextState.projectlessThreadIds
+    ) {
       nextState = {
         ...nextState,
         threadIdsByProjectId,
+        projectlessThreadIds,
       };
     }
   }
@@ -691,18 +699,27 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
   }
 
   const nextThreadIds = removeId(state.threadIds, threadId);
-  const currentProjectThreadIds = state.threadIdsByProjectId[shell.projectId] ?? EMPTY_THREAD_IDS;
-  const nextProjectThreadIds = removeId(currentProjectThreadIds, threadId);
+  const nextProjectlessThreadIds =
+    shell.projectId === null
+      ? removeId(state.projectlessThreadIds, threadId)
+      : state.projectlessThreadIds;
   const nextThreadIdsByProjectId =
-    nextProjectThreadIds.length === 0
-      ? (() => {
-          const { [shell.projectId]: _removed, ...rest } = state.threadIdsByProjectId;
-          return rest as Record<ProjectId, ThreadId[]>;
-        })()
-      : {
-          ...state.threadIdsByProjectId,
-          [shell.projectId]: nextProjectThreadIds,
-        };
+    shell.projectId === null
+      ? state.threadIdsByProjectId
+      : (() => {
+          const currentProjectThreadIds =
+            state.threadIdsByProjectId[shell.projectId] ?? EMPTY_THREAD_IDS;
+          const nextProjectThreadIds = removeId(currentProjectThreadIds, threadId);
+          return nextProjectThreadIds.length === 0
+            ? (() => {
+                const { [shell.projectId]: _removed, ...rest } = state.threadIdsByProjectId;
+                return rest as Record<ProjectId, ThreadId[]>;
+              })()
+            : {
+                ...state.threadIdsByProjectId,
+                [shell.projectId]: nextProjectThreadIds,
+              };
+        })();
 
   const { [threadId]: _removedShell, ...threadShellById } = state.threadShellById;
   const { [threadId]: _removedSession, ...threadSessionById } = state.threadSessionById;
@@ -724,6 +741,7 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
     ...state,
     threadIds: nextThreadIds,
     threadIdsByProjectId: nextThreadIdsByProjectId,
+    projectlessThreadIds: nextProjectlessThreadIds,
     threadShellById,
     threadSessionById,
     threadTurnStateById,
@@ -910,6 +928,7 @@ export function applyShellSnapshot(
     ...buildProjectState(nextProjects),
     threadIds: [],
     threadIdsByProjectId: {},
+    projectlessThreadIds: [],
     threadShellById: {},
     threadSessionById: {},
     threadTurnStateById: {},
@@ -946,11 +965,7 @@ export function syncServerShellSnapshot(
   return commitEnvironmentState(
     state,
     environmentId,
-    applyShellSnapshot(
-      getStoredEnvironmentState(state, environmentId),
-      snapshot,
-      environmentId,
-    ),
+    applyShellSnapshot(getStoredEnvironmentState(state, environmentId), snapshot, environmentId),
   );
 }
 
@@ -1487,7 +1502,6 @@ export function applyOrchestrationEvents(
   return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
-
 export function setError(state: AppState, threadId: ThreadId, error: string | null): AppState {
   if (state.activeEnvironmentId === null) {
     return state;
@@ -1512,11 +1526,7 @@ export function applyOrchestrationEvent(
   return commitEnvironmentState(
     state,
     environmentId,
-    applyThreadDetailEvent(
-      getStoredEnvironmentState(state, environmentId),
-      event,
-      environmentId,
-    ),
+    applyThreadDetailEvent(getStoredEnvironmentState(state, environmentId), event, environmentId),
   );
 }
 

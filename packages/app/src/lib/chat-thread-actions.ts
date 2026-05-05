@@ -5,7 +5,7 @@ import { resolveSidebarNewThreadSeedContext } from "./thread-sidebar";
 
 interface ThreadContextLike {
   environmentId: EnvironmentId;
-  projectId: ProjectId;
+  projectId: ProjectId | null;
   branch: string | null;
   worktreePath: string | null;
 }
@@ -39,10 +39,10 @@ export interface ChatThreadActionContext {
 export function resolveThreadActionProjectRef(
   context: ChatThreadActionContext,
 ): ScopedProjectRef | null {
-  if (context.activeThread) {
+  if (context.activeThread?.projectId !== null && context.activeThread !== undefined) {
     return scopeProjectRef(context.activeThread.environmentId, context.activeThread.projectId);
   }
-  if (context.activeDraftThread) {
+  if (context.activeDraftThread?.projectId !== null && context.activeDraftThread !== null) {
     return scopeProjectRef(
       context.activeDraftThread.environmentId,
       context.activeDraftThread.projectId,
@@ -76,14 +76,14 @@ export async function startNewThreadInProjectFromContext(
     ...resolveSidebarNewThreadSeedContext({
       projectId: projectRef.projectId,
       defaultEnvMode: context.defaultThreadEnvMode,
-      activeThread: context.activeThread
+      activeThread: context.activeThread?.projectId
         ? {
             projectId: context.activeThread.projectId,
             branch: context.activeThread.branch,
             worktreePath: context.activeThread.worktreePath,
           }
         : null,
-      activeDraftThread: context.activeDraftThread
+      activeDraftThread: context.activeDraftThread?.projectId
         ? {
             projectId: context.activeDraftThread.projectId,
             branch: context.activeDraftThread.branch,

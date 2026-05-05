@@ -136,11 +136,19 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.create": {
-      yield* requireProject({
-        readModel,
-        command,
-        projectId: command.projectId,
-      });
+      if (command.projectId !== null) {
+        yield* requireProject({
+          readModel,
+          command,
+          projectId: command.projectId,
+        });
+      }
+      if (command.projectId === null && command.worktreePath !== null) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: "Projectless threads cannot be created with a worktree path.",
+        });
+      }
       yield* requireThreadAbsent({
         readModel,
         command,
@@ -311,11 +319,66 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.turn.start": {
-      const targetThread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
+      const bootstrapCreateThread = command.bootstrap?.createThread;
+      if (bootstrapCreateThread !== undefined) {
+        if (bootstrapCreateThread.projectId !== null) {
+          yield* requireProject({
+            readModel,
+            command,
+            projectId: bootstrapCreateThread.projectId,
+          });
+        }
+        if (
+          bootstrapCreateThread.projectId === null &&
+          bootstrapCreateThread.worktreePath !== null
+        ) {
+          return yield* new OrchestrationCommandInvariantError({
+            commandType: command.type,
+            detail: "Projectless threads cannot be bootstrapped with a worktree path.",
+          });
+        }
+        if (
+          bootstrapCreateThread.projectId === null &&
+          command.bootstrap?.prepareWorktree !== undefined
+        ) {
+          return yield* new OrchestrationCommandInvariantError({
+            commandType: command.type,
+            detail: "Projectless threads cannot prepare a worktree.",
+          });
+        }
+        yield* requireThreadAbsent({
+          readModel,
+          command,
+          threadId: command.threadId,
+        });
+      }
+      const targetThread =
+        bootstrapCreateThread === undefined
+          ? yield* requireThread({
+              readModel,
+              command,
+              threadId: command.threadId,
+            })
+          : {
+              id: command.threadId,
+              projectId: bootstrapCreateThread.projectId,
+              title: bootstrapCreateThread.title,
+              modelSelection: bootstrapCreateThread.modelSelection,
+              runtimeMode: bootstrapCreateThread.runtimeMode,
+              interactionMode: bootstrapCreateThread.interactionMode,
+              branch: bootstrapCreateThread.branch,
+              worktreePath: bootstrapCreateThread.worktreePath,
+              latestTurn: null,
+              createdAt: bootstrapCreateThread.createdAt,
+              updatedAt: bootstrapCreateThread.createdAt,
+              archivedAt: null,
+              deletedAt: null,
+              messages: [],
+              proposedPlans: [],
+              activities: [],
+              checkpoints: [],
+              session: null,
+            };
       const sourceProposedPlan = command.sourceProposedPlan;
       const sourceThread = sourceProposedPlan
         ? yield* requireThread({
@@ -340,6 +403,30 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           detail: `Proposed plan '${sourceProposedPlan?.planId}' belongs to thread '${sourceThread.id}' in a different project.`,
         });
       }
+      const threadCreatedEvent: Omit<OrchestrationEvent, "sequence"> | null =
+        bootstrapCreateThread === undefined
+          ? null
+          : {
+              ...withEventBase({
+                aggregateKind: "thread",
+                aggregateId: command.threadId,
+                occurredAt: bootstrapCreateThread.createdAt,
+                commandId: command.commandId,
+              }),
+              type: "thread.created",
+              payload: {
+                threadId: command.threadId,
+                projectId: bootstrapCreateThread.projectId,
+                title: bootstrapCreateThread.title,
+                modelSelection: bootstrapCreateThread.modelSelection,
+                runtimeMode: bootstrapCreateThread.runtimeMode,
+                interactionMode: bootstrapCreateThread.interactionMode,
+                branch: bootstrapCreateThread.branch,
+                worktreePath: bootstrapCreateThread.worktreePath,
+                createdAt: bootstrapCreateThread.createdAt,
+                updatedAt: bootstrapCreateThread.createdAt,
+              },
+            };
       const userMessageEvent: Omit<OrchestrationEvent, "sequence"> = {
         ...withEventBase({
           aggregateKind: "thread",
@@ -382,7 +469,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           createdAt: command.createdAt,
         },
       };
-      return [userMessageEvent, turnStartRequestedEvent];
+      return threadCreatedEvent
+        ? [threadCreatedEvent, userMessageEvent, turnStartRequestedEvent]
+        : [userMessageEvent, turnStartRequestedEvent];
     }
 
     case "thread.turn.interrupt": {

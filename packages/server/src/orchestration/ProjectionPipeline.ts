@@ -23,10 +23,7 @@ import {
   ProjectionThreadProposedPlanRepository,
 } from "../persistence/ProjectionThreadProposedPlans.service.ts";
 import { ProjectionThreadSessionRepository } from "../persistence/ProjectionThreadSessions.service.ts";
-import {
-  type ProjectionTurn,
-  ProjectionTurnRepository,
-} from "../persistence/ProjectionTurns.service.ts";
+import { ProjectionTurnRepository } from "../persistence/ProjectionTurns.service.ts";
 import { ProjectionThreadRepository } from "../persistence/ProjectionThreads.service.ts";
 import { ProjectionPendingApprovalRepositoryLive } from "../persistence/ProjectionPendingApprovals.ts";
 import { ProjectionProjectRepositoryLive } from "../persistence/ProjectionProjects.ts";

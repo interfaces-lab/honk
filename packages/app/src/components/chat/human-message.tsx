@@ -25,7 +25,6 @@ interface HumanMessageProps {
 
 export const HumanMessage = memo(function HumanMessage({
   message,
-  revertTurnCount,
   isServerThread,
   onImageExpand,
   onBeginEditUserMessage,

@@ -288,18 +288,16 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             if (event.aggregateKind !== "thread") {
               return Effect.succeed(Option.none());
             }
-            return threadProjection
-              .getThreadShellById(ThreadId.make(event.aggregateId))
-              .pipe(
-                Effect.map((thread) =>
-                  Option.map(thread, (nextThread) => ({
-                    kind: "thread-upserted" as const,
-                    sequence: event.sequence,
-                    thread: nextThread,
-                  })),
-                ),
-                Effect.catch(() => Effect.succeed(Option.none())),
-              );
+            return threadProjection.getThreadShellById(ThreadId.make(event.aggregateId)).pipe(
+              Effect.map((thread) =>
+                Option.map(thread, (nextThread) => ({
+                  kind: "thread-upserted" as const,
+                  sequence: event.sequence,
+                  thread: nextThread,
+                })),
+              ),
+              Effect.catch(() => Effect.succeed(Option.none())),
+            );
         }
       };
 
@@ -686,38 +684,45 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                     event.aggregateId === input.threadId &&
                     isThreadDetailEvent(event),
                 ),
-                Stream.mapEffect((event): Effect.Effect<OrchestrationThreadStreamItem, OrchestrationGetSnapshotError> => {
-                  if (event.type !== "thread.reverted") {
-                    return Effect.succeed({
-                      kind: "event" as const,
-                      event,
-                    });
-                  }
-                  return threadProjection.getThreadDetailById(input.threadId).pipe(
-                    Effect.mapError(
-                      (cause) =>
-                        new OrchestrationGetSnapshotError({
-                          message: `Failed to load thread ${input.threadId}`,
-                          cause,
+                Stream.mapEffect(
+                  (
+                    event,
+                  ): Effect.Effect<
+                    OrchestrationThreadStreamItem,
+                    OrchestrationGetSnapshotError
+                  > => {
+                    if (event.type !== "thread.reverted") {
+                      return Effect.succeed({
+                        kind: "event" as const,
+                        event,
+                      });
+                    }
+                    return threadProjection.getThreadDetailById(input.threadId).pipe(
+                      Effect.mapError(
+                        (cause) =>
+                          new OrchestrationGetSnapshotError({
+                            message: `Failed to load thread ${input.threadId}`,
+                            cause,
+                          }),
+                      ),
+                      Effect.map((thread) =>
+                        Option.match(thread, {
+                          onNone: () => ({
+                            kind: "event" as const,
+                            event,
+                          }),
+                          onSome: (nextThread) => ({
+                            kind: "snapshot" as const,
+                            snapshot: {
+                              snapshotSequence: event.sequence,
+                              thread: nextThread,
+                            },
+                          }),
                         }),
-                    ),
-                    Effect.map((thread) =>
-                      Option.match(thread, {
-                        onNone: () => ({
-                          kind: "event" as const,
-                          event,
-                        }),
-                        onSome: (nextThread) => ({
-                          kind: "snapshot" as const,
-                          snapshot: {
-                            snapshotSequence: event.sequence,
-                            thread: nextThread,
-                          },
-                        }),
-                      }),
-                    ),
-                  );
-                }),
+                      ),
+                    );
+                  },
+                ),
               );
 
               if (Option.isNone(threadDetail)) {

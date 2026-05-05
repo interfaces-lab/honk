@@ -205,66 +205,66 @@ export const makeProjectEntries = Effect.gen(function* () {
       onNone: () => Effect.succeed(relativePaths),
     });
 
-  const buildProjectIndexFromGit = Effect.fn("ProjectEntries.buildProjectIndexFromGit")(
-    function* (cwd: string) {
-      if (Option.isNone(gitOption)) {
-        return null;
-      }
-      if (!(yield* isInsideGitWorkTree(cwd))) {
-        return null;
-      }
+  const buildProjectIndexFromGit = Effect.fn("ProjectEntries.buildProjectIndexFromGit")(function* (
+    cwd: string,
+  ) {
+    if (Option.isNone(gitOption)) {
+      return null;
+    }
+    if (!(yield* isInsideGitWorkTree(cwd))) {
+      return null;
+    }
 
-      const listedFiles = yield* gitOption.value
-        .listProjectFiles(cwd)
-        .pipe(Effect.catch(() => Effect.succeed(null)));
+    const listedFiles = yield* gitOption.value
+      .listProjectFiles(cwd)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
 
-      if (!listedFiles) {
-        return null;
-      }
+    if (!listedFiles) {
+      return null;
+    }
 
-      const listedPaths = [...listedFiles.paths]
-        .map((entry) => toPosixPath(entry))
-        .filter((entry) => entry.length > 0 && !isPathInIgnoredDirectory(entry));
-      const filePaths = yield* filterGitIgnoredPaths(cwd, listedPaths);
+    const listedPaths = [...listedFiles.paths]
+      .map((entry) => toPosixPath(entry))
+      .filter((entry) => entry.length > 0 && !isPathInIgnoredDirectory(entry));
+    const filePaths = yield* filterGitIgnoredPaths(cwd, listedPaths);
 
-      const directorySet = new Set<string>();
-      for (const filePath of filePaths) {
-        for (const directoryPath of directoryAncestorsOf(filePath)) {
-          if (!isPathInIgnoredDirectory(directoryPath)) {
-            directorySet.add(directoryPath);
-          }
+    const directorySet = new Set<string>();
+    for (const filePath of filePaths) {
+      for (const directoryPath of directoryAncestorsOf(filePath)) {
+        if (!isPathInIgnoredDirectory(directoryPath)) {
+          directorySet.add(directoryPath);
         }
       }
+    }
 
-      const directoryEntries = [...directorySet]
-        .toSorted((left, right) => left.localeCompare(right))
-        .map(
-          (directoryPath): ProjectEntry => ({
-            path: directoryPath,
-            kind: "directory",
-            parentPath: parentPathOf(directoryPath),
-          }),
-        )
-        .map(toSearchableProjectEntry);
-      const fileEntries = [...new Set(filePaths)]
-        .toSorted((left, right) => left.localeCompare(right))
-        .map(
-          (filePath): ProjectEntry => ({
-            path: filePath,
-            kind: "file",
-            parentPath: parentPathOf(filePath),
-          }),
-        )
-        .map(toSearchableProjectEntry);
+    const directoryEntries = [...directorySet]
+      .toSorted((left, right) => left.localeCompare(right))
+      .map(
+        (directoryPath): ProjectEntry => ({
+          path: directoryPath,
+          kind: "directory",
+          parentPath: parentPathOf(directoryPath),
+        }),
+      )
+      .map(toSearchableProjectEntry);
+    const fileEntries = [...new Set(filePaths)]
+      .toSorted((left, right) => left.localeCompare(right))
+      .map(
+        (filePath): ProjectEntry => ({
+          path: filePath,
+          kind: "file",
+          parentPath: parentPathOf(filePath),
+        }),
+      )
+      .map(toSearchableProjectEntry);
 
-      const entries = [...directoryEntries, ...fileEntries];
-      return {
-        scannedAt: Date.now(),
-        entries: entries.slice(0, PROJECT_INDEX_MAX_ENTRIES),
-        truncated: listedFiles.truncated || entries.length > PROJECT_INDEX_MAX_ENTRIES,
-      };
-    },
-  );
+    const entries = [...directoryEntries, ...fileEntries];
+    return {
+      scannedAt: Date.now(),
+      entries: entries.slice(0, PROJECT_INDEX_MAX_ENTRIES),
+      truncated: listedFiles.truncated || entries.length > PROJECT_INDEX_MAX_ENTRIES,
+    };
+  });
 
   const readDirectoryEntries = Effect.fn("ProjectEntries.readDirectoryEntries")(function* (
     cwd: string,

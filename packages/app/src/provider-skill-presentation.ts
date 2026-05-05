@@ -34,11 +34,7 @@ export function formatProviderSkillInstallSource(
   if (normalizedScope === "system") {
     return "System";
   }
-  if (
-    normalizedScope === "project" ||
-    normalizedScope === "project" ||
-    normalizedScope === "local"
-  ) {
+  if (normalizedScope === "project" || normalizedScope === "local") {
     return "Project";
   }
   if (normalizedScope === "user" || normalizedScope === "personal") {

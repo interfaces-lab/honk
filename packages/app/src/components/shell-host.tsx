@@ -73,8 +73,17 @@ function toHarness(instanceId: Thread["modelSelection"]["instanceId"]): "codex" 
   return instanceId === "claudeAgent" ? "claudeCode" : "codex";
 }
 
+const PROJECTLESS_CWD = "~";
+
 function sidebarThreadKey(thread: { environmentId: EnvironmentId; id: ThreadId }) {
   return scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
+}
+
+function projectScopedKeyFor(
+  environmentId: EnvironmentId,
+  projectId: Project["id"] | null,
+): string | null {
+  return projectId ? scopedProjectKey(scopeProjectRef(environmentId, projectId)) : null;
 }
 
 function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefined): boolean {
@@ -95,7 +104,7 @@ function toSummary(
   return {
     id: thread.id,
     environmentId: thread.environmentId,
-    projectId: thread.projectId,
+    projectId: project.id,
     projectCwd: project.cwd,
     harness: toHarness(thread.modelSelection.instanceId),
     path: cwd,
@@ -202,7 +211,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const drafts = useMemo<SidebarDraftSummary[]>(() => {
     return Object.entries(draftThreadsByThreadKey)
       .filter(([, draftThread]) => draftThread.promotedTo == null)
-      .flatMap(([draftId, draftThread]) => {
+      .flatMap(([draftId, draftThread]): SidebarDraftSummary[] => {
         const composerDraft = composerDraftsByThreadKey[draftId];
         const hasVisibleDraftContent =
           composerDraft &&
@@ -212,9 +221,27 @@ function ChatShellHost(props: { children?: ReactNode }) {
         if (!hasVisibleDraftContent) {
           return [];
         }
-        const project = projectByScopedKey.get(
-          scopedProjectKey(scopeProjectRef(draftThread.environmentId, draftThread.projectId)),
-        );
+        if (draftThread.projectId === null) {
+          const firstAttachment =
+            composerDraft?.images[0] ?? composerDraft?.persistedAttachments[0];
+          return [
+            {
+              id: draftId,
+              text: composerDraft?.prompt ?? "",
+              attachmentCount:
+                (composerDraft?.images.length ?? 0) +
+                (composerDraft?.persistedAttachments.length ?? 0),
+              firstAttachmentName: firstAttachment?.name ?? null,
+              cwd: PROJECTLESS_CWD,
+              environmentId: draftThread.environmentId,
+              projectId: null,
+              projectCwd: PROJECTLESS_CWD,
+              updatedAt: draftThread.createdAt,
+            } satisfies SidebarDraftSummary,
+          ];
+        }
+        const projectKey = projectScopedKeyFor(draftThread.environmentId, draftThread.projectId);
+        const project = projectKey ? projectByScopedKey.get(projectKey) : undefined;
         if (!project) {
           return [];
         }
@@ -232,7 +259,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
             projectId: draftThread.projectId,
             projectCwd: project.cwd,
             updatedAt: draftThread.createdAt,
-          },
+          } satisfies SidebarDraftSummary,
         ];
       });
   }, [composerDraftsByThreadKey, draftThreadsByThreadKey, projectByScopedKey]);
@@ -242,9 +269,38 @@ function ChatShellHost(props: { children?: ReactNode }) {
       if (thread.archivedAt !== null) {
         return [];
       }
-      const project = projectByScopedKey.get(
-        scopedProjectKey(scopeProjectRef(thread.environmentId, thread.projectId)),
-      );
+      if (thread.projectId === null) {
+        const sidebarThread = sidebarThreadByKey.get(sidebarThreadKey(thread));
+        const firstUserMessage = thread.messages
+          .find((message) => message.role === "user")
+          ?.text?.trim();
+        const orchestrationStatus =
+          thread.session?.orchestrationStatus ??
+          sidebarThread?.session?.orchestrationStatus ??
+          null;
+        return [
+          {
+            id: thread.id,
+            environmentId: thread.environmentId,
+            projectId: null,
+            projectCwd: PROJECTLESS_CWD,
+            harness: toHarness(thread.modelSelection.instanceId),
+            path: PROJECTLESS_CWD,
+            cwd: PROJECTLESS_CWD,
+            name: thread.title,
+            createdAt: thread.createdAt,
+            modifiedAt: thread.updatedAt ?? thread.createdAt,
+            messageCount: thread.messages.length,
+            firstMessage: firstUserMessage || thread.title,
+            allMessagesText: thread.messages.map((message) => message.text).join("\n\n"),
+            isStreaming: orchestrationStatus === "starting" || orchestrationStatus === "running",
+            orchestrationStatus,
+            needsAttention: needsSidebarAttention(sidebarThread),
+          },
+        ];
+      }
+      const projectKey = projectScopedKeyFor(thread.environmentId, thread.projectId);
+      const project = projectKey ? projectByScopedKey.get(projectKey) : undefined;
       if (!project) {
         return [];
       }
@@ -265,13 +321,17 @@ function ChatShellHost(props: { children?: ReactNode }) {
     [routeThreadId, threads],
   );
   const activeDraftCwd = activeDraftThread
-    ? (activeDraftThread.worktreePath ??
-      projectByScopedKey.get(
-        scopedProjectKey(
-          scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId),
-        ),
-      )?.cwd ??
-      null)
+    ? activeDraftThread.projectId === null
+      ? PROJECTLESS_CWD
+      : (activeDraftThread.worktreePath ??
+        (activeDraftThread.projectId
+          ? projectByScopedKey.get(
+              scopedProjectKey(
+                scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId),
+              ),
+            )?.cwd
+          : undefined) ??
+        null)
     : null;
   const defaultProject = defaultProjectRef
     ? (projectByScopedKey.get(scopedProjectKey(defaultProjectRef)) ?? null)
@@ -279,28 +339,42 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const activeCwd =
     activeDraftCwd ??
     (activeThread
-      ? (activeThread.worktreePath ??
-        projectByScopedKey.get(
-          scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId)),
-        )?.cwd ??
-        null)
+      ? activeThread.projectId === null
+        ? PROJECTLESS_CWD
+        : (activeThread.worktreePath ??
+          (activeThread.projectId
+            ? projectByScopedKey.get(
+                scopedProjectKey(
+                  scopeProjectRef(activeThread.environmentId, activeThread.projectId),
+                ),
+              )?.cwd
+            : undefined) ??
+          null)
       : (defaultProject?.cwd ?? firstProjectCwd));
   const activeDraftProjectCwd = activeDraftThread
-    ? (projectByScopedKey.get(
-        scopedProjectKey(
-          scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId),
-        ),
-      )?.cwd ?? null)
+    ? ((activeDraftThread.projectId
+        ? projectByScopedKey.get(
+            scopedProjectKey(
+              scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId),
+            ),
+          )?.cwd
+        : null) ?? null)
     : null;
   const activeThreadProjectCwd = activeThread
-    ? (projectByScopedKey.get(
-        scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId)),
-      )?.cwd ?? null)
+    ? ((activeThread.projectId
+        ? projectByScopedKey.get(
+            scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId)),
+          )?.cwd
+        : null) ?? null)
     : null;
   const rightWorkbenchPersistenceCwd = activeDraftThread
-    ? (activeDraftProjectCwd ?? activeDraftThread.worktreePath ?? null)
+    ? activeDraftThread.projectId === null
+      ? PROJECTLESS_CWD
+      : (activeDraftProjectCwd ?? activeDraftThread.worktreePath ?? null)
     : activeThread
-      ? (activeThreadProjectCwd ?? activeThread.worktreePath ?? null)
+      ? activeThread.projectId === null
+        ? PROJECTLESS_CWD
+        : (activeThreadProjectCwd ?? activeThread.worktreePath ?? null)
       : (defaultProject?.cwd ?? firstProjectCwd);
   const activeEnvironmentId =
     activeThread?.environmentId ??
@@ -308,7 +382,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
     defaultProject?.environmentId ??
     projects[0]?.environmentId ??
     null;
-
   const sections = useMemo(
     () => buildProjectChatSections(summaries, drafts, activeCwd, null, unreadIds),
     [activeCwd, drafts, summaries, unreadIds],
@@ -353,14 +426,19 @@ function ChatShellHost(props: { children?: ReactNode }) {
     (id: string) => {
       const draft = drafts.find((entry) => entry.id === id);
       if (draft) {
-        writeStoredProjectCwd(draft.cwd);
+        if (draft.projectId !== null) {
+          writeStoredProjectCwd(draft.cwd);
+        }
         void navigate({ to: "/draft/$draftId", params: { draftId: id } });
         return;
       }
       clearThreadUnread(id);
       const thread = threads.find((entry: Thread) => entry.id === id);
       if (thread) {
-        const cwd = thread.worktreePath ?? projectById.get(thread.projectId)?.cwd;
+        const cwd =
+          thread.projectId === null
+            ? null
+            : (thread.worktreePath ?? projectById.get(thread.projectId)?.cwd);
         if (cwd) {
           writeStoredProjectCwd(cwd);
         }
@@ -384,6 +462,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
       if (!thread) {
         return;
       }
+      if (thread.projectId === null) {
+        return;
+      }
 
       prefetchThreadNavigation({
         project: projectById.get(thread.projectId),
@@ -398,14 +479,18 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const startGitAgentAction = useCallback(
     async (action: GitAgentAction) => {
       const activeDraftProject = activeDraftThread
-        ? (projectByScopedKey.get(
-            scopedProjectKey(
-              scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId),
-            ),
-          ) ?? null)
+        ? activeDraftThread.projectId
+          ? (projectByScopedKey.get(
+              scopedProjectKey(
+                scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId),
+              ),
+            ) ?? null)
+          : null
         : null;
       const activeThreadProject = activeThread
-        ? (projectById.get(activeThread.projectId) ?? null)
+        ? activeThread.projectId
+          ? (projectById.get(activeThread.projectId) ?? null)
+          : null
         : null;
       const activeCwdProject = activeCwd
         ? (projects.find((project) => project.cwd === activeCwd) ?? null)

@@ -2149,10 +2149,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
 
       assertTrue(result._tag === "Failure");
       assertTrue(result.failure._tag === "ProjectWriteFileError");
-      assert.equal(
-        result.failure.message,
-        "Project file path must stay within the project root.",
-      );
+      assert.equal(result.failure.message, "Project file path must stay within the project root.");
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 

@@ -44,9 +44,7 @@ const make = Effect.gen(function* () {
         return emptyDiff;
       }
 
-      const threadContext = yield* threadProjection.getThreadCheckpointContext(
-        input.threadId,
-      );
+      const threadContext = yield* threadProjection.getThreadCheckpointContext(input.threadId);
       if (Option.isNone(threadContext)) {
         return yield* new CheckpointInvariantError({
           operation,

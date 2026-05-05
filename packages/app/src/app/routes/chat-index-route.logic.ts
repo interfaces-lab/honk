@@ -9,7 +9,7 @@ export type InitialChatProject = {
 export type InitialChatServerThread = {
   readonly id: ThreadId;
   readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
+  readonly projectId: ProjectId | null;
   readonly worktreePath: string | null;
   readonly updatedAt: string | undefined;
   readonly createdAt: string;
@@ -19,7 +19,7 @@ export type InitialChatServerThread = {
 export type InitialChatDraftThread = {
   readonly draftId: string;
   readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
+  readonly projectId: ProjectId | null;
   readonly worktreePath: string | null;
   readonly createdAt: string;
   readonly promotedTo?: { environmentId: EnvironmentId; threadId: ThreadId } | null;
@@ -79,8 +79,9 @@ export function resolveInitialChatTarget(input: {
     if (thread.environmentId !== activeEnvironmentId || thread.archivedAt !== null) {
       return [];
     }
-    const projectCwd = projectCwdByProjectId.get(thread.projectId);
-    if (!projectCwd) {
+    const projectCwd =
+      thread.projectId === null ? null : projectCwdByProjectId.get(thread.projectId);
+    if (projectCwd === undefined) {
       return [];
     }
     return [
@@ -98,8 +99,8 @@ export function resolveInitialChatTarget(input: {
     if (draft.environmentId !== activeEnvironmentId || draft.promotedTo != null) {
       return [];
     }
-    const projectCwd = projectCwdByProjectId.get(draft.projectId);
-    if (!projectCwd) {
+    const projectCwd = draft.projectId === null ? null : projectCwdByProjectId.get(draft.projectId);
+    if (projectCwd === undefined) {
       return [];
     }
     return [

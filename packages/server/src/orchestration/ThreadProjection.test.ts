@@ -606,7 +606,8 @@ threadProjectionLayer("ThreadProjection", (it) => {
           assert.equal(project.value.id, asProjectId("project-active"));
         }
 
-        const missingProject = yield* threadProjection.getActiveProjectByProjectRoot("/tmp/missing");
+        const missingProject =
+          yield* threadProjection.getActiveProjectByProjectRoot("/tmp/missing");
         assert.equal(missingProject._tag, "None");
 
         const firstThreadId = yield* threadProjection.getFirstActiveThreadIdByProjectId(
