@@ -8,6 +8,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  type ReactNode,
 } from "react";
 import {
   defaultRangeExtractor,
@@ -17,7 +18,7 @@ import {
 } from "@tanstack/react-virtual";
 import { Spinner } from "@multi/ui/spinner";
 import { deriveTimelineEntries } from "../../session-logic";
-import { type TurnDiffSummary } from "../../types";
+import { type ChatMessage, type TurnDiffSummary } from "../../types";
 import { type ExpandedImagePreview } from "./expanded-image-preview";
 import { ProposedPlanCard } from "./proposed-plan-card";
 import {
@@ -51,6 +52,7 @@ export interface TimelineRowSharedState {
   activeThreadEnvironmentId: EnvironmentId;
   isServerThread: boolean;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
+  renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
 }
@@ -102,7 +104,9 @@ interface MessagesTimelineProps {
   resolvedTheme: "light" | "dark";
   projectRoot: string | undefined;
   isServerThread: boolean;
+  editingUserMessageId?: MessageId | null | undefined;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
+  renderEditComposer?: ((message: ChatMessage) => ReactNode) | undefined;
   showEmptyState?: boolean | undefined;
   awaitingServerThreadDetail?: boolean | undefined;
   onIsAtBottomChange: (isAtBottom: boolean) => void;
@@ -133,7 +137,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   resolvedTheme,
   projectRoot,
   isServerThread,
+  editingUserMessageId = null,
   onBeginEditUserMessage,
+  renderEditComposer,
   showEmptyState = true,
   awaitingServerThreadDetail = false,
   onIsAtBottomChange,
@@ -383,6 +389,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       activeThreadEnvironmentId,
       isServerThread,
       onBeginEditUserMessage,
+      renderEditComposer,
       onImageExpand,
       onOpenTurnDiff,
     }),
@@ -399,6 +406,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       activeThreadEnvironmentId,
       isServerThread,
       onBeginEditUserMessage,
+      renderEditComposer,
       onImageExpand,
       onOpenTurnDiff,
     ],
@@ -475,7 +483,15 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   )}
                   style={virtualRowStyle(virtualRow, isActiveStickyUserRow)}
                 >
-                  <TimelineRowContent row={row} isSticky={isActiveStickyUserRow} />
+                  <TimelineRowContent
+                    row={row}
+                    isSticky={isActiveStickyUserRow}
+                    isEditingUserMessage={
+                      row.kind === "message" &&
+                      row.message.role === "user" &&
+                      row.message.id === editingUserMessageId
+                    }
+                  />
                 </div>
               );
             })}
@@ -547,9 +563,11 @@ type TimelineRow = MessagesTimelineRow;
 const TimelineRowContent = memo(function TimelineRowContent({
   row,
   isSticky = false,
+  isEditingUserMessage = false,
 }: {
   row: TimelineRow;
   isSticky?: boolean;
+  isEditingUserMessage?: boolean;
 }) {
   const ctx = use(TimelineRowCtx);
 
@@ -579,7 +597,10 @@ const TimelineRowContent = memo(function TimelineRowContent({
           <HumanMessage
             message={row.message}
             revertTurnCount={row.revertTurnCount}
+            isEditing={isEditingUserMessage}
+            editDisabled={ctx.isWorking || ctx.activeTurnInProgress || ctx.isRevertingCheckpoint}
             isServerThread={ctx.isServerThread}
+            editComposer={isEditingUserMessage ? (ctx.renderEditComposer?.(row.message) ?? null) : null}
             onImageExpand={ctx.onImageExpand}
             onBeginEditUserMessage={ctx.onBeginEditUserMessage}
           />

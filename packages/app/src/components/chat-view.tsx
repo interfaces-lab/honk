@@ -30,7 +30,7 @@ import { applyClaudePromptEffortPrefix } from "@multi/shared/model";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
 import { truncate } from "@multi/shared/String";
 import { Debouncer } from "@tanstack/react-pacer";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { useGitStatus } from "~/lib/git-status-state";
@@ -111,8 +111,10 @@ import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../thread-r
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
+  DraftId,
   useComposerDraftStore,
-  type DraftId,
+  useComposerThreadDraft,
+  type DraftId as ComposerDraftId,
 } from "../composer-draft-store";
 import {
   appendTerminalContextsToPrompt,
@@ -121,7 +123,7 @@ import {
   type TerminalContextSelection,
 } from "../lib/terminal-context";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
-import { ChatComposer, type ChatComposerHandle } from "./chat/chat-composer";
+import { ChatComposer, type ChatComposerHandle, type ChatComposerProps } from "./chat/chat-composer";
 import { ExpandedImageDialog } from "./chat/expanded-image-dialog";
 import { PullRequestThreadDialog } from "./pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "./chat/messages-timeline";
@@ -178,8 +180,18 @@ const IMAGE_ONLY_BOOTSTRAP_PROMPT =
 const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
 const EMPTY_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const EMPTY_PROVIDERS: ServerProvider[] = [];
+const EMPTY_PENDING_APPROVALS: ChatComposerProps["pendingApprovals"] = [];
+const EMPTY_PENDING_USER_INPUTS: ChatComposerProps["pendingUserInputs"] = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
+const EMPTY_RESPONDING_REQUEST_IDS: ApprovalRequestId[] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
+
+type ChatComposerSendContext = ReturnType<ChatComposerHandle["getSendContext"]>;
+type InlineEditSubmitInput = {
+  sendContext: ChatComposerSendContext;
+  runtimeMode: RuntimeMode;
+  interactionMode: ProviderInteractionMode;
+};
 
 type HeroActionTone = "accent" | "blue" | "green";
 
@@ -408,7 +420,7 @@ type ChatViewProps =
       onDiffPanelOpen?: () => void;
       reserveTitleBarControlInset?: boolean;
       routeKind: "draft";
-      draftId: DraftId;
+      draftId: ComposerDraftId;
     };
 
 interface TerminalLaunchContext {
@@ -663,6 +675,260 @@ const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerminalDra
   );
 });
 
+type InlineMessageEditComposerProps = Pick<
+  ChatComposerProps,
+  | "environmentId"
+  | "routeKind"
+  | "routeThreadRef"
+  | "draftId"
+  | "activeThreadId"
+  | "activeThreadEnvironmentId"
+  | "activeThread"
+  | "isServerThread"
+  | "isLocalDraftThread"
+  | "phase"
+  | "isConnecting"
+  | "isSendBusy"
+  | "isPreparingWorktree"
+  | "runtimeMode"
+  | "interactionMode"
+  | "lockedProvider"
+  | "providerStatuses"
+  | "activeProjectDefaultModelSelection"
+  | "activeThreadModelSelection"
+  | "activeThreadActivities"
+  | "resolvedTheme"
+  | "settings"
+  | "keybindings"
+  | "terminalOpen"
+  | "gitCwd"
+  | "activePlan"
+  | "sidebarProposedPlan"
+  | "planSidebarLabel"
+  | "planSidebarOpen"
+  | "onInterrupt"
+  | "onImplementPlanInNewThread"
+  | "togglePlanSidebar"
+  | "setThreadError"
+  | "onExpandImage"
+> & {
+  composerDraftTarget: ComposerDraftId;
+  message: ChatMessage;
+  onCancelEditUserMessage: (messageId: MessageId) => void;
+  onSubmitEditUserMessage: (
+    messageId: MessageId,
+    input: InlineEditSubmitInput,
+  ) => Promise<boolean>;
+};
+
+const InlineMessageEditComposer = memo(function InlineMessageEditComposer({
+  composerDraftTarget,
+  message,
+  onCancelEditUserMessage,
+  onSubmitEditUserMessage,
+  runtimeMode,
+  interactionMode,
+  providerStatuses,
+  settings,
+  ...composerProps
+}: InlineMessageEditComposerProps) {
+  const composerRef = useRef<ChatComposerHandle | null>(null);
+  const editDraft = useComposerThreadDraft(composerDraftTarget);
+  const promptRef = useRef(editDraft.prompt || message.text);
+  const composerImagesRef = useRef<ComposerImageAttachment[]>(editDraft.images);
+  const composerTerminalContextsRef = useRef<TerminalContextDraft[]>(
+    editDraft.terminalContexts,
+  );
+  const shouldAutoScrollRef = useRef(false);
+  const setComposerDraftModelSelection = useComposerDraftStore((store) => store.setModelSelection);
+  const setStickyComposerModelSelection = useComposerDraftStore(
+    (store) => store.setStickyModelSelection,
+  );
+  const setComposerDraftRuntimeMode = useComposerDraftStore((store) => store.setRuntimeMode);
+  const setComposerDraftInteractionMode = useComposerDraftStore(
+    (store) => store.setInteractionMode,
+  );
+  const inlineRuntimeMode = editDraft.runtimeMode ?? runtimeMode;
+  const inlineInteractionMode = editDraft.interactionMode ?? interactionMode;
+  const submitState = deriveComposerSendState({
+    prompt: editDraft.prompt,
+    imageCount: editDraft.images.length,
+    terminalContexts: editDraft.terminalContexts,
+  });
+  const submitDisabled =
+    (editDraft.prompt === message.text &&
+      editDraft.images.length === 0 &&
+      submitState.sendableTerminalContexts.length === 0) ||
+    !submitState.hasSendableContent;
+
+  const focusComposer = useCallback(() => {
+    composerRef.current?.focusAtEnd();
+  }, []);
+
+  const scheduleComposerFocus = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focusAtEnd();
+    });
+  }, []);
+
+  const ignoreScheduleStickToBottom = useCallback(() => {}, []);
+  const ignoreRespondToApproval = useCallback<ChatComposerProps["onRespondToApproval"]>(
+    async () => {},
+    [],
+  );
+  const ignoreSelectPendingUserInputOption = useCallback<
+    ChatComposerProps["onSelectActivePendingUserInputOption"]
+  >(() => {}, []);
+  const ignoreAdvancePendingUserInput = useCallback<
+    ChatComposerProps["onAdvanceActivePendingUserInput"]
+  >(() => {}, []);
+  const ignorePreviousPendingUserInput = useCallback<
+    ChatComposerProps["onPreviousActivePendingUserInputQuestion"]
+  >(() => {}, []);
+  const ignoreChangePendingUserInputCustomAnswer = useCallback<
+    ChatComposerProps["onChangeActivePendingUserInputCustomAnswer"]
+  >(() => {}, []);
+
+  const handleProviderModelSelect = useCallback(
+    (instanceId: ProviderInstanceId, model: string) => {
+      const resolvedModel = resolveAppModelSelectionForInstance(
+        instanceId,
+        settings,
+        providerStatuses,
+        model,
+      );
+      if (resolvedModel === null) {
+        scheduleComposerFocus();
+        return;
+      }
+      const nextModelSelection: ModelSelection = {
+        instanceId,
+        model: resolvedModel,
+      };
+      setComposerDraftModelSelection(composerDraftTarget, nextModelSelection);
+      setStickyComposerModelSelection(nextModelSelection);
+      scheduleComposerFocus();
+    },
+    [
+      composerDraftTarget,
+      providerStatuses,
+      scheduleComposerFocus,
+      setComposerDraftModelSelection,
+      setStickyComposerModelSelection,
+      settings,
+    ],
+  );
+
+  const handleRuntimeModeChange = useCallback(
+    (mode: RuntimeMode) => {
+      if (mode === inlineRuntimeMode) return;
+      setComposerDraftRuntimeMode(composerDraftTarget, mode);
+      scheduleComposerFocus();
+    },
+    [composerDraftTarget, inlineRuntimeMode, scheduleComposerFocus, setComposerDraftRuntimeMode],
+  );
+
+  const handleInteractionModeChange = useCallback(
+    (mode: ProviderInteractionMode) => {
+      if (mode === inlineInteractionMode) return;
+      setComposerDraftInteractionMode(composerDraftTarget, mode);
+      scheduleComposerFocus();
+    },
+    [
+      composerDraftTarget,
+      inlineInteractionMode,
+      scheduleComposerFocus,
+      setComposerDraftInteractionMode,
+    ],
+  );
+
+  const toggleInteractionMode = useCallback(() => {
+    handleInteractionModeChange(inlineInteractionMode === "plan" ? "default" : "plan");
+  }, [handleInteractionModeChange, inlineInteractionMode]);
+
+  const handleCancel = useCallback(() => {
+    onCancelEditUserMessage(message.id);
+  }, [message.id, onCancelEditUserMessage]);
+
+  const handleSend = useCallback<ChatComposerProps["onSend"]>(
+    (event) => {
+      event?.preventDefault();
+      if (submitDisabled) {
+        return;
+      }
+      const sendContext = composerRef.current?.getSendContext();
+      if (!sendContext) {
+        return;
+      }
+      void onSubmitEditUserMessage(message.id, {
+        sendContext,
+        runtimeMode: inlineRuntimeMode,
+        interactionMode: inlineInteractionMode,
+      });
+    },
+    [
+      inlineInteractionMode,
+      inlineRuntimeMode,
+      message.id,
+      onSubmitEditUserMessage,
+      submitDisabled,
+    ],
+  );
+
+  return (
+    <div className="box-border w-full min-w-0 rounded-xl border border-multi-stroke-focused bg-multi-bubble p-2 shadow-xs">
+      <ChatComposer
+        {...composerProps}
+        ref={composerRef}
+        variant="dock"
+        composerDraftTarget={composerDraftTarget}
+        runtimeMode={inlineRuntimeMode}
+        interactionMode={inlineInteractionMode}
+        providerStatuses={providerStatuses}
+        settings={settings}
+        activePendingApproval={null}
+        pendingApprovals={EMPTY_PENDING_APPROVALS}
+        pendingUserInputs={EMPTY_PENDING_USER_INPUTS}
+        activePendingProgress={null}
+        activePendingResolvedAnswers={null}
+        activePendingIsResponding={false}
+        activePendingDraftAnswers={EMPTY_PENDING_USER_INPUT_ANSWERS}
+        activePendingQuestionIndex={0}
+        respondingRequestIds={EMPTY_RESPONDING_REQUEST_IDS}
+        showPlanFollowUpPrompt={false}
+        activeProposedPlan={null}
+        promptRef={promptRef}
+        composerImagesRef={composerImagesRef}
+        composerTerminalContextsRef={composerTerminalContextsRef}
+        shouldAutoScrollRef={shouldAutoScrollRef}
+        scheduleStickToBottom={ignoreScheduleStickToBottom}
+        onSend={handleSend}
+        onRespondToApproval={ignoreRespondToApproval}
+        onSelectActivePendingUserInputOption={ignoreSelectPendingUserInputOption}
+        onAdvanceActivePendingUserInput={ignoreAdvancePendingUserInput}
+        onPreviousActivePendingUserInputQuestion={ignorePreviousPendingUserInput}
+        onChangeActivePendingUserInputCustomAnswer={ignoreChangePendingUserInputCustomAnswer}
+        onProviderModelSelect={handleProviderModelSelect}
+        toggleInteractionMode={toggleInteractionMode}
+        handleRuntimeModeChange={handleRuntimeModeChange}
+        handleInteractionModeChange={handleInteractionModeChange}
+        focusComposer={focusComposer}
+        scheduleComposerFocus={scheduleComposerFocus}
+        submitDisabled={submitDisabled}
+      />
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          className="rounded-multi-control px-2 py-1 text-[12px]/[16px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+          onClick={handleCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+});
+
 export default function ChatView(props: ChatViewProps) {
   const {
     environmentId,
@@ -677,7 +943,11 @@ export default function ChatView(props: ChatViewProps) {
     [environmentId, threadId],
   );
   const routeThreadKey = useMemo(() => scopedThreadKey(routeThreadRef), [routeThreadRef]);
-  const composerDraftTarget: ScopedThreadRef | DraftId =
+  const editComposerDraftTarget = useMemo(
+    () => DraftId.make(`inline-message-edit:${routeThreadKey}`),
+    [routeThreadKey],
+  );
+  const composerDraftTarget: ScopedThreadRef | ComposerDraftId =
     routeKind === "server" ? routeThreadRef : props.draftId;
   const serverThread = useStore(
     useMemo(
@@ -763,8 +1033,7 @@ export default function ChatView(props: ChatViewProps) {
   const composerTerminalContextsRef = useRef<TerminalContextDraft[]>([]);
   const localComposerRef = useRef<ChatComposerHandle | null>(null);
   const composerRef = useComposerHandleContext() ?? localComposerRef;
-  /** When set, the next send runs this checkpoint revert before `thread.turn.start` (edit-from-history). */
-  const pendingEditRevertTurnRef = useRef<number | null>(null);
+  const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
@@ -1387,6 +1656,13 @@ export default function ChatView(props: ChatViewProps) {
     }
     return [...serverMessagesWithPreviewHandoff, ...pendingMessages];
   }, [serverMessages, attachmentPreviewHandoffByMessageId, optimisticUserMessages]);
+  const activeEditingUserMessageId =
+    editingUserMessageId &&
+    timelineMessages.some(
+      (message) => message.id === editingUserMessageId && message.role === "user",
+    )
+      ? editingUserMessageId
+      : null;
   const timelineEntries = useMemo(
     () =>
       deriveTimelineEntries(timelineMessages, activeThread?.proposedPlans ?? [], workLogEntries),
@@ -1440,38 +1716,30 @@ export default function ChatView(props: ChatViewProps) {
       if (!isServerThread) {
         return;
       }
-      const revertTurn = revertTurnCountByUserMessageId.get(messageId);
       const msg = timelineMessages.find((entry) => entry.id === messageId && entry.role === "user");
       if (!msg) {
         return;
       }
 
-      pendingEditRevertTurnRef.current = typeof revertTurn === "number" ? revertTurn : null;
-      clearComposerDraftContent(composerDraftTarget);
-      setComposerDraftPrompt(composerDraftTarget, msg.text, null);
-      setComposerDraftTerminalContexts(composerDraftTarget, []);
-
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          composerRef.current?.resetCursorState({
-            prompt: msg.text,
-            cursor: msg.text.length,
-            detectTrigger: true,
-          });
-          composerRef.current?.focusAtEnd();
-        });
-      });
+      clearComposerDraftContent(editComposerDraftTarget);
+      setComposerDraftPrompt(editComposerDraftTarget, msg.text, null);
+      setEditingUserMessageId(messageId);
     },
     [
       clearComposerDraftContent,
-      composerDraftTarget,
-      composerRef,
+      editComposerDraftTarget,
       isServerThread,
-      revertTurnCountByUserMessageId,
       setComposerDraftPrompt,
-      setComposerDraftTerminalContexts,
       timelineMessages,
     ],
+  );
+
+  const onCancelEditUserMessage = useCallback(
+    (messageId: MessageId) => {
+      setEditingUserMessageId((current) => (current === messageId ? null : current));
+      clearComposerDraftContent(editComposerDraftTarget);
+    },
+    [clearComposerDraftContent, editComposerDraftTarget],
   );
 
   const completionSummary = useMemo(() => {
@@ -2411,6 +2679,204 @@ export default function ChatView(props: ChatViewProps) {
     ],
   );
 
+  const onSubmitEditUserMessage = useCallback(
+    async (messageId: MessageId, input: InlineEditSubmitInput): Promise<boolean> => {
+      const api = readEnvironmentApi(environmentId);
+      if (
+        !api ||
+        !activeThread ||
+        !isServerThread ||
+        isSendBusy ||
+        isConnecting ||
+        sendInFlightRef.current ||
+        activePendingProgress
+      ) {
+        return false;
+      }
+
+      const {
+        prompt: promptForSend,
+        images: composerImages,
+        terminalContexts: composerTerminalContexts,
+        selectedProvider: ctxSelectedProvider,
+        selectedModel: ctxSelectedModel,
+        selectedProviderModels: ctxSelectedProviderModels,
+        selectedPromptEffort: ctxSelectedPromptEffort,
+        selectedModelSelection: ctxSelectedModelSelection,
+      } = input.sendContext;
+      const {
+        sendableTerminalContexts: sendableComposerTerminalContexts,
+        expiredTerminalContextCount,
+        hasSendableContent,
+      } = deriveComposerSendState({
+        prompt: promptForSend,
+        imageCount: composerImages.length,
+        terminalContexts: composerTerminalContexts,
+      });
+      const originalMessage = timelineMessages.find(
+        (message) => message.id === messageId && message.role === "user",
+      );
+      const unchanged =
+        originalMessage?.text === promptForSend &&
+        composerImages.length === 0 &&
+        sendableComposerTerminalContexts.length === 0;
+      if (!hasSendableContent || !originalMessage || unchanged) {
+        return false;
+      }
+
+      const revertTurn = revertTurnCountByUserMessageId.get(messageId);
+      if (typeof revertTurn !== "number") {
+        setThreadError(
+          activeThread.id,
+          "Cannot edit this message because no checkpoint is available.",
+        );
+        return false;
+      }
+
+      const threadIdForSend = activeThread.id;
+      const messageIdForSend = newMessageId();
+      const messageCreatedAt = new Date().toISOString();
+      const composerImagesSnapshot = [...composerImages];
+      const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
+      const messageTextForSend = appendTerminalContextsToPrompt(
+        promptForSend,
+        composerTerminalContextsSnapshot,
+      );
+      const outgoingMessageText = formatOutgoingPrompt({
+        provider: ctxSelectedProvider,
+        model: ctxSelectedModel,
+        models: ctxSelectedProviderModels,
+        effort: ctxSelectedPromptEffort,
+        text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
+      });
+      const turnAttachmentsPromise = Promise.all(
+        composerImagesSnapshot.map(async (image) => ({
+          type: "image" as const,
+          name: image.name,
+          mimeType: image.mimeType,
+          sizeBytes: image.sizeBytes,
+          dataUrl: await readFileAsDataUrl(image.file),
+        })),
+      );
+      const optimisticAttachments = composerImagesSnapshot.map((image) => ({
+        type: "image" as const,
+        id: image.id,
+        name: image.name,
+        mimeType: image.mimeType,
+        sizeBytes: image.sizeBytes,
+        previewUrl: image.previewUrl,
+      }));
+      let turnStartSucceeded = false;
+      let optimisticMessageAdded = false;
+
+      sendInFlightRef.current = true;
+      try {
+        const reverted = await revertThreadToTurnCountSilent(revertTurn);
+        if (!reverted) {
+          return false;
+        }
+
+        beginLocalDispatch({ preparingWorktree: false });
+        isAtBottomRef.current = true;
+        showScrollDebouncer.current.cancel();
+        setShowScrollToBottom(false);
+        await messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
+
+        setOptimisticUserMessages((existing) => [
+          ...existing,
+          {
+            id: messageIdForSend,
+            role: "user",
+            text: outgoingMessageText,
+            ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
+            createdAt: messageCreatedAt,
+            streaming: false,
+          },
+        ]);
+        optimisticMessageAdded = true;
+        setThreadError(threadIdForSend, null);
+        if (expiredTerminalContextCount > 0) {
+          const toastCopy = buildExpiredTerminalContextToastCopy(
+            expiredTerminalContextCount,
+            "omitted",
+          );
+          toastManager.add({
+            type: "warning",
+            title: toastCopy.title,
+            description: toastCopy.description,
+          });
+        }
+
+        await persistThreadSettingsForNextTurn({
+          threadId: threadIdForSend,
+          createdAt: messageCreatedAt,
+          ...(ctxSelectedModel ? { modelSelection: ctxSelectedModelSelection } : {}),
+          runtimeMode: input.runtimeMode,
+          interactionMode: input.interactionMode,
+        });
+
+        const turnAttachments = await turnAttachmentsPromise;
+        await api.orchestration.dispatchCommand({
+          type: "thread.turn.start",
+          commandId: newCommandId(),
+          threadId: threadIdForSend,
+          message: {
+            messageId: messageIdForSend,
+            role: "user",
+            text: outgoingMessageText,
+            attachments: turnAttachments,
+          },
+          modelSelection: ctxSelectedModelSelection,
+          titleSeed: activeThread.title,
+          runtimeMode: input.runtimeMode,
+          interactionMode: input.interactionMode,
+          createdAt: messageCreatedAt,
+        });
+        turnStartSucceeded = true;
+        setEditingUserMessageId((current) => (current === messageId ? null : current));
+        clearComposerDraftContent(editComposerDraftTarget);
+        return true;
+      } catch (err) {
+        if (optimisticMessageAdded) {
+          setOptimisticUserMessages((existing) => {
+            const removed = existing.filter((message) => message.id === messageIdForSend);
+            for (const message of removed) {
+              revokeUserMessagePreviewUrls(message);
+            }
+            return existing.filter((message) => message.id !== messageIdForSend);
+          });
+        }
+        setThreadError(
+          threadIdForSend,
+          err instanceof Error ? err.message : "Failed to submit edited message.",
+        );
+        return false;
+      } finally {
+        sendInFlightRef.current = false;
+        if (!turnStartSucceeded) {
+          resetLocalDispatch();
+        }
+      }
+    },
+    [
+      activePendingProgress,
+      activeThread,
+      beginLocalDispatch,
+      clearComposerDraftContent,
+      editComposerDraftTarget,
+      environmentId,
+      isConnecting,
+      isSendBusy,
+      isServerThread,
+      persistThreadSettingsForNextTurn,
+      resetLocalDispatch,
+      revertThreadToTurnCountSilent,
+      revertTurnCountByUserMessageId,
+      setThreadError,
+      timelineMessages,
+    ],
+  );
+
   const onSend = async (e?: { preventDefault: () => void }) => {
     e?.preventDefault();
     const api = readEnvironmentApi(environmentId);
@@ -2495,16 +2961,6 @@ export default function ChatView(props: ChatViewProps) {
     if (shouldCreateWorktree && !activeThreadBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
       return;
-    }
-
-    const pendingRevertTurn = pendingEditRevertTurnRef.current;
-    pendingEditRevertTurnRef.current = null;
-    if (pendingRevertTurn !== null) {
-      const reverted = await revertThreadToTurnCountSilent(pendingRevertTurn);
-      if (!reverted) {
-        pendingEditRevertTurnRef.current = pendingRevertTurn;
-        return;
-      }
     }
 
     sendInFlightRef.current = true;
@@ -3224,6 +3680,92 @@ export default function ChatView(props: ChatViewProps) {
   const onExpandTimelineImage = useCallback((preview: ExpandedImagePreview) => {
     setExpandedImage(preview);
   }, []);
+  const renderEditComposer = useCallback(
+    (message: ChatMessage): ReactNode => {
+      if (!activeThread) {
+        return null;
+      }
+      return (
+        <InlineMessageEditComposer
+          key={message.id}
+          message={message}
+          composerDraftTarget={editComposerDraftTarget}
+          environmentId={environmentId}
+          routeKind={routeKind}
+          routeThreadRef={routeThreadRef}
+          draftId={draftId}
+          activeThreadId={activeThread.id}
+          activeThreadEnvironmentId={activeThread.environmentId}
+          activeThread={activeThread}
+          isServerThread={isServerThread}
+          isLocalDraftThread={isLocalDraftThread}
+          phase={phase}
+          isConnecting={isConnecting}
+          isSendBusy={isSendBusy}
+          isPreparingWorktree={isPreparingWorktree}
+          runtimeMode={runtimeMode}
+          interactionMode={interactionMode}
+          lockedProvider={lockedProvider}
+          providerStatuses={providerStatuses}
+          activeProjectDefaultModelSelection={activeProject?.defaultModelSelection}
+          activeThreadModelSelection={activeThread.modelSelection}
+          activeThreadActivities={threadActivities}
+          resolvedTheme={resolvedTheme}
+          settings={settings}
+          keybindings={keybindings}
+          terminalOpen={Boolean(terminalState.terminalOpen)}
+          gitCwd={gitCwd}
+          activePlan={activePlan}
+          sidebarProposedPlan={sidebarProposedPlan}
+          planSidebarLabel={planSidebarLabel}
+          planSidebarOpen={planSidebarOpen}
+          onInterrupt={onInterrupt}
+          onImplementPlanInNewThread={onImplementPlanInNewThread}
+          togglePlanSidebar={togglePlanSidebar}
+          setThreadError={setThreadError}
+          onExpandImage={onExpandTimelineImage}
+          onCancelEditUserMessage={onCancelEditUserMessage}
+          onSubmitEditUserMessage={onSubmitEditUserMessage}
+        />
+      );
+    },
+    [
+      activePlan,
+      activeProject?.defaultModelSelection,
+      activeThread,
+      draftId,
+      editComposerDraftTarget,
+      environmentId,
+      gitCwd,
+      interactionMode,
+      isConnecting,
+      isLocalDraftThread,
+      isSendBusy,
+      isPreparingWorktree,
+      isServerThread,
+      keybindings,
+      lockedProvider,
+      onCancelEditUserMessage,
+      onExpandTimelineImage,
+      onImplementPlanInNewThread,
+      onInterrupt,
+      onSubmitEditUserMessage,
+      phase,
+      planSidebarLabel,
+      planSidebarOpen,
+      providerStatuses,
+      resolvedTheme,
+      routeKind,
+      routeThreadRef,
+      runtimeMode,
+      settings,
+      setThreadError,
+      sidebarProposedPlan,
+      terminalState.terminalOpen,
+      threadActivities,
+      togglePlanSidebar,
+    ],
+  );
   const onOpenTurnDiff = useCallback(
     (turnId: TurnId, filePath?: string) => {
       if (!isServerThread) {
@@ -3349,7 +3891,9 @@ export default function ChatView(props: ChatViewProps) {
                 resolvedTheme={resolvedTheme}
                 projectRoot={activeProjectRoot}
                 isServerThread={isServerThread}
+                editingUserMessageId={activeEditingUserMessageId}
                 onBeginEditUserMessage={onBeginEditUserMessage}
+                renderEditComposer={renderEditComposer}
                 showEmptyState={showTimelineEmptyState}
                 awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
                 onIsAtBottomChange={onIsAtBottomChange}
@@ -3411,14 +3955,14 @@ export default function ChatView(props: ChatViewProps) {
               respondingRequestIds={respondingRequestIds}
               showPlanFollowUpPrompt={showPlanFollowUpPrompt}
               activeProposedPlan={activeProposedPlan}
-              activePlan={activePlan as { turnId?: TurnId } | null}
-              sidebarProposedPlan={sidebarProposedPlan as { turnId?: TurnId } | null}
+              activePlan={activePlan}
+              sidebarProposedPlan={sidebarProposedPlan}
               planSidebarLabel={planSidebarLabel}
               planSidebarOpen={planSidebarOpen}
               runtimeMode={runtimeMode}
               interactionMode={interactionMode}
               lockedProvider={lockedProvider}
-              providerStatuses={providerStatuses as ServerProvider[]}
+              providerStatuses={providerStatuses}
               activeProjectDefaultModelSelection={activeProject?.defaultModelSelection}
               activeThreadModelSelection={activeThread?.modelSelection}
               activeThreadActivities={activeThread?.activities}

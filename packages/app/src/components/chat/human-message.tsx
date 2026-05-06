@@ -18,14 +18,20 @@ import { HumanMessageCollapsible } from "./human-message-collapse";
 interface HumanMessageProps {
   message: ChatMessage;
   revertTurnCount: number | undefined;
+  isEditing: boolean;
+  editDisabled: boolean;
   isServerThread: boolean;
+  editComposer: ReactNode;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
 }
 
 export const HumanMessage = memo(function HumanMessage({
   message,
+  isEditing,
+  editDisabled,
   isServerThread,
+  editComposer,
   onImageExpand,
   onBeginEditUserMessage,
 }: HumanMessageProps) {
@@ -78,7 +84,11 @@ export const HumanMessage = memo(function HumanMessage({
 
   const body = bodyInner ? <HumanMessageCollapsible>{bodyInner}</HumanMessageCollapsible> : null;
 
-  const canEdit = isServerThread && typeof onBeginEditUserMessage === "function";
+  if (isEditing && editComposer) {
+    return editComposer;
+  }
+
+  const canEdit = isServerThread && !editDisabled && typeof onBeginEditUserMessage === "function";
 
   if (canEdit) {
     return (

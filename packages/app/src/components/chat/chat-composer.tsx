@@ -299,6 +299,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   promptHasText: boolean;
   isSendBusy: boolean;
   isConnecting: boolean;
+  submitDisabled: boolean;
   hasSendableContent: boolean;
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
@@ -320,7 +321,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         isSendBusy={props.isSendBusy}
         isConnecting={props.isConnecting}
         isPreparingWorktree={props.isPreparingWorktree}
-        hasSendableContent={props.hasSendableContent}
+        hasSendableContent={props.hasSendableContent && !props.submitDisabled}
         onPreviousPendingQuestion={props.onPreviousPendingQuestion}
         onInterrupt={props.onInterrupt}
         onImplementPlanInNewThread={props.onImplementPlanInNewThread}
@@ -392,6 +393,7 @@ export interface ChatComposerProps {
   isConnecting: boolean;
   isSendBusy: boolean;
   isPreparingWorktree: boolean;
+  submitDisabled?: boolean | undefined;
 
   // Pending approvals / inputs
   activePendingApproval: PendingApproval | null;
@@ -413,8 +415,8 @@ export interface ChatComposerProps {
   // Plan
   showPlanFollowUpPrompt: boolean;
   activeProposedPlan: Thread["proposedPlans"][number] | null;
-  activePlan: { turnId?: TurnId } | null;
-  sidebarProposedPlan: { turnId?: TurnId } | null;
+  activePlan: { turnId?: TurnId | null } | null;
+  sidebarProposedPlan: { turnId?: TurnId | null } | null;
   planSidebarLabel: string;
   planSidebarOpen: boolean;
 
@@ -424,7 +426,7 @@ export interface ChatComposerProps {
 
   // Provider / model
   lockedProvider: ProviderDriverKind | null;
-  providerStatuses: ServerProvider[];
+  providerStatuses: ReadonlyArray<ServerProvider>;
   activeProjectDefaultModelSelection: ModelSelection | null | undefined;
   activeThreadModelSelection: ModelSelection | null | undefined;
 
@@ -500,6 +502,7 @@ export const ChatComposer = memo(
       isConnecting,
       isSendBusy,
       isPreparingWorktree,
+      submitDisabled = false,
       activePendingApproval,
       pendingApprovals,
       pendingUserInputs,
@@ -2337,6 +2340,7 @@ export const ChatComposer = memo(
                     isSendBusy={isSendBusy}
                     isConnecting={isConnecting}
                     isPreparingWorktree={isPreparingWorktree}
+                    submitDisabled={submitDisabled}
                     hasSendableContent={composerSendState.hasSendableContent}
                     onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                     onInterrupt={handleInterruptPrimaryAction}
