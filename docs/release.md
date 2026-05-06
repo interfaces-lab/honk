@@ -10,11 +10,10 @@ This document covers the unified release workflow for stable and nightly desktop
   - scheduled nightly at `09:00 UTC`
   - manual `workflow_dispatch` for either channel
 - Runs quality gates first: lint, typecheck, test.
-- Builds four artifacts in parallel for both channels:
+- Builds three desktop artifacts in parallel for both channels:
   - macOS `arm64` DMG
   - macOS `x64` DMG
   - Linux `x64` AppImage
-  - Windows `x64` NSIS installer
 - Publishes one GitHub Release with all produced files.
   - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
   - Only plain stable `X.Y.Z` releases are marked as the repository's latest release.
@@ -57,7 +56,7 @@ This document covers the unified release workflow for stable and nightly desktop
   - set `MULTI_DESKTOP_UPDATE_GITHUB_TOKEN` (or `GH_TOKEN`) in the desktop app runtime environment.
   - the app forwards it as an `Authorization: Bearer <token>` request header for updater HTTP calls.
 - Required release assets for updater:
-  - platform installers (`.exe`, `.dmg`, `.AppImage`, plus macOS `.zip` for Squirrel.Mac update payloads)
+  - platform installers (`.dmg`, `.AppImage`, plus macOS `.zip` for Squirrel.Mac update payloads)
   - channel metadata: `latest*.yml` for stable releases, `nightly*.yml` for nightly releases
   - `*.blockmap` files (used for differential downloads)
 - macOS metadata note:
@@ -93,8 +92,8 @@ Use this first to validate the release pipeline.
    - `git tag v0.0.0-test.1`
    - `git push origin v0.0.0-test.1`
 3. Wait for `.github/workflows/release.yml` to finish.
-4. Verify the GitHub Release contains all platform artifacts.
-5. Download each artifact and sanity-check installation on each OS.
+4. Verify the GitHub Release contains macOS and Linux desktop artifacts.
+5. Download each artifact and sanity-check installation where applicable.
 
 ## 2) Apple signing + notarization setup (macOS)
 
@@ -126,33 +125,7 @@ Notes:
 - `APPLE_API_KEY` is stored as raw key text in secrets.
 - The workflow writes it to a temporary `AuthKey_<id>.p8` file at runtime.
 
-## 3) Azure Trusted Signing setup (Windows)
-
-Required secrets used by the workflow:
-
-- `AZURE_TENANT_ID`
-- `AZURE_CLIENT_ID`
-- `AZURE_CLIENT_SECRET`
-- `AZURE_TRUSTED_SIGNING_ENDPOINT`
-- `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`
-- `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`
-- `AZURE_TRUSTED_SIGNING_PUBLISHER_NAME`
-
-Checklist:
-
-1. Create Azure Trusted Signing account and certificate profile.
-2. Record ATS values:
-   - Endpoint
-   - Account name
-   - Certificate profile name
-   - Publisher name
-3. Create/choose an Entra app registration (service principal).
-4. Grant service principal permissions required by Trusted Signing.
-5. Create a client secret for the service principal.
-6. Add Azure secrets listed above in GitHub Actions secrets.
-7. Re-run a tag release and confirm Windows installer is signed.
-
-## 4) Ongoing release checklist
+## 3) Ongoing release checklist
 
 1. Ensure `main` is green in CI.
 2. Bump app version as needed.
@@ -164,12 +137,10 @@ Checklist:
    - release job uploads expected files
 6. Smoke test downloaded artifacts.
 
-## 5) Troubleshooting
+## 4) Troubleshooting
 
 - macOS build unsigned when expected signed:
   - Check all Apple secrets are populated and non-empty.
-- Windows build unsigned when expected signed:
-  - Check all Azure ATS and auth secrets are populated and non-empty.
 - Build fails with signing error:
   - Retry with secrets removed to confirm unsigned path still works.
-  - Re-check certificate/profile names and tenant/client credentials.
+  - Re-check certificate, API key, and notarization configuration.

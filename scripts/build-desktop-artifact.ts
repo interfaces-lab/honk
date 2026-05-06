@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import rootPackageJson from "../package.json" with { type: "json" };
@@ -17,7 +16,7 @@ import { Config, Data, Effect, FileSystem, Layer, Logger, Option, Path, Schema }
 import { Command, Flag } from "effect/unstable/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
+const BuildPlatform = Schema.Literals(["mac", "linux"]);
 const BuildArch = Schema.Literals(["arm64", "x64", "universal"]);
 
 const RepoRoot = Effect.service(Path.Path).pipe(
@@ -28,11 +27,10 @@ const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
 interface DesktopBuildIconAssets {
   readonly macIconPng: string;
   readonly linuxIconPng: string;
-  readonly windowsIconIco: string;
 }
 
 interface PlatformConfig {
-  readonly cliFlag: "--mac" | "--linux" | "--win";
+  readonly cliFlag: "--mac" | "--linux";
   readonly defaultTarget: string;
   readonly archChoices: ReadonlyArray<typeof BuildArch.Type>;
 }
@@ -46,11 +44,6 @@ const PLATFORM_CONFIG: Record<typeof BuildPlatform.Type, PlatformConfig> = {
   linux: {
     cliFlag: "--linux",
     defaultTarget: "AppImage",
-    archChoices: ["x64", "arm64"],
-  },
-  win: {
-    cliFlag: "--win",
-    defaultTarget: "nsis",
     archChoices: ["x64", "arm64"],
   },
 };
@@ -72,7 +65,6 @@ interface BuildCliInput {
 function detectHostBuildPlatform(hostPlatform: string): typeof BuildPlatform.Type | undefined {
   if (hostPlatform === "darwin") return "mac";
   if (hostPlatform === "linux") return "linux";
-  if (hostPlatform === "win32") return "win";
   return undefined;
 }
 
@@ -112,39 +104,6 @@ function resolveGitCommitHash(repoRoot: string): string {
   return hash.toLowerCase();
 }
 
-function resolvePythonForNodeGyp(): string | undefined {
-  const configured = process.env.npm_config_python ?? process.env.PYTHON;
-  if (configured && existsSync(configured)) {
-    return configured;
-  }
-
-  if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA;
-    if (localAppData) {
-      for (const version of ["Python313", "Python312", "Python311", "Python310"]) {
-        const candidate = join(localAppData, "Programs", "Python", version, "python.exe");
-        if (existsSync(candidate)) {
-          return candidate;
-        }
-      }
-    }
-  }
-
-  const probe = spawnSync("python", ["-c", "import sys;print(sys.executable)"], {
-    encoding: "utf8",
-  });
-  if (probe.status !== 0) {
-    return undefined;
-  }
-
-  const executable = probe.stdout.trim();
-  if (!executable || !existsSync(executable)) {
-    return undefined;
-  }
-
-  return executable;
-}
-
 interface ResolvedBuildOptions {
   readonly platform: typeof BuildPlatform.Type;
   readonly target: string;
@@ -175,20 +134,6 @@ interface StagePackageJson {
   };
   readonly overrides: Record<string, unknown>;
 }
-
-const AzureTrustedSigningOptionsConfig = Config.all({
-  publisherName: Config.string("AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"),
-  endpoint: Config.string("AZURE_TRUSTED_SIGNING_ENDPOINT"),
-  certificateProfileName: Config.string("AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME"),
-  codeSigningAccountName: Config.string("AZURE_TRUSTED_SIGNING_ACCOUNT_NAME"),
-  fileDigest: Config.string("AZURE_TRUSTED_SIGNING_FILE_DIGEST").pipe(Config.withDefault("SHA256")),
-  timestampDigest: Config.string("AZURE_TRUSTED_SIGNING_TIMESTAMP_DIGEST").pipe(
-    Config.withDefault("SHA256"),
-  ),
-  timestampRfc3161: Config.string("AZURE_TRUSTED_SIGNING_TIMESTAMP_RFC3161").pipe(
-    Config.withDefault("http://timestamp.acs.microsoft.com"),
-  ),
-});
 
 const BuildEnvConfig = Config.all({
   platform: Config.schema(BuildPlatform, "MULTI_DESKTOP_PLATFORM").pipe(Config.option),
@@ -385,21 +330,6 @@ function stageLinuxIcons(stageResourcesDir: string, sourcePng: string) {
   });
 }
 
-function stageWindowsIcons(stageResourcesDir: string, sourceIco: string) {
-  return Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    if (!(yield* fs.exists(sourceIco))) {
-      return yield* new BuildScriptError({
-        message: `Desktop Windows icon source is missing at ${sourceIco}`,
-      });
-    }
-
-    const iconPath = path.join(stageResourcesDir, "icon.ico");
-    yield* fs.copyFile(sourceIco, iconPath);
-  });
-}
-
 function validateBundledClientAssets(clientDir: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -488,14 +418,12 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
       linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
-      windowsIconIco: BRAND_ASSET_PATHS.nightlyWindowsIconIco,
     };
   }
 
   return {
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
-    windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
   };
 }
 
@@ -509,14 +437,13 @@ export function resolveDesktopProductName(version: string): string {
     : (desktopPackageJson.productName ?? "Multi");
 }
 
-const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+function createBuildConfig(
   platform: typeof BuildPlatform.Type,
   target: string,
   version: string,
-  signed: boolean,
   mockUpdates: boolean,
   mockUpdateServerPort: number | undefined,
-) {
+): Record<string, unknown> {
   const buildConfig: Record<string, unknown> = {
     appId: "com.interfacesco.multi",
     productName: resolveDesktopProductName(version),
@@ -560,19 +487,8 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     };
   }
 
-  if (platform === "win") {
-    const winConfig: Record<string, unknown> = {
-      target: [target],
-      icon: "icon.ico",
-    };
-    if (signed) {
-      winConfig.azureSignOptions = yield* AzureTrustedSigningOptionsConfig;
-    }
-    buildConfig.win = winConfig;
-  }
-
   return buildConfig;
-});
+}
 
 const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(function* (
   platform: typeof BuildPlatform.Type,
@@ -588,10 +504,6 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   if (platform === "linux") {
     yield* stageLinuxIcons(stageResourcesDir, iconAssets.linuxIconPng);
     return;
-  }
-
-  if (platform === "win") {
-    yield* stageWindowsIcons(stageResourcesDir, iconAssets.windowsIconIco);
   }
 });
 
@@ -718,7 +630,6 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     {
       macIconPng: join(repoRoot, iconAssets.macIconPng),
       linuxIconPng: join(repoRoot, iconAssets.linuxIconPng),
-      windowsIconIco: join(repoRoot, iconAssets.windowsIconIco),
     },
     options.verbose,
   );
@@ -735,11 +646,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     description: "Multi desktop build",
     author: "Interfaces Co",
     main: "packages/desktop/dist-electron/main.cjs",
-    build: yield* createBuildConfig(
+    build: createBuildConfig(
       options.platform,
       options.target,
       appVersion,
-      options.signed,
       options.mockUpdates,
       options.mockUpdateServerPort,
     ),
@@ -781,16 +691,6 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     delete buildEnv.APPLE_API_KEY;
     delete buildEnv.APPLE_API_KEY_ID;
     delete buildEnv.APPLE_API_ISSUER;
-  }
-
-  if (process.platform === "win32") {
-    const python = resolvePythonForNodeGyp();
-    if (python) {
-      buildEnv.PYTHON = python;
-      buildEnv.npm_config_python = python;
-    }
-    buildEnv.npm_config_msvs_version = buildEnv.npm_config_msvs_version ?? "2022";
-    buildEnv.GYP_MSVS_VERSION = buildEnv.GYP_MSVS_VERSION ?? "2022";
   }
 
   yield* Effect.log(
@@ -845,7 +745,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   ),
   target: Flag.string("target").pipe(
     Flag.withDescription(
-      "Artifact target, for example dmg/AppImage/nsis (env: MULTI_DESKTOP_TARGET).",
+      "Artifact target, for example dmg/AppImage (env: MULTI_DESKTOP_TARGET).",
     ),
     Flag.optional,
   ),
@@ -873,7 +773,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   ),
   signed: Flag.boolean("signed").pipe(
     Flag.withDescription(
-      "Enable signing/notarization discovery; Windows uses Azure Trusted Signing (env: MULTI_DESKTOP_SIGNED).",
+      "Enable macOS code signing / notarization discovery (env: MULTI_DESKTOP_SIGNED).",
     ),
     Flag.optional,
   ),

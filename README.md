@@ -12,7 +12,6 @@ Shipped builds live on [GitHub Releases](https://github.com/interfaces-co/Multi/
 
 ### Desktop (recommended)
 
-**Windows** (`winget`): `winget install InterfacesCo.Multi`  
 **macOS** (Homebrew): `brew install --cask multi`  
 **Arch** (AUR): `yay -S multi-bin`
 
