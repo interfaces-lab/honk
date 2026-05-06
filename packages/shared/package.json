@@ -75,6 +75,10 @@
     "./tool-activity": {
       "types": "./src/tool-activity.ts",
       "import": "./src/tool-activity.ts"
+    },
+    "./thread-segments": {
+      "types": "./src/thread-segments.ts",
+      "import": "./src/thread-segments.ts"
     }
   },
   "scripts": {

@@ -515,6 +515,35 @@ function runtimeEventToActivities(
       break;
   }
 
+  if (
+    event.type === "content.delta" &&
+    (event.payload.streamKind === "command_output" ||
+      event.payload.streamKind === "file_change_output") &&
+    event.payload.delta.length > 0
+  ) {
+    return [
+      {
+        id: event.eventId,
+        createdAt: event.createdAt,
+        tone: "tool",
+        kind: "tool.updated",
+        summary: event.payload.streamKind === "command_output" ? "Ran command" : "File change",
+        payload: {
+          itemType:
+            event.payload.streamKind === "command_output" ? "command_execution" : "file_change",
+          ...(event.itemId ? { itemId: event.itemId } : {}),
+          detail: event.payload.delta,
+          data: {
+            streamKind: event.payload.streamKind,
+            delta: event.payload.delta,
+          },
+        },
+        turnId: toTurnId(event.turnId) ?? null,
+        ...maybeSequence,
+      },
+    ];
+  }
+
   return [];
 }
 

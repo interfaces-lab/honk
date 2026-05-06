@@ -643,6 +643,7 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
     activity.payload && typeof activity.payload === "object"
       ? (activity.payload as Record<string, unknown>)
       : null;
+  const data = asRecord(payload?.data);
   const commandPreview = extractToolCommand(payload);
   const changedFiles = extractChangedFiles(payload);
   const title = extractToolTitle(payload);
@@ -676,6 +677,8 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   const requestKind = extractWorkLogRequestKind(payload);
   const status = resolveWorkLogStatus(activity, payload, entry.tone);
   const toolCallId = asTrimmedString(payload?.itemId);
+  const streamKind = asTrimmedString(data?.streamKind);
+  const streamDelta = asTrimmedString(data?.delta);
   if (
     !taskDetailAsLabel &&
     payload &&
@@ -684,16 +687,33 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   ) {
     const normalized = stripTrailingExitCode(payload.detail).output;
     if (normalized) {
-      if (itemType === "command_execution") {
+      if (streamKind === "command_output") {
         entry.output = normalized;
+      } else if (itemType === "command_execution") {
+        entry.detail = normalized;
+      } else if (streamKind === "file_change_output") {
+        entry.detail = normalized;
       } else {
         entry.detail = normalized;
       }
     }
   } else if (!taskDetailAsLabel) {
-    const resultText = extractToolResultText(payload);
+    const resultText = extractToolResultText(payload, commandPreview);
     if (resultText) {
       entry.output = resultText;
+    }
+  }
+  if (!taskDetailAsLabel && !entry.output && streamKind === "command_output" && streamDelta) {
+    const normalizedStreamOutput = normalizeToolOutputCandidate(
+      stripTrailingExitCode(streamDelta).output ?? streamDelta,
+      {
+        detail: entry.detail,
+        command: commandPreview.command,
+        rawCommand: commandPreview.rawCommand,
+      },
+    );
+    if (normalizedStreamOutput) {
+      entry.output = normalizedStreamOutput;
     }
   }
   if (commandPreview.command) {
@@ -770,8 +790,8 @@ function mergeDerivedWorkLogEntries(
   next: DerivedWorkLogEntry,
 ): DerivedWorkLogEntry {
   const changedFiles = mergeChangedFiles(previous.changedFiles, next.changedFiles);
-  const detail = next.detail ?? previous.detail;
-  const output = next.output ?? previous.output;
+  const detail = mergeStreamText(previous.detail, next.detail);
+  const output = mergeStreamText(previous.output, next.output);
   const command = next.command ?? previous.command;
   const rawCommand = next.rawCommand ?? previous.rawCommand;
   const toolTitle = next.toolTitle ?? previous.toolTitle;
@@ -799,6 +819,22 @@ function mergeDerivedWorkLogEntries(
     ...(subagentAction ? { subagentAction } : {}),
     ...(collapseKey ? { collapseKey } : {}),
   };
+}
+
+function mergeStreamText(previous: string | undefined, next: string | undefined): string | undefined {
+  if (!previous) {
+    return next;
+  }
+  if (!next || next === previous) {
+    return previous;
+  }
+  if (next.startsWith(previous)) {
+    return next;
+  }
+  if (previous.endsWith(next)) {
+    return previous;
+  }
+  return `${previous}${next}`;
 }
 
 function mergeSubagents(
@@ -1082,16 +1118,22 @@ function extractToolCommand(payload: Record<string, unknown> | null): {
   };
 }
 
-function extractToolResultText(payload: Record<string, unknown> | null): string | null {
+function extractToolResultText(
+  payload: Record<string, unknown> | null,
+  commandPreview?: { command: string | null; rawCommand: string | null },
+): string | null {
   const data = asRecord(payload?.data);
   const item = asRecord(data?.item);
   const itemResult = asRecord(item?.result);
   const directResult = asRecord(data?.result);
+  const detail = asTrimmedString(payload?.detail);
   const candidates: unknown[] = [
+    item?.aggregatedOutput,
     itemResult?.content,
     itemResult?.output,
     directResult?.content,
     directResult?.output,
+    extractRawToolOutputText(data?.rawOutput),
   ];
 
   for (const candidate of candidates) {
@@ -1099,10 +1141,87 @@ function extractToolResultText(payload: Record<string, unknown> | null): string 
     if (!text) {
       continue;
     }
-    return stripTrailingExitCode(text).output;
+    const normalized = stripTrailingExitCode(text).output;
+    const output = normalizeToolOutputCandidate(normalized, {
+      detail,
+      command: commandPreview?.command ?? null,
+      rawCommand: commandPreview?.rawCommand ?? null,
+    });
+    if (output) {
+      return output;
+    }
   }
 
   return null;
+}
+
+function extractRawToolOutputText(value: unknown): string | null {
+  const direct = asTrimmedString(value);
+  if (direct) {
+    return direct;
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => extractRawToolOutputText(entry))
+      .filter((entry): entry is string => entry !== null);
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const prioritizedKeys = ["stdout", "stderr", "output", "content", "text", "message", "result"];
+  for (const key of prioritizedKeys) {
+    const nested = extractRawToolOutputText(record[key]);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return null;
+}
+
+function normalizeToolOutputCandidate(
+  candidate: string | null,
+  context: {
+    detail: string | null | undefined;
+    command: string | null | undefined;
+    rawCommand: string | null | undefined;
+  },
+): string | null {
+  const normalized = candidate?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const detail = context.detail?.trim() ?? null;
+  if (detail && isEquivalentToolText(normalized, detail)) {
+    return null;
+  }
+
+  const command = context.command?.trim() ?? null;
+  if (command && isEquivalentToolText(normalized, command)) {
+    return null;
+  }
+
+  const rawCommand = context.rawCommand?.trim() ?? null;
+  if (rawCommand && isEquivalentToolText(normalized, rawCommand)) {
+    return null;
+  }
+
+  const unwrappedCandidate = normalizeCommandValue(normalized);
+  if (command && unwrappedCandidate && isEquivalentToolText(unwrappedCandidate, command)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function isEquivalentToolText(left: string, right: string): boolean {
+  return left.trim() === right.trim();
 }
 
 function extractToolTitle(payload: Record<string, unknown> | null): string | null {

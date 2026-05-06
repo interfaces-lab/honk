@@ -10,6 +10,7 @@ import {
   type FilesystemBrowseResult,
   type ProjectId,
 } from "@multi/contracts";
+import { toSafeThreadSegment } from "@multi/shared/thread-segments";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
@@ -18,6 +19,8 @@ import {
   IconArrowLeft,
   IconArrowUp,
   IconBubbleText,
+  IconClipboard,
+  IconCode,
   IconFolder1,
   IconFolderAddRight,
   IconPencil,
@@ -92,7 +95,11 @@ import {
 import { resolveEnvironmentOptionLabel } from "../lib/branch-toolbar-logic";
 import { CommandPaletteResults } from "./command-palette-results";
 import { ProjectFavicon } from "./project-favicon";
-import { useServerKeybindings } from "../rpc/server-state";
+import {
+  useServerAvailableEditors,
+  useServerKeybindings,
+  useServerObservability,
+} from "../rpc/server-state";
 import { resolveShortcutCommand } from "../keybindings";
 import {
   Command,
@@ -106,6 +113,7 @@ import { Button } from "@multi/ui/button";
 import { Kbd, KbdGroup } from "@multi/ui/kbd";
 import { toastManager } from "~/app/toast";
 import { ComposerHandleContext, useComposerHandleContext } from "../composer-handle-context";
+import { resolveAndPersistPreferredEditor } from "../editor-preferences";
 import type { ChatComposerHandle } from "./chat/chat-composer";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
@@ -132,6 +140,13 @@ function getEnvironmentBrowsePlatform(os: string | null | undefined): string {
     return "Linux";
   }
   return typeof navigator === "undefined" ? "" : navigator.platform;
+}
+
+function joinFileSystemPath(basePath: string, ...segments: string[]): string {
+  const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";
+  const normalizedBase = basePath.replace(/[\\/]+$/g, "");
+  const normalizedSegments = segments.map((segment) => segment.replace(/^[\\/]+|[\\/]+$/g, ""));
+  return [normalizedBase, ...normalizedSegments].join(separator);
 }
 
 interface AddProjectEnvironmentOption {
@@ -206,6 +221,10 @@ function CommandPaletteDialog() {
 
 function OpenCommandPaletteDialog() {
   const navigate = useNavigate();
+  const routeTarget = useParams({
+    strict: false,
+    select: (params) => resolveThreadRouteTarget(params),
+  });
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
   const openIntent = useCommandPaletteStore((store) => store.openIntent);
   const clearOpenIntent = useCommandPaletteStore((store) => store.clearOpenIntent);
@@ -221,6 +240,8 @@ function OpenCommandPaletteDialog() {
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const threads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const keybindings = useServerKeybindings();
+  const availableEditors = useServerAvailableEditors();
+  const observability = useServerObservability();
   const [viewStack, setViewStack] = useState<CommandPaletteView[]>([]);
   const currentView = viewStack.at(-1) ?? null;
   const [browseGeneration, setBrowseGeneration] = useState(0);
@@ -325,6 +346,23 @@ function OpenCommandPaletteDialog() {
   );
 
   const activeThreadId = activeThread?.id;
+  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
+  const providerLogPath = useMemo(() => {
+    if (!import.meta.env.DEV || !routeThreadRef || !observability?.logsDirectoryPath) {
+      return null;
+    }
+    const safeThreadSegment = toSafeThreadSegment(routeThreadRef.threadId);
+    if (!safeThreadSegment) {
+      return null;
+    }
+    return joinFileSystemPath(observability.logsDirectoryPath, "provider", `${safeThreadSegment}.log`);
+  }, [observability?.logsDirectoryPath, routeThreadRef]);
+  const serverTracePath = useMemo(() => {
+    if (!import.meta.env.DEV || !observability?.logsDirectoryPath) {
+      return null;
+    }
+    return joinFileSystemPath(observability.logsDirectoryPath, "server.trace.ndjson");
+  }, [observability?.logsDirectoryPath]);
   const currentProjectEnvironmentId =
     activeThread?.environmentId ?? activeDraftThread?.environmentId ?? null;
   const currentProjectId = activeThread?.projectId ?? activeDraftThread?.projectId ?? null;
@@ -547,6 +585,50 @@ function OpenCommandPaletteDialog() {
     [activeThreadId, navigate, projectTitleById, settings.sidebarThreadSortOrder, threads],
   );
   const recentThreadItems = allThreadItems.slice(0, RECENT_THREAD_LIMIT);
+
+  const copyPathToClipboard = useCallback(async (path: string, successTitle: string) => {
+    if (!navigator.clipboard?.writeText) {
+      toastManager.add({
+        type: "error",
+        title: "Clipboard unavailable",
+        description: "This browser cannot write to the clipboard.",
+      });
+      return;
+    }
+    await navigator.clipboard.writeText(path);
+    toastManager.add({
+      type: "success",
+      title: successTitle,
+      description: path,
+    });
+  }, []);
+
+  const openPathInPreferredEditor = useCallback(
+    async (path: string, failureTitle: string) => {
+      const api = readLocalApi();
+      if (!api) {
+        toastManager.add({
+          type: "error",
+          title: failureTitle,
+          description: "Local editor integration is unavailable.",
+        });
+        return;
+      }
+
+      const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
+      if (!editor) {
+        toastManager.add({
+          type: "error",
+          title: failureTitle,
+          description: "No available editors found.",
+        });
+        return;
+      }
+
+      await api.shell.openInEditor(path, editor);
+    },
+    [availableEditors],
+  );
 
   function pushPaletteView(view: CommandPaletteView): void {
     setViewStack((previousViews) => [
@@ -785,6 +867,65 @@ function OpenCommandPaletteDialog() {
       await navigate({ to: "/settings" });
     },
   });
+
+  if (providerLogPath) {
+    actionItems.push({
+      kind: "action",
+      value: `action:debug:copy-provider-log:${routeThreadRef?.threadId ?? "current"}`,
+      searchTerms: [
+        "copy provider log path",
+        "copy thread log path",
+        "debug",
+        "logs",
+        routeThreadRef?.threadId ?? "",
+      ],
+      title: "Copy provider log path",
+      description: "Current thread provider event log",
+      icon: <IconClipboard className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        await copyPathToClipboard(providerLogPath, "Copied provider log path");
+      },
+    });
+    actionItems.push({
+      kind: "action",
+      value: `action:debug:open-provider-log:${routeThreadRef?.threadId ?? "current"}`,
+      searchTerms: [
+        "open provider log",
+        "open thread log",
+        "debug",
+        "logs",
+        routeThreadRef?.threadId ?? "",
+      ],
+      title: "Open provider log",
+      description: "Open current thread provider event log in your editor",
+      icon: <IconCode className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        try {
+          await openPathInPreferredEditor(providerLogPath, "Unable to open provider log");
+        } catch (error) {
+          toastManager.add({
+            type: "error",
+            title: "Unable to open provider log",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          });
+        }
+      },
+    });
+  }
+
+  if (serverTracePath) {
+    actionItems.push({
+      kind: "action",
+      value: "action:debug:copy-server-trace",
+      searchTerms: ["copy server trace path", "copy trace path", "debug", "trace", "logs"],
+      title: "Copy server trace path",
+      description: "Local server trace NDJSON file",
+      icon: <IconClipboard className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        await copyPathToClipboard(serverTracePath, "Copied server trace path");
+      },
+    });
+  }
 
   const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
   const activeGroups = currentView ? currentView.groups : rootGroups;

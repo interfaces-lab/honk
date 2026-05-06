@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 
 import type { ChatAttachment } from "@multi/contracts";
+import { toSafeThreadSegment } from "@multi/shared/thread-segments";
 
 import {
   normalizeAttachmentRelativePath,
@@ -10,7 +11,6 @@ import {
 import { inferImageExtension, SAFE_IMAGE_FILE_EXTENSIONS } from "./image-mime.ts";
 
 const ATTACHMENT_FILENAME_EXTENSIONS = [...SAFE_IMAGE_FILE_EXTENSIONS, ".bin"];
-const ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS = 80;
 const ATTACHMENT_ID_THREAD_SEGMENT_PATTERN = "[a-z0-9_]+(?:-[a-z0-9_]+)*";
 const ATTACHMENT_ID_UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const ATTACHMENT_ID_PATTERN = new RegExp(
@@ -19,18 +19,7 @@ const ATTACHMENT_ID_PATTERN = new RegExp(
 );
 
 export function toSafeThreadAttachmentSegment(threadId: string): string | null {
-  const segment = threadId
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/gi, "-")
-    .replace(/-+/g, "-")
-    .replace(/^[-_]+|[-_]+$/g, "")
-    .slice(0, ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS)
-    .replace(/[-_]+$/g, "");
-  if (segment.length === 0) {
-    return null;
-  }
-  return segment;
+  return toSafeThreadSegment(threadId);
 }
 
 export function createAttachmentId(threadId: string): string | null {
