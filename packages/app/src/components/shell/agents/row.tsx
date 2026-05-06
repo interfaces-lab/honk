@@ -208,7 +208,7 @@ export const AgentRow = memo(
                   onKeyDown={onRenameKeyDown}
                   onBlur={onBlur}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full min-w-0 bg-transparent text-[12px]/[16px] text-foreground outline-none ring-0"
+                  className="w-full min-w-0 select-text bg-transparent text-[12px]/[16px] text-foreground outline-none ring-0"
                   aria-label="Rename thread"
                 />
               </span>

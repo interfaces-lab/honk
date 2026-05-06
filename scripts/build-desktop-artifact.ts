@@ -744,9 +744,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
     Flag.optional,
   ),
   target: Flag.string("target").pipe(
-    Flag.withDescription(
-      "Artifact target, for example dmg/AppImage (env: MULTI_DESKTOP_TARGET).",
-    ),
+    Flag.withDescription("Artifact target, for example dmg/AppImage (env: MULTI_DESKTOP_TARGET)."),
     Flag.optional,
   ),
   arch: Flag.choice("arch", BuildArch.literals).pipe(

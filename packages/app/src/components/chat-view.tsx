@@ -205,7 +205,7 @@ function HeroComposerActionCard(props: HeroComposerActionCardProps) {
     <button
       type="button"
       onClick={props.onClick}
-      className="group flex h-20 min-h-20 flex-col justify-between rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated p-3 text-left text-multi-fg-primary shadow-none transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+      className="group flex h-20 min-h-20 select-none flex-col justify-between rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated p-3 text-left text-multi-fg-primary shadow-none transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
     >
       <span className="flex items-center justify-between gap-2">
         <span
@@ -233,7 +233,7 @@ function HeroComposerActions(props: {
   onOpenProjects: () => void;
 }) {
   return (
-    <div className="mt-3 grid w-full gap-2.5 sm:grid-cols-3">
+    <div className="mt-3 grid w-full select-none gap-2.5 sm:grid-cols-3">
       <HeroComposerActionCard
         title="Projects"
         detail={props.activeProjectName ?? "Browse projects"}
@@ -3283,14 +3283,12 @@ export default function ChatView(props: ChatViewProps) {
       {/* Top bar */}
       <header
         className={cn(
-          "agent-window-chat-header flex px-3",
-          isElectron
-            ? cn(
-                "drag-region box-border h-(--multi-header-height) items-start pt-(--multi-titlebar-control-row-top)",
-                reserveTitleBarControlInset &&
-                  "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
-              )
-            : cn("h-(--multi-header-height) items-center border-b border-multi-stroke-tertiary"),
+          "agent-window-chat-header drag-region box-border flex h-(--multi-workbench-chrome-row-height) select-none items-start px-3 pt-(--multi-titlebar-control-row-top)",
+          isElectron &&
+            cn(
+              reserveTitleBarControlInset &&
+                "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
+            ),
         )}
       >
         <ChatHeader

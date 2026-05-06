@@ -100,7 +100,7 @@ function LeftAside(props: { children: ReactNode }) {
   return (
     <aside
       className={cn(
-        "agent-window__sidebar multi-shell-sidebar relative flex shrink-0 flex-col overflow-hidden",
+        "agent-window__sidebar multi-shell-sidebar relative flex shrink-0 select-none flex-col overflow-hidden",
         resize.dragging
           ? "transition-none"
           : "transition-[width] duration-150 ease-out motion-reduce:transition-none",
@@ -306,7 +306,7 @@ function RightAsidePanels(props: { activeTab: WorkbenchTab; rightPanels: RightPa
   );
 }
 
-function ElectronHeaderControls(props: {
+function ShellHeaderControls(props: {
   rightPanelPersistenceCwd: string | null;
   showRight: boolean;
   onBack?: () => void;
@@ -323,8 +323,10 @@ function ElectronHeaderControls(props: {
     muted,
   });
 
+  const rightPanelLabel = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
+
   return (
-    <div className="pointer-events-none absolute top-0 right-0 left-0 z-10 box-border flex h-(--multi-header-height) min-w-0 items-start">
+    <div className="pointer-events-none absolute top-0 right-0 left-0 box-border flex h-(--multi-header-height) min-w-0 items-start">
       <div className="multi-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex shrink-0 items-center gap-1 self-start">
         {props.onBack ? (
           <button
@@ -349,85 +351,24 @@ function ElectronHeaderControls(props: {
           )}
         </button>
       </div>
-      <div
-        className="multi-shell-titlebar-drag-region pointer-events-auto drag-region isolate min-h-0 min-w-0 flex-1 self-stretch"
-        data-state={props.showRight && rightOpen ? "expanded" : "collapsed"}
-        aria-hidden
-      />
-    </div>
-  );
-}
-
-function RightPanelChromeToggle(props: {
-  panelPersistenceCwd: string | null;
-  showRight: boolean;
-  routeThreadId: string | null;
-  gitFocusId: string | null;
-  electron: boolean;
-}) {
-  const storedRightOpen = useRightOpen(props.panelPersistenceCwd);
-  const muted = useIsMuted(props.panelPersistenceCwd);
-  const rightOpen = props.showRight
-    ? resolveEffectiveRightOpen({
-        storedRightOpen,
-        routeThreadId: props.routeThreadId,
-        gitFocusId: props.gitFocusId,
-        muted,
-      })
-    : false;
-
-  if (!props.showRight) {
-    return null;
-  }
-
-  const label = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
-
-  return (
-    <div
-      className={cn(
-        "multi-shell-titlebar-right-toggle pointer-events-none absolute z-30",
-        props.electron ? null : "multi-shell-titlebar-right-toggle--web",
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => setRightPanelOpen(props.panelPersistenceCwd, !rightOpen)}
-        className={cn(
-          "pointer-events-auto no-drag flex shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground",
-          props.electron
-            ? "h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height)"
-            : "size-7 bg-multi-sidebar/80 shadow-sm backdrop-blur-sm",
-        )}
-        aria-label={label}
-        aria-pressed={rightOpen}
-        title={label}
-      >
-        {rightOpen ? (
-          <IconSidebarHiddenRightWide className="size-4 shrink-0" />
-        ) : (
-          <IconSidebar className="size-4 shrink-0" />
-        )}
-      </button>
-    </div>
-  );
-}
-
-function LeftExpandButton() {
-  const leftOpen = useLeftOpen();
-  if (leftOpen) {
-    return null;
-  }
-
-  return (
-    <div className="multi-shell-titlebar-left-expand pointer-events-none absolute z-10">
-      <button
-        type="button"
-        onClick={() => shellPanelsActions.toggleLeft()}
-        className="pointer-events-auto flex size-7 items-center justify-center rounded-multi-control bg-multi-sidebar/80 text-muted-foreground shadow-sm backdrop-blur-sm [&_svg]:block hover:bg-multi-hover hover:text-foreground"
-        aria-label="Expand chats"
-      >
-        <IconSidebar className="size-4 shrink-0" />
-      </button>
+      {props.showRight ? (
+        <div className="multi-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-40 flex shrink-0 items-center self-start">
+          <button
+            type="button"
+            onClick={() => setRightPanelOpen(props.rightPanelPersistenceCwd, !rightOpen)}
+            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground"
+            aria-label={rightPanelLabel}
+            aria-pressed={rightOpen}
+            title={rightPanelLabel}
+          >
+            {rightOpen ? (
+              <IconSidebarHiddenRightWide className="size-4 shrink-0" />
+            ) : (
+              <IconSidebar className="size-4 shrink-0" />
+            )}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -525,23 +466,12 @@ export function AppShell(props: {
         </div>
       </div>
 
-      {electron ? (
-        <ElectronHeaderControls
-          rightPanelPersistenceCwd={panelPersistenceCwd}
-          showRight={showRight}
-          routeThreadId={props.routeThreadId ?? null}
-          gitFocusId={props.gitFocusId ?? null}
-          {...(props.onBack ? { onBack: props.onBack } : {})}
-        />
-      ) : (
-        <LeftExpandButton />
-      )}
-      <RightPanelChromeToggle
-        panelPersistenceCwd={panelPersistenceCwd}
+      <ShellHeaderControls
+        rightPanelPersistenceCwd={panelPersistenceCwd}
         showRight={showRight}
         routeThreadId={props.routeThreadId ?? null}
         gitFocusId={props.gitFocusId ?? null}
-        electron={electron}
+        {...(props.onBack ? { onBack: props.onBack } : {})}
       />
     </div>
   );

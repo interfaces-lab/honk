@@ -85,7 +85,7 @@ export const MessageMetaRow = memo(function MessageMetaRow(props: {
 
 export const MessageMeta = memo(function MessageMeta(props: { children: ReactNode }) {
   return (
-    <p className="m-0 text-[10px]/3 text-[color-mix(in_srgb,var(--multi-fg-tertiary)_56%,transparent)]">
+    <p className="m-0 select-none text-[10px]/3 text-[color-mix(in_srgb,var(--multi-fg-tertiary)_56%,transparent)]">
       {props.children}
     </p>
   );

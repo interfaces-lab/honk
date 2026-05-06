@@ -37,7 +37,7 @@ export function SettingsNavRail() {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestoreState();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1 px-2.5 pt-1.5 pb-2">
+    <div className="flex min-h-0 flex-1 select-none flex-col gap-1 px-2.5 pt-1.5 pb-2">
       <nav className="flex min-h-0 flex-1 flex-col gap-px" aria-label="Settings">
         {items.map((item) => {
           const Icon = item.icon;
@@ -47,14 +47,14 @@ export function SettingsNavRail() {
               to={item.to}
               activeProps={{
                 className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-[5px] text-[12px]/[16px] transition-colors",
+                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-[5px] text-[12px]/[16px] transition-colors",
                   "border-multi-border/90 bg-multi-active text-foreground",
                 ),
                 "aria-current": "page",
               }}
               inactiveProps={{
                 className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-[5px] text-[12px]/[16px] transition-colors",
+                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-[5px] text-[12px]/[16px] transition-colors",
                   "text-muted-foreground hover:bg-multi-hover hover:text-foreground",
                 ),
               }}
@@ -70,7 +70,7 @@ export function SettingsNavRail() {
           type="button"
           size="sm"
           variant="outline"
-          className="w-full"
+          className="w-full select-none"
           disabled={changedSettingLabels.length === 0}
           onClick={() => void restoreDefaults()}
         >

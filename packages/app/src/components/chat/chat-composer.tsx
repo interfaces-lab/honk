@@ -197,7 +197,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
         <>
           <Button
             variant="ghost"
-            className="composer-unified-dropdown shrink-0 whitespace-nowrap px-2.5 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
+            className="composer-unified-dropdown shrink-0 select-none whitespace-nowrap px-2.5 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
             data-mode={props.interactionMode === "plan" ? "plan" : "chat"}
             size="sm"
             type="button"
@@ -225,7 +225,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
         <SelectTrigger
           variant="ghost"
           size="sm"
-          className="font-medium"
+          className="select-none font-medium"
           aria-label="Runtime mode"
           title={runtimeModeOption.description}
         >
@@ -259,7 +259,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
           <Button
             variant="ghost"
             className={cn(
-              "shrink-0 whitespace-nowrap px-2.5 sm:px-3",
+              "shrink-0 select-none whitespace-nowrap px-2.5 sm:px-3",
               props.planSidebarOpen
                 ? "text-blue-400 hover:text-blue-300"
                 : "text-muted-foreground/70 hover:text-foreground/80",
@@ -308,7 +308,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
     <>
       {props.activeContextWindow ? <ContextWindowMeter usage={props.activeContextWindow} /> : null}
       {props.isPreparingWorktree ? (
-        <span className="text-muted-foreground/70 text-xs">Preparing worktree...</span>
+        <span className="select-none text-muted-foreground/70 text-xs">Preparing worktree...</span>
       ) : null}
       <ComposerPrimaryActions
         compact={props.compact}
@@ -2072,7 +2072,7 @@ export const ChatComposer = memo(
             ) : null}
             <div
               className={cn(
-                "ui-prompt-input-editor relative",
+                "ui-prompt-input-editor relative select-text",
                 composerVariant === "compact" && !isDockComposerExpanded
                   ? "min-h-0"
                   : "min-h-(--prompt-input-editor-min-height)",

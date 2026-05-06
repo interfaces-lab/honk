@@ -182,7 +182,7 @@ export const PromptInputRoot = forwardRef<HTMLDivElement, PromptInputRootProps>(
         >
           {headerContent ? (
             <div
-              className={cn("ui-prompt-input__header", headerClassName)}
+              className={cn("ui-prompt-input__header select-none", headerClassName)}
               data-visible={headerContentVisible ? "true" : "false"}
             >
               {headerContent}
@@ -191,7 +191,7 @@ export const PromptInputRoot = forwardRef<HTMLDivElement, PromptInputRootProps>(
           <div
             {...restContainerProps}
             className={cn(
-              "ui-prompt-input__container",
+              "ui-prompt-input__container select-none",
               containerClassName,
               containerPropsClassName,
             )}

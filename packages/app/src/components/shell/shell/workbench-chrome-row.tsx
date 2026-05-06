@@ -3,12 +3,12 @@
 import type { ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-const workbenchChromeRowVariants = cva("no-drag flex shrink-0 items-center flex-nowrap", {
+const workbenchChromeRowVariants = cva("flex shrink-0 items-center flex-nowrap", {
   variants: {
     variant: {
-      tool: "ui-tab-system multi-workbench-tool-island relative z-20 box-border h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) max-h-(--multi-workbench-chrome-row-height) flex-none gap-(--multi-workbench-chrome-action-gap) overflow-hidden border-b px-(--multi-workbench-chrome-padding-inline) [--tab-system-bar-background:transparent] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
+      tool: "drag-region ui-tab-system multi-workbench-tool-island relative z-20 box-border h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) max-h-(--multi-workbench-chrome-row-height) flex-none select-none gap-(--multi-workbench-chrome-action-gap) overflow-hidden border-b px-(--multi-workbench-chrome-padding-inline) [--tab-system-bar-background:transparent] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
       panel:
-        "multi-workbench-panel-title-row w-full min-w-0 flex-row gap-(--multi-workbench-chrome-action-gap)",
+        "no-drag multi-workbench-panel-title-row w-full min-w-0 flex-row gap-(--multi-workbench-chrome-action-gap)",
     },
   },
 });

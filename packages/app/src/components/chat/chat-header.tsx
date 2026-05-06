@@ -32,8 +32,8 @@ interface ChatHeaderProps {
 
 export const ChatHeader = memo(function ChatHeader({ activeThreadTitle }: ChatHeaderProps) {
   return (
-    <div className="multi-agent-panel-header @container/header-actions flex min-w-0 flex-1 items-center gap-2 text-[12px]/[16px]">
-      <div className="multi-agent-panel-header__title flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+    <div className="no-drag @container/header-actions flex min-w-0 flex-1 select-none items-center gap-2 text-[12px]/[16px]">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         <Button
           type="button"
           variant="ghost"

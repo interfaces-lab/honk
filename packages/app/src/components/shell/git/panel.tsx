@@ -328,8 +328,8 @@ function LocalBranchBar(props: {
       variant="panel"
       gap="loose"
       trailing={
-        <div className="flex shrink-0 items-center gap-(--multi-workbench-sub-chrome-action-gap)">
-          <div className="relative shrink-0">
+        <div className="no-drag flex shrink-0 items-center gap-(--multi-workbench-sub-chrome-action-gap)">
+          <div className="no-drag relative shrink-0">
             <WorkbenchIconButton
               onClick={() => props.onEditorMenuOpen(!props.editorMenuOpen)}
               aria-label="Editor Options"
@@ -367,8 +367,8 @@ function LocalBranchBar(props: {
               </>
             )}
           </div>
-          <div className="relative min-w-0 shrink-0">
-            <div className="inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-[5px] border border-primary bg-primary text-[11px]/[14px] font-medium text-primary-foreground shadow-sm">
+          <div className="no-drag relative min-w-0 shrink-0">
+            <div className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-[5px] border border-primary bg-primary text-[11px]/[14px] font-medium text-primary-foreground shadow-sm">
               <button
                 type="button"
                 className="inline-flex h-full min-w-0 items-center justify-center px-2 text-inherit transition-colors hover:bg-primary/90"
@@ -416,11 +416,13 @@ function LocalBranchBar(props: {
         </div>
       }
     >
-      <span className="shrink-0 text-detail font-medium text-multi-fg-secondary">Local</span>
+      <span className="no-drag shrink-0 text-detail font-medium text-multi-fg-secondary">
+        Local
+      </span>
       <button
         type="button"
         onClick={copyBranch}
-        className="inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-[5px] px-1.5 text-[11px]/[14px] font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-[5px] px-1.5 text-[11px]/[14px] font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
         title="Copy branch name"
       >
         <IconBranch className="size-3 shrink-0 text-multi-icon-tertiary" />

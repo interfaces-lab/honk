@@ -255,7 +255,10 @@ jobs:
           path: release-publish/*
           if-no-files-found: error
 
+  # npm publish: job disabled (bun install / @turbo/linux-64 extract failures on release runners).
+  # Re-enable: set if: true below and add publish_cli to release.needs.
   publish_cli:
+    if: false
     name: Publish CLI to npm
     needs: [preflight, build]
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -291,7 +294,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [preflight, build, publish_cli]
+    needs: [preflight, build]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:

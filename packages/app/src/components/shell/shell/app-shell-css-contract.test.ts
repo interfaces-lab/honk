@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 const shellDir = resolve(__dirname);
 const appShellSource = readFileSync(resolve(shellDir, "app.tsx"), "utf8");
+const chatHeaderSource = readFileSync(resolve(shellDir, "../../chat/chat-header.tsx"), "utf8");
+const gitPanelSource = readFileSync(resolve(shellDir, "../git/panel.tsx"), "utf8");
 const rightWorkbenchHeaderSource = readFileSync(
   resolve(shellDir, "right-workbench-header.tsx"),
   "utf8",
@@ -13,6 +15,11 @@ const rightWorkbenchLayoutSource = readFileSync(
   resolve(shellDir, "right-workbench-layout.tsx"),
   "utf8",
 );
+const workbenchChromeRowSource = readFileSync(
+  resolve(shellDir, "workbench-chrome-row.tsx"),
+  "utf8",
+);
+const indexCssSource = readFileSync(resolve(shellDir, "../../../index.css"), "utf8");
 const shellCssSource = readFileSync(resolve(shellDir, "../../../styles/shell.css"), "utf8");
 const desktopChromeSource = readFileSync(
   resolve(shellDir, "../../../lib/desktop-chrome.ts"),
@@ -63,19 +70,42 @@ describe("AppShell CSS root contract", () => {
   it("aligns titlebar chrome and workbench spacer from the root variables", () => {
     expect(appShellSource).toContain("multi-shell-titlebar-left-controls");
     expect(appShellSource).toContain("multi-shell-titlebar-right-toggle");
-    expect(appShellSource).toContain("multi-shell-titlebar-drag-region");
     expect(rightWorkbenchHeaderSource).toContain("multi-workbench-titlebar-end-space");
+    expect(rightWorkbenchHeaderSource).toContain(
+      'className="multi-workbench-titlebar-end-space shrink-0"',
+    );
+    expect(rightWorkbenchHeaderSource).not.toContain(
+      'className="multi-workbench-titlebar-end-space no-drag',
+    );
     expect(shellCssSource).toContain("left: var(--multi-electron-traffic-inset)");
     expect(shellCssSource).toContain("right: var(--multi-shell-titlebar-gutter)");
     expect(shellCssSource).toContain("top: var(--multi-shell-titlebar-control-y)");
-    expect(shellCssSource).toContain("margin-right: var(--multi-shell-right-effective-width)");
+    expect(shellCssSource).toContain(".agent-window__left-content.thread-rail-pad::before");
+    expect(shellCssSource).toContain("pointer-events: none");
+    expect(shellCssSource).toContain("-webkit-app-region: drag");
     expect(shellCssSource).toContain("width: var(--multi-shell-right-workbench-header-end-space)");
+    expect(workbenchChromeRowSource).toContain("drag-region ui-tab-system");
+    expect(indexCssSource).toContain('.drag-region [role="tab"]');
+    expect(indexCssSource).toContain('.drag-region [data-slot="tabs-list"]');
+    expect(rightWorkbenchHeaderSource).toContain('<TabsList className="no-drag');
+    expect(rightWorkbenchHeaderSource).toContain('className="no-drag flex min-w-0 items-center');
+    expect(gitPanelSource).toContain('className="no-drag shrink-0 text-detail');
+    expect(gitPanelSource).toContain(
+      'className="no-drag inline-flex h-(--multi-workbench-action-size)',
+    );
     expect(appShellSource).not.toContain("wco:right");
+    expect(appShellSource).not.toContain("LeftExpandButton");
+    expect(appShellSource).not.toContain("RightPanelChromeToggle");
+    expect(appShellSource).not.toContain("multi-shell-titlebar-drag-region");
+    expect(shellCssSource).not.toContain("multi-shell-titlebar-drag-region");
+    expect(chatHeaderSource).not.toContain("multi-agent-panel-header");
+    expect(shellCssSource).not.toContain("multi-shell-titlebar-right-toggle--web");
   });
 
   it("lets Electron fullscreen chrome update traffic-light shell spacing", () => {
     expect(desktopChromeSource).toContain("--multi-shell-sidebar-content-top-offset");
-    expect(desktopChromeSource).toContain("state.fullscreen ? TITLEBAR_HEIGHT_PX");
+    expect(desktopChromeSource).toContain("TITLEBAR_CONTENT_RESERVE_PX");
+    expect(desktopChromeSource).toContain("FULLSCREEN_TITLEBAR_CONTROL_OFFSET_TOP_PX");
     expect(shellCssSource).toContain("--multi-shell-sidebar-content-top-offset");
     expect(shellCssSource).toContain("var(--multi-electron-traffic-padding-top)");
   });

@@ -56,7 +56,7 @@ function ToolIconButton(props: { tab: WorkbenchTab; badge?: string | null }) {
 function WorkbenchTabList(props: { activeTab: WorkbenchTab; gitCount?: number | undefined }) {
   const allTabs: WorkbenchTab[] = ["git", "terminal", "files"];
   return (
-    <TabsList className="flex shrink-0 items-center gap-(--multi-workbench-chrome-action-gap)">
+    <TabsList className="no-drag flex shrink-0 select-none items-center gap-(--multi-workbench-chrome-action-gap)">
       {allTabs.map((tab) => (
         <ToolIconButton
           key={tab}
@@ -90,7 +90,7 @@ function TerminalSessionTab(props: {
     <div
       role="presentation"
       className={cn(
-        "no-drag group relative flex h-(--multi-workbench-action-size) max-w-(--composer-tab-label-max-width) items-center overflow-hidden rounded-[5px] text-[12px]/[16px] transition-colors",
+        "no-drag group relative flex h-(--multi-workbench-action-size) max-w-(--composer-tab-label-max-width) select-none items-center overflow-hidden rounded-[5px] text-[12px]/[16px] transition-colors",
         props.active
           ? "bg-multi-bg-tertiary text-multi-fg-primary"
           : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
@@ -101,7 +101,7 @@ function TerminalSessionTab(props: {
         role="tab"
         aria-selected={props.active}
         onClick={props.onActivate}
-        className="flex min-w-0 flex-1 items-center gap-1 px-1.5 text-left outline-hidden focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className="flex min-w-0 flex-1 select-none items-center gap-1 px-1.5 text-left outline-hidden focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
         aria-current={props.active ? "page" : undefined}
       >
         <IconConsole className="size-3 shrink-0 opacity-60" aria-hidden />
@@ -143,7 +143,7 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
   return (
     <RightWorkbenchToolIsland
       trailing={props.trailing}
-      end={<div className="multi-workbench-titlebar-end-space no-drag shrink-0" aria-hidden />}
+      end={<div className="multi-workbench-titlebar-end-space shrink-0" aria-hidden />}
     >
       <>
         <WorkbenchTabList activeTab={props.activeTab} gitCount={props.gitCount} />
@@ -155,7 +155,7 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
               aria-hidden
             />
             <div
-              className="flex min-w-0 items-center gap-(--multi-workbench-chrome-action-gap)"
+              className="no-drag flex min-w-0 items-center gap-(--multi-workbench-chrome-action-gap)"
               role="tablist"
               aria-label="Terminal sessions"
             >

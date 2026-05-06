@@ -140,7 +140,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
   );
 
   const settingsLeft = (
-    <div className="thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
+    <div className="agent-window__left-content thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
       <SettingsNavRail />
       <ShellSidebarFooter settings />
     </div>
@@ -608,11 +608,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const chatLeft = (
     <div className="agent-window__left-content thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
       <div className={cn("agent-window__sidebar-chrome shrink-0", isElectron && "no-drag")}>
-        <ShellSidebarHeader
-          onNewChat={create}
-          onAddProject={openAddProject}
-          {...(isElectron ? {} : { onCollapse: () => shellPanelsActions.toggleLeft() })}
-        />
+        <ShellSidebarHeader onNewChat={create} onAddProject={openAddProject} />
       </div>
       <ThreadRail
         loading={false}

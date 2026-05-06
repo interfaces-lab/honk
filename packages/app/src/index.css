@@ -318,7 +318,12 @@ code {
 .drag-region input,
 .drag-region textarea,
 .drag-region select,
-.drag-region a {
+.drag-region a,
+.drag-region [role="button"],
+.drag-region [role="tab"],
+.drag-region [role="tablist"],
+.drag-region [data-slot="tabs-list"],
+.drag-region [data-slot="tabs-tab"] {
   -webkit-app-region: no-drag;
 }
 

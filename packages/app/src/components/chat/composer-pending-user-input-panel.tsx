@@ -137,9 +137,11 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
           </span>
         </div>
       </div>
-      <p className="mt-1.5 text-sm text-foreground/90">{activeQuestion.question}</p>
+      <p className="mt-1.5 select-text text-sm text-foreground/90">{activeQuestion.question}</p>
       {activeQuestion.multiSelect ? (
-        <p className="mt-1 text-xs text-muted-foreground/65">Select one or more options.</p>
+        <p className="mt-1 select-text text-xs text-muted-foreground/65">
+          Select one or more options.
+        </p>
       ) : null}
       <div className="mt-3 space-y-1">
         {activeQuestion.options.map((option, index) => {
@@ -152,7 +154,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
               disabled={isResponding}
               onClick={() => handleOptionSelection(activeQuestion.id, option.label)}
               className={cn(
-                "group flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-all duration-150",
+                "group flex w-full select-none items-center gap-3 rounded-lg border px-3 py-2 text-left transition-all duration-150",
                 isSelected
                   ? "border-blue-500/40 bg-blue-500/8 text-foreground"
                   : "border-transparent bg-muted/20 text-foreground/80 hover:bg-muted/40 hover:border-border/40",
