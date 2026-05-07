@@ -4,10 +4,10 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@multi/client-runtime";
-import type { EditorId, EnvironmentId, ThreadId, TurnId } from "@multi/contracts";
+import type { EditorId, EnvironmentId, ThreadId } from "@multi/contracts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useNavigate, useParams, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
@@ -27,7 +27,11 @@ import {
 import {
   GIT_AGENT_ACTIONS,
   resolveGitAgentActionFromPrompt,
+  resolveGitAgentInterruptTarget,
+  resolvePendingGitAgentAction,
   type GitAgentAction,
+  type GitAgentInterruptTarget,
+  type GitAgentRun,
 } from "~/lib/git-agent-actions";
 import {
   shellPanelsActions,
@@ -94,12 +98,6 @@ function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefi
   if (!sidebarThread) return false;
   const label = resolveThreadStatusPill({ thread: sidebarThread })?.label;
   return label === "Pending Approval" || label === "Awaiting Input" || label === "Plan Ready";
-}
-
-interface GitAgentInterruptTarget {
-  environmentId: EnvironmentId;
-  threadId: ThreadId;
-  turnId?: TurnId | undefined;
 }
 
 function toSummary(
@@ -333,7 +331,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         : null,
     [routeThreadId, threads],
   );
-  const activeGitAgentRun = useMemo(() => {
+  const activeGitAgentRun = useMemo((): GitAgentRun | null => {
     if (!activeThread) {
       return null;
     }
@@ -354,9 +352,11 @@ function ChatShellHost(props: { children?: ReactNode }) {
         environmentId: activeThread.environmentId,
         threadId: activeThread.id,
         turnId: activeThread.session?.activeTurnId ?? activeThread.latestTurn?.turnId ?? undefined,
-      } satisfies GitAgentInterruptTarget,
+      },
     };
   }, [activeThread]);
+  const [gitAgentOrchestrationHandoff, setGitAgentOrchestrationHandoff] =
+    useState<GitAgentRun | null>(null);
   const activeDraftCwd = activeDraftThread
     ? activeDraftThread.projectId === null
       ? PROJECTLESS_CWD
@@ -584,6 +584,10 @@ function ChatShellHost(props: { children?: ReactNode }) {
       let draftPromotionMarked = false;
 
       try {
+        setGitAgentOrchestrationHandoff({
+          action,
+          target: { environmentId: project.environmentId, threadId },
+        });
         if (promotedDraftId) {
           markDraftThreadPromoting(
             promotedDraftId,
@@ -630,6 +634,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
           params: { environmentId: project.environmentId, threadId },
         });
       } catch (error) {
+        setGitAgentOrchestrationHandoff(null);
         if (draftPromotionMarked && promotedDraftId) {
           cancelDraftThreadPromotion(promotedDraftId);
         }
@@ -654,6 +659,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     mutationKey: ["git", "agent-action", activeEnvironmentId ?? null, activeCwd ?? null] as const,
     mutationFn: startGitAgentAction,
     onError: (error) => {
+      setGitAgentOrchestrationHandoff(null);
       toast.error(error instanceof Error ? error.message : "Failed to start Git action.");
     },
   });
@@ -662,8 +668,10 @@ function ChatShellHost(props: { children?: ReactNode }) {
       "git",
       "agent-action",
       "interrupt",
-      activeGitAgentRun?.target.environmentId ?? null,
-      activeGitAgentRun?.target.threadId ?? null,
+      activeGitAgentRun?.target.environmentId ??
+        gitAgentOrchestrationHandoff?.target.environmentId ??
+        null,
+      activeGitAgentRun?.target.threadId ?? gitAgentOrchestrationHandoff?.target.threadId ?? null,
     ] as const,
     mutationFn: async (target: GitAgentInterruptTarget) => {
       const api = readEnvironmentApi(target.environmentId);
@@ -682,11 +690,23 @@ function ChatShellHost(props: { children?: ReactNode }) {
       toast.error(error instanceof Error ? error.message : "Failed to stop Git action.");
     },
   });
-  const pendingGitAgentAction =
-    activeGitAgentRun?.action ??
-    (gitAgentActionMutation.isPending ? (gitAgentActionMutation.variables ?? null) : null);
-  const stopGitAgentAction = activeGitAgentRun
-    ? () => interruptGitAgentActionMutation.mutate(activeGitAgentRun.target)
+  useEffect(() => {
+    if (activeGitAgentRun !== null) {
+      setGitAgentOrchestrationHandoff(null);
+    }
+  }, [activeGitAgentRun]);
+  const pendingGitAgentAction = resolvePendingGitAgentAction({
+    activeRun: activeGitAgentRun,
+    mutationIsPending: gitAgentActionMutation.isPending,
+    mutationVariables: gitAgentActionMutation.variables,
+    orchestrationHandoff: gitAgentOrchestrationHandoff,
+  });
+  const gitAgentInterruptTarget = resolveGitAgentInterruptTarget({
+    activeRun: activeGitAgentRun,
+    orchestrationHandoff: gitAgentOrchestrationHandoff,
+  });
+  const stopGitAgentAction = gitAgentInterruptTarget
+    ? () => interruptGitAgentActionMutation.mutate(gitAgentInterruptTarget)
     : null;
 
   const chatLeft = (

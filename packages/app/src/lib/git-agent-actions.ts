@@ -1,3 +1,5 @@
+import type { EnvironmentId, ThreadId, TurnId } from "@multi/contracts";
+
 export const GIT_AGENT_ACTIONS = {
   createBranchAndCommit: {
     label: "Create Branch & Commit",
@@ -35,6 +37,19 @@ export type GitAgentAction = keyof typeof GIT_AGENT_ACTIONS;
 
 export type GitAgentActionDetails = (typeof GIT_AGENT_ACTIONS)[GitAgentAction];
 
+/** RPC scope for `thread.turn.interrupt` when a Git agent turn is active or starting. */
+export type GitAgentInterruptTarget = Readonly<{
+  environmentId: EnvironmentId;
+  threadId: ThreadId;
+  turnId?: TurnId | undefined;
+}>;
+
+/** One in-flight Git agent invocation: UI action label plus interrupt target. */
+export type GitAgentRun = Readonly<{
+  action: GitAgentAction;
+  target: GitAgentInterruptTarget;
+}>;
+
 export const GIT_AGENT_PRIMARY_ACTION = "commitAndPush" as const satisfies GitAgentAction;
 
 export const GIT_AGENT_ACTION_ORDER = [
@@ -50,4 +65,26 @@ const GIT_AGENT_ACTION_ENTRIES = Object.entries(GIT_AGENT_ACTIONS) as ReadonlyAr
 
 export function resolveGitAgentActionFromPrompt(prompt: string): GitAgentAction | null {
   return GIT_AGENT_ACTION_ENTRIES.find(([, details]) => details.prompt === prompt)?.[0] ?? null;
+}
+
+/** Pending toolbar action: store-backed run wins; then live mutation; then post-mutation handoff until the store catches up. */
+export function resolvePendingGitAgentAction(input: {
+  activeRun: GitAgentRun | null;
+  mutationIsPending: boolean;
+  mutationVariables: GitAgentAction | undefined;
+  orchestrationHandoff: GitAgentRun | null;
+}): GitAgentAction | null {
+  return (
+    input.activeRun?.action ??
+    (input.mutationIsPending
+      ? (input.mutationVariables ?? null)
+      : (input.orchestrationHandoff?.action ?? null))
+  );
+}
+
+export function resolveGitAgentInterruptTarget(input: {
+  activeRun: GitAgentRun | null;
+  orchestrationHandoff: GitAgentRun | null;
+}): GitAgentInterruptTarget | null {
+  return input.activeRun?.target ?? input.orchestrationHandoff?.target ?? null;
 }
