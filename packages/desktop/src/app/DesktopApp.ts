@@ -199,7 +199,6 @@ const startup = Effect.gen(function* () {
   yield* shellEnvironment.installIntoProcess;
   const userDataPath = yield* appIdentity.resolveUserDataPath;
   yield* electronApp.setPath("userData", userDataPath);
-  yield* electronProtocol.registerSchemePrivileges;
   yield* logStartupInfo("runtime logging configured", { logDir: environment.logDir });
   const settings = yield* desktopSettings.load;
   yield* electronTheme.setSource(settings.themeSource);
