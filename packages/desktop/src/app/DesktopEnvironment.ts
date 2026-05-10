@@ -27,6 +27,7 @@ export interface MakeDesktopEnvironmentInput {
   readonly appPath: string;
   readonly isPackaged: boolean;
   readonly resourcesPath: string;
+  readonly documentsDirectory: string;
   readonly runningUnderArm64Translation: boolean;
 }
 
@@ -134,6 +135,10 @@ function resolveDesktopRuntimeInfo(input: {
   };
 }
 
+export function resolveDefaultBackendCwd(input: { readonly documentsDirectory: string }): string {
+  return input.documentsDirectory;
+}
+
 const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   input: MakeDesktopEnvironmentInput,
 ): Effect.fn.Return<DesktopEnvironmentShape, Config.ConfigError, Path.Path> {
@@ -153,6 +158,9 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   const baseDir = Option.getOrElse(config.multiHome, () => path.join(homeDirectory, ".multi"));
   const rootDir = path.resolve(input.dirname, "../../..");
   const appRoot = input.isPackaged ? input.appPath : rootDir;
+  const defaultBackendCwd = resolveDefaultBackendCwd({
+    documentsDirectory: input.documentsDirectory,
+  });
   const branding = resolveDesktopAppBranding({
     isDevelopment,
     appVersion: input.appVersion,
@@ -185,7 +193,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     rootDir,
     appRoot,
     backendEntryPath: path.join(appRoot, "packages/server/dist/bin.mjs"),
-    backendCwd: input.isPackaged ? homeDirectory : appRoot,
+    backendCwd: defaultBackendCwd,
     preloadPath: path.join(input.dirname, "preload.cjs"),
     appUpdateYmlPath: input.isPackaged
       ? path.join(resourcesPath, "app-update.yml")

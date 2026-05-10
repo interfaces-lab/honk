@@ -650,7 +650,8 @@ function createTerminalSpawnEnv(
   }
   spawnEnv.TERM = "xterm-256color";
   spawnEnv.COLORTERM = "truecolor";
-  spawnEnv.TERM_PROGRAM = "Multi";
+  // Preserve the user's native TERM_PROGRAM so prompt tools like Starship keep
+  // using the same prompt branch they use in the real terminal app.
   if (runtimeEnv) {
     for (const [key, value] of Object.entries(runtimeEnv)) {
       spawnEnv[key] = value;

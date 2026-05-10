@@ -10,6 +10,7 @@ export interface ElectronAppMetadata {
   readonly appPath: string;
   readonly isPackaged: boolean;
   readonly resourcesPath: string;
+  readonly documentsDirectory: string;
   readonly runningUnderArm64Translation: boolean;
 }
 
@@ -62,6 +63,7 @@ const make = ElectronApp.of({
     appPath: Electron.app.getAppPath(),
     isPackaged: Electron.app.isPackaged,
     resourcesPath: process.resourcesPath,
+    documentsDirectory: Electron.app.getPath("documents"),
     runningUnderArm64Translation: Electron.app.runningUnderARM64Translation === true,
   })),
   name: Effect.sync(() => Electron.app.name),

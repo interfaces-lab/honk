@@ -20,6 +20,7 @@ import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
 import { createModelSelection } from "@multi/shared/model";
 import { Equal } from "effect";
 import { APP_VERSION } from "../../branding";
+import { resolveComposerModelSelection } from "../../composer-model-selection";
 import {
   readAppearanceSnapshot,
   resetAppearanceSettings,
@@ -1092,14 +1093,28 @@ export function ModelsSettingsPanel() {
 
   const visibleProviderSettings = PROVIDER_SETTINGS;
 
+  const composerModelSelection = resolveComposerModelSelection({
+    draft: null,
+    providers: serverProviders,
+    settings,
+    sessionProviderInstanceId: null,
+    threadModelSelection: null,
+    projectModelSelection: null,
+  });
+  const composerInstanceId = composerModelSelection.selectedInstanceId;
+  const composerModel = composerModelSelection.selectedModel;
+  const composerModelOptions = composerModelSelection.modelSelection.options;
+  const composerProvider = composerModelSelection.selectedProvider;
+  const composerInstanceEntry = composerModelSelection.selectedProviderEntry;
+  const composerModelOptionsByInstance = composerModelSelection.modelOptionsByInstance;
   const textGenerationModelSelection = resolveAppModelSelectionState(settings, serverProviders);
   const textGenInstanceId = textGenerationModelSelection.instanceId;
   const textGenModel = textGenerationModelSelection.model;
   const textGenModelOptions = textGenerationModelSelection.options;
-  const gitModelInstanceEntries = sortProviderInstanceEntries(
+  const modelInstanceEntries = sortProviderInstanceEntries(
     deriveProviderInstanceEntriesForSettings(settings, serverProviders),
   );
-  const textGenInstanceEntry = gitModelInstanceEntries.find(
+  const textGenInstanceEntry = modelInstanceEntries.find(
     (entry) => entry.instanceId === textGenInstanceId,
   );
   const textGenProvider: ProviderDriverKind =
@@ -1109,6 +1124,10 @@ export function ModelsSettingsPanel() {
     serverProviders,
     textGenInstanceId,
     textGenModel,
+  );
+  const isComposerModelDirty = !Equal.equals(
+    settings.composerModelSelection ?? null,
+    DEFAULT_UNIFIED_SETTINGS.composerModelSelection ?? null,
   );
   const isGitWritingModelDirty = !Equal.equals(
     settings.textGenerationModelSelection ?? null,
@@ -1300,6 +1319,60 @@ export function ModelsSettingsPanel() {
     <SettingsPageContainer>
       <SettingsSection title="Models">
         <SettingsRow
+          title="Composer default model"
+          description="Configure the default model used for new composer threads when a project or thread has no override."
+          resetAction={
+            isComposerModelDirty ? (
+              <SettingResetButton
+                label="composer default model"
+                onClick={() =>
+                  updateSettings({
+                    composerModelSelection: null,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <ProviderModelPicker
+                activeInstanceId={composerInstanceId}
+                model={composerModel}
+                instanceEntries={modelInstanceEntries}
+                modelOptionsByInstance={composerModelOptionsByInstance}
+                triggerVariant="outline"
+                triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
+                onInstanceModelChange={(instanceId, model) => {
+                  updateSettings({
+                    composerModelSelection: createModelSelection(instanceId, model),
+                  });
+                }}
+              />
+              <TraitsPicker
+                provider={composerProvider}
+                models={composerInstanceEntry?.models ?? []}
+                model={composerModel}
+                prompt=""
+                onPromptChange={() => {}}
+                modelOptions={composerModelOptions}
+                allowPromptInjectedEffort={false}
+                triggerVariant="outline"
+                triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
+                onModelOptionsChange={(nextOptions) => {
+                  updateSettings({
+                    composerModelSelection: createModelSelection(
+                      composerInstanceId,
+                      composerModel,
+                      nextOptions,
+                    ),
+                  });
+                }}
+              />
+            </div>
+          }
+        />
+
+        <SettingsRow
           title="Text generation model"
           description="Configure the model used for generated commit messages, PR titles, and similar Git text."
           resetAction={
@@ -1320,7 +1393,7 @@ export function ModelsSettingsPanel() {
               <ProviderModelPicker
                 activeInstanceId={textGenInstanceId}
                 model={textGenModel}
-                instanceEntries={gitModelInstanceEntries}
+                instanceEntries={modelInstanceEntries}
                 modelOptionsByInstance={gitModelOptionsByInstance}
                 triggerVariant="outline"
                 triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"

@@ -36,7 +36,6 @@ export interface SidebarThreadSummary {
   modifiedAt: string;
   messageCount: number;
   firstMessage: string;
-  allMessagesText: string;
   isStreaming: boolean;
   orchestrationStatus?: OrchestrationSessionStatus | null;
   needsAttention?: boolean;

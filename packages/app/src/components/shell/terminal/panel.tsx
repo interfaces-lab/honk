@@ -12,6 +12,7 @@ import {
 } from "~/components/shell/terminal/terminal-host-theme";
 import { subscribeTerminalHostDocument } from "~/components/shell/terminal/terminal-xterm-host-sync";
 import { readNativeEnvironmentApi } from "~/lib/native-runtime-api";
+import { clampTerminalDimensions } from "~/lib/terminal-dimensions";
 import { traceBrowserEvent } from "~/observability/browserDebug";
 
 function workbenchThreadId(cwd: string) {
@@ -93,7 +94,10 @@ export function TerminalPanel(props: {
       el.replaceChildren();
       next.open(el);
       addon.fit();
-      size.current = { thread, cols: next.cols, rows: next.rows };
+      size.current = {
+        thread,
+        ...clampTerminalDimensions({ cols: next.cols, rows: next.rows }),
+      };
       term.current = next;
       fit.current = addon;
     } catch (err) {
@@ -187,22 +191,23 @@ export function TerminalPanel(props: {
       if (openSession.current?.thread !== thread || openSession.current?.terminalId !== termId) {
         return;
       }
+      const nextSize = clampTerminalDimensions({ cols: terminal.cols, rows: terminal.rows });
       const prev = size.current;
       if (
         prev &&
         prev.thread === thread &&
-        prev.cols === terminal.cols &&
-        prev.rows === terminal.rows
+        prev.cols === nextSize.cols &&
+        prev.rows === nextSize.rows
       ) {
         return;
       }
-      size.current = { thread, cols: terminal.cols, rows: terminal.rows };
+      size.current = { thread, ...nextSize };
       void api
         .resize({
           threadId: thread,
           terminalId: termId,
-          cols: terminal.cols,
-          rows: terminal.rows,
+          cols: nextSize.cols,
+          rows: nextSize.rows,
         })
         .catch(() => undefined);
     };
@@ -218,20 +223,21 @@ export function TerminalPanel(props: {
       },
     );
 
+    const openSize = clampTerminalDimensions({ cols: next.cols, rows: next.rows });
     traceBrowserEvent("terminal.panel.open.start", {
       cwd,
       threadId: thread,
       terminalId: termId,
-      cols: next.cols,
-      rows: next.rows,
+      cols: openSize.cols,
+      rows: openSize.rows,
     });
     void api
       .open({
         threadId: thread,
         terminalId: termId,
         cwd,
-        cols: next.cols,
-        rows: next.rows,
+        cols: openSize.cols,
+        rows: openSize.rows,
       })
       .then((snap) => {
         if (!live) return;
@@ -295,17 +301,23 @@ export function TerminalPanel(props: {
       if (openSession.current?.thread !== thread || openSession.current.terminalId !== termId) {
         return;
       }
+      const nextSize = clampTerminalDimensions({ cols: next.cols, rows: next.rows });
       const prev = size.current;
-      if (prev && prev.thread === thread && prev.cols === next.cols && prev.rows === next.rows) {
+      if (
+        prev &&
+        prev.thread === thread &&
+        prev.cols === nextSize.cols &&
+        prev.rows === nextSize.rows
+      ) {
         return;
       }
-      size.current = { thread, cols: next.cols, rows: next.rows };
+      size.current = { thread, ...nextSize };
       void api
         .resize({
           threadId: thread,
           terminalId: termId,
-          cols: next.cols,
-          rows: next.rows,
+          cols: nextSize.cols,
+          rows: nextSize.rows,
         })
         .catch(() => undefined);
     });

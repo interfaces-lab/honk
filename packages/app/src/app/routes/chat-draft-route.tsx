@@ -5,6 +5,10 @@ import { threadHasStarted } from "~/components/chat-view.logic";
 import { useComposerDraftStore, DraftId } from "~/composer-draft-store";
 import { createThreadSelectorAcrossEnvironments } from "~/store-selectors";
 import { useStore } from "~/store";
+import {
+  clearLastChatRouteTarget,
+  writeLastChatRouteTarget,
+} from "~/chat-route-persistence";
 import { buildThreadRouteParams } from "~/thread-routes";
 import { traceBrowserEvent } from "~/observability/browserDebug";
 
@@ -41,6 +45,7 @@ export function DraftChatThreadRouteView() {
     if (!canonicalThreadRef) {
       return;
     }
+    writeLastChatRouteTarget({ kind: "server", threadRef: canonicalThreadRef });
     traceBrowserEvent("route.draft.promoted.navigate", {
       draftId,
       environmentId: canonicalThreadRef.environmentId,
@@ -54,9 +59,14 @@ export function DraftChatThreadRouteView() {
   }, [canonicalThreadRef, draftId, navigate]);
 
   useEffect(() => {
-    if (draftSession || canonicalThreadRef) {
+    if (canonicalThreadRef) {
       return;
     }
+    if (draftSession) {
+      writeLastChatRouteTarget({ kind: "draft", draftId });
+      return;
+    }
+    clearLastChatRouteTarget({ kind: "draft", draftId });
     traceBrowserEvent("route.draft.missing.navigate-home", { draftId }, "warn");
     void navigate({ to: "/", replace: true });
   }, [canonicalThreadRef, draftId, draftSession, navigate]);

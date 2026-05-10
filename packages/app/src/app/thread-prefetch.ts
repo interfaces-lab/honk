@@ -1,5 +1,5 @@
 import type { AppRouter } from "~/router";
-import type { Thread } from "~/types";
+import type { EnvironmentId, ThreadId } from "@multi/contracts";
 import type { DraftId } from "~/composer-draft-store";
 
 export function prefetchDraftNavigation(router: AppRouter, draftId: DraftId | string): void {
@@ -11,7 +11,10 @@ export function prefetchDraftNavigation(router: AppRouter, draftId: DraftId | st
     .catch(() => undefined);
 }
 
-export function prefetchThreadNavigation(input: { router: AppRouter; thread: Thread }): void {
+export function prefetchThreadNavigation(input: {
+  router: AppRouter;
+  thread: { environmentId: EnvironmentId; id: ThreadId };
+}): void {
   void input.router
     .preloadRoute({
       to: "/$environmentId/$threadId",

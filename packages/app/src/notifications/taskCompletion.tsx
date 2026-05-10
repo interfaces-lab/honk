@@ -1,14 +1,15 @@
+import { type EnvironmentId, type ThreadId } from "@multi/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { toastManager } from "~/app/toast";
-import { selectThreadsAcrossEnvironments, useStore } from "../store";
-import type { Thread } from "../types";
+import { selectSidebarThreadsAcrossEnvironments, useStore } from "../store";
+import type { SidebarThreadSummary } from "../types";
 import {
   buildInputNeededCopy,
   buildTaskCompletionCopy,
-  collectCompletedThreadCandidates,
-  collectInputNeededThreadCandidates,
+  type CompletedThreadCandidate,
+  type ThreadAttentionCandidate,
 } from "./taskCompletion.logic";
 
 export type BrowserNotificationPermissionState =
@@ -57,8 +58,8 @@ interface ThreadNotificationCopy {
 }
 
 function focusThread(
-  environmentId: Thread["environmentId"],
-  threadId: Thread["id"],
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
   navigate: ReturnType<typeof useNavigate>,
 ): void {
   void navigate({
@@ -69,8 +70,8 @@ function focusThread(
 
 async function showSystemThreadNotification(
   copy: ThreadNotificationCopy,
-  environmentId: Thread["environmentId"],
-  threadId: Thread["id"],
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
   navigate: ReturnType<typeof useNavigate>,
 ): Promise<boolean> {
   const { body, title } = copy;
@@ -92,8 +93,8 @@ async function showSystemThreadNotification(
 
 function showThreadToast(
   copy: ThreadNotificationCopy,
-  environmentId: Thread["environmentId"],
-  threadId: Thread["id"],
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
   tone: "success" | "warning",
   navigate: ReturnType<typeof useNavigate>,
 ): void {
@@ -114,10 +115,123 @@ function showThreadToast(
   });
 }
 
+function isRunningSummary(summary: SidebarThreadSummary | undefined): boolean {
+  const status = summary?.session?.status;
+  return status === "running" || status === "connecting";
+}
+
+function hadUnsettledSummary(summary: SidebarThreadSummary | undefined): boolean {
+  if (!summary) {
+    return false;
+  }
+  const latestTurn = summary.latestTurn;
+  if (latestTurn?.state === "running") {
+    return true;
+  }
+  return !latestTurn?.completedAt && isRunningSummary(summary);
+}
+
+function isCompletionSummarySettled(summary: SidebarThreadSummary | undefined): boolean {
+  if (!summary?.latestTurn?.startedAt || !summary.latestTurn.completedAt) {
+    return false;
+  }
+  return summary.session?.orchestrationStatus !== "running";
+}
+
+function collectCompletedSummaryCandidates(
+  previousSummaries: readonly SidebarThreadSummary[],
+  nextSummaries: readonly SidebarThreadSummary[],
+): CompletedThreadCandidate[] {
+  const previousById = new Map(previousSummaries.map((summary) => [summary.id, summary] as const));
+  const candidates: CompletedThreadCandidate[] = [];
+
+  for (const summary of nextSummaries) {
+    const previousSummary = previousById.get(summary.id);
+    if (!previousSummary) {
+      continue;
+    }
+
+    const completedAt = summary.latestTurn?.completedAt;
+    if (!completedAt || !isCompletionSummarySettled(summary)) {
+      continue;
+    }
+    if (!previousSummary.session && !previousSummary.latestTurn?.completedAt) {
+      continue;
+    }
+    if (!hadUnsettledSummary(previousSummary) && !previousSummary.latestTurn?.completedAt) {
+      continue;
+    }
+    if (
+      previousSummary.latestTurn?.turnId === summary.latestTurn?.turnId &&
+      isCompletionSummarySettled(previousSummary)
+    ) {
+      continue;
+    }
+
+    candidates.push({
+      threadId: summary.id,
+      projectId: summary.projectId,
+      environmentId: summary.environmentId,
+      title: summary.title,
+      completedAt,
+      assistantSummary: null,
+    });
+  }
+
+  return candidates;
+}
+
+function collectInputNeededSummaryCandidates(
+  previousSummaries: readonly SidebarThreadSummary[],
+  nextSummaries: readonly SidebarThreadSummary[],
+): ThreadAttentionCandidate[] {
+  const previousById = new Map(previousSummaries.map((summary) => [summary.id, summary] as const));
+  const candidates: ThreadAttentionCandidate[] = [];
+
+  for (const summary of nextSummaries) {
+    const previousSummary = previousById.get(summary.id);
+    if (!previousSummary) {
+      continue;
+    }
+
+    if (summary.hasPendingApprovals && !previousSummary.hasPendingApprovals) {
+      candidates.push({
+        kind: "approval",
+        threadId: summary.id,
+        projectId: summary.projectId,
+        environmentId: summary.environmentId,
+        title: summary.title,
+        requestId: `approval:${summary.id}:${
+          summary.latestTurn?.turnId ?? summary.updatedAt ?? summary.createdAt
+        }`,
+        createdAt: summary.updatedAt ?? summary.createdAt,
+        summary: "Approval requested.",
+      });
+    }
+
+    if (summary.hasPendingUserInput && !previousSummary.hasPendingUserInput) {
+      candidates.push({
+        kind: "user-input",
+        threadId: summary.id,
+        projectId: summary.projectId,
+        environmentId: summary.environmentId,
+        title: summary.title,
+        requestId: `user-input:${summary.id}:${
+          summary.latestTurn?.turnId ?? summary.updatedAt ?? summary.createdAt
+        }`,
+        createdAt: summary.updatedAt ?? summary.createdAt,
+        summary: "User input requested.",
+      });
+    }
+  }
+
+  return candidates.toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
 export function TaskCompletionNotifications() {
   const navigate = useNavigate();
-  const threads = useStore(useShallow(selectThreadsAcrossEnvironments));
-  const previousThreadsRef = useRef<readonly Thread[]>([]);
+  const threads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
+  const previousThreadsRef = useRef<readonly SidebarThreadSummary[]>([]);
   const readyRef = useRef(false);
 
   useEffect(() => {
@@ -127,11 +241,9 @@ export function TaskCompletionNotifications() {
       return;
     }
 
-    const completions = collectCompletedThreadCandidates(previousThreadsRef.current, threads);
-    const inputNeededCandidates = collectInputNeededThreadCandidates(
-      previousThreadsRef.current,
-      threads,
-    );
+    const previousThreads = previousThreadsRef.current;
+    const completions = collectCompletedSummaryCandidates(previousThreads, threads);
+    const inputNeededCandidates = collectInputNeededSummaryCandidates(previousThreads, threads);
     previousThreadsRef.current = threads;
 
     if (completions.length === 0 && inputNeededCandidates.length === 0) {

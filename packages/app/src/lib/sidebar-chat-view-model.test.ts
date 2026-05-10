@@ -27,7 +27,6 @@ function sum(
     modifiedAt,
     messageCount: 1,
     firstMessage: id,
-    allMessagesText: id,
     isStreaming: false,
   };
 }

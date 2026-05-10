@@ -66,7 +66,7 @@ import {
   togglePendingUserInputOptionSelection,
   type PendingUserInputDraftAnswer,
 } from "../pending-user-input";
-import { selectEnvironmentState, selectThreadsAcrossEnvironments, useStore } from "../store";
+import { selectEnvironmentState, selectSidebarThreadsAcrossEnvironments, useStore } from "../store";
 import { createProjectSelectorByRef, createThreadSelectorByRef } from "../store-selectors";
 import { useUiStateStore } from "../ui-state-store";
 import {
@@ -1092,7 +1092,7 @@ export default function ChatView(props: ChatViewProps) {
   const storeCloseTerminal = useTerminalStateStore((s) => s.closeTerminal);
   const serverThreadKeys = useStore(
     useShallow((state) =>
-      selectThreadsAcrossEnvironments(state).map((thread) =>
+      selectSidebarThreadsAcrossEnvironments(state).map((thread) =>
         scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
       ),
     ),
@@ -1349,9 +1349,16 @@ export default function ChatView(props: ChatViewProps) {
   );
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
+  const activeRunningTurnId =
+    activeThread?.session?.orchestrationStatus === "running"
+      ? (activeThread.session.activeTurnId ?? activeLatestTurn?.turnId ?? null)
+      : null;
   const workLogEntries = useMemo(
-    () => deriveWorkLogEntries(threadActivities, undefined),
-    [threadActivities],
+    () =>
+      deriveWorkLogEntries(threadActivities, undefined, {
+        activeRunningTurnId,
+      }),
+    [activeRunningTurnId, threadActivities],
   );
   const latestTurnHasToolActivity = useMemo(
     () => hasToolActivityForTurn(threadActivities, activeLatestTurn?.turnId),
@@ -3650,17 +3657,11 @@ export default function ChatView(props: ChatViewProps) {
         instanceId,
         model: resolvedModel,
       };
-      setComposerDraftModelSelection(
-        activeThread
-          ? scopeThreadRef(activeThread.environmentId, activeThread.id)
-          : composerDraftTarget,
-        nextModelSelection,
-      );
+      setComposerDraftModelSelection(composerDraftTarget, nextModelSelection);
       setStickyComposerModelSelection(nextModelSelection);
       scheduleComposerFocus();
     },
     [
-      activeThread,
       composerDraftTarget,
       routeKind,
       scheduleComposerFocus,

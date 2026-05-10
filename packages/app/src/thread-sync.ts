@@ -313,7 +313,9 @@ function sidebarThreadSummariesEqual(
     threadSessionsEqual(left.session, right.session) &&
     left.createdAt === right.createdAt &&
     left.archivedAt === right.archivedAt &&
-    left.updatedAt === right.updatedAt &&
+    // Assistant streaming updates can touch only updatedAt. Keep the sidebar summary
+    // stable for those updates; other shell-visible fields below still move the row
+    // when status, title, attention, or turn state actually changes.
     latestTurnsEqual(left.latestTurn, right.latestTurn) &&
     left.branch === right.branch &&
     left.worktreePath === right.worktreePath &&

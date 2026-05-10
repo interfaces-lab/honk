@@ -1,6 +1,10 @@
 import { memo } from "react";
-import { type WorkLogEntry, type WorkLogSubagent } from "../../session-logic";
-import { normalizeCompactToolLabel } from "./messages-timeline.logic";
+import {
+  type ToolDiffArtifact,
+  type ToolDisplayArtifact,
+  type WorkLogEntry,
+  type WorkLogSubagent,
+} from "../../session-logic";
 import { formatProjectRelativePath } from "../../file-path-display";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-call-renderer";
 
@@ -106,10 +110,22 @@ function toToolCall(workEntry: WorkLogEntry, projectRoot: string | undefined): T
         workEntry.detail?.trim() ||
         "subagent"
       : resolveToolDetails(workEntry, projectRoot);
-  const command = workEntry.command ?? null;
-  const output = resolveOutput(workEntry, toolCase);
-  const firstChangedFile = workEntry.changedFiles?.[0] ?? null;
+  const commandArtifact = workEntry.artifacts?.find(
+    (artifact) => artifact.type === "command",
+  );
+  const diffArtifact =
+    workEntry.artifacts?.find(
+      (artifact): artifact is ToolDiffArtifact =>
+        artifact.type === "diff" && artifact.source === "result",
+    ) ??
+    workEntry.artifacts?.find((artifact): artifact is ToolDiffArtifact => artifact.type === "diff");
+  const readArtifact = workEntry.artifacts?.find((artifact) => artifact.type === "read");
+  const command = commandArtifact?.command ?? workEntry.command ?? null;
+  const output = resolveOutput(workEntry, toolCase, workEntry.artifacts);
+  const firstChangedFile =
+    workEntry.changedFiles?.[0] ?? diffArtifact?.files[0]?.path ?? readArtifact?.path ?? null;
   const path = firstChangedFile ? formatProjectRelativePath(firstChangedFile, projectRoot) : null;
+  const stats = diffArtifact ? summarizeDiffStats(diffArtifact) : undefined;
 
   return {
     tool: {
@@ -120,9 +136,24 @@ function toToolCall(workEntry: WorkLogEntry, projectRoot: string | undefined): T
         command,
         output,
         path,
+        ...(stats ? { stats } : {}),
+        ...(workEntry.artifacts ? { artifacts: workEntry.artifacts } : {}),
       },
     },
   };
+}
+
+function summarizeDiffStats(diffArtifact: ToolDiffArtifact): {
+  additions?: number | undefined;
+  deletions?: number | undefined;
+} {
+  return diffArtifact.files.reduce(
+    (stats, file) => ({
+      additions: (stats.additions ?? 0) + (file.additions ?? 0),
+      deletions: (stats.deletions ?? 0) + (file.deletions ?? 0),
+    }),
+    { additions: 0, deletions: 0 },
+  );
 }
 
 function resolveToolCase(workEntry: WorkLogEntry): ToolCallModel["tool"]["case"] {
@@ -166,11 +197,9 @@ function resolveToolCase(workEntry: WorkLogEntry): ToolCallModel["tool"]["case"]
 }
 
 function resolveTitle(workEntry: WorkLogEntry): string {
-  const raw = workEntry.toolTitle ?? workEntry.label;
-  const normalized = normalizeCompactToolLabel(raw);
-  const trimmed = normalized.trim();
-  if (trimmed.length === 0) return raw;
-  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+  const title = (workEntry.toolTitle ?? workEntry.label).trim();
+  if (title.length === 0) return workEntry.label;
+  return `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
 }
 
 function resolveSummary(workEntry: WorkLogEntry, projectRoot: string | undefined): string | null {
@@ -188,23 +217,32 @@ function resolveSummary(workEntry: WorkLogEntry, projectRoot: string | undefined
 function resolveOutput(
   workEntry: WorkLogEntry,
   toolCase: ToolCallModel["tool"]["case"],
+  artifacts: ReadonlyArray<ToolDisplayArtifact> | undefined,
 ): string | null {
+  const commandArtifact = artifacts?.find((artifact) => artifact.type === "command");
+  const readArtifact = artifacts?.find((artifact) => artifact.type === "read");
+  const searchArtifact = artifacts?.find((artifact) => artifact.type === "search");
+  const diagnosticArtifact = artifacts?.find((artifact) => artifact.type === "diagnostic");
+  const rawArtifact = artifacts?.find((artifact) => artifact.type === "raw");
   if (toolCase === "shellToolCall") {
-    return workEntry.output ?? null;
+    return commandArtifact?.output ?? workEntry.output ?? null;
   }
   if (toolCase === "editToolCall") {
     return workEntry.detail ?? null;
   }
+  if (toolCase === "readToolCall") {
+    return readArtifact?.output ?? workEntry.output ?? null;
+  }
+  if (toolCase === "grepToolCall" || toolCase === "globToolCall") {
+    return searchArtifact?.output ?? workEntry.output ?? null;
+  }
   if (
-    toolCase === "readToolCall" ||
-    toolCase === "grepToolCall" ||
-    toolCase === "globToolCall" ||
     toolCase === "mcpToolCall" ||
     toolCase === "dynamicToolCall" ||
     toolCase === "imageViewToolCall" ||
     toolCase === "unknownToolCall"
   ) {
-    return workEntry.output ?? null;
+    return diagnosticArtifact?.message ?? rawArtifact?.text ?? workEntry.output ?? null;
   }
   return resolveRawCommand(workEntry);
 }

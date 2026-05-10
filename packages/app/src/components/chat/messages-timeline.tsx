@@ -657,8 +657,8 @@ const WorkGroupSection = memo(function WorkGroupSection({
   const { projectRoot } = use(TimelineRowCtx);
 
   return (
-    <div>
-      <div className="w-full">
+    <div className="min-w-0 max-w-full flex-1">
+      <div className="w-full min-w-0">
         <div className="flex w-fit max-w-[min(100%,var(--composer-max-width))] flex-col gap-1.5">
           {groupedEntries.map((workEntry) => (
             <ToolCallMessage

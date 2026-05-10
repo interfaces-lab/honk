@@ -6,6 +6,10 @@ import { threadHasStarted } from "~/components/chat-view.logic";
 import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/composer-draft-store";
 import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "~/store";
 import { createThreadSelectorByRef } from "~/store-selectors";
+import {
+  clearLastChatRouteTarget,
+  writeLastChatRouteTarget,
+} from "~/chat-route-persistence";
 import { resolveThreadRouteRef } from "~/thread-routes";
 import { traceBrowserEvent } from "~/observability/browserDebug";
 
@@ -61,7 +65,12 @@ export function ChatThreadRouteView() {
       return;
     }
 
-    if (!routeThreadExists && environmentHasAnyThreads) {
+    if (routeThreadExists) {
+      writeLastChatRouteTarget({ kind: "server", threadRef });
+      return;
+    }
+
+    if (environmentHasAnyThreads) {
       traceBrowserEvent(
         "route.thread.missing.navigate-home",
         {
@@ -74,8 +83,13 @@ export function ChatThreadRouteView() {
         },
         "warn",
       );
+      clearLastChatRouteTarget({ kind: "server", threadRef });
       void navigate({ to: "/", replace: true });
+      return;
     }
+
+    clearLastChatRouteTarget({ kind: "server", threadRef });
+    void navigate({ to: "/", replace: true });
   }, [
     bootstrapComplete,
     draftThreadExists,

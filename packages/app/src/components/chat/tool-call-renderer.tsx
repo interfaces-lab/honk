@@ -12,7 +12,19 @@ import {
 } from "central-icons";
 import { cva } from "class-variance-authority";
 import { memo, type ComponentType, type ReactNode, useEffect, useState } from "react";
+import {
+  formatDuration,
+  type ToolCommandArtifact,
+  type ToolDiagnosticArtifact,
+  type ToolDiffArtifact,
+  type ToolRawArtifact,
+  type ToolReadArtifact,
+  type ToolSearchArtifact,
+  type ToolDisplayArtifact,
+} from "../../session-logic";
+import { PretextOneLine } from "~/components/pretext-one-line";
 import { cn } from "~/lib/utils";
+import { InlineToolDiff } from "./tool-call-inline-diff";
 
 type CentralIconComponent = ComponentType<{ className?: string | undefined }>;
 
@@ -47,14 +59,9 @@ export interface ToolCallModel {
         additions?: number | undefined;
         deletions?: number | undefined;
       };
+      artifacts?: ReadonlyArray<ToolDisplayArtifact>;
     };
   };
-}
-
-export interface ToolCallDisplayOverride {
-  beforeContent?: string | undefined;
-  afterContent?: string | undefined;
-  precomputedDiff?: ReactNode;
 }
 
 export interface ToolCallApproval {
@@ -69,7 +76,6 @@ export interface ToolCallRendererProps {
   startedAtMs?: number | undefined;
   hasError?: boolean | undefined;
   approval?: ToolCallApproval | undefined;
-  editToolCallDisplay?: ToolCallDisplayOverride | undefined;
   subagentConversation?: ReactNode;
   renderStep?:
     | ((step: unknown, index: number, parentCallId: string | undefined) => ReactNode)
@@ -210,7 +216,6 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
   startedAtMs,
   hasError = false,
   approval,
-  editToolCallDisplay,
   subagentConversation,
   renderStep,
   onFileClick,
@@ -219,7 +224,17 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
   defaultExpanded = false,
   conversationDensity = "minimal",
 }: ToolCallRendererProps) {
-  const { action, details, command, output, path, stats } = toolCall.tool.value;
+  const { action, details, command, output, path, stats, artifacts } = toolCall.tool.value;
+  const commandArtifact = artifacts?.find((artifact) => artifact.type === "command");
+  const diffArtifact =
+    artifacts?.find(
+      (artifact): artifact is ToolDiffArtifact =>
+        artifact.type === "diff" && artifact.source === "result",
+    ) ?? artifacts?.find((artifact): artifact is ToolDiffArtifact => artifact.type === "diff");
+  const readArtifact = artifacts?.find((artifact) => artifact.type === "read");
+  const searchArtifact = artifacts?.find((artifact) => artifact.type === "search");
+  const diagnosticArtifact = artifacts?.find((artifact) => artifact.type === "diagnostic");
+  const rawArtifact = artifacts?.find((artifact) => artifact.type === "raw");
   const displayState = {
     action: resolveActionLabel(toolCall.tool.case, action, loading, hasError),
     details: details ?? "",
@@ -245,8 +260,9 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
         <ShellToolCall
           action={displayState.action}
           details={displayState.details}
-          command={command ?? displayState.details}
-          output={output ?? null}
+          command={commandArtifact?.command ?? command ?? displayState.details}
+          output={commandArtifact?.output ?? output ?? null}
+          artifact={commandArtifact}
           loading={loading}
           hasError={hasError}
           approval={approval}
@@ -264,7 +280,7 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
           stats={stats}
           loading={loading}
           detail={output ?? details ?? null}
-          display={editToolCallDisplay}
+          diffArtifact={diffArtifact}
           isDelete={toolCall.tool.case === "deleteToolCall"}
           defaultExpanded={defaultExpanded}
           onFileClick={onFileClick}
@@ -315,7 +331,20 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
           icon={iconForToolCase(toolCall.tool.case)}
           action={displayState.action}
           details={displayState.details}
-          output={output ?? null}
+          output={
+            readArtifact?.output ??
+            searchArtifact?.output ??
+            diagnosticArtifact?.message ??
+            rawArtifact?.text ??
+            output ??
+            null
+          }
+          metadataItems={getMetadataArtifactItems(
+            readArtifact,
+            searchArtifact,
+            diagnosticArtifact,
+            rawArtifact,
+          )}
           loading={loading}
           onFileClick={path && onFileClick ? () => onFileClick(path) : undefined}
           linkable={Boolean(path && onFileClick)}
@@ -326,6 +355,49 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
       );
   }
 });
+
+function getCommandMetadataItems(artifact: ToolCommandArtifact | undefined): string[] {
+  if (!artifact) {
+    return [];
+  }
+  const items: string[] = [];
+  if (artifact.exitCode !== undefined) {
+    items.push(`exit ${artifact.exitCode}`);
+  }
+  if (artifact.durationMs !== undefined) {
+    items.push(formatDuration(artifact.durationMs));
+  }
+  if (artifact.truncated === true) {
+    items.push("truncated");
+  }
+  if (artifact.fullOutputPath) {
+    items.push(`full output: ${artifact.fullOutputPath}`);
+  }
+  return items;
+}
+
+function getMetadataArtifactItems(
+  readArtifact: ToolReadArtifact | undefined,
+  searchArtifact: ToolSearchArtifact | undefined,
+  diagnosticArtifact: ToolDiagnosticArtifact | undefined,
+  rawArtifact: ToolRawArtifact | undefined,
+): string[] {
+  const items: string[] = [];
+  if (readArtifact?.truncated === true || searchArtifact?.truncated === true) {
+    items.push("truncated");
+  }
+  const matchedCount = searchArtifact?.matchedFiles?.length ?? 0;
+  if (matchedCount > 0) {
+    items.push(`${matchedCount} ${matchedCount === 1 ? "match" : "matches"}`);
+  }
+  if (diagnosticArtifact) {
+    items.push(diagnosticArtifact.severity);
+  }
+  if (rawArtifact) {
+    items.push("raw");
+  }
+  return items;
+}
 
 function TaskToolCall({
   action,
@@ -376,9 +448,12 @@ function TaskToolCall({
         {action}
       </span>
       {details ? (
-        <span className="min-w-0 overflow-hidden text-[12px]/4 text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
-          {details}
-        </span>
+        <PretextOneLine
+          text={details}
+          title={details}
+          truncate="middle"
+          className="min-w-0 text-[12px]/4 text-multi-fg-tertiary"
+        />
       ) : null}
     </span>
   );
@@ -452,7 +527,16 @@ const ToolCallLine = memo(function ToolCallLine({
       {Icon ? <Icon className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
       <span className={toolCallLineActionVariants({ loading })}>{action}</span>
       {details ? (
-        <span className={toolCallLineDetailsVariants({ linkable })}>{details}</span>
+        typeof details === "string" ? (
+          <PretextOneLine
+            text={details}
+            title={details}
+            truncate="middle"
+            className={toolCallLineDetailsVariants({ linkable })}
+          />
+        ) : (
+          <span className={toolCallLineDetailsVariants({ linkable })}>{details}</span>
+        )
       ) : null}
     </>
   );
@@ -483,6 +567,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
   action,
   details,
   output,
+  metadataItems = [],
   loading = false,
   onFileClick,
   linkable = false,
@@ -494,6 +579,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
   action: string;
   details: string;
   output: string | null;
+  metadataItems?: ReadonlyArray<string> | undefined;
   loading?: boolean | undefined;
   onFileClick?: (() => void) | undefined;
   linkable?: boolean | undefined;
@@ -502,7 +588,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
   onNestedToolExpand?: ((callId: string | undefined, expanded: boolean) => void) | undefined;
 }) {
   const bodyText = output?.trim() ?? "";
-  const hasBody = bodyText.length > 0;
+  const hasBody = bodyText.length > 0 || metadataItems.length > 0;
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const toggleExpanded = () => {
@@ -528,7 +614,10 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
   }
 
   const detailsNode = details ? (
-    <span
+    <PretextOneLine
+      text={details}
+      title={details}
+      truncate="middle"
       className={toolCallLineDetailsVariants({ linkable })}
       role={linkable ? "button" : undefined}
       tabIndex={linkable ? 0 : undefined}
@@ -550,9 +639,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
             }
           : undefined
       }
-    >
-      {details}
-    </span>
+    />
   ) : null;
 
   const headerInner = (
@@ -616,9 +703,18 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
             "font-mono text-[12px]/4 text-multi-fg-tertiary",
           )}
         >
-          <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
-            {bodyText}
-          </pre>
+          {bodyText ? (
+            <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
+              {bodyText}
+            </pre>
+          ) : null}
+          {metadataItems.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary pt-1 text-[11px]/4 text-multi-fg-tertiary">
+              {metadataItems.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -630,6 +726,7 @@ function ShellToolCall({
   details,
   command,
   output,
+  artifact,
   loading,
   hasError,
   approval,
@@ -641,6 +738,7 @@ function ShellToolCall({
   details: string;
   command: string;
   output: string | null;
+  artifact: ToolCommandArtifact | undefined;
   loading: boolean;
   hasError: boolean;
   approval: ToolCallApproval | undefined;
@@ -649,7 +747,8 @@ function ShellToolCall({
   onNestedToolExpand: ((callId: string | undefined, expanded: boolean) => void) | undefined;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const hasContent = command.length > 0 || Boolean(output);
+  const metadataItems = getCommandMetadataItems(artifact);
+  const hasContent = command.length > 0 || Boolean(output) || metadataItems.length > 0;
   const isPending = approval?.status === "pending";
   const expandable = hasContent;
 
@@ -694,7 +793,12 @@ function ShellToolCall({
             {action}
           </span>
           {details ? (
-            <span className="shrink-0 whitespace-nowrap text-multi-fg-tertiary">{details}</span>
+            <PretextOneLine
+              text={details}
+              title={details}
+              truncate="middle"
+              className="min-w-0 flex-1 text-multi-fg-tertiary"
+            />
           ) : null}
         </span>
         {expandable ? (
@@ -743,6 +847,13 @@ function ShellToolCall({
                 {output}
               </pre>
             ) : null}
+            {metadataItems.length > 0 ? (
+              <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary px-(--conversation-tool-card-padding-x) py-1 text-[11px]/4 text-multi-fg-tertiary">
+                {metadataItems.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -756,7 +867,7 @@ function EditToolCall({
   stats,
   loading,
   detail,
-  display,
+  diffArtifact,
   isDelete,
   defaultExpanded,
   onFileClick,
@@ -768,7 +879,7 @@ function EditToolCall({
   stats: ToolCallModel["tool"]["value"]["stats"] | undefined;
   loading: boolean;
   detail: string | null;
-  display: ToolCallDisplayOverride | undefined;
+  diffArtifact: ToolDiffArtifact | undefined;
   isDelete: boolean;
   defaultExpanded: boolean;
   onFileClick: ((path: string) => void) | undefined;
@@ -777,7 +888,7 @@ function EditToolCall({
   conversationDensity: ToolCallConversationDensity;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const hasContent = Boolean(detail) || Boolean(display?.precomputedDiff);
+  const hasContent = Boolean(detail) || Boolean(diffArtifact);
 
   const toggleExpanded = () => {
     if (!hasContent) return;
@@ -791,46 +902,62 @@ function EditToolCall({
   return (
     <div className="m-0">
       <div className="group/edit-tool-call flex min-w-0 items-center gap-1">
-        <div
-          className={toolCallLineVariants({ clickable: Boolean(onFileClick) })}
-          role={onFileClick ? "button" : undefined}
-          tabIndex={onFileClick ? 0 : undefined}
-          onClick={onFileClick ? () => onFileClick(path) : undefined}
-          onKeyDown={
-            onFileClick
-              ? (event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onFileClick(path);
-                }
-              : undefined
-          }
-        >
-          <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
-          <span className={toolCallLineActionVariants()}>{action}</span>
-          <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
-        </div>
-        <EditStats stats={stats} />
         {hasContent ? (
           <button
             type="button"
             className={cn(
-              "inline-flex size-4 shrink-0 cursor-pointer items-center justify-center",
-              "border-0 bg-transparent p-0 text-multi-fg-tertiary",
-              "opacity-0 transition-[color,opacity] duration-100",
-              "hover:text-multi-fg-secondary hover:opacity-100",
-              "focus-visible:text-multi-fg-secondary focus-visible:opacity-100",
-              "aria-expanded:opacity-100 group-hover/edit-tool-call:opacity-100",
+              toolCallLineVariants({ clickable: true }),
+              "w-fit max-w-full min-w-0",
             )}
             aria-label={isExpanded ? "Collapse edit details" : "Expand edit details"}
             aria-expanded={isExpanded}
             onClick={toggleExpanded}
           >
+            <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+            <span className={toolCallLineActionVariants()}>{action}</span>
+            <PretextOneLine
+              text={path}
+              title={path}
+              truncate="middle"
+              className={editToolCallFilenameVariants({ loading, isDelete })}
+            />
+            <EditStats stats={stats} />
             <IconChevronRight
-              className={cn("size-3 transition-transform duration-150", isExpanded && "rotate-90")}
+              className={cn(
+                "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
+                isExpanded && "rotate-90",
+              )}
             />
           </button>
-        ) : null}
+        ) : (
+          <>
+            <div
+              className={toolCallLineVariants({ clickable: Boolean(onFileClick) })}
+              role={onFileClick ? "button" : undefined}
+              tabIndex={onFileClick ? 0 : undefined}
+              onClick={onFileClick ? () => onFileClick(path) : undefined}
+              onKeyDown={
+                onFileClick
+                  ? (event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      onFileClick(path);
+                    }
+                  : undefined
+              }
+            >
+              <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+              <span className={toolCallLineActionVariants()}>{action}</span>
+              <PretextOneLine
+                text={path}
+                title={path}
+                truncate="middle"
+                className={editToolCallFilenameVariants({ loading, isDelete })}
+              />
+            </div>
+            <EditStats stats={stats} />
+          </>
+        )}
       </div>
       {isExpanded && hasContent ? (
         <div
@@ -842,8 +969,8 @@ function EditToolCall({
             "font-mono text-[12px]/4 text-multi-fg-tertiary",
           )}
         >
-          {display?.precomputedDiff ? (
-            display.precomputedDiff
+          {diffArtifact ? (
+            <InlineToolDiff artifact={diffArtifact} />
           ) : (
             <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0">{detail}</pre>
           )}
@@ -873,8 +1000,8 @@ function AwaitDetails({ details, startedAtMs }: { details: string; startedAtMs: 
     return () => window.clearInterval(intervalId);
   }, []);
 
-  const seconds = Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
-  const elapsed = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const elapsedMs = Math.max(0, Math.floor((nowMs - startedAtMs) / 1000) * 1000);
+  const elapsed = formatDuration(elapsedMs);
   return details ? `${details} ${elapsed}` : elapsed;
 }
 
@@ -1002,7 +1129,7 @@ const TOOL_ACTION_LABELS: Record<ToolCase, { loading: string; completed: string;
       completed: "Searched files",
       error: "Search files",
     },
-    shellToolCall: { loading: "Running", completed: "Ran", error: "Run" },
+    shellToolCall: { loading: "Command", completed: "Command", error: "Command" },
     editToolCall: { loading: "Editing", completed: "Edited", error: "Edit" },
     deleteToolCall: { loading: "Deleting", completed: "Deleted", error: "Delete" },
     mcpToolCall: { loading: "Running MCP", completed: "Ran MCP", error: "Run MCP" },

@@ -2,13 +2,17 @@ import { Effect, Schema } from "effect";
 import { TrimmedNonEmptyString } from "./base-schemas";
 
 export const DEFAULT_TERMINAL_ID = "default";
+export const TERMINAL_COLS_MIN = 20;
+export const TERMINAL_COLS_MAX = 400;
+export const TERMINAL_ROWS_MIN = 5;
+export const TERMINAL_ROWS_MAX = 200;
 
 const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
-const TerminalColsSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(20)).check(
-  Schema.isLessThanOrEqualTo(400),
+const TerminalColsSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(TERMINAL_COLS_MIN)).check(
+  Schema.isLessThanOrEqualTo(TERMINAL_COLS_MAX),
 );
-const TerminalRowsSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(5)).check(
-  Schema.isLessThanOrEqualTo(200),
+const TerminalRowsSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(TERMINAL_ROWS_MIN)).check(
+  Schema.isLessThanOrEqualTo(TERMINAL_ROWS_MAX),
 );
 const TerminalIdSchema = TrimmedNonEmptyStringSchema.check(Schema.isMaxLength(128));
 const TerminalEnvKeySchema = Schema.String.check(

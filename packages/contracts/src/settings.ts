@@ -323,6 +323,9 @@ export const ServerSettings = Schema.Struct({
       }),
     ),
   ),
+  composerModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
 
   // Provider specific settings
   providers: Schema.Struct({
@@ -405,6 +408,7 @@ export const ServerSettingsPatch = Schema.Struct({
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
   addProjectBaseDirectory: Schema.optionalKey(Schema.String),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
+  composerModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelectionPatch)),
   observability: Schema.optionalKey(
     Schema.Struct({
       otlpTracesUrl: Schema.optionalKey(Schema.String),

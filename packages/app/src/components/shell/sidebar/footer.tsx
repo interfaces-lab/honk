@@ -1,13 +1,47 @@
 "use client";
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { IconSettingsGear2 } from "central-icons";
 
 import { cn } from "~/lib/utils";
+import { readLastChatRouteTarget } from "~/chat-route-persistence";
 import { UpdatePill } from "~/components/shell/shared/update-pill";
 
 export function ShellSidebarFooter(props: { settings?: boolean }) {
   const active = Boolean(props.settings);
+  const navigate = useNavigate();
+
+  const settingsBackButton = active ? (
+    <button
+      type="button"
+      className={cn(
+        "agent-window-footer-icon flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent transition-colors",
+        "border-multi-border/90 bg-multi-active text-foreground hover:bg-multi-active",
+      )}
+      onClick={() => {
+        const lastChatRouteTarget = readLastChatRouteTarget();
+        if (lastChatRouteTarget?.kind === "draft") {
+          void navigate({ to: "/draft/$draftId", params: { draftId: lastChatRouteTarget.draftId } });
+          return;
+        }
+        if (lastChatRouteTarget?.kind === "server") {
+          void navigate({
+            to: "/$environmentId/$threadId",
+            params: {
+              environmentId: lastChatRouteTarget.threadRef.environmentId,
+              threadId: lastChatRouteTarget.threadRef.threadId,
+            },
+          });
+          return;
+        }
+        void navigate({ to: "/" });
+      }}
+      aria-current="page"
+      aria-label="Back to chat"
+    >
+      <IconSettingsGear2 className="size-3.5" />
+    </button>
+  ) : null;
 
   return (
     <div className="agent-window-sidebar-footer mt-auto flex shrink-0 select-none flex-col px-2.5 py-1.5">
@@ -19,19 +53,17 @@ export function ShellSidebarFooter(props: { settings?: boolean }) {
           </span>
           <span className="min-w-0 truncate">Multi</span>
         </span>
-        <Link
-          to={active ? "/" : "/settings/general"}
-          className={cn(
-            "agent-window-footer-icon flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent transition-colors",
-            active
-              ? "border-multi-border/90 bg-multi-active text-foreground hover:bg-multi-active"
-              : "text-muted-foreground/60 hover:bg-multi-hover hover:text-foreground",
-          )}
-          aria-current={active ? "page" : undefined}
-          aria-label={active ? "Back to chat" : "Open settings"}
-        >
-          <IconSettingsGear2 className="size-3.5" />
-        </Link>
+        {settingsBackButton ?? (
+          <Link
+            to="/settings/general"
+            className={cn(
+              "agent-window-footer-icon flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent text-muted-foreground/60 transition-colors hover:bg-multi-hover hover:text-foreground",
+            )}
+            aria-label="Open settings"
+          >
+            <IconSettingsGear2 className="size-3.5" />
+          </Link>
+        )}
       </div>
     </div>
   );

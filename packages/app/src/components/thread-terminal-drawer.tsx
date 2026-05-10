@@ -47,6 +47,7 @@ import {
 } from "../types";
 import { readEnvironmentApi } from "~/environment-api";
 import { readLocalApi } from "~/local-api";
+import { clampTerminalDimensions } from "~/lib/terminal-dimensions";
 import {
   readTerminalHostFontFamily,
   readTerminalHostFontSize,
@@ -547,7 +548,7 @@ export function TerminalViewport({
     mount.addEventListener("paste", handlePaste, true);
 
     let fitFrame: number | null = null;
-    let lastSyncedSize = { cols: terminal.cols, rows: terminal.rows };
+    let lastSyncedSize = clampTerminalDimensions({ cols: terminal.cols, rows: terminal.rows });
     const fitAndResize = () => {
       fitFrame = null;
       if (disposed) return;
@@ -560,19 +561,23 @@ export function TerminalViewport({
       if (wasAtBottom) {
         activeTerminal.scrollToBottom();
       }
+      const nextSize = clampTerminalDimensions({
+        cols: activeTerminal.cols,
+        rows: activeTerminal.rows,
+      });
       if (
-        lastSyncedSize.cols === activeTerminal.cols &&
-        lastSyncedSize.rows === activeTerminal.rows
+        lastSyncedSize.cols === nextSize.cols &&
+        lastSyncedSize.rows === nextSize.rows
       ) {
         return;
       }
-      lastSyncedSize = { cols: activeTerminal.cols, rows: activeTerminal.rows };
+      lastSyncedSize = nextSize;
       void api.terminal
         .resize({
           threadId,
           terminalId,
-          cols: activeTerminal.cols,
-          rows: activeTerminal.rows,
+          cols: nextSize.cols,
+          rows: nextSize.rows,
         })
         .catch(() => undefined);
     };
@@ -700,13 +705,18 @@ export function TerminalViewport({
         const activeFitAddon = fitAddonRef.current;
         if (!activeTerminal || !activeFitAddon) return;
         activeFitAddon.fit();
+        const openSize = clampTerminalDimensions({
+          cols: activeTerminal.cols,
+          rows: activeTerminal.rows,
+        });
+        lastSyncedSize = openSize;
         const snapshot = await api.terminal.open({
           threadId,
           terminalId,
           cwd,
           ...(worktreePath !== undefined ? { worktreePath } : {}),
-          cols: activeTerminal.cols,
-          rows: activeTerminal.rows,
+          cols: openSize.cols,
+          rows: openSize.rows,
           ...(runtimeEnv ? { env: runtimeEnv } : {}),
         });
         if (disposed) return;
@@ -791,12 +801,13 @@ export function TerminalViewport({
       if (wasAtBottom) {
         terminal.scrollToBottom();
       }
+      const nextSize = clampTerminalDimensions({ cols: terminal.cols, rows: terminal.rows });
       void api.terminal
         .resize({
           threadId,
           terminalId,
-          cols: terminal.cols,
-          rows: terminal.rows,
+          cols: nextSize.cols,
+          rows: nextSize.rows,
         })
         .catch(() => undefined);
     });

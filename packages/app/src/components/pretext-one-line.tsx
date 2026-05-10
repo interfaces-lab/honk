@@ -1,30 +1,41 @@
 "use client";
 
+import type { ComponentPropsWithoutRef } from "react";
+
 import { usePretextOneLine } from "~/hooks/use-composer-pretext-one-line";
 import { cn } from "~/lib/utils";
 
-export function PretextOneLine(props: {
+type PretextOneLineProps = Omit<ComponentPropsWithoutRef<"span">, "children"> & {
   text: string;
-  className?: string;
-  title?: string;
   fontPx?: number;
   lineHeightPx?: number;
   truncate?: "end" | "middle";
-}) {
+};
+
+export function PretextOneLine({
+  text,
+  className,
+  title,
+  fontPx,
+  lineHeightPx,
+  truncate,
+  ...spanProps
+}: PretextOneLineProps) {
   const { ref, shown, fallback } = usePretextOneLine({
-    text: props.text,
-    ...(props.fontPx !== undefined ? { fontPx: props.fontPx } : {}),
-    ...(props.lineHeightPx !== undefined ? { lineHeightPx: props.lineHeightPx } : {}),
-    ...(props.truncate !== undefined ? { truncate: props.truncate } : {}),
+    text,
+    ...(fontPx !== undefined ? { fontPx } : {}),
+    ...(lineHeightPx !== undefined ? { lineHeightPx } : {}),
+    ...(truncate !== undefined ? { truncate } : {}),
   });
 
   return (
     <span
+      {...spanProps}
       ref={ref}
-      title={props.title ?? props.text}
+      title={title ?? text}
       className={cn(
         "block min-w-0 overflow-hidden whitespace-nowrap",
-        props.className,
+        className,
         fallback && "truncate",
       )}
     >

@@ -3,7 +3,6 @@ import {
   computeStableMessagesTimelineRows,
   computeMessageDurationStart,
   deriveMessagesTimelineRows,
-  normalizeCompactToolLabel,
 } from "./messages-timeline.logic";
 
 describe("computeMessageDurationStart", () => {
@@ -136,16 +135,6 @@ describe("computeMessageDurationStart", () => {
 
   it("returns empty map for empty input", () => {
     expect(computeMessageDurationStart([])).toEqual(new Map());
-  });
-});
-
-describe("normalizeCompactToolLabel", () => {
-  it("removes trailing completion wording from command labels", () => {
-    expect(normalizeCompactToolLabel("Ran command complete")).toBe("Ran command");
-  });
-
-  it("removes trailing completion wording from other labels", () => {
-    expect(normalizeCompactToolLabel("Read file completed")).toBe("Read file");
   });
 });
 

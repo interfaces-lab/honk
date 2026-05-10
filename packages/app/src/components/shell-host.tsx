@@ -4,17 +4,14 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@multi/client-runtime";
-import {
-  type EditorId,
-  type EnvironmentId,
-  type ThreadId,
-} from "@multi/contracts";
+import { type EditorId, type EnvironmentId } from "@multi/contracts";
 import { useMutation } from "@tanstack/react-query";
 import { Outlet, useNavigate, useParams, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
+import { readLastChatRouteTarget } from "~/chat-route-persistence";
 import { prefetchDraftNavigation, prefetchThreadNavigation } from "~/app/thread-prefetch";
 import { useCommandPaletteStore } from "~/command-palette-store";
 import { isElectron } from "~/env";
@@ -57,7 +54,6 @@ import { useSettings } from "~/hooks/use-settings";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
-  selectThreadsAcrossEnvironments,
   useStore,
 } from "~/store";
 import {
@@ -82,15 +78,7 @@ import { TerminalPanel } from "./shell/terminal/panel";
 import { TerminalRail } from "./shell/terminal/terminal-rail";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
 
-function toHarness(instanceId: Thread["modelSelection"]["instanceId"]): "codex" | "claudeCode" {
-  return instanceId === "claudeAgent" ? "claudeCode" : "codex";
-}
-
 const PROJECTLESS_CWD = "~";
-
-function sidebarThreadKey(thread: { environmentId: EnvironmentId; id: ThreadId }) {
-  return scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
-}
 
 function projectScopedKeyFor(
   environmentId: EnvironmentId,
@@ -117,32 +105,31 @@ function hasGitAgentStartFailure(thread: Thread, action: GitAgentAction): boolea
   );
 }
 
-function toSummary(
-  thread: Thread,
-  project: Project,
-  sidebarThread: StoreSidebarThreadSummary | undefined,
+function toSummaryFromSidebarThread(
+  thread: StoreSidebarThreadSummary,
+  project: Project | null,
 ): SidebarSectionThreadSummary {
-  const firstUserMessage = thread.messages.find((message) => message.role === "user")?.text?.trim();
-  const cwd = thread.worktreePath ?? project.cwd;
-  const orchestrationStatus =
-    thread.session?.orchestrationStatus ?? sidebarThread?.session?.orchestrationStatus ?? null;
+  const cwd =
+    thread.projectId === null
+      ? PROJECTLESS_CWD
+      : (thread.worktreePath ?? project?.cwd ?? PROJECTLESS_CWD);
+  const projectCwd = thread.projectId === null ? PROJECTLESS_CWD : (project?.cwd ?? cwd);
+  const orchestrationStatus = thread.session?.orchestrationStatus ?? null;
   return {
     id: thread.id,
     environmentId: thread.environmentId,
-    projectId: project.id,
-    projectCwd: project.cwd,
-    harness: toHarness(thread.modelSelection.instanceId),
+    projectId: thread.projectId,
+    projectCwd,
     path: cwd,
     cwd,
     name: thread.title,
     createdAt: thread.createdAt,
     modifiedAt: thread.updatedAt ?? thread.createdAt,
-    messageCount: thread.messages.length,
-    firstMessage: firstUserMessage || thread.title,
-    allMessagesText: thread.messages.map((message) => message.text).join("\n\n"),
+    messageCount: 0,
+    firstMessage: thread.title,
     isStreaming: orchestrationStatus === "starting" || orchestrationStatus === "running",
     orchestrationStatus,
-    needsAttention: needsSidebarAttention(sidebarThread),
+    needsAttention: needsSidebarAttention(thread),
   };
 }
 
@@ -163,6 +150,25 @@ function SettingsShellHost(props: { children?: ReactNode }) {
   const firstProjectCwd = useStore(
     (store) => selectProjectsAcrossEnvironments(store)[0]?.cwd ?? null,
   );
+  const backToChat = useCallback(() => {
+    const lastChatRouteTarget = readLastChatRouteTarget();
+    if (lastChatRouteTarget?.kind === "draft") {
+      void navigate({ to: "/draft/$draftId", params: { draftId: lastChatRouteTarget.draftId } });
+      return;
+    }
+    if (lastChatRouteTarget?.kind === "server") {
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: {
+          environmentId: lastChatRouteTarget.threadRef.environmentId,
+          threadId: lastChatRouteTarget.threadRef.threadId,
+        },
+      });
+      return;
+    }
+
+    void navigate({ to: "/" });
+  }, [navigate]);
 
   const settingsLeft = (
     <div className="agent-window__left-content thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
@@ -175,7 +181,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
     <AppShell
       cwd={firstProjectCwd}
       changesCount={0}
-      onBack={() => void navigate({ to: "/" })}
+      onBack={backToChat}
       left={settingsLeft}
       center={props.children ?? <Outlet />}
       right={null}
@@ -193,7 +199,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
     select: (params) => resolveThreadRouteTarget(params),
   });
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
-  const threads = useStore(useShallow(selectThreadsAcrossEnvironments));
   const sidebarThreads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const availableEditors = useServerAvailableEditors();
   const firstProjectCwd = projects[0]?.cwd ?? null;
@@ -216,11 +221,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const selectedId =
     routeTarget?.kind === "draft" ? routeTarget.draftId : (routeTarget?.threadRef.threadId ?? null);
 
-  const projectById = useMemo(
-    () =>
-      new Map<Project["id"], Project>(projects.map((project: Project) => [project.id, project])),
-    [projects],
-  );
   const projectByScopedKey = useMemo(
     () =>
       new Map(
@@ -230,10 +230,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
         ]),
       ),
     [projects],
-  );
-  const sidebarThreadByKey = useMemo(
-    () => new Map(sidebarThreads.map((thread) => [sidebarThreadKey(thread), thread])),
-    [sidebarThreads],
   );
 
   const drafts = useMemo<SidebarDraftSummary[]>(() => {
@@ -293,61 +289,26 @@ function ChatShellHost(props: { children?: ReactNode }) {
   }, [composerDraftsByThreadKey, draftThreadsByThreadKey, projectByScopedKey]);
 
   const summaries = useMemo(() => {
-    return threads.flatMap((thread: Thread) => {
+    return sidebarThreads.flatMap((thread): SidebarSectionThreadSummary[] => {
       if (thread.archivedAt !== null) {
         return [];
       }
       if (thread.projectId === null) {
-        const sidebarThread = sidebarThreadByKey.get(sidebarThreadKey(thread));
-        const firstUserMessage = thread.messages
-          .find((message) => message.role === "user")
-          ?.text?.trim();
-        const orchestrationStatus =
-          thread.session?.orchestrationStatus ??
-          sidebarThread?.session?.orchestrationStatus ??
-          null;
-        return [
-          {
-            id: thread.id,
-            environmentId: thread.environmentId,
-            projectId: null,
-            projectCwd: PROJECTLESS_CWD,
-            harness: toHarness(thread.modelSelection.instanceId),
-            path: PROJECTLESS_CWD,
-            cwd: PROJECTLESS_CWD,
-            name: thread.title,
-            createdAt: thread.createdAt,
-            modifiedAt: thread.updatedAt ?? thread.createdAt,
-            messageCount: thread.messages.length,
-            firstMessage: firstUserMessage || thread.title,
-            allMessagesText: thread.messages.map((message) => message.text).join("\n\n"),
-            isStreaming: orchestrationStatus === "starting" || orchestrationStatus === "running",
-            orchestrationStatus,
-            needsAttention: needsSidebarAttention(sidebarThread),
-          },
-        ];
+        return [toSummaryFromSidebarThread(thread, null)];
       }
       const projectKey = projectScopedKeyFor(thread.environmentId, thread.projectId);
       const project = projectKey ? projectByScopedKey.get(projectKey) : undefined;
-      if (!project) {
-        return [];
-      }
-      return [toSummary(thread, project, sidebarThreadByKey.get(sidebarThreadKey(thread)))];
+      return project ? [toSummaryFromSidebarThread(thread, project)] : [];
     });
-  }, [projectByScopedKey, sidebarThreadByKey, threads]);
+  }, [projectByScopedKey, sidebarThreads]);
 
   const unreadIds = useMemo(
     () => new Set(Object.keys(unread).filter((id) => unread[id])),
     [unread],
   );
 
-  const activeThread = useMemo(
-    () =>
-      routeThreadId
-        ? (threads.find((thread: Thread) => thread.id === routeThreadId) ?? null)
-        : null,
-    [routeThreadId, threads],
-  );
+  const activeThread = routeActiveThread ?? null;
+
   const activeGitAgentRun = useMemo((): GitAgentRun | null => {
     if (!activeThread) {
       return null;
@@ -462,22 +423,18 @@ function ChatShellHost(props: { children?: ReactNode }) {
         return;
       }
       clearThreadUnread(id);
-      const thread = threads.find((entry: Thread) => entry.id === id);
-      if (thread) {
-        const cwd =
-          thread.projectId === null
-            ? null
-            : (thread.worktreePath ?? projectById.get(thread.projectId)?.cwd);
-        if (cwd) {
-          writeStoredProjectCwd(cwd);
+      const summary = summaries.find((entry) => entry.id === id);
+      if (summary) {
+        if (summary.projectId !== null && summary.cwd) {
+          writeStoredProjectCwd(summary.cwd);
         }
         void navigate({
           to: "/$environmentId/$threadId",
-          params: { environmentId: thread.environmentId, threadId: id },
+          params: { environmentId: summary.environmentId, threadId: summary.id },
         });
       }
     },
-    [clearThreadUnread, drafts, navigate, projectById, threads],
+    [clearThreadUnread, drafts, navigate, summaries],
   );
 
   const prefetchAgent = useCallback(
@@ -487,20 +444,17 @@ function ChatShellHost(props: { children?: ReactNode }) {
         return;
       }
 
-      const thread = threads.find((entry: Thread) => entry.id === id);
-      if (!thread) {
-        return;
-      }
-      if (thread.projectId === null) {
+      const summary = summaries.find((entry) => entry.id === id);
+      if (!summary || summary.projectId === null) {
         return;
       }
 
       prefetchThreadNavigation({
         router,
-        thread,
+        thread: { environmentId: summary.environmentId, id: summary.id },
       });
     },
-    [drafts, projectById, router, threads],
+    [drafts, router, summaries],
   );
 
   const startGitAgentAction = useCallback(
@@ -734,28 +688,31 @@ function ChatShellHost(props: { children?: ReactNode }) {
     if (gitAgentOrchestrationHandoff === null || gitAgentActionMutation.isPending) {
       return;
     }
-    const handoffThread = threads.find(
-      (thread) =>
-        thread.environmentId === gitAgentOrchestrationHandoff.target.environmentId &&
-        thread.id === gitAgentOrchestrationHandoff.target.threadId,
-    );
-    if (!handoffThread) {
+    const targetMatchesActiveThread =
+      activeThread?.environmentId === gitAgentOrchestrationHandoff.target.environmentId &&
+      activeThread.id === gitAgentOrchestrationHandoff.target.threadId;
+    if (!targetMatchesActiveThread) {
       return;
     }
-    const orchestrationStatus = handoffThread.session?.orchestrationStatus ?? null;
+    const orchestrationStatus = activeThread.session?.orchestrationStatus ?? null;
     if (orchestrationStatus === "starting" || orchestrationStatus === "running") {
       return;
     }
-    const latestTurnState = handoffThread.latestTurn?.state ?? null;
+    const latestTurnState = activeThread.latestTurn?.state ?? null;
     if (
       latestTurnState === "completed" ||
       latestTurnState === "interrupted" ||
       latestTurnState === "error" ||
-      hasGitAgentStartFailure(handoffThread, gitAgentOrchestrationHandoff.action)
+      hasGitAgentStartFailure(activeThread, gitAgentOrchestrationHandoff.action)
     ) {
       setGitAgentOrchestrationHandoff(null);
     }
-  }, [activeGitAgentRun, gitAgentActionMutation.isPending, gitAgentOrchestrationHandoff, threads]);
+  }, [
+    activeGitAgentRun,
+    activeThread,
+    gitAgentActionMutation.isPending,
+    gitAgentOrchestrationHandoff,
+  ]);
   const pendingGitAgentAction = resolvePendingGitAgentAction({
     activeRun: activeGitAgentRun,
     mutationIsPending: gitAgentActionMutation.isPending,

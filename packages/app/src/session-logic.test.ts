@@ -994,6 +994,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1005,6 +1006,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1021,6 +1023,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.completed",
         summary: "Tool call completed",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1032,14 +1035,81 @@ describe("deriveWorkLogEntries", () => {
 
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
-      id: "tool-complete",
-      createdAt: "2026-02-23T00:00:03.000Z",
+      id: "tool:tool-1",
+      createdAt: "2026-02-23T00:00:01.000Z",
       label: "Tool call completed",
       detail: 'Read: {"file_path":"/tmp/app.ts"}',
       command: "sed -n 1,40p /tmp/app.ts",
       itemType: "dynamic_tool_call",
       toolTitle: "Tool call",
     });
+  });
+
+  it("collapses interleaved lifecycle updates for active command tool calls", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "command-1-start",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Ran command started",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "sed -n '1,100p' packages/server/src/orchestration/Normalizer.ts",
+        },
+      }),
+      makeActivity({
+        id: "command-2-start",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.started",
+        summary: "Ran command started",
+        payload: {
+          itemId: "command-2",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "sed -n '1,130p' packages/server/src/orchestration/OrchestrationEngine.ts",
+        },
+      }),
+      makeActivity({
+        id: "command-2-complete",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-2",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "sed -n '1,130p' packages/server/src/orchestration/OrchestrationEngine.ts",
+        },
+      }),
+      makeActivity({
+        id: "command-1-complete",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "sed -n '1,100p' packages/server/src/orchestration/Normalizer.ts",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.id)).toEqual(["tool:command-1", "tool:command-2"]);
+    expect(entries.map((entry) => entry.createdAt)).toEqual([
+      "2026-02-23T00:00:01.000Z",
+      "2026-02-23T00:00:02.000Z",
+    ]);
+    expect(entries.map((entry) => entry.status)).toEqual(["completed", "completed"]);
+    expect(entries.map((entry) => entry.command)).toEqual([
+      "sed -n '1,100p' packages/server/src/orchestration/Normalizer.ts",
+      "sed -n '1,130p' packages/server/src/orchestration/OrchestrationEngine.ts",
+    ]);
   });
 
   it("keeps separate tool entries when an identical call starts after the prior one completed", () => {
@@ -1050,6 +1120,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1061,6 +1132,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.completed",
         summary: "Tool call completed",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1072,6 +1144,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
+          itemId: "tool-2",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1083,6 +1156,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.completed",
         summary: "Tool call completed",
         payload: {
+          itemId: "tool-2",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1092,7 +1166,72 @@ describe("deriveWorkLogEntries", () => {
 
     const entries = deriveWorkLogEntries(activities, undefined);
 
-    expect(entries.map((entry) => entry.id)).toEqual(["tool-1-complete", "tool-2-complete"]);
+    expect(entries.map((entry) => entry.id)).toEqual(["tool:tool-1", "tool:tool-2"]);
+  });
+
+  it("scopes stable lifecycle row ids by turn id", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "turn-1-command-start",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Ran command started",
+        turnId: "turn-1",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm lint",
+        },
+      }),
+      makeActivity({
+        id: "turn-1-command-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm lint",
+        },
+      }),
+      makeActivity({
+        id: "turn-2-command-start",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "tool.started",
+        summary: "Ran command started",
+        turnId: "turn-2",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm test",
+        },
+      }),
+      makeActivity({
+        id: "turn-2-command-complete",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        turnId: "turn-2",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm test",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries.map((entry) => entry.id)).toEqual([
+      "tool:turn-1:command-1",
+      "tool:turn-2:command-1",
+    ]);
+    expect(entries.map((entry) => entry.command)).toEqual(["pnpm lint", "pnpm test"]);
   });
 
   it("collapses same-timestamp lifecycle rows even when completed sorts before updated by id", () => {
@@ -1103,6 +1242,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1114,6 +1254,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.completed",
         summary: "Tool call",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1125,6 +1266,7 @@ describe("deriveWorkLogEntries", () => {
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
+          itemId: "tool-1",
           itemType: "dynamic_tool_call",
           title: "Tool call",
           detail: 'Read: {"file_path":"/tmp/app.ts"}',
@@ -1135,7 +1277,7 @@ describe("deriveWorkLogEntries", () => {
     const entries = deriveWorkLogEntries(activities, undefined);
 
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.id).toBe("a-complete-same-timestamp");
+    expect(entries[0]?.id).toBe("tool:tool-1");
   });
 
   it("keeps collab agent lifecycle rows separate", () => {

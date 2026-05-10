@@ -39,10 +39,12 @@ export function parsePersistedServerObservabilitySettings(
     : { otlpTracesUrl: undefined, otlpMetricsUrl: undefined };
 }
 
-function shouldReplaceTextGenerationModelSelection(
-  patch: ServerSettingsPatch["textGenerationModelSelection"] | undefined,
+function shouldReplaceModelSelection(
+  patch: NonNullable<
+    ServerSettingsPatch["textGenerationModelSelection"] | ServerSettingsPatch["composerModelSelection"]
+  >,
 ): boolean {
-  return Boolean(patch && (patch.instanceId !== undefined || patch.model !== undefined));
+  return patch.instanceId !== undefined || patch.model !== undefined;
 }
 
 function mergeModelSelectionOptionsById(input: {
@@ -63,8 +65,38 @@ function mergeModelSelectionOptionsById(input: {
   return [...merged.entries()].map(([id, value]) => ({ id, value }));
 }
 
+function applyModelSelectionPatch(input: {
+  currentSelection: ServerSettings["textGenerationModelSelection"] | null;
+  patch:
+    | ServerSettingsPatch["textGenerationModelSelection"]
+    | ServerSettingsPatch["composerModelSelection"]
+    | undefined;
+}): ServerSettings["textGenerationModelSelection"] | null | undefined {
+  if (input.patch === undefined) {
+    return undefined;
+  }
+  if (input.patch === null) {
+    return null;
+  }
+
+  const instanceId = input.patch.instanceId ?? input.currentSelection?.instanceId;
+  const model = input.patch.model ?? input.currentSelection?.model;
+  if (!instanceId || !model) {
+    return input.currentSelection;
+  }
+
+  const options = shouldReplaceModelSelection(input.patch)
+    ? input.patch.options
+    : mergeModelSelectionOptionsById({
+        current: input.currentSelection?.options,
+        patch: input.patch.options,
+      });
+
+  return createModelSelection(instanceId, model, options);
+}
+
 /**
- * Applies a server settings patch while treating textGenerationModelSelection as
+ * Applies a server settings patch while treating model selections as
  * replace-on-instance/model updates. This prevents stale nested options from
  * surviving a reset patch that intentionally omits options.
  */
@@ -72,7 +104,8 @@ export function applyServerSettingsPatch(
   current: ServerSettings,
   patch: ServerSettingsPatch,
 ): ServerSettings {
-  const selectionPatch = patch.textGenerationModelSelection;
+  const textGenerationSelectionPatch = patch.textGenerationModelSelection;
+  const composerSelectionPatch = patch.composerModelSelection;
   const { providerInstances, ...patchWithoutProviderInstances } = patch;
   const next =
     providerInstances !== undefined
@@ -81,21 +114,21 @@ export function applyServerSettingsPatch(
           providerInstances,
         }
       : deepMerge(current, patch);
-  if (!selectionPatch) {
-    return next;
-  }
 
-  const instanceId = selectionPatch.instanceId ?? current.textGenerationModelSelection.instanceId;
-  const model = selectionPatch.model ?? current.textGenerationModelSelection.model;
-  const options = shouldReplaceTextGenerationModelSelection(selectionPatch)
-    ? selectionPatch.options
-    : mergeModelSelectionOptionsById({
-        current: current.textGenerationModelSelection.options,
-        patch: selectionPatch.options,
-      });
+  const textGenerationModelSelection = applyModelSelectionPatch({
+    currentSelection: current.textGenerationModelSelection,
+    patch: textGenerationSelectionPatch,
+  });
+  const composerModelSelection = applyModelSelectionPatch({
+    currentSelection: current.composerModelSelection,
+    patch: composerSelectionPatch,
+  });
 
   return {
     ...next,
-    textGenerationModelSelection: createModelSelection(instanceId, model, options),
+    ...(textGenerationModelSelection !== undefined && textGenerationModelSelection !== null
+      ? { textGenerationModelSelection }
+      : {}),
+    ...(composerModelSelection !== undefined ? { composerModelSelection } : {}),
   };
 }

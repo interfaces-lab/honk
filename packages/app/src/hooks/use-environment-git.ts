@@ -245,7 +245,7 @@ export function useEnvironmentGitPanel(
   environmentId?: EnvironmentId | null,
   cwdOverride?: string | null,
 ): GitPanelModel {
-  const shell = useShellState();
+  const shell = useShellState(cwdOverride == null);
   const cwd = cwdOverride ?? shell.cwd;
   const queryClient = useQueryClient();
   const status = useGitStatus({ environmentId: environmentId ?? null, cwd });

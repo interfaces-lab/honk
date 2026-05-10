@@ -4,6 +4,7 @@ import { useComposerDraftStore } from "~/composer-draft-store";
 import { useStore } from "~/store";
 import { selectEnvironmentState } from "~/store";
 import { newDraftId, newThreadId } from "~/lib/utils";
+import { readLastChatRouteTarget } from "~/chat-route-persistence";
 import { buildDraftThreadRouteParams } from "~/thread-routes";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
 
@@ -24,6 +25,27 @@ export function ChatIndexRouteView() {
     if (!activeEnvironmentId || !bootstrapComplete) {
       return;
     }
+    const lastChatRouteTarget = readLastChatRouteTarget();
+    if (lastChatRouteTarget?.kind === "draft") {
+      void navigate({
+        to: "/draft/$draftId",
+        params: { draftId: lastChatRouteTarget.draftId },
+        replace: true,
+      });
+      return;
+    }
+    if (lastChatRouteTarget?.kind === "server") {
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: {
+          environmentId: lastChatRouteTarget.threadRef.environmentId,
+          threadId: lastChatRouteTarget.threadRef.threadId,
+        },
+        replace: true,
+      });
+      return;
+    }
+
     const existingDraft = getProjectlessDraftSession(activeEnvironmentId);
     const draftId = existingDraft?.draftId ?? newDraftId();
     if (!existingDraft) {

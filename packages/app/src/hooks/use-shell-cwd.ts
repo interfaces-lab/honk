@@ -6,7 +6,7 @@ import { readStoredProjectCwd } from "../lib/project-state";
 import { useServerAvailableEditors } from "../rpc/server-state";
 import {
   selectProjectsAcrossEnvironments,
-  selectThreadsAcrossEnvironments,
+  selectSidebarThreadsAcrossEnvironments,
   useStore,
 } from "../store";
 import { useRouteThreadId } from "./use-route-thread-id";
@@ -44,15 +44,19 @@ export function resolveShellCwd(input: {
   return thread?.worktreePath ?? project?.cwd ?? null;
 }
 
-export function useShellState() {
+export function useShellState(enabled = true) {
   const editors = useServerAvailableEditors();
   const routeThreadId = useRouteThreadId();
-  const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
-  const threads = useStore(useShallow(selectThreadsAcrossEnvironments));
+  const projects = useStore(
+    useShallow((state) => (enabled ? selectProjectsAcrossEnvironments(state) : [])),
+  );
+  const threads = useStore(
+    useShallow((state) => (enabled ? selectSidebarThreadsAcrossEnvironments(state) : [])),
+  );
   const stored = useSyncExternalStore(subscribe, readStoredProjectCwd, () => null);
 
   return useMemo(() => {
-    const cwd = resolveShellCwd({ projects, threads, routeThreadId, stored });
+    const cwd = enabled ? resolveShellCwd({ projects, threads, routeThreadId, stored }) : null;
 
     return {
       cwd,
@@ -60,5 +64,5 @@ export function useShellState() {
       home: null,
       availableEditors: [...editors],
     };
-  }, [editors, projects, routeThreadId, stored, threads]);
+  }, [editors, enabled, projects, routeThreadId, stored, threads]);
 }
