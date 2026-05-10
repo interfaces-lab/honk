@@ -1,13 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopBridge, ThreadBrowserState, ThreadId } from "@multi/contracts";
-
-const emptyThreadBrowserState = (threadId: ThreadId): ThreadBrowserState => ({
-  threadId,
-  open: false,
-  activeTabId: null,
-  tabs: [],
-  lastError: null,
-});
+import type { DesktopBridge } from "@multi/contracts";
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CONFIRM_CHANNEL = "desktop:confirm";
@@ -112,25 +104,5 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     return () => {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
     };
-  },
-  browser: {
-    open: async (input) => emptyThreadBrowserState(input.threadId),
-    close: async () => {},
-    hide: async () => {},
-    getState: async (input) => emptyThreadBrowserState(input.threadId),
-    setPanelBounds: async () => {},
-    navigate: async (input) => emptyThreadBrowserState(input.threadId),
-    reload: async (input) => emptyThreadBrowserState(input.threadId),
-    goBack: async (input) => emptyThreadBrowserState(input.threadId),
-    goForward: async (input) => emptyThreadBrowserState(input.threadId),
-    newTab: async (input) => emptyThreadBrowserState(input.threadId),
-    closeTab: async (input) => emptyThreadBrowserState(input.threadId),
-    selectTab: async (input) => emptyThreadBrowserState(input.threadId),
-    openDevTools: async () => {},
-    onState: () => () => {},
-  },
-  notifications: {
-    isSupported: async () => false,
-    show: async () => false,
   },
 } satisfies DesktopBridge);

@@ -1,6 +1,7 @@
 export * from "./base-schemas";
 export * from "./auth";
 export * from "./environment";
+export * from "./desktop-bootstrap";
 export * from "./ipc";
 export * from "./terminal";
 export * from "./provider";

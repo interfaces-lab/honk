@@ -1,0 +1,35 @@
+import {
+  DesktopServerExposureModeSchema,
+  DesktopServerExposureStateSchema,
+} from "@multi/contracts";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
+import * as DesktopLifecycle from "../../app/DesktopLifecycle";
+import * as DesktopServerExposure from "../../backend/DesktopServerExposure";
+import * as IpcChannels from "../channels";
+import { makeIpcMethod } from "../DesktopIpc";
+
+export const getServerExposureState = makeIpcMethod({
+  channel: IpcChannels.GET_SERVER_EXPOSURE_STATE_CHANNEL,
+  payload: Schema.Void,
+  result: DesktopServerExposureStateSchema,
+  handler: Effect.fn("desktop.ipc.serverExposure.getState")(function* () {
+    const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
+    return yield* serverExposure.getState;
+  }),
+});
+
+export const setServerExposureMode = makeIpcMethod({
+  channel: IpcChannels.SET_SERVER_EXPOSURE_MODE_CHANNEL,
+  payload: DesktopServerExposureModeSchema,
+  result: DesktopServerExposureStateSchema,
+  handler: Effect.fn("desktop.ipc.serverExposure.setMode")(function* (mode) {
+    const lifecycle = yield* DesktopLifecycle.DesktopLifecycle;
+    const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
+    const change = yield* serverExposure.setMode(mode);
+    if (change.requiresRelaunch) {
+      yield* lifecycle.relaunch(`serverExposureMode=${mode}`);
+    }
+    return change.state;
+  }),
+});

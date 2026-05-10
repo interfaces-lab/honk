@@ -58,7 +58,9 @@ import type {
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
 } from "./orchestration";
-import type { EnvironmentId, ThreadId } from "./base-schemas";
+import { Schema } from "effect";
+
+import { EnvironmentId } from "./base-schemas";
 import { EditorId } from "./editor";
 import { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings";
 
@@ -67,7 +69,28 @@ export interface ContextMenuItem<T extends string = string> {
   label: string;
   destructive?: boolean;
   disabled?: boolean;
+  children?: readonly ContextMenuItem<T>[];
 }
+
+export interface ContextMenuItemSchemaType {
+  readonly id: string;
+  readonly label: string;
+  readonly destructive?: boolean;
+  readonly disabled?: boolean;
+  readonly children?: readonly ContextMenuItemSchemaType[];
+}
+
+export const ContextMenuItemSchema: Schema.Codec<ContextMenuItemSchemaType> = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  destructive: Schema.optionalKey(Schema.Boolean),
+  disabled: Schema.optionalKey(Schema.Boolean),
+  children: Schema.optionalKey(
+    Schema.Array(
+      Schema.suspend((): Schema.Codec<ContextMenuItemSchemaType> => ContextMenuItemSchema),
+    ),
+  ),
+});
 
 export type DesktopUpdateStatus =
   | "disabled"
@@ -84,17 +107,44 @@ export type DesktopTheme = "light" | "dark" | "system";
 export type DesktopUpdateChannel = "latest" | "nightly";
 export type DesktopAppStageLabel = "Alpha" | "Dev" | "Nightly";
 
+export const DesktopUpdateStatusSchema = Schema.Literals([
+  "disabled",
+  "idle",
+  "checking",
+  "up-to-date",
+  "available",
+  "downloading",
+  "downloaded",
+  "error",
+]);
+export const DesktopRuntimeArchSchema = Schema.Literals(["arm64", "x64", "other"]);
+export const DesktopThemeSchema = Schema.Literals(["light", "dark", "system"]);
+export const DesktopUpdateChannelSchema = Schema.Literals(["latest", "nightly"]);
+export const DesktopAppStageLabelSchema = Schema.Literals(["Alpha", "Dev", "Nightly"]);
+
 export interface DesktopAppBranding {
   baseName: string;
   stageLabel: DesktopAppStageLabel;
   displayName: string;
 }
 
+export const DesktopAppBrandingSchema = Schema.Struct({
+  baseName: Schema.String,
+  stageLabel: DesktopAppStageLabelSchema,
+  displayName: Schema.String,
+});
+
 export interface DesktopRuntimeInfo {
   hostArch: DesktopRuntimeArch;
   appArch: DesktopRuntimeArch;
   runningUnderArm64Translation: boolean;
 }
+
+export const DesktopRuntimeInfoSchema = Schema.Struct({
+  hostArch: DesktopRuntimeArchSchema,
+  appArch: DesktopRuntimeArchSchema,
+  runningUnderArm64Translation: Schema.Boolean,
+});
 
 export interface DesktopUpdateState {
   enabled: boolean;
@@ -113,16 +163,44 @@ export interface DesktopUpdateState {
   canRetry: boolean;
 }
 
+export const DesktopUpdateStateSchema = Schema.Struct({
+  enabled: Schema.Boolean,
+  status: DesktopUpdateStatusSchema,
+  channel: DesktopUpdateChannelSchema,
+  currentVersion: Schema.String,
+  hostArch: DesktopRuntimeArchSchema,
+  appArch: DesktopRuntimeArchSchema,
+  runningUnderArm64Translation: Schema.Boolean,
+  availableVersion: Schema.NullOr(Schema.String),
+  downloadedVersion: Schema.NullOr(Schema.String),
+  downloadPercent: Schema.NullOr(Schema.Number),
+  checkedAt: Schema.NullOr(Schema.String),
+  message: Schema.NullOr(Schema.String),
+  errorContext: Schema.NullOr(Schema.Literals(["check", "download", "install"])),
+  canRetry: Schema.Boolean,
+});
+
 export interface DesktopUpdateActionResult {
   accepted: boolean;
   completed: boolean;
   state: DesktopUpdateState;
 }
 
+export const DesktopUpdateActionResultSchema = Schema.Struct({
+  accepted: Schema.Boolean,
+  completed: Schema.Boolean,
+  state: DesktopUpdateStateSchema,
+});
+
 export interface DesktopUpdateCheckResult {
   checked: boolean;
   state: DesktopUpdateState;
 }
+
+export const DesktopUpdateCheckResultSchema = Schema.Struct({
+  checked: Schema.Boolean,
+  state: DesktopUpdateStateSchema,
+});
 
 export interface DesktopEnvironmentBootstrap {
   label: string;
@@ -130,6 +208,13 @@ export interface DesktopEnvironmentBootstrap {
   wsBaseUrl: string | null;
   bootstrapToken?: string;
 }
+
+export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
+  label: Schema.String,
+  httpBaseUrl: Schema.NullOr(Schema.String),
+  wsBaseUrl: Schema.NullOr(Schema.String),
+  bootstrapToken: Schema.optionalKey(Schema.String),
+});
 
 export interface PersistedSavedEnvironmentRecord {
   environmentId: EnvironmentId;
@@ -140,7 +225,21 @@ export interface PersistedSavedEnvironmentRecord {
   lastConnectedAt: string | null;
 }
 
+export const PersistedSavedEnvironmentRecordSchema = Schema.Struct({
+  environmentId: EnvironmentId,
+  label: Schema.String,
+  wsBaseUrl: Schema.String,
+  httpBaseUrl: Schema.String,
+  createdAt: Schema.String,
+  lastConnectedAt: Schema.NullOr(Schema.String),
+});
+
 export type DesktopServerExposureMode = "local-only" | "network-accessible";
+
+export const DesktopServerExposureModeSchema = Schema.Literals([
+  "local-only",
+  "network-accessible",
+]);
 
 export interface DesktopServerExposureState {
   mode: DesktopServerExposureMode;
@@ -148,90 +247,27 @@ export interface DesktopServerExposureState {
   advertisedHost: string | null;
 }
 
+export const DesktopServerExposureStateSchema = Schema.Struct({
+  mode: DesktopServerExposureModeSchema,
+  endpointUrl: Schema.NullOr(Schema.String),
+  advertisedHost: Schema.NullOr(Schema.String),
+});
+
 export interface DesktopWindowChromeState {
   fullscreen: boolean;
 }
+
+export const DesktopWindowChromeStateSchema = Schema.Struct({
+  fullscreen: Schema.Boolean,
+});
 
 export interface PickFolderOptions {
   initialPath?: string | null;
 }
 
-export interface BrowserTabState {
-  id: string;
-  url: string;
-  title: string;
-  status: "live" | "suspended";
-  isLoading: boolean;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  faviconUrl: string | null;
-  lastCommittedUrl: string | null;
-  lastError: string | null;
-}
-
-export interface ThreadBrowserState {
-  threadId: ThreadId;
-  open: boolean;
-  activeTabId: string | null;
-  tabs: BrowserTabState[];
-  lastError: string | null;
-}
-
-export interface BrowserOpenInput {
-  threadId: ThreadId;
-  initialUrl?: string;
-}
-
-export interface BrowserThreadInput {
-  threadId: ThreadId;
-}
-
-export interface BrowserTabInput {
-  threadId: ThreadId;
-  tabId: string;
-}
-
-export interface BrowserNavigateInput {
-  threadId: ThreadId;
-  tabId?: string;
-  url: string;
-}
-
-export interface BrowserNewTabInput {
-  threadId: ThreadId;
-  url?: string;
-  activate?: boolean;
-}
-
-export interface BrowserPanelBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface BrowserSetPanelBoundsInput {
-  threadId: ThreadId;
-  bounds: BrowserPanelBounds | null;
-}
-
-export interface DesktopBrowserBridge {
-  open: (input: BrowserOpenInput) => Promise<ThreadBrowserState>;
-  close: (input: BrowserThreadInput) => Promise<void>;
-  hide: (input: BrowserThreadInput) => Promise<void>;
-  getState: (input: BrowserThreadInput) => Promise<ThreadBrowserState | null>;
-  setPanelBounds: (input: BrowserSetPanelBoundsInput) => Promise<void>;
-  navigate: (input: BrowserNavigateInput) => Promise<ThreadBrowserState>;
-  reload: (input: BrowserTabInput) => Promise<ThreadBrowserState>;
-  goBack: (input: BrowserTabInput) => Promise<ThreadBrowserState>;
-  goForward: (input: BrowserTabInput) => Promise<ThreadBrowserState>;
-  newTab: (input: BrowserNewTabInput) => Promise<ThreadBrowserState>;
-  closeTab: (input: BrowserTabInput) => Promise<ThreadBrowserState>;
-  selectTab: (input: BrowserTabInput) => Promise<ThreadBrowserState>;
-  screenshot?: (input: BrowserTabInput) => Promise<void>;
-  openDevTools: (input: BrowserTabInput) => Promise<void>;
-  onState: (listener: (state: ThreadBrowserState) => void) => () => void;
-}
+export const PickFolderOptionsSchema = Schema.Struct({
+  initialPath: Schema.optionalKey(Schema.NullOr(Schema.String)),
+});
 
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
@@ -258,16 +294,6 @@ export interface DesktopBridge {
   ) => Promise<T | null>;
   openExternal: (url: string) => Promise<boolean>;
   onMenuAction: (listener: (action: string) => void) => () => void;
-  browser: DesktopBrowserBridge;
-  notifications: {
-    isSupported: () => Promise<boolean>;
-    show: (input: {
-      title: string;
-      body: string;
-      silent?: boolean;
-      threadId?: string;
-    }) => Promise<boolean>;
-  };
   getUpdateState: () => Promise<DesktopUpdateState>;
   setUpdateChannel: (channel: DesktopUpdateChannel) => Promise<DesktopUpdateState>;
   checkForUpdate: () => Promise<DesktopUpdateCheckResult>;

@@ -2,7 +2,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { toastManager } from "~/app/toast";
-import { isElectron } from "../env";
 import { selectThreadsAcrossEnvironments, useStore } from "../store";
 import type { Thread } from "../types";
 import {
@@ -75,14 +74,6 @@ async function showSystemThreadNotification(
   navigate: ReturnType<typeof useNavigate>,
 ): Promise<boolean> {
   const { body, title } = copy;
-
-  if (window.desktopBridge?.notifications) {
-    const supported = await window.desktopBridge.notifications.isSupported();
-    if (!supported) {
-      return false;
-    }
-    return window.desktopBridge.notifications.show({ title, body, silent: false, threadId });
-  }
 
   if (readBrowserNotificationPermissionState() !== "granted") {
     return false;
@@ -182,9 +173,6 @@ export function TaskCompletionNotifications() {
 export function buildNotificationSettingsSupportText(
   permissionState: BrowserNotificationPermissionState,
 ): string {
-  if (isElectron) {
-    return "Desktop app notifications use your operating system notification center.";
-  }
   switch (permissionState) {
     case "granted":
       return "Browser notifications are enabled for this app.";

@@ -44,6 +44,10 @@
       "types": "./src/server-settings.ts",
       "import": "./src/server-settings.ts"
     },
+    "./observability": {
+      "types": "./src/observability.ts",
+      "import": "./src/observability.ts"
+    },
     "./String": {
       "types": "./src/String.ts",
       "import": "./src/String.ts"
