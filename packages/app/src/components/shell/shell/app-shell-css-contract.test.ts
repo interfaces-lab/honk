@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const shellDir = resolve(__dirname);
 const appShellSource = readFileSync(resolve(shellDir, "app.tsx"), "utf8");
-const chatHeaderSource = readFileSync(resolve(shellDir, "../../chat/chat-header.tsx"), "utf8");
+const chatHeaderSource = readFileSync(resolve(shellDir, "../../chat/view/chat-header.tsx"), "utf8");
 const gitPanelSource = readFileSync(resolve(shellDir, "../git/panel.tsx"), "utf8");
 const rightWorkbenchHeaderSource = readFileSync(
   resolve(shellDir, "right-workbench-header.tsx"),

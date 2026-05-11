@@ -9,7 +9,7 @@ import {
 import { TabsPanel, TabsRoot } from "@multi/ui/tabs";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { isElectron, isElectronHost } from "~/env";
 import { useSettings } from "~/hooks/use-settings";
@@ -340,7 +340,7 @@ function ShellHeaderControls(props: {
           <button
             type="button"
             onClick={() => props.onBack?.()}
-            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground"
+            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground active:scale-[0.96] transition-transform"
             aria-label="Back to chat"
           >
             <IconArrowLeft className="size-4 shrink-0" />
@@ -349,7 +349,7 @@ function ShellHeaderControls(props: {
         <button
           type="button"
           onClick={() => shellPanelsActions.toggleLeft()}
-          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground"
+          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground active:scale-[0.96] transition-transform"
           aria-label={leftOpen ? "Collapse chats" : "Expand chats"}
         >
           {leftOpen ? (
@@ -364,7 +364,7 @@ function ShellHeaderControls(props: {
           <button
             type="button"
             onClick={() => setRightPanelOpen(!rightOpen)}
-            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground"
+            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground active:scale-[0.96] transition-transform"
             aria-label={rightPanelLabel}
             aria-pressed={rightOpen}
             title={rightPanelLabel}
@@ -410,20 +410,23 @@ export function AppShell(props: {
       gitFocusId: props.gitFocusId ?? null,
       muted,
     });
-  const shellStyle: ShellRootStyle = {
-    "--multi-shell-left-width": `${leftWidth}px`,
-    "--multi-shell-left-collapsed-width": "0px",
-    "--multi-shell-left-min-width": `${LEFT_LIMITS.min}px`,
-    "--multi-shell-left-max-width": `${LEFT_LIMITS.max}px`,
-    "--multi-shell-right-workbench-width": `${rightWidth}px`,
-    "--multi-shell-right-workbench-collapsed-width": "0px",
-    "--multi-shell-right-workbench-min-width": `${RIGHT_LIMITS.min}px`,
-    "--multi-shell-right-workbench-max-width": `${RIGHT_LIMITS.max}px`,
-    "--multi-shell-titlebar-control-size": "var(--multi-titlebar-control-height)",
-    "--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)",
-    "--multi-shell-titlebar-gutter": "8px",
-    "--multi-composer-max-width": `${agentWindowChatMaxWidth}px`,
-  };
+  const shellStyle = useMemo<ShellRootStyle>(
+    () => ({
+      "--multi-shell-left-width": `${leftWidth}px`,
+      "--multi-shell-left-collapsed-width": "0px",
+      "--multi-shell-left-min-width": `${LEFT_LIMITS.min}px`,
+      "--multi-shell-left-max-width": `${LEFT_LIMITS.max}px`,
+      "--multi-shell-right-workbench-width": `${rightWidth}px`,
+      "--multi-shell-right-workbench-collapsed-width": "0px",
+      "--multi-shell-right-workbench-min-width": `${RIGHT_LIMITS.min}px`,
+      "--multi-shell-right-workbench-max-width": `${RIGHT_LIMITS.max}px`,
+      "--multi-shell-titlebar-control-size": "var(--multi-titlebar-control-height)",
+      "--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)",
+      "--multi-shell-titlebar-gutter": "8px",
+      "--multi-composer-max-width": `${agentWindowChatMaxWidth}px`,
+    }),
+    [leftWidth, rightWidth, agentWindowChatMaxWidth],
+  );
 
   useEffect(() => {
     const previousValue = document.body.getAttribute("data-cursor-glass-mode");

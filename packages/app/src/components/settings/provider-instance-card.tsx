@@ -28,7 +28,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import type { DriverOption } from "./provider-driver-meta";
 import { ProviderSettingsForm } from "./provider-settings-form";
 import { ProviderModelsSection } from "./provider-models-section";
-import { ProviderInstanceIcon } from "../chat/provider-instance-icon";
+import { ProviderInstanceIcon } from "../chat/picker/instance-icon";
 import {
   PROVIDER_STATUS_STYLES,
   getProviderSummary,

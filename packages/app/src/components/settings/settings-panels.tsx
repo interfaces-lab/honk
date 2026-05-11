@@ -43,8 +43,8 @@ import {
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktop-update.logic";
-import { ProviderModelPicker } from "../chat/provider-model-picker";
-import { TraitsPicker } from "../chat/traits-picker";
+import { ProviderModelPicker } from "../chat/picker/model-picker";
+import { TraitsPicker } from "../chat/picker/traits-picker";
 import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 import { isElectron } from "../../env";
 import { useTheme } from "../../hooks/use-theme";

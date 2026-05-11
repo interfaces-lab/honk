@@ -1,5 +1,5 @@
 import { createContext, useContext, type MutableRefObject } from "react";
-import type { ChatComposerHandle } from "./components/chat/chat-composer";
+import type { ChatComposerHandle } from "./components/chat/composer/chat-composer";
 
 export type ComposerHandleRef = MutableRefObject<ChatComposerHandle | null>;
 

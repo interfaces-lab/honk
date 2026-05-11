@@ -88,7 +88,7 @@ import { Kbd, KbdGroup } from "@multi/ui/kbd";
 import { toastManager } from "~/app/toast";
 import { ComposerHandleContext, useComposerHandleContext } from "../composer-handle-context";
 import { resolveAndPersistPreferredEditor } from "../editor-preferences";
-import type { ChatComposerHandle } from "./chat/chat-composer";
+import type { ChatComposerHandle } from "./chat/composer/chat-composer";
 
 function joinFileSystemPath(basePath: string, ...segments: string[]): string {
   const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";

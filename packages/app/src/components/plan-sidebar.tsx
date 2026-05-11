@@ -4,7 +4,7 @@ import { type TimestampFormat } from "@multi/contracts/settings";
 import { Badge } from "@multi/ui/badge";
 import { Button } from "@multi/ui/button";
 import { ScrollArea } from "@multi/ui/scroll-area";
-import ChatMarkdown from "./chat-markdown";
+import ChatMarkdown from "./chat/markdown/chat-markdown";
 import {
   IconCheckmark1,
   IconChevronDownSmall,

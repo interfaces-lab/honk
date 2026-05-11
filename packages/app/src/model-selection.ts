@@ -14,8 +14,8 @@ import {
 } from "@multi/shared/model";
 import { UnifiedSettings } from "@multi/contracts/settings";
 
-import { getComposerProviderState } from "./components/chat/composer-provider-registry";
-import { ModelEsque } from "./components/chat/provider-icon-utils";
+import { getComposerProviderState } from "./components/chat/composer/provider-registry";
+import { ModelEsque } from "./components/chat/picker/icon-utils";
 import { sortModelsForProviderInstance } from "./model-ordering";
 import {
   type ProviderInstanceEntry,

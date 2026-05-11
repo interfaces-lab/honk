@@ -13,7 +13,7 @@ import {
   type ComposerThreadDraftState,
   type EffectiveComposerModelState,
 } from "./composer-draft-store";
-import { getComposerProviderState } from "./components/chat/composer-provider-registry";
+import { getComposerProviderState } from "./components/chat/composer/provider-registry";
 import { getAppModelOptionsForInstance, type AppModelOption } from "./model-selection";
 import {
   deriveProviderInstanceEntriesForSettings,

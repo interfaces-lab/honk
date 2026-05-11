@@ -1,5 +1,6 @@
 "use client";
 
+import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -17,10 +18,8 @@ interface ColumnResizeLimits {
 interface ColumnResizeState {
   base: number;
   pointerId: number;
-  raf: number | null;
   sash: HTMLDivElement;
   startX: number;
-  width: number;
 }
 
 function clampColumnWidth(width: number, limits: ColumnResizeLimits): number {
@@ -48,14 +47,19 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
 
   useEffect(() => {
     return () => {
-      const drag = stateRef.current;
-      if (drag?.raf !== null && drag?.raf !== undefined) {
-        window.cancelAnimationFrame(drag.raf);
-      }
       document.body.style.removeProperty("cursor");
       document.body.style.removeProperty("user-select");
     };
   }, []);
+
+  const applyWidth = useThrottledCallback(
+    (nextWidth: number) => {
+      if (elementRef.current) {
+        elementRef.current.style.width = `${nextWidth}px`;
+      }
+    },
+    { wait: 16, leading: true, trailing: true },
+  );
 
   const stopResize = useCallback((pointerId: number) => {
     const drag = stateRef.current;
@@ -63,11 +67,7 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
       return;
     }
 
-    if (drag.raf !== null) {
-      window.cancelAnimationFrame(drag.raf);
-    }
-
-    const nextWidth = drag.width;
+    const nextWidth = liveWidthRef.current;
     if (drag.sash.hasPointerCapture(pointerId)) {
       drag.sash.releasePointerCapture(pointerId);
     }
@@ -95,10 +95,8 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
       stateRef.current = {
         base: width,
         pointerId: event.pointerId,
-        raf: null,
         sash: event.currentTarget,
         startX: event.clientX,
-        width,
       };
       setDragging(true);
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -119,28 +117,12 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
       const delta =
         direction === "right" ? event.clientX - drag.startX : drag.startX - event.clientX;
       const nextWidth = clampColumnWidth(drag.base + delta, limits);
-      drag.width = nextWidth;
       liveWidthRef.current = nextWidth;
-
-      if (drag.raf !== null) {
-        event.preventDefault();
-        return;
-      }
-
-      drag.raf = window.requestAnimationFrame(() => {
-        const activeDrag = stateRef.current;
-        if (!activeDrag) {
-          return;
-        }
-        activeDrag.raf = null;
-        if (elementRef.current) {
-          elementRef.current.style.width = `${activeDrag.width}px`;
-        }
-      });
+      applyWidth(nextWidth);
 
       event.preventDefault();
     },
-    [direction, elementRef, limits],
+    [direction, limits, applyWidth],
   );
 
   const onPointerUp = useCallback(
