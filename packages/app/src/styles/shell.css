@@ -212,10 +212,6 @@ body {
   min-width: 0;
 }
 
-.git-stack-virtualizer {
-  background: var(--multi-git-diff-editor-background);
-}
-
 .git-diff-card {
   box-sizing: border-box;
   container-type: inline-size;
