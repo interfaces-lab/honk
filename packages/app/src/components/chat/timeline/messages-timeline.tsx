@@ -443,6 +443,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           onTouchStart={clearProgrammaticScrollTracking}
           onWheel={clearProgrammaticScrollTracking}
           className="agent-panel-meta-agent-chat h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
+          data-chat-top-fade=""
         >
           <div className="mx-auto box-border w-full max-w-composer" style={virtualContentStyle}>
             {virtualItems.map((virtualRow) => {
@@ -461,8 +462,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   data-sticky={isActiveStickyUserRow ? "true" : undefined}
                   className={cn(
                     "virtualized-composer-messages-row w-full px-(--composer-messages-padding-inline) pb-(--chat-timeline-row-gap)",
-                    isActiveStickyUserRow &&
-                      "isolate bg-[color-mix(in_srgb,var(--multi-composer-overlay-bg)_72%,transparent)] backdrop-blur-[18px] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-[linear-gradient(to_bottom,var(--multi-composer-overlay-bg),transparent)]",
+                    isActiveStickyUserRow && "agent-panel-meta-agent-chat__sticky-user-row",
                   )}
                   style={virtualRowStyle(virtualRow, isActiveStickyUserRow)}
                 >

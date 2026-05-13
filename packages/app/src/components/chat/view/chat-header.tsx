@@ -32,7 +32,7 @@ interface ChatHeaderProps {
 
 export const ChatHeader = memo(function ChatHeader({ activeThreadTitle }: ChatHeaderProps) {
   return (
-    <div className="no-drag @container/header-actions flex min-w-0 flex-1 select-none items-center gap-2 text-body/[16px]">
+    <div className="@container/header-actions flex min-w-0 flex-1 select-none items-center gap-2 text-body">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         <Button
           type="button"
@@ -44,14 +44,16 @@ export const ChatHeader = memo(function ChatHeader({ activeThreadTitle }: ChatHe
         >
           <IconSidebar className="size-3.5" />
         </Button>
-        <button
-          type="button"
-          aria-label={`Chat title. Right-click for more actions. ${activeThreadTitle}`}
-          className="no-drag flex min-w-0 shrink items-center rounded-[4px] px-1 py-0.5 text-left text-body/[16px] font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
-          title={activeThreadTitle}
-        >
-          <span className="min-w-0 truncate">{activeThreadTitle}</span>
-        </button>
+        <div className="no-drag flex min-w-0 shrink items-center">
+          <button
+            type="button"
+            aria-label={`Chat title. Right-click for more actions. ${activeThreadTitle}`}
+            className="flex min-w-0 shrink items-center rounded-sm px-1 py-0.5 text-left text-body font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
+            title={activeThreadTitle}
+          >
+            <span className="min-w-0 truncate">{activeThreadTitle}</span>
+          </button>
+        </div>
       </div>
     </div>
   );

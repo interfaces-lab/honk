@@ -12,7 +12,10 @@ import {
 } from "~/components/shell/terminal/terminal-host-theme";
 import { subscribeTerminalHostDocument } from "~/components/shell/terminal/terminal-xterm-host-sync";
 import { readNativeEnvironmentApi } from "~/lib/native-runtime-api";
-import { clampTerminalDimensions } from "~/lib/terminal-dimensions";
+import {
+  clampTerminalDimensions,
+  waitForTerminalLayoutFrame,
+} from "~/lib/terminal-dimensions";
 import { traceBrowserEvent } from "~/observability/browserDebug";
 
 function workbenchThreadId(cwd: string) {
@@ -224,23 +227,36 @@ export function TerminalPanel(props: {
       },
     );
 
-    const openSize = clampTerminalDimensions({ cols: next.cols, rows: next.rows });
-    traceBrowserEvent("terminal.panel.open.start", {
-      cwd,
-      threadId: thread,
-      terminalId: termId,
-      cols: openSize.cols,
-      rows: openSize.rows,
-    });
-    void api
-      .open({
+    const openTerminal = async () => {
+      await waitForTerminalLayoutFrame();
+      if (!live) return;
+
+      const activeTerminal = term.current;
+      const activeFitAddon = fit.current;
+      if (!activeTerminal || !activeFitAddon) return;
+
+      activeFitAddon.fit();
+      const openSize = clampTerminalDimensions({
+        cols: activeTerminal.cols,
+        rows: activeTerminal.rows,
+      });
+      size.current = { thread, ...openSize };
+      traceBrowserEvent("terminal.panel.open.start", {
+        cwd,
         threadId: thread,
         terminalId: termId,
-        cwd,
         cols: openSize.cols,
         rows: openSize.rows,
-      })
-      .then((snap) => {
+      });
+
+      try {
+        const snap = await api.open({
+          threadId: thread,
+          terminalId: termId,
+          cwd,
+          cols: openSize.cols,
+          rows: openSize.rows,
+        });
         if (!live) return;
         openSession.current = { thread, terminalId: termId };
         traceBrowserEvent("terminal.panel.open.done", {
@@ -249,8 +265,8 @@ export function TerminalPanel(props: {
           historyLength: snap.history.length,
         });
         hydrate(snap.history);
-      })
-      .catch((err) => {
+        syncPtySize(activeTerminal);
+      } catch (err) {
         if (dev) console.warn("[TerminalPanel] terminal.open failed", err);
         traceBrowserEvent(
           "terminal.panel.open.failed",
@@ -266,7 +282,9 @@ export function TerminalPanel(props: {
           openSession.current = null;
           setBootErr("Could not open terminal session.");
         }
-      });
+      }
+    };
+    void openTerminal();
 
     return () => {
       live = false;
@@ -292,7 +310,9 @@ export function TerminalPanel(props: {
     const el = ref.current;
     if (!el) return;
     const termId = activeTerminalId;
-    const obs = new ResizeObserver(() => {
+    let fitFrame: number | null = null;
+    const fitAndResize = () => {
+      fitFrame = null;
       const addon = fit.current;
       const next = term.current;
       const api = readWorkbenchTerminalApi(props.environmentId);
@@ -321,9 +341,19 @@ export function TerminalPanel(props: {
           rows: nextSize.rows,
         })
         .catch(() => undefined);
-    });
+    };
+    const scheduleFitAndResize = () => {
+      if (fitFrame !== null) return;
+      fitFrame = window.requestAnimationFrame(fitAndResize);
+    };
+    const obs = new ResizeObserver(scheduleFitAndResize);
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => {
+      obs.disconnect();
+      if (fitFrame !== null) {
+        window.cancelAnimationFrame(fitFrame);
+      }
+    };
   }, [activeTerminalId, props.cwd, props.environmentId]);
 
   if (!props.cwd) {
@@ -335,7 +365,7 @@ export function TerminalPanel(props: {
   }
 
   return (
-    <div className="editor-panel-inner flex min-h-0 flex-1 flex-col overflow-hidden text-multi-workbench-terminal-foreground">
+    <div className="editor-panel-inner flex min-h-0 flex-1 flex-col overflow-hidden">
       {bootErr ? (
         <p className="shrink-0 px-2 py-1 text-detail text-destructive">{bootErr}</p>
       ) : null}

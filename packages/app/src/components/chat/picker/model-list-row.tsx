@@ -48,7 +48,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
       index={props.index}
       value={`${props.instanceId}:${props.model.slug}`}
       contentClassName="flex w-full items-start gap-1.5"
-      className="group w-full cursor-pointer rounded-[5px] px-1.5 py-1 text-body/[16px] transition-colors hover:bg-multi-bg-quaternary data-disabled:cursor-not-allowed data-highlighted:bg-multi-bg-quaternary data-selected:bg-multi-bg-active data-selected:text-multi-fg-primary"
+      className="group w-full cursor-pointer rounded-multi-control px-1.5 py-1 text-body transition-colors hover:bg-multi-bg-quaternary data-disabled:cursor-not-allowed data-highlighted:bg-multi-bg-quaternary data-selected:bg-multi-bg-active data-selected:text-multi-fg-primary"
     >
       <span
         aria-hidden="true"
@@ -61,7 +61,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
 
       <div className="min-w-0 flex-1 text-left">
         <div className="flex min-w-0 items-center justify-between gap-1.5">
-          <div className="flex min-w-0 items-center gap-1.5 text-body/[16px] font-medium">
+          <div className="flex min-w-0 items-center gap-1.5 text-body font-medium">
             <span className="truncate">
               {props.useTriggerLabel
                 ? getTriggerDisplayModelLabel(props.model)
@@ -72,7 +72,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
             </span>
             {props.showNewBadge ? (
               <span
-                className="shrink-0 rounded border border-amber-500/35 bg-amber-500/15 px-0.5 py-px text-caption/[12px] font-bold tracking-wide text-amber-800 uppercase dark:border-amber-400/30 dark:bg-amber-400/12 dark:text-amber-200"
+                className="shrink-0 rounded border border-amber-500/35 bg-amber-500/15 px-0.5 py-px text-caption font-bold tracking-wide text-amber-800 uppercase dark:border-amber-400/30 dark:bg-amber-400/12 dark:text-amber-200"
                 aria-label="New model"
               >
                 New
@@ -85,7 +85,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
                 type="button"
                 aria-label={props.isFavorite ? "Remove from favorites" : "Add to favorites"}
                 aria-pressed={props.isFavorite}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-[4px] text-multi-fg-tertiary opacity-85 transition-colors hover:bg-multi-bg-active hover:text-amber-700 hover:opacity-100 dark:text-multi-fg-secondary dark:hover:text-amber-300"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-multi-fg-tertiary opacity-85 transition-colors hover:bg-multi-bg-active hover:text-amber-700 hover:opacity-100 dark:text-multi-fg-secondary dark:hover:text-amber-300"
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -106,7 +106,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
               </button>
             ) : null}
             {props.jumpLabel ? (
-              <Kbd className="h-4 min-w-0 shrink-0 rounded-[3px] px-1 text-caption/[12px]">
+              <Kbd className="h-4 min-w-0 shrink-0 rounded-sm px-1 text-caption">
                 {props.jumpLabel}
               </Kbd>
             ) : null}
@@ -122,7 +122,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
                 aria-hidden
               />
             ) : null}
-            <span className="truncate text-detail/[14px] font-normal text-multi-fg-tertiary">
+            <span className="truncate text-detail font-normal text-multi-fg-tertiary">
               {providerLine}
             </span>
           </div>

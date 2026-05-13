@@ -23,3 +23,11 @@ export function clampTerminalDimensions(input: TerminalDimensionsInput): Termina
     rows: clampDimension(input.rows, TERMINAL_ROWS_MIN, TERMINAL_ROWS_MAX),
   };
 }
+
+export function waitForTerminalLayoutFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}

@@ -53,7 +53,21 @@ const DEFAULT_PROCESS_KILL_GRACE_MS = 1_000;
 const DEFAULT_MAX_RETAINED_INACTIVE_SESSIONS = 128;
 const DEFAULT_OPEN_COLS = 120;
 const DEFAULT_OPEN_ROWS = 30;
-const TERMINAL_ENV_BLOCKLIST = new Set(["PORT", "ELECTRON_RENDERER_PORT", "ELECTRON_RUN_AS_NODE"]);
+// Keep shell identity out of the inherited process environment.
+//
+// Multi may be launched from Electron, a dev server, Codex, or a real terminal.
+// Inheriting TERM/COLORTERM from that parent makes the child shell render for the
+// parent terminal instead of the PTY we actually create. The visible regression
+// is prompt/theme tools taking an xterm-256color branch and showing the wrong
+// prompt text. Do not add TERM or COLORTERM defaults here; node-pty supplies the
+// PTY baseline unless a caller explicitly passes a runtime override.
+const TERMINAL_ENV_BLOCKLIST = new Set([
+  "PORT",
+  "ELECTRON_RENDERER_PORT",
+  "ELECTRON_RUN_AS_NODE",
+  "TERM",
+  "COLORTERM",
+]);
 
 class TerminalSubprocessCheckError extends Schema.TaggedErrorClass<TerminalSubprocessCheckError>()(
   "TerminalSubprocessCheckError",
@@ -648,10 +662,8 @@ function createTerminalSpawnEnv(
     if (shouldExcludeTerminalEnvKey(key)) continue;
     spawnEnv[key] = value;
   }
-  spawnEnv.TERM = "xterm-256color";
-  spawnEnv.COLORTERM = "truecolor";
-  // Preserve the user's native TERM_PROGRAM so prompt tools like Starship keep
-  // using the same prompt branch they use in the real terminal app.
+  // Runtime env is the only supported escape hatch for terminal identity vars.
+  // Keep this explicit so app/bootstrap env cannot silently reintroduce xterm.
   if (runtimeEnv) {
     for (const [key, value] of Object.entries(runtimeEnv)) {
       spawnEnv[key] = value;

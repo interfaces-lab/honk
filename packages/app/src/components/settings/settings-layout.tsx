@@ -32,7 +32,7 @@ export function SettingsSection({
       <div className="flex min-h-5 items-center justify-between px-1.5">
         <h2
           className={cn(
-            textVariants({ size: "xs", tone: "tertiary", weight: "medium" }),
+            textVariants({ size: "sm", tone: "tertiary", weight: "medium" }),
             "flex items-center gap-1.5",
           )}
         >
@@ -73,18 +73,18 @@ export function SettingsRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex min-h-4 items-center gap-1.5">
-            <h3 className={textVariants({ size: "sm", tone: "primary", weight: "medium" })}>
+            <h3 className={textVariants({ size: "lg", tone: "primary", weight: "medium" })}>
               {title}
             </h3>
             <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
               {resetAction}
             </span>
           </div>
-          <Text render={<p />} size="xs" tone="tertiary" className="block">
+          <Text render={<p />} size="base" tone="tertiary" className="block">
             {description}
           </Text>
           {status ? (
-            <Text render={<div />} size="xs" tone="tertiary" className="block pt-1">
+            <Text render={<div />} size="sm" tone="tertiary" className="block pt-1">
               {status}
             </Text>
           ) : null}

@@ -41,7 +41,7 @@ export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
       {Icon ? (
         <Icon className={cn("shrink-0", props.iconClassName ?? "size-5")} aria-hidden />
       ) : (
-        <span className={cn("text-caption/[1] font-semibold", props.iconClassName)}>
+        <span className={cn("text-caption font-semibold", props.iconClassName)}>
           {providerInstanceInitials(props.displayName)}
         </span>
       )}

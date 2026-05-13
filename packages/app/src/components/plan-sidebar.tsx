@@ -185,7 +185,7 @@ const PlanSidebar = memo(function PlanSidebar({
         <div className="p-3 space-y-4">
           {/* Explanation */}
           {activePlan?.explanation ? (
-            <p className="text-title/[1.625] text-muted-foreground/80">{activePlan.explanation}</p>
+            <p className="text-title text-muted-foreground/80">{activePlan.explanation}</p>
           ) : null}
 
           {/* Plan Steps */}
@@ -206,7 +206,7 @@ const PlanSidebar = memo(function PlanSidebar({
                   <div className="mt-0.5">{stepStatusIcon(step.status)}</div>
                   <p
                     className={cn(
-                      "text-title/[1.375]",
+                      "text-title",
                       step.status === "completed"
                         ? "text-muted-foreground/50 line-through decoration-muted-foreground/20"
                         : step.status === "inProgress"

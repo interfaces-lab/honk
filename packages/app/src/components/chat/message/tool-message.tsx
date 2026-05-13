@@ -61,16 +61,16 @@ function SubagentStatusSurface({ subagents }: { subagents: ReadonlyArray<WorkLog
           />
           <div className="min-w-0">
             <div className="inline-flex min-w-0 items-baseline gap-1.5">
-              <span className="min-w-0 text-body/[16px] text-multi-fg-secondary">
+              <span className="min-w-0 text-body text-multi-fg-secondary">
                 {subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent"}
               </span>
               {subagent.model ? (
-                <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption/[14px] text-multi-fg-tertiary">
+                <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
                   {subagent.model}
                 </span>
               ) : null}
               {subagent.statusLabel || subagent.latestUpdate ? (
-                <span className="min-w-0 overflow-hidden text-detail/[15px] text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
+                <span className="min-w-0 overflow-hidden text-detail text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
                   {subagent.latestUpdate ?? subagent.statusLabel}
                 </span>
               ) : null}

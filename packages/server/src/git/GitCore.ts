@@ -61,6 +61,10 @@ const STATUS_UPSTREAM_REFRESH_CACHE_CAPACITY = 2_048;
 const DEFAULT_BASE_BRANCH_CANDIDATES = ["main", "master"] as const;
 const GIT_LIST_BRANCHES_DEFAULT_LIMIT = 100;
 const GIT_LITERAL_PATHSPECS_ARG = "--literal-pathspecs";
+const PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS = [
+  ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
+  GIT_LITERAL_PATHSPECS_ARG,
+] as const;
 const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitStatusDetails>({
   isRepo: false,
   hasOriginRemote: false,
@@ -1320,7 +1324,14 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     const statusResult = yield* executeGit(
       "GitCore.statusDetails.status",
       cwd,
-      ["status", "--porcelain=2", "-z", "--branch", "--untracked-files=all"],
+      [
+        ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
+        "status",
+        "--porcelain=2",
+        "-z",
+        "--branch",
+        "--untracked-files=all",
+      ],
       {
         allowNonZeroExit: true,
       },
@@ -1335,7 +1346,14 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       return yield* createGitCommandError(
         "GitCore.statusDetails.status",
         cwd,
-        ["status", "--porcelain=2", "-z", "--branch", "--untracked-files=all"],
+        [
+          ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
+          "status",
+          "--porcelain=2",
+          "-z",
+          "--branch",
+          "--untracked-files=all",
+        ],
         stderr || "git status failed",
       );
     }
@@ -1343,8 +1361,14 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     const [unstagedNumstatStdout, stagedNumstatStdout, defaultRefResult, hasOriginRemote] =
       yield* Effect.all(
         [
-          runGitStdout("GitCore.statusDetails.unstagedNumstat", cwd, ["diff", "--numstat", "-z"]),
+          runGitStdout("GitCore.statusDetails.unstagedNumstat", cwd, [
+            ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
+            "diff",
+            "--numstat",
+            "-z",
+          ]),
           runGitStdout("GitCore.statusDetails.stagedNumstat", cwd, [
+            ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
             "diff",
             "--cached",
             "--numstat",
@@ -1485,7 +1509,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
             "GitCore.statusDetails.untrackedNumstat",
             cwd,
             [
-              GIT_LITERAL_PATHSPECS_ARG,
+              ...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS,
               "diff",
               "--no-index",
               "--numstat",
@@ -1573,21 +1597,27 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     "prepareCommitContext",
   )(function* (cwd, filePaths) {
     if (filePaths && filePaths.length > 0) {
-      yield* runGit("GitCore.prepareCommitContext.reset", cwd, ["reset"]).pipe(
-        Effect.catch(() => Effect.void),
-      );
+      yield* runGit("GitCore.prepareCommitContext.reset", cwd, [
+        ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
+        "reset",
+      ]).pipe(Effect.catch(() => Effect.void));
       yield* runGit("GitCore.prepareCommitContext.addSelected", cwd, [
-        GIT_LITERAL_PATHSPECS_ARG,
+        ...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS,
         "add",
         "-A",
         "--",
         ...filePaths,
       ]);
     } else {
-      yield* runGit("GitCore.prepareCommitContext.addAll", cwd, ["add", "-A"]);
+      yield* runGit("GitCore.prepareCommitContext.addAll", cwd, [
+        ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
+        "add",
+        "-A",
+      ]);
     }
 
     const stagedSummary = yield* runGitStdout("GitCore.prepareCommitContext.stagedSummary", cwd, [
+      ...PROJECT_GIT_HARDENED_CONFIG_ARGS,
       "diff",
       "--cached",
       "--name-status",
@@ -1599,7 +1629,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     const stagedPatch = yield* runGitStdoutWithOptions(
       "GitCore.prepareCommitContext.stagedPatch",
       cwd,
-      ["diff", "--cached", "--patch", "--minimal"],
+      [...PROJECT_GIT_HARDENED_CONFIG_ARGS, "diff", "--cached", "--patch", "--minimal"],
       {
         maxOutputBytes: PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES,
         truncateOutputAtMaxBytes: true,
@@ -1795,7 +1825,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     yield* executeGit(
       "GitCore.discardPaths.reset",
       input.cwd,
-      [GIT_LITERAL_PATHSPECS_ARG, "reset", "--", ...input.paths],
+      [...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS, "reset", "--", ...input.paths],
       {
         allowNonZeroExit: true,
       },
@@ -1803,13 +1833,13 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     yield* executeGit(
       "GitCore.discardPaths.checkout",
       input.cwd,
-      [GIT_LITERAL_PATHSPECS_ARG, "checkout", "--", ...input.paths],
+      [...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS, "checkout", "--", ...input.paths],
       {
         allowNonZeroExit: true,
       },
     );
     yield* executeGit("GitCore.discardPaths.clean", input.cwd, [
-      GIT_LITERAL_PATHSPECS_ARG,
+      ...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS,
       "clean",
       "-fd",
       "--",
@@ -1823,7 +1853,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       "GitCore.getFilePatch",
       input.cwd,
       [
-        GIT_LITERAL_PATHSPECS_ARG,
+        ...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS,
         "diff",
         "--patch",
         "--minimal",
@@ -1845,7 +1875,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       "GitCore.getFilePatch.untrackedPaths",
       input.cwd,
       [
-        GIT_LITERAL_PATHSPECS_ARG,
+        ...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS,
         "ls-files",
         "--others",
         "--exclude-standard",
@@ -1871,7 +1901,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       "GitCore.getFilePatch.untracked",
       input.cwd,
       [
-        GIT_LITERAL_PATHSPECS_ARG,
+        ...PROJECT_GIT_HARDENED_LITERAL_PATHSPECS_ARGS,
         "diff",
         "--no-index",
         "--patch",

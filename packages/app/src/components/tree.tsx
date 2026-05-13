@@ -22,11 +22,6 @@ function treeUnsafeCss(extraCss: string | undefined): string {
     button[data-type='item'] {
       letter-spacing: 0;
     }
-
-    [data-type='search-input'] {
-      height: 24px;
-      line-height: 16px;
-    }
   `;
 
   return extraCss ? `${baseCss}\n${extraCss}` : baseCss;

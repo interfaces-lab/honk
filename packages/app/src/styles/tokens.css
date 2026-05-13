@@ -16,9 +16,12 @@
   );
   --multi-electron-traffic-inset: 80px;
   --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 0px);
-  --multi-sidebar-label-size: var(--multi-sidebar-label-size-user, 11px);
+  --multi-sidebar-label-size: var(--multi-sidebar-label-size-user, var(--multi-text-detail));
   --multi-sidebar-label-weight: var(--multi-sidebar-label-weight-user, 400);
-  --multi-sidebar-label-leading: var(--multi-sidebar-label-leading-user, 14px);
+  --multi-sidebar-label-leading: var(
+    --multi-sidebar-label-leading-user,
+    var(--multi-leading-detail)
+  );
   /* Defaults match Pierre blue at Hue 247° / Intensity 33% (appearance sliders). */
   --multi-user-hue: 247;
   --multi-intensity: 33;
@@ -41,6 +44,7 @@
   --composer-tab-label-max-width: 200px;
   --conversation-font-size: var(--multi-text-title);
   --conversation-text-font-size: var(--multi-text-title);
+  --conversation-text-leading: var(--multi-leading-title);
   --conversation-tool-card-padding-x: 8px;
   --meta-agent-overlay-height: 0px;
   --agent-sidebar-cell-hover-actions-width: 60px;
@@ -61,6 +65,9 @@
   --multi-composer-surface-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05);
   --multi-composer-overlay-bleed-mask-height: 12px;
   --multi-composer-overlay-height: 24px;
+  --multi-chat-top-fade-distance: 24px;
+  --multi-chat-sticky-bottom-fade-height: 20px;
+  --multi-chat-sticky-bottom-fade-blur: 8px;
   --multi-composer-overlay-bg: var(--multi-color-editor);
   --multi-composer-followup-padding-block-end: 16px;
   /* Dock pill: Cursor parity compact surface padding 8px 10px (chat-agent-window-cursor-parity.md). */
@@ -119,11 +126,11 @@
   --multi-text-body: calc(var(--multi-ui-font-size-user, 13px) - 1px);
   --multi-text-title: var(--multi-ui-font-size-user, 13px);
   --multi-text-heading: calc(var(--multi-ui-font-size-user, 13px) + 3px);
-  --multi-leading-caption: 12px;
-  --multi-leading-detail: 14px;
-  --multi-leading-body: 16px;
-  --multi-leading-title: 18px;
-  --multi-leading-heading: 21px;
+  --multi-leading-caption: calc(var(--multi-ui-font-size-user, 13px) - 1px);
+  --multi-leading-detail: calc(var(--multi-ui-font-size-user, 13px) + 1px);
+  --multi-leading-body: calc(var(--multi-ui-font-size-user, 13px) + 3px);
+  --multi-leading-title: calc(var(--multi-ui-font-size-user, 13px) + 5px);
+  --multi-leading-heading: calc(var(--multi-ui-font-size-user, 13px) + 8px);
   /* Border radius */
   --multi-radius-control: 6px;
   --multi-radius-card: var(--multi-radius-card-user, 10px);
@@ -155,7 +162,6 @@
   --multi-agent-window-font-smoothing-moz: var(--multi-font-smoothing-moz);
   -webkit-font-smoothing: var(--multi-agent-window-font-smoothing-webkit);
   -moz-osx-font-smoothing: var(--multi-agent-window-font-smoothing-moz);
-  --multi-shell-sash-hit-width: 4px;
   --multi-shell-sash-stripe-width: 4px;
   --multi-shell-sash-hover-shade: color-mix(in srgb, var(--multi-stroke-focused) 38%, transparent);
 }
@@ -226,34 +232,68 @@
 
   --multi-color-sidebar: color-mix(
     in oklch,
-    oklch(0.974 0.003 270) var(--multi-sidebar-opacity),
+    oklch(
+        0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-sidebar-opacity),
     transparent
   );
   --multi-color-chat: color-mix(
     in oklch,
-    oklch(0.985 0.002 270) var(--multi-chat-opacity),
+    oklch(
+        0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-chat-opacity),
     transparent
   );
-  --multi-color-editor: color-mix(in oklch, oklch(1 0 0) var(--multi-editor-opacity), transparent);
+  --multi-color-editor: color-mix(
+    in oklch,
+    oklch(
+        0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-editor-opacity),
+    transparent
+  );
   --multi-color-surface: color-mix(
     in oklch,
-    oklch(0.964 0.004 270) var(--multi-surface-opacity),
+    oklch(
+        0.964 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-surface-opacity),
     transparent
   );
   --multi-color-elevated: color-mix(
     in oklch,
-    oklch(0.943 0.004 270) var(--multi-elevated-opacity),
+    oklch(
+        0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-elevated-opacity),
     transparent
   );
   --multi-color-bubble: color-mix(
     in oklch,
-    oklch(0.943 0.004 270) var(--multi-bubble-opacity),
+    oklch(
+        0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-bubble-opacity),
     transparent
   );
-  --multi-color-bubble-opaque: oklch(0.943 0.004 270);
+  --multi-color-bubble-opaque: oklch(
+    0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+  );
   --multi-color-menubar: color-mix(
     in oklch,
-    oklch(1 0 0) var(--multi-menubar-opacity),
+    oklch(
+        0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-menubar-opacity),
     transparent
   );
 
@@ -261,8 +301,14 @@
   --multi-color-stroke: color-mix(in oklch, var(--foreground) 8%, transparent);
   --multi-stroke-tertiary: color-mix(in oklch, var(--foreground) 6%, transparent);
   --multi-color-stroke-strong: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --multi-color-hover: oklch(0.94 0.028 252 / 0.35);
-  --multi-color-active: oklch(0.94 0.028 252 / 0.8);
+  --multi-color-hover: oklch(
+    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) /
+      0.35
+  );
+  --multi-color-active: oklch(
+    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) /
+      0.8
+  );
   --multi-chat-bubble-border: color-mix(in oklch, var(--foreground) 9%, transparent);
   --multi-chat-bubble-shadow:
     0 1px 1px oklch(0 0 0 / 0.035), 0 12px 30px -24px oklch(0.256 0.006 270 / 0.38);
@@ -323,38 +369,68 @@
 
   --multi-color-sidebar: color-mix(
     in oklch,
-    oklch(0.226 0.004 270) var(--multi-sidebar-opacity),
+    oklch(
+        0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-sidebar-opacity),
     transparent
   );
   --multi-color-chat: color-mix(
     in oklch,
-    oklch(0.169 0.002 270) var(--multi-chat-opacity),
+    oklch(
+        0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-chat-opacity),
     transparent
   );
   --multi-color-editor: color-mix(
     in oklch,
-    oklch(0.146 0.002 270) var(--multi-editor-opacity),
+    oklch(
+        0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-editor-opacity),
     transparent
   );
   --multi-color-surface: color-mix(
     in oklch,
-    oklch(0.182 0.002 270) var(--multi-surface-opacity),
+    oklch(
+        0.182 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-surface-opacity),
     transparent
   );
   --multi-color-elevated: color-mix(
     in oklch,
-    oklch(0.226 0.004 270) var(--multi-elevated-opacity),
+    oklch(
+        0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-elevated-opacity),
     transparent
   );
   --multi-color-bubble: color-mix(
     in oklch,
-    oklch(0.226 0.004 270) var(--multi-bubble-opacity),
+    oklch(
+        0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-bubble-opacity),
     transparent
   );
-  --multi-color-bubble-opaque: oklch(0.226 0.004 270);
+  --multi-color-bubble-opaque: oklch(
+    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+  );
   --multi-color-menubar: color-mix(
     in oklch,
-    oklch(0.146 0.002 270) var(--multi-menubar-opacity),
+    oklch(
+        0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008)
+          var(--multi-user-hue, 247)
+      )
+      var(--multi-menubar-opacity),
     transparent
   );
 
@@ -362,8 +438,14 @@
   --multi-color-stroke: color-mix(in oklch, var(--foreground) 8%, transparent);
   --multi-stroke-tertiary: color-mix(in oklch, var(--foreground) 6%, transparent);
   --multi-color-stroke-strong: color-mix(in oklch, var(--foreground) 14%, transparent);
-  --multi-color-hover: oklch(0.268 0.045 261 / 0.35);
-  --multi-color-active: oklch(0.268 0.045 261 / 0.6);
+  --multi-color-hover: oklch(
+    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) /
+      0.35
+  );
+  --multi-color-active: oklch(
+    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) /
+      0.6
+  );
   --multi-chat-bubble-border: color-mix(in oklch, var(--foreground) 13%, transparent);
   --multi-chat-bubble-shadow: 0 1px 1px oklch(0 0 0 / 0.22), 0 14px 34px -24px oklch(0 0 0 / 0.72);
 
@@ -402,7 +484,7 @@
  * Workbench, terminal chrome, and glass aliases — same math app-wide; .agent-window only
  * sets font smoothing + sash hit targets.
  */
-:root {
+html {
   --multi-chat-surface-background: var(--multi-color-chat);
   --glass-chat-bubble-background: var(--multi-color-bubble);
   --glass-chat-bubble-opaque-background: var(--multi-color-bubble-opaque);
@@ -621,7 +703,7 @@
   );
 }
 
-:root.dark {
+html.dark {
   --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
   --multi-plan-mode-selected-fg: color-mix(in oklch, var(--multi-action) 72%, white);
   --multi-git-diff-addition-line-background: color-mix(

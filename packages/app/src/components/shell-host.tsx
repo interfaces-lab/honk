@@ -788,6 +788,7 @@ function TerminalWorkbenchPanel(props: {
         <RightWorkbenchLayout
           cwd={props.cwd}
           tab="terminal"
+          railHostClassName="bg-transparent"
           rail={
             <TerminalRail
               sessions={terminalState.sessions}

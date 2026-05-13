@@ -119,18 +119,18 @@ const dark: ITheme = {
   brightBlue: "#3b8eea",
   brightMagenta: "#d670d6",
   brightCyan: "#29b8db",
-  brightWhite: "#ffffff",
+  brightWhite: "#e5e5e5",
 };
 
 const light: ITheme = {
   black: "#000000",
   red: "#cd3131",
-  green: "#0dbc79",
-  yellow: "#bf8803",
+  green: "#107c10",
+  yellow: "#949800",
   blue: "#0451a5",
   magenta: "#bc05bc",
   cyan: "#0598bc",
-  white: "#e5e5e5",
+  white: "#555555",
   brightBlack: "#666666",
   brightRed: "#cd3131",
   brightGreen: "#14ce14",
@@ -224,142 +224,7 @@ export function readWorkbenchFallbackTheme(el: HTMLElement, mode: "light" | "dar
 export function readTerminalHostTheme(el: HTMLElement, mode: "light" | "dark"): ITheme {
   const resolver = createPaintResolver(el);
   try {
-    const base = readWorkbenchFallbackThemeWithResolver(el, mode, resolver);
-    const v = (kind: PaintKind, expr: string, fb: string) => resolver.read(kind, expr, fb);
-    const token = (kind: PaintKind, name: string, expr: string, fb: string) =>
-      resolver.readOptional(kind, `var(${name})`) ?? v(kind, expr, fb);
-    const background = token(
-      "bg",
-      "--multi-terminal-background",
-      "var(--multi-workbench-terminal-background)",
-      base.background!,
-    );
-    const foreground = token(
-      "fg",
-      "--multi-terminal-foreground",
-      "var(--multi-workbench-terminal-foreground)",
-      base.foreground!,
-    );
-
-    return {
-      ...base,
-      background,
-      foreground,
-      cursor: token("fg", "--multi-terminal-cursor", "var(--foreground)", foreground),
-      cursorAccent: token("bg", "--multi-terminal-cursor-accent", "var(--background)", background),
-      selectionBackground: token(
-        "bg",
-        "--multi-terminal-selection-background",
-        "color-mix(in srgb, var(--primary) 28%, transparent)",
-        base.selectionBackground!,
-      ),
-      selectionForeground: token(
-        "fg",
-        "--multi-terminal-selection-foreground",
-        "var(--foreground)",
-        base.selectionForeground!,
-      ),
-      selectionInactiveBackground: token(
-        "bg",
-        "--multi-terminal-selection-inactive-background",
-        "color-mix(in srgb, var(--foreground) 18%, transparent)",
-        base.selectionBackground!,
-      ),
-      scrollbarSliderBackground: token(
-        "bg",
-        "--multi-terminal-scrollbar-background",
-        "color-mix(in srgb, var(--foreground) 18%, transparent)",
-        "rgba(127, 127, 127, 0.2)",
-      ),
-      scrollbarSliderHoverBackground: token(
-        "bg",
-        "--multi-terminal-scrollbar-hover-background",
-        "color-mix(in srgb, var(--foreground) 34%, transparent)",
-        "rgba(127, 127, 127, 0.4)",
-      ),
-      scrollbarSliderActiveBackground: token(
-        "bg",
-        "--multi-terminal-scrollbar-active-background",
-        "color-mix(in srgb, var(--foreground) 46%, transparent)",
-        "rgba(127, 127, 127, 0.5)",
-      ),
-      black: token(
-        "fg",
-        "--multi-terminal-ansi-black",
-        "color-mix(in srgb, var(--foreground) 20%, var(--background))",
-        base.black!,
-      ),
-      red: token("fg", "--multi-terminal-ansi-red", "var(--destructive)", base.red!),
-      green: token("fg", "--multi-terminal-ansi-green", "var(--success)", base.green!),
-      yellow: token("fg", "--multi-terminal-ansi-yellow", "var(--warning)", base.yellow!),
-      blue: token("fg", "--multi-terminal-ansi-blue", "var(--info)", base.blue!),
-      magenta: token(
-        "fg",
-        "--multi-terminal-ansi-magenta",
-        "color-mix(in srgb, var(--destructive) 50%, var(--info))",
-        base.magenta!,
-      ),
-      cyan: token(
-        "fg",
-        "--multi-terminal-ansi-cyan",
-        "color-mix(in srgb, var(--info) 55%, var(--success))",
-        base.cyan!,
-      ),
-      white: token(
-        "fg",
-        "--multi-terminal-ansi-white",
-        "color-mix(in srgb, var(--foreground) 75%, var(--background))",
-        base.white!,
-      ),
-      brightBlack: token(
-        "fg",
-        "--multi-terminal-ansi-bright-black",
-        "var(--muted-foreground)",
-        base.brightBlack!,
-      ),
-      brightRed: token(
-        "fg",
-        "--multi-terminal-ansi-bright-red",
-        "color-mix(in srgb, var(--destructive) 65%, white)",
-        base.brightRed!,
-      ),
-      brightGreen: token(
-        "fg",
-        "--multi-terminal-ansi-bright-green",
-        "color-mix(in srgb, var(--success) 62%, white)",
-        base.brightGreen!,
-      ),
-      brightYellow: token(
-        "fg",
-        "--multi-terminal-ansi-bright-yellow",
-        "color-mix(in srgb, var(--warning) 58%, white)",
-        base.brightYellow!,
-      ),
-      brightBlue: token(
-        "fg",
-        "--multi-terminal-ansi-bright-blue",
-        "color-mix(in srgb, var(--info) 58%, white)",
-        base.brightBlue!,
-      ),
-      brightMagenta: token(
-        "fg",
-        "--multi-terminal-ansi-bright-magenta",
-        "color-mix(in srgb, var(--destructive) 45%, var(--info))",
-        base.brightMagenta!,
-      ),
-      brightCyan: token(
-        "fg",
-        "--multi-terminal-ansi-bright-cyan",
-        "color-mix(in srgb, var(--info) 45%, var(--success))",
-        base.brightCyan!,
-      ),
-      brightWhite: token(
-        "fg",
-        "--multi-terminal-ansi-bright-white",
-        "color-mix(in srgb, var(--foreground) 12%, white)",
-        base.brightWhite!,
-      ),
-    } satisfies ITheme;
+    return readWorkbenchFallbackThemeWithResolver(el, mode, resolver);
   } finally {
     resolver.dispose();
   }

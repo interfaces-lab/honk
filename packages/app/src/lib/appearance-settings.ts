@@ -49,6 +49,11 @@ function readTintSaturation() {
   return parseIntStored(localStorage.getItem(STORAGE_TINT_SATURATION), 33, 0, 100);
 }
 
+function emitAppearanceSettingsChanged() {
+  for (const listener of listeners) listener();
+  window.dispatchEvent(new CustomEvent(APPEARANCE_SETTINGS_CHANGED));
+}
+
 function wantsOsVibrancy() {
   if (localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1") return false;
   return true;
@@ -77,9 +82,10 @@ function applyChromeRoot() {
 
   const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);
-  root.style.setProperty("--multi-sidebar-label-size-user", `${uiPx}px`);
   root.style.setProperty("--multi-ui-font-size-user", `${uiPx}px`);
   root.style.setProperty("--multi-code-font-size-user", `${codePx}px`);
+  root.style.removeProperty("--multi-sidebar-label-size-user");
+  root.style.removeProperty("--multi-sidebar-label-leading-user");
 
   const uiFont = localStorage.getItem(STORAGE_UI_FONT)?.trim() ?? "";
   const codeFont = localStorage.getItem(STORAGE_CODE_FONT)?.trim() ?? "";
@@ -106,6 +112,7 @@ export function applyAppearanceBoot() {
 function applyAppearanceSettings() {
   applyChromeRoot();
   syncVibrancy();
+  emitAppearanceSettingsChanged();
 }
 
 export function resetAppearanceSettings() {

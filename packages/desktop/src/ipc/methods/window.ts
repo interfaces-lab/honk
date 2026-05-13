@@ -125,6 +125,21 @@ export const setTheme = makeIpcMethod({
   }),
 });
 
+export const setBackgroundColor = makeIpcMethod({
+  channel: IpcChannels.SET_BACKGROUND_COLOR_CHANNEL,
+  payload: Schema.String,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.setBackgroundColor")(function* (color) {
+    const electronWindow = yield* ElectronWindow.ElectronWindow;
+    const window = yield* electronWindow.currentMainOrFirst;
+    if (Option.isNone(window) || window.value.isDestroyed()) {
+      return;
+    }
+
+    window.value.setBackgroundColor(color);
+  }),
+});
+
 export const showContextMenu = makeIpcMethod({
   channel: IpcChannels.CONTEXT_MENU_CHANNEL,
   payload: ContextMenuInput,

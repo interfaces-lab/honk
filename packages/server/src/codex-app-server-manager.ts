@@ -36,6 +36,7 @@ import {
   type CodexAccountSnapshot,
 } from "./provider/codex-account";
 import { buildCodexInitializeParams, killCodexChildProcess } from "./provider/codex-app-server";
+import { buildCodexAppServerEnv } from "./provider/codex-app-server-env.ts";
 import { expandHomePath } from "./path-expansion.ts";
 import {
   CodexAppServerInvalidResponseError,
@@ -469,10 +470,9 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       });
       const child = spawn(codexBinaryPath, ["app-server"], {
         cwd: resolvedCwd,
-        env: {
-          ...process.env,
-          ...(codexHomePath ? { CODEX_HOME: codexHomePath } : {}),
-        },
+        env: buildCodexAppServerEnv({
+          ...(codexHomePath ? { codexHome: codexHomePath } : {}),
+        }),
         stdio: ["pipe", "pipe", "pipe"],
         shell: process.platform === "win32",
       });

@@ -30,7 +30,7 @@ export function GitKindBadge(props: { state: GitFileState }) {
   const variant = kindVariant[props.state];
   if (!variant) return null;
   return (
-    <Badge variant={variant} className="px-1 py-0 text-detail/[16px] font-medium">
+    <Badge variant={variant} className="px-1 py-0 text-detail font-medium">
       {kindLabel[props.state] ?? props.state}
     </Badge>
   );

@@ -28,6 +28,7 @@ import * as CodexRpc from "effect-codex-app-server/rpc";
 import * as EffectCodexSchema from "effect-codex-app-server/schema";
 
 import { buildCodexInitializeParams } from "./CodexProvider.ts";
+import { buildCodexAppServerEnv } from "./codex-app-server-env.ts";
 import {
   CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS,
@@ -690,9 +691,9 @@ export const makeCodexSessionRuntime = (
       .spawn(
         ChildProcess.make(options.binaryPath, ["app-server"], {
           cwd: options.cwd,
-          ...(options.homePath
-            ? { env: { ...process.env, CODEX_HOME: expandHomePath(options.homePath) } }
-            : {}),
+          env: buildCodexAppServerEnv({
+            ...(options.homePath ? { codexHome: expandHomePath(options.homePath) } : {}),
+          }),
           shell: process.platform === "win32",
         }),
       )

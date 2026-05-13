@@ -111,51 +111,8 @@ body {
   line-height: 1.45;
 }
 
-/* Pierre diffs CSS bridge - variables inherit into Shadow DOM */
+/* Pierre diffs CSS bridge - layout variables inherit into Shadow DOM */
 [data-diffs-container] {
-  --diffs-background: var(
-    --glass-editor-surface-background,
-    var(--multi-workbench-editor-surface-background)
-  );
-  --diffs-foreground: var(--foreground);
-  --multi-diff-syntax-comment: oklch(0.615 0.009 286.134);
-  --multi-diff-syntax-string: oklch(0.615 0.17 147.948);
-  --multi-diff-syntax-constant: oklch(0.66 0.118 223.572);
-  --multi-diff-syntax-keyword: oklch(0.65 0.239 7.957);
-  --multi-diff-syntax-parameter: oklch(0.659 0.146 55.201);
-  --multi-diff-syntax-function: oklch(0.56 0.249 290.006);
-  --multi-diff-syntax-type: oklch(0.621 0.26 319.948);
-  --multi-diff-syntax-changed: oklch(0.754 0.151 89.445);
-  --multi-diff-syntax-ansi-black: oklch(0.232 0.002 286.063);
-  --multi-diff-syntax-ansi-green: oklch(0.615 0.17 147.948);
-  --diffs-token-link: var(--multi-action, var(--primary));
-  --diffs-token-string: var(--multi-diff-syntax-string);
-  --diffs-token-comment: var(--multi-diff-syntax-comment);
-  --diffs-token-constant: var(--multi-diff-syntax-constant);
-  --diffs-token-keyword: var(--multi-diff-syntax-keyword);
-  --diffs-token-parameter: var(--multi-diff-syntax-parameter);
-  --diffs-token-function: var(--multi-diff-syntax-function);
-  --diffs-token-string-expression: var(--multi-diff-syntax-string);
-  --diffs-token-punctuation: var(--multi-fg-secondary);
-  --diffs-token-inserted: var(--multi-diff-addition);
-  --diffs-token-deleted: var(--multi-diff-deletion);
-  --diffs-token-changed: var(--multi-diff-syntax-changed);
-  --diffs-ansi-black: var(--multi-diff-syntax-ansi-black);
-  --diffs-ansi-red: var(--multi-diff-deletion);
-  --diffs-ansi-green: var(--multi-diff-syntax-ansi-green);
-  --diffs-ansi-yellow: var(--multi-diff-syntax-changed);
-  --diffs-ansi-blue: var(--multi-action, var(--primary));
-  --diffs-ansi-magenta: var(--multi-diff-syntax-type);
-  --diffs-ansi-cyan: var(--multi-diff-syntax-constant);
-  --diffs-ansi-white: var(--foreground);
-  --diffs-ansi-bright-black: var(--multi-diff-syntax-comment);
-  --diffs-ansi-bright-red: var(--multi-diff-deletion);
-  --diffs-ansi-bright-green: var(--multi-diff-syntax-ansi-green);
-  --diffs-ansi-bright-yellow: var(--multi-diff-syntax-changed);
-  --diffs-ansi-bright-blue: var(--multi-action, var(--primary));
-  --diffs-ansi-bright-magenta: var(--multi-diff-syntax-type);
-  --diffs-ansi-bright-cyan: var(--multi-diff-syntax-constant);
-  --diffs-ansi-bright-white: var(--foreground);
   --diffs-font-family: var(--multi-font-mono);
   --diffs-header-font-family: var(--multi-font-ui);
   --diffs-font-size: var(--multi-code-font-size-user, 12px);
@@ -163,39 +120,6 @@ body {
   font-family: var(--multi-font-mono);
   font-size: var(--multi-code-font-size-user, 12px);
   line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
-}
-
-.dark [data-diffs-container] {
-  --multi-diff-syntax-comment: oklch(0.615 0.009 286.134);
-  --multi-diff-syntax-string: oklch(0.759 0.163 147.343);
-  --multi-diff-syntax-constant: oklch(0.802 0.108 224.603);
-  --multi-diff-syntax-keyword: oklch(0.714 0.187 7.719);
-  --multi-diff-syntax-parameter: oklch(0.794 0.141 57.548);
-  --multi-diff-syntax-function: oklch(0.647 0.207 296.344);
-  --multi-diff-syntax-type: oklch(0.695 0.209 320.929);
-  --multi-diff-syntax-changed: oklch(0.861 0.176 89.441);
-  --multi-diff-syntax-ansi-black: oklch(0.232 0.002 286.063);
-  --multi-diff-syntax-ansi-green: oklch(0.703 0.19 147.858);
-}
-
-.git-diff-card [data-diffs-container] {
-  --multi-git-diff-surface-bg: var(--multi-git-diff-editor-background);
-  --multi-git-diff-separator-bg: var(--multi-workbench-panel-border-dim);
-  --diffs-light-bg: var(--multi-git-diff-surface-bg);
-  --diffs-dark-bg: var(--multi-git-diff-surface-bg);
-  --diffs-bg-buffer-override: var(--multi-git-diff-surface-bg);
-  --diffs-bg-context-override: var(--multi-git-diff-surface-bg);
-  --diffs-bg-context-gutter-override: var(--multi-git-diff-surface-bg);
-  --diffs-bg-hover-override: var(--multi-workbench-toolbar-hover-background);
-  --diffs-bg-separator-override: var(--multi-git-diff-separator-bg);
-  --diffs-addition-color-override: var(--multi-git-diff-addition);
-  --diffs-deletion-color-override: var(--multi-git-diff-deletion);
-  --diffs-bg-addition-override: var(--multi-git-diff-addition-line-background);
-  --diffs-bg-deletion-override: var(--multi-git-diff-deletion-line-background);
-  --diffs-bg-addition-emphasis-override: inherit;
-  --diffs-bg-deletion-emphasis-override: inherit;
-  --diffs-bg-addition-number-override: var(--multi-git-diff-addition-line-background);
-  --diffs-bg-deletion-number-override: var(--multi-git-diff-deletion-line-background);
 }
 
 .web-component[data-diffs-container] {
@@ -476,21 +400,21 @@ body {
 .agent-window .thread-terminal-drawer {
   background: var(--multi-terminal-shell-background);
   border-color: var(--multi-terminal-border);
-  color: var(--multi-terminal-foreground);
+  color: inherit;
 }
 
 .agent-window .thread-terminal-viewport,
 .agent-window .workbench-terminal-viewport {
   contain: layout paint style;
   overflow: hidden;
-  background: var(--multi-terminal-background);
+  background: transparent;
 }
 
 .agent-window .thread-terminal-viewport .xterm,
 .agent-window .workbench-terminal-viewport .xterm {
   height: 100%;
-  background: var(--multi-terminal-background);
-  color: var(--multi-terminal-foreground);
+  background: inherit;
+  color: inherit;
   font-feature-settings:
     "liga" 0,
     "calt" 0;
@@ -591,50 +515,6 @@ body {
   font-weight: 500;
   line-height: 14px;
   letter-spacing: 0.015em;
-}
-
-/* Workbench splitter hit target */
-.multi-shell-sash-hit-area {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 10;
-  display: flex;
-  width: var(--multi-shell-sash-hit-width);
-  touch-action: none;
-  cursor: col-resize;
-}
-
-.multi-shell-sash-hit-area--align-end {
-  right: 0;
-  justify-content: flex-end;
-}
-
-.multi-shell-sash-hit-area--align-start {
-  left: 0;
-  justify-content: flex-start;
-}
-
-.multi-shell-sash-hit-feedback {
-  width: var(--multi-shell-sash-stripe-width);
-  min-height: 100%;
-  align-self: stretch;
-  border-radius: 1px;
-  background: transparent;
-  transition:
-    background 90ms ease,
-    box-shadow 90ms ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .multi-shell-sash-hit-feedback {
-    transition: none;
-  }
-}
-
-.multi-shell-sash-hit-area:hover .multi-shell-sash-hit-feedback,
-.multi-shell-sash-hit-area.multi-shell-sash-hit-area--active .multi-shell-sash-hit-feedback {
-  background: var(--multi-shell-sash-hover-shade);
 }
 
 .agent-window
@@ -853,7 +733,7 @@ body {
   gap: 4px;
   margin: 0;
   font-family: var(--multi-font-ui);
-  line-height: 14px;
+  line-height: var(--multi-sidebar-label-leading);
   min-height: 0;
   min-width: 0;
   padding: 0;
@@ -869,9 +749,9 @@ body {
   color: var(--multi-fg-tertiary);
   /* Keep chevron next to the label; spare width stays after the pair (not between them). */
   flex: 0 1 auto;
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 14px;
+  font-size: var(--multi-sidebar-label-size);
+  font-weight: var(--multi-sidebar-label-weight);
+  line-height: var(--multi-sidebar-label-leading);
   min-width: 0;
   overflow: hidden;
   text-align: left;
@@ -949,9 +829,9 @@ body {
 
 .agent-window .agent-sidebar-cell-text {
   color: var(--multi-fg-secondary);
-  font-size: 12px;
+  font-size: var(--multi-text-body);
   font-weight: 400;
-  line-height: 16px;
+  line-height: var(--multi-leading-body);
   overflow: hidden;
   white-space: nowrap;
 }
@@ -962,9 +842,9 @@ body {
 
 .agent-window .agent-sidebar-cell-subtitle {
   color: var(--multi-fg-tertiary);
-  font-size: 11px;
+  font-size: var(--multi-text-detail);
   font-weight: 400;
-  line-height: 14px;
+  line-height: var(--multi-leading-detail);
   max-width: 3.5rem;
   min-width: 2rem;
   overflow: hidden;
@@ -997,8 +877,8 @@ body {
 
 .agent-window-shortcut {
   color: var(--multi-fg-quaternary);
-  font-size: 10px;
-  line-height: 12px;
+  font-size: var(--multi-text-caption);
+  line-height: var(--multi-leading-caption);
 }
 
 .agent-window-icon-button,
@@ -1012,8 +892,8 @@ body {
 }
 
 .agent-window-open-project {
-  color: var(--multi-fg-tertiary);
-  min-height: 24px;
+  color: var(--multi-fg-secondary);
+  min-height: 26px;
 }
 
 .agent-window-sidebar-footer {
@@ -1076,6 +956,44 @@ body {
   padding-left: var(--composer-messages-padding-inline, 16px);
   padding-right: var(--composer-messages-padding-inline, 16px);
   width: 100%;
+}
+
+.agent-panel-meta-agent-chat[data-chat-top-fade] {
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--multi-chat-top-fade-distance, 24px),
+    #000
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--multi-chat-top-fade-distance, 24px),
+    #000
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.agent-panel-meta-agent-chat__sticky-user-row {
+  isolation: isolate;
+  background: color-mix(in srgb, var(--multi-composer-overlay-bg) 72%, transparent);
+}
+
+.agent-panel-meta-agent-chat__sticky-user-row::after {
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: var(--multi-chat-sticky-bottom-fade-height, 20px);
+  pointer-events: none;
+  content: "";
+  background: var(--multi-composer-overlay-bg);
+  -webkit-backdrop-filter: blur(var(--multi-chat-sticky-bottom-fade-blur, 8px));
+  backdrop-filter: blur(var(--multi-chat-sticky-bottom-fade-blur, 8px));
+  -webkit-mask-image: linear-gradient(180deg, #000 0, transparent);
+  mask-image: linear-gradient(180deg, #000 0, transparent);
 }
 
 @keyframes scroll-btn-enter {

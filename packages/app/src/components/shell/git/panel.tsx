@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  IconArrowRotateCounterClockwise,
   IconBarsThree,
   IconBranch,
   IconChevronDownSmall,
@@ -72,8 +73,8 @@ export function GitPanel(props: {
   if (!isElectron) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-        <p className="text-body/[1.4] font-medium text-foreground/85">Source control</p>
-        <p className="max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
+        <p className="text-body font-medium text-foreground/85">Source control</p>
+        <p className="max-w-[18rem] text-detail text-muted-foreground/72">
           Git status and diffs are available in the Multi desktop app.
         </p>
       </div>
@@ -97,8 +98,8 @@ export function GitPanel(props: {
     case "error":
       return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-          <p className="text-body/[1.4] font-medium text-destructive/90">Git error</p>
-          <p className="max-w-[20rem] text-detail/[1.45] text-muted-foreground/80">
+          <p className="text-body font-medium text-destructive/90">Git error</p>
+          <p className="max-w-[20rem] text-detail text-muted-foreground/80">
             {git.view.message}
           </p>
         </div>
@@ -107,8 +108,8 @@ export function GitPanel(props: {
       return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center">
           <div className="space-y-1 px-4 py-3">
-            <p className="text-body/[1.4] font-medium text-foreground/85">No repository</p>
-            <p className="max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
+            <p className="text-body font-medium text-foreground/85">No repository</p>
+            <p className="max-w-[18rem] text-detail text-muted-foreground/72">
               Initialize Git in this project to track changes and review diffs.
             </p>
           </div>
@@ -121,7 +122,7 @@ export function GitPanel(props: {
                   toast.error(error instanceof Error ? error.message : String(error)),
                 );
             }}
-            className="rounded-multi-control border border-multi-border/60 bg-multi-active/40 px-3 py-2 text-body/[1.2] font-medium text-foreground transition-colors hover:bg-multi-hover"
+            className="rounded-multi-control border border-multi-border/60 bg-multi-active/40 px-3 py-2 text-body font-medium text-foreground transition-colors hover:bg-multi-hover"
           >
             Init Git
           </button>
@@ -130,8 +131,8 @@ export function GitPanel(props: {
     case "clean":
       return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
-          <p className="text-body/[1.4] font-medium text-foreground/85">Working tree clean</p>
-          <p className="max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
+          <p className="text-body font-medium text-foreground/85">Working tree clean</p>
+          <p className="max-w-[18rem] text-detail text-muted-foreground/72">
             No staged or unstaged changes in this repository.
           </p>
         </div>
@@ -392,7 +393,7 @@ function ReviewModeHeader(props: { onClose: () => void }) {
       <span className="no-drag shrink-0 text-detail font-medium text-multi-fg-secondary">
         Review
       </span>
-      <span className="min-w-0 truncate text-detail/[14px] text-multi-fg-primary">
+      <span className="min-w-0 truncate text-detail text-multi-fg-primary">
         Turn checkpoint diff
       </span>
     </WorkbenchChromeRow>
@@ -457,7 +458,7 @@ function LocalBranchBar(props: {
                   onClick={() => props.onEditorMenuOpen(false)}
                 />
                 <div
-                  className="absolute top-full right-0 z-50 mt-1 min-w-[176px] rounded-[6px] border border-multi-stroke-secondary bg-multi-bg-elevated p-[3px] text-multi-fg-primary shadow-multi-popup"
+                  className="absolute top-full right-0 z-50 mt-1 min-w-[176px] rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-elevated p-[3px] text-multi-fg-primary shadow-multi-popup"
                   role="menu"
                 >
                   <MenuItem
@@ -484,7 +485,7 @@ function LocalBranchBar(props: {
           </div>
           <div className="no-drag relative min-w-0 shrink-0">
             <div
-              className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-[5px] border border-primary bg-primary text-detail/[14px] font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
+              className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-multi-control border border-primary bg-primary text-body font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
               data-pending={isAgentActionPending || undefined}
             >
               <button
@@ -536,7 +537,7 @@ function LocalBranchBar(props: {
                   onClick={() => props.onCommitMenuOpen(false)}
                 />
                 <div
-                  className="absolute top-full right-0 z-50 mt-1 min-w-[180px] rounded-[6px] border border-multi-stroke-secondary bg-multi-bg-elevated p-[3px] text-multi-fg-primary shadow-multi-popup"
+                  className="absolute top-full right-0 z-50 mt-1 min-w-[180px] rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-elevated p-[3px] text-multi-fg-primary shadow-multi-popup"
                   role="menu"
                 >
                   {GIT_AGENT_ACTION_ORDER.map((action) => (
@@ -557,13 +558,13 @@ function LocalBranchBar(props: {
         </div>
       }
     >
-      <span className="no-drag shrink-0 text-detail font-medium text-multi-fg-secondary">
+      <span className="no-drag shrink-0 text-body font-medium text-multi-fg-secondary">
         Local
       </span>
       <button
         type="button"
         onClick={copyBranch}
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-[5px] px-1.5 text-detail/[14px] font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
         title="Copy branch name"
       >
         <IconBranch className="size-3 shrink-0 text-multi-icon-tertiary" />
@@ -594,14 +595,14 @@ function ChangesHeader(props: {
       gap="loose"
       trailing={
         <div className="flex shrink-0 items-center gap-(--multi-workbench-sub-chrome-action-gap)">
-          <WorkbenchTextButton
+          <WorkbenchIconButton
             onClick={props.onDiscardAll}
-            className="max-w-[8.5rem]"
-            tone="danger"
-            title="Discard All Changes"
+            aria-label="Discard all changes"
+            title="Discard all changes"
+            chrome="panel"
           >
-            Discard All Changes
-          </WorkbenchTextButton>
+            <IconArrowRotateCounterClockwise className="size-3.5 shrink-0" />
+          </WorkbenchIconButton>
           <WorkbenchIconButton
             onClick={toggleAll}
             aria-label={toggleAllLabel}
@@ -627,13 +628,13 @@ function ChangesHeader(props: {
       >
         <IconBarsThree className="size-3.5 shrink-0" aria-hidden />
       </WorkbenchIconButton>
-      <span className="inline-flex min-w-0 items-center gap-0.5 overflow-hidden rounded-[5px] px-1 pr-0.5 text-detail/[14px] text-multi-fg-secondary tabular-nums">
+      <span className="inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-0.5 overflow-hidden rounded-multi-control px-1 pr-0.5 text-body text-multi-fg-secondary tabular-nums">
         <span className="min-w-0 truncate">
           {props.count} Uncommitted Change{props.count === 1 ? "" : "s"}
         </span>
         <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" />
       </span>
-      <div className="flex shrink-0 items-center gap-1 text-detail tabular-nums">
+      <div className="flex h-(--multi-workbench-action-size) shrink-0 items-center gap-1 text-body tabular-nums">
         {props.add > 0 && (
           <span className="font-medium text-multi-diff-addition">+{props.add}</span>
         )}
@@ -656,7 +657,7 @@ function MenuItem(props: {
       type="button"
       onClick={props.onClick}
       role="menuitem"
-      className="group flex w-full min-w-0 items-center gap-[7px] rounded-[4px] px-[7px] py-1 text-left text-detail/[14px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-[active=true]:bg-multi-bg-quaternary data-[active=true]:text-multi-fg-primary"
+      className="group flex w-full min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-1 text-left text-detail text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-[active=true]:bg-multi-bg-quaternary data-[active=true]:text-multi-fg-primary"
       data-active={props.active || undefined}
     >
       {props.icon ? (

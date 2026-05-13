@@ -7,7 +7,7 @@ import {
 } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDebouncer } from "@tanstack/react-pacer";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
@@ -144,15 +144,9 @@ function AboutVersionTitle() {
       weight="medium"
     >
       <span>Version</span>
-      <Text
-        render={<code />}
-        size="xs"
-        tone="secondary"
-        weight="medium"
-        className="font-multi-mono"
-      >
+      <code className="font-multi-mono text-multi-code font-medium text-multi-fg-secondary">
         {APP_VERSION}
-      </Text>
+      </code>
     </Text>
   );
 }
@@ -380,31 +374,38 @@ function SettingsSlider(props: {
   min: number;
   max: number;
   onChange: (value: number) => void;
+  accentColor?: string;
   showSwatch?: boolean;
   suffix?: string;
 }) {
+  const accentColor = props.accentColor ?? "var(--multi-action)";
+
   return (
-    <div className="flex w-full items-center justify-end gap-2 sm:w-34">
+    <div className="grid w-full grid-cols-[minmax(0,1fr)_2rem] items-center gap-2 sm:w-34">
       <input
         aria-label={props.label}
-        className="h-4 w-full accent-multi-action"
+        className="h-4 w-full"
         max={props.max}
         min={props.min}
+        style={{ accentColor }}
         type="range"
         value={props.value}
         onChange={(event) => props.onChange(Number(event.target.value))}
       />
-      {props.showSwatch ? (
-        <span
-          aria-hidden
-          className="size-4 shrink-0 rounded-full bg-multi-action shadow-multi-swatch-inset"
-        />
-      ) : (
-        <Text size="xs" tone="tertiary" className="w-8 shrink-0 text-right tabular-nums">
-          {props.value}
-          {props.suffix ?? ""}
-        </Text>
-      )}
+      <span className="flex w-8 shrink-0 justify-end">
+        {props.showSwatch ? (
+          <span
+            aria-hidden
+            className="size-8 rounded-full shadow-multi-swatch-inset"
+            style={{ backgroundColor: accentColor }}
+          />
+        ) : (
+          <Text size="xs" tone="tertiary" className="w-full text-right tabular-nums">
+            {props.value}
+            {props.suffix ?? ""}
+          </Text>
+        )}
+      </span>
     </div>
   );
 }
@@ -423,7 +424,7 @@ function NumberStepper(props: {
   };
 
   return (
-    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-body/[16px] shadow-none">
+    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-body shadow-none">
       <Button
         type="button"
         variant="ghost"
@@ -461,12 +462,18 @@ function FontFamilyInput(props: {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
+  onDraftValueChange?: (value: string) => void;
 }) {
   const [draftValue, setDraftValue] = useState(props.value);
   const commitValue = useDebouncer(props.onChange, {
     wait: 350,
     onUnmount: (debouncer) => debouncer.flush(),
   });
+
+  useEffect(() => {
+    setDraftValue(props.value);
+    props.onDraftValueChange?.(props.value);
+  }, [props.value, props.onDraftValueChange]);
 
   return (
     <Input
@@ -479,6 +486,7 @@ function FontFamilyInput(props: {
       onChange={(event) => {
         const nextValue = event.target.value;
         setDraftValue(nextValue);
+        props.onDraftValueChange?.(nextValue);
         commitValue.maybeExecute(nextValue);
       }}
     />
@@ -618,14 +626,9 @@ export function GeneralSettingsPanel() {
           description="Open the persisted keybindings file to edit advanced bindings directly."
           status={
             <>
-              <Text
-                render={<span />}
-                size="xs"
-                tone="secondary"
-                className="block break-all font-multi-mono"
-              >
+              <span className="block break-all font-multi-mono text-multi-code text-multi-fg-secondary">
                 {keybindingsConfigPath ?? "Resolving keybindings path..."}
-              </Text>
+              </span>
               {openPathErrorByTarget.keybindings ? (
                 <Text render={<span />} size="xs" className="mt-1 block text-destructive">
                   {openPathErrorByTarget.keybindings}
@@ -666,14 +669,9 @@ export function GeneralSettingsPanel() {
           description={diagnosticsDescription}
           status={
             <>
-              <Text
-                render={<span />}
-                size="xs"
-                tone="secondary"
-                className="block break-all font-multi-mono"
-              >
+              <span className="block break-all font-multi-mono text-multi-code text-multi-fg-secondary">
                 {logsDirectoryPath ?? "Resolving logs directory..."}
-              </Text>
+              </span>
               {openPathErrorByTarget.logsDirectory ? (
                 <Text render={<span />} size="xs" className="mt-1 block text-destructive">
                   {openPathErrorByTarget.logsDirectory}
@@ -706,8 +704,21 @@ export function GeneralSettingsPanel() {
 export function AppearanceSettingsPanel() {
   const { theme, setTheme } = useTheme();
   const appearance = useAppearanceSettingsSnapshot();
+  const [codeFontDraft, setCodeFontDraft] = useState(appearance.codeFont);
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
+  const codePreviewStyle = useMemo<CSSProperties>(
+    () => ({
+      fontFamily: codeFontDraft.trim() || "var(--multi-font-mono)",
+      fontSize: "var(--multi-code-font-size-user, 12px)",
+      lineHeight: "calc(var(--multi-code-font-size-user, 12px) * 1.45)",
+    }),
+    [codeFontDraft],
+  );
+
+  useEffect(() => {
+    setCodeFontDraft(appearance.codeFont);
+  }, [appearance.codeFont]);
 
   return (
     <SettingsPageContainer>
@@ -756,6 +767,7 @@ export function AppearanceSettingsPanel() {
           control={
             <SettingsSlider
               label="Accent hue"
+              accentColor={`oklch(0.682 calc(0.1 + var(--multi-intensity, 33) / 100 * 0.236) ${appearance.hue})`}
               max={360}
               min={0}
               showSwatch
@@ -864,19 +876,20 @@ export function AppearanceSettingsPanel() {
               value={appearance.codeFont}
               placeholder="System monospace"
               onChange={appearanceSettingsActions.setCodeFontFamily}
+              onDraftValueChange={setCodeFontDraft}
             />
           }
         >
-          <div className="mt-2 overflow-hidden rounded-sm text-detail/[16px]">
-            <div className="flex bg-rose-500/10 font-multi-mono text-foreground/72">
+          <div className="mt-2 overflow-hidden rounded-sm" style={codePreviewStyle}>
+            <div className="flex bg-rose-500/10 text-foreground/72">
               <span className="w-8 shrink-0 text-center text-rose-500/80">1</span>
               <span>return a + b;</span>
             </div>
-            <div className="flex bg-emerald-500/10 font-multi-mono text-foreground/72">
+            <div className="flex bg-emerald-500/10 text-foreground/72">
               <span className="w-8 shrink-0 text-center text-emerald-600/80">1</span>
               <span>const result = a + b;</span>
             </div>
-            <div className="flex bg-emerald-500/10 font-multi-mono text-foreground/72">
+            <div className="flex bg-emerald-500/10 text-foreground/72">
               <span className="w-8 shrink-0 text-center text-emerald-600/80">2</span>
               <span>return result;</span>
             </div>

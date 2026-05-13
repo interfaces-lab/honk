@@ -6,11 +6,11 @@ import { File, type FileOptions } from "@pierre/diffs/react";
 import {
   IconArrowLeft,
   IconArrowRight,
+  IconArrowRotateClockwise,
   IconBarsThree,
   IconFiles,
-  IconMagnifyingGlass,
 } from "central-icons";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PIERRE_WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/pierre-workbench-code-css";
@@ -18,11 +18,10 @@ import { projectReadFileQueryOptions } from "~/lib/project-react-query";
 import { resolveDiffThemeName } from "~/lib/diff-rendering";
 import { useTheme } from "~/hooks/use-theme";
 import { shellPanelsActions, useActiveTab, useSecondaryRail } from "~/stores/shell-panels-store";
-import { ProjectFileTree } from "./project-file-tree";
+import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
 import { WorkbenchIconButton } from "../shell/workbench-icon-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
-type FilePaneMode = "browse" | "search";
 type PreviewHistory = {
   readonly index: number;
   readonly paths: readonly string[];
@@ -91,7 +90,7 @@ function EmptyFilePreview(props: { onOpenFile: () => void }) {
       <button
         type="button"
         onClick={props.onOpenFile}
-        className="flex h-7 items-center gap-1.5 rounded-[5px] border border-multi-stroke-tertiary bg-multi-bg-quinary px-2.5 text-body/[16px] font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
+        className="flex h-7 items-center gap-1.5 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2.5 text-body font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
       >
         <IconFiles className="size-3.5" />
         Open File
@@ -159,10 +158,10 @@ function SourcePreview(props: {
   if (fileQuery.isError || !fileQuery.data) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-4 py-8 text-center">
-        <div className="text-body/[16px] font-medium text-destructive/85">
+        <div className="text-body font-medium text-destructive/85">
           Unable to preview file
         </div>
-        <div className="max-w-72 text-detail/[14px] text-muted-foreground/55">
+        <div className="max-w-72 text-detail text-muted-foreground/55">
           {fileQuery.error instanceof Error
             ? fileQuery.error.message
             : "The file could not be read."}
@@ -174,12 +173,12 @@ function SourcePreview(props: {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {fileQuery.data.truncated ? (
-        <div className="shrink-0 border-b border-multi-border/30 px-3 py-1.5 text-detail/[14px] text-muted-foreground/60">
+        <div className="shrink-0 border-b border-multi-border/30 px-3 py-1.5 text-detail text-muted-foreground/60">
           Showing the first 1 MB of this file.
         </div>
       ) : null}
       {fileContents ? (
-        <div className="project-file-preview min-h-0 flex-1 overflow-hidden bg-background text-body/[18px] text-foreground">
+        <div className="project-file-preview min-h-0 flex-1 overflow-hidden bg-background text-body text-foreground">
           <File
             key={`${fileQuery.data.relativePath}:${props.wordWrap ? "wrap" : "scroll"}:${resolvedTheme}`}
             file={fileContents}
@@ -197,8 +196,8 @@ export function ProjectFilesPanel(props: {
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
 }) {
-  const [mode, setMode] = useState<FilePaneMode>("browse");
   const [history, setHistory] = useState<PreviewHistory>(EMPTY_PREVIEW_HISTORY);
+  const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
   const activeTab = useActiveTab();
   const { open: fileRailOpen } = useSecondaryRail(props.cwd, "files");
   const isFilesPanelActive = activeTab === "files";
@@ -230,11 +229,11 @@ export function ProjectFilesPanel(props: {
 
   const tree = (
     <ProjectFileTree
+      ref={fileTreeRef}
       cwd={props.cwd}
       environmentId={props.environmentId}
       availableEditors={props.availableEditors}
       onOpenFile={openPreviewPath}
-      searchOpen={mode === "search"}
       selectedPath={selectedPath}
       active={isFileTreeActive}
       className="min-h-36 flex-1 border-b-0 bg-[color-mix(in_srgb,var(--multi-bg-elevated)_78%,transparent)]"
@@ -245,31 +244,26 @@ export function ProjectFilesPanel(props: {
     <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
       <div className="multi-workbench-panel-title-row gap-(--multi-workbench-chrome-action-gap)">
         <ModeButton
-          active={fileRailOpen && mode === "browse"}
+          active={fileRailOpen}
           chrome="panel"
-          label={fileRailOpen && mode === "browse" ? "Hide file sidebar" : "Browse Files"}
+          label={fileRailOpen ? "Hide file sidebar" : "Browse Files"}
           onClick={() => {
-            if (mode === "browse" && fileRailOpen) {
+            if (fileRailOpen) {
               shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", false);
               return;
             }
-            setMode("browse");
             shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", true);
           }}
         >
           <IconBarsThree className="size-[15px]" aria-hidden />
         </ModeButton>
-        <ModeButton
-          active={mode === "search"}
+        <WorkbenchIconButton
+          aria-label="Refresh files"
           chrome="panel"
-          label="Search Files"
-          onClick={() => {
-            setMode("search");
-            shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", true);
-          }}
+          onClick={() => fileTreeRef.current?.refresh()}
         >
-          <IconMagnifyingGlass className="size-3.5" />
-        </ModeButton>
+          <IconArrowRotateClockwise className="size-3.5" />
+        </WorkbenchIconButton>
         <NavButton
           disabled={!canGoBack}
           chrome="panel"
@@ -303,7 +297,6 @@ export function ProjectFilesPanel(props: {
             ) : (
               <EmptyFilePreview
                 onOpenFile={() => {
-                  setMode("search");
                   shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", true);
                 }}
               />

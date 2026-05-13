@@ -309,6 +309,7 @@ const createDesktopBridgeStub = (overrides?: {
     pickFolder: vi.fn().mockResolvedValue(null),
     confirm: vi.fn().mockResolvedValue(false),
     setTheme: vi.fn().mockResolvedValue(undefined),
+    setBackgroundColor: vi.fn().mockResolvedValue(undefined),
     showContextMenu: vi.fn().mockResolvedValue(null),
     openExternal: vi.fn().mockResolvedValue(true),
     onMenuAction: () => () => {},

@@ -41,7 +41,7 @@ export const InlineToolDiff = memo(function InlineToolDiff({ artifact }: InlineT
   if (renderablePatch.kind === "raw") {
     return (
       <div className="space-y-1">
-        <p className="m-0 text-detail/[16px] text-multi-fg-tertiary">{renderablePatch.reason}</p>
+        <p className="m-0 text-detail text-multi-fg-tertiary">{renderablePatch.reason}</p>
         <pre className="m-0 max-h-[38rem] overflow-auto whitespace-pre-wrap p-0 wrap-anywhere">
           {renderablePatch.text}
         </pre>

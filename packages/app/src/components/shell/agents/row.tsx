@@ -191,7 +191,7 @@ export const AgentRow = memo(
         {renaming ? (
           <div
             className={cn(
-              "agent-sidebar-cell font-multi flex h-auto w-full min-w-0 items-center gap-3 rounded-[6px] border border-transparent px-[5px] py-[5px] text-left text-body/[16px] font-normal",
+              "agent-sidebar-cell font-multi flex h-auto w-full min-w-0 items-center gap-3 rounded-multi-control border border-transparent px-1.5 py-1.5 text-left text-body font-normal",
               "border-multi-stroke-strong bg-multi-active",
             )}
             data-agent-sidebar-cell=""
@@ -208,7 +208,7 @@ export const AgentRow = memo(
                   onKeyDown={onRenameKeyDown}
                   onBlur={onBlur}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full min-w-0 select-text bg-transparent text-body/[16px] text-foreground outline-none ring-0"
+                  className="w-full min-w-0 select-text bg-transparent text-body text-foreground outline-none ring-0"
                   aria-label="Rename thread"
                 />
               </span>

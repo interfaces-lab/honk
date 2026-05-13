@@ -61,8 +61,8 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
           props.className,
         )}
       >
-        <p className="text-body/[1.4] font-medium text-foreground/82">Rename only</p>
-        <p className="max-w-[28rem] text-center text-detail/[1.45] text-muted-foreground/68">
+        <p className="text-body font-medium text-foreground/82">Rename only</p>
+        <p className="max-w-[28rem] text-center text-detail text-muted-foreground/68">
           <span className="font-mono text-foreground/78">{props.prevPath}</span>
           <span className="px-1.5 text-muted-foreground/48">→</span>
           <span className="font-mono text-foreground/78">{props.path ?? "renamed file"}</span>
@@ -79,9 +79,9 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
           props.className,
         )}
       >
-        <p className="text-body/[1.4] font-medium text-foreground/82">No patch available</p>
+        <p className="text-body font-medium text-foreground/82">No patch available</p>
         {props.filePatch.message ? (
-          <p className="max-w-[28rem] text-center text-detail/[1.45] text-muted-foreground/68">
+          <p className="max-w-[28rem] text-center text-detail text-muted-foreground/68">
             {props.filePatch.message}
           </p>
         ) : null}
@@ -91,7 +91,7 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
 
   return (
     <div className={cn("flex h-full items-center justify-center px-4", props.className)}>
-      <p className="text-body/[1.4] text-muted-foreground/60">No patch available</p>
+      <p className="text-body text-muted-foreground/60">No patch available</p>
     </div>
   );
 });

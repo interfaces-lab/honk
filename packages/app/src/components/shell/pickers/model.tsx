@@ -163,7 +163,7 @@ export const ModelPicker = forwardRef<
         aria-label={`Model: ${triggerLabel}${props.onThinkingLevel ? `, thinking ${thinkingDetailLabel(thinkingValue)}` : ""}${showFast ? `, fast mode ${fastValue}` : ""}`}
         disabled={!idle}
         className={cn(
-          "ui-model-picker__trigger ui-button inline-flex min-w-0 rounded-full border text-left text-body/[16px] outline-none transition-colors focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
+          "ui-model-picker__trigger ui-button inline-flex min-w-0 rounded-full border text-left text-body outline-none transition-colors focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
           settings
             ? "h-auto min-h-7 w-full max-w-full flex-col items-stretch gap-0.5 border-multi-stroke-tertiary bg-multi-bg-quinary py-1 pl-2 pr-1 hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary"
             : "h-6 max-w-[min(100%,240px)] items-center border-transparent bg-transparent hover:bg-multi-bg-quaternary",
@@ -187,7 +187,7 @@ export const ModelPicker = forwardRef<
                 <PretextOneLine
                   text={triggerLabel}
                   className={cn(
-                    "block w-full min-w-0 text-left text-body/[16px]",
+                    "block w-full min-w-0 text-left text-body",
                     cur != null || props.selection.model?.id
                       ? "text-multi-fg-secondary"
                       : "text-multi-fg-tertiary",
@@ -195,7 +195,7 @@ export const ModelPicker = forwardRef<
                 />
               </span>
               {thinkingValue === "xhigh" ? (
-                <span className="inline-flex h-4 shrink-0 items-center rounded-[4px] bg-multi-bg-tertiary px-1 text-[9px]/[12px] font-semibold text-multi-fg-secondary">
+                <span className="inline-flex h-4 shrink-0 items-center rounded-sm bg-multi-bg-tertiary px-1 text-[9px]/[12px] font-semibold text-multi-fg-secondary">
                   MAX
                 </span>
               ) : null}
@@ -226,7 +226,7 @@ export const ModelPicker = forwardRef<
         >
           <Menu.Popup
             className={cn(
-              "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] w-[min(18rem,var(--available-width))] min-w-[15rem] max-w-[18rem] flex-col overflow-hidden rounded-[12px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body/[16px] text-multi-fg-primary shadow-multi-popup outline-none ring-0 backdrop-blur-xl focus:outline-none focus-visible:outline-none",
+              "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] w-[min(18rem,var(--available-width))] min-w-[15rem] max-w-[18rem] flex-col overflow-hidden rounded-[12px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup outline-none ring-0 backdrop-blur-xl focus:outline-none focus-visible:outline-none",
             )}
           >
             <div className="shrink-0 border-b border-multi-stroke-tertiary px-1.5 py-1.5">
@@ -237,28 +237,28 @@ export const ModelPicker = forwardRef<
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={stopMenuSearchBubbling}
                 placeholder="Search models"
-                className="flex h-6 w-full rounded-[6px] border-0 bg-multi-bg-quinary px-2 text-body/[16px] text-multi-fg-primary outline-none ring-0 placeholder:text-multi-fg-quaternary focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                className="flex h-6 w-full rounded-multi-control border-0 bg-multi-bg-quinary px-2 text-body text-multi-fg-primary outline-none ring-0 placeholder:text-multi-fg-quaternary focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               />
             </div>
             {confirmMax ? (
               <div className="flex flex-col gap-2 border-b border-multi-stroke-tertiary px-3 py-2.5">
-                <div className="text-body/[16px] font-medium text-multi-fg-primary">
+                <div className="text-body font-medium text-multi-fg-primary">
                   Enable MAX Mode?
                 </div>
-                <div className="text-detail/[14px] text-multi-fg-tertiary">
+                <div className="text-detail text-multi-fg-tertiary">
                   MAX uses the deepest reasoning level for this model.
                 </div>
                 <div className="flex items-center justify-end gap-1.5 pt-0.5">
                   <button
                     type="button"
-                    className="h-6 rounded-[5px] px-2 text-body/[16px] text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+                    className="h-6 rounded-multi-control px-2 text-body text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
                     onClick={() => setConfirmMax(false)}
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    className="h-6 rounded-[5px] bg-multi-bg-tertiary px-2 text-body/[16px] font-medium text-multi-fg-primary hover:bg-multi-bg-secondary"
+                    className="h-6 rounded-multi-control bg-multi-bg-tertiary px-2 text-body font-medium text-multi-fg-primary hover:bg-multi-bg-secondary"
                     data-action="variant_selected"
                     onClick={() => {
                       props.onThinkingLevel?.("xhigh");
@@ -306,7 +306,7 @@ export const ModelPicker = forwardRef<
               </button>
             ) : null}
             {list.length === 0 ? (
-              <div className="shrink-0 px-4 py-3 text-center text-body/[16px] text-multi-fg-tertiary">
+              <div className="shrink-0 px-4 py-3 text-center text-body text-multi-fg-tertiary">
                 {failed
                   ? "Unable to load models."
                   : props.items.length === 0

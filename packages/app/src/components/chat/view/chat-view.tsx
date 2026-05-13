@@ -235,12 +235,12 @@ function HeroComposerActionCard(props: HeroComposerActionCardProps) {
     <button
       type="button"
       onClick={props.onClick}
-      className="group flex h-20 min-h-20 select-none flex-col justify-between rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated p-3 text-left text-multi-fg-primary shadow-none transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+      className="group flex h-20 min-h-20 select-none flex-col justify-between rounded-lg border border-multi-stroke-tertiary bg-multi-bg-elevated p-3 text-left text-multi-fg-primary shadow-none transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
     >
       <span className="flex items-center justify-between gap-2">
         <span
           className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-multi-stroke-tertiary bg-multi-bg-tertiary",
+            "flex size-7 shrink-0 items-center justify-center rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-tertiary",
             HERO_ICON_TONE_CLASS[props.tone],
           )}
         >
@@ -249,8 +249,8 @@ function HeroComposerActionCard(props: HeroComposerActionCardProps) {
         <IconChevronRight className="size-4 shrink-0 text-multi-fg-tertiary transition-colors group-hover:text-multi-fg-primary" />
       </span>
       <span className="grid gap-0.5">
-        <span className="truncate text-body/[1.25] font-medium">{props.title}</span>
-        <span className="truncate text-detail/[1.3] text-multi-fg-secondary">{props.detail}</span>
+        <span className="truncate text-body font-medium">{props.title}</span>
+        <span className="truncate text-detail text-multi-fg-secondary">{props.detail}</span>
       </span>
     </button>
   );
@@ -915,7 +915,7 @@ const InlineMessageEditComposer = memo(function InlineMessageEditComposer({
       <div className="mt-2 flex justify-end">
         <button
           type="button"
-          className="rounded-multi-control px-2 py-1 text-body/[16px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+          className="rounded-multi-control px-2 py-1 text-body text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
           onClick={handleCancel}
         >
           Cancel

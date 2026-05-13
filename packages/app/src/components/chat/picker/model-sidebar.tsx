@@ -123,7 +123,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                   render={
                     <button
                       className={cn(
-                        "relative isolate flex aspect-square w-full cursor-pointer items-center justify-center rounded-[6px] transition-colors hover:bg-multi-bg-quaternary",
+                        "relative isolate flex aspect-square w-full cursor-pointer items-center justify-center rounded-multi-control transition-colors hover:bg-multi-bg-quaternary",
                         props.selectedInstanceId === "favorites" &&
                           "bg-multi-bg-active text-multi-fg-primary shadow-sm",
                       )}
@@ -160,7 +160,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
             <button
               data-model-picker-provider={entry.instanceId}
               className={cn(
-                "relative isolate flex aspect-square w-full cursor-pointer items-center justify-center rounded-[6px] transition-colors hover:bg-multi-bg-quaternary",
+                "relative isolate flex aspect-square w-full cursor-pointer items-center justify-center rounded-multi-control transition-colors hover:bg-multi-bg-quaternary",
                 isSelected && "bg-multi-bg-active text-multi-fg-primary shadow-sm",
                 isDisabled && "cursor-not-allowed opacity-50 hover:bg-transparent",
               )}
@@ -218,7 +218,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                   <span className="relative block w-full">
                     <button
                       className={cn(
-                        "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-[6px] opacity-50 transition-colors hover:bg-transparent",
+                        "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-multi-control opacity-50 transition-colors hover:bg-transparent",
                       )}
                       disabled
                       type="button"
@@ -242,7 +242,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                   <span className="relative block w-full">
                     <button
                       className={cn(
-                        "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-[6px] opacity-50 transition-colors hover:bg-transparent",
+                        "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-multi-control opacity-50 transition-colors hover:bg-transparent",
                       )}
                       disabled
                       type="button"

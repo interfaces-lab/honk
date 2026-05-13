@@ -97,7 +97,7 @@ export function GitDiffCard(props: {
     >
       <div
         className={cn(
-          "group/git-diff-header flex min-h-[30px] shrink-0 cursor-pointer flex-nowrap items-center gap-[6px] overflow-hidden border-b px-[6px] py-1 hover:bg-multi-workbench-toolbar-hover-wash",
+          "group/git-diff-header flex min-h-[30px] shrink-0 cursor-pointer flex-nowrap items-center gap-1.5 overflow-hidden border-b px-1.5 py-1 hover:bg-multi-workbench-toolbar-hover-wash",
           props.expanded ? "border-multi-git-diff-header-border" : "border-b-transparent",
         )}
         role="button"

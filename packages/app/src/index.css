@@ -104,16 +104,29 @@
   --shadow-multi-toolbar: var(--multi-shadow-toolbar);
   --shadow-multi-swatch-inset: var(--multi-swatch-inset-shadow);
   --text-caption: var(--multi-text-caption);
+  --text-caption--line-height: var(--multi-leading-caption);
   --text-detail: var(--multi-text-detail);
+  --text-detail--line-height: var(--multi-leading-detail);
   --text-body: var(--multi-text-body);
+  --text-body--line-height: var(--multi-leading-body);
   --text-title: var(--multi-text-title);
+  --text-title--line-height: var(--multi-leading-title);
   --text-conversation: var(--conversation-text-font-size);
+  --text-conversation--line-height: var(--conversation-text-leading);
   --text-heading: var(--multi-text-heading);
-  --text-multi-xs: 10px;
-  --text-multi-sm: 11px;
-  --text-multi-base: 12px;
-  --text-multi-lg: 13px;
-  --text-multi-xl: 16px;
+  --text-heading--line-height: var(--multi-leading-heading);
+  --text-multi-code: var(--multi-code-font-size-user, 12px);
+  --text-multi-code--line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  --text-multi-xs: var(--multi-text-caption);
+  --text-multi-xs--line-height: var(--multi-leading-caption);
+  --text-multi-sm: var(--multi-text-detail);
+  --text-multi-sm--line-height: var(--multi-leading-detail);
+  --text-multi-base: var(--multi-text-body);
+  --text-multi-base--line-height: var(--multi-leading-body);
+  --text-multi-lg: var(--multi-text-title);
+  --text-multi-lg--line-height: var(--multi-leading-title);
+  --text-multi-xl: var(--multi-text-heading);
+  --text-multi-xl--line-height: var(--multi-leading-heading);
   --radius-multi: var(--multi-radius-card);
   --radius-multi-chip: var(--multi-radius-chip);
   --radius-multi-control: var(--multi-radius-control);
@@ -407,25 +420,6 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* Embedded diffs: compact pierre/diffs inside tool panels */
-.embed-diff {
-  --diffs-light-bg: color-mix(in srgb, var(--color-multi-bubble) 55%, var(--background));
-  --diffs-dark-bg: color-mix(in srgb, var(--color-multi-bubble) 48%, var(--background));
-  --diffs-bg-addition-override: var(--multi-diff-addition-bg);
-  --diffs-bg-deletion-override: var(--multi-diff-deletion-bg);
-  --diffs-bg-addition-number-override: transparent;
-  --diffs-bg-deletion-number-override: transparent;
-  --diffs-addition-color-override: var(--multi-diff-addition);
-  --diffs-deletion-color-override: var(--multi-diff-deletion);
-  --diffs-bg-context-override: color-mix(in srgb, var(--foreground) 2.5%, var(--diffs-light-bg));
-  --diffs-bg-buffer-override: transparent;
-  --diffs-bg-hover-override: transparent;
-  --diffs-bg-separator-override: transparent;
-}
-
-.dark .embed-diff {
-  --diffs-bg-context-override: color-mix(in srgb, var(--foreground) 4%, var(--diffs-dark-bg));
-}
-
 .embed-diff [data-diff-span] {
   background-color: transparent !important;
   border-radius: 0;
@@ -446,7 +440,7 @@ label:has(> select#reasoning-effort) select {
   background: transparent;
 }
 
-/* Diffs theme bridge (match diff surfaces to app palette) */
+/* Diff panel surfaces */
 .diff-panel-viewport {
   background: color-mix(in srgb, var(--background) 94%, var(--card));
 }

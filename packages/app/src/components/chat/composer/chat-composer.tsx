@@ -413,13 +413,13 @@ const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(props: {
   return (
     <div className="border-b border-border/60 px-2.5 py-2 sm:px-3">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-detail/[14px] font-medium text-muted-foreground">
+        <span className="text-detail font-medium text-muted-foreground">
           Queued ({props.items.length})
         </span>
         {props.editingItemId ? (
           <button
             type="button"
-            className="rounded-multi-control px-1.5 py-0.5 text-detail/[14px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+            className="rounded-multi-control px-1.5 py-0.5 text-detail text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
             onClick={props.onCancelEdit}
           >
             Cancel edit
@@ -438,10 +438,10 @@ const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(props: {
               )}
             >
               <div className="min-w-0 flex-1">
-                <div className="truncate text-body/[16px] text-foreground">
+                <div className="truncate text-body text-foreground">
                   {formatQueuedComposerItemPreview(item)}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-caption/[12px] text-muted-foreground">
+                <div className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
                   <span>{formatQueuedComposerItemMeta(item, index)}</span>
                   {isEditing ? <span>Editing</span> : null}
                 </div>

@@ -24,7 +24,7 @@ export function TerminalWorkbenchSubChrome(props: {
       >
         <IconBarsThree className="size-[15px]" aria-hidden />
       </WorkbenchIconButton>
-      <span className="min-w-0 truncate text-body/[16px] font-medium text-multi-fg-primary">
+      <span className="min-w-0 truncate text-body font-medium text-multi-fg-primary">
         {props.shellCaption}
       </span>
     </div>

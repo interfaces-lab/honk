@@ -20,6 +20,7 @@ const DYNAMIC_THEME_COLOR_SELECTOR = `meta[name="${THEME_COLOR_META_NAME}"][data
 let listeners: Array<() => void> = [];
 let lastSnapshot: ThemeSnapshot | null = null;
 let lastDesktopTheme: Theme | null = null;
+let lastDesktopBackgroundColor: string | null = null;
 
 function emitChange() {
   for (const listener of listeners) listener();
@@ -87,6 +88,7 @@ export function syncBrowserChromeTheme() {
   document.documentElement.style.backgroundColor = backgroundColor;
   document.body.style.backgroundColor = backgroundColor;
   ensureThemeColorMetaTag().setAttribute("content", backgroundColor);
+  syncDesktopBackgroundColor(backgroundColor);
 }
 
 function applyTheme(theme: Theme, suppressTransitions = false) {
@@ -119,6 +121,22 @@ function syncDesktopTheme(theme: Theme) {
   void bridge.setTheme(theme).catch(() => {
     if (lastDesktopTheme === theme) {
       lastDesktopTheme = null;
+    }
+  });
+}
+
+function syncDesktopBackgroundColor(color: string) {
+  if (typeof window === "undefined") return;
+  const bridge = window.desktopBridge;
+  const setBackgroundColor = bridge?.setBackgroundColor;
+  if (typeof setBackgroundColor !== "function" || lastDesktopBackgroundColor === color) {
+    return;
+  }
+
+  lastDesktopBackgroundColor = color;
+  void setBackgroundColor(color).catch(() => {
+    if (lastDesktopBackgroundColor === color) {
+      lastDesktopBackgroundColor = null;
     }
   });
 }

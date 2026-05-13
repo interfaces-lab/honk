@@ -13,8 +13,15 @@ import type {
   ProjectEntry,
 } from "@multi/contracts";
 import { useQueryClient } from "@tanstack/react-query";
-import { IconArrowRotateClockwise } from "central-icons";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
@@ -24,16 +31,8 @@ import { projectListDirectoryQueryOptions } from "~/lib/project-react-query";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
 import { normalizeTreePath, Tree, useTreeModel } from "../../tree";
-import { WorkbenchIconButton } from "../shell/workbench-icon-button";
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
-
-function basename(path: string | null): string {
-  if (!path) return "Files";
-  const clean = path.replace(/[\\/]+$/, "");
-  const index = Math.max(clean.lastIndexOf("/"), clean.lastIndexOf("\\"));
-  return index === -1 ? clean : clean.slice(index + 1);
-}
 
 function projectEntryToTreePath(entry: ProjectEntry): string {
   const p = normalizeTreePath(entry.path);
@@ -82,15 +81,6 @@ function joinProjectPath(cwd: string, relativePath: string): string {
   return `${cwd.replace(/[\\/]+$/, "")}${separator}${relativePath.replace(/^[\\/]+/, "")}`;
 }
 
-function formatEntryCount(count: number, truncated: boolean): string {
-  if (count === 0) return "";
-  if (count >= 1000) {
-    const rounded = count >= 10_000 ? Math.round(count / 1000) : Math.round(count / 100) / 10;
-    return `${rounded}k${truncated ? "+" : ""}`;
-  }
-  return `${count}${truncated ? "+" : ""}`;
-}
-
 function workingTreeFileStatusToTreesStatus(status: GitWorkingTreeFileStatus): GitStatus {
   switch (status) {
     case "added":
@@ -137,17 +127,22 @@ function getExpandedDirectoryPaths(
   });
 }
 
-export function ProjectFileTree(props: {
-  cwd: string | null;
-  environmentId: EnvironmentId | null;
-  availableEditors: readonly EditorId[];
-  onOpenFile?: (relativePath: string) => void;
-  searchOpen?: boolean;
-  selectedPath?: string | null;
-  title?: string;
-  className?: string;
-  active?: boolean;
-}) {
+export type ProjectFileTreeHandle = {
+  refresh: () => void;
+};
+
+export const ProjectFileTree = forwardRef<
+  ProjectFileTreeHandle,
+  {
+    cwd: string | null;
+    environmentId: EnvironmentId | null;
+    availableEditors: readonly EditorId[];
+    onOpenFile?: (relativePath: string) => void;
+    selectedPath?: string | null;
+    className?: string;
+    active?: boolean;
+  }
+>(function ProjectFileTree(props, ref) {
   const filePathSetRef = useRef<ReadonlySet<string>>(new Set());
   const availableEditorsRef = useRef(props.availableEditors);
   const cwdRef = useRef(props.cwd);
@@ -192,10 +187,8 @@ export function ProjectFileTree(props: {
 
   const { model } = useTreeModel({
     paths: [],
-    fileTreeSearchMode: "collapse-non-matches",
     initialExpansion: "closed",
-    search: true,
-    searchBlurBehavior: "retain",
+    search: false,
     onSelectionChange: (selectedPaths) => {
       const raw = selectedPaths[0] ?? null;
       const selectedPath = raw ? normalizeTreePath(raw) : null;
@@ -280,10 +273,6 @@ export function ProjectFileTree(props: {
   );
   const gitStatus = useGitStatus({ environmentId: props.environmentId, cwd: props.cwd });
 
-  const loadedEntryCount = useMemo(
-    () => treePaths.filter((path) => !isDirectoryPlaceholderPath(path)).length,
-    [treePaths],
-  );
   const filePathSet = useMemo(
     () =>
       new Set(
@@ -294,12 +283,6 @@ export function ProjectFileTree(props: {
     [treePaths],
   );
   const gitStatusEntries = useMemo(() => toGitStatusEntries(gitStatus.data), [gitStatus.data]);
-  const isLoading =
-    loadingDirectoriesRef.current.size > 0 ||
-    (props.active === true &&
-      props.cwd !== null &&
-      props.environmentId !== null &&
-      !loadedDirectoriesRef.current.has(""));
 
   filePathSetRef.current = filePathSet;
 
@@ -315,6 +298,23 @@ export function ProjectFileTree(props: {
     setLoadError(null);
     setLoadRevision((revision) => revision + 1);
   }, [props.cwd, props.environmentId]);
+
+  const refreshFiles = useCallback(() => {
+    loadedDirectoriesRef.current = new Set();
+    loadingDirectoriesRef.current = new Set();
+    setTreePaths([]);
+    setLoadError(null);
+    setLoadRevision((revision) => revision + 1);
+    void loadDirectory("");
+  }, [loadDirectory]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      refresh: refreshFiles,
+    }),
+    [refreshFiles],
+  );
 
   useEffect(() => {
     if (!props.active || !props.cwd || !props.environmentId) {
@@ -371,14 +371,6 @@ export function ProjectFileTree(props: {
     model.setGitStatus(gitStatusEntries);
   }, [gitStatusEntries, model]);
 
-  useEffect(() => {
-    if (props.searchOpen) {
-      model.openSearch();
-      return;
-    }
-    model.closeSearch();
-  }, [model, props.searchOpen]);
-
   return (
     <section
       className={cn(
@@ -386,30 +378,6 @@ export function ProjectFileTree(props: {
         props.className,
       )}
     >
-      <div className="multi-workbench-panel-title-row gap-2">
-        <span className="min-w-0 shrink-0 truncate text-body/[16px] font-medium text-multi-fg-primary">
-          {props.title ?? basename(props.cwd)}
-        </span>
-        <span className="min-w-0 flex-1" />
-        <span className="shrink-0 text-detail/[13px] text-multi-fg-quaternary tabular-nums">
-          {formatEntryCount(loadedEntryCount, false)}
-        </span>
-        <WorkbenchIconButton
-          aria-label="Refresh files"
-          chrome="panel"
-          onClick={() => {
-            loadedDirectoriesRef.current = new Set();
-            loadingDirectoriesRef.current = new Set();
-            setTreePaths([]);
-            setLoadError(null);
-            setLoadRevision((revision) => revision + 1);
-            void loadDirectory("");
-          }}
-        >
-          <IconArrowRotateClockwise className={cn("size-3.5", isLoading && "animate-spin")} />
-        </WorkbenchIconButton>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-hidden">
         {props.cwd && props.environmentId ? (
           <Tree
@@ -417,7 +385,7 @@ export function ProjectFileTree(props: {
             resolvedTheme={resolvedTheme}
             renderContextMenu={(item, context) => (
               <div
-                className="min-w-32 rounded-multi-control border border-multi-border/70 bg-multi-bubble-opaque p-1 font-multi text-body/[16px] text-foreground shadow-multi-popup"
+                className="min-w-32 rounded-multi-control border border-multi-border/70 bg-multi-bubble-opaque p-1 font-multi text-body text-foreground shadow-multi-popup"
                 data-file-tree-context-menu-root="true"
               >
                 <button
@@ -434,17 +402,17 @@ export function ProjectFileTree(props: {
             )}
           />
         ) : (
-          <div className="px-3 py-2 text-detail/[14px] text-muted-foreground/55">
+          <div className="px-3 py-2 text-detail text-muted-foreground/55">
             Add a project to browse files.
           </div>
         )}
 
         {loadError ? (
-          <div className="px-3 py-2 text-detail/[14px] text-destructive/80">
+          <div className="px-3 py-2 text-detail text-destructive/80">
             Unable to load files.
           </div>
         ) : null}
       </div>
     </section>
   );
-}
+});

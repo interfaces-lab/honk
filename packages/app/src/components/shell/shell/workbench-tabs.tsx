@@ -88,7 +88,7 @@ export function WorkbenchTabBar(props: {
               type="button"
               onClick={() => props.onTab(tab.id)}
               className={cn(
-                "ui-tab-system-tab my-1.5 flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-[5px] text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary",
+                "ui-tab-system-tab my-1.5 flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-multi-control text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary",
                 selected && "bg-multi-bg-tertiary text-multi-icon-primary",
               )}
               aria-current={selected ? "page" : undefined}
@@ -113,7 +113,7 @@ export function WorkbenchTabBar(props: {
         }}
       >
         <Menu.Trigger
-          className="glass-editor-panel-new-tab-menu-trigger ui-icon-button my-1.5 flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-[5px] text-multi-icon-secondary hover:bg-multi-bg-quaternary hover:text-multi-icon-primary data-[popup-open]:bg-multi-bg-tertiary data-[popup-open]:text-multi-icon-primary"
+          className="glass-editor-panel-new-tab-menu-trigger ui-icon-button my-1.5 flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-multi-control text-multi-icon-secondary hover:bg-multi-bg-quaternary hover:text-multi-icon-primary data-[popup-open]:bg-multi-bg-tertiary data-[popup-open]:text-multi-icon-primary"
           aria-expanded={open}
           aria-label="Open new tab menu"
           title="Open new tab menu"
@@ -145,7 +145,7 @@ export function WorkbenchTabBar(props: {
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={stopMenuSearchBubbling}
                   placeholder="Open any file, URL, ..."
-                  className="h-6 min-w-0 flex-1 bg-transparent text-body/[16px] text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
+                  className="h-6 min-w-0 flex-1 bg-transparent text-body text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
                 />
               </div>
               <div className="ui-menu__list flex flex-col gap-px p-1">
@@ -188,7 +188,7 @@ export function WorkbenchTabBar(props: {
         <button
           type="button"
           onClick={props.onToggle}
-          className="flex size-[22px] shrink-0 items-center justify-center rounded-[5px] text-multi-icon-secondary hover:bg-multi-bg-quaternary hover:text-multi-icon-primary"
+          className="flex size-[22px] shrink-0 items-center justify-center rounded-multi-control text-multi-icon-secondary hover:bg-multi-bg-quaternary hover:text-multi-icon-primary"
           aria-label="Hide Panel"
           title="Hide Panel"
         >

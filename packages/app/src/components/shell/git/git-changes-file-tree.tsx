@@ -45,7 +45,6 @@ export function GitChangesFileTree(props: {
   rows: readonly DiffRow[];
   selectedId: string | null;
   onSelect: (row: DiffRow) => void;
-  title?: string;
   className?: string;
 }) {
   const filePathSetRef = useRef<ReadonlySet<string>>(new Set());
@@ -89,10 +88,8 @@ export function GitChangesFileTree(props: {
 
   const { model } = useTreeModel({
     paths: [],
-    fileTreeSearchMode: "collapse-non-matches",
     initialExpansion: "open",
-    search: true,
-    searchBlurBehavior: "retain",
+    search: false,
     onSelectionChange: (selectedPaths) => {
       const path = selectedPaths[0] ?? null;
       if (!path || path === lastOpenedPathRef.current || !filePathSetRef.current.has(path)) {
@@ -157,16 +154,6 @@ export function GitChangesFileTree(props: {
         props.className,
       )}
     >
-      <div className="multi-workbench-panel-title-row gap-2">
-        <span className="min-w-0 shrink-0 truncate text-body/[16px] font-medium text-foreground/85">
-          {props.title ?? "Changed files"}
-        </span>
-        <span className="min-w-0 flex-1" />
-        <span className="tabular-nums shrink-0 text-muted-foreground/45 text-detail/[13px]">
-          {props.rows.length > 0 ? String(props.rows.length) : ""}
-        </span>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-hidden">
         <Tree model={model} resolvedTheme={resolvedTheme} />
       </div>

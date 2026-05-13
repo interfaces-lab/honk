@@ -59,7 +59,7 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
           type="button"
           data-human-message-collapse-toggle=""
           className={cn(
-            "mt-1 text-left text-detail/[14px] font-medium text-muted-foreground/80",
+            "mt-1 text-left text-detail font-medium text-muted-foreground/80",
             "hover:text-muted-foreground hover:underline",
           )}
           onClick={(event) => {

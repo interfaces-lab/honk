@@ -1,6 +1,5 @@
 "use client";
 
-import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -38,6 +37,8 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
   const stateRef = useRef<ColumnResizeState | null>(null);
   const liveWidthRef = useRef(width);
   const onCommitRef = useRef(onCommit);
+  const pendingWidthRef = useRef<number | null>(null);
+  const applyWidthFrameRef = useRef<number | null>(null);
 
   onCommitRef.current = onCommit;
 
@@ -45,21 +46,45 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
     liveWidthRef.current = width;
   }
 
-  useEffect(() => {
-    return () => {
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-    };
-  }, []);
-
-  const applyWidth = useThrottledCallback(
+  const applyWidth = useCallback(
     (nextWidth: number) => {
       if (elementRef.current) {
         elementRef.current.style.width = `${nextWidth}px`;
       }
     },
-    { wait: 16, leading: true, trailing: true },
+    [elementRef],
   );
+
+  const flushPendingWidth = useCallback(() => {
+    applyWidthFrameRef.current = null;
+    const nextWidth = pendingWidthRef.current;
+    pendingWidthRef.current = null;
+    if (nextWidth !== null) {
+      applyWidth(nextWidth);
+    }
+  }, [applyWidth]);
+
+  const scheduleWidthApply = useCallback(
+    (nextWidth: number) => {
+      pendingWidthRef.current = nextWidth;
+      if (applyWidthFrameRef.current !== null) {
+        return;
+      }
+      applyWidthFrameRef.current = window.requestAnimationFrame(flushPendingWidth);
+    },
+    [flushPendingWidth],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (applyWidthFrameRef.current !== null) {
+        window.cancelAnimationFrame(applyWidthFrameRef.current);
+        applyWidthFrameRef.current = null;
+      }
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    };
+  }, []);
 
   const stopResize = useCallback((pointerId: number) => {
     const drag = stateRef.current;
@@ -68,6 +93,12 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
     }
 
     const nextWidth = liveWidthRef.current;
+    if (applyWidthFrameRef.current !== null) {
+      window.cancelAnimationFrame(applyWidthFrameRef.current);
+      applyWidthFrameRef.current = null;
+    }
+    pendingWidthRef.current = null;
+    applyWidth(nextWidth);
     if (drag.sash.hasPointerCapture(pointerId)) {
       drag.sash.releasePointerCapture(pointerId);
     }
@@ -77,11 +108,14 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
     document.body.style.removeProperty("cursor");
     document.body.style.removeProperty("user-select");
     onCommitRef.current(nextWidth);
-  }, []);
+  }, [applyWidth]);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.button !== 0) {
+        return;
+      }
+      if (stateRef.current) {
         return;
       }
 
@@ -118,11 +152,11 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
         direction === "right" ? event.clientX - drag.startX : drag.startX - event.clientX;
       const nextWidth = clampColumnWidth(drag.base + delta, limits);
       liveWidthRef.current = nextWidth;
-      applyWidth(nextWidth);
+      scheduleWidthApply(nextWidth);
 
       event.preventDefault();
     },
-    [direction, limits, applyWidth],
+    [direction, limits, scheduleWidthApply],
   );
 
   const onPointerUp = useCallback(

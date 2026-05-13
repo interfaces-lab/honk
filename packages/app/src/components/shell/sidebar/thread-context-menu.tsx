@@ -16,11 +16,11 @@ const popupSurface = cn(
   "multi-slash-menu-popup",
   "origin-(--transform-origin)",
   "overflow-hidden rounded-multi-card border border-multi-stroke bg-multi-bubble shadow-multi-popup backdrop-blur-xl",
-  "w-[min(280px,calc(100vw-2rem))] text-body/[16px] select-none outline-hidden",
+  "w-[min(280px,calc(100vw-2rem))] text-body select-none outline-hidden",
 );
 
 const itemClass = cn(
-  "flex w-full cursor-pointer items-center gap-[6px] rounded-sm px-1 py-[3px] text-left text-foreground/82 outline-none transition-colors",
+  "flex w-full cursor-pointer items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors",
   "hover:bg-multi-hover/40 data-highlighted:bg-multi-active data-highlighted:text-foreground",
   "data-disabled:pointer-events-none data-disabled:opacity-45",
   "focus-visible:outline-none",

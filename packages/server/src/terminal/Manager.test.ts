@@ -893,7 +893,7 @@ it.layer(NodeServices.layer, { excludeTestServices: true })("TerminalManager", (
     }),
   );
 
-  it.effect("filters app runtime env variables from terminal sessions", () =>
+  it.effect("filters app runtime and inherited terminal identity env variables", () =>
     Effect.gen(function* () {
       const originalValues = new Map<string, string | undefined>();
       const setEnv = (key: string, value: string | undefined) => {
@@ -919,6 +919,13 @@ it.layer(NodeServices.layer, { excludeTestServices: true })("TerminalManager", (
       setEnv("PORT", "5173");
       setEnv("MULTI_PORT", "3773");
       setEnv("VITE_DEV_SERVER_URL", "http://localhost:5173");
+      // These are deliberately poisoned to guard the native-terminal contract:
+      // the terminal manager must not leak or recreate a parent xterm identity.
+      setEnv("TERM", "xterm-256color");
+      setEnv("COLORTERM", "truecolor");
+      // TERM_PROGRAM is different: it is the user's terminal-app hint, and
+      // prompt tools may intentionally branch on it. Preserve it when present.
+      setEnv("TERM_PROGRAM", "Apple_Terminal");
       setEnv("TEST_TERMINAL_KEEP", "keep-me");
 
       try {
@@ -932,9 +939,9 @@ it.layer(NodeServices.layer, { excludeTestServices: true })("TerminalManager", (
         expect(spawnInput.env.MULTI_PORT).toBeUndefined();
         expect(spawnInput.env.VITE_DEV_SERVER_URL).toBeUndefined();
         expect(spawnInput.env.TEST_TERMINAL_KEEP).toBe("keep-me");
-        expect(spawnInput.env.TERM).toBe("xterm-256color");
-        expect(spawnInput.env.COLORTERM).toBe("truecolor");
-        expect(spawnInput.env.TERM_PROGRAM).toBe("Multi");
+        expect(spawnInput.env.TERM).toBeUndefined();
+        expect(spawnInput.env.COLORTERM).toBeUndefined();
+        expect(spawnInput.env.TERM_PROGRAM).toBe("Apple_Terminal");
       } finally {
         restoreEnv();
       }

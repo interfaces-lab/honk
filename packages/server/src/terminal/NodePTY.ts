@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 
+import type { IPty } from "node-pty";
 import { Effect, FileSystem, Layer, Path } from "effect";
 import { PtyAdapter, PtyAdapterShape, PtyExitEvent, PtyProcess } from "./PTY.service";
 
@@ -46,7 +47,7 @@ export const ensureNodePtySpawnHelperExecutable = Effect.fn(function* (explicitP
 });
 
 class NodePtyProcess implements PtyProcess {
-  constructor(private readonly process: import("node-pty").IPty) {}
+  constructor(private readonly process: IPty) {}
 
   get pid(): number {
     return this.process.pid;
@@ -103,12 +104,15 @@ export const layer = Layer.effect(
     return {
       spawn: Effect.fn(function* (input) {
         yield* ensureNodePtySpawnHelperExecutableCached;
+        // Intentionally omit node-pty's `name` option. On Unix that option
+        // becomes TERM for the shell; forcing xterm-256color here regresses the
+        // native-terminal prompt path. TERM/COLORTERM belong in input.env only
+        // when the caller deliberately requested them.
         const ptyProcess = nodePty.spawn(input.shell, input.args ?? [], {
           cwd: input.cwd,
           cols: input.cols,
           rows: input.rows,
           env: input.env,
-          name: globalThis.process.platform === "win32" ? "xterm-color" : "xterm-256color",
         });
         return new NodePtyProcess(ptyProcess);
       }),

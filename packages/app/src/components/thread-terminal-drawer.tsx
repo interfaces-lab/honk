@@ -47,7 +47,10 @@ import {
 } from "../types";
 import { readEnvironmentApi } from "~/environment-api";
 import { readLocalApi } from "~/local-api";
-import { clampTerminalDimensions } from "~/lib/terminal-dimensions";
+import {
+  clampTerminalDimensions,
+  waitForTerminalLayoutFrame,
+} from "~/lib/terminal-dimensions";
 import {
   readTerminalHostFontFamily,
   readTerminalHostFontSize,
@@ -561,6 +564,9 @@ export function TerminalViewport({
       if (wasAtBottom) {
         activeTerminal.scrollToBottom();
       }
+      if (!terminalHydratedRef.current) {
+        return;
+      }
       const nextSize = clampTerminalDimensions({
         cols: activeTerminal.cols,
         rows: activeTerminal.rows,
@@ -579,7 +585,8 @@ export function TerminalViewport({
         .catch(() => undefined);
     };
     const scheduleFitAndResize = () => {
-      if (disposed || fitFrame !== null) return;
+      if (disposed) return;
+      if (fitFrame !== null) return;
       fitFrame = window.requestAnimationFrame(fitAndResize);
     };
     const resizeObserver = new ResizeObserver(scheduleFitAndResize);
@@ -698,6 +705,8 @@ export function TerminalViewport({
 
     const openTerminal = async () => {
       try {
+        await waitForTerminalLayoutFrame();
+        if (disposed) return;
         const activeTerminal = terminalRef.current;
         const activeFitAddon = fitAddonRef.current;
         if (!activeTerminal || !activeFitAddon) return;
@@ -732,6 +741,7 @@ export function TerminalViewport({
         }
         lastAppliedTerminalEventIdRef.current = bufferedEntries.at(-1)?.id ?? 0;
         terminalHydratedRef.current = true;
+        scheduleFitAndResize();
         if (autoFocus) {
           window.requestAnimationFrame(() => {
             activeTerminal.focus();
@@ -1240,8 +1250,8 @@ export default function ThreadTerminalDrawer({
           </div>
 
           {hasTerminalSidebar && (
-            <aside className="flex w-36 min-w-36 flex-col border border-multi-terminal-border bg-multi-terminal-sidebar-background">
-              <div className="flex h-[22px] items-stretch justify-end border-b border-multi-terminal-border-subtle bg-multi-terminal-toolbar-background">
+            <aside className="flex w-36 min-w-36 flex-col border border-multi-terminal-border bg-transparent">
+              <div className="flex h-[22px] items-stretch justify-end border-b border-multi-terminal-border-subtle bg-transparent">
                 <div className="inline-flex h-full items-stretch">
                   <TerminalActionButton
                     className={`inline-flex h-full items-center px-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground ${

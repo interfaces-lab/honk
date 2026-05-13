@@ -47,14 +47,14 @@ export function SettingsNavRail() {
               to={item.to}
               activeProps={{
                 className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-[5px] text-body/[16px] transition-colors",
+                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-1.5 text-body transition-colors",
                   "border-multi-border/90 bg-multi-active text-foreground",
                 ),
                 "aria-current": "page",
               }}
               inactiveProps={{
                 className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-[5px] text-body/[16px] transition-colors",
+                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-1.5 text-body transition-colors",
                   "text-muted-foreground hover:bg-multi-hover hover:text-foreground",
                 ),
               }}

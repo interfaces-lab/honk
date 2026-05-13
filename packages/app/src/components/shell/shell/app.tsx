@@ -131,15 +131,11 @@ function LeftAside(props: { children: ReactNode }) {
         <div
           aria-label="Resize thread sidebar"
           aria-orientation="vertical"
-          className={cn(
-            "multi-shell-sash-hit-area multi-shell-sash-hit-area--align-end pointer-events-auto",
-            resize.dragging ? "multi-shell-sash-hit-area--active" : null,
-          )}
+          className="pointer-events-auto absolute inset-y-0 right-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:right-0 after:w-(--multi-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--multi-shell-sash-hover-shade) focus-visible:after:bg-(--multi-shell-sash-hover-shade) data-[active=true]:after:bg-(--multi-shell-sash-hover-shade) motion-reduce:after:transition-none"
+          data-active={resize.dragging ? "true" : undefined}
           {...resize.sashProps}
           role="separator"
-        >
-          <div aria-hidden className="multi-shell-sash-hit-feedback" />
-        </div>
+        />
       ) : null}
     </aside>
   );
@@ -279,15 +275,11 @@ function RightAside(props: {
           <div
             aria-label="Resize project panel width"
             aria-orientation="vertical"
-            className={cn(
-              "multi-shell-sash-hit-area multi-shell-sash-hit-area--align-start pointer-events-auto",
-              resize.dragging ? "multi-shell-sash-hit-area--active" : null,
-            )}
+            className="pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--multi-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--multi-shell-sash-hover-shade) focus-visible:after:bg-(--multi-shell-sash-hover-shade) data-[active=true]:after:bg-(--multi-shell-sash-hover-shade) motion-reduce:after:transition-none"
+            data-active={resize.dragging ? "true" : undefined}
             {...resize.sashProps}
             role="separator"
-          >
-            <div aria-hidden className="multi-shell-sash-hit-feedback" />
-          </div>
+          />
         </>
       ) : null}
     </aside>
