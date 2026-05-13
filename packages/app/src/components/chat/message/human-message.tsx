@@ -85,7 +85,7 @@ export const HumanMessage = memo(function HumanMessage({
                 />
               </button>
             ) : (
-              <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-[11px]/[14px] text-multi-fg-tertiary">
+              <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail/[14px] text-multi-fg-tertiary">
                 {image.name}
               </div>
             )}

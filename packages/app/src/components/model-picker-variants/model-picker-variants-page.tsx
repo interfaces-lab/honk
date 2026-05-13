@@ -316,7 +316,7 @@ function TriggerButton({
       size="sm"
       variant="ghost"
       onClick={onClick}
-      className="h-7 gap-1.5 rounded-full border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 text-[12px]/[16px] text-multi-fg-secondary"
+      className="h-7 gap-1.5 rounded-full border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 text-body/[16px] text-multi-fg-secondary"
     >
       {entry ? (
         <ProviderInstanceIcon
@@ -396,7 +396,7 @@ function MenuComboboxRailModelPicker() {
       >
         <div className="flex max-h-[min(17rem,var(--available-height))]">
           {/* Provider rail */}
-          <div className="flex w-12 shrink-0 flex-col border-r border-multi-stroke-tertiary bg-[color-mix(in_srgb,var(--multi-bg-secondary)_72%,transparent)]">
+          <div className="flex w-12 shrink-0 flex-col border-r border-multi-stroke-tertiary bg-multi-bg-secondary-wash">
             <ScrollArea
               hideScrollbars
               scrollFade
@@ -453,7 +453,7 @@ function MenuComboboxRailModelPicker() {
                 <div className="shrink-0 border-b border-multi-stroke-tertiary px-1.5 py-1.5">
                   <ComboboxInput
                     className="[&_input]:font-sans"
-                    inputClassName="h-7 rounded-[6px] border-0 bg-multi-editor px-2 text-[12px]/[16px] shadow-none ring-0 placeholder:text-multi-fg-tertiary focus-visible:ring-0"
+                    inputClassName="h-7 rounded-[6px] border-0 bg-multi-editor px-2 text-body/[16px] shadow-none ring-0 placeholder:text-multi-fg-tertiary focus-visible:ring-0"
                     placeholder="Search models..."
                     showTrigger={false}
                     startAddon={
@@ -505,7 +505,7 @@ function MenuComboboxRailModelPicker() {
                           value={modelKey}
                           hideIndicator
                           className={cn(
-                            "group cursor-pointer rounded-[5px] px-1.5 py-1 text-[12px]/[16px] transition-colors",
+                            "group cursor-pointer rounded-[5px] px-1.5 py-1 text-body/[16px] transition-colors",
                             isSelected
                               ? "bg-multi-bg-active text-multi-fg-primary"
                               : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-highlighted:bg-multi-bg-quaternary data-highlighted:text-multi-fg-primary",
@@ -519,7 +519,7 @@ function MenuComboboxRailModelPicker() {
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-center justify-between gap-1.5">
-                              <span className="truncate text-[12px]/[16px] font-medium">
+                              <span className="truncate text-body/[16px] font-medium">
                                 {getDisplayModelName(model, { preferShortName: true })}
                               </span>
                               <button
@@ -544,7 +544,7 @@ function MenuComboboxRailModelPicker() {
                             </div>
                             <div className="mt-0.5 flex items-center gap-1">
                               {ProviderIcon ? <ProviderIcon className="size-3 shrink-0" /> : null}
-                              <span className="truncate text-[11px]/[14px] text-multi-fg-tertiary">
+                              <span className="truncate text-detail/[14px] text-multi-fg-tertiary">
                                 {providerLabel}
                               </span>
                             </div>
@@ -647,7 +647,7 @@ function ComboboxGroupedModelPicker() {
             <div className="shrink-0 border-b border-multi-stroke-tertiary px-1.5 py-1.5">
               <ComboboxInput
                 className="[&_input]:font-sans"
-                inputClassName="h-7 rounded-[6px] border-0 bg-multi-editor px-2 text-[12px]/[16px] shadow-none ring-0 placeholder:text-multi-fg-tertiary focus-visible:ring-0"
+                inputClassName="h-7 rounded-[6px] border-0 bg-multi-editor px-2 text-body/[16px] shadow-none ring-0 placeholder:text-multi-fg-tertiary focus-visible:ring-0"
                 placeholder="Search all models..."
                 showTrigger={false}
                 startAddon={
@@ -677,7 +677,7 @@ function ComboboxGroupedModelPicker() {
               <ComboboxList className="px-1 pb-1">
                 {filtered.map((group) => (
                   <ComboboxGroup key={group.entry.instanceId}>
-                    <ComboboxGroupLabel className="px-1.5 py-1 text-[11px]/[14px] font-medium text-multi-fg-tertiary">
+                    <ComboboxGroupLabel className="px-1.5 py-1 text-detail/[14px] font-medium text-multi-fg-tertiary">
                       <span className="flex items-center gap-1.5">
                         <ProviderInstanceIcon
                           driverKind={group.entry.driverKind}
@@ -704,7 +704,7 @@ function ComboboxGroupedModelPicker() {
                           value={modelKey}
                           hideIndicator
                           className={cn(
-                            "group cursor-pointer rounded-[5px] px-1.5 py-1 text-[12px]/[16px] transition-colors",
+                            "group cursor-pointer rounded-[5px] px-1.5 py-1 text-body/[16px] transition-colors",
                             isSelected
                               ? "bg-multi-bg-active text-multi-fg-primary"
                               : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-highlighted:bg-multi-bg-quaternary data-highlighted:text-multi-fg-primary",
@@ -718,7 +718,7 @@ function ComboboxGroupedModelPicker() {
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-center justify-between gap-1.5">
-                              <span className="truncate text-[12px]/[16px] font-medium">
+                              <span className="truncate text-body/[16px] font-medium">
                                 {getDisplayModelName(model, { preferShortName: true })}
                               </span>
                               <button
@@ -743,7 +743,7 @@ function ComboboxGroupedModelPicker() {
                             </div>
                             <div className="mt-0.5 flex items-center gap-1">
                               {ProviderIcon ? <ProviderIcon className="size-3 shrink-0" /> : null}
-                              <span className="truncate text-[11px]/[14px] text-multi-fg-tertiary">
+                              <span className="truncate text-detail/[14px] text-multi-fg-tertiary">
                                 {providerLabel}
                               </span>
                             </div>
@@ -820,13 +820,13 @@ function MenuFlatSearchableModelPicker() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search all models..."
-                className="min-w-0 flex-1 bg-transparent text-[12px]/[16px] text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
+                className="min-w-0 flex-1 bg-transparent text-body/[16px] text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
               />
               {query && (
                 <button
                   type="button"
                   onClick={() => setQuery("")}
-                  className="shrink-0 rounded p-0.5 text-[10px] text-multi-fg-quaternary hover:text-multi-fg-secondary"
+                  className="shrink-0 rounded p-0.5 text-caption text-multi-fg-quaternary hover:text-multi-fg-secondary"
                 >
                   Clear
                 </button>
@@ -852,7 +852,7 @@ function MenuFlatSearchableModelPicker() {
                       setQuery("");
                     }}
                     className={cn(
-                      "flex items-start gap-1.5 rounded-[5px] px-1.5 py-1 text-[12px]/[16px]",
+                      "flex items-start gap-1.5 rounded-[5px] px-1.5 py-1 text-body/[16px]",
                       isSelected
                         ? "bg-multi-bg-active text-multi-fg-primary"
                         : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-highlighted:bg-multi-bg-quaternary data-highlighted:text-multi-fg-primary",
@@ -865,7 +865,7 @@ function MenuFlatSearchableModelPicker() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center justify-between gap-1.5">
-                        <span className="truncate text-[12px]/[16px] font-medium">
+                        <span className="truncate text-body/[16px] font-medium">
                           {getDisplayModelName(model, { preferShortName: true })}
                         </span>
                         <button
@@ -890,7 +890,7 @@ function MenuFlatSearchableModelPicker() {
                       </div>
                       <div className="mt-0.5 flex items-center gap-1">
                         {ProviderIcon ? <ProviderIcon className="size-3 shrink-0" /> : null}
-                        <span className="truncate text-[11px]/[14px] text-multi-fg-tertiary">
+                        <span className="truncate text-detail/[14px] text-multi-fg-tertiary">
                           {providerLabel}
                         </span>
                       </div>
@@ -899,7 +899,7 @@ function MenuFlatSearchableModelPicker() {
                 );
               })}
               {filtered.length === 0 && (
-                <div className="px-3 py-2 text-[12px]/[16px] text-multi-fg-tertiary">
+                <div className="px-3 py-2 text-body/[16px] text-multi-fg-tertiary">
                   No models match
                 </div>
               )}
@@ -1009,7 +1009,7 @@ function CursorStyleModelPicker() {
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1.5 rounded-full border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 text-[12px]/[16px] text-multi-fg-secondary"
+            className="h-7 gap-1.5 rounded-full border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 text-body/[16px] text-multi-fg-secondary"
           >
             <span className="min-w-0 truncate">
               {state.selectedModel
@@ -1031,7 +1031,7 @@ function CursorStyleModelPicker() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search models"
-                className="min-w-0 flex-1 bg-transparent text-[12px]/[16px] text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
+                className="min-w-0 flex-1 bg-transparent text-body/[16px] text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
               />
               {query && (
                 <button
@@ -1048,12 +1048,12 @@ function CursorStyleModelPicker() {
           <ScrollArea className="max-h-[min(16rem,calc(var(--available-height)-3rem))]">
             <div className="flex flex-col">
               {/* Auto toggle */}
-              <div className="flex items-center justify-between px-2 py-1.5 text-[12px]/[16px]">
+              <div className="flex items-center justify-between px-2 py-1.5 text-body/[16px]">
                 <span className="text-multi-fg-primary">Auto</span>
                 <ToggleSwitch checked={autoMode} onChange={setAutoMode} />
               </div>
               {/* MAX Mode toggle */}
-              <div className="flex items-center justify-between px-2 py-1.5 text-[12px]/[16px]">
+              <div className="flex items-center justify-between px-2 py-1.5 text-body/[16px]">
                 <span className="text-multi-fg-primary">MAX Mode</span>
                 <ToggleSwitch checked={maxMode} onChange={setMaxMode} />
               </div>
@@ -1069,7 +1069,7 @@ function CursorStyleModelPicker() {
                     <div
                       key={model.key}
                       className={cn(
-                        "group flex items-center justify-between rounded-[4px] px-1.5 py-[3px] text-[12px]/[16px] transition-colors",
+                        "group flex items-center justify-between rounded-[4px] px-1.5 py-[3px] text-body/[16px] transition-colors",
                         isSelected
                           ? "bg-multi-bg-tertiary text-multi-fg-primary"
                           : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
@@ -1088,7 +1088,7 @@ function CursorStyleModelPicker() {
                           {getDisplayModelName(model, { preferShortName: true })}
                         </span>
                         {cap && (
-                          <span className="shrink-0 text-[10px]/[12px] text-multi-fg-tertiary">
+                          <span className="shrink-0 text-caption/[12px] text-multi-fg-tertiary">
                             {cap}
                           </span>
                         )}
@@ -1120,7 +1120,7 @@ function CursorStyleModelPicker() {
                           sideOffset={4}
                           className="w-40 overflow-hidden rounded-[6px] border border-multi-stroke-tertiary bg-multi-bg-elevated py-1 shadow-multi-popup"
                         >
-                          <div className="px-2 pb-1 text-[10px]/[12px] font-medium uppercase tracking-wider text-multi-fg-quaternary">
+                          <div className="px-2 pb-1 text-caption/[12px] font-medium uppercase tracking-wider text-multi-fg-quaternary">
                             Reasoning
                           </div>
                           {(["low", "medium", "high", "xhigh"] as const).map((level) => (
@@ -1128,7 +1128,7 @@ function CursorStyleModelPicker() {
                               key={level}
                               type="button"
                               className={cn(
-                                "flex w-full items-center justify-between px-2 py-[3px] text-left text-[12px]/[16px] transition-colors",
+                                "flex w-full items-center justify-between px-2 py-[3px] text-left text-body/[16px] transition-colors",
                                 (modelReasoning[model.key] ?? "medium") === level
                                   ? "text-multi-fg-primary"
                                   : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
@@ -1147,11 +1147,11 @@ function CursorStyleModelPicker() {
                             </button>
                           ))}
                           <div className="mx-2 my-1 h-px bg-multi-stroke-tertiary" />
-                          <div className="px-2 pb-1 text-[10px]/[12px] font-medium uppercase tracking-wider text-multi-fg-quaternary">
+                          <div className="px-2 pb-1 text-caption/[12px] font-medium uppercase tracking-wider text-multi-fg-quaternary">
                             Options
                           </div>
                           <div className="flex items-center justify-between px-2 py-[3px]">
-                            <span className="text-[12px]/[16px] text-multi-fg-secondary">Fast</span>
+                            <span className="text-body/[16px] text-multi-fg-secondary">Fast</span>
                             <ToggleSwitch
                               checked={modelFast[model.key] ?? false}
                               onChange={(v) =>
@@ -1165,7 +1165,7 @@ function CursorStyleModelPicker() {
                   );
                 })}
                 {filtered.length === 0 && (
-                  <div className="px-3 py-2 text-[12px]/[16px] text-multi-fg-tertiary">
+                  <div className="px-3 py-2 text-body/[16px] text-multi-fg-tertiary">
                     No models match
                   </div>
                 )}
@@ -1176,7 +1176,7 @@ function CursorStyleModelPicker() {
               {/* Add Models */}
               <button
                 type="button"
-                className="mx-1 my-1 flex items-center gap-1.5 rounded-[4px] px-2 py-[3px] text-left text-[12px]/[16px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+                className="mx-1 my-1 flex items-center gap-1.5 rounded-[4px] px-2 py-[3px] text-left text-body/[16px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
               >
                 <span className="text-multi-fg-tertiary">+</span>
                 Add Models
@@ -1207,7 +1207,7 @@ export function ModelPickerVariantsPage() {
           </p>
         </div>
 
-        <div className="mb-6 text-[11px]/[14px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="mb-6 text-detail/[14px] font-semibold uppercase tracking-wider text-muted-foreground">
           Menu + Combobox Family
         </div>
 
@@ -1265,7 +1265,7 @@ function VariantCard({
   return (
     <section className="rounded-xl border border-border/70 bg-card/80 p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-3">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-multi-bg-tertiary text-[11px] font-semibold text-multi-fg-secondary">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-multi-bg-tertiary text-detail font-semibold text-multi-fg-secondary">
           {number}
         </span>
         <div>

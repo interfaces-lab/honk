@@ -20,7 +20,7 @@ export function TerminalRail(props: {
             <div
               key={session.id}
               className={cn(
-                "group flex min-h-6 items-center gap-1.5 rounded-multi-control px-1.5 py-1 text-[12px]/[16px] transition-colors",
+                "group flex min-h-6 items-center gap-1.5 rounded-multi-control px-1.5 py-1 text-body/[16px] transition-colors",
                 active
                   ? "bg-multi-bg-tertiary text-foreground"
                   : "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",

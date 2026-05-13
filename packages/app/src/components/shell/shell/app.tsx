@@ -267,7 +267,7 @@ function RightAside(props: {
           <TabsRoot
             value={activeTab}
             onValueChange={handleWorkbenchTabChange}
-            className="editor-panel-inner relative z-10 flex h-full min-h-0 w-full flex-col border-l border-[color-mix(in_srgb,var(--multi-workbench-panel-border)_94%,transparent)] bg-(--glass-editor-surface-background) opacity-100"
+            className="editor-panel-inner relative z-10 flex h-full min-h-0 w-full flex-col border-l border-multi-workbench-panel-border-faint bg-(--glass-editor-surface-background) opacity-100"
           >
             <RightAsideHeader
               cwd={props.cwd}

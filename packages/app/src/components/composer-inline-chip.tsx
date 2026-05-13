@@ -15,7 +15,7 @@ export function ComposerInlineChip(props: ComposerInlineChipProps) {
     <span
       {...spanProps}
       className={cn(
-        "inline-flex max-w-full select-none items-center gap-1 rounded-sm border px-1.5 py-px font-multi text-[12px]/[16px] font-medium align-middle",
+        "inline-flex max-w-full select-none items-center gap-1 rounded-sm border px-1.5 py-px font-multi text-body/[16px] font-medium align-middle",
         tone === "object"
           ? "border-(color:--multi-composer-object-border) bg-(color:--multi-composer-object-bg) text-(color:--multi-composer-object-fg)"
           : tone === "danger"
@@ -34,5 +34,5 @@ export function ComposerInlineChipIcon(props: ComponentPropsWithoutRef<"span">) 
 }
 
 export function ComposerInlineChipLabel(props: { children: ReactNode }) {
-  return <span className="truncate select-none text-[12px]/[16px]">{props.children}</span>;
+  return <span className="truncate select-none text-body/[16px]">{props.children}</span>;
 }

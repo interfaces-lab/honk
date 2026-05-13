@@ -215,9 +215,9 @@ type InlineEditSubmitInput = {
 type HeroActionTone = "accent" | "blue" | "green";
 
 const HERO_ICON_TONE_CLASS: Record<HeroActionTone, string> = {
-  accent: "text-[var(--primary)]",
-  blue: "text-[var(--multi-action)]",
-  green: "text-[var(--success)]",
+  accent: "text-primary",
+  blue: "text-multi-action",
+  green: "text-success",
 };
 
 interface HeroComposerActionCardProps {
@@ -915,7 +915,7 @@ const InlineMessageEditComposer = memo(function InlineMessageEditComposer({
       <div className="mt-2 flex justify-end">
         <button
           type="button"
-          className="rounded-multi-control px-2 py-1 text-[12px]/[16px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+          className="rounded-multi-control px-2 py-1 text-body/[16px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
           onClick={handleCancel}
         >
           Cancel

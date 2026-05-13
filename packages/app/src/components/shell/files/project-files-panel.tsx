@@ -91,7 +91,7 @@ function EmptyFilePreview(props: { onOpenFile: () => void }) {
       <button
         type="button"
         onClick={props.onOpenFile}
-        className="flex h-7 items-center gap-1.5 rounded-[5px] border border-multi-stroke-tertiary bg-multi-bg-quinary px-2.5 text-[12px]/[16px] font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
+        className="flex h-7 items-center gap-1.5 rounded-[5px] border border-multi-stroke-tertiary bg-multi-bg-quinary px-2.5 text-body/[16px] font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
       >
         <IconFiles className="size-3.5" />
         Open File
@@ -159,10 +159,10 @@ function SourcePreview(props: {
   if (fileQuery.isError || !fileQuery.data) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-4 py-8 text-center">
-        <div className="text-[12px]/[16px] font-medium text-destructive/85">
+        <div className="text-body/[16px] font-medium text-destructive/85">
           Unable to preview file
         </div>
-        <div className="max-w-72 text-[11px]/[14px] text-muted-foreground/55">
+        <div className="max-w-72 text-detail/[14px] text-muted-foreground/55">
           {fileQuery.error instanceof Error
             ? fileQuery.error.message
             : "The file could not be read."}
@@ -174,12 +174,12 @@ function SourcePreview(props: {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {fileQuery.data.truncated ? (
-        <div className="shrink-0 border-b border-multi-border/30 px-3 py-1.5 text-[11px]/[14px] text-muted-foreground/60">
+        <div className="shrink-0 border-b border-multi-border/30 px-3 py-1.5 text-detail/[14px] text-muted-foreground/60">
           Showing the first 1 MB of this file.
         </div>
       ) : null}
       {fileContents ? (
-        <div className="project-file-preview min-h-0 flex-1 overflow-hidden bg-background text-[12px]/[18px] text-foreground">
+        <div className="project-file-preview min-h-0 flex-1 overflow-hidden bg-background text-body/[18px] text-foreground">
           <File
             key={`${fileQuery.data.relativePath}:${props.wordWrap ? "wrap" : "scroll"}:${resolvedTheme}`}
             file={fileContents}

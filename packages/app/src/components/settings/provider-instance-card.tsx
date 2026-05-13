@@ -566,7 +566,7 @@ export function ProviderInstanceCard({
                 // label. Custom instances (and any instance the user has
                 // since renamed) keep the chip so their slug stays
                 // visible for copy/paste + disambiguation.
-                <code className="truncate rounded bg-muted/60 px-1 py-0.5 text-[10px] text-muted-foreground">
+                <code className="truncate rounded bg-muted/60 px-1 py-0.5 text-caption text-muted-foreground">
                   {instanceId}
                 </code>
               ) : null}

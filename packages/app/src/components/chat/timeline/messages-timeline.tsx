@@ -60,12 +60,6 @@ export interface TimelineRowSharedState {
 
 export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
 
-const CHAT_TIMELINE_CONTENT_STYLE = {
-  boxSizing: "border-box",
-  margin: "0 auto",
-  maxWidth: "var(--composer-max-width, 840px)",
-  width: "100%",
-} satisfies CSSProperties;
 const DEFAULT_VIRTUALIZER_RECT = { width: 0, height: 720 };
 const VIRTUAL_ROW_GAP_PX = 12;
 const VIRTUALIZER_OVERSCAN = 8;
@@ -426,7 +420,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     rowVirtualizer.range?.startIndex ?? virtualItems[0]?.index ?? 0,
   );
   const virtualContentStyle = {
-    ...CHAT_TIMELINE_CONTENT_STYLE,
     height: rowVirtualizer.getTotalSize(),
     position: "relative",
   } satisfies CSSProperties;
@@ -451,7 +444,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           onWheel={clearProgrammaticScrollTracking}
           className="agent-panel-meta-agent-chat h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
         >
-          <div style={virtualContentStyle}>
+          <div className="mx-auto box-border w-full max-w-composer" style={virtualContentStyle}>
             {virtualItems.map((virtualRow) => {
               const row = rows[virtualRow.index];
               if (!row) {
@@ -648,7 +641,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   return (
     <div className="min-w-0 max-w-full flex-1">
       <div className="w-full min-w-0">
-        <div className="flex w-fit max-w-[min(100%,var(--composer-max-width))] flex-col gap-1.5">
+        <div className="flex w-fit max-w-composer flex-col gap-1.5">
           {groupedEntries.map((workEntry) => (
             <ToolCallMessage
               key={`work-row:${workEntry.id}`}

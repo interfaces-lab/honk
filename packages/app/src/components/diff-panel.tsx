@@ -475,7 +475,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               }
               onClick={() => onTurnTabClick(ALL_TURNS_TAB_VALUE)}
             >
-              <div className="text-[10px] leading-tight font-medium">All turns</div>
+              <div className="text-caption/[1.25] font-medium">All turns</div>
             </TabsTab>
             {orderedTurnDiffSummaries.map((summary) => {
               const tabValue = String(summary.turnId);
@@ -495,7 +495,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                   title={summary.turnId}
                 >
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] leading-tight font-medium">
+                    <span className="text-caption/[1.25] font-medium">
                       Turn{" "}
                       {summary.checkpointTurnCount ??
                         inferredCheckpointTurnCountByTurnId[summary.turnId] ??
@@ -629,10 +629,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             ) : (
               <div className="h-full overflow-auto p-2">
                 <div className="space-y-2">
-                  <p className="text-[11px] text-muted-foreground/75">{renderablePatch.reason}</p>
+                  <p className="text-detail text-muted-foreground/75">{renderablePatch.reason}</p>
                   <pre
                     className={cn(
-                      "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90",
+                      "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-detail/[1.625] text-muted-foreground/90",
                       diffWordWrap
                         ? "overflow-auto whitespace-pre-wrap wrap-break-word"
                         : "overflow-auto",

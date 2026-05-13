@@ -1112,7 +1112,7 @@ export const ComposerPromptEditor = forwardRef<
   }, [skills]);
 
   const editorClassName = cn(
-    "composer-prompt-editor-input ui-prompt-input-editor__input block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent p-(--prompt-input-editor-padding) text-[13px]/[1.5] text-foreground outline-hidden min-h-(--prompt-input-editor-min-height) max-h-(--prompt-input-editor-max-height)",
+    "composer-prompt-editor-input ui-prompt-input-editor__input block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent p-(--prompt-input-editor-padding) text-conversation/[1.5] text-foreground outline-hidden min-h-(--prompt-input-editor-min-height) max-h-(--prompt-input-editor-max-height)",
     className,
   );
 

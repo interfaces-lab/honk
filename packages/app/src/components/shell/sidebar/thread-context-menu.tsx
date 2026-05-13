@@ -16,7 +16,7 @@ const popupSurface = cn(
   "multi-slash-menu-popup",
   "origin-(--transform-origin)",
   "overflow-hidden rounded-multi-card border border-multi-stroke bg-multi-bubble shadow-multi-popup backdrop-blur-xl",
-  "w-[min(280px,calc(100vw-2rem))] text-[12px]/[16px] select-none outline-hidden",
+  "w-[min(280px,calc(100vw-2rem))] text-body/[16px] select-none outline-hidden",
 );
 
 const itemClass = cn(

@@ -474,7 +474,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       />
       <TooltipPopup
         side="top"
-        className="max-w-[min(40rem,calc(100vw-2rem))] font-mono text-[11px]/4"
+        className="max-w-[min(40rem,calc(100vw-2rem))] font-mono text-detail/[16px]"
       >
         <div className="markdown-file-link-tooltip-scroll overflow-x-auto whitespace-nowrap">
           {displayPath}
@@ -608,7 +608,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
     <div
       className={cn(
         "chat-markdown w-full min-w-0 whitespace-normal",
-        "text-[length:var(--conversation-text-font-size,var(--conversation-font-size,13px))]/[1.5]",
+        "text-conversation/[1.5]",
         "text-multi-fg-primary",
       )}
     >

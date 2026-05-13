@@ -387,11 +387,11 @@ export function ProjectFileTree(props: {
       )}
     >
       <div className="multi-workbench-panel-title-row gap-2">
-        <span className="min-w-0 shrink-0 truncate text-[12px]/[16px] font-medium text-multi-fg-primary">
+        <span className="min-w-0 shrink-0 truncate text-body/[16px] font-medium text-multi-fg-primary">
           {props.title ?? basename(props.cwd)}
         </span>
         <span className="min-w-0 flex-1" />
-        <span className="shrink-0 text-[11px]/[13px] text-multi-fg-quaternary tabular-nums">
+        <span className="shrink-0 text-detail/[13px] text-multi-fg-quaternary tabular-nums">
           {formatEntryCount(loadedEntryCount, false)}
         </span>
         <WorkbenchIconButton
@@ -417,7 +417,7 @@ export function ProjectFileTree(props: {
             resolvedTheme={resolvedTheme}
             renderContextMenu={(item, context) => (
               <div
-                className="min-w-32 rounded-multi-control border border-multi-border/70 bg-multi-bubble-opaque p-1 font-multi text-[12px]/[16px] text-foreground shadow-multi-popup"
+                className="min-w-32 rounded-multi-control border border-multi-border/70 bg-multi-bubble-opaque p-1 font-multi text-body/[16px] text-foreground shadow-multi-popup"
                 data-file-tree-context-menu-root="true"
               >
                 <button
@@ -434,13 +434,13 @@ export function ProjectFileTree(props: {
             )}
           />
         ) : (
-          <div className="px-3 py-2 text-[11px]/[14px] text-muted-foreground/55">
+          <div className="px-3 py-2 text-detail/[14px] text-muted-foreground/55">
             Add a project to browse files.
           </div>
         )}
 
         {loadError ? (
-          <div className="px-3 py-2 text-[11px]/[14px] text-destructive/80">
+          <div className="px-3 py-2 text-detail/[14px] text-destructive/80">
             Unable to load files.
           </div>
         ) : null}

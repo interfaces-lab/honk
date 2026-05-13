@@ -335,7 +335,7 @@ export function TerminalPanel(props: {
   }
 
   return (
-    <div className="editor-panel-inner flex min-h-0 flex-1 flex-col overflow-hidden text-(--multi-workbench-terminal-foreground)">
+    <div className="editor-panel-inner flex min-h-0 flex-1 flex-col overflow-hidden text-multi-workbench-terminal-foreground">
       {bootErr ? (
         <p className="shrink-0 px-2 py-1 text-detail text-destructive">{bootErr}</p>
       ) : null}

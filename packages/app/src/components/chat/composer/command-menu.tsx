@@ -162,7 +162,7 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
       <div
         ref={listRef}
         className={cn(
-          "relative max-w-full min-w-[min(var(--composer-menu-width),calc(100vw-32px))] overflow-hidden rounded-[8px] border border-multi-stroke-secondary bg-[color-mix(in_srgb,var(--glass-chat-bubble-opaque-background)_96%,transparent)] font-multi text-[12px]/[16px] text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px] motion-reduce:animate-none motion-reduce:transition-none",
+          "relative max-w-full min-w-[min(var(--composer-menu-width),calc(100vw-32px))] overflow-hidden rounded-[8px] border border-multi-stroke-secondary bg-[color-mix(in_srgb,var(--glass-chat-bubble-opaque-background)_96%,transparent)] font-multi text-body/[16px] text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px] motion-reduce:animate-none motion-reduce:transition-none",
           props.menuKind === "slash" && "max-w-[320px]",
           "ui-slash-menu__content ui-slash-menu__content--glass",
           props.menuKind === "slash" ? "ui-slash-menu" : "mentions-menu mentions-menu__content",
@@ -177,7 +177,7 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
               {groupIndex > 0 ? <CommandSeparator className="my-px" /> : null}
               <CommandGroup>
                 {group.label ? (
-                  <CommandGroupLabel className="ui-menu__section-title px-1.5 py-0.5 text-[11px]/[15px] font-medium text-multi-fg-tertiary opacity-60">
+                  <CommandGroupLabel className="ui-menu__section-title px-1.5 py-0.5 text-detail/[15px] font-medium text-multi-fg-tertiary opacity-60">
                     {group.label}
                   </CommandGroupLabel>
                 ) : null}
@@ -199,10 +199,10 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
           <div className="ui-menu__empty px-[10px] py-2">
             {props.triggerKind === "skill" ? (
               <CommandGroup>
-                <CommandGroupLabel className="ui-menu__section-title px-0! pt-0! pb-[3px] text-[10px]/[14px] font-semibold tracking-[0.08em] text-multi-fg-tertiary uppercase">
+                <CommandGroupLabel className="ui-menu__section-title px-0! pt-0! pb-[3px] text-caption/[14px] font-semibold tracking-[0.08em] text-multi-fg-tertiary uppercase">
                   Skills
                 </CommandGroupLabel>
-                <p className="text-[12px]/[18px] text-multi-fg-tertiary">
+                <p className="text-body/[18px] text-multi-fg-tertiary">
                   {props.isLoading
                     ? "Searching project skills..."
                     : (props.emptyStateText ??
@@ -210,7 +210,7 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
                 </p>
               </CommandGroup>
             ) : (
-              <p className="text-[12px]/[18px] text-multi-fg-tertiary">
+              <p className="text-body/[18px] text-multi-fg-tertiary">
                 {props.isLoading
                   ? "Searching project files..."
                   : (props.emptyStateText ??
@@ -250,7 +250,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
       data-composer-item-id={props.item.id}
       data-is-selected={props.isActive ? "" : undefined}
       data-menu-item-type={props.item.type}
-      className="ui-slash-menu__item ui-menu__item flex min-h-[22px] cursor-pointer items-center gap-1.5 rounded-[6px] px-1.5 py-[3px] text-[12px]/[16px] text-multi-fg-primary select-none hover:bg-multi-bg-quaternary data-highlighted:bg-multi-bg-quaternary data-[is-selected]:bg-multi-bg-quaternary"
+      className="ui-slash-menu__item ui-menu__item flex min-h-[22px] cursor-pointer items-center gap-1.5 rounded-[6px] px-1.5 py-[3px] text-body/[16px] text-multi-fg-primary select-none hover:bg-multi-bg-quaternary data-highlighted:bg-multi-bg-quaternary data-[is-selected]:bg-multi-bg-quaternary"
       onMouseMove={() => {
         if (!props.isActive) props.onHighlight(props.item.id);
       }}
@@ -282,15 +282,15 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
         </span>
       ) : null}
       <span className="ui-slash-menu__item-title-wrap flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="ui-slash-menu__item-title min-w-0 flex-none truncate text-[12px]/[16px] font-medium text-multi-fg-primary">
+        <span className="ui-slash-menu__item-title min-w-0 flex-none truncate text-body/[16px] font-medium text-multi-fg-primary">
           {props.item.label}
         </span>
-        <span className="ui-menu__item-description ui-slash-menu__item-inline-description min-w-0 flex-1 truncate text-[11px]/[16px] text-multi-fg-tertiary">
+        <span className="ui-menu__item-description ui-slash-menu__item-inline-description min-w-0 flex-1 truncate text-detail/[16px] text-multi-fg-tertiary">
           {props.item.description}
         </span>
       </span>
       {tertiaryText ? (
-        <span className="ui-slash-menu__item-tertiary-text flex-none whitespace-nowrap rounded-full border border-multi-stroke-secondary bg-multi-bg-tertiary/70 px-1.5 py-0 text-[10px]/[14px] text-multi-fg-tertiary">
+        <span className="ui-slash-menu__item-tertiary-text flex-none whitespace-nowrap rounded-full border border-multi-stroke-secondary bg-multi-bg-tertiary/70 px-1.5 py-0 text-caption/[14px] text-multi-fg-tertiary">
           {tertiaryText}
         </span>
       ) : null}

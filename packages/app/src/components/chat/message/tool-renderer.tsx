@@ -90,7 +90,7 @@ export interface ToolCallRendererProps {
 const thinkingStatusTaskVariants = cva(
   cn(
     "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
-    "text-[13px]/[18px] text-multi-fg-tertiary",
+    "text-conversation/[1.5] text-multi-fg-tertiary",
   ),
   {
     variants: {
@@ -109,7 +109,7 @@ const toolCallLineVariants = cva(
   cn(
     "group/tool-call-line flex min-w-0 items-center gap-1 overflow-hidden",
     "border-0 bg-transparent text-left select-none",
-    "text-[length:var(--conversation-font-size,13px)]/[1.5]",
+    "text-conversation/[1.5]",
     "text-ellipsis whitespace-nowrap text-multi-fg-primary",
   ),
   {
@@ -441,7 +441,7 @@ function TaskToolCall({
     <span className="inline-flex min-w-0 items-baseline gap-1.5">
       <span
         className={cn(
-          "min-w-0 text-[12px]/4 font-medium text-multi-fg-secondary",
+          "min-w-0 text-body/[16px] font-medium text-multi-fg-secondary",
           loading && "tool-call-shimmer",
         )}
       >
@@ -452,7 +452,7 @@ function TaskToolCall({
           text={details}
           title={details}
           truncate="middle"
-          className="min-w-0 text-[12px]/4 text-multi-fg-tertiary"
+          className="min-w-0 text-body/[16px] text-multi-fg-tertiary"
         />
       ) : null}
     </span>
@@ -695,10 +695,10 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
       {isExpanded ? (
         <div
           className={cn(
-            "mt-1 max-w-[min(100%,var(--composer-max-width))]",
+            "mt-1 max-w-composer",
             "overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-multi-editor",
             "px-(--conversation-tool-card-padding-x) py-1.5",
-            "font-mono text-[12px]/4 text-multi-fg-tertiary",
+            "font-mono text-body/[16px] text-multi-fg-tertiary",
           )}
         >
           {bodyText ? (
@@ -707,7 +707,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
             </pre>
           ) : null}
           {metadataItems.length > 0 ? (
-            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary pt-1 text-[11px]/4 text-multi-fg-tertiary">
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary pt-1 text-detail/[16px] text-multi-fg-tertiary">
               {metadataItems.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -775,13 +775,13 @@ function ShellToolCall({
   };
 
   return (
-    <div className="group/shell-tool-call min-w-0 max-w-full px-0 text-[13px]/[18px] tracking-normal">
+    <div className="group/shell-tool-call min-w-0 max-w-full px-0 text-conversation/[1.5] tracking-normal">
       <button
         type="button"
         className={cn(
           "group/shell-trigger flex w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
           "border-0 bg-transparent p-0 text-left select-none",
-          "text-[length:var(--conversation-font-size,13px)]/[1.5] text-multi-fg-primary",
+          "text-conversation/[1.5] text-multi-fg-primary",
           expandable && "cursor-pointer",
           !expandable && "cursor-default",
           hasError && "text-multi-fg-red-primary",
@@ -839,7 +839,7 @@ function ShellToolCall({
                   "m-0 bg-multi-editor",
                   "px-(--conversation-tool-card-padding-x)",
                   "py-1.5",
-                  "font-mono text-[12px]/4 whitespace-pre-wrap",
+                  "font-mono text-body/[16px] whitespace-pre-wrap",
                   "text-multi-fg-tertiary wrap-anywhere select-text",
                 )}
               >
@@ -853,7 +853,7 @@ function ShellToolCall({
                   "m-0 bg-multi-editor",
                   "px-(--conversation-tool-card-padding-x)",
                   "pb-1.5",
-                  "font-mono text-[12px]/4 whitespace-pre-wrap",
+                  "font-mono text-body/[16px] whitespace-pre-wrap",
                   "text-multi-fg-tertiary wrap-anywhere select-text",
                 )}
               >
@@ -861,7 +861,7 @@ function ShellToolCall({
               </pre>
             ) : null}
             {metadataItems.length > 0 ? (
-              <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary px-(--conversation-tool-card-padding-x) py-1 text-[11px]/4 text-multi-fg-tertiary">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary px-(--conversation-tool-card-padding-x) py-1 text-detail/[16px] text-multi-fg-tertiary">
                 {metadataItems.map((item) => (
                   <span key={item}>{item}</span>
                 ))}
@@ -981,11 +981,11 @@ function EditToolCall({
       {isExpanded && hasContent ? (
         <div
           className={cn(
-            "mt-1 max-w-[min(100%,var(--composer-max-width))]",
+            "mt-1 max-w-composer",
             "overflow-hidden rounded-multi-control",
             "border border-multi-stroke-secondary bg-multi-editor",
             "px-(--conversation-tool-card-padding-x) py-1.5",
-            "font-mono text-[12px]/4 text-multi-fg-tertiary",
+            "font-mono text-body/[16px] text-multi-fg-tertiary",
           )}
         >
           {diffArtifact ? (
@@ -1007,10 +1007,10 @@ function EditStats({ stats }: { stats: ToolCallModel["tool"]["value"]["stats"] |
   return (
     <span className="ml-1 inline-flex shrink-0 gap-1 tabular-nums">
       {additions > 0 ? (
-        <span className="text-[var(--multi-diff-addition)]">+{additions}</span>
+        <span className="text-multi-diff-addition">+{additions}</span>
       ) : null}
       {deletions > 0 ? (
-        <span className="text-[var(--multi-diff-deletion)]">-{deletions}</span>
+        <span className="text-multi-diff-deletion">-{deletions}</span>
       ) : null}
     </span>
   );

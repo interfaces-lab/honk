@@ -312,7 +312,7 @@ function GitPanelInner(props: {
               </div>
             ) : (
               <Virtualizer
-                className="bg-(--multi-git-diff-editor-background) h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-0 pb-0 pt-1 scrollbar-gutter-stable"
+                className="bg-multi-git-diff-editor-background h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-0 pb-0 pt-1 scrollbar-gutter-stable"
                 config={{
                   overscrollSize: 640,
                   intersectionObserverMargin: 900,
@@ -392,7 +392,7 @@ function ReviewModeHeader(props: { onClose: () => void }) {
       <span className="no-drag shrink-0 text-detail font-medium text-multi-fg-secondary">
         Review
       </span>
-      <span className="min-w-0 truncate text-[11px]/[14px] text-multi-fg-primary">
+      <span className="min-w-0 truncate text-detail/[14px] text-multi-fg-primary">
         Turn checkpoint diff
       </span>
     </WorkbenchChromeRow>
@@ -484,7 +484,7 @@ function LocalBranchBar(props: {
           </div>
           <div className="no-drag relative min-w-0 shrink-0">
             <div
-              className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-[5px] border border-primary bg-primary text-[11px]/[14px] font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
+              className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-[5px] border border-primary bg-primary text-detail/[14px] font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
               data-pending={isAgentActionPending || undefined}
             >
               <button
@@ -563,7 +563,7 @@ function LocalBranchBar(props: {
       <button
         type="button"
         onClick={copyBranch}
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-[5px] px-1.5 text-[11px]/[14px] font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-[5px] px-1.5 text-detail/[14px] font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
         title="Copy branch name"
       >
         <IconBranch className="size-3 shrink-0 text-multi-icon-tertiary" />
@@ -627,7 +627,7 @@ function ChangesHeader(props: {
       >
         <IconBarsThree className="size-3.5 shrink-0" aria-hidden />
       </WorkbenchIconButton>
-      <span className="inline-flex min-w-0 items-center gap-0.5 overflow-hidden rounded-[5px] px-1 pr-0.5 text-[11px]/[14px] text-multi-fg-secondary tabular-nums">
+      <span className="inline-flex min-w-0 items-center gap-0.5 overflow-hidden rounded-[5px] px-1 pr-0.5 text-detail/[14px] text-multi-fg-secondary tabular-nums">
         <span className="min-w-0 truncate">
           {props.count} Uncommitted Change{props.count === 1 ? "" : "s"}
         </span>
@@ -635,10 +635,10 @@ function ChangesHeader(props: {
       </span>
       <div className="flex shrink-0 items-center gap-1 text-detail tabular-nums">
         {props.add > 0 && (
-          <span className="font-medium text-[var(--multi-diff-addition)]">+{props.add}</span>
+          <span className="font-medium text-multi-diff-addition">+{props.add}</span>
         )}
         {props.del > 0 && (
-          <span className="font-medium text-[var(--multi-diff-deletion)]">-{props.del}</span>
+          <span className="font-medium text-multi-diff-deletion">-{props.del}</span>
         )}
       </div>
     </WorkbenchChromeRow>
@@ -656,7 +656,7 @@ function MenuItem(props: {
       type="button"
       onClick={props.onClick}
       role="menuitem"
-      className="group flex w-full min-w-0 items-center gap-[7px] rounded-[4px] px-[7px] py-1 text-left text-[11px]/[14px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-[active=true]:bg-multi-bg-quaternary data-[active=true]:text-multi-fg-primary"
+      className="group flex w-full min-w-0 items-center gap-[7px] rounded-[4px] px-[7px] py-1 text-left text-detail/[14px] text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-[active=true]:bg-multi-bg-quaternary data-[active=true]:text-multi-fg-primary"
       data-active={props.active || undefined}
     >
       {props.icon ? (

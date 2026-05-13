@@ -425,7 +425,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   );
 
   return (
-    <div className="relative flex max-h-[250px] min-h-0 min-w-[255px] w-[297px] max-w-[min(297px,calc(100vw-32px))] flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-[12px]/[16px] text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px]">
+    <div className="relative flex max-h-[250px] min-h-0 min-w-[255px] w-[297px] max-w-[min(297px,calc(100vw-32px))] flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body/[16px] text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px]">
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 w-12 shrink-0 flex-col">
           {sidebarVisible ? (
@@ -469,7 +469,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                 <ComboboxInput
                   ref={searchInputRef}
                   className="[&_input]:font-sans"
-                  inputClassName="h-7 rounded-[6px] border-0 bg-multi-editor px-2 text-[12px]/[16px] shadow-none ring-0 placeholder:text-multi-fg-tertiary focus-visible:ring-0"
+                  inputClassName="h-7 rounded-[6px] border-0 bg-multi-editor px-2 text-body/[16px] shadow-none ring-0 placeholder:text-multi-fg-tertiary focus-visible:ring-0"
                   placeholder="Search models..."
                   showTrigger={false}
                   startAddon={

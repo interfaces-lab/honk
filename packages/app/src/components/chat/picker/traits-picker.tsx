@@ -373,7 +373,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
           <MenuGroup>
             <MenuGroupLabel variant="workbench">{descriptor.label}</MenuGroupLabel>
             {ultrathinkInBodyText && descriptor.id === primarySelectDescriptor?.id ? (
-              <div className="px-1 pb-1 text-multi-fg-tertiary text-[11px]/[14px]">
+              <div className="px-1 pb-1 text-detail/[14px] text-multi-fg-tertiary">
                 Your prompt contains &quot;ultrathink&quot; in the text. Remove it to change this
                 option.
               </div>

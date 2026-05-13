@@ -158,11 +158,11 @@ export function GitChangesFileTree(props: {
       )}
     >
       <div className="multi-workbench-panel-title-row gap-2">
-        <span className="min-w-0 shrink-0 truncate text-[12px]/[16px] font-medium text-foreground/85">
+        <span className="min-w-0 shrink-0 truncate text-body/[16px] font-medium text-foreground/85">
           {props.title ?? "Changed files"}
         </span>
         <span className="min-w-0 flex-1" />
-        <span className="tabular-nums shrink-0 text-muted-foreground/45 text-[11px]/[13px]">
+        <span className="tabular-nums shrink-0 text-muted-foreground/45 text-detail/[13px]">
           {props.rows.length > 0 ? String(props.rows.length) : ""}
         </span>
       </div>

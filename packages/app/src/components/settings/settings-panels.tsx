@@ -143,10 +143,10 @@ const PROVIDER_SETTINGS: readonly ProviderSettingsDescriptor[] = DRIVER_OPTIONS.
 );
 
 const DEFAULT_APPEARANCE_SNAPSHOT = {
-  palette: "multi",
+  palette: "pierre" as const,
   reduceTransparency: false,
   transparency: 18,
-  hue: 255,
+  hue: 247,
   saturation: 33,
   uiFontSize: 13,
   codeFontSize: 12,
@@ -420,7 +420,7 @@ function SettingsSlider(props: {
     <div className="flex w-full items-center justify-end gap-2 sm:w-34">
       <input
         aria-label={props.label}
-        className="h-4 w-full accent-(--multi-action)"
+        className="h-4 w-full accent-multi-action"
         max={props.max}
         min={props.min}
         type="range"
@@ -430,7 +430,7 @@ function SettingsSlider(props: {
       {props.showSwatch ? (
         <span
           aria-hidden
-          className="size-4 shrink-0 rounded-full bg-(--multi-action) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--foreground)_16%,transparent)]"
+          className="size-4 shrink-0 rounded-full bg-multi-action shadow-multi-swatch-inset"
         />
       ) : (
         <Text size="xs" tone="tertiary" className="w-8 shrink-0 text-right tabular-nums">
@@ -456,7 +456,7 @@ function NumberStepper(props: {
   };
 
   return (
-    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-[12px]/[16px] shadow-none">
+    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-body/[16px] shadow-none">
       <Button
         type="button"
         variant="ghost"
@@ -785,10 +785,10 @@ export function AppearanceSettingsPanel() {
       <SettingsSection title="Colors">
         <SettingsRow
           title="Hue"
-          description="Choose a tint color."
+          description="Accent hue for buttons, links, and focus rings (Pierre neutrals unchanged)."
           control={
             <SettingsSlider
-              label="Tint hue"
+              label="Accent hue"
               max={360}
               min={0}
               showSwatch
@@ -799,10 +799,10 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Intensity"
-          description="Control how strongly the tint is applied."
+          description="Chroma strength of the accent and tinted surfaces."
           control={
             <SettingsSlider
-              label="Tint intensity"
+              label="Accent intensity"
               max={100}
               min={0}
               suffix="%"
@@ -898,7 +898,7 @@ export function AppearanceSettingsPanel() {
             />
           }
         >
-          <div className="mt-2 overflow-hidden rounded-sm text-[11px]/[16px]">
+          <div className="mt-2 overflow-hidden rounded-sm text-detail/[16px]">
             <div className="flex bg-rose-500/10 font-multi-mono text-foreground/72">
               <span className="w-8 shrink-0 text-center text-rose-500/80">1</span>
               <span>return a + b;</span>

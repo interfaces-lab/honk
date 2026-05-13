@@ -126,11 +126,11 @@ const ProviderModelRow = memo(function ProviderModelRow({
             </TooltipTrigger>
             <TooltipPopup side="top" variant="workbench" className="max-w-56">
               <div className="space-y-1">
-                <code className="block text-[11px] text-multi-fg-primary">{model.slug}</code>
+                <code className="block text-detail text-multi-fg-primary">{model.slug}</code>
                 {capLabels.length > 0 ? (
                   <div className="flex flex-wrap gap-x-2 gap-y-0.5">
                     {capLabels.map((label) => (
-                      <span key={label} className="text-[10px] text-multi-fg-tertiary">
+                      <span key={label} className="text-caption text-multi-fg-tertiary">
                         {label}
                       </span>
                     ))}
@@ -140,11 +140,11 @@ const ProviderModelRow = memo(function ProviderModelRow({
             </TooltipPopup>
           </Tooltip>
         ) : null}
-        {isHidden ? <span className="text-[10px] text-muted-foreground">hidden</span> : null}
+        {isHidden ? <span className="text-caption text-muted-foreground">hidden</span> : null}
         {!selectable ? (
-          <span className="text-[10px] text-muted-foreground">unavailable</span>
+          <span className="text-caption text-muted-foreground">unavailable</span>
         ) : null}
-        {model.isCustom ? <span className="text-[10px] text-muted-foreground">custom</span> : null}
+        {model.isCustom ? <span className="text-caption text-muted-foreground">custom</span> : null}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
         <Tooltip>

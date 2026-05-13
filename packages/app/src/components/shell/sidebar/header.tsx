@@ -20,7 +20,7 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
         <button
           type="button"
           onClick={props.onAddProject}
-          className="agent-window-open-project flex min-h-6 w-full min-w-0 select-none items-center gap-1.5 rounded-multi-control px-2 py-1 text-left font-multi text-[12px]/[16px] font-normal text-muted-foreground/72 transition-colors hover:bg-multi-hover hover:text-foreground"
+          className="agent-window-open-project flex min-h-6 w-full min-w-0 select-none items-center gap-1.5 rounded-multi-control px-2 py-1 text-left font-multi text-body/[16px] font-normal text-muted-foreground/72 transition-colors hover:bg-multi-hover hover:text-foreground"
           aria-label="Open project"
           data-testid="sidebar-add-project-trigger"
         >

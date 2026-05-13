@@ -273,7 +273,7 @@ function AddProviderInstanceDialogContent({
                 >
                   {index < wizardStep ? <CheckIcon className="size-3" /> : null}
                 </span>
-                <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                <span className="text-caption font-medium uppercase text-muted-foreground">
                   Step {index + 1}
                 </span>
                 <span className="truncate text-xs font-semibold text-foreground">
@@ -368,7 +368,7 @@ function AddProviderInstanceDialogContent({
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
               />
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-detail text-muted-foreground">
                 Shown in the provider list. Optional.
               </span>
             </label>
@@ -389,9 +389,9 @@ function AddProviderInstanceDialogContent({
                 aria-invalid={showInstanceIdError}
               />
               {showInstanceIdError ? (
-                <span className="text-[11px] text-destructive">{instanceIdError}</span>
+                <span className="text-detail text-destructive">{instanceIdError}</span>
               ) : (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-detail text-muted-foreground">
                   Routing key used by threads and sessions. Letters, digits, '-', or '_'.
                 </span>
               )}
@@ -439,7 +439,7 @@ function AddProviderInstanceDialogContent({
                   </Button>
                 ) : null}
               </div>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-detail text-muted-foreground">
                 Optional marker shown in the picker.
               </span>
             </div>

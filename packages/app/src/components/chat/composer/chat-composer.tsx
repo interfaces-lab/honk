@@ -413,13 +413,13 @@ const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(props: {
   return (
     <div className="border-b border-border/60 px-2.5 py-2 sm:px-3">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[11px]/[14px] font-medium text-muted-foreground">
+        <span className="text-detail/[14px] font-medium text-muted-foreground">
           Queued ({props.items.length})
         </span>
         {props.editingItemId ? (
           <button
             type="button"
-            className="rounded-multi-control px-1.5 py-0.5 text-[11px]/[14px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+            className="rounded-multi-control px-1.5 py-0.5 text-detail/[14px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
             onClick={props.onCancelEdit}
           >
             Cancel edit
@@ -438,10 +438,10 @@ const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(props: {
               )}
             >
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[12px]/[16px] text-foreground">
+                <div className="truncate text-body/[16px] text-foreground">
                   {formatQueuedComposerItemPreview(item)}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[10px]/[12px] text-muted-foreground">
+                <div className="mt-0.5 flex items-center gap-1.5 text-caption/[12px] text-muted-foreground">
                   <span>{formatQueuedComposerItemMeta(item, index)}</span>
                   {isEditing ? <span>Editing</span> : null}
                 </div>
@@ -2115,7 +2115,7 @@ export const ChatComposer = memo(
       <form
         ref={composerFormRef}
         onSubmit={onSend}
-        className="mx-auto w-full min-w-0 max-w-(--composer-max-width)"
+        className="mx-auto w-full min-w-0 max-w-composer"
         data-variant={composerVariant}
         data-chat-composer-form="true"
       >
@@ -2238,7 +2238,7 @@ export const ChatComposer = memo(
                             />
                           </button>
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-muted-foreground/70">
+                          <div className="flex h-full w-full items-center justify-center px-1 text-center text-caption text-muted-foreground/70">
                             {image.name}
                           </div>
                         )}
