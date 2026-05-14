@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const shellDir = resolve(__dirname);
 const appShellSource = readFileSync(resolve(shellDir, "app.tsx"), "utf8");
+const appShellHostSource = readFileSync(resolve(shellDir, "../../shell-host.tsx"), "utf8");
 const chatHeaderSource = readFileSync(resolve(shellDir, "../../chat/view/chat-header.tsx"), "utf8");
 const gitPanelSource = readFileSync(resolve(shellDir, "../git/panel.tsx"), "utf8");
 const rightWorkbenchHeaderSource = readFileSync(
@@ -84,9 +85,11 @@ describe("AppShell CSS root contract", () => {
     expect(shellCssSource).toContain("left: var(--multi-electron-traffic-inset)");
     expect(shellCssSource).toContain("right: var(--multi-shell-titlebar-gutter)");
     expect(shellCssSource).toContain("top: var(--multi-shell-titlebar-control-y)");
-    expect(shellCssSource).toContain(".agent-window__left-content.thread-rail-pad::before");
-    expect(shellCssSource).toContain("pointer-events: none");
-    expect(shellCssSource).toContain("-webkit-app-region: drag");
+    expect(appShellHostSource).toContain("thread-rail-pad relative");
+    expect(appShellHostSource).toContain("h-(--multi-shell-sidebar-content-top-offset");
+    expect(appShellHostSource).toContain("pointer-events-none");
+    expect(appShellHostSource).toContain("drag-region");
+    expect(indexCssSource).toContain("-webkit-app-region: drag");
     expect(shellCssSource).toContain("width: var(--multi-shell-right-workbench-header-end-space)");
     expect(workbenchChromeRowSource).toContain("drag-region ui-tab-system");
     expect(indexCssSource).toContain('.drag-region [role="tab"]');

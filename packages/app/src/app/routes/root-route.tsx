@@ -38,6 +38,7 @@ import { traceBrowserEvent } from "~/observability/browserDebug";
 import { updatePrimaryEnvironmentDescriptor } from "~/environments/primary";
 import { RouterDevtoolsPanel } from "~/dev/router-devtools";
 import { deriveLogicalProjectKey, derivePhysicalProjectKeyFromPath } from "~/logical-project";
+import { useSettings } from "~/hooks/use-settings";
 
 const routeApi = getRouteApi("__root__");
 
@@ -70,6 +71,7 @@ export function RootRouteView() {
   return (
     <ToastProvider>
       <AnchoredToastProvider>
+        <CursorPreferenceSync />
         <AuthenticatedTracingBootstrap />
         <ServerStateBootstrap />
         <EnvironmentConnectionManagerBootstrap />
@@ -86,6 +88,18 @@ export function RootRouteView() {
       </AnchoredToastProvider>
     </ToastProvider>
   );
+}
+
+function CursorPreferenceSync() {
+  const cursorPointerOnButtons = useSettings((settings) => settings.cursorPointerOnButtons);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--multi-button-cursor", cursorPointerOnButtons ? "pointer" : "auto");
+    root.toggleAttribute("data-no-button-pointer", !cursorPointerOnButtons);
+  }, [cursorPointerOnButtons]);
+
+  return null;
 }
 
 export function RootRouteErrorView({ error, reset }: ErrorComponentProps) {

@@ -15,7 +15,7 @@ export function ShellSidebarFooter(props: { settings?: boolean }) {
     <button
       type="button"
       className={cn(
-        "agent-window-footer-icon flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent transition-colors",
+        "flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent transition-colors",
         "border-multi-border/90 bg-multi-active text-foreground hover:bg-multi-active",
       )}
       onClick={() => {
@@ -47,20 +47,14 @@ export function ShellSidebarFooter(props: { settings?: boolean }) {
   ) : null;
 
   return (
-    <div className="agent-window-sidebar-footer mt-auto flex shrink-0 select-none flex-col px-2.5 py-1.5">
+    <div className="mt-auto flex shrink-0 select-none flex-col px-2.5 py-1.5">
       <UpdatePill />
-      <div className="agent-window-account-row flex min-h-7 items-center justify-between gap-2 px-1.5 py-1">
-        <span className="agent-window-account-label pointer-events-none flex min-w-0 items-center gap-1.5 text-detail text-muted-foreground/55">
-          <span className="agent-window-account-avatar flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]/[10px] font-medium">
-            M
-          </span>
-          <span className="min-w-0 truncate">Multi</span>
-        </span>
+      <div className=" flex min-h-7 items-center justify-end gap-2 px-1.5 py-1">
         {settingsBackButton ?? (
           <Link
             to="/settings/general"
             className={cn(
-              "agent-window-footer-icon flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent text-muted-foreground/60 transition-colors hover:bg-multi-hover hover:text-foreground",
+              "flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent text-muted-foreground/60 transition-colors hover:bg-multi-hover hover:text-foreground",
             )}
             aria-label="Open settings"
           >

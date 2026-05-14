@@ -1,6 +1,6 @@
 import "../../../index.css";
 import "../../../styles/tokens.css";
-import "../../../styles/shell.css";
+import "../../../styles/app.css";
 
 import { useState } from "react";
 import { createRoot } from "react-dom/client";

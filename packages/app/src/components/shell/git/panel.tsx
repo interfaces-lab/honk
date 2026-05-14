@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  IconArrowRotateCounterClockwise,
+  IconChevronLeftMedium,
   IconBarsThree,
   IconBranch,
-  IconChevronDownSmall,
-  IconChevronRightSmall,
+  IconChevronRightMedium,
   IconDotGrid1x3Horizontal,
+  IconFolder1,
   IconSplit,
   IconStop,
 } from "central-icons";
@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
 import { Button } from "@multi/ui/button";
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@multi/ui/menu";
 import {
   Dialog,
   DialogDescription,
@@ -48,6 +49,7 @@ import {
 } from "~/lib/git-agent-actions";
 import { useGitViewed } from "~/hooks/use-git-viewed-state";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "~/diff-route-search";
+import { cn } from "~/lib/utils";
 import { DiffWorkerPoolProvider } from "~/components/diff-worker-pool-provider";
 import { DiffPanelLoadingState } from "~/components/diff-panel-shell";
 import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
@@ -58,6 +60,22 @@ import { WorkbenchIconButton, WorkbenchTextButton } from "../shell/workbench-ico
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 const ReviewDiffPanel = lazy(() => import("~/components/diff-panel"));
+
+type GitChangesFilter = "uncommitted" | "unstaged" | "staged" | "branch";
+
+const GIT_CHANGES_FILTERS: readonly GitChangesFilter[] = [
+  "uncommitted",
+  "unstaged",
+  "staged",
+  "branch",
+];
+
+const GIT_CHANGES_FILTER_LABELS: Record<GitChangesFilter, string> = {
+  uncommitted: "Uncommitted",
+  unstaged: "Unstaged",
+  staged: "Staged",
+  branch: "All commits",
+};
 
 export function GitPanel(props: {
   git: GitPanelModel;
@@ -169,10 +187,27 @@ function GitPanelInner(props: {
   const [discardAllPending, setDiscardAllPending] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
-  const filesKey = useMemo(() => files.map((row) => row.id).join("\n"), [files]);
-  const [selectedId, setSelectedId] = useState<string | null>(() => files[0]?.id ?? null);
+  const [changesFilter, setChangesFilter] = useState<GitChangesFilter>("uncommitted");
+  const visibleFiles = useMemo(() => {
+    if (changesFilter === "unstaged") return files.filter((row) => row.unstaged);
+    if (changesFilter === "staged") return files.filter((row) => row.staged);
+    return files;
+  }, [changesFilter, files]);
+  const visibleTotals = useMemo(
+    () =>
+      visibleFiles.reduce(
+        (totals, row) => ({
+          add: totals.add + row.add,
+          del: totals.del + row.del,
+        }),
+        { add: 0, del: 0 },
+      ),
+    [visibleFiles],
+  );
+  const filesKey = useMemo(() => visibleFiles.map((row) => row.id).join("\n"), [visibleFiles]);
+  const [selectedId, setSelectedId] = useState<string | null>(() => visibleFiles[0]?.id ?? null);
   const allDiffCardsCollapsed =
-    files.length > 0 && files.every((row) => !git.expandedIds.has(row.id));
+    visibleFiles.length > 0 && visibleFiles.every((row) => !git.expandedIds.has(row.id));
   const diffLayoutKey = gitRailOpen ? `rail:${gitRailWidth}` : "rail:closed";
   const gitRef = useRef(git);
   gitRef.current = git;
@@ -186,21 +221,21 @@ function GitPanelInner(props: {
   };
 
   useEffect(() => {
-    if (files.length === 0) {
+    if (visibleFiles.length === 0) {
       setSelectedId(null);
       return;
     }
 
     setSelectedId((previous) => {
-      if (git.focusId && files.some((row) => row.id === git.focusId)) {
+      if (git.focusId && visibleFiles.some((row) => row.id === git.focusId)) {
         return git.focusId;
       }
 
-      return previous !== null && files.some((row) => row.id === previous)
+      return previous !== null && visibleFiles.some((row) => row.id === previous)
         ? previous
-        : files[0]!.id;
+        : visibleFiles[0]!.id;
     });
-  }, [filesKey, git.focusId, files]);
+  }, [filesKey, git.focusId, visibleFiles]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -278,9 +313,11 @@ function GitPanelInner(props: {
         <ChangesHeader
           railOpen={gitRailOpen}
           onToggleRail={() => shellPanelsActions.toggleSecondaryRail(git.cwd, "git")}
-          count={files.length}
-          add={git.totalAdd}
-          del={git.totalDel}
+          filter={changesFilter}
+          onFilterChange={setChangesFilter}
+          count={visibleFiles.length}
+          add={visibleTotals.add}
+          del={visibleTotals.del}
           onExpandAll={git.expandAll}
           onCollapseAll={git.collapseAll}
           allCollapsed={allDiffCardsCollapsed}
@@ -294,7 +331,7 @@ function GitPanelInner(props: {
           railHostClassName="multi-shell-git-rail"
           rail={
             <GitChangesFileTree
-              rows={files}
+              rows={visibleFiles}
               selectedId={selectedId}
               onSelect={handleSelectFile}
               className="no-drag min-h-0 min-h-36 flex-1 border-b-0 bg-transparent"
@@ -307,9 +344,13 @@ function GitPanelInner(props: {
           >
             {props.reviewingTurnDiff ? (
               <GitReviewDiffSurface layoutKey={diffLayoutKey} />
-            ) : files.length === 0 ? (
+            ) : visibleFiles.length === 0 ? (
               <div className="flex flex-1 items-center justify-center text-detail text-muted-foreground/60">
-                No files to compare.
+                {changesFilter === "staged"
+                  ? "No staged changes."
+                  : changesFilter === "unstaged"
+                    ? "No unstaged changes."
+                    : "No files to compare."}
               </div>
             ) : (
               <Virtualizer
@@ -319,7 +360,7 @@ function GitPanelInner(props: {
                   intersectionObserverMargin: 900,
                 }}
               >
-                {files.map((file) => (
+                {visibleFiles.map((file) => (
                   <GitDiffCard
                     key={file.id}
                     file={file}
@@ -525,7 +566,7 @@ function LocalBranchBar(props: {
                 data-open={props.commitMenuOpen || undefined}
                 title="Open commit menu"
               >
-                <IconChevronDownSmall className="size-3" />
+                <IconChevronRightMedium className="size-3 rotate-90" />
               </button>
             </div>
             {props.commitMenuOpen && (
@@ -577,6 +618,8 @@ function LocalBranchBar(props: {
 function ChangesHeader(props: {
   railOpen: boolean;
   onToggleRail: () => void;
+  filter: GitChangesFilter;
+  onFilterChange: (filter: GitChangesFilter) => void;
   count: number;
   add: number;
   del: number;
@@ -601,7 +644,7 @@ function ChangesHeader(props: {
             title="Discard all changes"
             chrome="panel"
           >
-            <IconArrowRotateCounterClockwise className="size-3.5 shrink-0" />
+            <IconChevronLeftMedium className="size-3.5 shrink-0" />
           </WorkbenchIconButton>
           <WorkbenchIconButton
             onClick={toggleAll}
@@ -610,9 +653,9 @@ function ChangesHeader(props: {
             chrome="panel"
           >
             {props.allCollapsed ? (
-              <IconChevronDownSmall className="size-3" />
+              <IconChevronRightMedium className="size-3 rotate-90" />
             ) : (
-              <IconChevronRightSmall className="size-3" />
+              <IconChevronRightMedium className="size-3" />
             )}
           </WorkbenchIconButton>
         </div>
@@ -628,21 +671,80 @@ function ChangesHeader(props: {
       >
         <IconBarsThree className="size-3.5 shrink-0" aria-hidden />
       </WorkbenchIconButton>
-      <span className="inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-0.5 overflow-hidden rounded-multi-control px-1 pr-0.5 text-body text-multi-fg-secondary tabular-nums">
-        <span className="min-w-0 truncate">
-          {props.count} Uncommitted Change{props.count === 1 ? "" : "s"}
-        </span>
-        <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" />
-      </span>
-      <div className="flex h-(--multi-workbench-action-size) shrink-0 items-center gap-1 text-body tabular-nums">
-        {props.add > 0 && (
-          <span className="font-medium text-multi-diff-addition">+{props.add}</span>
-        )}
-        {props.del > 0 && (
-          <span className="font-medium text-multi-diff-deletion">-{props.del}</span>
-        )}
-      </div>
+      <ChangesFilterMenu
+        count={props.count}
+        filter={props.filter}
+        onFilterChange={props.onFilterChange}
+      />
+      <DiffTotals add={props.add} del={props.del} />
     </WorkbenchChromeRow>
+  );
+}
+
+function ChangesFilterMenu(props: {
+  count: number;
+  filter: GitChangesFilter;
+  onFilterChange: (filter: GitChangesFilter) => void;
+}) {
+  const label =
+    props.filter === "branch"
+      ? GIT_CHANGES_FILTER_LABELS.branch
+      : `${props.count} ${GIT_CHANGES_FILTER_LABELS[props.filter]} Change${props.count === 1 ? "" : "s"}`;
+
+  return (
+    <Menu>
+      <MenuTrigger
+        type="button"
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 max-w-64 items-center gap-1 overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-secondary tabular-nums outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        aria-label="Change filter"
+      >
+        <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
+        <span className="min-w-0 truncate">{label}</span>
+        <IconChevronRightMedium
+          className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary"
+          aria-hidden
+        />
+      </MenuTrigger>
+      <MenuPopup align="start" variant="workbench">
+        <MenuRadioGroup
+          value={props.filter}
+          onValueChange={(value) => {
+            const filter = value as GitChangesFilter;
+            if (!GIT_CHANGES_FILTERS.includes(filter) || filter === props.filter) return;
+            props.onFilterChange(filter);
+          }}
+        >
+          {GIT_CHANGES_FILTERS.map((filter) => (
+            <MenuRadioItem key={filter} value={filter} variant="workbench">
+              {GIT_CHANGES_FILTER_LABELS[filter]}
+            </MenuRadioItem>
+          ))}
+        </MenuRadioGroup>
+      </MenuPopup>
+    </Menu>
+  );
+}
+
+function DiffTotals(props: { add: number; del: number }) {
+  return (
+    <div className="flex h-(--multi-workbench-action-size) shrink-0 items-center gap-1.5 text-body font-medium tabular-nums">
+      <span
+        className={cn(
+          "inline-flex justify-end text-multi-diff-addition",
+          props.add === 0 && "invisible",
+        )}
+      >
+        +{props.add}
+      </span>
+      <span
+        className={cn(
+          "inline-flex justify-end text-multi-diff-deletion",
+          props.del === 0 && "invisible",
+        )}
+      >
+        -{props.del}
+      </span>
+    </div>
   );
 }
 

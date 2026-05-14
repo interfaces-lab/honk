@@ -4,12 +4,7 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
-import {
-  IconCheckmark1,
-  IconChevronDownSmall,
-  IconChevronTopSmall,
-  IconSortArrowUpDown,
-} from "central-icons";
+import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
 import {
@@ -51,7 +46,7 @@ const selectTriggerVariants = cva(
   },
 );
 
-const selectTriggerIconClassName = "-me-1 size-4.5 opacity-80 sm:size-4";
+const selectTriggerIconClassName = "-me-1 size-4.5 rotate-90 opacity-80 sm:size-4";
 
 interface SelectButtonProps extends useRender.ComponentProps<"button"> {
   size?: VariantProps<typeof selectTriggerVariants>["size"];
@@ -70,9 +65,9 @@ function SelectButton({ className, size, variant, render, children, ...props }: 
           {children}
         </span>
         {variant === "ghost" ? (
-          <IconChevronDownSmall className="size-3 opacity-50" />
+          <IconChevronRightMedium className="size-3 rotate-90 opacity-50" />
         ) : (
-          <IconSortArrowUpDown className={selectTriggerIconClassName} />
+          <IconChevronRightMedium className={selectTriggerIconClassName} />
         )}
       </>
     ),
@@ -103,7 +98,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon data-slot="select-icon">
-        <IconChevronDownSmall className="size-3 opacity-50" />
+        <IconChevronRightMedium className="size-3 rotate-90 opacity-50" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -158,7 +153,7 @@ function SelectPopup({
             className="top-0 z-50 flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[7px] before:bg-linear-to-b before:from-50% before:from-multi-bg-elevated"
             data-slot="select-scroll-up-arrow"
           >
-            <IconChevronTopSmall className="relative size-4.5 sm:size-4" />
+            <IconChevronRightMedium className="relative size-4.5 -rotate-90 sm:size-4" />
           </SelectPrimitive.ScrollUpArrow>
           <div className={cn(workbenchMenuPopupClassName, "min-w-(--anchor-width)")}>
             <SelectPrimitive.List
@@ -172,7 +167,7 @@ function SelectPopup({
             className="bottom-0 z-50 flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:bottom-px before:h-[200%] before:rounded-b-[7px] before:bg-linear-to-t before:from-50% before:from-multi-bg-elevated"
             data-slot="select-scroll-down-arrow"
           >
-            <IconChevronDownSmall className="relative size-4.5 sm:size-4" />
+            <IconChevronRightMedium className="relative size-4.5 rotate-90 sm:size-4" />
           </SelectPrimitive.ScrollDownArrow>
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>

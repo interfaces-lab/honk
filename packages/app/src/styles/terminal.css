@@ -1,0 +1,149 @@
+html {
+  --multi-workbench-terminal-background: var(--multi-terminal-background);
+  --multi-workbench-terminal-foreground: var(--multi-terminal-foreground);
+  --multi-terminal-shell-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 96%,
+    var(--background)
+  );
+  --multi-terminal-background: #f3f3f3;
+  --multi-terminal-sidebar-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 82%,
+    var(--multi-color-sidebar)
+  );
+  --multi-terminal-toolbar-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 90%,
+    transparent
+  );
+  --multi-terminal-border: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --multi-terminal-border-subtle: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-terminal-hover-background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --multi-terminal-active-background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --multi-terminal-foreground: #141414eb;
+  --multi-terminal-muted-foreground: #141414ad;
+  --multi-terminal-cursor: var(--multi-terminal-foreground);
+  --multi-terminal-cursor-accent: var(--multi-terminal-background);
+  --multi-terminal-selection-background: #1414141e;
+  --multi-terminal-selection-foreground: var(--foreground);
+  --multi-terminal-selection-inactive-background: color-mix(
+    in srgb,
+    var(--foreground) 16%,
+    transparent
+  );
+  --multi-terminal-scrollbar-background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --multi-terminal-scrollbar-hover-background: color-mix(
+    in srgb,
+    var(--foreground) 34%,
+    transparent
+  );
+  --multi-terminal-scrollbar-active-background: color-mix(
+    in srgb,
+    var(--foreground) 46%,
+    transparent
+  );
+  --multi-terminal-ansi-black: #141414eb;
+  --multi-terminal-ansi-red: #cf2d56;
+  --multi-terminal-ansi-green: #1f8a65;
+  --multi-terminal-ansi-yellow: #a16900;
+  --multi-terminal-ansi-blue: #3c7cab;
+  --multi-terminal-ansi-magenta: #b8448b;
+  --multi-terminal-ansi-cyan: #4c7f8c;
+  --multi-terminal-ansi-white: #fcfcfc;
+  --multi-terminal-ansi-bright-black: #141414ad;
+  --multi-terminal-ansi-bright-red: #e75e78;
+  --multi-terminal-ansi-bright-green: #55a583;
+  --multi-terminal-ansi-bright-yellow: #c08532;
+  --multi-terminal-ansi-bright-blue: #6299c3;
+  --multi-terminal-ansi-bright-magenta: #d06ba6;
+  --multi-terminal-ansi-bright-cyan: #6f9ba6;
+  --multi-terminal-ansi-bright-white: #fff;
+}
+
+html.dark {
+  --multi-terminal-shell-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 94%,
+    var(--background)
+  );
+  --multi-terminal-background: #141414;
+  --multi-terminal-sidebar-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 84%,
+    var(--background)
+  );
+  --multi-terminal-toolbar-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 88%,
+    transparent
+  );
+  --multi-terminal-border: color-mix(in srgb, white 13%, transparent);
+  --multi-terminal-border-subtle: color-mix(in srgb, white 8%, transparent);
+  --multi-terminal-hover-background: color-mix(in srgb, white 7%, transparent);
+  --multi-terminal-active-background: color-mix(in srgb, white 11%, transparent);
+  --multi-terminal-foreground: #e4e4e4eb;
+  --multi-terminal-muted-foreground: #e4e4e442;
+  --multi-terminal-cursor: #e4e4e4eb;
+  --multi-terminal-cursor-accent: #141414;
+  --multi-terminal-selection-background: #e4e4e41e;
+  --multi-terminal-selection-foreground: #e4e4e4;
+  --multi-terminal-selection-inactive-background: rgba(59, 59, 59, 0.75);
+  --multi-terminal-scrollbar-background: rgba(121, 121, 121, 0.28);
+  --multi-terminal-scrollbar-hover-background: rgba(100, 100, 100, 0.7);
+  --multi-terminal-scrollbar-active-background: rgba(191, 191, 191, 0.4);
+  --multi-terminal-ansi-black: #242424;
+  --multi-terminal-ansi-red: #fc6b83;
+  --multi-terminal-ansi-green: #3fa266;
+  --multi-terminal-ansi-yellow: #d2943e;
+  --multi-terminal-ansi-blue: #81a1c1;
+  --multi-terminal-ansi-magenta: #b48ead;
+  --multi-terminal-ansi-cyan: #88c0d0;
+  --multi-terminal-ansi-white: #e4e4e4;
+  --multi-terminal-ansi-bright-black: #e4e4e442;
+  --multi-terminal-ansi-bright-red: #fc6b83;
+  --multi-terminal-ansi-bright-green: #70b489;
+  --multi-terminal-ansi-bright-yellow: #f1b467;
+  --multi-terminal-ansi-bright-blue: #87a6c4;
+  --multi-terminal-ansi-bright-magenta: #b48ead;
+  --multi-terminal-ansi-bright-cyan: #88c0d0;
+  --multi-terminal-ansi-bright-white: #e4e4e4;
+}
+
+.agent-window .thread-terminal-drawer {
+  background: var(--multi-terminal-shell-background);
+  border-color: var(--multi-terminal-border);
+  color: inherit;
+}
+
+.agent-window .thread-terminal-viewport,
+.agent-window .workbench-terminal-viewport {
+  contain: layout paint style;
+  overflow: hidden;
+  background: transparent;
+}
+
+.agent-window .thread-terminal-viewport .xterm,
+.agent-window .workbench-terminal-viewport .xterm {
+  height: 100%;
+  background: inherit;
+  color: inherit;
+  font-feature-settings:
+    "liga" 0,
+    "calt" 0;
+  font-variant-ligatures: none;
+  -webkit-font-smoothing: var(--multi-agent-window-font-smoothing-webkit);
+  -moz-osx-font-smoothing: var(--multi-agent-window-font-smoothing-moz);
+}
+
+.agent-window .thread-terminal-viewport .xterm-viewport,
+.agent-window .thread-terminal-viewport .xterm-screen,
+.agent-window .workbench-terminal-viewport .xterm-viewport,
+.agent-window .workbench-terminal-viewport .xterm-screen {
+  background: transparent !important;
+}
+
+.agent-window .thread-terminal-viewport .xterm-viewport,
+.agent-window .workbench-terminal-viewport .xterm-viewport {
+  scrollbar-color: var(--multi-terminal-scrollbar-background) transparent;
+}

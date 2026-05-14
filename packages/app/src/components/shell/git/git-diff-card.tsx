@@ -1,10 +1,5 @@
 "use client";
-import {
-  IconArrowRotateCounterClockwise,
-  IconChevronDownSmall,
-  IconChevronRightSmall,
-  IconClipboard,
-} from "central-icons";
+import { IconChevronLeftMedium, IconChevronRightMedium, IconClipboard } from "central-icons";
 import {
   type KeyboardEvent,
   type MouseEvent,
@@ -93,7 +88,10 @@ export function GitDiffCard(props: {
     <div
       ref={rootRef}
       data-diff-card-id={props.file.id}
-      className={cn("git-diff-card select-none", props.selected && "git-diff-card--selected")}
+      className={cn(
+        "@container flex min-h-0 min-w-0 select-none flex-col overflow-hidden border-0 border-b border-multi-workbench-panel-border-muted bg-(--multi-git-diff-editor-background) transition-colors last:border-b-transparent",
+        props.selected && "bg-(--multi-git-diff-editor-background)",
+      )}
     >
       <div
         className={cn(
@@ -123,34 +121,37 @@ export function GitDiffCard(props: {
             </span>
             <span className="absolute inset-0 inline-flex items-center justify-center text-multi-icon-tertiary opacity-0 transition-opacity duration-100 ease-out group-hover/git-diff-header:opacity-100 group-hover/git-diff-toggle:opacity-100">
               {props.expanded ? (
-                <IconChevronDownSmall className="size-3.5 shrink-0" />
+                <IconChevronRightMedium className="size-3.5 shrink-0 rotate-90" />
               ) : (
-                <IconChevronRightSmall className="size-3.5 shrink-0" />
+                <IconChevronRightMedium className="size-3.5 shrink-0" />
               )}
             </span>
           </span>
         </button>
-        <span className="git-diff-card__title" title={props.file.path}>
+        <span
+          className="flex min-w-0 flex-1 flex-nowrap items-center overflow-hidden text-[12px]/4"
+          title={props.file.path}
+        >
           <PretextOneLine
             text={pathLabel}
             title={props.file.path}
             truncate="middle"
-            className="git-diff-card__basename"
+            className="block w-full max-w-full min-w-0 flex-1 overflow-hidden text-[12px]/4 font-medium whitespace-nowrap text-[color-mix(in_srgb,var(--foreground)_92%,transparent)]"
           />
         </span>
-        <span className="git-diff-card__stats">
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px]/4 tabular-nums @max-[360px]:gap-1">
           {props.file.add > 0 ? (
-            <span className="git-diff-card__stat-plus">+{props.file.add}</span>
+            <span className="text-(--multi-diff-addition)">+{props.file.add}</span>
           ) : null}
           {props.file.del > 0 ? (
-            <span className="git-diff-card__stat-minus">-{props.file.del}</span>
+            <span className="text-(--multi-diff-deletion)">-{props.file.del}</span>
           ) : null}
         </span>
-        <span className="git-diff-card__controls">
+        <span className="inline-flex min-w-0 shrink-0 items-center gap-(--multi-workbench-sub-chrome-action-gap)">
           <button
             type="button"
             onClick={copyPath}
-            className="git-diff-card__action"
+            className="inline-flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-[5px] text-[color-mix(in_srgb,var(--foreground)_52%,transparent)] transition-[background-color,color] duration-100 ease-out hover:bg-(--multi-workbench-toolbar-hover-background) hover:text-foreground"
             aria-label="Copy path"
             title="Copy path"
           >
@@ -162,14 +163,14 @@ export function GitDiffCard(props: {
               event.stopPropagation();
               props.onRevert();
             }}
-            className="git-diff-card__action"
+            className="inline-flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-[5px] text-[color-mix(in_srgb,var(--foreground)_52%,transparent)] transition-[background-color,color] duration-100 ease-out hover:bg-(--multi-workbench-toolbar-hover-background) hover:text-foreground"
             aria-label="Discard changes"
             title="Discard changes"
           >
-            <IconArrowRotateCounterClockwise className="size-3.5 shrink-0" />
+            <IconChevronLeftMedium className="size-3.5 shrink-0" />
           </button>
           <label
-            className="git-diff-card__label"
+            className="inline-flex min-h-(--multi-workbench-action-size) shrink-0 cursor-(--multi-button-cursor) items-center gap-1 rounded-[5px] px-[3px] pr-1 text-[11px]/4 text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] hover:bg-(--multi-workbench-toolbar-hover-background) hover:text-foreground @max-[360px]:w-(--multi-workbench-action-size) @max-[360px]:justify-center @max-[360px]:px-[3px]"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
           >
@@ -177,16 +178,21 @@ export function GitDiffCard(props: {
               type="checkbox"
               aria-label="Viewed"
               checked={props.viewed}
-              onChange={() => props.onToggleViewed()}
+              onChange={() => {
+                props.onToggleViewed();
+                props.onExpandedChange(false);
+              }}
               className="size-3.5 rounded border-multi-border/60 accent-primary"
             />
-            <span className="git-diff-card__label-text">Viewed</span>
+            <span className="@max-[360px]:absolute @max-[360px]:size-px @max-[360px]:overflow-hidden @max-[360px]:whitespace-nowrap @max-[360px]:[clip-path:inset(50%)]">
+              Viewed
+            </span>
           </label>
           <GitKindBadge state={props.file.state} />
         </span>
       </div>
       {props.expanded ? (
-        <div className="git-diff-card__body select-text">
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-(--multi-git-diff-editor-background) select-text">
           {showLoading ? (
             <div className="flex flex-col gap-2 p-3">
               <div className="h-3 w-full max-w-[14rem] animate-pulse rounded bg-muted/35" />

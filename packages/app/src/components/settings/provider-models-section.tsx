@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  IconArrowDown as ArrowDownIcon,
-  IconArrowUp as ArrowUpIcon,
+  IconChevronRightMedium,
   IconEyeOpen as EyeIcon,
   IconEyeClosed as EyeOffIcon,
   IconInfoSimple as InfoIcon,
@@ -183,7 +182,7 @@ const ProviderModelRow = memo(function ProviderModelRow({
               />
             }
           >
-            <ArrowUpIcon className="size-3" />
+            <IconChevronRightMedium className="size-3 -rotate-90" />
           </TooltipTrigger>
           <TooltipPopup side="top" variant="workbench">
             Move up
@@ -202,7 +201,7 @@ const ProviderModelRow = memo(function ProviderModelRow({
               />
             }
           >
-            <ArrowDownIcon className="size-3" />
+            <IconChevronRightMedium className="size-3 rotate-90" />
           </TooltipTrigger>
           <TooltipPopup side="top" variant="workbench">
             Move down

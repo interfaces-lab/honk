@@ -8,13 +8,10 @@ import { ChangedFilesTree } from "./changed-files-tree";
 import { DiffStatLabel, hasNonZeroStat } from "./diff-stat-label";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { ChatMessageBubble } from "./message-surface";
-import { cn } from "~/lib/utils";
 
 interface AssistantMessageProps {
   message: ChatMessage;
-  showCompletionDivider: boolean;
   assistantTurnDiffSummary: TurnDiffSummary | undefined;
-  completionSummary: string | null;
   routeThreadKey: string;
   markdownCwd: string | undefined;
   resolvedTheme: "light" | "dark";
@@ -23,9 +20,7 @@ interface AssistantMessageProps {
 
 export const AssistantMessage = memo(function AssistantMessage({
   message,
-  showCompletionDivider,
   assistantTurnDiffSummary,
-  completionSummary,
   routeThreadKey,
   markdownCwd,
   resolvedTheme,
@@ -53,20 +48,6 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   return (
     <div className="min-w-0 pt-(--chat-timeline-assistant-top-inset)">
-      {showCompletionDivider && (
-        <div className="my-3 flex items-center gap-3">
-          <span className="h-px flex-1 bg-border" />
-          <span
-            className={cn(
-              "rounded-full border border-border bg-background px-2.5 py-1",
-              "text-caption tracking-[0.14em] text-muted-foreground/80 uppercase",
-            )}
-          >
-            {completionSummary ? `Response \u2022 ${completionSummary}` : "Response"}
-          </span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
-      )}
       <ChatMessageBubble role="assistant" body={body} />
     </div>
   );

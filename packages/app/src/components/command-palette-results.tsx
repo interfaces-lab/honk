@@ -1,5 +1,5 @@
 import { type ResolvedKeybindingsConfig } from "@multi/contracts";
-import { IconChevronRight } from "central-icons";
+import { IconChevronRightMedium } from "central-icons";
 import { shortcutLabelForCommand } from "../keybindings";
 import {
   type CommandPaletteActionItem,
@@ -103,7 +103,7 @@ function CommandPaletteResultRow(props: {
       ) : null}
       {shortcutLabel ? <CommandShortcut>{shortcutLabel}</CommandShortcut> : null}
       {props.item.kind === "submenu" ? (
-        <IconChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground/50" />
+        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-muted-foreground/50" />
       ) : null}
     </CommandItem>
   );

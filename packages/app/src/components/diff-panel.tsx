@@ -6,8 +6,8 @@ import { scopeThreadRef } from "@multi/client-runtime";
 import { TurnId, type TurnId as TurnIdType } from "@multi/contracts";
 import {
   IconBrowserTabs,
-  IconChevronLeft,
-  IconChevronRight,
+  IconChevronLeftMedium,
+  IconChevronRightMedium,
   IconColumnWideHalf,
   IconText1,
 } from "central-icons";
@@ -52,7 +52,7 @@ const DIFF_PANEL_UNSAFE_CSS = `
 }
 
 [data-title] {
-  cursor: pointer;
+  cursor: var(--multi-button-cursor, pointer);
   transition:
     color 120ms ease,
     text-decoration-color 120ms ease;
@@ -430,7 +430,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           disabled={!canScrollTurnStripLeft}
           aria-label="Scroll turn list left"
         >
-          <IconChevronLeft className="size-3.5" />
+          <IconChevronLeftMedium className="size-3.5" />
         </button>
         <button
           type="button"
@@ -444,7 +444,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           disabled={!canScrollTurnStripRight}
           aria-label="Scroll turn list right"
         >
-          <IconChevronRight className="size-3.5" />
+          <IconChevronRightMedium className="size-3.5" />
         </button>
         <TabsRoot
           value={selectedTurnTabValue}

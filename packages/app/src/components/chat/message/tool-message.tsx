@@ -48,11 +48,11 @@ export const ToolCallMessage = memo(function ToolCallMessage({
 
 function SubagentStatusSurface({ subagents }: { subagents: ReadonlyArray<WorkLogSubagent> }) {
   return (
-    <div className="agent-panel-meta-agent-chat__nested-subagents mt-1 max-h-80 w-full overflow-x-hidden overflow-y-auto pl-5">
+    <div className="mt-1 max-h-80 w-full overflow-x-hidden overflow-y-auto pl-5 text-detail">
       {subagents.map((subagent) => (
         <div
           key={subagent.providerThreadId ?? subagent.threadId ?? subagent.agentId}
-          className="agent-panel-meta-agent-chat__nested-subagent group/subagent flex w-fit max-w-full items-center gap-1.5 overflow-hidden"
+          className="group/subagent flex min-h-6 w-fit max-w-full items-center gap-1 overflow-hidden"
           data-status={subagent.isActive ? "running" : "completed"}
         >
           <span
@@ -60,8 +60,8 @@ function SubagentStatusSurface({ subagents }: { subagents: ReadonlyArray<WorkLog
             aria-hidden="true"
           />
           <div className="min-w-0">
-            <div className="inline-flex min-w-0 items-baseline gap-1.5">
-              <span className="min-w-0 text-body text-multi-fg-secondary">
+            <div className="inline-flex min-w-0 items-baseline gap-1">
+              <span className="min-w-0 text-detail text-multi-fg-secondary">
                 {subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent"}
               </span>
               {subagent.model ? (

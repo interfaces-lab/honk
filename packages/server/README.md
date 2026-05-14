@@ -25,5 +25,5 @@ Remaining `try/catch` sites in `src` should be boundary-required:
 - `src/open.ts`: platform executable probing and detached process spawn callback.
 - `src/observability/TraceRecord.ts` / `TraceSink.ts`: defensive trace parsing and synchronous sink buffering.
 - `src/persistence/NodeSqliteClient.ts`: `node:sqlite` statement boundary mapped to `SqlError`.
-- Provider SDK/process callback files (`ClaudeAdapter`, `ClaudeProvider`, `CursorProvider`, `codex-app-server`, `codex-app-server-manager`): JSON/platform/SDK callback boundaries.
+- Provider SDK/process callback files (`ClaudeAdapter`, `ClaudeProvider`, `CursorProvider`, `CodexProvider`, `CodexSessionRuntime`): JSON/platform/SDK callback boundaries.
 - `src/project/ProjectEntries.ts`: grep false positives from `ProjectEntry` identifiers, not `try/catch` statements.

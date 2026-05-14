@@ -2,7 +2,7 @@ import type { ProjectScript, ProjectScriptIcon, ResolvedKeybindingsConfig } from
 import {
   IconBug,
   IconChecklist,
-  IconChevronDownSmall,
+  IconChevronRightMedium,
   IconHammer,
   IconPlay,
   IconPlusLarge,
@@ -283,7 +283,7 @@ export default function ProjectScriptsControl({
             <MenuTrigger
               render={<Button size="icon-xs" variant="outline" aria-label="Script actions" />}
             >
-              <IconChevronDownSmall className="size-4" />
+              <IconChevronRightMedium className="size-4 rotate-90" />
             </MenuTrigger>
             <MenuPopup align="end">
               {scripts.map((script) => {

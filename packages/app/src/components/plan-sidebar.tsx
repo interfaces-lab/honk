@@ -7,8 +7,7 @@ import { ScrollArea } from "@multi/ui/scroll-area";
 import ChatMarkdown from "./chat/markdown/chat-markdown";
 import {
   IconCheckmark1,
-  IconChevronDownSmall,
-  IconChevronRight,
+  IconChevronRightMedium,
   IconDotGrid1x3Horizontal,
   IconLoader,
   IconSidebarHiddenRightWide,
@@ -230,9 +229,9 @@ const PlanSidebar = memo(function PlanSidebar({
                 onClick={() => setProposedPlanExpanded((v) => !v)}
               >
                 {proposedPlanExpanded ? (
-                  <IconChevronDownSmall className="size-3 shrink-0 text-muted-foreground/40 transition-transform" />
+                  <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-muted-foreground/40 transition-transform" />
                 ) : (
-                  <IconChevronRight className="size-3 shrink-0 text-muted-foreground/40 transition-transform" />
+                  <IconChevronRightMedium className="size-3 shrink-0 text-muted-foreground/40 transition-transform" />
                 )}
                 <span className="text-caption font-semibold tracking-widest text-muted-foreground/40 uppercase group-hover:text-muted-foreground/60">
                   {planTitle ?? "Full Plan"}

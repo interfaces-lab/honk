@@ -4,9 +4,8 @@ import type { EditorId, EnvironmentId } from "@multi/contracts";
 import type { FileContents } from "@pierre/diffs";
 import { File, type FileOptions } from "@pierre/diffs/react";
 import {
-  IconArrowLeft,
-  IconArrowRight,
-  IconArrowRotateClockwise,
+  IconChevronLeftMedium,
+  IconChevronRightMedium,
   IconBarsThree,
   IconFiles,
 } from "central-icons";
@@ -262,7 +261,7 @@ export function ProjectFilesPanel(props: {
           chrome="panel"
           onClick={() => fileTreeRef.current?.refresh()}
         >
-          <IconArrowRotateClockwise className="size-3.5" />
+          <IconChevronRightMedium className="size-3.5" />
         </WorkbenchIconButton>
         <NavButton
           disabled={!canGoBack}
@@ -270,7 +269,7 @@ export function ProjectFilesPanel(props: {
           label="Back"
           onClick={() => navigatePreviewHistory(-1)}
         >
-          <IconArrowLeft className="size-3.5" />
+          <IconChevronLeftMedium className="size-3.5" />
         </NavButton>
         <NavButton
           chrome="panel"
@@ -278,7 +277,7 @@ export function ProjectFilesPanel(props: {
           label="Forward"
           onClick={() => navigatePreviewHistory(1)}
         >
-          <IconArrowRight className="size-3.5" />
+          <IconChevronRightMedium className="size-3.5" />
         </NavButton>
         <div className="min-w-0 flex-1" />
       </div>

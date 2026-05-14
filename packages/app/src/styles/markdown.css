@@ -1,0 +1,108 @@
+/* Chat markdown: root tokens and generated descendant edge cases. */
+.chat-markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: color-mix(in srgb, var(--foreground) 84%, transparent);
+  font-size: var(--conversation-text-font-size);
+  letter-spacing: -0.005em;
+  line-height: var(--multi-markdown-line-height);
+  text-rendering: optimizeLegibility;
+  --monaco-monospace-font: var(--multi-font-mono);
+  --multi-markdown-line-height: max(
+    var(--conversation-text-leading, 18px),
+    calc(var(--conversation-text-font-size, 13px) * 1.55)
+  );
+  --multi-markdown-prose-max-width: 38rem;
+  --multi-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 5%, var(--background));
+  --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-markdown-blockquote-background: transparent;
+  --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 68%, transparent);
+  --multi-markdown-link-foreground: var(--primary);
+  --multi-markdown-link-active-foreground: color-mix(
+    in srgb,
+    var(--primary) 72%,
+    var(--foreground)
+  );
+  --multi-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --multi-markdown-preformat-foreground: color-mix(in srgb, var(--foreground) 82%, transparent);
+  --multi-markdown-request-border: var(--border);
+  --multi-markdown-rule-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-markdown-kbd-background: var(--muted);
+  --multi-markdown-kbd-border: var(--border);
+  --multi-markdown-kbd-bottom-border: var(--border);
+  --multi-markdown-kbd-foreground: var(--foreground);
+}
+
+.dark .chat-markdown {
+  --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 8%, var(--background));
+  --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 62%, transparent);
+  --multi-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 34%, transparent);
+  --multi-markdown-rule-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown > :first-child,
+.chat-markdown > h1:first-child,
+.chat-markdown > h2:first-child,
+.chat-markdown > h3:first-child,
+.chat-markdown > h4:first-child,
+.chat-markdown > h5:first-child,
+.chat-markdown > h6:first-child {
+  margin-top: 0;
+}
+
+.chat-markdown :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr) {
+  max-width: min(100%, var(--multi-markdown-prose-max-width));
+}
+
+.chat-markdown ul ul {
+  list-style-type: circle;
+}
+
+.chat-markdown ul ul ul {
+  list-style-type: square;
+}
+
+.chat-markdown ol ol {
+  list-style-type: lower-alpha;
+}
+
+.chat-markdown ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.chat-markdown :where(ul, ol) :where(ul, ol) {
+  gap: 0.125em;
+  margin-top: 0.25em;
+  margin-bottom: 0.125em;
+}
+
+.chat-markdown li > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown li:has(input[type="checkbox"]) {
+  list-style-type: none;
+}
+
+.chat-markdown .chat-markdown-codeblock pre {
+  margin: 0;
+}
+
+.chat-markdown .chat-markdown-codeblock:hover .chat-markdown-copy-button,
+.chat-markdown .chat-markdown-codeblock:focus-within .chat-markdown-copy-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-markdown .chat-markdown-shiki .shiki {
+  background: var(--multi-markdown-code-background) !important;
+}

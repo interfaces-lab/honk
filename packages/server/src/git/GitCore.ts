@@ -251,6 +251,19 @@ function classifyPorcelainV2_xy(xyToken: string): GitWorkingTreeFileStatus {
   return "modified";
 }
 
+interface WorkingTreeChangeFlags {
+  staged: boolean;
+  unstaged: boolean;
+}
+
+function parsePorcelainV2ChangeFlags(xyToken: string): WorkingTreeChangeFlags {
+  if (xyToken.length < 2) return { staged: false, unstaged: true };
+  return {
+    staged: xyToken[0] !== ".",
+    unstaged: xyToken[1] !== ".",
+  };
+}
+
 function mergeWorkingTreeFileStatus(
   previous: GitWorkingTreeFileStatus | undefined,
   incoming: GitWorkingTreeFileStatus,
@@ -274,6 +287,31 @@ function pokeWorkingTreeStatus(
   incoming: GitWorkingTreeFileStatus,
 ) {
   map.set(pathValue, mergeWorkingTreeFileStatus(map.get(pathValue), incoming));
+}
+
+function pokeWorkingTreeChangeFlags(
+  map: Map<string, WorkingTreeChangeFlags>,
+  pathValue: string,
+  incoming: WorkingTreeChangeFlags,
+) {
+  const current = map.get(pathValue) ?? { staged: false, unstaged: false };
+  map.set(pathValue, {
+    staged: current.staged || incoming.staged,
+    unstaged: current.unstaged || incoming.unstaged,
+  });
+}
+
+function resolveWorkingTreeChangeFlags(
+  pathValue: string,
+  stagedPaths: ReadonlySet<string>,
+  unstagedPaths: ReadonlySet<string>,
+  porcelainFlagsByPath: ReadonlyMap<string, WorkingTreeChangeFlags>,
+): WorkingTreeChangeFlags {
+  const porcelainFlags = porcelainFlagsByPath.get(pathValue);
+  return {
+    staged: stagedPaths.has(pathValue) || (porcelainFlags?.staged ?? false),
+    unstaged: unstagedPaths.has(pathValue) || (porcelainFlags?.unstaged ?? false),
+  };
 }
 
 function getPorcelainToken(record: string, tokenIndex: number): string | null {
@@ -1399,6 +1437,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     let hasWorkingTreeChanges = false;
     const pathsWithoutNumstat = new Set<string>();
     const statusByPath = new Map<string, GitWorkingTreeFileStatus>();
+    const porcelainFlagsByPath = new Map<string, WorkingTreeChangeFlags>();
     const previousPathByPath = new Map<string, string>();
 
     const statusRecords = splitNullSeparatedPaths(statusStdout, false);
@@ -1428,6 +1467,10 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
           const pathValue = parsePorcelainPathRecord(record);
           if (pathValue) {
             pokeWorkingTreeStatus(statusByPath, pathValue, "untracked");
+            pokeWorkingTreeChangeFlags(porcelainFlagsByPath, pathValue, {
+              staged: false,
+              unstaged: true,
+            });
             pathsWithoutNumstat.add(pathValue);
           }
           continue;
@@ -1437,6 +1480,10 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
           const pathValue = parsePorcelainPathRecord(record);
           if (pathValue) {
             pokeWorkingTreeStatus(statusByPath, pathValue, "ignored");
+            pokeWorkingTreeChangeFlags(porcelainFlagsByPath, pathValue, {
+              staged: false,
+              unstaged: true,
+            });
             pathsWithoutNumstat.add(pathValue);
           }
           continue;
@@ -1448,9 +1495,18 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
         pathsWithoutNumstat.add(pathValue);
         if (record.startsWith("u ")) {
           pokeWorkingTreeStatus(statusByPath, pathValue, "conflict");
+          pokeWorkingTreeChangeFlags(porcelainFlagsByPath, pathValue, {
+            staged: true,
+            unstaged: true,
+          });
           continue;
         }
         if (record.startsWith("2 ")) {
+          pokeWorkingTreeChangeFlags(
+            porcelainFlagsByPath,
+            pathValue,
+            parsePorcelainV2ChangeFlags(getPorcelainToken(record, 1) ?? ""),
+          );
           const previousPath = statusRecords[index + 1] ?? null;
           if (previousPath !== null) {
             previousPathByPath.set(pathValue, previousPath);
@@ -1462,6 +1518,11 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
         if (record.startsWith("1 ")) {
           const xyToken = getPorcelainToken(record, 1) ?? "";
           pokeWorkingTreeStatus(statusByPath, pathValue, classifyPorcelainV2_xy(xyToken));
+          pokeWorkingTreeChangeFlags(
+            porcelainFlagsByPath,
+            pathValue,
+            parsePorcelainV2ChangeFlags(xyToken),
+          );
         }
       }
     }
@@ -1475,6 +1536,8 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
 
     const stagedEntries = parseNumstatEntries(stagedNumstatStdout);
     const unstagedEntries = parseNumstatEntries(unstagedNumstatStdout);
+    const stagedPaths = new Set(stagedEntries.map((entry) => entry.path));
+    const unstagedPaths = new Set(unstagedEntries.map((entry) => entry.path));
     const fileStatMap = new Map<string, { insertions: number; deletions: number }>();
     for (const entry of [...stagedEntries, ...unstagedEntries]) {
       const existing = fileStatMap.get(entry.path) ?? { insertions: 0, deletions: 0 };
@@ -1489,11 +1552,19 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       .map(([filePath, stat]) => {
         insertions += stat.insertions;
         deletions += stat.deletions;
+        const changeFlags = resolveWorkingTreeChangeFlags(
+          filePath,
+          stagedPaths,
+          unstagedPaths,
+          porcelainFlagsByPath,
+        );
         const file = {
           path: filePath,
           insertions: stat.insertions,
           deletions: stat.deletions,
           status: statusByPath.get(filePath) ?? "modified",
+          staged: changeFlags.staged,
+          unstaged: changeFlags.unstaged,
         };
         const prevPath = previousPathByPath.get(filePath);
         return prevPath ? Object.assign(file, { prevPath }) : file;
@@ -1530,6 +1601,12 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       }
       insertions += stat.insertions;
       deletions += stat.deletions;
+      const changeFlags = resolveWorkingTreeChangeFlags(
+        filePath,
+        stagedPaths,
+        unstagedPaths,
+        porcelainFlagsByPath,
+      );
       files.push({
         path: filePath,
         ...(previousPathByPath.get(filePath)
@@ -1538,6 +1615,8 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
         insertions: stat.insertions,
         deletions: stat.deletions,
         status: statusByPath.get(filePath) ?? "modified",
+        staged: changeFlags.staged,
+        unstaged: changeFlags.unstaged,
       });
     }
     files.sort((a, b) => a.path.localeCompare(b.path));

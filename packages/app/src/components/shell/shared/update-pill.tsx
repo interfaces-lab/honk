@@ -1,4 +1,4 @@
-import { IconArrowRotateClockwise, IconCloudDownload } from "central-icons";
+import { IconChevronRightMedium, IconCloudDownload } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
@@ -61,7 +61,7 @@ export function UpdatePill() {
     >
       {action === "install" ? (
         <>
-          <IconArrowRotateClockwise className="size-3.5 shrink-0" />
+          <IconChevronRightMedium className="size-3.5 shrink-0" />
           <span className="truncate">
             {state?.errorContext === "install" && typeof state.message === "string"
               ? "Retry update"

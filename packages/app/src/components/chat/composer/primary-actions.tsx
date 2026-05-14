@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { IconArrowUp, IconChevronDownSmall, IconChevronLeft, IconStop } from "central-icons";
+import { IconArrowUp, IconChevronLeftMedium, IconChevronRightMedium, IconStop } from "central-icons";
 import type { AgentWindowSendWhileStreamingBehavior } from "@multi/contracts/settings";
 import { cn } from "~/lib/utils";
 import { Button } from "@multi/ui/button";
@@ -83,7 +83,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
               disabled={pendingAction.isResponding}
               aria-label="Previous question"
             >
-              <IconChevronLeft className="size-3.5" />
+              <IconChevronLeftMedium className="size-3.5" />
             </Button>
           ) : (
             <Button
@@ -154,7 +154,9 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             aria-label={runningSendLabel}
             title={runningSendLabel}
           >
-            <IconArrowUp className={dockSingleRow ? "size-3" : "size-3.5"} />
+            <IconArrowUp
+              className={dockSingleRow ? "size-3" : "size-3.5"}
+            />
           </button>
         </div>
       );
@@ -199,7 +201,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
               />
             }
           >
-            <IconChevronDownSmall className="size-3.5" />
+            <IconChevronRightMedium className="size-3.5 rotate-90" />
           </MenuTrigger>
           <MenuPopup align="end" side="top" variant="workbench">
             <MenuItem
@@ -275,7 +277,9 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           </svg>
         )
       ) : (
-        <IconArrowUp className={dockSingleRow ? "size-3" : "size-3.5"} />
+        <IconArrowUp
+          className={dockSingleRow ? "size-3" : "size-3.5"}
+        />
       )}
     </button>
   );

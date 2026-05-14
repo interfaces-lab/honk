@@ -1,7 +1,7 @@
 "use client";
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
-import { IconCrossMediumDefault, IconSortArrowUpDown } from "central-icons";
+import { IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 
 import { cn } from "./utils";
 import { Input } from "./input";
@@ -57,7 +57,7 @@ function AutocompleteInput({
           )}
         >
           <AutocompletePrimitive.Icon data-slot="autocomplete-icon">
-            <IconSortArrowUpDown />
+            <IconChevronRightMedium className="rotate-90" />
           </AutocompletePrimitive.Icon>
         </AutocompleteTrigger>
       )}

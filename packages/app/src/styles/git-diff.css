@@ -1,0 +1,75 @@
+html {
+  --multi-git-diff-header-border: color-mix(in srgb, var(--multi-stroke-tertiary) 82%, transparent);
+  --multi-git-diff-addition: var(--multi-diff-addition);
+  --multi-git-diff-deletion: var(--multi-diff-deletion);
+  --multi-git-diff-editor-background: var(--multi-workbench-editor-surface-background);
+  --multi-git-diff-addition-line-background: color-mix(
+    in oklch,
+    var(--multi-diff-addition) 14%,
+    transparent
+  );
+  --multi-git-diff-addition-text-background: color-mix(
+    in oklch,
+    var(--multi-diff-addition) 16%,
+    transparent
+  );
+  --multi-git-diff-deletion-line-background: color-mix(
+    in oklch,
+    var(--multi-diff-deletion) 12%,
+    transparent
+  );
+  --multi-git-diff-deletion-text-background: color-mix(
+    in oklch,
+    var(--multi-diff-deletion) 14%,
+    transparent
+  );
+}
+
+html.dark {
+  --multi-git-diff-addition-line-background: color-mix(
+    in oklch,
+    var(--multi-diff-addition) 20%,
+    transparent
+  );
+  --multi-git-diff-addition-text-background: color-mix(
+    in oklch,
+    var(--multi-diff-addition) 18%,
+    transparent
+  );
+  --multi-git-diff-deletion-line-background: color-mix(
+    in oklch,
+    var(--multi-diff-deletion) 18%,
+    transparent
+  );
+  --multi-git-diff-deletion-text-background: color-mix(
+    in oklch,
+    var(--multi-diff-deletion) 16%,
+    transparent
+  );
+}
+
+.multi-shell-git-rail {
+  background: var(--multi-shell-sidebar-bg);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--multi-stroke-quaternary) 78%, transparent);
+}
+
+/* Pierre diffs CSS bridge - layout variables inherit into Shadow DOM */
+[data-diffs-container] {
+  --diffs-font-family: var(--multi-font-mono);
+  --diffs-header-font-family: var(--multi-font-ui);
+  --diffs-font-size: var(--multi-code-font-size-user, 12px);
+  --diffs-line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  font-family: var(--multi-font-mono);
+  font-size: var(--multi-code-font-size-user, 12px);
+  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+}
+
+.web-component[data-diffs-container] {
+  background-color: transparent;
+}
+
+.web-component[data-diffs-container] > diffs-container {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+}

@@ -14,7 +14,6 @@ import {
   memo,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -177,10 +176,10 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
   }, [code, resetCopied]);
 
   return (
-    <div className="chat-markdown-codeblock text-sm/5">
+    <div className="chat-markdown-codeblock relative my-[0.625em] mb-[0.85em] text-sm/5">
       <button
         type="button"
-        className="chat-markdown-copy-button"
+        className="chat-markdown-copy-button pointer-events-none absolute top-2 right-2 z-[1] inline-flex size-6 items-center justify-center rounded-[3px] border border-(--multi-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 transition-[opacity,color,border-color] duration-150 ease-out hover:border-[color-mix(in_srgb,var(--multi-markdown-request-border)_70%,var(--foreground))] hover:text-foreground"
         onClick={handleCopy}
         title={copied ? "Copied" : "Copy code"}
         aria-label={copied ? "Copied" : "Copy code"}
@@ -202,7 +201,7 @@ function PlainCodeBlock({
   codeProps?: ComponentProps<"code"> | undefined;
 }) {
   return (
-    <pre>
+    <pre className="m-0 max-w-full overflow-x-auto rounded-lg border border-(--multi-markdown-code-border) bg-(--multi-markdown-code-background) px-4 py-3.5">
       <code {...codeProps} className={className}>
         {code}
       </code>
@@ -530,7 +529,18 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
         const fileLinkMeta = normalizedHref ? markdownFileLinkMetaByHref.get(normalizedHref) : null;
         if (!fileLinkMeta) {
-          return <a {...props} href={href} target="_blank" rel="noopener noreferrer" />;
+          return (
+            <a
+              {...props}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground) [&_code]:text-(--multi-markdown-link-foreground)",
+                props.className,
+              )}
+            />
+          );
         }
 
         const parentSuffix = fileLinkParentSuffixByPath.get(fileLinkMeta.filePath);
@@ -569,7 +579,13 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         const code = nodeToPlainText(children);
         if (dataBlock == null) {
           return (
-            <code {...props} className={className}>
+            <code
+              {...props}
+              className={cn(
+                "rounded-[3px] bg-(--multi-markdown-code-background) px-[0.3em] py-[0.1em] font-mono text-multi-code text-(--multi-markdown-preformat-foreground)",
+                className,
+              )}
+            >
               {children}
             </code>
           );
@@ -592,6 +608,193 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
               themeName={diffThemeName}
             />
           </MarkdownCodeBlock>
+        );
+      },
+      p({ node: _node, className, ...props }) {
+        return <p {...props} className={cn("mt-0 mb-[0.85em] text-pretty", className)} />;
+      },
+      h1({ node: _node, className, ...props }) {
+        return (
+          <h1
+            {...props}
+            className={cn(
+              "mt-4 mb-1.5 text-[clamp(18px,calc(var(--conversation-text-font-size)*1.45),22px)]/[1.25] font-semibold text-foreground text-balance",
+              className,
+            )}
+          />
+        );
+      },
+      h2({ node: _node, className, ...props }) {
+        return (
+          <h2
+            {...props}
+            className={cn(
+              "mt-4 mb-2 flex items-center gap-3 text-[max(13px,calc(var(--conversation-text-font-size)*1.02))]/[1.35] font-semibold text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] text-balance after:h-px after:min-w-6 after:flex-1 after:bg-(--multi-markdown-rule-color) after:content-['']",
+              className,
+            )}
+          />
+        );
+      },
+      h3({ node: _node, className, ...props }) {
+        return (
+          <h3
+            {...props}
+            className={cn(
+              "mt-3 mb-1 text-[max(13px,var(--conversation-text-font-size))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_74%,transparent)] text-balance",
+              className,
+            )}
+          />
+        );
+      },
+      h4({ node: _node, className, ...props }) {
+        return (
+          <h4
+            {...props}
+            className={cn(
+              "mt-2.5 mb-1 text-conversation font-[550] text-[color-mix(in_srgb,var(--foreground)_72%,transparent)] text-balance",
+              className,
+            )}
+          />
+        );
+      },
+      h5({ node: _node, className, ...props }) {
+        return (
+          <h5
+            {...props}
+            className={cn(
+              "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] text-balance",
+              className,
+            )}
+          />
+        );
+      },
+      h6({ node: _node, className, ...props }) {
+        return (
+          <h6
+            {...props}
+            className={cn(
+              "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] text-balance",
+              className,
+            )}
+          />
+        );
+      },
+      ul({ node: _node, className, ...props }) {
+        return (
+          <ul
+            {...props}
+            className={cn(
+              "mt-0 mb-[0.85em] flex list-disc flex-col gap-[0.25em] pl-[1.15em]",
+              className,
+            )}
+          />
+        );
+      },
+      ol({ node: _node, className, ...props }) {
+        return (
+          <ol
+            {...props}
+            className={cn(
+              "mt-0 mb-[0.85em] flex list-decimal flex-col gap-[0.25em] pl-[1.15em]",
+              className,
+            )}
+          />
+        );
+      },
+      li({ node: _node, className, ...props }) {
+        return (
+          <li
+            {...props}
+            className={cn(
+              "mb-0 pl-[0.1em] marker:text-(--multi-markdown-marker-foreground)",
+              className,
+            )}
+          />
+        );
+      },
+      hr({ node: _node, className, ...props }) {
+        return (
+          <hr
+            {...props}
+            className={cn(
+              "my-4 max-w-[min(100%,var(--multi-markdown-prose-max-width))] border-0 border-t border-(--multi-markdown-rule-color)",
+              className,
+            )}
+          />
+        );
+      },
+      blockquote({ node: _node, className, ...props }) {
+        return (
+          <blockquote
+            {...props}
+            className={cn(
+              "mt-1 mb-[0.85em] border-l-2 border-(--multi-markdown-blockquote-border) bg-(--multi-markdown-blockquote-background) py-0 pr-0 pl-4 text-(--multi-markdown-blockquote-foreground) italic",
+              className,
+            )}
+          />
+        );
+      },
+      kbd({ node: _node, className, ...props }) {
+        return (
+          <kbd
+            {...props}
+            className={cn(
+              "rounded-[3px] border border-(--multi-markdown-kbd-border) border-b-(--multi-markdown-kbd-bottom-border) bg-(--multi-markdown-kbd-background) px-[3px] py-px align-middle font-mono text-[0.85em] text-(--multi-markdown-kbd-foreground) shadow-[inset_0_-1px_0_var(--multi-markdown-widget-shadow)]",
+              className,
+            )}
+          />
+        );
+      },
+      strong({ node: _node, className, ...props }) {
+        return <strong {...props} className={cn("font-semibold", className)} />;
+      },
+      b({ node: _node, className, ...props }) {
+        return <b {...props} className={cn("font-semibold", className)} />;
+      },
+      del({ node: _node, className, ...props }) {
+        return <del {...props} className={cn("text-muted-foreground line-through", className)} />;
+      },
+      img({ node: _node, className, ...props }) {
+        return (
+          <img
+            {...props}
+            className={cn(
+              "h-auto max-w-full rounded-lg align-middle shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]",
+              className,
+            )}
+          />
+        );
+      },
+      pre({ node: _node, className, ...props }) {
+        return (
+          <pre
+            {...props}
+            className={cn(
+              "m-0 max-w-full overflow-x-auto rounded-lg border border-(--multi-markdown-code-border) bg-(--multi-markdown-code-background) px-4 py-3.5",
+              className,
+            )}
+          />
+        );
+      },
+      table({ node: _node, className, ...props }) {
+        return (
+          <table {...props} className={cn("mb-3 w-full border-collapse text-left", className)} />
+        );
+      },
+      th({ node: _node, className, ...props }) {
+        return (
+          <th
+            {...props}
+            className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
+          />
+        );
+      },
+      td({ node: _node, className, ...props }) {
+        return (
+          <td
+            {...props}
+            className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
+          />
         );
       },
     }),

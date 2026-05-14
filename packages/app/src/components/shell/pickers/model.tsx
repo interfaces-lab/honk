@@ -1,6 +1,6 @@
 import type { HarnessModelRef, ThinkingLevel } from "~/lib/ui-session-types";
 import { Menu } from "@base-ui/react/menu";
-import { IconBrain, IconCheckmark1Small, IconChevronRight, IconLock } from "central-icons";
+import { IconBrain, IconCheckmark1Small, IconChevronRightMedium, IconLock } from "central-icons";
 import {
   workbenchMenuIconSlotClassName,
   workbenchMenuItemClassName,
@@ -202,7 +202,7 @@ export const ModelPicker = forwardRef<
               {locked ? (
                 <IconLock className="size-3 shrink-0 text-multi-fg-tertiary" aria-hidden />
               ) : null}
-              <IconChevronRight
+              <IconChevronRightMedium
                 className="size-3 shrink-0 rotate-90 text-multi-fg-tertiary"
                 aria-hidden
               />
@@ -392,7 +392,7 @@ export const ModelPicker = forwardRef<
                   data-action="open-model-settings"
                 >
                   <span className="min-w-0 flex-1 text-left">Add Models</span>
-                  <IconChevronRight className="size-3 shrink-0 text-multi-fg-tertiary" />
+                  <IconChevronRightMedium className="size-3 shrink-0 text-multi-fg-tertiary" />
                 </button>
               </>
             ) : null}

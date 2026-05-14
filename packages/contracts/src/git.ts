@@ -239,6 +239,8 @@ const GitStatusLocalShape = {
         insertions: NonNegativeInt,
         deletions: NonNegativeInt,
         status: GitWorkingTreeFileStatus,
+        staged: Schema.optional(Schema.Boolean),
+        unstaged: Schema.optional(Schema.Boolean),
       }),
     ),
     insertions: NonNegativeInt,

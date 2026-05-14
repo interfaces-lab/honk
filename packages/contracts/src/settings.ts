@@ -30,6 +30,7 @@ export const DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE: SidebarProjectGroupingMode =
 
 export const DEFAULT_AGENT_WINDOW_FONT_SMOOTHING_ANTIALIASED = true;
 export const DEFAULT_AGENT_WINDOW_CHAT_MAX_WIDTH = 840;
+export const DEFAULT_CURSOR_POINTER_ON_BUTTONS = true;
 export const AgentWindowChatMaxWidth = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 export type AgentWindowChatMaxWidth = typeof AgentWindowChatMaxWidth.Type;
 
@@ -63,6 +64,9 @@ export const ClientSettingsSchema = Schema.Struct({
   autoOpenPlanSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   confirmThreadArchive: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   confirmThreadDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  cursorPointerOnButtons: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CURSOR_POINTER_ON_BUTTONS)),
+  ),
   diffWordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   favorites: Schema.Array(
     Schema.Struct({
@@ -462,6 +466,7 @@ export const ClientSettingsPatch = Schema.Struct({
   autoOpenPlanSidebar: Schema.optionalKey(Schema.Boolean),
   confirmThreadArchive: Schema.optionalKey(Schema.Boolean),
   confirmThreadDelete: Schema.optionalKey(Schema.Boolean),
+  cursorPointerOnButtons: Schema.optionalKey(Schema.Boolean),
   diffWordWrap: Schema.optionalKey(Schema.Boolean),
   favorites: Schema.optionalKey(
     Schema.Array(

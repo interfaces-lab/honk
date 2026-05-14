@@ -1,7 +1,7 @@
 import {
   IconArchive,
   IconArchiveJunk,
-  IconArrowRotateClockwise,
+  IconChevronRightMedium,
   IconLoader,
   IconPlusLarge,
 } from "central-icons";
@@ -282,7 +282,8 @@ export function useSettingsRestore(onRestored?: () => void) {
   const isAgentWindowAppearanceDirty =
     settings.agentWindowFontSmoothingAntialiased !==
       DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased ||
-    settings.agentWindowChatMaxWidth !== DEFAULT_UNIFIED_SETTINGS.agentWindowChatMaxWidth;
+    settings.agentWindowChatMaxWidth !== DEFAULT_UNIFIED_SETTINGS.agentWindowChatMaxWidth ||
+    settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons;
   const isAppearanceDirty = !Equal.equals(appearance, DEFAULT_APPEARANCE_SNAPSHOT);
   const areProviderSettingsDirty = PROVIDER_SETTINGS.some((providerSettings) => {
     const provider = providerSettings.provider as keyof typeof DEFAULT_UNIFIED_SETTINGS.providers;
@@ -314,6 +315,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.agentWindowUsageSummaryDisplay
         ? ["Usage summary"]
         : []),
+      ...(settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons
+        ? ["Pointer cursors"]
+        : []),
       ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
         ? ["Add project base directory"]
         : []),
@@ -337,6 +341,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.agentWindowUsageSummaryDisplay,
       settings.confirmThreadArchive,
       settings.confirmThreadDelete,
+      settings.cursorPointerOnButtons,
       settings.addProjectBaseDirectory,
       settings.defaultThreadEnvMode,
       settings.diffWordWrap,
@@ -470,10 +475,11 @@ function FontFamilyInput(props: {
     onUnmount: (debouncer) => debouncer.flush(),
   });
 
+  const onDraftValueChange = props.onDraftValueChange;
   useEffect(() => {
     setDraftValue(props.value);
-    props.onDraftValueChange?.(props.value);
-  }, [props.value, props.onDraftValueChange]);
+    onDraftValueChange?.(props.value);
+  }, [props.value, onDraftValueChange]);
 
   return (
     <Input
@@ -921,6 +927,31 @@ export function AppearanceSettingsPanel() {
               aria-label="Agent Window Font Smoothing"
               onCheckedChange={(checked) =>
                 updateSettings({ agentWindowFontSmoothingAntialiased: Boolean(checked) })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title="Use pointer cursors"
+          description="Use pointer cursor on interactive controls."
+          resetAction={
+            settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons ? (
+              <SettingResetButton
+                label="pointer cursors"
+                onClick={() =>
+                  updateSettings({
+                    cursorPointerOnButtons: DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.cursorPointerOnButtons}
+              aria-label="Use pointer cursors"
+              onCheckedChange={(checked) =>
+                updateSettings({ cursorPointerOnButtons: Boolean(checked) })
               }
             />
           }
@@ -1561,7 +1592,7 @@ export function ModelsSettingsPanel() {
                     {isRefreshingProviders ? (
                       <IconLoader className="size-3 animate-spin" />
                     ) : (
-                      <IconArrowRotateClockwise className="size-3" />
+                      <IconChevronRightMedium className="size-3" />
                     )}
                   </Button>
                 }
@@ -1743,7 +1774,7 @@ export function ArchivedThreadsPanel() {
             {projectThreads.map((thread) => (
               <div
                 key={thread.id}
-                className="flex items-center justify-between gap-3 border-t border-(color:--multi-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
+                className="flex items-center justify-between gap-3 border-t border-(--multi-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
                 onContextMenu={(event) => {
                   event.preventDefault();
                   void handleArchivedThreadContextMenu(

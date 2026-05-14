@@ -9,8 +9,10 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
+import { IconChevronRightMedium } from "central-icons";
 import {
   defaultRangeExtractor,
   useVirtualizer,
@@ -18,6 +20,7 @@ import {
   type VirtualItem,
 } from "@tanstack/react-virtual";
 import { Spinner } from "@multi/ui/spinner";
+import { Collapsible } from "@multi/ui/collapsible";
 import { deriveTimelineEntries } from "../../../session-logic";
 import { type ChatMessage, type TurnDiffSummary } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
@@ -56,6 +59,8 @@ export interface TimelineRowSharedState {
   renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
+  expandedWorkedBlockIds: ReadonlySet<string>;
+  onWorkedBlockOpenChange: (rowId: string, open: boolean) => void;
 }
 
 export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
@@ -159,6 +164,28 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     ],
   );
   const rows = useStableRows(rawRows);
+  const initialWorkedBlockIdsRef = useRef<ReadonlySet<string> | null>(null);
+  if (initialWorkedBlockIdsRef.current === null) {
+    initialWorkedBlockIdsRef.current = getWorkedBlockIds(rows);
+  }
+  const [workedBlockOpenOverrides, setWorkedBlockOpenOverrides] = useState<
+    ReadonlyMap<string, boolean>
+  >(() => new Map());
+  const expandedWorkedBlockIds = useMemo(() => {
+    const initialWorkedBlockIds = initialWorkedBlockIdsRef.current ?? new Set<string>();
+    const expandedIds = new Set<string>();
+    for (const row of rows) {
+      if (row.kind !== "worked-block") {
+        continue;
+      }
+      const openOverride = workedBlockOpenOverrides.get(row.id);
+      const defaultOpen = !initialWorkedBlockIds.has(row.id);
+      if (openOverride ?? defaultOpen) {
+        expandedIds.add(row.id);
+      }
+    }
+    return expandedIds;
+  }, [rows, workedBlockOpenOverrides]);
   const stickyUserRowIndices = useMemo(
     () => rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : [])),
     [rows],
@@ -262,6 +289,33 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     },
     { wait: 16, leading: true, trailing: true },
   );
+  const keepBottomPinnedThroughAnimation = useCallback(() => {
+    const startedAt = window.performance.now();
+    const tick = () => {
+      scheduleStickToBottom();
+      if (window.performance.now() - startedAt < 240) {
+        window.requestAnimationFrame(tick);
+      }
+    };
+    window.requestAnimationFrame(tick);
+  }, [scheduleStickToBottom]);
+  const handleWorkedBlockOpenChange = useCallback(
+    (rowId: string, open: boolean) => {
+      const latestWorkedBlockId = rows.findLast((row) => row.kind === "worked-block")?.id ?? null;
+      const shouldStickToBottom = open && (getIsAtBottom() || rowId === latestWorkedBlockId);
+
+      setWorkedBlockOpenOverrides((previousOverrides) => {
+        const nextOverrides = new Map(previousOverrides);
+        nextOverrides.set(rowId, open);
+        return nextOverrides;
+      });
+
+      if (shouldStickToBottom) {
+        keepBottomPinnedThroughAnimation();
+      }
+    },
+    [getIsAtBottom, keepBottomPinnedThroughAnimation, rows],
+  );
 
   useEffect(() => {
     const controller: MessagesTimelineController = {
@@ -344,7 +398,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimateTimelineRowSize(rows[index]),
+    estimateSize: (index) => estimateTimelineRowSize(rows[index], expandedWorkedBlockIds),
     getItemKey: (index) => rows[index]?.id ?? index,
     rangeExtractor,
     overscan: VIRTUALIZER_OVERSCAN,
@@ -376,6 +430,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       renderEditComposer,
       onImageExpand,
       onOpenTurnDiff,
+      expandedWorkedBlockIds,
+      onWorkedBlockOpenChange: handleWorkedBlockOpenChange,
     }),
     [
       activeTurnInProgress,
@@ -393,6 +449,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       renderEditComposer,
       onImageExpand,
       onOpenTurnDiff,
+      expandedWorkedBlockIds,
+      handleWorkedBlockOpenChange,
     ],
   );
 
@@ -428,7 +486,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     <TimelineRowCtx.Provider value={sharedState}>
       <div
         className={cn(
-          "agent-panel-meta-agent-chat-shell ui-imsg-thread relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden",
+          "relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden",
           "pt-(--chat-timeline-padding-block-start)",
           "[--meta-agent-thread-stack-gap:8px]",
           "[--meta-agent-thread-stack-horizontal-inset:20px]",
@@ -442,8 +500,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           onPointerDown={clearProgrammaticScrollTracking}
           onTouchStart={clearProgrammaticScrollTracking}
           onWheel={clearProgrammaticScrollTracking}
-          className="agent-panel-meta-agent-chat h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
-          data-chat-top-fade=""
+          data-chat-timeline-scroll=""
+          className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
         >
           <div className="mx-auto box-border w-full max-w-composer" style={virtualContentStyle}>
             {virtualItems.map((virtualRow) => {
@@ -461,14 +519,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   data-index={virtualRow.index}
                   data-sticky={isActiveStickyUserRow ? "true" : undefined}
                   className={cn(
-                    "virtualized-composer-messages-row w-full px-(--composer-messages-padding-inline) pb-(--chat-timeline-row-gap)",
-                    isActiveStickyUserRow && "agent-panel-meta-agent-chat__sticky-user-row",
+                    "w-full px-(--composer-messages-padding-inline) pb-(--chat-timeline-row-gap)",
+                    isActiveStickyUserRow &&
+                      "isolate bg-[color-mix(in_srgb,var(--multi-composer-overlay-bg)_72%,transparent)]",
                   )}
                   style={virtualRowStyle(virtualRow, isActiveStickyUserRow)}
                 >
                   <TimelineRowContent
                     row={row}
-                    isSticky={isActiveStickyUserRow}
                     isEditingUserMessage={
                       row.kind === "message" &&
                       row.message.role === "user" &&
@@ -489,6 +547,16 @@ function isUserMessageRow(row: MessagesTimelineRow): row is UserMessageTimelineR
   return row.kind === "message" && row.message.role === "user";
 }
 
+function getWorkedBlockIds(rows: ReadonlyArray<MessagesTimelineRow>): ReadonlySet<string> {
+  const result = new Set<string>();
+  for (const row of rows) {
+    if (row.kind === "worked-block") {
+      result.add(row.id);
+    }
+  }
+  return result;
+}
+
 function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIndex: number) {
   let activeIndex: number | null = null;
   for (const index of indices) {
@@ -500,13 +568,28 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
   return activeIndex;
 }
 
-function estimateTimelineRowSize(row: MessagesTimelineRow | undefined) {
+function estimateTimelineRowSize(
+  row: MessagesTimelineRow | undefined,
+  expandedWorkedBlockIds: ReadonlySet<string>,
+): number {
   if (!row) {
     return 96 + VIRTUAL_ROW_GAP_PX;
   }
 
   if (row.kind === "message") {
     return (row.message.role === "user" ? 88 : 156) + VIRTUAL_ROW_GAP_PX;
+  }
+
+  if (row.kind === "worked-block") {
+    if (!expandedWorkedBlockIds.has(row.id)) {
+      return 32 + VIRTUAL_ROW_GAP_PX;
+    }
+    return (
+      row.childRows.reduce(
+        (total, childRow) => total + estimateTimelineRowSize(childRow, expandedWorkedBlockIds),
+        32,
+      ) + VIRTUAL_ROW_GAP_PX
+    );
   }
 
   if (row.kind === "proposed-plan") {
@@ -545,11 +628,9 @@ type TimelineRow = MessagesTimelineRow;
 
 const TimelineRowContent = memo(function TimelineRowContent({
   row,
-  isSticky = false,
   isEditingUserMessage = false,
 }: {
   row: TimelineRow;
-  isSticky?: boolean;
   isEditingUserMessage?: boolean;
 }) {
   const ctx = use(TimelineRowCtx);
@@ -557,8 +638,7 @@ const TimelineRowContent = memo(function TimelineRowContent({
   return (
     <div
       className={cn(
-        "agent-panel-meta-agent-chat__message-entry flex w-full min-w-0 flex-col gap-1 overflow-x-hidden",
-        !isSticky && "[content-visibility:auto] [contain-intrinsic-size:96px]",
+        "flex w-full min-w-0 flex-col gap-1 overflow-x-hidden",
         row.kind === "message" && row.message.role === "assistant" ? "group/assistant" : null,
       )}
       data-meta-agent-chat-bubble-id={row.id}
@@ -569,14 +649,34 @@ const TimelineRowContent = memo(function TimelineRowContent({
       data-message-id={row.kind === "message" ? row.message.id : undefined}
       data-message-role={row.kind === "message" ? row.message.role : undefined}
     >
+      {row.kind === "worked-block" ? (
+        <WorkedBlockRow row={row} />
+      ) : (
+        <TimelineRowBody row={row} isEditingUserMessage={isEditingUserMessage} ctx={ctx} />
+      )}
+    </div>
+  );
+});
+
+function TimelineRowBody({
+  row,
+  isEditingUserMessage,
+  ctx,
+}: {
+  row: Exclude<TimelineRow, { kind: "worked-block" }>;
+  isEditingUserMessage: boolean;
+  ctx: TimelineRowSharedState;
+}) {
+  return (
+    <>
       {row.kind === "work" && (
-        <div className="agent-panel-meta-agent-chat__row agent-panel-meta-agent-chat__row--tool-call flex w-full min-w-0">
+        <div className="flex w-full min-w-0">
           <WorkGroupSection groupedEntries={row.groupedEntries} />
         </div>
       )}
 
       {row.kind === "message" && row.message.role === "user" && (
-        <div className="agent-panel-meta-agent-chat__row agent-panel-meta-agent-chat__row--human box-border flex w-full min-w-0 px-0">
+        <div className="box-border flex w-full min-w-0 px-0">
           <HumanMessage
             message={row.message}
             revertTurnCount={row.revertTurnCount}
@@ -593,12 +693,10 @@ const TimelineRowContent = memo(function TimelineRowContent({
       )}
 
       {row.kind === "message" && row.message.role === "assistant" && (
-        <div className="agent-panel-meta-agent-chat__row agent-panel-meta-agent-chat__row--assistant box-border flex w-full min-w-0 px-0">
+        <div className="box-border flex w-full min-w-0 px-0">
           <AssistantMessage
             message={row.message}
-            showCompletionDivider={row.showCompletionDivider}
             assistantTurnDiffSummary={row.assistantTurnDiffSummary}
-            completionSummary={ctx.completionSummary}
             routeThreadKey={ctx.routeThreadKey}
             markdownCwd={ctx.markdownCwd}
             resolvedTheme={ctx.resolvedTheme}
@@ -608,7 +706,7 @@ const TimelineRowContent = memo(function TimelineRowContent({
       )}
 
       {row.kind === "proposed-plan" && (
-        <div className="agent-panel-meta-agent-chat__row agent-panel-meta-agent-chat__row--tool-call min-w-0 px-1 py-0.5">
+        <div className="min-w-0 px-1 py-0.5">
           <ProposedPlanCard
             planMarkdown={row.proposedPlan.planMarkdown}
             environmentId={ctx.activeThreadEnvironmentId}
@@ -619,13 +717,116 @@ const TimelineRowContent = memo(function TimelineRowContent({
       )}
 
       {row.kind === "working" && (
-        <div className="agent-panel-meta-agent-chat__row agent-panel-meta-agent-chat__row--loading flex w-full min-w-0 opacity-75">
-          <WorkingStatusRow createdAt={row.createdAt} />
+        <div className="flex w-full min-w-0 opacity-75">
+          <WorkingStatusRow />
         </div>
       )}
-    </div>
+    </>
+  );
+}
+
+const WorkedBlockRow = memo(function WorkedBlockRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "worked-block" }>;
+}) {
+  const ctx = use(TimelineRowCtx);
+  const completionLabel = formatAssistantWorkedLabel(row.durationStart, row.completedAt);
+  if (!completionLabel) {
+    return null;
+  }
+
+  const hasCollapsibleRows = row.childRows.length > 0;
+  const expanded = ctx.expandedWorkedBlockIds.has(row.id);
+
+  if (!hasCollapsibleRows) {
+    return (
+      <div className="inline-flex min-h-7 w-fit items-center gap-1 px-1 py-0.5 text-caption font-medium text-muted-foreground/75 tabular-nums">
+        <span>{completionLabel}</span>
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible
+      open={expanded}
+      onOpenChange={(nextOpen) => ctx.onWorkedBlockOpenChange(row.id, nextOpen)}
+    >
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Collapsible.Trigger
+          className={cn(
+            "inline-flex w-fit items-center gap-1 px-0 py-0.5 text-left text-caption font-medium text-muted-foreground/75 tabular-nums hover:text-multi-fg-secondary",
+            "motion-reduce:transition-none motion-reduce:active:scale-100",
+          )}
+          aria-label={`${expanded ? "Collapse" : "Expand"} assistant turn, ${completionLabel}`}
+          data-assistant-worked-trigger=""
+        >
+          <span>{completionLabel}</span>
+          <IconChevronRightMedium
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0 overflow-visible transition-transform duration-150 motion-reduce:transition-none",
+              expanded && "rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel className="[transition-property:height,opacity] duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+          <div className="flex min-w-0 flex-col gap-1">
+            {row.childRows.map((childRow) => (
+              <TimelineChildRow key={childRow.id} row={childRow} ctx={ctx} />
+            ))}
+          </div>
+        </Collapsible.Panel>
+      </div>
+    </Collapsible>
   );
 });
+
+function TimelineChildRow({
+  row,
+  ctx,
+}: {
+  row: Exclude<TimelineRow, { kind: "worked-block" }>;
+  ctx: TimelineRowSharedState;
+}) {
+  return (
+    <div
+      className="flex min-w-0 flex-col"
+      data-timeline-row-kind={row.kind}
+      data-message-id={row.kind === "message" ? row.message.id : undefined}
+      data-message-role={row.kind === "message" ? row.message.role : undefined}
+    >
+      <TimelineRowBody row={row} isEditingUserMessage={false} ctx={ctx} />
+    </div>
+  );
+}
+
+function formatAssistantWorkedLabel(startIso: string, completedAt: string | undefined) {
+  if (!completedAt) return null;
+  const startMs = Date.parse(startIso);
+  const endMs = Date.parse(completedAt);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    return null;
+  }
+  return `Worked for ${formatCompactDuration(endMs - startMs)}`;
+}
+
+function formatCompactDuration(durationMs: number) {
+  const totalSeconds = Math.max(1, Math.ceil(durationMs / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+
+  if (totalSeconds >= 3600) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
 
 // ---------------------------------------------------------------------------
 // WorkGroupSection — tool activity group with overflow control
@@ -656,6 +857,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
 });
 
 function timelineRowKind(row: TimelineRow): "human" | "assistant" | "tool-call" | "loading" {
+  if (row.kind === "worked-block") return "assistant";
   if (row.kind === "message") return row.message.role === "user" ? "human" : "assistant";
   if (row.kind === "working") return "loading";
   return "tool-call";

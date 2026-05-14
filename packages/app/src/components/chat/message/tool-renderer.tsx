@@ -1,5 +1,5 @@
 import {
-  IconChevronRight,
+  IconChevronRightMedium,
   IconClock,
   IconCodeBrackets,
   IconCloudDownload,
@@ -90,7 +90,7 @@ export interface ToolCallRendererProps {
 const thinkingStatusTaskVariants = cva(
   cn(
     "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
-    "text-conversation text-multi-fg-tertiary",
+    "text-detail text-multi-fg-tertiary",
   ),
   {
     variants: {
@@ -107,7 +107,7 @@ const thinkingStatusTaskVariants = cva(
 
 const toolCallLineVariants = cva(
   cn(
-    "group/tool-call-line flex min-w-0 items-center gap-1 overflow-hidden",
+    "group/tool-call-line flex min-h-6 min-w-0 items-center gap-1 overflow-hidden",
     "border-0 bg-transparent text-left select-none",
     "text-conversation",
     "text-ellipsis whitespace-nowrap text-multi-fg-primary",
@@ -202,7 +202,7 @@ export const ThinkingStatus = memo(function ThinkingStatus({
   active: boolean;
 }) {
   return (
-    <div className="flex min-h-7 items-center gap-2 py-1">
+    <div className="flex min-h-6 items-center gap-1 py-0.5">
       <IconRobot className="size-3.5 shrink-0 text-multi-fg-tertiary" />
       <span className={thinkingStatusTaskVariants({ active })}>{task}</span>
     </div>
@@ -438,7 +438,7 @@ function TaskToolCall({
     </span>
   );
   const titleArea = (
-    <span className="inline-flex min-w-0 items-baseline gap-1.5">
+    <span className="inline-flex min-w-0 items-baseline gap-1">
       <span
         className={cn(
           "min-w-0 text-body font-medium text-multi-fg-secondary",
@@ -474,13 +474,13 @@ function TaskToolCall({
       {hasBody ? (
         <button
           type="button"
-          className="ui-task-tool-call__header flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-2"
+          className="ui-task-tool-call__header flex min-h-6 w-fit max-w-full min-w-0 cursor-pointer items-center gap-1"
           aria-expanded={isExpanded}
           onClick={toggleExpanded}
         >
           {statusIcon}
           {titleArea}
-          <IconChevronRight
+          <IconChevronRightMedium
             className={cn(
               "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
               isExpanded && "rotate-90",
@@ -488,7 +488,7 @@ function TaskToolCall({
           />
         </button>
       ) : (
-        <div className="ui-task-tool-call__header flex w-fit max-w-full min-w-0 items-center gap-2">
+        <div className="ui-task-tool-call__header flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1">
           {statusIcon}
           {titleArea}
         </div>
@@ -649,7 +649,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
   );
 
   const chevron = (
-    <IconChevronRight
+    <IconChevronRightMedium
       className={cn(
         "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
         isExpanded && "rotate-90",
@@ -779,7 +779,7 @@ function ShellToolCall({
       <button
         type="button"
         className={cn(
-          "group/shell-trigger flex w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
+          "group/shell-trigger flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
           "border-0 bg-transparent p-0 text-left select-none",
           "text-conversation text-multi-fg-primary",
           expandable && "cursor-pointer",
@@ -793,7 +793,7 @@ function ShellToolCall({
         <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" />
         <span
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-1.5",
+            "flex min-w-0 flex-1 items-center gap-1",
             "overflow-hidden text-ellipsis whitespace-nowrap",
           )}
         >
@@ -815,7 +815,7 @@ function ShellToolCall({
           ) : null}
         </span>
         {expandable ? (
-          <IconChevronRight
+          <IconChevronRightMedium
             className={cn(
               "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
               isExpanded && "rotate-90",
@@ -932,7 +932,7 @@ function EditToolCall({
               className={editToolCallFilenameVariants({ loading, isDelete })}
             />
             <EditStats stats={stats} />
-            <IconChevronRight
+            <IconChevronRightMedium
               className={cn(
                 "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
                 isExpanded && "rotate-90",

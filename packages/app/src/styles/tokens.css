@@ -1,6 +1,6 @@
 /*
- * Design tokens: Pierre palette only (OKLCH + Display-P3). Layout and glass opacity tunables.
- * shell.css owns layout-only selectors (incl. chat markdown prose chrome).
+ * Design tokens: Pierre palette, typography, shared semantic roles, and glass opacity tunables.
+ * Feature-owned variables live beside their selectors (shell, composer, terminal, markdown, git).
  */
 
 :root {
@@ -9,117 +9,9 @@
   --multi-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
   --multi-font-smoothing-webkit: antialiased;
   --multi-font-smoothing-moz: grayscale;
-  --multi-header-height: var(--multi-header-height-user, 32px);
-  --multi-titlebar-control-height: 22px;
-  --multi-titlebar-control-row-top: calc(
-    (var(--multi-header-height) - var(--multi-titlebar-control-height)) / 2
-  );
-  --multi-electron-traffic-inset: 80px;
-  --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 0px);
-  --multi-sidebar-label-size: var(--multi-sidebar-label-size-user, var(--multi-text-detail));
-  --multi-sidebar-label-weight: var(--multi-sidebar-label-weight-user, 400);
-  --multi-sidebar-label-leading: var(
-    --multi-sidebar-label-leading-user,
-    var(--multi-leading-detail)
-  );
   /* Defaults match Pierre blue at Hue 247° / Intensity 33% (appearance sliders). */
   --multi-user-hue: 247;
   --multi-intensity: 33;
-  --multi-workbench-toggle-left: var(--multi-workbench-toggle-left-user, 12px);
-  --multi-workbench-toggle-right: var(--multi-workbench-toggle-right-user, 12px);
-  --multi-workbench-changes-toggle-w: var(--multi-workbench-changes-toggle-w-user, 7rem);
-  /*
-   * Panel chrome: compact action row, 2px action gap, 8px inline padding.
-   */
-  --multi-workbench-chrome-row-height: 35px;
-  /* Secondary pane headers (rails / preview toolbar) — below primary tool-island parity */
-  --multi-workbench-sub-chrome-row-height: 26px;
-  --multi-workbench-panel-title-row-height: 29px;
-  --multi-workbench-chrome-padding-inline: 8px;
-  --multi-workbench-sub-chrome-padding-inline: 6px;
-  --multi-workbench-chrome-action-gap: 2px;
-  --multi-workbench-sub-chrome-action-gap: 2px;
-  --multi-workbench-chrome-icon-padding-x: 3px;
-  --multi-workbench-action-size: 22px;
-  --composer-tab-label-max-width: 200px;
-  --conversation-font-size: var(--multi-text-title);
-  --conversation-text-font-size: var(--multi-text-title);
-  --conversation-text-leading: var(--multi-leading-title);
-  --conversation-tool-card-padding-x: 8px;
-  --meta-agent-overlay-height: 0px;
-  --agent-sidebar-cell-hover-actions-width: 60px;
-  --multi-composer-max-width: 840px;
-  --multi-composer-column-padding-inline: 16px;
-  --multi-composer-section-gap: 8px;
-  --multi-composer-surface-bg: var(--glass-chat-bubble-background, var(--multi-color-bubble));
-  --multi-composer-surface-border: var(--multi-stroke-tertiary);
-  --multi-composer-surface-border-hover: var(--multi-stroke-secondary);
-  --multi-composer-radius-expanded: 12px;
-  --multi-composer-radius-compact: 9999px;
-  --multi-composer-radius-compact-expanded: 16px;
-  --multi-composer-editor-padding: 8px 12px;
-  --multi-composer-toolbar-padding: 8px 10px;
-  --multi-composer-editor-min-height: 36px;
-  --multi-composer-editor-max-height: 200px;
-  --multi-composer-placeholder-fg: var(--multi-fg-quaternary);
-  --multi-composer-surface-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05);
-  --multi-composer-overlay-bleed-mask-height: 12px;
-  --multi-composer-overlay-height: 24px;
-  --multi-chat-top-fade-distance: 24px;
-  --multi-chat-sticky-bottom-fade-height: 20px;
-  --multi-chat-sticky-bottom-fade-blur: 8px;
-  --multi-composer-overlay-bg: var(--multi-color-editor);
-  --multi-composer-followup-padding-block-end: 16px;
-  /* Dock pill: Cursor parity compact surface padding 8px 10px (chat-agent-window-cursor-parity.md). */
-  --multi-composer-compact-control-size: 28px;
-  --multi-composer-compact-surface-padding: 8px 10px;
-  --multi-composer-compact-row-min-height: calc(var(--multi-composer-compact-control-size) + 16px);
-  --multi-composer-compact-editor-line-height: 20px;
-  /*
-   * Docked composer stack reserve: editor floor + toolbar row + gaps + shell follow-up
-   * padding + safe area (Cursor thread scroll vs overlay pattern).
-   */
-  --composer-max-width: var(--multi-composer-max-width);
-  --composer-messages-padding-inline: var(--multi-composer-column-padding-inline);
-  --chat-timeline-row-gap: 12px;
-  --chat-timeline-padding-block-start: 12px;
-  --chat-timeline-assistant-top-inset: 8px;
-  --composer-messages-scroll-bottom-inset: calc(
-    var(--multi-composer-editor-min-height) + var(--multi-composer-overlay-height) +
-      (var(--multi-composer-section-gap) * 3) + var(--multi-composer-compact-row-min-height) +
-      var(--multi-composer-followup-padding-block-end) + env(safe-area-inset-bottom, 0px)
-  );
-  --prompt-input-section-gap: var(--multi-composer-section-gap);
-  --prompt-input-container-bg: var(--multi-composer-surface-bg);
-  --prompt-input-container-border: var(--multi-composer-surface-border);
-  --prompt-input-container-border-hover: var(--multi-composer-surface-border-hover);
-  --prompt-input-border-radius-expanded: var(--multi-composer-radius-expanded);
-  --prompt-input-border-radius-compact: var(--multi-composer-radius-compact);
-  --prompt-input-border-radius-compact-expanded: var(--multi-composer-radius-compact-expanded);
-  --prompt-input-editor-padding: var(--multi-composer-editor-padding);
-  --prompt-input-toolbar-padding: var(--multi-composer-toolbar-padding);
-  --prompt-input-editor-min-height: var(--multi-composer-editor-min-height);
-  --prompt-input-editor-max-height: var(--multi-composer-editor-max-height);
-  --composer-mode-chat-background: var(--multi-bg-quaternary);
-  --composer-mode-chat-text: var(--multi-fg-primary);
-  --composer-mode-background-background: var(--multi-bg-tertiary);
-  --composer-mode-background-text: var(--multi-fg-secondary);
-  --composer-mode-plan-background: color-mix(in srgb, var(--primary) 12%, transparent);
-  --composer-mode-plan-text: var(--primary);
-  --composer-mode-plan-icon: var(--primary);
-  --composer-mode-plan-border: color-mix(in srgb, var(--primary) 24%, transparent);
-  --composer-mode-triage-background: var(--multi-bg-quaternary);
-  --composer-mode-triage-text: var(--multi-fg-primary);
-  --composer-mode-triage-icon: var(--multi-icon-secondary);
-  --composer-mode-triage-border: var(--multi-stroke-secondary);
-  --composer-mode-spec-background: color-mix(in srgb, var(--success) 10%, transparent);
-  --composer-mode-spec-text: var(--success);
-  --composer-mode-spec-icon: var(--success);
-  --composer-mode-spec-border: color-mix(in srgb, var(--success) 24%, transparent);
-  --composer-mode-debug-background: color-mix(in srgb, var(--destructive) 10%, transparent);
-  --composer-mode-debug-text: var(--destructive);
-  --composer-mode-debug-icon: var(--destructive);
-  --composer-mode-debug-border: color-mix(in srgb, var(--destructive) 24%, transparent);
   /* Typography scale — relative to user preference */
   --multi-text-caption: calc(var(--multi-ui-font-size-user, 13px) - 3px);
   --multi-text-detail: calc(var(--multi-ui-font-size-user, 13px) - 2px);
@@ -136,8 +28,6 @@
   --multi-radius-card: var(--multi-radius-card-user, 10px);
   --multi-radius-chip: var(--multi-radius-chip-user, 20px);
   --multi-radius-pill: var(--multi-radius-chip-user, 20px);
-  /* Composer toolbar icons */
-  --multi-composer-icon-size: var(--multi-composer-icon-size-user, 0.875rem);
   /* Glass / panel opacities (user-tunable; Pierre fills base chroma). */
   --multi-transparency: 18;
   --multi-sidebar-opacity: calc((84 - var(--multi-transparency, 18) * 0.32) * 1%);
@@ -147,33 +37,6 @@
   --multi-elevated-opacity: calc((86 - var(--multi-transparency, 18) * 0.24) * 1%);
   --multi-bubble-opacity: calc((92 - var(--multi-transparency, 18) * 0.16) * 1%);
   --multi-menubar-opacity: calc((88 - var(--multi-transparency, 18) * 0.3) * 1%);
-}
-
-[data-electron] {
-  --multi-workbench-toggle-left: var(
-    --multi-workbench-toggle-left-user,
-    var(--multi-electron-traffic-inset)
-  );
-  --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 28px);
-}
-
-.agent-window {
-  --multi-agent-window-font-smoothing-webkit: var(--multi-font-smoothing-webkit);
-  --multi-agent-window-font-smoothing-moz: var(--multi-font-smoothing-moz);
-  -webkit-font-smoothing: var(--multi-agent-window-font-smoothing-webkit);
-  -moz-osx-font-smoothing: var(--multi-agent-window-font-smoothing-moz);
-  --multi-shell-sash-stripe-width: 4px;
-  --multi-shell-sash-hover-shade: color-mix(in srgb, var(--multi-stroke-focused) 38%, transparent);
-}
-
-.agent-window[data-agent-window-font-smoothing="antialiased"] {
-  --multi-agent-window-font-smoothing-webkit: antialiased;
-  --multi-agent-window-font-smoothing-moz: grayscale;
-}
-
-.agent-window[data-agent-window-font-smoothing="subpixel"] {
-  --multi-agent-window-font-smoothing-webkit: subpixel-antialiased;
-  --multi-agent-window-font-smoothing-moz: auto;
 }
 
 /*
@@ -232,55 +95,37 @@
 
   --multi-color-sidebar: color-mix(
     in oklch,
-    oklch(
-        0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247))
       var(--multi-sidebar-opacity),
     transparent
   );
   --multi-color-chat: color-mix(
     in oklch,
-    oklch(
-        0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
       var(--multi-chat-opacity),
     transparent
   );
   --multi-color-editor: color-mix(
     in oklch,
-    oklch(
-        0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247))
       var(--multi-editor-opacity),
     transparent
   );
   --multi-color-surface: color-mix(
     in oklch,
-    oklch(
-        0.964 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.964 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247))
       var(--multi-surface-opacity),
     transparent
   );
   --multi-color-elevated: color-mix(
     in oklch,
-    oklch(
-        0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
       var(--multi-elevated-opacity),
     transparent
   );
   --multi-color-bubble: color-mix(
     in oklch,
-    oklch(
-        0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
       var(--multi-bubble-opacity),
     transparent
   );
@@ -289,10 +134,7 @@
   );
   --multi-color-menubar: color-mix(
     in oklch,
-    oklch(
-        0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247))
       var(--multi-menubar-opacity),
     transparent
   );
@@ -302,12 +144,10 @@
   --multi-stroke-tertiary: color-mix(in oklch, var(--foreground) 6%, transparent);
   --multi-color-stroke-strong: color-mix(in oklch, var(--foreground) 12%, transparent);
   --multi-color-hover: oklch(
-    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) /
-      0.35
+    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) / 0.35
   );
   --multi-color-active: oklch(
-    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) /
-      0.8
+    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) / 0.8
   );
   --multi-chat-bubble-border: color-mix(in oklch, var(--foreground) 9%, transparent);
   --multi-chat-bubble-shadow:
@@ -369,55 +209,37 @@
 
   --multi-color-sidebar: color-mix(
     in oklch,
-    oklch(
-        0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
       var(--multi-sidebar-opacity),
     transparent
   );
   --multi-color-chat: color-mix(
     in oklch,
-    oklch(
-        0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247))
       var(--multi-chat-opacity),
     transparent
   );
   --multi-color-editor: color-mix(
     in oklch,
-    oklch(
-        0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
       var(--multi-editor-opacity),
     transparent
   );
   --multi-color-surface: color-mix(
     in oklch,
-    oklch(
-        0.182 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.182 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247))
       var(--multi-surface-opacity),
     transparent
   );
   --multi-color-elevated: color-mix(
     in oklch,
-    oklch(
-        0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
       var(--multi-elevated-opacity),
     transparent
   );
   --multi-color-bubble: color-mix(
     in oklch,
-    oklch(
-        0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
       var(--multi-bubble-opacity),
     transparent
   );
@@ -426,10 +248,7 @@
   );
   --multi-color-menubar: color-mix(
     in oklch,
-    oklch(
-        0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008)
-          var(--multi-user-hue, 247)
-      )
+    oklch(0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
       var(--multi-menubar-opacity),
     transparent
   );
@@ -439,12 +258,10 @@
   --multi-stroke-tertiary: color-mix(in oklch, var(--foreground) 6%, transparent);
   --multi-color-stroke-strong: color-mix(in oklch, var(--foreground) 14%, transparent);
   --multi-color-hover: oklch(
-    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) /
-      0.35
+    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) / 0.35
   );
   --multi-color-active: oklch(
-    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) /
-      0.6
+    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) / 0.6
   );
   --multi-chat-bubble-border: color-mix(in oklch, var(--foreground) 13%, transparent);
   --multi-chat-bubble-shadow: 0 1px 1px oklch(0 0 0 / 0.22), 0 14px 34px -24px oklch(0 0 0 / 0.72);
@@ -551,77 +368,12 @@ html {
     var(--multi-color-active) 22%,
     var(--multi-workbench-card-background)
   );
-  --multi-workbench-terminal-background: var(--multi-workbench-panel-background);
-  --multi-workbench-terminal-foreground: var(--foreground);
   --multi-workbench-toolbar-hover-background: var(--multi-color-hover);
   --multi-workbench-toolbar-hover-wash: color-mix(
     in srgb,
     var(--multi-workbench-toolbar-hover-background) 88%,
     transparent
   );
-  --multi-git-diff-header-border: color-mix(in srgb, var(--multi-stroke-tertiary) 82%, transparent);
-  --multi-terminal-shell-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 96%,
-    var(--background)
-  );
-  --multi-terminal-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 98%,
-    var(--background)
-  );
-  --multi-terminal-sidebar-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 82%,
-    var(--multi-color-sidebar)
-  );
-  --multi-terminal-toolbar-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 90%,
-    transparent
-  );
-  --multi-terminal-border: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --multi-terminal-border-subtle: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-terminal-hover-background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  --multi-terminal-active-background: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --multi-terminal-foreground: color-mix(in srgb, var(--foreground) 86%, transparent);
-  --multi-terminal-muted-foreground: color-mix(in srgb, var(--foreground) 54%, transparent);
-  --multi-terminal-cursor: var(--multi-terminal-foreground);
-  --multi-terminal-cursor-accent: var(--multi-terminal-background);
-  --multi-terminal-selection-background: color-mix(in srgb, var(--primary) 28%, transparent);
-  --multi-terminal-selection-foreground: var(--foreground);
-  --multi-terminal-selection-inactive-background: color-mix(
-    in srgb,
-    var(--foreground) 16%,
-    transparent
-  );
-  --multi-terminal-scrollbar-background: color-mix(in srgb, var(--foreground) 18%, transparent);
-  --multi-terminal-scrollbar-hover-background: color-mix(
-    in srgb,
-    var(--foreground) 34%,
-    transparent
-  );
-  --multi-terminal-scrollbar-active-background: color-mix(
-    in srgb,
-    var(--foreground) 46%,
-    transparent
-  );
-  --multi-terminal-ansi-black: #000;
-  --multi-terminal-ansi-red: #cd3131;
-  --multi-terminal-ansi-green: #0dbc79;
-  --multi-terminal-ansi-yellow: #bf8803;
-  --multi-terminal-ansi-blue: #0451a5;
-  --multi-terminal-ansi-magenta: #bc05bc;
-  --multi-terminal-ansi-cyan: #0598bc;
-  --multi-terminal-ansi-white: #e5e5e5;
-  --multi-terminal-ansi-bright-black: #666;
-  --multi-terminal-ansi-bright-red: #cd3131;
-  --multi-terminal-ansi-bright-green: #14ce14;
-  --multi-terminal-ansi-bright-yellow: #b5ba00;
-  --multi-terminal-ansi-bright-blue: #0451a5;
-  --multi-terminal-ansi-bright-magenta: #bc05bc;
-  --multi-terminal-ansi-bright-cyan: #0598bc;
-  --multi-terminal-ansi-bright-white: #a5a5a5;
   --multi-fg-primary: var(--foreground);
   --multi-fg-secondary: color-mix(in oklch, var(--foreground) 74%, transparent);
   --multi-fg-tertiary: color-mix(in oklch, var(--foreground) 54%, transparent);
@@ -659,116 +411,10 @@ html {
   --multi-shell-sidebar-bg: var(--multi-color-sidebar);
   --multi-shell-surface-bg: var(--multi-color-surface);
   --multi-radius-full: 9999px;
-  --multi-plan-mode-selected-border: color-mix(in oklch, var(--multi-action) 40%, transparent);
-  --multi-plan-mode-selected-bg: color-mix(in oklch, var(--multi-action) 12%, transparent);
-  --multi-plan-mode-selected-border-hover: color-mix(
-    in oklch,
-    var(--multi-action) 52%,
-    transparent
-  );
-  --multi-plan-mode-selected-bg-hover: color-mix(in oklch, var(--multi-action) 18%, transparent);
-  --multi-plan-mode-selected-fg: color-mix(in oklch, var(--multi-action) 45%, var(--foreground));
-  --multi-composer-object-bg: var(--multi-plan-mode-selected-bg);
-  --multi-composer-object-bg-active: var(--multi-plan-mode-selected-bg-hover);
-  --multi-composer-object-border: var(--multi-plan-mode-selected-border);
-  --multi-composer-object-border-active: var(--multi-plan-mode-selected-border-hover);
-  --multi-composer-object-fg: var(--multi-plan-mode-selected-fg);
-  --multi-composer-object-fg-muted: color-mix(
-    in oklch,
-    var(--multi-plan-mode-selected-fg) 84%,
-    var(--foreground)
-  );
-  --multi-git-diff-addition: var(--multi-diff-addition);
-  --multi-git-diff-deletion: var(--multi-diff-deletion);
-  --multi-git-diff-editor-background: var(--multi-workbench-editor-surface-background);
-  --multi-git-diff-addition-line-background: color-mix(
-    in oklch,
-    var(--multi-diff-addition) 14%,
-    transparent
-  );
-  --multi-git-diff-addition-text-background: color-mix(
-    in oklch,
-    var(--multi-diff-addition) 16%,
-    transparent
-  );
-  --multi-git-diff-deletion-line-background: color-mix(
-    in oklch,
-    var(--multi-diff-deletion) 12%,
-    transparent
-  );
-  --multi-git-diff-deletion-text-background: color-mix(
-    in oklch,
-    var(--multi-diff-deletion) 14%,
-    transparent
-  );
 }
 
 html.dark {
   --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
-  --multi-plan-mode-selected-fg: color-mix(in oklch, var(--multi-action) 72%, white);
-  --multi-git-diff-addition-line-background: color-mix(
-    in oklch,
-    var(--multi-diff-addition) 20%,
-    transparent
-  );
-  --multi-git-diff-addition-text-background: color-mix(
-    in oklch,
-    var(--multi-diff-addition) 18%,
-    transparent
-  );
-  --multi-git-diff-deletion-line-background: color-mix(
-    in oklch,
-    var(--multi-diff-deletion) 18%,
-    transparent
-  );
-  --multi-git-diff-deletion-text-background: color-mix(
-    in oklch,
-    var(--multi-diff-deletion) 16%,
-    transparent
-  );
-  --multi-terminal-shell-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 94%,
-    var(--background)
-  );
-  --multi-terminal-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 96%,
-    #1e1e1e
-  );
-  --multi-terminal-sidebar-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 84%,
-    var(--background)
-  );
-  --multi-terminal-toolbar-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 88%,
-    transparent
-  );
-  --multi-terminal-border: color-mix(in srgb, white 13%, transparent);
-  --multi-terminal-border-subtle: color-mix(in srgb, white 8%, transparent);
-  --multi-terminal-hover-background: color-mix(in srgb, white 7%, transparent);
-  --multi-terminal-active-background: color-mix(in srgb, white 11%, transparent);
-  --multi-terminal-foreground: #ccc;
-  --multi-terminal-muted-foreground: #8f8f8f;
-  --multi-terminal-selection-background: rgba(38, 79, 120, 0.75);
-  --multi-terminal-selection-foreground: #fff;
-  --multi-terminal-selection-inactive-background: rgba(59, 59, 59, 0.75);
-  --multi-terminal-scrollbar-background: rgba(121, 121, 121, 0.28);
-  --multi-terminal-scrollbar-hover-background: rgba(100, 100, 100, 0.7);
-  --multi-terminal-scrollbar-active-background: rgba(191, 191, 191, 0.4);
-  --multi-terminal-ansi-yellow: #e5e510;
-  --multi-terminal-ansi-blue: #2472c8;
-  --multi-terminal-ansi-magenta: #bc3fbc;
-  --multi-terminal-ansi-cyan: #11a8cd;
-  --multi-terminal-ansi-bright-red: #f14c4c;
-  --multi-terminal-ansi-bright-green: #23d18b;
-  --multi-terminal-ansi-bright-yellow: #f5f543;
-  --multi-terminal-ansi-bright-blue: #3b8eea;
-  --multi-terminal-ansi-bright-magenta: #d670d6;
-  --multi-terminal-ansi-bright-cyan: #29b8db;
-  --multi-terminal-ansi-bright-white: #fff;
 }
 
 html.multi-reduce-transparency {

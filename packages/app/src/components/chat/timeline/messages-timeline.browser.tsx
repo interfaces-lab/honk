@@ -90,7 +90,7 @@ function buildConversationEntries(pairCount: number, startIndex = 0): TimelineEn
 }
 
 function getScrollElement() {
-  const scrollElement = document.querySelector<HTMLDivElement>(".agent-panel-meta-agent-chat");
+  const scrollElement = document.querySelector<HTMLDivElement>("[data-chat-timeline-scroll]");
   if (!scrollElement) {
     throw new Error("Messages timeline scroll element was not rendered.");
   }

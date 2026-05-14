@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  IconChevronDownSmall as ChevronDownIcon,
+  IconChevronRightMedium,
   IconPlusLarge as PlusIcon,
   IconTrashCan as Trash2Icon,
   IconCrossMediumDefault as XIcon,
@@ -24,6 +24,7 @@ import { Button } from "@multi/ui/button";
 import { Collapsible, CollapsibleContent } from "@multi/ui/collapsible";
 import { DraftInput } from "./draft-input";
 import { Switch } from "@multi/ui/switch";
+import { textVariants } from "@multi/ui/text";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import type { DriverOption } from "./provider-driver-meta";
 import { ProviderSettingsForm } from "./provider-settings-form";
@@ -559,7 +560,7 @@ export function ProviderInstanceCard({
               ) : (
                 <span className={cn("size-2 shrink-0 rounded-full", statusStyle.dot)} />
               )}
-              <h3 className="truncate text-sm font-medium text-foreground">{displayName}</h3>
+              <h3 className={textVariants({ size: "sm", tone: "primary", weight: "medium", truncate: true })}>{displayName}</h3>
               {String(instanceId) !== String(instance.driver) ? (
                 // Hide the id chip on a default slot whose id === the
                 // driver slug — it's redundant with the driver icon +
@@ -626,8 +627,11 @@ export function ProviderInstanceCard({
               onClick={() => onExpandedChange(!isExpanded)}
               aria-label={`Toggle ${displayName} details`}
             >
-              <ChevronDownIcon
-                className={cn("size-3.5 transition-transform", isExpanded && "rotate-180")}
+              <IconChevronRightMedium
+                className={cn(
+                  "size-3.5 transition-transform",
+                  isExpanded ? "-rotate-90" : "rotate-90",
+                )}
               />
             </Button>
             <Switch

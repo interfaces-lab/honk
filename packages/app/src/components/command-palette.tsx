@@ -5,9 +5,8 @@ import { type ProjectId } from "@multi/contracts";
 import { toSafeThreadSegment } from "@multi/shared/thread-segments";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
-  IconArrowDown,
-  IconArrowLeft,
-  IconArrowUp,
+  IconChevronLeftMedium,
+  IconChevronRightMedium,
   IconBubbleText,
   IconClipboard,
   IconCode,
@@ -489,6 +488,7 @@ function OpenCommandPaletteDialog() {
       projects,
       settings.defaultThreadEnvMode,
       settings.sidebarThreadSortOrder,
+      settings.textGenerationModelSelection,
       threads,
     ],
   );
@@ -794,7 +794,7 @@ function OpenCommandPaletteDialog() {
                       aria-label="Back"
                       onClick={popView}
                     >
-                      <IconArrowLeft />
+                      <IconChevronLeftMedium />
                     </button>
                   ),
                 }
@@ -815,10 +815,10 @@ function OpenCommandPaletteDialog() {
           <div className="flex items-center gap-3">
             <KbdGroup className="items-center gap-1.5">
               <Kbd>
-                <IconArrowUp />
+                <IconChevronRightMedium className="-rotate-90" />
               </Kbd>
               <Kbd>
-                <IconArrowDown />
+                <IconChevronRightMedium className="rotate-90" />
               </Kbd>
               <span className={cn("text-muted-foreground/80")}>Navigate</span>
             </KbdGroup>

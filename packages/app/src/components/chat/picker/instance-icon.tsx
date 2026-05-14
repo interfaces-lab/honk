@@ -59,7 +59,7 @@ export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
           className={cn(
             "pointer-events-none absolute right-0 bottom-0 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-background px-0.5 text-[8px] font-semibold leading-none shadow-sm",
             props.accentColor
-              ? "bg-(color:--provider-accent) text-white"
+              ? "bg-(--provider-accent) text-white"
               : "bg-muted text-muted-foreground",
             props.badgeClassName,
           )}

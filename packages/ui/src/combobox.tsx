@@ -1,7 +1,7 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { IconCheckmark1, IconCrossMediumDefault, IconSortArrowUpDown } from "central-icons";
+import { IconCheckmark1, IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 import * as React from "react";
 
 import { cn } from "./utils";
@@ -109,7 +109,7 @@ function ComboboxInput({
           )}
         >
           <ComboboxPrimitive.Icon data-slot="combobox-icon">
-            <IconSortArrowUpDown />
+            <IconChevronRightMedium className="rotate-90" />
           </ComboboxPrimitive.Icon>
         </ComboboxTrigger>
       )}

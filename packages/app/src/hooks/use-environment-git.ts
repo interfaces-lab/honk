@@ -158,8 +158,8 @@ function toRow(file: GitStatusResult["workingTree"]["files"][number]): DiffRow {
     path: file.path,
     prevPath: file.prevPath ?? null,
     state: workingTreeStatusToGitFileState(file.status),
-    staged: false,
-    unstaged: true,
+    staged: file.staged ?? false,
+    unstaged: file.unstaged ?? true,
     add: file.insertions,
     del: file.deletions,
   };
@@ -202,6 +202,8 @@ export function syncRows(prev: DiffRow[], next: DiffRow[]) {
       current.path === row.path &&
       current.prevPath === row.prevPath &&
       current.state === row.state &&
+      current.staged === row.staged &&
+      current.unstaged === row.unstaged &&
       current.add === row.add &&
       current.del === row.del
     ) {

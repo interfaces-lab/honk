@@ -53,7 +53,10 @@ function StatusDot(props: { item: SidebarChatItem }) {
 
 function StatusSlot(props: { item: SidebarChatItem }) {
   return (
-    <span className="multi-agent-sidebar-cell-leading-icon agent-sidebar-cell-status flex size-3.5 shrink-0 items-center justify-center">
+    <span
+      className="flex size-3.5 shrink-0 items-center justify-center text-multi-icon-secondary"
+      data-agent-sidebar-status=""
+    >
       <StatusDot item={props.item} />
     </span>
   );
@@ -152,15 +155,18 @@ export const AgentRow = memo(
           onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
           onClick={() => props.onSelectAgent(props.item.id)}
         >
-          <span className="multi-agent-sidebar-cell-leading agent-sidebar-cell-leading">
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
             <StatusSlot item={props.item} />
-            <span className="multi-agent-sidebar-cell-content-wrapper">
-              <span className="multi-agent-sidebar-cell-text agent-sidebar-cell-text min-w-0 truncate">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
+              <span className="min-w-0 truncate text-body font-normal text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary">
                 {props.item.title}
               </span>
             </span>
           </span>
-          <span className="multi-agent-sidebar-cell-subtitle agent-sidebar-cell-subtitle shrink-0 tabular-nums">
+          <span
+            className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-detail text-multi-fg-tertiary tabular-nums group-data-[selected=true]/agent-row:text-multi-fg-secondary"
+            data-agent-sidebar-subtitle=""
+          >
             {props.item.ago}
           </span>
         </RowButton>
@@ -191,15 +197,15 @@ export const AgentRow = memo(
         {renaming ? (
           <div
             className={cn(
-              "agent-sidebar-cell font-multi flex h-auto w-full min-w-0 items-center gap-3 rounded-multi-control border border-transparent px-1.5 py-1.5 text-left text-body font-normal",
-              "border-multi-stroke-strong bg-multi-active",
+              "font-multi relative flex h-auto w-full min-w-0 cursor-(--multi-button-cursor) items-center gap-3 rounded-multi-control border px-1.5 py-[5px] text-left text-body font-normal",
+              "border-multi-stroke-primary bg-multi-bg-tertiary",
             )}
             data-agent-sidebar-cell=""
             data-renaming="true"
           >
-            <span className="multi-agent-sidebar-cell-leading agent-sidebar-cell-leading min-w-0 flex-1">
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
               <StatusSlot item={props.item} />
-              <span className="multi-agent-sidebar-cell-content-wrapper min-w-0">
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
                 <input
                   ref={inputRef}
                   type="text"
@@ -213,7 +219,10 @@ export const AgentRow = memo(
                 />
               </span>
             </span>
-            <span className="multi-agent-sidebar-cell-subtitle agent-sidebar-cell-subtitle shrink-0 tabular-nums">
+            <span
+              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-detail text-multi-fg-secondary tabular-nums"
+              data-agent-sidebar-subtitle=""
+            >
               {props.item.ago}
             </span>
           </div>
@@ -227,15 +236,18 @@ export const AgentRow = memo(
             onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
             onClick={() => props.onSelectAgent(props.item.id)}
           >
-            <span className="multi-agent-sidebar-cell-leading agent-sidebar-cell-leading">
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
               <StatusSlot item={props.item} />
-              <span className="multi-agent-sidebar-cell-content-wrapper">
-                <span className="multi-agent-sidebar-cell-text agent-sidebar-cell-text min-w-0 truncate">
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
+                <span className="min-w-0 truncate text-body font-normal text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary">
                   {props.item.title}
                 </span>
               </span>
             </span>
-            <span className="multi-agent-sidebar-cell-subtitle agent-sidebar-cell-subtitle shrink-0 tabular-nums">
+            <span
+              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-detail text-multi-fg-tertiary tabular-nums group-data-[selected=true]/agent-row:text-multi-fg-secondary"
+              data-agent-sidebar-subtitle=""
+            >
               {props.item.ago}
             </span>
           </RowButton>

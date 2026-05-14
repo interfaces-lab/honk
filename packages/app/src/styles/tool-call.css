@@ -1,0 +1,35 @@
+@keyframes tool-call-line-shine {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.tool-call-shimmer {
+  animation: tool-call-line-shine 2s linear infinite;
+  background-clip: text;
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 0%,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 25%,
+    var(--multi-fg-primary) 60%,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 75%,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-shimmer {
+    animation: none;
+    background: none;
+    color: var(--multi-fg-tertiary);
+    -webkit-text-fill-color: unset;
+  }
+}

@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from "react";
 import {
   IconCheckmark1Small,
-  IconChevronDownSmall,
+  IconChevronRightMedium,
   IconMagnifyingGlass,
   IconSettingsKnob,
   IconStar,
@@ -327,7 +327,7 @@ function TriggerButton({
         />
       ) : null}
       <span className="min-w-0 truncate">{label}</span>
-      <IconChevronDownSmall className="size-3 shrink-0 opacity-60" />
+      <IconChevronRightMedium className="size-3 shrink-0 rotate-90 opacity-60" />
     </Button>
   );
 }
@@ -1016,7 +1016,7 @@ function CursorStyleModelPicker() {
                 ? getDisplayModelName(state.selectedModel, { preferShortName: true })
                 : "Select model"}
             </span>
-            <IconChevronDownSmall className="size-3 shrink-0 opacity-60" />
+            <IconChevronRightMedium className="size-3 shrink-0 rotate-90 opacity-60" />
           </Button>
         }
       />

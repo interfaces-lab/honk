@@ -34,6 +34,10 @@ import {
   type GitAgentRun,
 } from "~/lib/git-agent-actions";
 import {
+  GitAgentActionHandoffContext,
+  type GitAgentActionHandoff,
+} from "~/lib/git-agent-action-handoff";
+import {
   shellPanelsActions,
   useSecondaryRail,
   useTerminalSessions,
@@ -167,7 +171,11 @@ function SettingsShellHost(props: { children?: ReactNode }) {
   }, [navigate]);
 
   const settingsLeft = (
-    <div className="agent-window__left-content thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
+    <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
+      <div
+        className="drag-region pointer-events-none absolute inset-x-0 top-0 h-(--multi-shell-sidebar-content-top-offset,var(--multi-electron-traffic-padding-top))"
+        aria-hidden="true"
+      />
       <SettingsNavRail />
       <ShellSidebarFooter settings />
     </div>
@@ -330,7 +338,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     };
   }, [activeThread]);
   const [gitAgentOrchestrationHandoff, setGitAgentOrchestrationHandoff] =
-    useState<GitAgentRun | null>(null);
+    useState<GitAgentActionHandoff | null>(null);
   const activeDraftCwd = activeDraftThread
     ? activeDraftThread.projectId === null
       ? DEFAULT_PROJECTLESS_CWD
@@ -551,6 +559,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       const actionDetails = GIT_AGENT_ACTIONS[action];
       const title = actionDetails.label;
       const prompt = actionDetails.prompt;
+      const messageId = newMessageId();
       const runtimeMode =
         currentServerThread?.runtimeMode ?? currentDraftThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE;
       const interactionMode =
@@ -568,6 +577,14 @@ function ChatShellHost(props: { children?: ReactNode }) {
         setGitAgentOrchestrationHandoff({
           action,
           target: { environmentId: project.environmentId, threadId },
+          optimisticMessage: {
+            id: messageId,
+            role: "user",
+            text: prompt,
+            attachments: [],
+            createdAt,
+            streaming: false,
+          },
         });
         if (promotedDraftId) {
           markDraftThreadPromoting(
@@ -598,7 +615,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
           commandId: newCommandId(),
           threadId,
           message: {
-            messageId: newMessageId(),
+            messageId,
             role: "user",
             text: prompt,
             attachments: [],
@@ -724,10 +741,19 @@ function ChatShellHost(props: { children?: ReactNode }) {
     : null;
   const stoppingGitAgentAction =
     interruptGitAgentActionMutation.isPending && pendingGitAgentAction !== null;
+  const center = (
+    <GitAgentActionHandoffContext.Provider value={gitAgentOrchestrationHandoff}>
+      {props.children ?? <Outlet />}
+    </GitAgentActionHandoffContext.Provider>
+  );
 
   const chatLeft = (
-    <div className="agent-window__left-content thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
-      <div className={cn("agent-window__sidebar-chrome shrink-0", isElectron && "no-drag")}>
+    <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
+      <div
+        className="drag-region pointer-events-none absolute inset-x-0 top-0 h-(--multi-shell-sidebar-content-top-offset,var(--multi-electron-traffic-padding-top))"
+        aria-hidden="true"
+      />
+      <div className={cn("shrink-0", isElectron && "no-drag")}>
         <ShellSidebarHeader onNewChat={create} onAddProject={openAddProject} />
       </div>
       <ThreadRail
@@ -747,7 +773,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     return (
       <DesktopChatShellHost
         left={chatLeft}
-        center={props.children ?? <Outlet />}
+        center={center}
         routeThreadId={routeThreadId}
         cwd={activeCwd}
         environmentId={activeEnvironmentId}
@@ -765,7 +791,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       cwd={activeCwd}
       changesCount={0}
       left={chatLeft}
-      center={props.children ?? <Outlet />}
+      center={center}
       right={null}
     />
   );

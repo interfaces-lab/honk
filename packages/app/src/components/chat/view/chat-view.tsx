@@ -176,9 +176,9 @@ import {
 import { sanitizeThreadErrorMessage } from "~/rpc/transport-error";
 import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
 import { traceBrowserEvent } from "~/observability/browserDebug";
+import { useGitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import {
-  IconChevronDownSmall,
-  IconChevronRight,
+  IconChevronRightMedium,
   IconFolderAddRight,
   IconFolderOpen,
   IconSettingsGear2,
@@ -246,7 +246,7 @@ function HeroComposerActionCard(props: HeroComposerActionCardProps) {
         >
           <Icon className="size-3.5" />
         </span>
-        <IconChevronRight className="size-4 shrink-0 text-multi-fg-tertiary transition-colors group-hover:text-multi-fg-primary" />
+        <IconChevronRightMedium className="size-4 shrink-0 text-multi-fg-tertiary transition-colors group-hover:text-multi-fg-primary" />
       </span>
       <span className="grid gap-0.5">
         <span className="truncate text-body font-medium">{props.title}</span>
@@ -1011,6 +1011,7 @@ export default function ChatView(props: ChatViewProps) {
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
+  const gitAgentActionHandoff = useGitAgentActionHandoff();
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
       ? store.getDraftSessionByRef(routeThreadRef)
@@ -1658,16 +1659,33 @@ export default function ChatView(props: ChatViewProps) {
             return changed ? { ...message, attachments } : message;
           });
 
-    if (optimisticUserMessages.length === 0) {
+    const pendingGitAgentMessage =
+      gitAgentActionHandoff?.target.environmentId === environmentId &&
+      gitAgentActionHandoff.target.threadId === threadId
+        ? gitAgentActionHandoff.optimisticMessage
+        : null;
+    const optimisticMessages =
+      pendingGitAgentMessage === null
+        ? optimisticUserMessages
+        : [...optimisticUserMessages, pendingGitAgentMessage];
+
+    if (optimisticMessages.length === 0) {
       return serverMessagesWithPreviewHandoff;
     }
     const serverIds = new Set(serverMessagesWithPreviewHandoff.map((message) => message.id));
-    const pendingMessages = optimisticUserMessages.filter((message) => !serverIds.has(message.id));
+    const pendingMessages = optimisticMessages.filter((message) => !serverIds.has(message.id));
     if (pendingMessages.length === 0) {
       return serverMessagesWithPreviewHandoff;
     }
     return [...serverMessagesWithPreviewHandoff, ...pendingMessages];
-  }, [serverMessages, attachmentPreviewHandoffByMessageId, optimisticUserMessages]);
+  }, [
+    attachmentPreviewHandoffByMessageId,
+    environmentId,
+    gitAgentActionHandoff,
+    optimisticUserMessages,
+    serverMessages,
+    threadId,
+  ]);
   const activeEditingUserMessageId =
     editingUserMessageId &&
     timelineMessages.some(
@@ -4126,11 +4144,14 @@ export default function ChatView(props: ChatViewProps) {
                   <button
                     type="button"
                     onClick={() => scrollTimelineToBottom(true)}
-                    className="agent-panel-scroll-to-bottom-button pointer-events-auto"
+                    className="pointer-events-auto inline-flex size-7 min-h-7 min-w-7 shrink-0 cursor-(--multi-button-cursor) appearance-none items-center justify-center rounded-full border border-multi-stroke-tertiary bg-(--glass-chat-bubble-background)! p-0 text-multi-icon-secondary shadow-none animate-[scroll-btn-enter_0.15s_ease-out_both] transition-[background-color,border-color] duration-150 ease-out hover:border-multi-stroke-secondary hover:bg-(--glass-chat-bubble-background)! active:border-multi-stroke-secondary active:bg-(--glass-chat-bubble-background)! focus-visible:border-multi-stroke-secondary focus-visible:bg-(--glass-chat-bubble-background)!"
                     aria-label="Scroll to bottom"
                     title="Scroll to bottom"
                   >
-                    <IconChevronDownSmall className="ui-icon size-3" aria-hidden="true" />
+                    <IconChevronRightMedium
+                      className="size-3 rotate-90 text-multi-icon-secondary"
+                      aria-hidden="true"
+                    />
                   </button>
                 </div>
               )}
@@ -4141,7 +4162,9 @@ export default function ChatView(props: ChatViewProps) {
           <div
             className={cn(
               "agent-panel-followup-input",
-              isHeroComposer ? "agent-panel-empty-state-shell" : undefined,
+              isHeroComposer
+                ? "flex h-full flex-1 flex-col items-center outline-none data-[layout=wide]:justify-center data-[layout=wide]:px-6 data-[layout=wide]:py-12 data-[layout=wide]:[&>*]:w-full data-[layout=wide]:[&>*]:max-w-[min(100%,var(--composer-max-width,840px))]"
+                : undefined,
               isConnecting ? "agent-panel-followup-input--disabled" : undefined,
               !isHeroComposer ? "agent-panel-followup-input--conversation-overlay" : undefined,
             )}

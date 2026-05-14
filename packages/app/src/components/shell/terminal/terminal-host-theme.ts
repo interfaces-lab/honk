@@ -155,6 +155,15 @@ function readNearestComputedPaint(
   return null;
 }
 
+function readThemeVar(
+  resolver: PaintResolver,
+  kind: PaintKind,
+  name: string,
+  fallback: string,
+): string {
+  return resolver.read(kind, `var(${name})`, fallback);
+}
+
 export function readTerminalHostThemeMode(el: HTMLElement): "light" | "dark" {
   return el.ownerDocument.documentElement.classList.contains("dark") ? "dark" : "light";
 }
@@ -194,21 +203,87 @@ function readWorkbenchFallbackThemeWithResolver(
   const fallbackBackground = mode === "dark" ? "#1e1e1e" : "#ffffff";
   const fg =
     readNearestComputedPaint(host, "color") ??
+    resolver.readOptional("fg", "var(--multi-terminal-foreground)") ??
     resolver.readOptional("fg", "var(--multi-workbench-terminal-foreground)") ??
     resolver.read("fg", "var(--foreground)", fallbackForeground);
   const bg =
     readNearestComputedPaint(host, "backgroundColor") ??
+    resolver.readOptional("bg", "var(--multi-terminal-background)") ??
     resolver.readOptional("bg", "var(--multi-workbench-terminal-background)") ??
     resolver.read("bg", "var(--background)", fallbackBackground);
 
   return {
-    ...base,
+    black: readThemeVar(resolver, "fg", "--multi-terminal-ansi-black", base.black ?? "#000000"),
+    red: readThemeVar(resolver, "fg", "--multi-terminal-ansi-red", base.red ?? "#cd3131"),
+    green: readThemeVar(resolver, "fg", "--multi-terminal-ansi-green", base.green ?? "#0dbc79"),
+    yellow: readThemeVar(resolver, "fg", "--multi-terminal-ansi-yellow", base.yellow ?? "#e5e510"),
+    blue: readThemeVar(resolver, "fg", "--multi-terminal-ansi-blue", base.blue ?? "#2472c8"),
+    magenta: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-magenta",
+      base.magenta ?? "#bc3fbc",
+    ),
+    cyan: readThemeVar(resolver, "fg", "--multi-terminal-ansi-cyan", base.cyan ?? "#11a8cd"),
+    white: readThemeVar(resolver, "fg", "--multi-terminal-ansi-white", base.white ?? "#e5e5e5"),
+    brightBlack: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-black",
+      base.brightBlack ?? "#666666",
+    ),
+    brightRed: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-red",
+      base.brightRed ?? "#f14c4c",
+    ),
+    brightGreen: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-green",
+      base.brightGreen ?? "#23d18b",
+    ),
+    brightYellow: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-yellow",
+      base.brightYellow ?? "#f5f543",
+    ),
+    brightBlue: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-blue",
+      base.brightBlue ?? "#3b8eea",
+    ),
+    brightMagenta: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-magenta",
+      base.brightMagenta ?? "#d670d6",
+    ),
+    brightCyan: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-cyan",
+      base.brightCyan ?? "#29b8db",
+    ),
+    brightWhite: readThemeVar(
+      resolver,
+      "fg",
+      "--multi-terminal-ansi-bright-white",
+      base.brightWhite ?? "#e5e5e5",
+    ),
     background: bg,
     foreground: fg,
-    cursor: fg,
-    cursorAccent: bg,
-    selectionBackground: mode === "dark" ? "rgba(96, 165, 250, 0.35)" : "rgba(59, 130, 246, 0.35)",
-    selectionForeground: mode === "dark" ? "rgb(249, 250, 251)" : "rgb(15, 23, 42)",
+    cursor: resolver.readOptional("fg", "var(--multi-terminal-cursor)") ?? fg,
+    cursorAccent: resolver.readOptional("bg", "var(--multi-terminal-cursor-accent)") ?? bg,
+    selectionBackground:
+      resolver.readOptional("bg", "var(--multi-terminal-selection-background)") ??
+      (mode === "dark" ? "rgba(96, 165, 250, 0.35)" : "rgba(59, 130, 246, 0.35)"),
+    selectionForeground:
+      resolver.readOptional("fg", "var(--multi-terminal-selection-foreground)") ??
+      (mode === "dark" ? "rgb(249, 250, 251)" : "rgb(15, 23, 42)"),
   } satisfies ITheme;
 }
 

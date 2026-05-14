@@ -1,5 +1,5 @@
 import { memo, useCallback, type KeyboardEvent, useState } from "react";
-import { IconChevronLeft, IconChevronRight, IconCrossMediumDefault } from "central-icons";
+import { IconChevronLeftMedium, IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 import { Button } from "@multi/ui/button";
 import type { ExpandedImagePreview } from "./expanded-image-preview";
 
@@ -72,7 +72,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
           aria-label="Previous image"
           onClick={() => navigateImage(-1)}
         >
-          <IconChevronLeft className="size-5" />
+          <IconChevronLeftMedium className="size-5" />
         </Button>
       )}
       <div className="relative isolate z-10 max-h-[92vh] max-w-[92vw]">
@@ -106,7 +106,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
           aria-label="Next image"
           onClick={() => navigateImage(1)}
         >
-          <IconChevronRight className="size-5" />
+          <IconChevronRightMedium className="size-5" />
         </Button>
       )}
     </div>

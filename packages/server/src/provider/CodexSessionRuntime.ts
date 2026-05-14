@@ -691,9 +691,9 @@ export const makeCodexSessionRuntime = (
       .spawn(
         ChildProcess.make(options.binaryPath, ["app-server"], {
           cwd: options.cwd,
-          env: buildCodexAppServerEnv({
-            ...(options.homePath ? { codexHome: expandHomePath(options.homePath) } : {}),
-          }),
+          env: buildCodexAppServerEnv(
+            options.homePath ? { codexHome: expandHomePath(options.homePath) } : {},
+          ),
           shell: process.platform === "win32",
         }),
       )

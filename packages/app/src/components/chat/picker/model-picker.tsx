@@ -1,7 +1,7 @@
 import { type ProviderInstanceId, type ResolvedKeybindingsConfig } from "@multi/contracts";
 import { memo, useEffect, useMemo, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
-import { IconChevronDownSmall } from "central-icons";
+import { IconChevronRightMedium } from "central-icons";
 import { Button, buttonVariants } from "@multi/ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
@@ -201,9 +201,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             </TooltipTrigger>
             <TooltipPopup side="top">{triggerLabel}</TooltipPopup>
           </Tooltip>
-          <IconChevronDownSmall
+          <IconChevronRightMedium
             aria-hidden="true"
-            className="ui-model-picker__trigger-chevron size-3 shrink-0 opacity-60"
+            className="ui-model-picker__trigger-chevron size-3 shrink-0 rotate-90 opacity-60"
           />
         </span>
       </PopoverTrigger>

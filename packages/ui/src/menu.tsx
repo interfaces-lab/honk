@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { IconCheckmark1, IconChevronRight } from "central-icons";
+import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
 import { cn } from "./utils";
@@ -296,7 +296,7 @@ function MenuSubTrigger({
       {...props}
     >
       {children}
-      <IconChevronRight className="-me-0.5 ms-auto opacity-80" />
+      <IconChevronRightMedium className="-me-0.5 ms-auto opacity-80" />
     </MenuPrimitive.SubmenuTrigger>
   );
 }

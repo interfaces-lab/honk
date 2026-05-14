@@ -17,7 +17,7 @@ export function ComposerInlineChip(props: ComposerInlineChipProps) {
       className={cn(
         "inline-flex max-w-full select-none items-center gap-1 rounded-sm border px-1.5 py-px font-multi text-body font-medium align-middle",
         tone === "object"
-          ? "border-(color:--multi-composer-object-border) bg-(color:--multi-composer-object-bg) text-(color:--multi-composer-object-fg)"
+          ? "border-(--multi-composer-object-border) bg-(--multi-composer-object-bg) text-(--multi-composer-object-fg)"
           : tone === "danger"
             ? "border-destructive/35 bg-destructive/8 text-destructive"
             : "border-multi-stroke-tertiary bg-multi-bg-quaternary text-multi-fg-primary",

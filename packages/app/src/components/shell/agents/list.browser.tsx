@@ -1,6 +1,6 @@
 import "../../../index.css";
 import "../../../styles/tokens.css";
-import "../../../styles/shell.css";
+import "../../../styles/app.css";
 
 import { createRoot } from "react-dom/client";
 import type { ComponentProps, ReactNode } from "react";
@@ -126,9 +126,9 @@ describe("AgentList sidebar", () => {
     const selectedElement = document.querySelector<HTMLElement>(
       '[data-agent-sidebar-cell][data-selected="true"]',
     );
-    expect(selectedElement?.querySelector(".agent-sidebar-cell-status")).not.toBeNull();
-    expect(selectedElement?.querySelector(".agent-sidebar-cell-subtitle")).not.toBeNull();
-    expect(selectedElement?.querySelector(".agent-sidebar-cell-subtitle")?.textContent).toBe("4m");
+    expect(selectedElement?.querySelector("[data-agent-sidebar-status]")).not.toBeNull();
+    expect(selectedElement?.querySelector("[data-agent-sidebar-subtitle]")).not.toBeNull();
+    expect(selectedElement?.querySelector("[data-agent-sidebar-subtitle]")?.textContent).toBe("4m");
   });
 
   it("keeps the row geometry when entering rename mode", async () => {
@@ -140,8 +140,8 @@ describe("AgentList sidebar", () => {
       "[data-agent-sidebar-cell][data-renaming]",
     );
     expect(renameRow).not.toBeNull();
-    expect(renameRow?.querySelector(".agent-sidebar-cell-status")).not.toBeNull();
-    expect(renameRow?.querySelector(".agent-sidebar-cell-subtitle")?.textContent).toBe("4m");
+    expect(renameRow?.querySelector("[data-agent-sidebar-status]")).not.toBeNull();
+    expect(renameRow?.querySelector("[data-agent-sidebar-subtitle]")?.textContent).toBe("4m");
     await expect
       .element(page.getByLabelText("Rename thread"))
       .toHaveValue("Implement compact sidebar rows");
