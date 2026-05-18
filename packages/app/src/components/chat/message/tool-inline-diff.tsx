@@ -4,8 +4,11 @@ import { Data, Effect, Option } from "effect";
 import { memo, useMemo } from "react";
 import type { ToolDiffArtifact } from "../../../session-logic";
 import { useTheme } from "../../../hooks/use-theme";
-import { buildPatchCacheKey, resolveDiffThemeName } from "../../../lib/diff-rendering";
-import { PIERRE_WORKBENCH_CODE_UNSAFE_CSS } from "../../../lib/pierre-workbench-code-css";
+import {
+  buildPatchCacheKey,
+  resolveDiffThemeName,
+  WORKBENCH_CODE_UNSAFE_CSS,
+} from "../../../lib/diff-rendering";
 import { cn } from "../../../lib/utils";
 
 type RenderableToolPatch =
@@ -58,7 +61,7 @@ export const InlineToolDiff = memo(function InlineToolDiff({ artifact }: InlineT
             options={{
               theme: resolveDiffThemeName(resolvedTheme),
               themeType: resolvedTheme,
-              unsafeCSS: PIERRE_WORKBENCH_CODE_UNSAFE_CSS,
+              unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
               diffStyle: "unified",
               overflow: "wrap",
               disableFileHeader: renderablePatch.files.length === 1,

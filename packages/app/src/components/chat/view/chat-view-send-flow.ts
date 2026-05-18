@@ -1,11 +1,11 @@
 import type { ProviderInteractionMode, RuntimeMode } from "@multi/contracts";
 
-import type { ComposerImageAttachment } from "../../../composer-draft-store";
-import type { QueuedComposerItem, QueuedComposerItemId } from "../../../composer-queue-store";
+import type { ComposerImageAttachment } from "../../../stores/chat-drafts";
+import type { QueuedComposerItem, QueuedComposerItemId } from "../../../stores/chat-send-queue";
 import type { TerminalContextDraft } from "../../../lib/terminal-context";
 import { formatTerminalContextLabel } from "../../../lib/terminal-context";
-import { readFileAsDataUrl } from "../composer/composer-send";
-import type { ComposerInputHandle } from "../composer/composer-input";
+import { readFileAsDataUrl } from "../composer/send";
+import type { ComposerInputHandle } from "../composer/input";
 
 export type ComposerInputSendContext = ReturnType<ComposerInputHandle["getSendContext"]>;
 

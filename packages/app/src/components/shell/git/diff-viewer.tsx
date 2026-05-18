@@ -2,9 +2,8 @@ import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
 import { memo } from "react";
 
-import { resolveDiffThemeName } from "~/lib/diff-rendering";
+import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
 import type { GitPatchData } from "~/lib/native-git-react-query";
-import { PIERRE_WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/pierre-workbench-code-css";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
 
@@ -34,7 +33,7 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
             options={{
               theme,
               themeType: resolvedTheme,
-              unsafeCSS: PIERRE_WORKBENCH_CODE_UNSAFE_CSS,
+              unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
               diffStyle: props.diffStyle ?? "unified",
               overflow: "wrap",
               disableFileHeader: true,
@@ -62,7 +61,7 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
         )}
       >
         <p className="text-body font-medium text-foreground/82">Rename only</p>
-        <p className="max-w-[28rem] text-center text-detail text-muted-foreground/68">
+        <p className="max-w-md text-center text-detail text-muted-foreground/68">
           <span className="font-mono text-foreground/78">{props.prevPath}</span>
           <span className="px-1.5 text-muted-foreground/48">→</span>
           <span className="font-mono text-foreground/78">{props.path ?? "renamed file"}</span>
@@ -81,7 +80,7 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
       >
         <p className="text-body font-medium text-foreground/82">No patch available</p>
         {props.filePatch.message ? (
-          <p className="max-w-[28rem] text-center text-detail text-muted-foreground/68">
+          <p className="max-w-md text-center text-detail text-muted-foreground/68">
             {props.filePatch.message}
           </p>
         ) : null}

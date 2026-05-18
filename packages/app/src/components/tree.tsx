@@ -1,15 +1,18 @@
 "use client";
 
-import type { FileTreeOptions, TreeThemeStyles } from "@pierre/trees";
+import pierreDark from "@pierre/theme/pierre-dark";
+import pierreLight from "@pierre/theme/pierre-light";
+import type { FileTreeOptions, TreeThemeInput, TreeThemeStyles } from "@pierre/trees";
+import { themeToTreeStyles } from "@pierre/trees";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type { FileTreeProps as PierreFileTreeProps } from "@pierre/trees/react";
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
 
-import { getPierreTreeThemeStyles } from "~/lib/pierre-shiki-theme";
 import { cn } from "~/lib/utils";
 
 export type TreeHostStyle = CSSProperties & Record<`--${string}`, string | number>;
+type PierreTheme = typeof pierreDark;
 
 export type TreeProps = Omit<PierreFileTreeProps, "className" | "style"> & {
   className?: string;
@@ -25,6 +28,61 @@ function treeUnsafeCss(extraCss: string | undefined): string {
   `;
 
   return extraCss ? `${baseCss}\n${extraCss}` : baseCss;
+}
+
+function toTreeThemeInput(theme: PierreTheme): TreeThemeInput {
+  const colors = theme.colors as Record<string, string>;
+  const bg = colors["editor.background"] ?? (theme.type === "dark" ? "#1e1e1e" : "#ffffff");
+  const fg = colors["editor.foreground"] ?? (theme.type === "dark" ? "#d4d4d4" : "#1e1e1e");
+  return {
+    type: theme.type,
+    bg,
+    fg,
+    colors,
+  };
+}
+
+function getThemeColor(theme: PierreTheme, ...keys: string[]): string | undefined {
+  const colors = theme.colors as Record<string, string>;
+  for (const key of keys) {
+    const value = colors[key];
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function getExtendedGitTreeStyles(theme: PierreTheme): TreeThemeStyles {
+  const styles: TreeThemeStyles = {};
+  const untracked = getThemeColor(
+    theme,
+    "gitDecoration.untrackedResourceForeground",
+    "gitDecoration.addedResourceForeground",
+    "terminal.ansiGreen",
+  );
+  const ignored = getThemeColor(
+    theme,
+    "gitDecoration.ignoredResourceForeground",
+    "terminal.ansiBrightBlack",
+  );
+  const renamed = getThemeColor(
+    theme,
+    "gitDecoration.renamedResourceForeground",
+    "terminal.ansiYellow",
+  );
+
+  if (untracked) styles["--trees-theme-git-untracked-fg"] = untracked;
+  if (ignored) styles["--trees-theme-git-ignored-fg"] = ignored;
+  if (renamed) styles["--trees-theme-git-renamed-fg"] = renamed;
+
+  return styles;
+}
+
+function getPierreTreeThemeStyles(resolvedTheme: "light" | "dark"): TreeThemeStyles {
+  const theme = resolvedTheme === "dark" ? pierreDark : pierreLight;
+  return {
+    ...themeToTreeStyles(toTreeThemeInput(theme)),
+    ...getExtendedGitTreeStyles(theme),
+  };
 }
 
 function treeHostLayout(): TreeHostStyle {

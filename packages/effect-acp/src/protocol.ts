@@ -69,6 +69,8 @@ const decodeSessionUpdate = Schema.decodeUnknownEffect(AcpSchema.SessionNotifica
 const decodeElicitationComplete = Schema.decodeUnknownEffect(
   AcpSchema.ElicitationCompleteNotification,
 );
+const isAcpError = Schema.is(AcpError.AcpError);
+const isAcpRequestError = Schema.is(AcpError.AcpRequestError);
 const parserFactory = RpcSerialization.ndJsonRpc();
 
 export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(function* (
@@ -408,7 +410,7 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
     ),
     Effect.matchEffect({
       onFailure: (error) => {
-        const normalized: AcpError.AcpError = Schema.is(AcpError.AcpError)(error)
+        const normalized: AcpError.AcpError = isAcpError(error)
           ? error
           : new AcpError.AcpTransportError({
               detail: error instanceof Error ? error.message : String(error),
@@ -521,7 +523,7 @@ function isProtocolError(
 }
 
 function normalizeToRequestError(error: AcpError.AcpError): AcpError.AcpRequestError {
-  return Schema.is(AcpError.AcpRequestError)(error)
+  return isAcpRequestError(error)
     ? error
     : AcpError.AcpRequestError.internalError(error.message);
 }

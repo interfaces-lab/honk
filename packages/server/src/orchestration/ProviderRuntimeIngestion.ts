@@ -62,6 +62,8 @@ type RuntimeIngestionInput =
       event: TurnStartRequestedDomainEvent;
     };
 
+const processDomainEvent = (_event: TurnStartRequestedDomainEvent) => Effect.void;
+
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
   return value === undefined ? undefined : TurnId.make(String(value));
 }
@@ -1324,8 +1326,6 @@ const make = Effect.fn("make")(function* () {
       }),
     ).pipe(Effect.asVoid);
   });
-
-  const processDomainEvent = (_event: TurnStartRequestedDomainEvent) => Effect.void;
 
   const processInput = (input: RuntimeIngestionInput) =>
     input.source === "runtime" ? processRuntimeEvent(input.event) : processDomainEvent(input.event);

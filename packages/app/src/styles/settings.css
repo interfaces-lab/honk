@@ -11,21 +11,3 @@
   font-family: inherit;
   font-size: var(--multi-ui-font-size-user, 13px);
 }
-
-.settings-form-page [data-settings-settings-title] {
-  font-size: calc(var(--multi-ui-font-size-user, 13px) * 2);
-  line-height: 1.08;
-}
-
-.settings-form-page [data-settings-settings-lead],
-.settings-form-page [data-settings-settings-section],
-.settings-form-page [data-settings-settings-label],
-.settings-form-page [data-settings-settings-description],
-.settings-form-page [data-settings-settings-number] {
-  font-size: var(--multi-ui-font-size-user, 13px);
-}
-
-.settings-form-page [data-settings-settings-description],
-.settings-form-page [data-settings-settings-lead] {
-  line-height: 1.45;
-}

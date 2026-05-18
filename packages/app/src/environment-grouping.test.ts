@@ -9,7 +9,7 @@ import {
   selectSidebarThreadsForProjectRefs,
   type AppState,
   type EnvironmentState,
-} from "./store";
+} from "./stores/thread-store";
 import { deriveLogicalProjectKey, derivePhysicalProjectKey } from "./logical-project";
 import { Project, SidebarThreadSummary } from "./types";
 import { DEFAULT_INTERACTION_MODE } from "./types";

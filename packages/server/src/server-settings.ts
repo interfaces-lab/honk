@@ -53,6 +53,8 @@ import {
   resolveProviderEnabled,
 } from "./provider/provider-settings.ts";
 
+const decodeServerSettings = Schema.decodeEffect(ServerSettings);
+
 export interface ServerSettingsShape {
   /** Start the settings runtime and attach file watching. */
   readonly start: Effect.Effect<void, ServerSettingsError>;
@@ -91,9 +93,7 @@ export class ServerSettingsService extends Context.Service<
           updateSettings: (patch) =>
             Ref.get(currentSettingsRef).pipe(
               Effect.flatMap((currentSettings) =>
-                Schema.decodeEffect(ServerSettings)(
-                  applyServerSettingsPatch(currentSettings, patch),
-                ).pipe(
+                decodeServerSettings(applyServerSettingsPatch(currentSettings, patch)).pipe(
                   Effect.mapError(
                     (cause) =>
                       new ServerSettingsError({
@@ -113,6 +113,7 @@ export class ServerSettingsService extends Context.Service<
 }
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
+const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson);
 
 /**
  * Ensure the `textGenerationModelSelection` points to an enabled provider.
@@ -259,7 +260,7 @@ const makeServerSettings = Effect.gen(function* () {
     }
 
     const raw = yield* readRawConfig;
-    const decoded = Schema.decodeUnknownExit(ServerSettingsJson)(raw);
+    const decoded = decodeServerSettingsJsonExit(raw);
     if (decoded._tag === "Failure") {
       yield* Effect.logWarning("failed to parse settings.json, using defaults", {
         path: settingsPath,
@@ -373,9 +374,7 @@ const makeServerSettings = Effect.gen(function* () {
       writeSemaphore.withPermits(1)(
         Effect.gen(function* () {
           const current = yield* getSettingsFromCache;
-          const next = yield* Schema.decodeEffect(ServerSettings)(
-            applyServerSettingsPatch(current, patch),
-          ).pipe(
+          const next = yield* decodeServerSettings(applyServerSettingsPatch(current, patch)).pipe(
             Effect.mapError(
               (cause) =>
                 new ServerSettingsError({

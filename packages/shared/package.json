@@ -60,10 +60,6 @@
       "types": "./src/search-ranking.ts",
       "import": "./src/search-ranking.ts"
     },
-    "./qr-code": {
-      "types": "./src/qr-code.ts",
-      "import": "./src/qr-code.ts"
-    },
     "./cli-args": {
       "types": "./src/cli-args.ts",
       "import": "./src/cli-args.ts"

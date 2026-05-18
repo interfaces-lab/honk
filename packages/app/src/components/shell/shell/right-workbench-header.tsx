@@ -79,7 +79,7 @@ function TerminalSessionTab(props: {
     <div
       role="presentation"
       className={cn(
-        "no-drag group relative flex h-(--multi-workbench-action-size) max-w-(--composer-tab-label-max-width) select-none items-center overflow-hidden rounded-multi-control text-body transition-colors",
+        "no-drag group relative flex h-(--multi-workbench-action-size) max-w-(--multi-workbench-tab-label-max-width) select-none items-center overflow-hidden rounded-multi-control text-body transition-colors",
         props.active
           ? "bg-multi-bg-tertiary text-multi-fg-primary"
           : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",

@@ -157,10 +157,9 @@ describe("createEnvironmentConnection", () => {
     const syncShellSnapshot = vi.fn();
 
     const connection = createEnvironmentConnection({
-      kind: "saved",
       knownEnvironment: {
         id: "env-1",
-        label: "Remote env",
+        label: "Primary env",
         source: "manual",
         target: {
           httpBaseUrl: "http://example.test",
@@ -189,10 +188,9 @@ describe("createEnvironmentConnection", () => {
     const { client, emitWelcome } = createTestClient();
 
     const connection = createEnvironmentConnection({
-      kind: "saved",
       knownEnvironment: {
         id: "env-1",
-        label: "Remote env",
+        label: "Primary env",
         source: "manual",
         target: {
           httpBaseUrl: "http://example.test",
@@ -219,10 +217,9 @@ describe("createEnvironmentConnection", () => {
     const syncShellSnapshot = vi.fn();
 
     const connection = createEnvironmentConnection({
-      kind: "saved",
       knownEnvironment: {
         id: "env-1",
-        label: "Remote env",
+        label: "Primary env",
         source: "manual",
         target: {
           httpBaseUrl: "http://example.test",

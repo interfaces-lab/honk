@@ -31,15 +31,20 @@ export const providerQueryKeys = {
     ] as const,
 };
 
+const decodeFullThreadDiffInputOption = Schema.decodeUnknownOption(
+  OrchestrationGetFullThreadDiffInput,
+);
+const decodeTurnDiffInputOption = Schema.decodeUnknownOption(OrchestrationGetTurnDiffInput);
+
 function decodeCheckpointDiffRequest(input: CheckpointDiffQueryInput) {
   if (input.fromTurnCount === 0) {
-    return Schema.decodeUnknownOption(OrchestrationGetFullThreadDiffInput)({
+    return decodeFullThreadDiffInputOption({
       threadId: input.threadId,
       toTurnCount: input.toTurnCount,
     }).pipe(Option.map((fields) => ({ kind: "fullThreadDiff" as const, input: fields })));
   }
 
-  return Schema.decodeUnknownOption(OrchestrationGetTurnDiffInput)({
+  return decodeTurnDiffInputOption({
     threadId: input.threadId,
     fromTurnCount: input.fromTurnCount,
     toTurnCount: input.toTurnCount,

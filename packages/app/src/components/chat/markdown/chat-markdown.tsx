@@ -27,7 +27,7 @@ import { resolveDiffThemeName, type DiffThemeName } from "../../../lib/diff-rend
 import { fnv1a32 } from "../../../lib/diff-rendering";
 import { LRUCache } from "../../../lib/lru-cache";
 import { useTheme } from "../../../hooks/use-theme";
-import { resolveMarkdownFileLinkMeta, rewriteMarkdownFileUriHref } from "../../../markdown-links";
+import { resolveMarkdownFileLinkMeta, rewriteMarkdownFileUriHref } from "./file-links";
 import { readLocalApi } from "../../../local-api";
 import { cn } from "../../../lib/utils";
 
@@ -471,10 +471,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
           </a>
         }
       />
-      <TooltipPopup
-        side="top"
-        className="max-w-[min(40rem,calc(100vw-2rem))] font-mono text-detail"
-      >
+      <TooltipPopup side="top" className="max-w-2xl font-mono text-detail">
         <div className="markdown-file-link-tooltip-scroll overflow-x-auto whitespace-nowrap">
           {displayPath}
         </div>
@@ -717,7 +714,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
           <hr
             {...props}
             className={cn(
-              "my-4 max-w-[min(100%,var(--multi-markdown-prose-max-width))] border-0 border-t border-(--multi-markdown-rule-color)",
+              "my-4 max-w-full border-0 border-t border-(--multi-markdown-rule-color)",
               className,
             )}
           />

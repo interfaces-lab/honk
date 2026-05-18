@@ -99,6 +99,10 @@ const HANDLED_TURN_START_KEY_MAX = 10_000;
 const HANDLED_TURN_START_KEY_TTL = Duration.minutes(30);
 const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 const DEFAULT_THREAD_TITLE = "New thread";
+const isProviderAdapterRequestError = Schema.is(ProviderAdapterRequestError);
+const isProviderAdapterSessionNotFoundError = Schema.is(ProviderAdapterSessionNotFoundError);
+const isProviderAdapterSessionClosedError = Schema.is(ProviderAdapterSessionClosedError);
+const isProviderDriverKind = Schema.is(ProviderDriverKind);
 
 function canReplaceThreadTitle(currentTitle: string, titleSeed?: string): boolean {
   const trimmedCurrentTitle = currentTitle.trim();
@@ -114,7 +118,7 @@ function canReplaceThreadTitle(currentTitle: string, titleSeed?: string): boolea
 
 function isUnknownPendingApprovalRequestError(cause: Cause.Cause<ProviderServiceError>): boolean {
   const error = Cause.squash(cause);
-  if (Schema.is(ProviderAdapterRequestError)(error)) {
+  if (isProviderAdapterRequestError(error)) {
     const detail = error.detail.toLowerCase();
     return (
       detail.includes("unknown pending approval request") ||
@@ -130,7 +134,7 @@ function isUnknownPendingApprovalRequestError(cause: Cause.Cause<ProviderService
 
 function isUnknownPendingUserInputRequestError(cause: Cause.Cause<ProviderServiceError>): boolean {
   const error = Cause.squash(cause);
-  if (Schema.is(ProviderAdapterRequestError)(error)) {
+  if (isProviderAdapterRequestError(error)) {
     return error.detail.toLowerCase().includes("unknown pending user-input request");
   }
   return Cause.pretty(cause).toLowerCase().includes("unknown pending user-input request");
@@ -139,8 +143,8 @@ function isUnknownPendingUserInputRequestError(cause: Cause.Cause<ProviderServic
 function isMissingProviderSessionError(cause: Cause.Cause<ProviderServiceError>): boolean {
   const error = Cause.squash(cause);
   return (
-    Schema.is(ProviderAdapterSessionNotFoundError)(error) ||
-    Schema.is(ProviderAdapterSessionClosedError)(error)
+    isProviderAdapterSessionNotFoundError(error) ||
+    isProviderAdapterSessionClosedError(error)
   );
 }
 
@@ -272,7 +276,7 @@ const make = Effect.gen(function* () {
     }
 
     const desiredRuntimeMode = thread.runtimeMode;
-    const currentProvider: ProviderDriverKind | undefined = Schema.is(ProviderDriverKind)(
+    const currentProvider: ProviderDriverKind | undefined = isProviderDriverKind(
       thread.session?.providerName,
     )
       ? thread.session.providerName

@@ -60,6 +60,20 @@ const ProviderRollbackConversationInput = Schema.Struct({
   threadId: ThreadId,
   numTurns: NonNegativeInt,
 });
+const decodeProviderInterruptTurnInput = Schema.decodeUnknownEffect(ProviderInterruptTurnInput);
+const decodeProviderRollbackConversationInput = Schema.decodeUnknownEffect(
+  ProviderRollbackConversationInput,
+);
+const decodeProviderRespondToRequestInput = Schema.decodeUnknownEffect(
+  ProviderRespondToRequestInput,
+);
+const decodeProviderRespondToUserInputInput = Schema.decodeUnknownEffect(
+  ProviderRespondToUserInputInput,
+);
+const decodeProviderSendTurnInput = Schema.decodeUnknownEffect(ProviderSendTurnInput);
+const decodeProviderSessionStartInput = Schema.decodeUnknownEffect(ProviderSessionStartInput);
+const decodeProviderStopSessionInput = Schema.decodeUnknownEffect(ProviderStopSessionInput);
+const isModelSelection = Schema.is(ModelSelection);
 
 function toValidationError(
   operation: string,
@@ -73,12 +87,12 @@ function toValidationError(
   });
 }
 
-const decodeInputOrValidationError = <S extends Schema.Top>(input: {
+const decodeInputOrValidationError = <A>(input: {
   readonly operation: string;
-  readonly schema: S;
+  readonly decode: (payload: unknown) => Effect.Effect<A, Schema.SchemaError>;
   readonly payload: unknown;
 }) =>
-  Schema.decodeUnknownEffect(input.schema)(input.payload).pipe(
+  input.decode(input.payload).pipe(
     Effect.mapError(
       (schemaError) =>
         new ProviderValidationError({
@@ -132,7 +146,7 @@ function readPersistedModelSelection(
     return undefined;
   }
   const raw = "modelSelection" in runtimePayload ? runtimePayload.modelSelection : undefined;
-  return Schema.is(ModelSelection)(raw) ? raw : undefined;
+  return isModelSelection(raw) ? raw : undefined;
 }
 
 function readPersistedCwd(
@@ -433,7 +447,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     function* (threadId, rawInput) {
       const parsed = yield* decodeInputOrValidationError({
         operation: "ProviderService.startSession",
-        schema: ProviderSessionStartInput,
+        decode: decodeProviderSessionStartInput,
         payload: rawInput,
       });
 
@@ -541,7 +555,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
   const sendTurn: ProviderServiceShape["sendTurn"] = Effect.fn("sendTurn")(function* (rawInput) {
     const parsed = yield* decodeInputOrValidationError({
       operation: "ProviderService.sendTurn",
-      schema: ProviderSendTurnInput,
+      decode: decodeProviderSendTurnInput,
       payload: rawInput,
     });
 
@@ -617,7 +631,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     function* (rawInput) {
       const input = yield* decodeInputOrValidationError({
         operation: "ProviderService.interruptTurn",
-        schema: ProviderInterruptTurnInput,
+        decode: decodeProviderInterruptTurnInput,
         payload: rawInput,
       });
       let metricProvider = "unknown";
@@ -657,7 +671,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     function* (rawInput) {
       const input = yield* decodeInputOrValidationError({
         operation: "ProviderService.respondToRequest",
-        schema: ProviderRespondToRequestInput,
+        decode: decodeProviderRespondToRequestInput,
         payload: rawInput,
       });
       let metricProvider = "unknown";
@@ -696,7 +710,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
   )(function* (rawInput) {
     const input = yield* decodeInputOrValidationError({
       operation: "ProviderService.respondToUserInput",
-      schema: ProviderRespondToUserInputInput,
+      decode: decodeProviderRespondToUserInputInput,
       payload: rawInput,
     });
     let metricProvider = "unknown";
@@ -729,7 +743,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     function* (rawInput) {
       const input = yield* decodeInputOrValidationError({
         operation: "ProviderService.stopSession",
-        schema: ProviderStopSessionInput,
+        decode: decodeProviderStopSessionInput,
         payload: rawInput,
       });
       let metricProvider = "unknown";
@@ -844,7 +858,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
   )(function* (rawInput) {
     const input = yield* decodeInputOrValidationError({
       operation: "ProviderService.rollbackConversation",
-      schema: ProviderRollbackConversationInput,
+      decode: decodeProviderRollbackConversationInput,
       payload: rawInput,
     });
     if (input.numTurns === 0) {

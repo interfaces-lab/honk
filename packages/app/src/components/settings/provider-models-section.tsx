@@ -18,8 +18,8 @@ import {
 import { normalizeModelSlug } from "@multi/shared/model";
 
 import { cn } from "../../lib/utils";
-import { sortModelsForProviderInstance } from "../../model-ordering";
-import { MAX_CUSTOM_MODEL_LENGTH } from "../../model-selection";
+import { sortModelsForProviderInstance } from "../../model/ordering";
+import { MAX_CUSTOM_MODEL_LENGTH } from "../../model/selection";
 import { Button } from "@multi/ui/button";
 import { Input } from "@multi/ui/input";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@multi/ui/tooltip";

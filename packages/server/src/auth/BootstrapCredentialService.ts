@@ -39,24 +39,24 @@ const generatePairingToken = (): string => {
   return Array.from(randomBytes, (value) => PAIRING_TOKEN_ALPHABET[value & 31]).join("");
 };
 
+const invalidBootstrapCredentialError = (message: string) =>
+  new BootstrapCredentialError({
+    message,
+    status: 401,
+  });
+
+const internalBootstrapCredentialError = (message: string, cause: unknown) =>
+  new BootstrapCredentialError({
+    message,
+    status: 500,
+    cause,
+  });
+
 export const makeBootstrapCredentialService = Effect.gen(function* () {
   const config = yield* ServerConfig;
   const pairingLinks = yield* AuthPairingLinkRepository;
   const seededGrantsRef = yield* Ref.make(new Map<string, StoredBootstrapGrant>());
   const changesPubSub = yield* PubSub.unbounded<BootstrapCredentialChange>();
-
-  const invalidBootstrapCredentialError = (message: string) =>
-    new BootstrapCredentialError({
-      message,
-      status: 401,
-    });
-
-  const internalBootstrapCredentialError = (message: string, cause: unknown) =>
-    new BootstrapCredentialError({
-      message,
-      status: 500,
-      cause,
-    });
 
   const seedGrant = (credential: string, grant: StoredBootstrapGrant) =>
     Ref.update(seededGrantsRef, (current) => {

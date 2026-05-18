@@ -12,6 +12,11 @@ import * as CodexError from "./errors.ts";
 import { JsonRpcId, JsonRpcResponseEnvelope } from "./_internal/shared.ts";
 
 const WireJsonMessage = Schema.fromJsonString(Schema.Unknown);
+const isJsonRpcId = Schema.is(JsonRpcId);
+const isJsonRpcResponseEnvelope = Schema.is(JsonRpcResponseEnvelope);
+const encodeWireJsonMessage = Schema.encodeEffect(WireJsonMessage);
+const decodeWireJsonMessage = Schema.decodeUnknownEffect(WireJsonMessage);
+const isCodexAppServerError = Schema.is(CodexError.CodexAppServerError);
 
 export interface CodexAppServerProtocolLogEvent {
   readonly direction: "incoming" | "outgoing";
@@ -74,7 +79,7 @@ function isIncomingRequest(value: unknown): value is CodexAppServerIncomingReque
   if (!isObject(value) || typeof value.method !== "string") {
     return false;
   }
-  return Schema.is(JsonRpcId)(value.id);
+  return isJsonRpcId(value.id);
 }
 
 function isIncomingNotification(value: unknown): value is CodexAppServerIncomingNotification {
@@ -82,13 +87,13 @@ function isIncomingNotification(value: unknown): value is CodexAppServerIncoming
 }
 
 function isIncomingResponse(value: unknown): value is typeof JsonRpcResponseEnvelope.Type {
-  return Schema.is(JsonRpcResponseEnvelope)(value);
+  return isJsonRpcResponseEnvelope(value);
 }
 
 const encodeWireMessage = (
   message: Record<string, unknown>,
 ): Effect.Effect<string, CodexError.CodexAppServerProtocolParseError> =>
-  Schema.encodeEffect(WireJsonMessage)(message).pipe(
+  encodeWireJsonMessage(message).pipe(
     Effect.map((encoded) => `${encoded}\n`),
     Effect.mapError(
       (cause) =>
@@ -102,7 +107,7 @@ const encodeWireMessage = (
 const decodeWireMessage = (
   line: string,
 ): Effect.Effect<unknown, CodexError.CodexAppServerProtocolParseError> =>
-  Schema.decodeUnknownEffect(WireJsonMessage)(line).pipe(
+  decodeWireJsonMessage(line).pipe(
     Effect.mapError(
       (cause) =>
         new CodexError.CodexAppServerProtocolParseError({
@@ -113,7 +118,7 @@ const decodeWireMessage = (
   );
 
 const normalizeIncomingError = (error: unknown, detail: string): CodexError.CodexAppServerError =>
-  Schema.is(CodexError.CodexAppServerError)(error)
+  isCodexAppServerError(error)
     ? error
     : new CodexError.CodexAppServerTransportError({
         detail,

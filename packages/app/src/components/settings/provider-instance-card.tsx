@@ -18,7 +18,7 @@ import {
 } from "@multi/contracts";
 
 import { cn } from "../../lib/utils";
-import { normalizeProviderAccentColor } from "../../provider-instances";
+import { normalizeProviderAccentColor } from "../../model/provider-instances";
 import { Badge } from "@multi/ui/badge";
 import { Button } from "@multi/ui/button";
 import { Collapsible, CollapsibleContent } from "@multi/ui/collapsible";

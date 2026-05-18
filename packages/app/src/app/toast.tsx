@@ -16,7 +16,7 @@ import {
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "@multi/ui/button";
-import { useComposerDraftStore } from "~/composer-draft-store";
+import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { resolveThreadRouteTarget } from "~/thread-routes";
 import {
@@ -209,7 +209,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
     <Toast.Portal data-slot="toast-portal">
       <Toast.Viewport
         className={cn(
-          "fixed z-100 mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-header-offset:52px] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
+          "fixed z-100 mx-auto flex w-auto max-w-90 [--toast-header-offset:52px] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
           // Vertical positioning
           "data-[position*=top]:top-[calc(var(--toast-inset)+var(--toast-header-offset))]",
           "data-[position*=bottom]:bottom-(--toast-inset)",
@@ -381,7 +381,7 @@ function AnchoredToasts() {
 
             return (
               <Toast.Positioner
-                className="z-100 max-w-[min(--spacing(64),var(--available-width))]"
+                className="z-100 max-w-64"
                 data-slot="toast-positioner"
                 key={toast.id}
                 sideOffset={positionerProps.sideOffset ?? 4}

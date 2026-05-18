@@ -3,12 +3,11 @@ import { useEffect, useMemo } from "react";
 
 import ChatView from "~/components/chat/view/chat-view";
 import { threadHasStarted } from "~/components/chat/view/thread-lifecycle";
-import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/composer-draft-store";
-import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "~/store";
-import { createThreadSelectorByRef } from "~/store-selectors";
+import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/stores/chat-drafts";
+import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "~/stores/thread-store";
+import { createThreadSelectorByRef } from "~/stores/thread-selectors";
 import { clearLastChatRouteTarget, writeLastChatRouteTarget } from "~/chat-route-persistence";
 import { resolveThreadRouteRef } from "~/thread-routes";
-import { traceBrowserEvent } from "~/observability/browserDebug";
 
 const routeApi = getRouteApi("/_chat/$environmentId/$threadId");
 type ThreadRouteRef = NonNullable<ReturnType<typeof resolveThreadRouteRef>>;
@@ -68,18 +67,6 @@ export function ChatThreadRouteView() {
     }
 
     if (environmentHasAnyThreads) {
-      traceBrowserEvent(
-        "route.thread.missing.navigate-home",
-        {
-          environmentId: threadRef.environmentId,
-          threadId: threadRef.threadId,
-          bootstrapComplete,
-          threadExists,
-          draftThreadExists,
-          environmentHasAnyThreads,
-        },
-        "warn",
-      );
       clearLastChatRouteTarget({ kind: "server", threadRef });
       void navigate({ to: "/", replace: true });
       return;

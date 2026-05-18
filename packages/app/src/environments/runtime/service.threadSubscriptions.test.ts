@@ -13,9 +13,6 @@ const mockSubscribeThread = vi.fn();
 const mockThreadUnsubscribe = vi.fn();
 const mockCreateEnvironmentConnection = vi.fn();
 const mockCreateWsRpcClient = vi.fn();
-const mockWaitForSavedEnvironmentRegistryHydration = vi.fn();
-const mockListSavedEnvironmentRecords = vi.fn();
-const mockSavedEnvironmentRegistrySubscribe = vi.fn();
 const mockRefreshGitStatus = vi.fn();
 
 function MockWsTransport() {
@@ -33,32 +30,6 @@ vi.mock("../primary", () => ({
     },
     environmentId: EnvironmentId.make("env-1"),
   })),
-}));
-
-vi.mock("./catalog", () => ({
-  getSavedEnvironmentRecord: vi.fn(),
-  hasSavedEnvironmentRegistryHydrated: vi.fn(() => true),
-  listSavedEnvironmentRecords: mockListSavedEnvironmentRecords,
-  persistSavedEnvironmentRecord: vi.fn(),
-  readSavedEnvironmentBearerToken: vi.fn(),
-  removeSavedEnvironmentBearerToken: vi.fn(),
-  useSavedEnvironmentRegistryStore: {
-    subscribe: mockSavedEnvironmentRegistrySubscribe,
-    getState: () => ({
-      upsert: vi.fn(),
-      remove: vi.fn(),
-      markConnected: vi.fn(),
-    }),
-  },
-  useSavedEnvironmentRuntimeStore: {
-    getState: () => ({
-      ensure: vi.fn(),
-      patch: vi.fn(),
-      clear: vi.fn(),
-    }),
-  },
-  waitForSavedEnvironmentRegistryHydration: mockWaitForSavedEnvironmentRegistryHydration,
-  writeSavedEnvironmentBearerToken: vi.fn(),
 }));
 
 vi.mock("./connection", () => ({
@@ -179,7 +150,6 @@ describe("retainThreadDetailSubscription", () => {
       },
     });
     mockCreateEnvironmentConnection.mockImplementation((input) => ({
-      kind: input.kind,
       environmentId: input.knownEnvironment.environmentId,
       knownEnvironment: input.knownEnvironment,
       client: input.client,
@@ -187,9 +157,6 @@ describe("retainThreadDetailSubscription", () => {
       reconnect: vi.fn(async () => undefined),
       dispose: vi.fn(async () => undefined),
     }));
-    mockSavedEnvironmentRegistrySubscribe.mockReturnValue(() => undefined);
-    mockWaitForSavedEnvironmentRegistryHydration.mockResolvedValue(undefined);
-    mockListSavedEnvironmentRecords.mockReturnValue([]);
   });
 
   afterEach(async () => {

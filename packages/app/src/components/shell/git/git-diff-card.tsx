@@ -195,7 +195,7 @@ export function GitDiffCard(props: {
         <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-(--multi-git-diff-editor-background) select-text">
           {showLoading ? (
             <div className="flex flex-col gap-2 p-3">
-              <div className="h-3 w-full max-w-[14rem] animate-pulse rounded bg-muted/35" />
+              <div className="h-3 w-full max-w-56 animate-pulse rounded bg-muted/35" />
               <div className="h-3 w-full animate-pulse rounded bg-muted/28" />
             </div>
           ) : props.error ? (

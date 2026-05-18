@@ -47,15 +47,15 @@ import {
 import {
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
-} from "../../model-selection";
+} from "../../model/selection";
 import { ensureLocalApi, readLocalApi } from "../../local-api";
 import { useShallow } from "zustand/react/shallow";
 import {
   selectProjectsAcrossEnvironments,
   selectThreadShellsAcrossEnvironments,
   useStore,
-} from "../../store";
-import { formatRelativeTimeLabel } from "../../timestamp-format";
+} from "../../stores/thread-store";
+import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
 import { Button } from "@multi/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/ui/empty";
 import { Input } from "@multi/ui/input";
@@ -66,7 +66,7 @@ import { toastManager } from "~/app/toast";
 import {
   deriveProviderInstanceEntriesForSettings,
   sortProviderInstanceEntries,
-} from "../../provider-instances";
+} from "../../model/provider-instances";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import {
   SettingResetButton,

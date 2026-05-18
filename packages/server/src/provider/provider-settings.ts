@@ -17,6 +17,10 @@ const CODEX_PROVIDER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_PROVIDER = ProviderDriverKind.make("claudeAgent");
 const CURSOR_PROVIDER = ProviderDriverKind.make("cursor");
 const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
+const decodeCodexSettings = Schema.decodeUnknownSync(CodexSettings);
+const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
+const decodeCursorSettings = Schema.decodeUnknownSync(CursorSettings);
+const decodeOpenCodeSettings = Schema.decodeUnknownSync(OpenCodeSettings);
 
 export const CANONICAL_PROVIDER_DRIVER_ORDER = [
   CODEX_PROVIDER,
@@ -96,7 +100,7 @@ export function resolveCodexSettings(
   settings: ServerSettings,
   instanceId: ProviderInstanceId = defaultInstanceIdForDriver(CODEX_PROVIDER),
 ): typeof CodexSettings.Type {
-  return Schema.decodeUnknownSync(CodexSettings)(
+  return decodeCodexSettings(
     resolveSettingsRecord({
       fallback: fallbackCodexSettings(settings, instanceId),
       instance: resolveProviderInstanceConfig({
@@ -112,7 +116,7 @@ export function resolveClaudeSettings(
   settings: ServerSettings,
   instanceId: ProviderInstanceId = defaultInstanceIdForDriver(CLAUDE_AGENT_PROVIDER),
 ): typeof ClaudeSettings.Type {
-  return Schema.decodeUnknownSync(ClaudeSettings)(
+  return decodeClaudeSettings(
     resolveSettingsRecord({
       fallback: fallbackClaudeSettings(settings, instanceId),
       instance: resolveProviderInstanceConfig({
@@ -128,7 +132,7 @@ export function resolveCursorSettings(
   settings: ServerSettings,
   instanceId: ProviderInstanceId = defaultInstanceIdForDriver(CURSOR_PROVIDER),
 ): typeof CursorSettings.Type {
-  return Schema.decodeUnknownSync(CursorSettings)(
+  return decodeCursorSettings(
     resolveSettingsRecord({
       fallback: fallbackCursorSettings(settings, instanceId),
       instance: resolveProviderInstanceConfig({
@@ -149,7 +153,7 @@ export function resolveOpenCodeSettings(
     driver: OPENCODE_PROVIDER,
     instanceId,
   });
-  const resolved = Schema.decodeUnknownSync(OpenCodeSettings)(
+  const resolved = decodeOpenCodeSettings(
     resolveSettingsRecord({
       fallback: fallbackOpenCodeSettings(settings, instanceId),
       instance,

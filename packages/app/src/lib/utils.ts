@@ -3,7 +3,7 @@ import { type CxOptions, cx } from "class-variance-authority";
 import { twMerge } from "tailwind-merge";
 import * as Random from "effect/Random";
 import * as Effect from "effect/Effect";
-import { DraftId } from "../composer-draft-store";
+import { DraftId } from "../stores/chat-drafts";
 
 export function cn(...inputs: CxOptions) {
   return twMerge(cx(inputs));

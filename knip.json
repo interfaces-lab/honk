@@ -1,26 +1,139 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "include": [
+    "files",
+    "dependencies",
+    "devDependencies",
+    "optionalPeerDependencies",
+    "unlisted",
+    "binaries",
+    "unresolved",
+    "exports",
+    "types",
+    "nsExports",
+    "nsTypes",
+    "duplicates",
+    "enumMembers",
+    "namespaceMembers",
+    "catalog"
+  ],
+  "includeEntryExports": true,
+  "treatConfigHintsAsErrors": true,
+  "rules": {
+    "binaries": "error",
+    "catalog": "error",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "duplicates": "error",
+    "enumMembers": "error",
+    "exports": "error",
+    "files": "error",
+    "namespaceMembers": "error",
+    "nsExports": "error",
+    "nsTypes": "error",
+    "optionalPeerDependencies": "error",
+    "types": "error",
+    "unlisted": "error",
+    "unresolved": "error"
+  },
   "ignoreDependencies": ["bun"],
   "ignoreFiles": [
     "packages/app/public/mockServiceWorker.js",
-    "packages/**/test/**",
-    "packages/**/integration/**",
-    "packages/**/*.test.{ts,tsx}",
-    "packages/**/*.browser.{ts,tsx}"
+    "packages/effect-acp/src/_generated/**",
+    "packages/effect-codex-app-server/src/_generated/**"
   ],
+  "ignoreIssues": {
+    "packages/effect-acp/src/_generated/**": [
+      "duplicates",
+      "enumMembers",
+      "exports",
+      "namespaceMembers",
+      "nsExports",
+      "nsTypes",
+      "types"
+    ],
+    "packages/effect-codex-app-server/src/_generated/**": [
+      "duplicates",
+      "enumMembers",
+      "exports",
+      "namespaceMembers",
+      "nsExports",
+      "nsTypes",
+      "types"
+    ]
+  },
   "workspaces": {
+    "packages/client-runtime": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/contracts": {
+      "entry": ["src/index.ts", "src/settings.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/desktop": {
+      "entry": [
+        "src/main.ts",
+        "src/preload.ts",
+        "scripts/**/*.mjs",
+        "test/**/*.{ts,tsx}",
+        "tsdown.config.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs", "test/**/*.{ts,tsx}", "*.config.ts"]
+    },
+    "packages/effect-acp": {
+      "entry": [
+        "src/agent.ts",
+        "src/client.ts",
+        "src/errors.ts",
+        "src/protocol.ts",
+        "src/rpc.ts",
+        "src/schema.ts",
+        "src/terminal.ts",
+        "scripts/**/*.ts",
+        "test/**/*.{ts,tsx}"
+      ],
+      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}"]
+    },
+    "packages/effect-codex-app-server": {
+      "entry": [
+        "src/client.ts",
+        "src/errors.ts",
+        "src/protocol.ts",
+        "src/rpc.ts",
+        "src/schema.ts",
+        "scripts/**/*.ts",
+        "test/**/*.{ts,tsx}"
+      ],
+      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}"]
+    },
     "packages/server": {
-      "entry": ["scripts/**/*.ts"],
-      "project": ["src/**/*.ts", "scripts/**/*.ts"],
+      "entry": ["src/bin.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "vitest.config.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "*.config.ts"],
       "ignoreDependencies": ["@multi/app"]
     },
+    "packages/shared": {
+      "entry": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
+      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
+    },
+    "packages/ui": {
+      "entry": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"]
+    },
     "packages/app": {
-      "entry": ["src/**/*.test.{ts,tsx}", "src/components/**/*.browser.tsx", "test/**/*.ts"],
+      "entry": [
+        "src/main.tsx",
+        "src/**/*.test.{ts,tsx}",
+        "src/**/*.browser.{ts,tsx}",
+        "test/**/*.ts",
+        "vite.config.ts",
+        "vitest.browser.config.ts"
+      ],
       "project": ["src/**/*.{ts,tsx}", "test/**/*.ts", "*.config.ts"]
     },
     "scripts": {
-      "entry": ["*.ts", "**/*.ts"],
-      "project": ["**/*.ts"]
+      "entry": ["*.ts", "**/*.ts", "*.mjs", "**/*.mjs"],
+      "project": ["**/*.ts", "**/*.mjs"]
     }
   }
 }

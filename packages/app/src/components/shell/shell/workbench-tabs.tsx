@@ -22,8 +22,7 @@ import {
   workbenchMenuPrimaryTextClassName,
 } from "@multi/ui/menu";
 
-const NEW_TAB_MENU_WIDTH =
-  "w-[min(280px,var(--available-width))] min-w-[min(280px,var(--available-width))] max-w-[280px]";
+const NEW_TAB_MENU_WIDTH = "w-72 max-w-full min-w-0";
 const NEW_TAB_MENU_MAX_HEIGHT = "max-h-[min(720px,var(--available-height))]";
 
 interface Tab {

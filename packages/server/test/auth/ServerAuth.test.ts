@@ -95,12 +95,13 @@ it.layer(NodeServices.layer)("ServerAuthLive", (it) => {
     }).pipe(Effect.provide(makeServerAuthLayer())),
   );
 
-  it.effect("issues startup pairing URLs that bootstrap owner sessions", () =>
+  it.effect("issues startup bootstrap URLs that bootstrap owner sessions", () =>
     Effect.gen(function* () {
       const serverAuth = yield* ServerAuth;
 
-      const pairingUrl = yield* serverAuth.issueStartupPairingUrl("http://127.0.0.1:3773");
-      const token = new URLSearchParams(new URL(pairingUrl).hash.slice(1)).get("token");
+      const bootstrapUrl = yield* serverAuth.issueStartupPairingUrl("http://127.0.0.1:3773");
+      expect(new URL(bootstrapUrl).pathname).toBe("/");
+      const token = new URLSearchParams(new URL(bootstrapUrl).hash.slice(1)).get("token");
       const listedPairingLinks = yield* serverAuth.listPairingLinks();
       expect(token).toBeTruthy();
       expect(

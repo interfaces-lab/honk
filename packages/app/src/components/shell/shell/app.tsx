@@ -265,7 +265,7 @@ function RightAside(props: {
           <TabsRoot
             value={effectiveActiveTab}
             onValueChange={handleWorkbenchTabChange}
-            className="editor-panel-inner relative z-10 flex h-full min-h-0 w-full flex-col bg-(--glass-editor-surface-background) opacity-100"
+            className="relative z-10 flex h-full min-h-0 w-full flex-col bg-(--glass-editor-surface-background) opacity-100"
           >
             <RightAsideHeader
               cwd={props.cwd}
@@ -417,7 +417,7 @@ export function AppShell(props: {
       "--multi-shell-titlebar-control-size": "var(--multi-titlebar-control-height)",
       "--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)",
       "--multi-shell-titlebar-gutter": "8px",
-      "--multi-composer-max-width": `${agentWindowChatMaxWidth}px`,
+      "--agent-window-chat-max-width": `${agentWindowChatMaxWidth}px`,
     }),
     [leftWidth, rightWidth, agentWindowChatMaxWidth],
   );
@@ -456,7 +456,7 @@ export function AppShell(props: {
         <div className="relative flex min-h-0 flex-1 flex-row">
           <main
             className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-multi-chat outline-hidden"
-            data-component="agent-panel"
+            data-component="chat-panel"
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden outline-hidden">
               {props.center}

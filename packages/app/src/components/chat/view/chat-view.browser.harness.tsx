@@ -13,19 +13,16 @@ import { page } from "vitest/browser";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
-import { useComposerDraftStore } from "../../../composer-draft-store";
+import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { __resetEnvironmentApiOverridesForTests } from "../../../environment-api";
-import {
-  resetSavedEnvironmentRegistryStoreForTests,
-  resetSavedEnvironmentRuntimeStoreForTests,
-} from "../../../environments/runtime";
+import { __resetClientSettingsPersistenceForTests } from "../../../hooks/use-settings";
 import { isMacPlatform } from "../../../lib/utils";
 import { shortcutForCommand, shortcutLabelForCommand } from "../../../keybindings";
 import { __resetLocalApiForTests } from "../../../local-api";
 import { AppAtomRegistryProvider } from "../../../rpc/atom-registry";
 import { getServerConfig } from "../../../rpc/server-state";
 import { getRouter } from "../../../router";
-import { selectBootstrapCompleteForActiveEnvironment, useStore } from "../../../store";
+import { selectBootstrapCompleteForActiveEnvironment, useStore } from "../../../stores/thread-store";
 import { useTerminalStateStore } from "../../../terminal-state-store";
 import { useUiStateStore } from "../../../stores/ui-state-store";
 import { createAuthenticatedSessionHandlers } from "../../../../test/authHttpHandlers";
@@ -572,11 +569,11 @@ export async function waitForSelectItemContainingText(text: string): Promise<HTM
 }
 export async function expectComposerActionsContained(): Promise<void> {
   const footer = await waitForElement(
-    () => document.querySelector<HTMLElement>('[data-composer-input-footer="true"]'),
+    () => document.querySelector<HTMLElement>('[data-chat-input-footer="true"]'),
     "Unable to find composer footer.",
   );
   const actions = await waitForElement(
-    () => document.querySelector<HTMLElement>('[data-composer-input-actions="right"]'),
+    () => document.querySelector<HTMLElement>('[data-chat-input-actions="right"]'),
     "Unable to find composer actions container.",
   );
   await vi.waitFor(
@@ -815,14 +812,13 @@ export function installChatViewBrowserHarness(): void {
       },
     });
     await __resetLocalApiForTests();
+    __resetClientSettingsPersistenceForTests();
     await setViewport(DEFAULT_VIEWPORT);
     localStorage.clear();
     document.body.innerHTML = "";
     wsRequests.length = 0;
     customWsRpcResolver = null;
     __resetEnvironmentApiOverridesForTests();
-    resetSavedEnvironmentRegistryStoreForTests();
-    resetSavedEnvironmentRuntimeStoreForTests();
     Reflect.deleteProperty(window, "desktopBridge");
     useComposerDraftStore.setState({
       draftsByThreadKey: {},

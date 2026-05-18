@@ -6,23 +6,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import { ProviderModelPicker } from "./model-picker";
-import { getCustomModelOptionsByInstance } from "../../../model-selection";
+import { getCustomModelOptionsByInstance } from "../../../model/selection";
 import {
   deriveProviderInstanceEntries,
   sortProviderInstanceEntries,
-} from "../../../provider-instances";
+} from "../../../model/provider-instances";
 import type { ModelEsque } from "./icon-utils";
 import {
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_UNIFIED_SETTINGS,
   type UnifiedSettings,
 } from "@multi/contracts/settings";
+import { __resetClientSettingsPersistenceForTests } from "../../../hooks/use-settings";
 import { __resetLocalApiForTests } from "../../../local-api";
+
+function getFirstStarButton() {
+  const starButton = document.querySelector<HTMLButtonElement>('button[aria-label*="favorites"]');
+  expect(starButton).not.toBeNull();
+  return starButton!;
+}
 
 // Mock the environments/runtime module to provide a mock primary environment connection
 vi.mock("../../../environments/runtime", () => {
   const primaryConnection = {
-    kind: "primary" as const,
     knownEnvironment: {
       id: "environment-local",
       label: "Local environment",
@@ -47,32 +53,15 @@ vi.mock("../../../environments/runtime", () => {
 
   return {
     getEnvironmentHttpBaseUrl: () => "http://localhost:3000",
-    getSavedEnvironmentRecord: () => null,
-    getSavedEnvironmentRuntimeState: () => null,
-    hasSavedEnvironmentRegistryHydrated: () => true,
-    listSavedEnvironmentRecords: () => [],
-    resetSavedEnvironmentRegistryStoreForTests: vi.fn(),
-    resetSavedEnvironmentRuntimeStoreForTests: vi.fn(),
     resolveEnvironmentHttpUrl: (_environmentId: unknown, path: string) =>
       new URL(path, "http://localhost:3000").toString(),
-    waitForSavedEnvironmentRegistryHydration: async () => undefined,
-    addSavedEnvironment: vi.fn(),
-    disconnectSavedEnvironment: vi.fn(),
     ensureEnvironmentConnectionBootstrapped: async () => undefined,
     getPrimaryEnvironmentConnection: () => primaryConnection,
     readEnvironmentConnection: () => primaryConnection,
-    reconnectSavedEnvironment: vi.fn(),
-    removeSavedEnvironment: vi.fn(),
     requireEnvironmentConnection: () => primaryConnection,
     resetEnvironmentServiceForTests: vi.fn(),
     startEnvironmentConnectionService: vi.fn(),
     subscribeEnvironmentConnections: () => () => {},
-    useSavedEnvironmentRegistryStore: (
-      selector: (state: { byId: Record<string, never> }) => unknown,
-    ) => selector({ byId: {} }),
-    useSavedEnvironmentRuntimeStore: (
-      selector: (state: { byId: Record<string, never> }) => unknown,
-    ) => selector({ byId: {} }),
   };
 });
 
@@ -338,11 +327,13 @@ describe("ProviderModelPicker", () => {
   beforeEach(async () => {
     // Reset test environment before each test
     await __resetLocalApiForTests();
+    __resetClientSettingsPersistenceForTests();
   });
 
   afterEach(async () => {
     document.body.innerHTML = "";
     await __resetLocalApiForTests();
+    __resetClientSettingsPersistenceForTests();
   });
 
   it("seeds model search when opened with openSearchSeed", async () => {
@@ -1031,14 +1022,6 @@ describe("ProviderModelPicker", () => {
         const text = document.body.textContent ?? "";
         expect(text).toContain("Claude Opus 4.6");
       });
-
-      const getFirstStarButton = () => {
-        const starButton = document.querySelector<HTMLButtonElement>(
-          'button[aria-label*="favorites"]',
-        );
-        expect(starButton).not.toBeNull();
-        return starButton!;
-      };
 
       const firstStar = getFirstStarButton();
       const initialAriaLabel = firstStar.getAttribute("aria-label");

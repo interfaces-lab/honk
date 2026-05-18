@@ -6,24 +6,16 @@ import {
   type DraftId as ComposerDraftId,
   useComposerDraftStore,
   useComposerThreadDraft,
-} from "../../../composer-draft-store";
+} from "../../../stores/chat-drafts";
 import type { TerminalContextDraft } from "../../../lib/terminal-context";
-import { resolveAppModelSelectionForInstance } from "../../../model-selection";
-import type { PendingUserInputDraftAnswer } from "../../../pending-user-input";
+import { resolveAppModelSelectionForInstance } from "../../../model/selection";
 import type { ChatMessage } from "../../../types";
-import { deriveComposerSendState } from "../composer/composer-send";
+import { deriveComposerSendState } from "../composer/send";
 import {
   ComposerInput,
   type ComposerInputHandle,
   type ComposerInputProps,
-} from "../composer/composer-input";
-
-const EMPTY_PENDING_APPROVALS: ComposerInputProps["pendingApprovals"] = [];
-const EMPTY_PENDING_USER_INPUTS: ComposerInputProps["pendingUserInputs"] = [];
-const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
-const EMPTY_RESPONDING_REQUEST_IDS: ComposerInputProps["respondingRequestIds"] = [];
-const ignoreComposerCallback = () => {};
-const ignoreRespondToApproval: ComposerInputProps["onRespondToApproval"] = async () => {};
+} from "../composer/input";
 
 type ComposerInputSendContext = ReturnType<ComposerInputHandle["getSendContext"]>;
 
@@ -59,12 +51,7 @@ type InlineMessageEditComposerProps = Pick<
   | "keybindings"
   | "terminalOpen"
   | "gitCwd"
-  | "planAvailable"
-  | "planLabel"
-  | "planTabActive"
   | "onInterrupt"
-  | "onImplementPlanInNewThread"
-  | "openPlanTab"
   | "setThreadError"
   | "onExpandImage"
 > & {
@@ -90,7 +77,6 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
   const promptRef = useRef(editDraft.prompt || message.text);
   const composerImagesRef = useRef<ComposerImageAttachment[]>(editDraft.images);
   const composerTerminalContextsRef = useRef<TerminalContextDraft[]>(editDraft.terminalContexts);
-  const shouldAutoScrollRef = useRef(false);
   const setComposerDraftModelSelection = useComposerDraftStore((store) => store.setModelSelection);
   const setStickyComposerModelSelection = useComposerDraftStore(
     (store) => store.setStickyModelSelection,
@@ -112,22 +98,14 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
       submitState.sendableTerminalContexts.length === 0) ||
     !submitState.hasSendableContent;
 
-  const focusComposer = useCallback(() => {
-    composerRef.current?.focusAtEnd();
-  }, []);
-
   const scheduleComposerFocus = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      composerRef.current?.focusAtEnd();
-    });
+    composerRef.current?.focusAtEnd();
   }, []);
 
   const setInlineComposerRef = useCallback((composer: ComposerInputHandle | null) => {
     composerRef.current = composer;
     if (!composer) return;
-    window.setTimeout(() => {
-      composer.focusAtEnd();
-    }, 0);
+    composer.focusAtEnd();
   }, []);
 
   const handleProviderModelSelect = useCallback(
@@ -210,57 +188,39 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
     [inlineInteractionMode, inlineRuntimeMode, message.id, onSubmitEditUserMessage, submitDisabled],
   );
 
+  const cancelButton = (
+    <button
+      type="button"
+      className="rounded-full px-2.5 py-1 text-body text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+      onClick={handleCancel}
+    >
+      Cancel
+    </button>
+  );
+
   return (
-    <div className="box-border w-full min-w-0 rounded-xl border border-multi-stroke-focused bg-multi-bubble p-2 shadow-xs">
+    <div className="box-border w-full min-w-0">
       <ComposerInput
         {...composerProps}
         ref={setInlineComposerRef}
-        variant="dock"
+        variant="inline-edit"
         modelPickerPlacement="bottom-start"
         composerDraftTarget={composerDraftTarget}
         runtimeMode={inlineRuntimeMode}
         interactionMode={inlineInteractionMode}
         providerStatuses={providerStatuses}
         settings={settings}
-        activePendingApproval={null}
-        pendingApprovals={EMPTY_PENDING_APPROVALS}
-        pendingUserInputs={EMPTY_PENDING_USER_INPUTS}
-        activePendingProgress={null}
-        activePendingResolvedAnswers={null}
-        activePendingIsResponding={false}
-        activePendingDraftAnswers={EMPTY_PENDING_USER_INPUT_ANSWERS}
-        activePendingQuestionIndex={0}
-        respondingRequestIds={EMPTY_RESPONDING_REQUEST_IDS}
-        showPlanFollowUpPrompt={false}
-        activeProposedPlan={null}
         promptRef={promptRef}
         composerImagesRef={composerImagesRef}
         composerTerminalContextsRef={composerTerminalContextsRef}
-        shouldAutoScrollRef={shouldAutoScrollRef}
-        scheduleStickToBottom={ignoreComposerCallback}
+        footerSecondaryAction={cancelButton}
         onSend={handleSend}
-        onRespondToApproval={ignoreRespondToApproval}
-        onSelectActivePendingUserInputOption={ignoreComposerCallback}
-        onAdvanceActivePendingUserInput={ignoreComposerCallback}
-        onPreviousActivePendingUserInputQuestion={ignoreComposerCallback}
-        onChangeActivePendingUserInputCustomAnswer={ignoreComposerCallback}
         onProviderModelSelect={handleProviderModelSelect}
         toggleInteractionMode={toggleInteractionMode}
         handleRuntimeModeChange={handleRuntimeModeChange}
         handleInteractionModeChange={handleInteractionModeChange}
-        focusComposer={focusComposer}
-        scheduleComposerFocus={scheduleComposerFocus}
         submitDisabled={submitDisabled}
       />
-      <div className="mt-2 flex justify-end">
-        <button
-          type="button"
-          className="rounded-multi-control px-2 py-1 text-body text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-          onClick={handleCancel}
-        >
-          Cancel
-        </button>
-      </div>
     </div>
   );
 });

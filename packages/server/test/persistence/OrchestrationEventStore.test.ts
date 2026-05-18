@@ -11,6 +11,7 @@ import { SqlitePersistenceMemory } from "../../src/persistence/Sqlite.ts";
 const layer = it.layer(
   OrchestrationEventStoreLive.pipe(Layer.provideMerge(SqlitePersistenceMemory)),
 );
+const isPersistenceDecodeError = Schema.is(PersistenceDecodeError);
 
 layer("OrchestrationEventStore", (it) => {
   it.effect("stores json columns as strings and replays decoded events", () =>
@@ -107,7 +108,7 @@ layer("OrchestrationEventStore", (it) => {
       );
       assert.equal(replayResult._tag, "Failure");
       if (replayResult._tag === "Failure") {
-        assert.ok(Schema.is(PersistenceDecodeError)(replayResult.failure));
+        assert.ok(isPersistenceDecodeError(replayResult.failure));
         assert.ok(
           replayResult.failure.operation.includes(
             "OrchestrationEventStore.readFromSequence:decodeRows",

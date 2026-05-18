@@ -81,6 +81,12 @@ function toAuthClientSession(input: Omit<AuthClientSession, "current">): AuthCli
   };
 }
 
+const toSessionCredentialError = (message: string) => (cause: unknown) =>
+  new SessionCredentialError({
+    message,
+    cause,
+  });
+
 export const makeSessionCredentialService = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
   const secretStore = yield* ServerSecretStore;
@@ -92,12 +98,6 @@ export const makeSessionCredentialService = Effect.gen(function* () {
     mode: serverConfig.mode,
     port: serverConfig.port,
   });
-
-  const toSessionCredentialError = (message: string) => (cause: unknown) =>
-    new SessionCredentialError({
-      message,
-      cause,
-    });
 
   const emitUpsert = (clientSession: AuthClientSession) =>
     PubSub.publish(changesPubSub, {

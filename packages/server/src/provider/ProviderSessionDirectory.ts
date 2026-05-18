@@ -11,6 +11,9 @@ import {
   type ProviderSessionDirectoryShape,
 } from "./ProviderSessionDirectory.service.ts";
 
+const decodeProviderDriverKindEffect = Schema.decodeUnknownEffect(ProviderDriverKind);
+const decodeProviderInstanceIdEffect = Schema.decodeUnknownEffect(Schema.String);
+
 function toPersistenceError(operation: string) {
   return (cause: unknown) =>
     new ProviderSessionDirectoryPersistenceError({
@@ -24,7 +27,7 @@ function decodeProviderDriverKind(
   providerName: string,
   operation: string,
 ): Effect.Effect<ProviderDriverKind, ProviderSessionDirectoryPersistenceError> {
-  return Schema.decodeUnknownEffect(ProviderDriverKind)(providerName).pipe(
+  return decodeProviderDriverKindEffect(providerName).pipe(
     Effect.mapError(
       (cause) =>
         new ProviderSessionDirectoryPersistenceError({
@@ -40,7 +43,7 @@ function decodeProviderInstanceId(
   providerInstanceId: string,
   operation: string,
 ): Effect.Effect<string, ProviderSessionDirectoryPersistenceError> {
-  return Schema.decodeUnknownEffect(Schema.String)(providerInstanceId).pipe(
+  return decodeProviderInstanceIdEffect(providerInstanceId).pipe(
     Effect.mapError(
       (cause) =>
         new ProviderSessionDirectoryPersistenceError({

@@ -1,9 +1,7 @@
 :root {
-  --conversation-font-size: var(--multi-text-title);
   --conversation-text-font-size: var(--multi-text-title);
   --conversation-text-leading: var(--multi-leading-title);
   --conversation-tool-card-padding-x: 8px;
-  --meta-agent-overlay-height: 0px;
   --chat-timeline-row-gap: 12px;
   --chat-timeline-padding-block-start: 12px;
   --chat-timeline-assistant-top-inset: 8px;

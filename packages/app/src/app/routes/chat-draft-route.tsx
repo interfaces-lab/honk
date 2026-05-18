@@ -2,12 +2,11 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import ChatView from "~/components/chat/view/chat-view";
 import { threadHasStarted } from "~/components/chat/view/thread-lifecycle";
-import { useComposerDraftStore, DraftId } from "~/composer-draft-store";
-import { createThreadSelectorAcrossEnvironments } from "~/store-selectors";
-import { useStore } from "~/store";
+import { useComposerDraftStore, DraftId } from "~/stores/chat-drafts";
+import { createThreadSelectorAcrossEnvironments } from "~/stores/thread-selectors";
+import { useStore } from "~/stores/thread-store";
 import { clearLastChatRouteTarget, writeLastChatRouteTarget } from "~/chat-route-persistence";
 import { buildThreadRouteParams } from "~/thread-routes";
-import { traceBrowserEvent } from "~/observability/browserDebug";
 
 const routeApi = getRouteApi("/_chat/draft/$draftId");
 
@@ -43,11 +42,6 @@ export function DraftChatThreadRouteView() {
       return;
     }
     writeLastChatRouteTarget({ kind: "server", threadRef: canonicalThreadRef });
-    traceBrowserEvent("route.draft.promoted.navigate", {
-      draftId,
-      environmentId: canonicalThreadRef.environmentId,
-      threadId: canonicalThreadRef.threadId,
-    });
     void navigate({
       to: "/$environmentId/$threadId",
       params: buildThreadRouteParams(canonicalThreadRef),
@@ -64,7 +58,6 @@ export function DraftChatThreadRouteView() {
       return;
     }
     clearLastChatRouteTarget({ kind: "draft", draftId });
-    traceBrowserEvent("route.draft.missing.navigate-home", { draftId }, "warn");
     void navigate({ to: "/", replace: true });
   }, [canonicalThreadRef, draftId, draftSession, navigate]);
 
@@ -84,12 +77,6 @@ export function DraftChatThreadRouteView() {
   if (!draftSession) {
     return null;
   }
-
-  traceBrowserEvent("route.draft.render-chat-view", {
-    draftId,
-    environmentId: draftSession.environmentId,
-    threadId: draftSession.threadId,
-  });
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

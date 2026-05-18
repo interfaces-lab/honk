@@ -1,6 +1,6 @@
 import { scopeProjectRef } from "@multi/client-runtime";
 import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
-import type { DraftThreadEnvMode } from "../composer-draft-store";
+import type { DraftThreadEnvMode } from "../stores/chat-drafts";
 import { resolveSidebarNewThreadSeedContext } from "./thread-sidebar";
 
 interface ThreadContextLike {

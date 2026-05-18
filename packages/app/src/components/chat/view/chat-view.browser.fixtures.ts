@@ -15,7 +15,7 @@ import {
 } from "@multi/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@multi/contracts/settings";
 import { scopedThreadKey, scopeThreadRef } from "@multi/client-runtime";
-import { DraftId, useComposerDraftStore } from "../../../composer-draft-store";
+import { DraftId, useComposerDraftStore } from "../../../stores/chat-drafts";
 import type { TerminalContextDraft } from "../../../lib/terminal-context";
 import { derivePhysicalProjectKeyFromPath } from "../../../logical-project";
 export const THREAD_ID = "thread-browser-test" as ThreadId;

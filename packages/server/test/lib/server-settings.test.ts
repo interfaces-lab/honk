@@ -1,5 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { DEFAULT_SERVER_SETTINGS, ServerSettings, ServerSettingsPatch } from "@multi/contracts";
+import { DEFAULT_SERVER_SETTINGS, ServerSettingsPatch } from "@multi/contracts";
 import { createModelSelection } from "@multi/shared/model";
 import { assert, it } from "@effect/vitest";
 import { Effect, FileSystem, Layer, Schema } from "effect";

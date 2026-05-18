@@ -12,13 +12,9 @@ import { buildExpandedImagePreview, type ExpandedImagePreview } from "./expanded
 import { TerminalContextInlineChip } from "./terminal-context-chip";
 import {
   deriveDisplayedUserMessageState,
+  formatInlineTerminalContextLabel as formatInlineTerminalContextSelectionLabel,
   type ParsedTerminalContextEntry,
 } from "~/lib/terminal-context";
-import {
-  buildInlineTerminalContextText,
-  formatInlineTerminalContextLabel,
-  textContainsInlineTerminalContextLabels,
-} from "../shared/user-message-terminal-contexts";
 import { type ChatMessage } from "../../../types";
 import {
   ChatMessageBubble,
@@ -31,6 +27,8 @@ import {
   resolveGitAgentActionFromPrompt,
   type GitAgentAction,
 } from "~/lib/git-agent-actions";
+
+const TERMINAL_CONTEXT_HEADER_PATTERN = /^(.*?)\s+line(?:s)?\s+(\d+)(?:-(\d+))?$/i;
 
 interface HumanMessageProps {
   message: ChatMessage;
@@ -61,7 +59,7 @@ export const HumanMessage = memo(function HumanMessage({
 
   const media =
     userImages.length > 0 ? (
-      <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
+      <div className="mb-2 grid max-w-md grid-cols-2 gap-2">
         {userImages.map((image) => (
           <div
             key={image.id}
@@ -178,6 +176,58 @@ const UserMessageTerminalContextInlineLabel = memo(
     return <TerminalContextInlineChip label={props.context.header} tooltipText={tooltipText} />;
   },
 );
+
+function buildInlineTerminalContextText(
+  contexts: ReadonlyArray<{
+    header: string;
+  }>,
+): string {
+  return contexts
+    .map((context) => context.header.trim())
+    .filter((header) => header.length > 0)
+    .map(formatInlineTerminalContextLabel)
+    .join(" ");
+}
+
+function formatInlineTerminalContextLabel(header: string): string {
+  const trimmedHeader = header.trim();
+  const match = TERMINAL_CONTEXT_HEADER_PATTERN.exec(trimmedHeader);
+  if (!match) {
+    return `@${trimmedHeader.toLowerCase().replace(/\s+/g, "-")}`;
+  }
+
+  const lineStart = Number.parseInt(match[2] ?? "", 10);
+  const lineEnd = Number.parseInt(match[3] ?? match[2] ?? "", 10);
+  if (!Number.isFinite(lineStart) || !Number.isFinite(lineEnd)) {
+    return `@${trimmedHeader.toLowerCase().replace(/\s+/g, "-")}`;
+  }
+
+  return formatInlineTerminalContextSelectionLabel({
+    terminalLabel: match[1]?.trim() || "terminal",
+    lineStart,
+    lineEnd,
+  });
+}
+
+function textContainsInlineTerminalContextLabels(
+  text: string,
+  contexts: ReadonlyArray<{
+    header: string;
+  }>,
+): boolean {
+  let searchStartIndex = 0;
+
+  for (const context of contexts) {
+    const label = formatInlineTerminalContextLabel(context.header);
+    const matchIndex = text.indexOf(label, searchStartIndex);
+    if (matchIndex === -1) {
+      return false;
+    }
+    searchStartIndex = matchIndex + label.length;
+  }
+
+  return true;
+}
 
 const UserMessageBody = memo(function UserMessageBody(props: {
   text: string;

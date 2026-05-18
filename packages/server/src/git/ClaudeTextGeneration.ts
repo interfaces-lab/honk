@@ -43,6 +43,21 @@ import { resolveClaudeSettings } from "../provider/provider-settings.ts";
 
 const CLAUDE_TIMEOUT_MS = 180_000;
 
+const readClaudeStreamAsString = <E>(
+  operation: string,
+  stream: Stream.Stream<Uint8Array, E>,
+): Effect.Effect<string, TextGenerationError> =>
+  stream.pipe(
+    Stream.decodeText(),
+    Stream.runFold(
+      () => "",
+      (acc, chunk) => acc + chunk,
+    ),
+    Effect.mapError((cause) =>
+      normalizeCliError("claude", operation, cause, "Failed to collect process output"),
+    ),
+  );
+
 /**
  * Schema for the wrapper JSON returned by `claude -p --output-format json`.
  * We only care about `structured_output`.
@@ -50,25 +65,13 @@ const CLAUDE_TIMEOUT_MS = 180_000;
 const ClaudeOutputEnvelope = Schema.Struct({
   structured_output: Schema.Unknown,
 });
+const decodeClaudeOutputEnvelopeJson = Schema.decodeEffect(
+  Schema.fromJsonString(ClaudeOutputEnvelope),
+);
 
 const makeClaudeTextGeneration = Effect.gen(function* () {
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const serverSettingsService = yield* Effect.service(ServerSettingsService);
-
-  const readStreamAsString = <E>(
-    operation: string,
-    stream: Stream.Stream<Uint8Array, E>,
-  ): Effect.Effect<string, TextGenerationError> =>
-    stream.pipe(
-      Stream.decodeText(),
-      Stream.runFold(
-        () => "",
-        (acc, chunk) => acc + chunk,
-      ),
-      Effect.mapError((cause) =>
-        normalizeCliError("claude", operation, cause, "Failed to collect process output"),
-      ),
-    );
 
   /**
    * Spawn the Claude CLI with structured JSON output and return the parsed,
@@ -150,8 +153,8 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
 
       const [stdout, stderr, exitCode] = yield* Effect.all(
         [
-          readStreamAsString(operation, child.stdout),
-          readStreamAsString(operation, child.stderr),
+          readClaudeStreamAsString(operation, child.stdout),
+          readClaudeStreamAsString(operation, child.stderr),
           child.exitCode.pipe(
             Effect.mapError((cause) =>
               normalizeCliError("claude", operation, cause, "Failed to read Claude CLI exit code"),
@@ -191,9 +194,7 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
       ),
     );
 
-    const envelope = yield* Schema.decodeEffect(Schema.fromJsonString(ClaudeOutputEnvelope))(
-      rawStdout,
-    ).pipe(
+    const envelope = yield* decodeClaudeOutputEnvelopeJson(rawStdout).pipe(
       Effect.catchTag("SchemaError", (cause) =>
         Effect.fail(
           new TextGenerationError({
@@ -205,7 +206,8 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
       ),
     );
 
-    return yield* Schema.decodeEffect(outputSchemaJson)(envelope.structured_output).pipe(
+    const decodeOutput = Schema.decodeEffect(outputSchemaJson);
+    return yield* decodeOutput(envelope.structured_output).pipe(
       Effect.catchTag("SchemaError", (cause) =>
         Effect.fail(
           new TextGenerationError({

@@ -12,9 +12,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { PIERRE_WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/pierre-workbench-code-css";
 import { projectReadFileQueryOptions } from "~/lib/project-react-query";
-import { resolveDiffThemeName } from "~/lib/diff-rendering";
+import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
 import { useTheme } from "~/hooks/use-theme";
 import { shellPanelsActions, useActiveTab, useSecondaryRail } from "~/stores/shell-panels-store";
 import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
@@ -122,7 +121,7 @@ function SourcePreview(props: {
       preferredHighlighter: "shiki-js",
       theme: resolveDiffThemeName(resolvedTheme),
       themeType: resolvedTheme,
-      unsafeCSS: PIERRE_WORKBENCH_CODE_UNSAFE_CSS,
+      unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
     }),
     [props.wordWrap, resolvedTheme],
   );
@@ -281,7 +280,7 @@ export function ProjectFilesPanel(props: {
       </div>
 
       <RightWorkbenchLayout cwd={props.cwd} tab="files" rail={tree}>
-        <div className="editor-panel-inner flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--glass-editor-surface-background)">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--glass-editor-surface-background)">
           <div className="flex min-h-0 flex-1 flex-col">
             {selectedPath ? (
               <SourcePreview

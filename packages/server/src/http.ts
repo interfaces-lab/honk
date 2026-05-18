@@ -1,16 +1,10 @@
 import Mime from "@effect/platform-node/Mime";
-import { appendFile } from "node:fs/promises";
-import { Data, Effect, FileSystem, Option, Path } from "effect";
-import { cast } from "effect/Function";
+import { Effect, FileSystem, Option, Path } from "effect";
 import {
-  HttpBody,
-  HttpClient,
-  HttpClientResponse,
   HttpRouter,
   HttpServerResponse,
   HttpServerRequest,
 } from "effect/unstable/http";
-import { OtlpTracer } from "effect/unstable/observability";
 
 import {
   ATTACHMENTS_ROUTE_PREFIX,
@@ -19,8 +13,6 @@ import {
 } from "./attachment-paths";
 import { resolveAttachmentPathById } from "./attachment-store";
 import { resolveStaticDir, ServerConfig } from "./config";
-import { decodeOtlpTraceRecords } from "./observability/TraceRecord.ts";
-import { BrowserTraceCollector } from "./observability/BrowserTraceCollector.service.ts";
 import { ProjectFaviconResolver } from "./project/ProjectFaviconResolver.service";
 import { ServerAuth } from "./auth/ServerAuth.service.ts";
 import { respondToAuthError } from "./auth/http.ts";
@@ -28,12 +20,11 @@ import { ServerEnvironment } from "./environment/ServerEnvironment.service.ts";
 
 const PROJECT_FAVICON_CACHE_CONTROL = "public, max-age=3600";
 const FALLBACK_PROJECT_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#6b728080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-fallback="project-favicon"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/></svg>`;
-const OTLP_TRACES_PROXY_PATH = "/api/observability/v1/traces";
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
 
 export const browserApiCorsLayer = HttpRouter.cors({
   allowedMethods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["authorization", "b3", "traceparent", "content-type"],
+  allowedHeaders: ["authorization", "content-type"],
   maxAge: 600,
 });
 
@@ -67,111 +58,6 @@ export const serverEnvironmentRouteLayer = HttpRouter.add(
       Effect.flatMap((serverEnvironment) => serverEnvironment.getDescriptor),
     );
     return HttpServerResponse.jsonUnsafe(descriptor, { status: 200 });
-  }),
-);
-
-class DecodeOtlpTraceRecordsError extends Data.TaggedError("DecodeOtlpTraceRecordsError")<{
-  readonly cause: unknown;
-  readonly bodyJson: OtlpTracer.TraceData;
-}> {}
-
-export const otlpTracesProxyRouteLayer = HttpRouter.add(
-  "POST",
-  OTLP_TRACES_PROXY_PATH,
-  Effect.gen(function* () {
-    yield* requireAuthenticatedRequest;
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const config = yield* ServerConfig;
-    const otlpTracesUrl = config.otlpTracesUrl;
-    const browserTraceCollector = yield* BrowserTraceCollector;
-    const httpClient = yield* HttpClient.HttpClient;
-    const bodyJson = cast<unknown, OtlpTracer.TraceData>(yield* request.json);
-
-    yield* Effect.try({
-      try: () => decodeOtlpTraceRecords(bodyJson),
-      catch: (cause) => new DecodeOtlpTraceRecordsError({ cause, bodyJson }),
-    }).pipe(
-      Effect.flatMap((records) => browserTraceCollector.record(records)),
-      Effect.catch((cause) =>
-        Effect.logWarning("Failed to decode browser OTLP traces", {
-          cause,
-          bodyJson,
-        }),
-      ),
-    );
-
-    if (otlpTracesUrl === undefined) {
-      return HttpServerResponse.empty({ status: 204 });
-    }
-
-    return yield* httpClient
-      .post(otlpTracesUrl, {
-        body: HttpBody.jsonUnsafe(bodyJson),
-      })
-      .pipe(
-        Effect.flatMap(HttpClientResponse.filterStatusOk),
-        Effect.as(HttpServerResponse.empty({ status: 204 })),
-        Effect.tapError((cause) =>
-          Effect.logWarning("Failed to export browser OTLP traces", {
-            cause,
-            otlpTracesUrl,
-          }),
-        ),
-        Effect.catch(() =>
-          Effect.succeed(HttpServerResponse.text("Trace export failed.", { status: 502 })),
-        ),
-      );
-  }).pipe(Effect.catchTag("AuthError", respondToAuthError)),
-);
-
-function normalizeDebugEventsPayload(input: unknown): ReadonlyArray<unknown> {
-  if (
-    input &&
-    typeof input === "object" &&
-    "events" in input &&
-    Array.isArray((input as { readonly events?: unknown }).events)
-  ) {
-    return (input as { readonly events: ReadonlyArray<unknown> }).events;
-  }
-  if (Array.isArray(input)) {
-    return input;
-  }
-  return [input];
-}
-
-function encodeDebugEventLine(event: unknown, index: number): string {
-  return `${JSON.stringify({
-    source: "browser",
-    receivedAt: new Date().toISOString(),
-    index,
-    event,
-  })}\n`;
-}
-
-export const browserDebugEventsRouteLayer = HttpRouter.add(
-  "POST",
-  "/api/debug/browser-events",
-  Effect.gen(function* () {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const config = yield* ServerConfig;
-    const body = yield* request.json;
-    const events = normalizeDebugEventsPayload(body);
-    const filePath = `${config.logsDir}/browser-debug.ndjson`;
-    const contents = events.map(encodeDebugEventLine).join("");
-
-    if (contents.length > 0) {
-      yield* Effect.tryPromise(() => appendFile(filePath, contents, "utf8")).pipe(
-        Effect.tapError((cause) =>
-          Effect.logWarning("Failed to append browser debug event", {
-            cause,
-            filePath,
-          }),
-        ),
-        Effect.catch(() => Effect.void),
-      );
-    }
-
-    return HttpServerResponse.jsonUnsafe({ ok: true, path: filePath }, { status: 202 });
   }),
 );
 

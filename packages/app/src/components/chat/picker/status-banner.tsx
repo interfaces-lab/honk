@@ -2,7 +2,7 @@ import { type ServerProvider } from "@multi/contracts";
 import { memo } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@multi/ui/alert";
 import { IconExclamationCircle } from "central-icons";
-import { formatProviderDriverKindLabel } from "../../../provider-models";
+import { formatProviderDriverKindLabel } from "../../../model/provider-models";
 
 export const ProviderStatusBanner = memo(function ProviderStatusBanner({
   status,

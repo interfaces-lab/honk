@@ -45,7 +45,7 @@ import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
   useStore,
-} from "../store";
+} from "../stores/thread-store";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
 import { buildThreadRouteParams, resolveThreadRouteTarget } from "../thread-routes";
 import {
@@ -84,9 +84,9 @@ import {
 } from "@multi/ui/command";
 import { Kbd, KbdGroup } from "@multi/ui/kbd";
 import { toastManager } from "~/app/toast";
-import { ComposerHandleContext, useComposerHandleContext } from "../composer-handle-context";
+import { ComposerHandleContext, useComposerHandleContext } from "./chat/composer/handle-context";
 import { resolveAndPersistPreferredEditor } from "../editor-preferences";
-import type { ComposerInputHandle } from "./chat/composer/composer-input";
+import type { ComposerInputHandle } from "./chat/composer/input";
 
 function joinFileSystemPath(basePath: string, ...segments: string[]): string {
   const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";

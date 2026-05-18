@@ -2,7 +2,7 @@
 
 import type { ComponentPropsWithoutRef } from "react";
 
-import { usePretextOneLine } from "~/hooks/use-composer-pretext-one-line";
+import { usePretextOneLine } from "~/hooks/use-pretext-one-line";
 import { cn } from "~/lib/utils";
 
 type PretextOneLineProps = Omit<ComponentPropsWithoutRef<"span">, "children"> & {

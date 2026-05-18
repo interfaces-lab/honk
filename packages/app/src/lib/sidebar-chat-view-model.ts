@@ -9,8 +9,6 @@ import type {
 
 import type { HarnessKind } from "~/lib/ui-session-types";
 
-import { shortProjectPathLabel } from "./path-label";
-
 export interface SidebarDraftSummary {
   id: string;
   text: string;
@@ -79,6 +77,37 @@ export interface SidebarSectionModel {
   sectionThreadRefs: readonly ScopedThreadRef[];
   threadRefs: readonly ScopedThreadRef[];
   items: readonly SidebarChatItem[];
+}
+
+function shortProjectPathLabel(path: string, home: string | null): string {
+  const normalizedPath = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!normalizedPath) return "Project";
+
+  const gitSsh = normalizedPath.match(/git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i);
+  if (gitSsh) return `${gitSsh[1]}/${gitSsh[2]}`;
+
+  const gitHttps = normalizedPath.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/|$)/i);
+  if (gitHttps) return `${gitHttps[1]}/${gitHttps[2]}`;
+
+  if (home) {
+    const normalizedHome = home.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (normalizedPath === normalizedHome) return "~";
+    const homePrefix = `${normalizedHome}/`;
+    if (normalizedPath.startsWith(homePrefix)) {
+      const relativeSegments = normalizedPath.slice(homePrefix.length).split("/").filter(Boolean);
+      if (relativeSegments.length >= 2) {
+        return `${relativeSegments[relativeSegments.length - 2]}/${relativeSegments[relativeSegments.length - 1]}`;
+      }
+      if (relativeSegments.length === 1) return `~/${relativeSegments[0]}`;
+      return "~";
+    }
+  }
+
+  const segments = normalizedPath.split("/").filter(Boolean);
+  if (segments.length >= 2) {
+    return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
+  }
+  return segments[0] ?? "Project";
 }
 
 function timeAgo(iso: string) {

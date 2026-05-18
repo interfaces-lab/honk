@@ -5,6 +5,7 @@ import { fromLenientJson } from "./schema-json";
 import { createModelSelection } from "./model";
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
+const decodeServerSettingsJsonSync = Schema.decodeUnknownSync(ServerSettingsJson);
 
 export interface PersistedServerObservabilitySettings {
   readonly otlpTracesUrl: string | undefined;
@@ -33,7 +34,7 @@ export function extractPersistedServerObservabilitySettings(input: {
 export function parsePersistedServerObservabilitySettings(
   raw: string,
 ): PersistedServerObservabilitySettings {
-  const decoded = Result.try(() => Schema.decodeUnknownSync(ServerSettingsJson)(raw));
+  const decoded = Result.try(() => decodeServerSettingsJsonSync(raw));
   return Result.isSuccess(decoded)
     ? extractPersistedServerObservabilitySettings(decoded.success)
     : { otlpTracesUrl: undefined, otlpMetricsUrl: undefined };

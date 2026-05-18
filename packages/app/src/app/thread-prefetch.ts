@@ -1,6 +1,6 @@
 import type { AppRouter } from "~/router";
 import type { EnvironmentId, ThreadId } from "@multi/contracts";
-import type { DraftId } from "~/composer-draft-store";
+import type { DraftId } from "~/stores/chat-drafts";
 
 export function prefetchDraftNavigation(router: AppRouter, draftId: DraftId | string): void {
   void router

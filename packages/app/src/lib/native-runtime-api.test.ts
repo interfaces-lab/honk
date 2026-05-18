@@ -31,11 +31,6 @@ const localApi = {
   persistence: {
     getClientSettings: vi.fn(),
     setClientSettings: vi.fn(),
-    getSavedEnvironmentRegistry: vi.fn(),
-    setSavedEnvironmentRegistry: vi.fn(),
-    getSavedEnvironmentSecret: vi.fn(),
-    setSavedEnvironmentSecret: vi.fn(),
-    removeSavedEnvironmentSecret: vi.fn(),
   },
   server: {
     getConfig: vi.fn(),

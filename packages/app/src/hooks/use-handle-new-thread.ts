@@ -7,17 +7,16 @@ import {
   type DraftThreadEnvMode,
   type DraftThreadState,
   useComposerDraftStore,
-} from "../composer-draft-store";
+} from "../stores/chat-drafts";
 import { newDraftId, newThreadId } from "../lib/utils";
 import { orderItemsByPreferredIds } from "../lib/thread-sidebar";
 import { findProjectByPath } from "../lib/project-paths";
 import { deriveLogicalProjectKey, getProjectOrderKey } from "../logical-project";
 import { useServerConfig } from "../rpc/server-state";
-import { selectProjectsAcrossEnvironments, useStore } from "../store";
-import { createThreadSelectorByRef } from "../store-selectors";
+import { selectProjectsAcrossEnvironments, useStore } from "../stores/thread-store";
+import { createThreadSelectorByRef } from "../stores/thread-selectors";
 import { resolveThreadRouteTarget } from "../thread-routes";
 import { useUiStateStore } from "../stores/ui-state-store";
-import { traceBrowserEvent } from "~/observability/browserDebug";
 
 function useNewThreadState() {
   const projects = useStore(useShallow((store) => selectProjectsAcrossEnvironments(store)));
@@ -66,11 +65,6 @@ function useNewThreadState() {
         : null;
       if (reuseExistingDraft && storedDraftThread) {
         return (async () => {
-          traceBrowserEvent("thread.new.reuse-stored-draft", {
-            draftId: storedDraftThread.draftId,
-            threadId: storedDraftThread.threadId,
-            logicalProjectKey,
-          });
           if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
             setDraftThreadContext(storedDraftThread.draftId, {
               ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
@@ -101,11 +95,6 @@ function useNewThreadState() {
         latestActiveDraftThread.logicalProjectKey === logicalProjectKey &&
         latestActiveDraftThread.promotedTo == null
       ) {
-        traceBrowserEvent("thread.new.reuse-active-draft", {
-          draftId: currentRouteTarget.draftId,
-          threadId: latestActiveDraftThread.threadId,
-          logicalProjectKey,
-        });
         if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
           setDraftThreadContext(currentRouteTarget.draftId, {
             ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
@@ -129,14 +118,6 @@ function useNewThreadState() {
       const threadId = newThreadId();
       const createdAt = new Date().toISOString();
       return (async () => {
-        traceBrowserEvent("thread.new.create-draft", {
-          draftId,
-          threadId,
-          environmentId: projectRef.environmentId,
-          projectId: projectRef.projectId,
-          logicalProjectKey,
-          envMode: options?.envMode ?? "local",
-        });
         setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
           threadId,
           createdAt,
@@ -151,7 +132,6 @@ function useNewThreadState() {
           to: "/draft/$draftId",
           params: { draftId },
         });
-        traceBrowserEvent("thread.new.navigate-draft.done", { draftId, threadId });
       })();
     },
     [getCurrentRouteTarget, router, projects],

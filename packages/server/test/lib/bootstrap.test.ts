@@ -36,6 +36,8 @@ vi.mock("node:fs", async (importOriginal) => {
 });
 
 const TestEnvelopeSchema = Schema.Struct({ mode: Schema.String });
+const TestEnvelopeJson = Schema.fromJsonString(TestEnvelopeSchema);
+const encodeTestEnvelopeJson = Schema.encodeEffect(TestEnvelopeJson);
 
 it.layer(NodeServices.layer)("readBootstrapEnvelope", (it) => {
   it.effect("uses platform-specific fd paths", () =>
@@ -53,7 +55,7 @@ it.layer(NodeServices.layer)("readBootstrapEnvelope", (it) => {
 
       yield* fs.writeFileString(
         filePath,
-        `${yield* Schema.encodeEffect(Schema.fromJsonString(TestEnvelopeSchema))({
+        `${yield* encodeTestEnvelopeJson({
           mode: "desktop",
         })}\n`,
       );
@@ -77,7 +79,7 @@ it.layer(NodeServices.layer)("readBootstrapEnvelope", (it) => {
 
       yield* fs.writeFileString(
         filePath,
-        `${yield* Schema.encodeEffect(Schema.fromJsonString(TestEnvelopeSchema))({
+        `${yield* encodeTestEnvelopeJson({
           mode: "desktop",
         })}\n`,
       );

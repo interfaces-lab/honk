@@ -1,6 +1,6 @@
 import type { EnvironmentId, ThreadId } from "@multi/contracts";
 
-import type { DraftId } from "./composer-draft-store";
+import type { DraftId } from "./stores/chat-drafts";
 import type { ThreadRouteTarget } from "./thread-routes";
 
 const LAST_CHAT_ROUTE_KEY = "multi:last-chat-route";

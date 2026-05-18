@@ -165,6 +165,35 @@ const tryRuntimePromise = <A>(operation: string, run: () => Promise<A>) =>
     catch: (cause) => new OrchestrationHarnessRuntimeError({ operation, cause }),
   });
 
+const makeStaticRegistryLayer = (input: {
+  readonly instanceId: string;
+  readonly provider: ProviderDriverKind;
+  readonly adapter: TestProviderAdapterHarness["adapter"];
+}) =>
+  Layer.effect(
+    ProviderAdapterRegistry,
+    Effect.gen(function* () {
+      const changesPubSub = yield* PubSub.unbounded<void>();
+      return {
+        getByInstance: (instanceId) =>
+          instanceId === input.instanceId
+            ? Effect.succeed(input.adapter)
+            : Effect.fail(new ProviderUnsupportedError({ provider: instanceId })),
+        getInstanceInfo: (instanceId) =>
+          instanceId === input.instanceId
+            ? Effect.succeed({
+                instanceId,
+                driverKind: input.provider,
+                enabled: true,
+              })
+            : Effect.fail(new ProviderUnsupportedError({ provider: instanceId })),
+        listInstances: () => Effect.succeed([ProviderInstanceId.make(input.instanceId)]),
+        streamChanges: Stream.fromPubSub(changesPubSub),
+        subscribeChanges: PubSub.subscribe(changesPubSub),
+      } as const;
+    }),
+  );
+
 export interface OrchestrationIntegrationHarness {
   readonly rootDir: string;
   readonly projectDir: string;
@@ -233,34 +262,6 @@ export const makeOrchestrationIntegrationHarness = (
       : yield* makeTestProviderAdapterHarness({
           provider,
         });
-    const makeStaticRegistryLayer = (input: {
-      readonly instanceId: string;
-      readonly provider: ProviderDriverKind;
-      readonly adapter: NonNullable<typeof adapterHarness>["adapter"];
-    }) =>
-      Layer.effect(
-        ProviderAdapterRegistry,
-        Effect.gen(function* () {
-          const changesPubSub = yield* PubSub.unbounded<void>();
-          return {
-            getByInstance: (instanceId) =>
-              instanceId === input.instanceId
-                ? Effect.succeed(input.adapter)
-                : Effect.fail(new ProviderUnsupportedError({ provider: instanceId })),
-            getInstanceInfo: (instanceId) =>
-              instanceId === input.instanceId
-                ? Effect.succeed({
-                    instanceId,
-                    driverKind: input.provider,
-                    enabled: true,
-                  })
-                : Effect.fail(new ProviderUnsupportedError({ provider: instanceId })),
-            listInstances: () => Effect.succeed([ProviderInstanceId.make(input.instanceId)]),
-            streamChanges: Stream.fromPubSub(changesPubSub),
-            subscribeChanges: PubSub.subscribe(changesPubSub),
-          } as const;
-        }),
-      );
     const fakeRegistry = adapterHarness
       ? makeStaticRegistryLayer({
           instanceId: adapterHarness.provider,

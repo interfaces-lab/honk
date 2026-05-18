@@ -6,7 +6,7 @@ import { ProviderInstanceIcon } from "./instance-icon";
 import { ScrollArea } from "@multi/ui/scroll-area";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { cn } from "~/lib/utils";
-import type { ProviderInstanceEntry } from "../../../provider-instances";
+import type { ProviderInstanceEntry } from "../../../model/provider-instances";
 
 /**
  * Build the hover tooltip for an instance button. Mirrors the old

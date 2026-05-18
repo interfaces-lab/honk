@@ -1,14 +1,14 @@
 import { scopeThreadRef } from "@multi/client-runtime";
 import { EnvironmentId, ProjectId, ThreadId, TurnId } from "@multi/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type EnvironmentState, useStore } from "../../../store";
+import { type EnvironmentState, useStore } from "../../../stores/thread-store";
 import { type Thread } from "../../../types";
 
 import {
   buildExpiredTerminalContextToastCopy,
   deriveComposerSendState,
   resolveSendEnvMode,
-} from "../composer/composer-send";
+} from "../composer/send";
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
   createLocalDispatchSnapshot,

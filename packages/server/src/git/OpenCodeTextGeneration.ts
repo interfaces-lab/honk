@@ -39,6 +39,13 @@ import { resolveOpenCodeSettings } from "../provider/provider-settings.ts";
 
 const OPENCODE_TEXT_GENERATION_IDLE_TTL = "30 seconds";
 
+function decodeJsonString<S extends Schema.Top>(
+  schema: S,
+  value: string,
+): Effect.Effect<S["Type"], Schema.SchemaError, S["DecodingServices"]> {
+  return Schema.decodeEffect(Schema.fromJsonString(schema))(value);
+}
+
 function getOpenCodePromptErrorMessage(error: unknown): string | null {
   if (!error || typeof error !== "object") {
     return null;
@@ -376,9 +383,7 @@ const makeOpenCodeTextGeneration = Effect.gen(function* () {
             releaseSharedServer,
           );
 
-    return yield* Schema.decodeEffect(Schema.fromJsonString(input.outputSchemaJson))(
-      extractJsonObject(rawOutput),
-    ).pipe(
+    return yield* decodeJsonString(input.outputSchemaJson, extractJsonObject(rawOutput)).pipe(
       Effect.catchTag("SchemaError", (cause) =>
         Effect.fail(
           new TextGenerationError({

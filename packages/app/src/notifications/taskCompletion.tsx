@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { toastManager } from "~/app/toast";
-import { selectSidebarThreadsAcrossEnvironments, useStore } from "../store";
+import { selectSidebarThreadsAcrossEnvironments, useStore } from "../stores/thread-store";
 import type { SidebarThreadSummary } from "../types";
 import {
   buildInputNeededCopy,

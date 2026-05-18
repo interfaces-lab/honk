@@ -2,13 +2,6 @@ import * as Effect from "effect/Effect";
 
 import * as DesktopIpc from "./DesktopIpc";
 import { getClientSettings, setClientSettings } from "./methods/clientSettings";
-import {
-  getSavedEnvironmentRegistry,
-  getSavedEnvironmentSecret,
-  removeSavedEnvironmentSecret,
-  setSavedEnvironmentRegistry,
-  setSavedEnvironmentSecret,
-} from "./methods/savedEnvironments";
 import { getServerExposureState, setServerExposureMode } from "./methods/serverExposure";
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
@@ -32,11 +25,6 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* ipc.handle(getClientSettings);
   yield* ipc.handle(setClientSettings);
-  yield* ipc.handle(getSavedEnvironmentRegistry);
-  yield* ipc.handle(setSavedEnvironmentRegistry);
-  yield* ipc.handle(getSavedEnvironmentSecret);
-  yield* ipc.handle(setSavedEnvironmentSecret);
-  yield* ipc.handle(removeSavedEnvironmentSecret);
 
   yield* ipc.handle(getServerExposureState);
   yield* ipc.handle(setServerExposureMode);

@@ -695,7 +695,7 @@ const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
       {isExpanded ? (
         <div
           className={cn(
-            "mt-1 max-w-composer",
+            "mt-1 max-w-agent-chat",
             "overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-multi-editor",
             "px-(--conversation-tool-card-padding-x) py-1.5",
             "font-mono text-body text-multi-fg-tertiary",
@@ -981,7 +981,7 @@ function EditToolCall({
       {isExpanded && hasContent ? (
         <div
           className={cn(
-            "mt-1 max-w-composer",
+            "mt-1 max-w-agent-chat",
             "overflow-hidden rounded-multi-control",
             "border border-multi-stroke-secondary bg-multi-editor",
             "px-(--conversation-tool-card-padding-x) py-1.5",

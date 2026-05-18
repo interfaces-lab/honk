@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { scopeThreadRef } from "@multi/client-runtime";
 import { ThreadId } from "@multi/contracts";
-import { DraftId } from "./composer-draft-store";
+import { DraftId } from "./stores/chat-drafts";
 
 import {
   buildDraftThreadRouteParams,

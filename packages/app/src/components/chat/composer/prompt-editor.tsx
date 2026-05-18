@@ -16,6 +16,11 @@ import {
 } from "@tiptap/react";
 import { type ServerProviderSkill } from "@multi/contracts";
 import {
+  IconBuildingBlocks,
+  type CentralIconBaseProps,
+} from "central-icons";
+import type { ComponentType } from "react";
+import {
   forwardRef,
   useCallback,
   useEffect,
@@ -33,20 +38,21 @@ import {
   collapseExpandedComposerCursor,
   expandCollapsedComposerCursor,
   isCollapsedCursorAdjacentToInlineToken,
-} from "~/composer-logic";
+} from "./prompt-triggers";
 import {
   selectionTouchesMentionBoundary,
   splitPromptIntoComposerSegments,
-} from "~/composer-editor-mentions";
+} from "./prompt-segments";
 import {
   INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
+  formatTerminalContextLabel,
+  isTerminalContextExpired,
   type TerminalContextDraft,
 } from "~/lib/terminal-context";
 import { cn } from "~/lib/utils";
 import { basenameOfPath, getVscodeIconUrlForEntry, inferEntryKindFromPath } from "~/vscode-icons";
-import { parseComposerPromptDoc, type ComposerPromptDoc } from "~/composer-prompt-doc";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
-import { ComposerPendingTerminalContextChip } from "./pending-terminal-contexts";
+import { TerminalContextInlineChip } from "../message/terminal-context-chip";
 import { formatProviderSkillDisplayName } from "./provider-skills";
 
 const SURROUND_SYMBOLS: [string, string][] = [
@@ -70,17 +76,26 @@ const COMPOSER_ATOM_NODE_NAMES = new Set([
   "inlineTokenNode",
   "terminalContextNode",
 ]);
-const COMPOSER_MENTION_PLUGIN_KEY = new PluginKey("multi-composer-mention");
+const COMPOSER_MENTION_PLUGIN_KEY = new PluginKey("composer-mention");
 const EMPTY_DOC = Object.freeze({
   type: "doc",
   content: [{ type: "paragraph" }],
-}) satisfies ComposerPromptDoc;
+}) satisfies PromptEditorDoc;
+
+type PromptEditorDoc = JSONContent & { type: "doc" };
 
 export interface ComposerCommandData {
   id: string;
   name: string;
   content: string | null;
   type: string | null;
+}
+
+export interface ComposerSkillData {
+  name: string;
+  label: string;
+  description: string | null;
+  path: string | null;
 }
 
 export interface ComposerMentionData {
@@ -92,7 +107,6 @@ export interface ComposerMentionData {
 
 export interface ComposerPromptSubmitData {
   text: string;
-  doc: ComposerPromptDoc;
   commands: ComposerCommandData[];
   mentions: ComposerMentionData[];
 }
@@ -102,7 +116,6 @@ export interface ComposerPromptEditorSnapshot {
   cursor: number;
   expandedCursor: number;
   terminalContextIds: string[];
-  doc: ComposerPromptDoc;
 }
 
 export interface ComposerPromptEditorHandle {
@@ -117,6 +130,11 @@ export interface ComposerPromptEditorHandle {
     rangeEnd: number,
     command: ComposerCommandData,
   ) => boolean;
+  replaceRangeWithSkill: (
+    rangeStart: number,
+    rangeEnd: number,
+    skill: ComposerSkillData,
+  ) => boolean;
   getText: () => string;
   getCommands: () => ComposerCommandData[];
   getMentions: () => ComposerMentionData[];
@@ -129,11 +147,10 @@ interface ComposerPromptEditorProps {
   value: string;
   cursor: number;
   terminalContexts: ReadonlyArray<TerminalContextDraft>;
-  doc?: ComposerPromptDoc | null;
   skills: ReadonlyArray<ServerProviderSkill>;
   disabled: boolean;
   placeholder: string;
-  className?: string;
+  className?: string | undefined;
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
   onRemoveTerminalContext: (contextId: string) => void;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
@@ -143,7 +160,6 @@ interface ComposerPromptEditorProps {
     expandedCursor: number,
     cursorAdjacentToMention: boolean,
     terminalContextIds: string[],
-    doc: ComposerPromptDoc,
   ) => void;
   onCommandKeyDown?: (
     key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
@@ -359,9 +375,9 @@ function promptToTiptapDoc(
   prompt: string,
   terminalContexts: ReadonlyArray<TerminalContextDraft>,
   skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
-): ComposerPromptDoc {
+): PromptEditorDoc {
   if (!prompt) {
-    return EMPTY_DOC as ComposerPromptDoc;
+    return EMPTY_DOC;
   }
 
   const content: JSONContent[] = [];
@@ -486,13 +502,12 @@ function readSnapshotFromEditor(editor: Editor): ComposerPromptEditorSnapshot {
     cursor,
     expandedCursor,
     terminalContextIds: collectTerminalContextIds(doc),
-    doc: editor.getJSON() as ComposerPromptDoc,
   };
 }
 
 function snapshotsEqual(
-  left: Omit<ComposerPromptEditorSnapshot, "doc">,
-  right: Omit<ComposerPromptEditorSnapshot, "doc">,
+  left: ComposerPromptEditorSnapshot,
+  right: ComposerPromptEditorSnapshot,
 ): boolean {
   return (
     left.value === right.value &&
@@ -611,7 +626,7 @@ function ComposerMentionNodeView(props: NodeViewProps): ReactElement {
   const theme = resolvedThemeFromDocument();
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle ui-pill ui-prompt-input-mention-chip"
+      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
       contentEditable={false}
       data-read-only-mention=""
       data-type="mentionNode"
@@ -639,7 +654,7 @@ function ComposerMentionNodeView(props: NodeViewProps): ReactElement {
         <TooltipTrigger render={chip} />
         <TooltipPopup
           side="top"
-          className="max-w-[30rem] whitespace-normal text-xs/4 wrap-anywhere"
+          className="max-w-lg whitespace-normal text-xs/4 wrap-anywhere"
         >
           {path}
         </TooltipPopup>
@@ -654,7 +669,7 @@ function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
   const label = name ? `/${name}` : "/";
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle ui-prompt-input-command-chip"
+      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
       contentEditable={false}
       data-type="commandNode"
       spellCheck={false}
@@ -662,7 +677,7 @@ function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
       <button
         type="button"
         tabIndex={-1}
-        className="ui-prompt-input-command-chip__label--clickable truncate text-left"
+        className="truncate text-left"
       >
         {label}
       </button>
@@ -674,7 +689,7 @@ function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
       {content ? (
         <Tooltip>
           <TooltipTrigger render={chip} />
-          <TooltipPopup side="top" className="max-w-[30rem] whitespace-normal text-xs/4">
+          <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
             {content}
           </TooltipPopup>
         </Tooltip>
@@ -685,25 +700,7 @@ function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
   );
 }
 
-function SkillGlyph(): ReactElement {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.85"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="m3.3 7 8.7 5 8.7-5" />
-      <path d="M12 22V12" />
-    </svg>
-  );
-}
+const SkillIcon = IconBuildingBlocks as ComponentType<CentralIconBaseProps>;
 
 function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
   const label =
@@ -712,13 +709,13 @@ function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
   const description = nullableStringAttr(props.node.attrs.skillDescription);
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-(--multi-composer-object-border) bg-(--multi-composer-object-bg) px-1.5 py-px font-multi text-body font-medium text-(--multi-composer-object-fg) align-middle"
+      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
       contentEditable={false}
       data-composer-skill-chip="true"
       spellCheck={false}
     >
       <span aria-hidden="true" className="size-3.5 shrink-0 opacity-85">
-        <SkillGlyph />
+        <SkillIcon className="size-3.5" />
       </span>
       <span className="truncate select-none text-body">{label}</span>
     </span>
@@ -729,7 +726,7 @@ function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
       {description ? (
         <Tooltip>
           <TooltipTrigger render={chip} />
-          <TooltipPopup side="top" className="max-w-[30rem] whitespace-normal text-xs/4">
+          <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
             {description}
           </TooltipPopup>
         </Tooltip>
@@ -762,7 +759,7 @@ function ComposerInlineTokenNodeView(props: NodeViewProps): ReactElement {
       {sourceUri ? (
         <Tooltip>
           <TooltipTrigger render={chip} />
-          <TooltipPopup side="top" className="max-w-[30rem] whitespace-normal text-xs/4">
+          <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
             {sourceUri}
           </TooltipPopup>
         </Tooltip>
@@ -775,9 +772,15 @@ function ComposerInlineTokenNodeView(props: NodeViewProps): ReactElement {
 
 function ComposerTerminalContextNodeView(props: NodeViewProps): ReactElement {
   const context = props.node.attrs.context as TerminalContextDraft;
+  const label = formatTerminalContextLabel(context);
+  const expired = isTerminalContextExpired(context);
+  const tooltipText = expired
+    ? `Terminal context expired. Remove and re-add ${label} to include it in your message.`
+    : context.text;
+
   return (
     <NodeViewWrapper as="span" className="inline-flex align-middle">
-      <ComposerPendingTerminalContextChip context={context} />
+      <TerminalContextInlineChip label={label} tooltipText={tooltipText} expired={expired} />
     </NodeViewWrapper>
   );
 }
@@ -804,7 +807,6 @@ const ComposerMentionExtension = Mention.extend({
       mergeAttributes(HTMLAttributes, {
         "data-type": "mentionNode",
         "data-read-only-mention": "",
-        class: "ui-pill ui-prompt-input-mention-chip",
       }),
       mentionText(node.attrs),
     ];
@@ -814,17 +816,13 @@ const ComposerMentionExtension = Mention.extend({
     return ReactNodeViewRenderer(ComposerMentionNodeView);
   },
 }).configure({
-  HTMLAttributes: {
-    class: "ui-pill ui-prompt-input-mention-chip",
-  },
   renderText: ({ node }) => mentionText(node.attrs),
   renderHTML: ({ node }) => [
-    "span",
-    {
-      "data-type": "mentionNode",
-      "data-read-only-mention": "",
-      class: "ui-pill ui-prompt-input-mention-chip",
-    },
+      "span",
+      {
+        "data-type": "mentionNode",
+        "data-read-only-mention": "",
+      },
     mentionText(node.attrs),
   ],
   suggestion: {
@@ -866,7 +864,6 @@ const ComposerCommandExtension = TiptapNode.create({
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-type": "commandNode",
-        class: "ui-prompt-input-command-chip",
       }),
       commandText(node.attrs),
     ];
@@ -902,7 +899,6 @@ const ComposerSkillExtension = TiptapNode.create({
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-type": "skillNode",
-        class: "ui-pill ui-prompt-input-mention-chip",
       }),
       skillText(node.attrs),
     ];
@@ -937,7 +933,6 @@ const ComposerInlineTokenExtension = TiptapNode.create({
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-type": "inlineTokenNode",
-        class: "ui-pill ui-prompt-input-mention-chip",
       }),
       inlineTokenText(node.attrs),
     ];
@@ -970,7 +965,6 @@ const ComposerTerminalContextExtension = TiptapNode.create({
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-type": "terminalContextNode",
-        class: "ui-pill ui-prompt-input-mention-chip",
       }),
       terminalContextText(),
     ];
@@ -1011,7 +1005,6 @@ function createComposerExtensions(placeholderRef: { current: string }) {
       autolink: false,
       defaultProtocol: "https",
       HTMLAttributes: {
-        class: "ui-prompt-input-link",
         rel: "noreferrer",
         target: "_blank",
       },
@@ -1043,7 +1036,6 @@ export const ComposerPromptEditor = forwardRef<
     value,
     cursor,
     terminalContexts,
-    doc,
     skills,
     disabled,
     placeholder,
@@ -1070,8 +1062,7 @@ export const ComposerPromptEditor = forwardRef<
   const isApplyingControlledUpdateRef = useRef(false);
   const skillMetadataRef = useRef(skillMetadataByName(skills));
   const initialDocRef = useRef(
-    parseComposerPromptDoc(doc) ??
-      promptToTiptapDoc(value, terminalContexts, skillMetadataRef.current),
+    promptToTiptapDoc(value, terminalContexts, skillMetadataRef.current),
   );
   const initialCursor = clampCollapsedComposerCursor(value, cursor);
   const initialSnapshotRef = useRef<ComposerPromptEditorSnapshot>({
@@ -1079,17 +1070,12 @@ export const ComposerPromptEditor = forwardRef<
     cursor: initialCursor,
     expandedCursor: expandCollapsedComposerCursor(value, initialCursor),
     terminalContextIds: terminalContexts.map((context) => context.id),
-    doc: initialDocRef.current,
   });
   const snapshotRef = useRef(initialSnapshotRef.current);
   const terminalContextsSignature = terminalContextSignature(terminalContexts);
   const terminalContextsSignatureRef = useRef(terminalContextsSignature);
   const skillsSignature = skillSignature(skills);
   const skillsSignatureRef = useRef(skillsSignature);
-  const parsedPromptDoc = parseComposerPromptDoc(doc);
-  const promptDocSignature = parsedPromptDoc ? JSON.stringify(parsedPromptDoc) : "";
-  const promptDocSignatureRef = useRef(promptDocSignature);
-
   const emitSnapshotRef = useRef<(editor: Editor) => void>(() => {});
   const keyDownHandlerRef = useRef<(event: KeyboardEvent) => boolean>(() => false);
   const beforeInputHandlerRef = useRef<(event: InputEvent) => boolean>(() => false);
@@ -1111,7 +1097,7 @@ export const ComposerPromptEditor = forwardRef<
   }, [skills]);
 
   const editorClassName = cn(
-    "composer-prompt-editor-input ui-prompt-input-editor__input block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent p-(--prompt-input-editor-padding) text-conversation text-foreground outline-hidden min-h-(--prompt-input-editor-min-height) max-h-(--prompt-input-editor-max-height)",
+    "block min-h-9 max-h-[200px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-conversation text-foreground outline-hidden [&>p]:m-0 [&>p.is-editor-empty:first-child::before]:float-left [&>p.is-editor-empty:first-child::before]:h-0 [&>p.is-editor-empty:first-child::before]:max-w-full [&>p.is-editor-empty:first-child::before]:overflow-hidden [&>p.is-editor-empty:first-child::before]:text-ellipsis [&>p.is-editor-empty:first-child::before]:whitespace-nowrap [&>p.is-editor-empty:first-child::before]:text-[13px] [&>p.is-editor-empty:first-child::before]:font-normal [&>p.is-editor-empty:first-child::before]:leading-[1.5] [&>p.is-editor-empty:first-child::before]:text-multi-fg-quaternary [&>p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
     className,
   );
 
@@ -1126,6 +1112,7 @@ export const ComposerPromptEditor = forwardRef<
         attributes: {
           class: editorClassName,
           "data-testid": "composer-editor",
+          "data-prompt-editor-input": "true",
           tabindex: "-1",
         },
         handleKeyDown: (_view, event) => keyDownHandlerRef.current(event),
@@ -1177,7 +1164,6 @@ export const ComposerPromptEditor = forwardRef<
       nextSnapshot.expandedCursor,
       cursorAdjacentToMention,
       nextSnapshot.terminalContextIds,
-      nextSnapshot.doc,
     );
     emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current);
   };
@@ -1258,29 +1244,24 @@ export const ComposerPromptEditor = forwardRef<
     const previousSnapshot = snapshotRef.current;
     const contextsChanged = terminalContextsSignatureRef.current !== terminalContextsSignature;
     const skillsChanged = skillsSignatureRef.current !== skillsSignature;
-    const docChanged = promptDocSignatureRef.current !== promptDocSignature;
     if (
       previousSnapshot.value === value &&
       previousSnapshot.cursor === normalizedCursor &&
       !contextsChanged &&
-      !skillsChanged &&
-      !docChanged
+      !skillsChanged
     ) {
       return;
     }
 
-    const nextDoc =
-      parsedPromptDoc ?? promptToTiptapDoc(value, terminalContexts, skillMetadataRef.current);
+    const nextDoc = promptToTiptapDoc(value, terminalContexts, skillMetadataRef.current);
     snapshotRef.current = {
       value,
       cursor: normalizedCursor,
       expandedCursor: expandCollapsedComposerCursor(value, normalizedCursor),
       terminalContextIds: terminalContexts.map((context) => context.id),
-      doc: nextDoc,
     };
     terminalContextsSignatureRef.current = terminalContextsSignature;
     skillsSignatureRef.current = skillsSignature;
-    promptDocSignatureRef.current = promptDocSignature;
 
     const rootElement = editor.view.dom;
     const isFocused = document.activeElement === rootElement;
@@ -1288,15 +1269,13 @@ export const ComposerPromptEditor = forwardRef<
       previousSnapshot.value === value &&
       !contextsChanged &&
       !skillsChanged &&
-      !docChanged &&
       !isFocused
     ) {
       return;
     }
 
     isApplyingControlledUpdateRef.current = true;
-    const shouldRewriteEditorState =
-      previousSnapshot.value !== value || contextsChanged || skillsChanged || docChanged;
+    const shouldRewriteEditorState = previousSnapshot.value !== value || contextsChanged || skillsChanged;
     if (shouldRewriteEditorState) {
       editor.commands.setContent(nextDoc as JSONContent, { emitUpdate: false });
     }
@@ -1310,8 +1289,6 @@ export const ComposerPromptEditor = forwardRef<
   }, [
     cursor,
     editor,
-    parsedPromptDoc,
-    promptDocSignature,
     skillsSignature,
     terminalContexts,
     terminalContextsSignature,
@@ -1347,7 +1324,6 @@ export const ComposerPromptEditor = forwardRef<
         nextSnapshot.expandedCursor,
         false,
         nextSnapshot.terminalContextIds,
-        nextSnapshot.doc,
       );
     },
     [editor],
@@ -1387,6 +1363,32 @@ export const ComposerPromptEditor = forwardRef<
     [editor],
   );
 
+  const replaceRangeWithSkill = useCallback(
+    (rangeStart: number, rangeEnd: number, skill: ComposerSkillData): boolean => {
+      if (!editor) return false;
+      const from = textToPosition(editor.state.doc, rangeStart, "expanded");
+      const to = textToPosition(editor.state.doc, rangeEnd, "expanded");
+      const safeFrom = Math.min(from, to);
+      const safeTo = Math.max(from, to);
+      const attrs: Record<string, unknown> = {
+        skillName: skill.name,
+        skillLabel: skill.label,
+      };
+      if (skill.description) attrs.skillDescription = skill.description;
+      if (skill.path) attrs.skillPath = skill.path;
+      return editor
+        .chain()
+        .focus()
+        .deleteRange({ from: safeFrom, to: safeTo })
+        .insertContent([
+          { type: "skillNode", attrs },
+          { type: "text", text: " " },
+        ])
+        .run();
+    },
+    [editor],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
@@ -1402,7 +1404,7 @@ export const ComposerPromptEditor = forwardRef<
         setSelectionAtCollapsedOffset(editor, 0);
         const nextSnapshot = readSnapshotFromEditor(editor);
         snapshotRef.current = nextSnapshot;
-        onChangeRef.current("", 0, 0, false, [], EMPTY_DOC);
+        onChangeRef.current("", 0, 0, false, []);
       },
       focusAt,
       focusAtEnd: () => {
@@ -1415,6 +1417,7 @@ export const ComposerPromptEditor = forwardRef<
       },
       insertText,
       replaceRangeWithCommand,
+      replaceRangeWithSkill,
       getText: () => readSnapshot().value,
       getCommands: () => (editor ? collectCommands(editor.state.doc) : []),
       getMentions: () => (editor ? collectMentions(editor.state.doc) : []),
@@ -1422,7 +1425,6 @@ export const ComposerPromptEditor = forwardRef<
         const snapshot = readSnapshot();
         return {
           text: snapshot.value,
-          doc: snapshot.doc,
           commands: editor ? collectCommands(editor.state.doc) : [],
           mentions: editor ? collectMentions(editor.state.doc) : [],
         };
@@ -1430,11 +1432,11 @@ export const ComposerPromptEditor = forwardRef<
       readSnapshot,
       editor,
     }),
-    [editor, focusAt, insertText, readSnapshot, replaceRangeWithCommand],
+    [editor, focusAt, insertText, readSnapshot, replaceRangeWithCommand, replaceRangeWithSkill],
   );
 
   return (
-    <div ref={hotkeyTargetRef} className="composer-prompt-editor relative">
+    <div ref={hotkeyTargetRef} className="relative">
       <EditorContent editor={editor} />
     </div>
   );

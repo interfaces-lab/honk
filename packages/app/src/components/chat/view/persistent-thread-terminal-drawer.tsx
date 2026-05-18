@@ -3,12 +3,12 @@ import { scopeProjectRef } from "@multi/client-runtime";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
 import { memo, useCallback, useMemo, useState } from "react";
 
-import { useComposerDraftStore } from "../../../composer-draft-store";
+import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { readEnvironmentApi } from "../../../environment-api";
 import type { TerminalContextSelection } from "../../../lib/terminal-context";
-import { createProjectSelectorByRef, createThreadSelectorByRef } from "../../../store-selectors";
+import { createProjectSelectorByRef, createThreadSelectorByRef } from "../../../stores/thread-selectors";
 import { selectThreadTerminalState, useTerminalStateStore } from "../../../terminal-state-store";
-import { useStore } from "../../../store";
+import { useStore } from "../../../stores/thread-store";
 import { randomUUID } from "~/lib/utils";
 import ThreadTerminalDrawer from "../../thread-terminal-drawer";
 

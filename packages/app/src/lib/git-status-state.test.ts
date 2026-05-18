@@ -140,7 +140,6 @@ function createRegisteredGitStatusClient(environmentId: EnvironmentId) {
   } as unknown as WsRpcClient;
 
   serviceHarness.connections.set(environmentId, {
-    kind: "saved" as const,
     knownEnvironment: {
       id: environmentId,
       label: `Environment ${environmentId}`,

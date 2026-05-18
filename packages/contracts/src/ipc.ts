@@ -60,7 +60,6 @@ import type {
 } from "./orchestration";
 import { Schema } from "effect";
 
-import { EnvironmentId } from "./base-schemas";
 import { EditorId } from "./editor";
 import { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings";
 
@@ -212,24 +211,6 @@ export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
   bootstrapToken: Schema.optionalKey(Schema.String),
 });
 
-export interface PersistedSavedEnvironmentRecord {
-  environmentId: EnvironmentId;
-  label: string;
-  wsBaseUrl: string;
-  httpBaseUrl: string;
-  createdAt: string;
-  lastConnectedAt: string | null;
-}
-
-export const PersistedSavedEnvironmentRecordSchema = Schema.Struct({
-  environmentId: EnvironmentId,
-  label: Schema.String,
-  wsBaseUrl: Schema.String,
-  httpBaseUrl: Schema.String,
-  createdAt: Schema.String,
-  lastConnectedAt: Schema.NullOr(Schema.String),
-});
-
 export type DesktopServerExposureMode = "local-only" | "network-accessible";
 
 export const DesktopServerExposureModeSchema = Schema.Literals([
@@ -272,13 +253,6 @@ export interface DesktopBridge {
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;
   getClientSettings: () => Promise<ClientSettings | null>;
   setClientSettings: (settings: ClientSettings) => Promise<void>;
-  getSavedEnvironmentRegistry: () => Promise<readonly PersistedSavedEnvironmentRecord[]>;
-  setSavedEnvironmentRegistry: (
-    records: readonly PersistedSavedEnvironmentRecord[],
-  ) => Promise<void>;
-  getSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<string | null>;
-  setSavedEnvironmentSecret: (environmentId: EnvironmentId, secret: string) => Promise<boolean>;
-  removeSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<void>;
   getServerExposureState: () => Promise<DesktopServerExposureState>;
   setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
   pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
@@ -326,13 +300,6 @@ export interface LocalApi {
   persistence: {
     getClientSettings: () => Promise<ClientSettings | null>;
     setClientSettings: (settings: ClientSettings) => Promise<void>;
-    getSavedEnvironmentRegistry: () => Promise<readonly PersistedSavedEnvironmentRecord[]>;
-    setSavedEnvironmentRegistry: (
-      records: readonly PersistedSavedEnvironmentRecord[],
-    ) => Promise<void>;
-    getSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<string | null>;
-    setSavedEnvironmentSecret: (environmentId: EnvironmentId, secret: string) => Promise<boolean>;
-    removeSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<void>;
   };
   server: {
     getConfig: () => Promise<ServerConfig>;

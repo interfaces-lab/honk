@@ -77,6 +77,7 @@ const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitStatusDetails>({
   aheadCount: 0,
   behindCount: 0,
 });
+const isGitCommandError = Schema.is(GitCommandError);
 
 type TraceTailState = {
   processedChars: number;
@@ -547,7 +548,7 @@ function toGitCommandError(
   detail: string,
 ) {
   return (cause: unknown) =>
-    Schema.is(GitCommandError)(cause)
+    isGitCommandError(cause)
       ? cause
       : new GitCommandError({
           operation: input.operation,

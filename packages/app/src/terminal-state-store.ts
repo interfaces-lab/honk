@@ -10,7 +10,6 @@ import { type ScopedThreadRef, type TerminalEvent } from "@multi/contracts";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { resolveStorage } from "./lib/storage";
-import { terminalRunningSubprocessFromEvent } from "./terminal-activity";
 import {
   DEFAULT_THREAD_TERMINAL_HEIGHT,
   DEFAULT_THREAD_TERMINAL_ID,
@@ -42,12 +41,21 @@ const TERMINAL_STATE_STORAGE_KEY = "multi:terminal-state:v1";
 const EMPTY_TERMINAL_EVENT_ENTRIES: ReadonlyArray<TerminalEventEntry> = [];
 const MAX_TERMINAL_EVENT_BUFFER = 200;
 
-interface PersistedTerminalStateStoreState {
-  terminalStateByThreadKey?: Record<string, ThreadTerminalState>;
-}
-
 function createTerminalStateStorage() {
   return resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined);
+}
+
+function terminalRunningSubprocessFromEvent(event: TerminalEvent): boolean | null {
+  switch (event.type) {
+    case "activity":
+      return event.hasRunningSubprocess;
+    case "started":
+    case "restarted":
+    case "exited":
+      return false;
+    default:
+      return null;
+  }
 }
 
 function normalizeTerminalIds(terminalIds: string[]): string[] {

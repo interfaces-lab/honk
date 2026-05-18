@@ -68,6 +68,9 @@ import {
 } from "./auth/SessionCredentialService.service";
 import { respondToAuthError } from "./auth/http";
 
+const serverCommandId = (tag: string): CommandId =>
+  CommandId.make(`server:${tag}:${crypto.randomUUID()}`);
+
 function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
   OrchestrationEvent,
   {
@@ -91,6 +94,8 @@ function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
 }
 
 const PROVIDER_STATUS_DEBOUNCE_MS = 200;
+const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchCommandError);
+const isProjectPathOutsideRootError = Schema.is(ProjectPathOutsideRootError);
 
 function toAuthAccessStreamEvent(
   change: BootstrapCredentialChange | SessionCredentialChange,
@@ -157,8 +162,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
       const serverAuth = yield* ServerAuth;
       const bootstrapCredentials = yield* BootstrapCredentialService;
       const sessions = yield* SessionCredentialService;
-      const serverCommandId = (tag: string) =>
-        CommandId.make(`server:${tag}:${crypto.randomUUID()}`);
 
       const loadAuthAccessSnapshot = () =>
         Effect.all({
@@ -191,7 +194,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
         });
 
       const toDispatchCommandError = (cause: unknown, fallbackMessage: string) =>
-        Schema.is(OrchestrationDispatchCommandError)(cause)
+        isOrchestrationDispatchCommandError(cause)
           ? cause
           : new OrchestrationDispatchCommandError({
               message: cause instanceof Error ? cause.message : fallbackMessage,
@@ -200,7 +203,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
 
       const toBootstrapDispatchCommandCauseError = (cause: Cause.Cause<unknown>) => {
         const error = Cause.squash(cause);
-        return Schema.is(OrchestrationDispatchCommandError)(error)
+        return isOrchestrationDispatchCommandError(error)
           ? error
           : new OrchestrationDispatchCommandError({
               message:
@@ -601,7 +604,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
               return result;
             }).pipe(
               Effect.mapError((cause) =>
-                Schema.is(OrchestrationDispatchCommandError)(cause)
+                isOrchestrationDispatchCommandError(cause)
                   ? cause
                   : new OrchestrationDispatchCommandError({
                       message: "Failed to dispatch orchestration command",
@@ -837,7 +840,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             WS_METHODS.projectsReadFile,
             projectFileSystem.readFile(input).pipe(
               Effect.mapError((cause) => {
-                const message = Schema.is(ProjectPathOutsideRootError)(cause)
+                const message = isProjectPathOutsideRootError(cause)
                   ? "Project file path must stay within the project root."
                   : `Failed to read project file: ${cause.detail}`;
                 return new ProjectReadFileError({
@@ -853,7 +856,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             WS_METHODS.projectsWriteFile,
             projectFileSystem.writeFile(input).pipe(
               Effect.mapError((cause) => {
-                const message = Schema.is(ProjectPathOutsideRootError)(cause)
+                const message = isProjectPathOutsideRootError(cause)
                   ? "Project file path must stay within the project root."
                   : "Failed to write project file";
                 return new ProjectWriteFileError({

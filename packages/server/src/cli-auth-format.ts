@@ -31,10 +31,10 @@ export function formatIssuedPairingCredential(
     readonly baseUrl?: string;
   },
 ): string {
-  const pairUrl =
+  const bootstrapUrl =
     options?.baseUrl != null && options.baseUrl.length > 0
       ? (() => {
-          const url = new URL("/pair", options.baseUrl);
+          const url = new URL("/", options.baseUrl);
           url.searchParams.delete("token");
           url.hash = new URLSearchParams([["token", credential.credential]]).toString();
           return url.toString();
@@ -49,7 +49,7 @@ export function formatIssuedPairingCredential(
         ...(credential.label ? { label: credential.label } : {}),
         role: credential.role,
         expiresAt: toIsoString(credential.expiresAt),
-        ...(pairUrl ? { pairUrl } : {}),
+        ...(bootstrapUrl ? { bootstrapUrl } : {}),
       },
       null,
       2,
@@ -60,7 +60,7 @@ export function formatIssuedPairingCredential(
     [
       `Issued client pairing token ${credential.id}.`,
       `Token: ${credential.credential}`,
-      ...(pairUrl ? [`Pair URL: ${pairUrl}`] : []),
+      ...(bootstrapUrl ? [`Bootstrap URL: ${bootstrapUrl}`] : []),
       `Expires at: ${credential.expiresAt}`,
     ].join(newline) + newline
   );

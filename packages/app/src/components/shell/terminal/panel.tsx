@@ -13,7 +13,6 @@ import {
 import { subscribeTerminalHostDocument } from "~/components/shell/terminal/terminal-xterm-host-sync";
 import { readNativeEnvironmentApi } from "~/lib/native-runtime-api";
 import { clampTerminalDimensions, waitForTerminalLayoutFrame } from "~/lib/terminal-dimensions";
-import { traceBrowserEvent } from "~/observability/browserDebug";
 
 function workbenchThreadId(cwd: string) {
   return `workbench:${cwd}`;
@@ -50,12 +49,6 @@ export function TerminalPanel(props: {
     const el = ref.current;
     const api = readWorkbenchTerminalApi(props.environmentId);
     if (!el || !api || !props.cwd) {
-      traceBrowserEvent("terminal.panel.waiting-for-prerequisite", {
-        hasElement: Boolean(el),
-        hasApi: Boolean(api),
-        hasCwd: Boolean(props.cwd),
-        environmentId: props.environmentId ?? null,
-      });
       return;
     }
 
@@ -74,12 +67,6 @@ export function TerminalPanel(props: {
 
     openSession.current = null;
     setBootErr(null);
-    traceBrowserEvent("terminal.panel.mount.start", {
-      cwd,
-      thread,
-      terminalId: termId,
-      environmentId: props.environmentId ?? null,
-    });
 
     try {
       next = new Terminal({
@@ -103,7 +90,6 @@ export function TerminalPanel(props: {
       fit.current = addon;
     } catch (err) {
       if (dev) console.warn("[TerminalPanel] xterm init failed", err);
-      traceBrowserEvent("terminal.panel.xterm-init.failed", { error: err }, "error");
       setBootErr("Could not load terminal renderer.");
       return () => {
         live = false;
@@ -238,13 +224,6 @@ export function TerminalPanel(props: {
         rows: activeTerminal.rows,
       });
       size.current = { thread, ...openSize };
-      traceBrowserEvent("terminal.panel.open.start", {
-        cwd,
-        threadId: thread,
-        terminalId: termId,
-        cols: openSize.cols,
-        rows: openSize.rows,
-      });
 
       try {
         const snap = await api.open({
@@ -256,25 +235,10 @@ export function TerminalPanel(props: {
         });
         if (!live) return;
         openSession.current = { thread, terminalId: termId };
-        traceBrowserEvent("terminal.panel.open.done", {
-          threadId: thread,
-          terminalId: termId,
-          historyLength: snap.history.length,
-        });
         hydrate(snap.history);
         syncPtySize(activeTerminal);
       } catch (err) {
         if (dev) console.warn("[TerminalPanel] terminal.open failed", err);
-        traceBrowserEvent(
-          "terminal.panel.open.failed",
-          {
-            threadId: thread,
-            terminalId: termId,
-            cwd,
-            error: err,
-          },
-          "error",
-        );
         if (live) {
           openSession.current = null;
           setBootErr("Could not open terminal session.");
@@ -288,10 +252,6 @@ export function TerminalPanel(props: {
       if (openSession.current?.thread === thread && openSession.current.terminalId === termId) {
         openSession.current = null;
       }
-      traceBrowserEvent("terminal.panel.unmount", {
-        threadId: thread,
-        terminalId: termId,
-      });
       unsubscribeTerminalHost();
       off?.();
       data?.dispose();
@@ -362,7 +322,7 @@ export function TerminalPanel(props: {
   }
 
   return (
-    <div className="editor-panel-inner flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {bootErr ? (
         <p className="shrink-0 px-2 py-1 text-detail text-destructive">{bootErr}</p>
       ) : null}

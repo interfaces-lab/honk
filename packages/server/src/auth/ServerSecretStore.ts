@@ -10,6 +10,9 @@ import {
   type ServerSecretStoreShape,
 } from "./ServerSecretStore.service.ts";
 
+const isPlatformError = (u: unknown): u is PlatformError.PlatformError =>
+  Predicate.isTagged(u, "PlatformError");
+
 export const makeServerSecretStore = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -27,9 +30,6 @@ export const makeServerSecretStore = Effect.gen(function* () {
   );
 
   const resolveSecretPath = (name: string) => path.join(serverConfig.secretsDir, `${name}.bin`);
-
-  const isPlatformError = (u: unknown): u is PlatformError.PlatformError =>
-    Predicate.isTagged(u, "PlatformError");
 
   const get: ServerSecretStoreShape["get"] = (name) =>
     fileSystem.readFile(resolveSecretPath(name)).pipe(

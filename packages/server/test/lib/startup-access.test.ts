@@ -1,9 +1,8 @@
 import { assert, expect, it } from "@effect/vitest";
 
 import {
-  buildPairingUrl,
+  buildBootstrapUrl,
   formatHeadlessServeOutput,
-  renderTerminalQrCode,
   resolveHeadlessConnectionHost,
   resolveHeadlessConnectionString,
   resolveListeningPort,
@@ -52,28 +51,21 @@ it("prefers the actual bound port when an http server address is available", () 
   expect(resolveListeningPort(null, 3773)).toBe(3773);
 });
 
-it("builds a pairing URL that embeds the token in the hash", () => {
-  expect(buildPairingUrl("http://192.168.1.42:3773", "PAIRCODE")).toBe(
-    "http://192.168.1.42:3773/pair#token=PAIRCODE",
+it("builds a bootstrap URL that embeds the token in the root hash", () => {
+  expect(buildBootstrapUrl("http://192.168.1.42:3773", "PAIRCODE")).toBe(
+    "http://192.168.1.42:3773/#token=PAIRCODE",
   );
 });
 
-it("renders terminal QR codes as a multi-line unicode block grid", () => {
-  const qrCode = renderTerminalQrCode("http://192.168.1.42:3773/pair#token=PAIRCODE");
-
-  assert.isTrue(qrCode.includes("█"));
-  assert.isTrue(qrCode.split("\n").length > 10);
-});
-
-it("formats headless serve output with the connection string, token, pairing url, and qr code", () => {
+it("formats headless serve output with the connection string, token, and bootstrap URL", () => {
   const output = formatHeadlessServeOutput({
     connectionString: "http://192.168.1.42:3773",
     token: "PAIRCODE",
-    pairingUrl: "http://192.168.1.42:3773/pair#token=PAIRCODE",
+    bootstrapUrl: "http://192.168.1.42:3773/#token=PAIRCODE",
   });
 
   expect(output).toContain("Connection string: http://192.168.1.42:3773");
   expect(output).toContain("Token: PAIRCODE");
-  expect(output).toContain("Pairing URL: http://192.168.1.42:3773/pair#token=PAIRCODE");
-  assert.isTrue(output.includes("█") || output.includes("▀") || output.includes("▄"));
+  expect(output).toContain("Bootstrap URL: http://192.168.1.42:3773/#token=PAIRCODE");
+  assert.isFalse(output.includes("█") || output.includes("▀") || output.includes("▄"));
 });

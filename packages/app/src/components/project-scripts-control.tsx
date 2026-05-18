@@ -13,14 +13,12 @@ import {
 import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
 
 import {
-  keybindingValueForCommand,
-  decodeProjectScriptKeybindingRule,
-} from "~/lib/project-script-keybindings";
-import {
   commandForProjectScript,
+  decodeProjectScriptKeybindingRule,
+  keybindingValueForCommand,
   nextProjectScriptId,
   primaryProjectScript,
-} from "~/project-scripts";
+} from "~/lib/project-scripts";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { isMacPlatform } from "~/lib/utils";
 import {

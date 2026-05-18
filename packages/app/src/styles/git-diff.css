@@ -48,11 +48,6 @@ html.dark {
   );
 }
 
-.multi-shell-git-rail {
-  background: var(--multi-shell-sidebar-bg);
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--multi-stroke-quaternary) 78%, transparent);
-}
-
 /* Pierre diffs CSS bridge - layout variables inherit into Shadow DOM */
 [data-diffs-container] {
   --diffs-font-family: var(--multi-font-mono);
@@ -72,4 +67,16 @@ html.dark {
   display: block;
   max-width: 100%;
   min-width: 0;
+}
+
+/* Diff panel surfaces */
+.diff-panel-viewport {
+  background: color-mix(in srgb, var(--background) 94%, var(--card));
+}
+
+.diff-render-file {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: clip;
+  background: color-mix(in srgb, var(--card) 92%, var(--background));
 }

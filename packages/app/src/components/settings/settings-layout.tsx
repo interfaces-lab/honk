@@ -127,7 +127,7 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
 export function SettingsPageContainer({ children }: { children: ReactNode }) {
   return (
     <div className="flex-1 overflow-y-auto px-5 py-12 sm:px-8 sm:py-17">
-      <div className="mx-auto flex w-full max-w-[550px] flex-col gap-5">{children}</div>
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-5">{children}</div>
     </div>
   );
 }

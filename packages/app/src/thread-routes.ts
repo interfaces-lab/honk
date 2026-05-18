@@ -1,6 +1,6 @@
 import { scopeThreadRef } from "@multi/client-runtime";
 import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@multi/contracts";
-import type { DraftId } from "./composer-draft-store";
+import type { DraftId } from "./stores/chat-drafts";
 
 export type ThreadRouteTarget =
   | {

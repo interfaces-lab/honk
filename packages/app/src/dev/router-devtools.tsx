@@ -1,18 +1,17 @@
-import { lazy, Suspense } from "react";
-
-const TanStackRouterDevtools = lazy(() =>
-  import("@tanstack/react-router-devtools").then((m) => ({
-    default: m.TanStackRouterDevtools,
-  })),
-);
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { Suspense } from "react";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 export function RouterDevtoolsPanel() {
-  if (!import.meta.env.DEV) {
-    return null;
-  }
   return (
     <Suspense fallback={null}>
-      <TanStackRouterDevtools position="bottom-right" />
+      <TanStackDevtools
+        plugins={[
+          { name: "React Router", render: <TanStackRouterDevtools /> },
+          { name: "React Query", render: <ReactQueryDevtools /> },
+        ]}
+      />
     </Suspense>
   );
 }

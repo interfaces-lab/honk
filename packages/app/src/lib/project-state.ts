@@ -1,6 +1,5 @@
-import { SHELL_LAYOUT_CHANGED_EVENT } from "./shell-runtime-constants";
-
 export const PROJECT_KEY = "multi:project-cwd";
+export const SHELL_LAYOUT_CHANGED_EVENT = "multi:shell-layout-changed";
 
 export function readStoredProjectCwd(): string | null {
   if (typeof window === "undefined") return null;

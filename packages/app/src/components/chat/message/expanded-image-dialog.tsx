@@ -79,7 +79,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
           <IconChevronLeftMedium className="size-5" />
         </Button>
       )}
-      <div className="relative isolate z-10 max-h-[92vh] max-w-[92vw]">
+      <div className="relative isolate z-10 max-h-[92vh] max-w-full">
         <Button
           type="button"
           size="icon-xs"
@@ -93,10 +93,10 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
         <img
           src={item.src}
           alt={item.name}
-          className="max-h-[86vh] max-w-[92vw] select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
+          className="max-h-[86vh] max-w-full select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
           draggable={false}
         />
-        <p className="mt-2 max-w-[92vw] truncate text-center text-xs text-muted-foreground/80">
+        <p className="mt-2 max-w-full truncate text-center text-xs text-muted-foreground/80">
           {item.name}
           {preview.images.length > 1 ? ` (${index + 1}/${preview.images.length})` : ""}
         </p>

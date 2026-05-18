@@ -53,6 +53,16 @@ const DEFAULT_PROCESS_KILL_GRACE_MS = 1_000;
 const DEFAULT_MAX_RETAINED_INACTIVE_SESSIONS = 128;
 const DEFAULT_OPEN_COLS = 120;
 const DEFAULT_OPEN_ROWS = 30;
+
+const toTerminalHistoryError =
+  (operation: "read" | "truncate", threadId: string, terminalId: string) => (cause: unknown) =>
+    new TerminalHistoryError({
+      operation,
+      threadId,
+      terminalId,
+      cause,
+    });
+
 // Keep shell identity out of the inherited process environment.
 //
 // Multi may be launched from Electron, a dev server, Codex, or a real terminal.
@@ -755,15 +765,6 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       }
       return path.join(logsDir, `${threadPart}_${toSafeTerminalId(terminalId)}.log`);
     };
-
-    const toTerminalHistoryError =
-      (operation: "read" | "truncate", threadId: string, terminalId: string) => (cause: unknown) =>
-        new TerminalHistoryError({
-          operation,
-          threadId,
-          terminalId,
-          cause,
-        });
 
     const readManagerState = SynchronizedRef.get(managerStateRef);
 

@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import {
   IconArchive,
   IconChevronLeftMedium,
-  IconChainLink1,
   IconCode,
   IconColorSwatch,
   IconRobot,
@@ -20,7 +19,6 @@ const items: {
     | "/settings/appearance"
     | "/settings/agents"
     | "/settings/models"
-    | "/settings/connections"
     | "/settings/archived";
   label: string;
   icon: ComponentType<{ className?: string }>;
@@ -29,7 +27,6 @@ const items: {
   { to: "/settings/appearance", label: "Appearance", icon: IconColorSwatch },
   { to: "/settings/agents", label: "Agents", icon: IconRobot },
   { to: "/settings/models", label: "Models", icon: IconCode },
-  { to: "/settings/connections", label: "Connections", icon: IconChainLink1 },
   { to: "/settings/archived", label: "Archived", icon: IconArchive },
 ];
 

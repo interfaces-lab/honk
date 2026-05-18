@@ -99,7 +99,6 @@ const rpcClientMock = {
 
 vi.mock("./environments/runtime", () => ({
   getPrimaryEnvironmentConnection: () => ({
-    kind: "primary",
     knownEnvironment: {
       id: "environment-local",
       label: "Primary",
@@ -117,8 +116,6 @@ vi.mock("./environments/runtime", () => ({
     dispose: async () => undefined,
   }),
   resetEnvironmentServiceForTests: vi.fn(),
-  resetSavedEnvironmentRegistryStoreForTests: vi.fn(),
-  resetSavedEnvironmentRuntimeStoreForTests: vi.fn(),
 }));
 
 vi.mock("./context-menu-fallback", () => ({
@@ -169,11 +166,6 @@ function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridg
     onWindowChromeState: () => () => undefined,
     getClientSettings: async () => null,
     setClientSettings: async () => undefined,
-    getSavedEnvironmentRegistry: async () => [],
-    setSavedEnvironmentRegistry: async () => undefined,
-    getSavedEnvironmentSecret: async () => null,
-    setSavedEnvironmentSecret: async () => true,
-    removeSavedEnvironmentSecret: async () => undefined,
     getServerExposureState: async () => ({
       mode: "local-only",
       endpointUrl: null,
@@ -541,19 +533,9 @@ describe("wsApi", () => {
       timestampFormat: "24-hour",
     });
     const setClientSettings = vi.fn().mockResolvedValue(undefined);
-    const getSavedEnvironmentRegistry = vi.fn().mockResolvedValue([]);
-    const setSavedEnvironmentRegistry = vi.fn().mockResolvedValue(undefined);
-    const getSavedEnvironmentSecret = vi.fn().mockResolvedValue("bearer-token");
-    const setSavedEnvironmentSecret = vi.fn().mockResolvedValue(true);
-    const removeSavedEnvironmentSecret = vi.fn().mockResolvedValue(undefined);
     getWindowForTest().desktopBridge = makeDesktopBridge({
       getClientSettings,
       setClientSettings,
-      getSavedEnvironmentRegistry,
-      setSavedEnvironmentRegistry,
-      getSavedEnvironmentSecret,
-      setSavedEnvironmentSecret,
-      removeSavedEnvironmentSecret,
     });
 
     const { createLocalApi } = await import("./local-api");
@@ -569,14 +551,6 @@ describe("wsApi", () => {
       sidebarThreadSortOrder: "created_at",
       timestampFormat: "24-hour",
     });
-    await api.persistence.getSavedEnvironmentRegistry();
-    await api.persistence.setSavedEnvironmentRegistry([]);
-    await api.persistence.getSavedEnvironmentSecret(EnvironmentId.make("environment-local"));
-    await api.persistence.setSavedEnvironmentSecret(
-      EnvironmentId.make("environment-local"),
-      "bearer-token",
-    );
-    await api.persistence.removeSavedEnvironmentSecret(EnvironmentId.make("environment-local"));
 
     expect(getClientSettings).toHaveBeenCalledWith();
     expect(setClientSettings).toHaveBeenCalledWith({
@@ -588,11 +562,6 @@ describe("wsApi", () => {
       sidebarThreadSortOrder: "created_at",
       timestampFormat: "24-hour",
     });
-    expect(getSavedEnvironmentRegistry).toHaveBeenCalledWith();
-    expect(setSavedEnvironmentRegistry).toHaveBeenCalledWith([]);
-    expect(getSavedEnvironmentSecret).toHaveBeenCalledWith("environment-local");
-    expect(setSavedEnvironmentSecret).toHaveBeenCalledWith("environment-local", "bearer-token");
-    expect(removeSavedEnvironmentSecret).toHaveBeenCalledWith("environment-local");
   });
 
   it("falls back to browser storage for persistence when the desktop bridge is missing", async () => {
@@ -608,20 +577,6 @@ describe("wsApi", () => {
       sidebarThreadSortOrder: "created_at",
       timestampFormat: "24-hour",
     });
-    await api.persistence.setSavedEnvironmentRegistry([
-      {
-        environmentId: EnvironmentId.make("environment-local"),
-        label: "Primary",
-        httpBaseUrl: "http://localhost:3000",
-        wsBaseUrl: "ws://localhost:3000",
-        createdAt: "2026-04-09T00:00:00.000Z",
-        lastConnectedAt: null,
-      },
-    ]);
-    await api.persistence.setSavedEnvironmentSecret(
-      EnvironmentId.make("environment-local"),
-      "bearer-token",
-    );
 
     await expect(api.persistence.getClientSettings()).resolves.toEqual({
       ...DEFAULT_CLIENT_SETTINGS,
@@ -632,24 +587,5 @@ describe("wsApi", () => {
       sidebarThreadSortOrder: "created_at",
       timestampFormat: "24-hour",
     });
-    await expect(api.persistence.getSavedEnvironmentRegistry()).resolves.toEqual([
-      {
-        environmentId: EnvironmentId.make("environment-local"),
-        label: "Primary",
-        httpBaseUrl: "http://localhost:3000",
-        wsBaseUrl: "ws://localhost:3000",
-        createdAt: "2026-04-09T00:00:00.000Z",
-        lastConnectedAt: null,
-      },
-    ]);
-    await expect(
-      api.persistence.getSavedEnvironmentSecret(EnvironmentId.make("environment-local")),
-    ).resolves.toBe("bearer-token");
-
-    await api.persistence.removeSavedEnvironmentSecret(EnvironmentId.make("environment-local"));
-
-    await expect(
-      api.persistence.getSavedEnvironmentSecret(EnvironmentId.make("environment-local")),
-    ).resolves.toBeNull();
   });
 });

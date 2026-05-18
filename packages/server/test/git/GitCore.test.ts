@@ -7,7 +7,11 @@ import { Effect, FileSystem, Layer, PlatformError, Scope } from "effect";
 import { describe, expect, vi } from "vitest";
 
 import { GitCoreLive, makeGitCore } from "../../src/git/GitCore.ts";
-import { GitCore, type GitCoreShape } from "../../src/git/GitCore.service.ts";
+import {
+  GitCore,
+  type ExecuteGitResult,
+  type GitCoreShape,
+} from "../../src/git/GitCore.service.ts";
 import { GitCommandError } from "@multi/contracts";
 import { type ProcessRunResult, runProcess } from "../../src/process-runner.ts";
 import { ServerConfig } from "../../src/config.ts";
@@ -20,6 +24,16 @@ const GitCoreTestLayer = GitCoreLive.pipe(
   Layer.provide(NodeServices.layer),
 );
 const TestLayer = Layer.mergeAll(NodeServices.layer, GitCoreTestLayer);
+
+function okProcessResult(stdout = ""): Effect.Effect<ExecuteGitResult> {
+  return Effect.succeed({
+    code: 0,
+    stdout,
+    stderr: "",
+    stdoutTruncated: false,
+    stderrTruncated: false,
+  });
+}
 
 function makeTmpDir(
   prefix = "git-test-",
@@ -828,15 +842,6 @@ it.layer(TestLayer)("git integration", (it) => {
 
     it.effect("coalesces upstream refreshes across sibling worktrees on the same remote", () =>
       Effect.gen(function* () {
-        const ok = (stdout = "") =>
-          Effect.succeed({
-            code: 0,
-            stdout,
-            stderr: "",
-            stdoutTruncated: false,
-            stderrTruncated: false,
-          });
-
         let fetchCount = 0;
         const core = yield* makeIsolatedGitCore((input) => {
           if (
@@ -845,15 +850,15 @@ it.layer(TestLayer)("git integration", (it) => {
             input.args[2] === "--symbolic-full-name" &&
             input.args[3] === "@{upstream}"
           ) {
-            return ok(
+            return okProcessResult(
               input.cwd === "/repo/worktrees/pr-123" ? "origin/feature/pr-123\n" : "origin/main\n",
             );
           }
           if (input.args[0] === "remote") {
-            return ok("origin\n");
+            return okProcessResult("origin\n");
           }
           if (input.args[0] === "rev-parse" && input.args[1] === "--git-common-dir") {
-            return ok("/repo/.git\n");
+            return okProcessResult("/repo/.git\n");
           }
           if (input.args[0] === "--git-dir" && input.args[2] === "fetch") {
             fetchCount += 1;
@@ -866,10 +871,10 @@ it.layer(TestLayer)("git integration", (it) => {
               "--no-tags",
               "origin",
             ]);
-            return ok();
+            return okProcessResult();
           }
           if (input.operation === "GitCore.statusDetails.status") {
-            return ok(
+            return okProcessResult(
               input.cwd === "/repo/worktrees/pr-123"
                 ? "# branch.head feature/pr-123\n# branch.upstream origin/feature/pr-123\n# branch.ab +0 -0\n"
                 : "# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n",
@@ -879,10 +884,10 @@ it.layer(TestLayer)("git integration", (it) => {
             input.operation === "GitCore.statusDetails.unstagedNumstat" ||
             input.operation === "GitCore.statusDetails.stagedNumstat"
           ) {
-            return ok();
+            return okProcessResult();
           }
           if (input.operation === "GitCore.statusDetails.defaultRef") {
-            return ok("refs/remotes/origin/main\n");
+            return okProcessResult("refs/remotes/origin/main\n");
           }
           return Effect.fail(
             new GitCommandError({
@@ -904,15 +909,6 @@ it.layer(TestLayer)("git integration", (it) => {
       "briefly backs off failed upstream refreshes across sibling worktrees on one remote",
       () =>
         Effect.gen(function* () {
-          const ok = (stdout = "") =>
-            Effect.succeed({
-              code: 0,
-              stdout,
-              stderr: "",
-              stdoutTruncated: false,
-              stderrTruncated: false,
-            });
-
           let fetchCount = 0;
           const core = yield* makeIsolatedGitCore((input) => {
             if (
@@ -921,17 +917,17 @@ it.layer(TestLayer)("git integration", (it) => {
               input.args[2] === "--symbolic-full-name" &&
               input.args[3] === "@{upstream}"
             ) {
-              return ok(
+              return okProcessResult(
                 input.cwd === "/repo/worktrees/pr-123"
                   ? "origin/feature/pr-123\n"
                   : "origin/main\n",
               );
             }
             if (input.args[0] === "remote") {
-              return ok("origin\n");
+              return okProcessResult("origin\n");
             }
             if (input.args[0] === "rev-parse" && input.args[1] === "--git-common-dir") {
-              return ok("/repo/.git\n");
+              return okProcessResult("/repo/.git\n");
             }
             if (input.args[0] === "--git-dir" && input.args[2] === "fetch") {
               fetchCount += 1;
@@ -945,7 +941,7 @@ it.layer(TestLayer)("git integration", (it) => {
               );
             }
             if (input.operation === "GitCore.statusDetails.status") {
-              return ok(
+              return okProcessResult(
                 input.cwd === "/repo/worktrees/pr-123"
                   ? "# branch.head feature/pr-123\n# branch.upstream origin/feature/pr-123\n# branch.ab +0 -0\n"
                   : "# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n",
@@ -955,10 +951,10 @@ it.layer(TestLayer)("git integration", (it) => {
               input.operation === "GitCore.statusDetails.unstagedNumstat" ||
               input.operation === "GitCore.statusDetails.stagedNumstat"
             ) {
-              return ok();
+              return okProcessResult();
             }
             if (input.operation === "GitCore.statusDetails.defaultRef") {
-              return ok("refs/remotes/origin/main\n");
+              return okProcessResult("refs/remotes/origin/main\n");
             }
             return Effect.fail(
               new GitCommandError({

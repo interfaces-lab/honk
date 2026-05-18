@@ -37,6 +37,7 @@ import packageJson from "../../package.json" with { type: "json" };
 
 const PROVIDER = ProviderDriverKind.make("codex");
 const PROVIDER_PROBE_TIMEOUT_MS = 8_000;
+const isCodexAppServerSpawnError = Schema.is(CodexErrors.CodexAppServerSpawnError);
 const CODEX_PRESENTATION = {
   displayName: "Codex",
   showInteractionModeToggle: true,
@@ -435,7 +436,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
 
   if (Result.isFailure(probeResult)) {
     const error = probeResult.failure;
-    const installed = !Schema.is(CodexErrors.CodexAppServerSpawnError)(error);
+    const installed = !isCodexAppServerSpawnError(error);
     return buildServerProvider({
       driver: PROVIDER,
       presentation: CODEX_PRESENTATION,

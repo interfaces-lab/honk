@@ -7,8 +7,8 @@ import {
   type TurnId,
 } from "@multi/contracts";
 import { Schema } from "effect";
-import { type DraftThreadState } from "../../../composer-draft-store";
-import { selectThreadByRef, useStore } from "../../../store";
+import { type DraftThreadState } from "../../../stores/chat-drafts";
+import { selectThreadByRef, useStore } from "../../../stores/thread-store";
 import { type SessionPhase, type Thread, type ThreadSession } from "../../../types";
 
 export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "multi:last-invoked-script-by-project";

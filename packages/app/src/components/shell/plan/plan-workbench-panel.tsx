@@ -1,34 +1,16 @@
 "use client";
 
-import type { EnvironmentId } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@multi/ui/menu";
-import {
-  IconCheckmark1,
-  IconArrowUp,
-  IconClipboard,
-  IconDotGrid1x3Horizontal,
-  IconFileDownload,
-  IconLoader,
-} from "central-icons";
-import { memo, useCallback, useState } from "react";
+import { IconCheckmark1, IconArrowUp, IconLoader } from "central-icons";
+import { memo } from "react";
 
-import { toastManager } from "~/app/toast";
 import ChatMarkdown from "~/components/chat/markdown/chat-markdown";
-import { readEnvironmentApi } from "~/environment-api";
-import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { cn } from "~/lib/utils";
-import {
-  buildProposedPlanMarkdownFilename,
-  downloadPlanAsTextFile,
-  normalizePlanMarkdownForExport,
-  proposedPlanTitle,
-  stripDisplayedPlanMarkdown,
-} from "~/proposed-plan";
+import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
-import { formatTimestamp } from "~/timestamp-format";
+import { formatTimestamp } from "~/lib/timestamp-format";
 import { WorkbenchChromeRow } from "../shell/workbench-chrome-row";
-import { WorkbenchIconButton, WorkbenchTextButton } from "../shell/workbench-icon-button";
+import { WorkbenchTextButton } from "../shell/workbench-icon-button";
 
 function stepStatusIcon(status: ActivePlanState["steps"][number]["status"]): React.ReactNode {
   if (status === "completed") {
@@ -56,76 +38,27 @@ export interface PlanWorkbenchPanelProps {
   activePlan: ActivePlanState | null;
   activeProposedPlan: LatestProposedPlanState | null;
   label: "Plan" | "Tasks";
-  environmentId: EnvironmentId;
   markdownCwd: string | undefined;
-  projectRoot: string | undefined;
   timestampFormat: TimestampFormat;
   canImplementPlan?: boolean | undefined;
   isImplementingPlan?: boolean | undefined;
   onImplementPlan?: (() => void) | undefined;
-  onImplementPlanInNewThread?: (() => void) | undefined;
 }
 
 export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
   activePlan,
   activeProposedPlan,
   label,
-  environmentId,
   markdownCwd,
-  projectRoot,
   timestampFormat,
   canImplementPlan = false,
   isImplementingPlan = false,
   onImplementPlan,
-  onImplementPlanInNewThread,
 }: PlanWorkbenchPanelProps) {
-  const [isSavingToProject, setIsSavingToProject] = useState(false);
-  const { copyToClipboard, isCopied } = useCopyToClipboard();
-
   const planMarkdown = activeProposedPlan?.planMarkdown ?? null;
   const displayedPlanMarkdown = planMarkdown ? stripDisplayedPlanMarkdown(planMarkdown) : null;
   const planTitle = planMarkdown ? proposedPlanTitle(planMarkdown) : null;
   const timestamp = activePlan?.createdAt ?? activeProposedPlan?.updatedAt ?? null;
-
-  const handleCopyPlan = useCallback(() => {
-    if (!planMarkdown) return;
-    copyToClipboard(planMarkdown);
-  }, [copyToClipboard, planMarkdown]);
-
-  const handleDownload = useCallback(() => {
-    if (!planMarkdown) return;
-    const filename = buildProposedPlanMarkdownFilename(planMarkdown);
-    downloadPlanAsTextFile(filename, normalizePlanMarkdownForExport(planMarkdown));
-  }, [planMarkdown]);
-
-  const handleSaveToProject = useCallback(() => {
-    const api = readEnvironmentApi(environmentId);
-    if (!api || !projectRoot || !planMarkdown) return;
-
-    const filename = buildProposedPlanMarkdownFilename(planMarkdown);
-    setIsSavingToProject(true);
-    void api.projects
-      .writeFile({
-        cwd: projectRoot,
-        relativePath: filename,
-        contents: normalizePlanMarkdownForExport(planMarkdown),
-      })
-      .then((result) => {
-        toastManager.add({
-          type: "success",
-          title: "Plan saved",
-          description: result.relativePath,
-        });
-      })
-      .catch((error) => {
-        toastManager.add({
-          type: "error",
-          title: "Could not save plan",
-          description: error instanceof Error ? error.message : "An error occurred.",
-        });
-      })
-      .finally(() => setIsSavingToProject(false));
-  }, [environmentId, planMarkdown, projectRoot]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -133,67 +66,21 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
         variant="panel"
         gap="relaxed"
         trailing={
-          planMarkdown ? (
+          planMarkdown && onImplementPlan ? (
             <div className="flex shrink-0 items-center gap-(--multi-workbench-chrome-action-gap)">
-              {onImplementPlan ? (
-                <WorkbenchTextButton
-                  onClick={onImplementPlan}
-                  title="Implement plan"
-                  tone="primary"
-                  disabled={!canImplementPlan || isImplementingPlan}
-                >
-                  {isImplementingPlan ? (
-                    <IconLoader className="size-3.5 shrink-0 animate-spin" aria-hidden />
-                  ) : (
-                    <IconArrowUp className="size-3.5 shrink-0" aria-hidden />
-                  )}
-                  <span>{isImplementingPlan ? "Starting" : "Implement"}</span>
-                </WorkbenchTextButton>
-              ) : null}
-              <WorkbenchTextButton onClick={handleCopyPlan} title="Copy plan markdown">
-                <IconClipboard className="size-3.5 shrink-0" aria-hidden />
-                <span>{isCopied ? "Copied" : "Copy"}</span>
-              </WorkbenchTextButton>
-              <WorkbenchIconButton
-                aria-label="Download plan markdown"
-                chrome="panel"
-                onClick={handleDownload}
+              <WorkbenchTextButton
+                onClick={onImplementPlan}
+                title="Build plan"
+                tone="primary"
+                disabled={!canImplementPlan || isImplementingPlan}
               >
-                <IconFileDownload className="size-3.5" aria-hidden />
-              </WorkbenchIconButton>
-              <Menu>
-                <MenuTrigger
-                  type="button"
-                  aria-label="Plan actions"
-                  className="no-drag ui-icon-button box-border flex h-(--multi-workbench-action-size) min-h-(--multi-workbench-action-size) min-w-(--multi-workbench-action-size) shrink-0 items-center justify-center rounded-multi-control border-0 bg-transparent px-(--multi-workbench-chrome-icon-padding-x) text-multi-icon-secondary shadow-none outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
-                >
-                  <IconDotGrid1x3Horizontal className="size-3.5" aria-hidden />
-                </MenuTrigger>
-                <MenuPopup align="end" variant="workbench">
-                  {onImplementPlanInNewThread ? (
-                    <MenuItem
-                      variant="workbench"
-                      onClick={onImplementPlanInNewThread}
-                      disabled={!canImplementPlan || isImplementingPlan}
-                    >
-                      Implement in a new thread
-                    </MenuItem>
-                  ) : null}
-                  <MenuItem variant="workbench" onClick={handleCopyPlan}>
-                    {isCopied ? "Copied" : "Copy to clipboard"}
-                  </MenuItem>
-                  <MenuItem variant="workbench" onClick={handleDownload}>
-                    Download as markdown
-                  </MenuItem>
-                  <MenuItem
-                    variant="workbench"
-                    onClick={handleSaveToProject}
-                    disabled={!projectRoot || isSavingToProject}
-                  >
-                    {isSavingToProject ? "Saving to project" : "Save to project"}
-                  </MenuItem>
-                </MenuPopup>
-              </Menu>
+                {isImplementingPlan ? (
+                  <IconLoader className="size-3.5 shrink-0 animate-spin" aria-hidden />
+                ) : (
+                  <IconArrowUp className="size-3.5 shrink-0" aria-hidden />
+                )}
+                <span>{isImplementingPlan ? "Building" : "Build"}</span>
+              </WorkbenchTextButton>
             </div>
           ) : null
         }

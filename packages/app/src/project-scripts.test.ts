@@ -7,10 +7,14 @@ import {
 
 import {
   commandForProjectScript,
+  decodeProjectScriptKeybindingRule,
+  keybindingValueForCommand,
   nextProjectScriptId,
   primaryProjectScript,
+  PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE,
   projectScriptIdFromCommand,
-} from "./project-scripts";
+} from "./lib/project-scripts";
+import { MAX_KEYBINDING_VALUE_LENGTH, type KeybindingCommand } from "@multi/contracts";
 
 describe("projectScripts helpers", () => {
   it("builds and parses script run commands", () => {
@@ -87,5 +91,74 @@ describe("projectScripts helpers", () => {
         worktreePath: null,
       }),
     ).toBe("/repo");
+  });
+
+  it("decodes and trims valid keybinding rules", () => {
+    const rule = decodeProjectScriptKeybindingRule({
+      keybinding: "  mod+k  ",
+      command: commandForProjectScript("lint"),
+    });
+
+    expect(rule).toEqual({
+      key: "mod+k",
+      command: "script.lint.run",
+    });
+  });
+
+  it("returns null when keybinding is empty", () => {
+    expect(
+      decodeProjectScriptKeybindingRule({
+        keybinding: "   ",
+        command: commandForProjectScript("lint"),
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects invalid project script keybindings", () => {
+    expect(() =>
+      decodeProjectScriptKeybindingRule({
+        keybinding: "k".repeat(MAX_KEYBINDING_VALUE_LENGTH + 1),
+        command: commandForProjectScript("lint"),
+      }),
+    ).toThrowError(PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE);
+    expect(() =>
+      decodeProjectScriptKeybindingRule({
+        keybinding: "mod+k",
+        command: "script.BAD.run" as KeybindingCommand,
+      }),
+    ).toThrowError(PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE);
+  });
+
+  it("reads latest matching keybinding value for a command", () => {
+    const command = commandForProjectScript("test");
+    const value = keybindingValueForCommand(
+      [
+        {
+          command,
+          shortcut: {
+            key: "escape",
+            metaKey: false,
+            ctrlKey: false,
+            shiftKey: false,
+            altKey: false,
+            modKey: true,
+          },
+        },
+        {
+          command,
+          shortcut: {
+            key: "k",
+            metaKey: false,
+            ctrlKey: false,
+            shiftKey: true,
+            altKey: false,
+            modKey: true,
+          },
+        },
+      ],
+      command,
+    );
+
+    expect(value).toBe("mod+shift+k");
   });
 });

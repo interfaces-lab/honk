@@ -14,7 +14,6 @@ import * as ElectronApp from "./electron/ElectronApp";
 import * as ElectronDialog from "./electron/ElectronDialog";
 import * as ElectronMenu from "./electron/ElectronMenu";
 import * as ElectronProtocol from "./electron/ElectronProtocol";
-import * as DesktopSecretStorage from "./electron/ElectronSafeStorage";
 import * as ElectronShell from "./electron/ElectronShell";
 import * as ElectronTheme from "./electron/ElectronTheme";
 import * as ElectronUpdater from "./electron/ElectronUpdater";
@@ -30,7 +29,6 @@ import * as DesktopLifecycle from "./app/DesktopLifecycle";
 import * as DesktopObservability from "./app/DesktopObservability";
 import * as DesktopServerExposure from "./backend/DesktopServerExposure";
 import * as DesktopClientSettings from "./settings/DesktopClientSettings";
-import * as DesktopSavedEnvironments from "./settings/DesktopSavedEnvironments";
 import * as DesktopAppSettings from "./settings/DesktopAppSettings";
 import * as DesktopShellEnvironment from "./shell/DesktopShellEnvironment";
 import * as DesktopState from "./app/DesktopState";
@@ -57,7 +55,6 @@ const electronLayer = Layer.mergeAll(
   ElectronDialog.layer,
   ElectronMenu.layer,
   ElectronProtocol.layer,
-  DesktopSecretStorage.layer,
   ElectronShell.layer,
   ElectronTheme.layer,
   ElectronUpdater.layer,
@@ -70,7 +67,6 @@ const desktopFoundationLayer = Layer.mergeAll(
   DesktopLifecycle.layerShutdown,
   DesktopAppSettings.layer,
   DesktopClientSettings.layer,
-  DesktopSavedEnvironments.layer,
   DesktopAssets.layer,
   DesktopObservability.layer,
 ).pipe(Layer.provideMerge(desktopEnvironmentLayer));

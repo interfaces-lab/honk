@@ -17,6 +17,7 @@ const ProjectLayer = ProjectFileSystemLive.pipe(
   Layer.provide(ProjectPathsLive),
   Layer.provide(ProjectEntriesLive.pipe(Layer.provide(ProjectPathsLive))),
 );
+const isProjectFileSystemError = Schema.is(ProjectFileSystemError);
 
 const TestLayer = Layer.empty.pipe(
   Layer.provideMerge(ProjectLayer),
@@ -110,7 +111,7 @@ it.layer(TestLayer)("ProjectFileSystemLive", (it) => {
           .pipe(Effect.flip);
 
         expect(error).toBeInstanceOf(ProjectFileSystemError);
-        if (!Schema.is(ProjectFileSystemError)(error)) {
+        if (!isProjectFileSystemError(error)) {
           return;
         }
         expect(error.detail).toContain("Project root does not exist:");
@@ -219,7 +220,7 @@ it.layer(TestLayer)("ProjectFileSystemLive", (it) => {
           .pipe(Effect.flip);
 
         expect(error).toBeInstanceOf(ProjectFileSystemError);
-        if (!Schema.is(ProjectFileSystemError)(error)) {
+        if (!isProjectFileSystemError(error)) {
           return;
         }
         expect(error.detail).toContain("Project root does not exist:");

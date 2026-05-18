@@ -1,8 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useComposerDraftStore } from "~/composer-draft-store";
-import { useStore } from "~/store";
-import { selectEnvironmentState } from "~/store";
+import { useComposerDraftStore } from "~/stores/chat-drafts";
+import { useStore } from "~/stores/thread-store";
+import { selectEnvironmentState } from "~/stores/thread-store";
 import { newDraftId, newThreadId } from "~/lib/utils";
 import { readLastChatRouteTarget } from "~/chat-route-persistence";
 import { buildDraftThreadRouteParams } from "~/thread-routes";

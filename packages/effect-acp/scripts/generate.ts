@@ -33,6 +33,16 @@ const UpstreamJsonSchemaSchema = Schema.Struct({
   $defs: Schema.Record(Schema.String, Schema.Json),
 });
 
+const encodeAgentMethods = Schema.encodeEffect(
+  Schema.fromJsonString(MetaJsonSchema.fields.agentMethods),
+);
+const encodeClientMethods = Schema.encodeEffect(
+  Schema.fromJsonString(MetaJsonSchema.fields.clientMethods),
+);
+const encodeProtocolVersion = Schema.encodeEffect(
+  Schema.fromJsonString(MetaJsonSchema.fields.version),
+);
+
 const getGeneratedPaths = Effect.fn("getGeneratedPaths")(function* () {
   const path = yield* Path.Path;
   const generatedDir = path.join(import.meta.dirname, "..", "src", "_generated");
@@ -240,11 +250,11 @@ const generateSchemas = Effect.fn("generateSchemas")(function* (skipDownload: bo
 
   const metaOutput = [
     ...prelude,
-    `export const AGENT_METHODS = ${yield* Schema.encodeEffect(Schema.fromJsonString(MetaJsonSchema.fields.agentMethods))(upstreamMeta.agentMethods)} as const;`,
+    `export const AGENT_METHODS = ${yield* encodeAgentMethods(upstreamMeta.agentMethods)} as const;`,
     "",
-    `export const CLIENT_METHODS = ${yield* Schema.encodeEffect(Schema.fromJsonString(MetaJsonSchema.fields.clientMethods))(upstreamMeta.clientMethods)} as const;`,
+    `export const CLIENT_METHODS = ${yield* encodeClientMethods(upstreamMeta.clientMethods)} as const;`,
     "",
-    `export const PROTOCOL_VERSION = ${yield* Schema.encodeEffect(Schema.fromJsonString(MetaJsonSchema.fields.version))(upstreamMeta.version)} as const;`,
+    `export const PROTOCOL_VERSION = ${yield* encodeProtocolVersion(upstreamMeta.version)} as const;`,
     "",
   ].join("\n");
 

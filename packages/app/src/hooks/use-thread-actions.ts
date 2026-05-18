@@ -10,7 +10,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useRef } from "react";
 
 import { getFallbackThreadIdAfterDelete } from "../lib/thread-sidebar";
-import { useComposerDraftStore } from "../composer-draft-store";
+import { useComposerDraftStore } from "../stores/chat-drafts";
 import { useNewThreadHandler } from "./use-handle-new-thread";
 import { ensureEnvironmentApi, readEnvironmentApi } from "../environment-api";
 import { invalidateGitQueries } from "../lib/git-react-query";
@@ -22,7 +22,7 @@ import {
   selectThreadByRef,
   selectThreadsForEnvironment,
   useStore,
-} from "../store";
+} from "../stores/thread-store";
 import { useTerminalStateStore } from "../terminal-state-store";
 import { buildThreadRouteParams, resolveThreadRouteTarget } from "../thread-routes";
 import {

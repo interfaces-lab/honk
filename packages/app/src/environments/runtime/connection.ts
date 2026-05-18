@@ -9,10 +9,8 @@ import type {
 import type { KnownEnvironment } from "@multi/client-runtime";
 
 import type { WsRpcClient } from "~/rpc/ws-rpc-client";
-import { traceBrowserEvent } from "~/observability/browserDebug";
 
 export interface EnvironmentConnection {
-  readonly kind: "primary" | "saved";
   readonly environmentId: EnvironmentId;
   readonly knownEnvironment: KnownEnvironment;
   readonly client: WsRpcClient;
@@ -34,7 +32,6 @@ interface OrchestrationHandlers {
 }
 
 interface EnvironmentConnectionInput extends OrchestrationHandlers {
-  readonly kind: "primary" | "saved";
   readonly knownEnvironment: KnownEnvironment;
   readonly client: WsRpcClient;
   readonly refreshMetadata?: () => Promise<void>;
@@ -84,11 +81,6 @@ export function createEnvironmentConnection(
 
   let disposed = false;
   const bootstrapGate = createBootstrapGate();
-  traceBrowserEvent("environment.connection.create", {
-    kind: input.kind,
-    environmentId,
-    label: input.knownEnvironment.label,
-  });
 
   const observeEnvironmentIdentity = (nextEnvironmentId: EnvironmentId, source: string) => {
     if (environmentId !== nextEnvironmentId) {
@@ -103,10 +95,6 @@ export function createEnvironmentConnection(
       if (event.type !== "welcome") {
         return;
       }
-      traceBrowserEvent("environment.lifecycle.welcome", {
-        environmentId,
-        payloadEnvironmentId: event.payload.environment.environmentId,
-      });
       observeEnvironmentIdentity(
         event.payload.environment.environmentId,
         "server lifecycle welcome",
@@ -120,10 +108,6 @@ export function createEnvironmentConnection(
       if (event.type !== "snapshot") {
         return;
       }
-      traceBrowserEvent("environment.config.snapshot", {
-        environmentId,
-        payloadEnvironmentId: event.config.environment.environmentId,
-      });
       observeEnvironmentIdentity(event.config.environment.environmentId, "server config snapshot");
       input.onConfigSnapshot?.(event.config);
     },
@@ -132,21 +116,10 @@ export function createEnvironmentConnection(
   const unsubShell = input.client.orchestration.subscribeShell(
     (item: Parameters<Parameters<WsRpcClient["orchestration"]["subscribeShell"]>[0]>[0]) => {
       if (item.kind === "snapshot") {
-        traceBrowserEvent("environment.shell.snapshot", {
-          environmentId,
-          projects: item.snapshot.projects.length,
-          threads: item.snapshot.threads.length,
-          sequence: item.snapshot.snapshotSequence,
-        });
         input.syncShellSnapshot(item.snapshot, environmentId);
         bootstrapGate.resolve();
         return;
       }
-      traceBrowserEvent("environment.shell.event", {
-        environmentId,
-        kind: item.kind,
-        sequence: item.sequence,
-      });
       input.applyShellEvent(item, environmentId);
     },
     {
@@ -154,7 +127,6 @@ export function createEnvironmentConnection(
         if (disposed) {
           return;
         }
-        traceBrowserEvent("environment.shell.resubscribe", { environmentId }, "warn");
         bootstrapGate.reset();
       },
     },
@@ -168,7 +140,6 @@ export function createEnvironmentConnection(
 
   const cleanup = () => {
     disposed = true;
-    traceBrowserEvent("environment.connection.dispose", { environmentId });
     unsubShell();
     unsubTerminalEvent();
     unsubLifecycle();
@@ -176,7 +147,6 @@ export function createEnvironmentConnection(
   };
 
   return {
-    kind: input.kind,
     environmentId,
     knownEnvironment: input.knownEnvironment,
     client: input.client,
@@ -184,18 +154,11 @@ export function createEnvironmentConnection(
     reconnect: async () => {
       bootstrapGate.reset();
       try {
-        traceBrowserEvent("environment.connection.reconnect.start", { environmentId });
         await input.client.reconnect();
         await input.refreshMetadata?.();
         await bootstrapGate.wait();
-        traceBrowserEvent("environment.connection.reconnect.done", { environmentId });
       } catch (error) {
         bootstrapGate.reject(error);
-        traceBrowserEvent(
-          "environment.connection.reconnect.failed",
-          { environmentId, error },
-          "error",
-        );
         throw error;
       }
     },

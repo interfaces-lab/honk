@@ -60,6 +60,9 @@ type FixtureProviderRuntimeEvent = {
   readonly [key: string]: unknown;
 };
 
+const unsupportedProviderCall = <A>() =>
+  Effect.die(new Error("Unsupported provider call in test")) as Effect.Effect<A, never>;
+
 function createProviderServiceHarness(
   cwd: string,
   hasSession = true,
@@ -72,8 +75,6 @@ function createProviderServiceHarness(
     (_input: { readonly threadId: ThreadId; readonly numTurns: number }) => Effect.void,
   );
 
-  const unsupported = <A>() =>
-    Effect.die(new Error("Unsupported provider call in test")) as Effect.Effect<A, never>;
   const listSessions = () =>
     hasSession
       ? Effect.succeed([
@@ -90,12 +91,12 @@ function createProviderServiceHarness(
         ] satisfies ReadonlyArray<ProviderSession>)
       : Effect.succeed([] as ReadonlyArray<ProviderSession>);
   const service: ProviderServiceShape = {
-    startSession: () => unsupported(),
-    sendTurn: () => unsupported(),
-    interruptTurn: () => unsupported(),
-    respondToRequest: () => unsupported(),
-    respondToUserInput: () => unsupported(),
-    stopSession: () => unsupported(),
+    startSession: () => unsupportedProviderCall(),
+    sendTurn: () => unsupportedProviderCall(),
+    interruptTurn: () => unsupportedProviderCall(),
+    respondToRequest: () => unsupportedProviderCall(),
+    respondToUserInput: () => unsupportedProviderCall(),
+    stopSession: () => unsupportedProviderCall(),
     listSessions,
     getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
     rollbackConversation,

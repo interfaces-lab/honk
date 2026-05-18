@@ -7,7 +7,6 @@ import {
 } from "../../../pending-user-input";
 import { IconCheckmark1 } from "central-icons";
 import { cn } from "~/lib/utils";
-import { traceBrowserEvent } from "~/observability/browserDebug";
 
 interface PendingUserInputPanelProps {
   pendingUserInputs: PendingUserInput[];
@@ -68,7 +67,6 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
       advanceAfterSelect,
     };
     console.info("[pending-user-input] option selected", details);
-    traceBrowserEvent("pending-user-input.option.selected", details);
     onToggleOption(questionId, optionLabel, advanceAfterSelect);
   };
 

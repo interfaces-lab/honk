@@ -17,7 +17,7 @@ import {
 
 import { useSettings, useUpdateSettings } from "../../hooks/use-settings";
 import { cn } from "../../lib/utils";
-import { normalizeProviderAccentColor } from "../../provider-instances";
+import { normalizeProviderAccentColor } from "../../model/provider-instances";
 import { Button } from "@multi/ui/button";
 import {
   Dialog,

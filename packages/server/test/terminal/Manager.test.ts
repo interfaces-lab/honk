@@ -142,6 +142,20 @@ const waitFor = <E, R>(
     ),
   );
 
+const makeDirectory = (filePath: string) =>
+  Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) =>
+    fs.makeDirectory(filePath, { recursive: true }),
+  );
+
+const chmod = (filePath: string, mode: number) =>
+  Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) => fs.chmod(filePath, mode));
+
+const pathExists = (filePath: string) =>
+  Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) => fs.exists(filePath));
+
+const readFileString = (filePath: string) =>
+  Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) => fs.readFileString(filePath));
+
 function openInput(overrides: Partial<TerminalOpenInput> = {}): TerminalOpenInput {
   return {
     threadId: "thread-1",
@@ -277,25 +291,6 @@ it.layer(NodeServices.layer, { excludeTestServices: true })("TerminalManager", (
       expect(ptyAdapter.spawnInputs).toHaveLength(1);
     }),
   );
-
-  const makeDirectory = (filePath: string) =>
-    Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) =>
-      fs.makeDirectory(filePath, { recursive: true }),
-    );
-
-  const chmod = (filePath: string, mode: number) =>
-    Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) => fs.chmod(filePath, mode));
-
-  const pathExists = (filePath: string) =>
-    Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) => fs.exists(filePath));
-
-  const readFileString = (filePath: string) =>
-    Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) => fs.readFileString(filePath));
-
-  const writeFileString = (filePath: string, contents: string) =>
-    Effect.flatMap(Effect.service(FileSystem.FileSystem), (fs) =>
-      fs.writeFileString(filePath, contents),
-    );
 
   it.effect("preserves non-notFound cwd stat failures", () =>
     Effect.gen(function* () {

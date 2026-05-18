@@ -1,30 +1,40 @@
-import type { ContextMenuItem, LocalApi } from "@multi/contracts";
+import {
+  ClientSettingsSchema,
+  type ClientSettings,
+  type ContextMenuItem,
+  type LocalApi,
+} from "@multi/contracts";
 
 import { resetGitStatusStateForTests } from "./lib/git-status-state";
 import { resetRequestLatencyStateForTests } from "./rpc/request-latency-state";
 import { resetServerStateForTests } from "./rpc/server-state";
 import { resetWsConnectionStateForTests } from "./rpc/ws-connection-state";
 import {
-  resetSavedEnvironmentRegistryStoreForTests,
-  resetSavedEnvironmentRuntimeStoreForTests,
-} from "./environments/runtime";
-import {
   getPrimaryEnvironmentConnection,
   resetEnvironmentServiceForTests,
 } from "./environments/runtime";
 import { type WsRpcClient } from "./rpc/ws-rpc-client";
 import { showContextMenuFallback } from "./context-menu-fallback";
-import {
-  readBrowserClientSettings,
-  readBrowserSavedEnvironmentRegistry,
-  readBrowserSavedEnvironmentSecret,
-  removeBrowserSavedEnvironmentSecret,
-  writeBrowserClientSettings,
-  writeBrowserSavedEnvironmentRegistry,
-  writeBrowserSavedEnvironmentSecret,
-} from "./client-persistence-storage";
+import { getLocalStorageItem, setLocalStorageItem } from "./hooks/use-local-storage";
 
 let cachedApi: LocalApi | undefined;
+const CLIENT_SETTINGS_STORAGE_KEY = "multi:client-settings:v1";
+
+function readBrowserClientSettings(): ClientSettings | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return getLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, ClientSettingsSchema);
+}
+
+function writeBrowserClientSettings(settings: ClientSettings): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  setLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, settings, ClientSettingsSchema);
+}
 
 export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
   return {
@@ -78,36 +88,6 @@ export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
         }
         writeBrowserClientSettings(settings);
       },
-      getSavedEnvironmentRegistry: async () => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.getSavedEnvironmentRegistry();
-        }
-        return readBrowserSavedEnvironmentRegistry();
-      },
-      setSavedEnvironmentRegistry: async (records) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.setSavedEnvironmentRegistry(records);
-        }
-        writeBrowserSavedEnvironmentRegistry(records);
-      },
-      getSavedEnvironmentSecret: async (environmentId) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.getSavedEnvironmentSecret(environmentId);
-        }
-        return readBrowserSavedEnvironmentSecret(environmentId);
-      },
-      setSavedEnvironmentSecret: async (environmentId, secret) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.setSavedEnvironmentSecret(environmentId, secret);
-        }
-        return writeBrowserSavedEnvironmentSecret(environmentId, secret);
-      },
-      removeSavedEnvironmentSecret: async (environmentId) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.removeSavedEnvironmentSecret(environmentId);
-        }
-        removeBrowserSavedEnvironmentSecret(environmentId);
-      },
     },
     server: {
       getConfig: rpcClient.server.getConfig,
@@ -142,13 +122,9 @@ export function ensureLocalApi(): LocalApi {
 
 export async function __resetLocalApiForTests() {
   cachedApi = undefined;
-  const { __resetClientSettingsPersistenceForTests } = await import("./hooks/use-settings");
-  __resetClientSettingsPersistenceForTests();
   await resetEnvironmentServiceForTests();
   resetGitStatusStateForTests();
   resetRequestLatencyStateForTests();
-  resetSavedEnvironmentRegistryStoreForTests();
-  resetSavedEnvironmentRuntimeStoreForTests();
   resetServerStateForTests();
   resetWsConnectionStateForTests();
 }

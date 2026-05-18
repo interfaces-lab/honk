@@ -20,13 +20,14 @@ import { setupWorker } from "msw/browser";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
-import { useComposerDraftStore } from "../composer-draft-store";
+import { useComposerDraftStore } from "../stores/chat-drafts";
+import { __resetClientSettingsPersistenceForTests } from "../hooks/use-settings";
 import { __resetLocalApiForTests } from "../local-api";
 import { AppAtomRegistryProvider } from "../rpc/atom-registry";
 import { getServerConfig, getServerConfigUpdatedNotification } from "../rpc/server-state";
 import { getWsConnectionStatus } from "../rpc/ws-connection-state";
 import { getRouter } from "../router";
-import { useStore } from "../store";
+import { useStore } from "../stores/thread-store";
 import { createAuthenticatedSessionHandlers } from "../../test/authHttpHandlers";
 import { BrowserWsRpcHarness } from "../../test/wsRpcHarness";
 
@@ -508,6 +509,7 @@ describe("Keybindings update toast", () => {
       },
     });
     await __resetLocalApiForTests();
+    __resetClientSettingsPersistenceForTests();
     localStorage.clear();
     document.body.innerHTML = "";
     useComposerDraftStore.setState({

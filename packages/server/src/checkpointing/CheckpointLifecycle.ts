@@ -63,6 +63,17 @@ function toTurnId(value: string | undefined): TurnId | null {
   return value === undefined ? null : TurnId.make(String(value));
 }
 
+function sessionRuntimeWithCwd(
+  session: { readonly threadId: ThreadId; readonly cwd?: string | null | undefined } | undefined,
+): Option.Option<{ readonly threadId: ThreadId; readonly cwd: string }> {
+  if (!session?.cwd) {
+    return Option.none();
+  }
+  return Option.some({ threadId: session.threadId, cwd: session.cwd });
+}
+
+const isGitProject = (cwd: string) => isGitRepository(cwd);
+
 const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
@@ -129,18 +140,9 @@ const make = Effect.gen(function* () {
 
     const sessions = yield* providerService.listSessions();
 
-    const findSessionWithCwd = (
-      session: (typeof sessions)[number] | undefined,
-    ): Option.Option<{ readonly threadId: ThreadId; readonly cwd: string }> => {
-      if (!session?.cwd) {
-        return Option.none();
-      }
-      return Option.some({ threadId: session.threadId, cwd: session.cwd });
-    };
-
     if (thread) {
       const threadSession = sessions.find((session) => session.threadId === thread.id);
-      const fromThread = findSessionWithCwd(threadSession);
+      const fromThread = sessionRuntimeWithCwd(threadSession);
       if (Option.isSome(fromThread)) {
         return fromThread;
       }
@@ -148,8 +150,6 @@ const make = Effect.gen(function* () {
 
     return Option.none();
   });
-
-  const isGitProject = (cwd: string) => isGitRepository(cwd);
 
   // Resolves the project CWD for checkpoint operations, preferring the
   // active provider session CWD and falling back to the thread/project config.

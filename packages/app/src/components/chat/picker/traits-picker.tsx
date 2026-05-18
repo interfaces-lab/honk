@@ -27,8 +27,8 @@ import {
   MenuSeparator as MenuDivider,
   MenuTrigger,
 } from "@multi/ui/menu";
-import { useComposerDraftStore, DraftId } from "../../../composer-draft-store";
-import { getProviderModelCapabilities } from "../../../provider-models";
+import { useComposerDraftStore, DraftId } from "../../../stores/chat-drafts";
+import { getProviderModelCapabilities } from "../../../model/provider-models";
 import { cn } from "~/lib/utils";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;

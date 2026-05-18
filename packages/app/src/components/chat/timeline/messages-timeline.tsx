@@ -23,7 +23,6 @@ import { Spinner } from "@multi/ui/spinner";
 import { deriveTimelineEntries } from "../../../session-logic";
 import { type ChatMessage, type TurnDiffSummary } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
-import { ProposedPlanCard } from "../message/proposed-plan-card";
 import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
@@ -486,7 +485,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           data-chat-timeline-scroll=""
           className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
         >
-          <div className="mx-auto box-border w-full max-w-composer" style={virtualContentStyle}>
+          <div className="mx-auto box-border w-full max-w-agent-chat" style={virtualContentStyle}>
             {virtualItems.map((virtualRow) => {
               const row = rows[virtualRow.index];
               if (!row) {
@@ -502,9 +501,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   data-index={virtualRow.index}
                   data-sticky={isActiveStickyUserRow ? "true" : undefined}
                   className={cn(
-                    "w-full px-(--composer-messages-padding-inline) pb-(--chat-timeline-row-gap)",
+                    "w-full px-4 pb-(--chat-timeline-row-gap)",
                     isActiveStickyUserRow &&
-                      "isolate bg-[color-mix(in_srgb,var(--multi-composer-overlay-bg)_72%,transparent)]",
+                      "isolate bg-[color-mix(in_srgb,var(--multi-color-editor)_72%,transparent)]",
                   )}
                   style={virtualRowStyle(virtualRow, isActiveStickyUserRow)}
                 >
@@ -694,17 +693,6 @@ function TimelineRowBody({
         </div>
       )}
 
-      {row.kind === "proposed-plan" && (
-        <div className="min-w-0 px-1 py-0.5">
-          <ProposedPlanCard
-            planMarkdown={row.proposedPlan.planMarkdown}
-            environmentId={ctx.activeThreadEnvironmentId}
-            cwd={ctx.markdownCwd}
-            projectRoot={ctx.projectRoot}
-          />
-        </div>
-      )}
-
       {row.kind === "working" && (
         <div className="flex w-full min-w-0 opacity-75">
           <WorkingStatusRow />
@@ -828,7 +816,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   return (
     <div className="min-w-0 max-w-full flex-1">
       <div className="w-full min-w-0">
-        <div className="flex w-fit max-w-composer flex-col gap-1.5">
+        <div className="flex w-fit max-w-agent-chat flex-col gap-1.5">
           {groupedEntries.map((workEntry) => (
             <ToolCallMessage
               key={`work-row:${workEntry.id}`}

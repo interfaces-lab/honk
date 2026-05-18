@@ -19,8 +19,8 @@ import {
   shortcutLabelForCommand,
 } from "../../../keybindings";
 import { useSettings, useUpdateSettings } from "~/hooks/use-settings";
-import type { ProviderInstanceEntry } from "../../../provider-instances";
-import { providerModelKey, sortProviderModelItems } from "../../../model-ordering";
+import type { ProviderInstanceEntry } from "../../../model/provider-instances";
+import { providerModelKey, sortProviderModelItems } from "../../../model/ordering";
 
 type ModelPickerItem = {
   slug: string;
@@ -422,7 +422,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   );
 
   return (
-    <div className="relative flex max-h-[250px] min-h-0 min-w-[255px] w-[297px] max-w-[min(297px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px]">
+    <div className="relative flex max-h-64 min-h-0 w-72 max-w-full min-w-64 flex-col overflow-hidden rounded-lg border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px]">
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 w-12 shrink-0 flex-col">
           {sidebarVisible ? (

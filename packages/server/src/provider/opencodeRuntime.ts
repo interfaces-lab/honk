@@ -52,6 +52,20 @@ export interface OpenCodeServerConnection {
   readonly external: boolean;
 }
 
+const createOpenCodeSdkClient: OpenCodeRuntimeShape["createOpenCodeSdkClient"] = (input) =>
+  createOpencodeClient({
+    baseUrl: input.baseUrl,
+    directory: input.directory,
+    ...(input.serverPassword
+      ? {
+          headers: {
+            Authorization: `Basic ${Buffer.from(`opencode:${input.serverPassword}`, "utf8").toString("base64")}`,
+          },
+        }
+      : {}),
+    throwOnError: true,
+  });
+
 const OPENCODE_RUNTIME_ERROR_TAG = "OpenCodeRuntimeError";
 export class OpenCodeRuntimeError extends Data.TaggedError(OPENCODE_RUNTIME_ERROR_TAG)<{
   readonly operation: string;
@@ -532,20 +546,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       })),
     );
   };
-
-  const createOpenCodeSdkClient: OpenCodeRuntimeShape["createOpenCodeSdkClient"] = (input) =>
-    createOpencodeClient({
-      baseUrl: input.baseUrl,
-      directory: input.directory,
-      ...(input.serverPassword
-        ? {
-            headers: {
-              Authorization: `Basic ${Buffer.from(`opencode:${input.serverPassword}`, "utf8").toString("base64")}`,
-            },
-          }
-        : {}),
-      throwOnError: true,
-    });
 
   const loadProviders = (client: OpencodeClient) =>
     runOpenCodeSdk("provider.list", () => client.provider.list()).pipe(

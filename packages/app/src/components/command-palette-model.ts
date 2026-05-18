@@ -2,7 +2,7 @@ import { type KeybindingCommand } from "@multi/contracts";
 import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
 import { type ReactNode } from "react";
 import { sortThreads } from "../lib/thread-sort";
-import { formatRelativeTimeLabel } from "../timestamp-format";
+import { formatRelativeTimeLabel } from "../lib/timestamp-format";
 import { type Project, type SidebarThreadSummary, type Thread } from "../types";
 
 export const RECENT_THREAD_LIMIT = 12;

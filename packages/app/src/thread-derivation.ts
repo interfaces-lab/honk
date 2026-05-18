@@ -1,5 +1,5 @@
 import type { MessageId, ThreadId, TurnId } from "@multi/contracts";
-import type { EnvironmentState } from "./store";
+import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,
   ProposedPlan,

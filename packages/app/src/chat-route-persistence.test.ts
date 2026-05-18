@@ -7,7 +7,7 @@ import {
   readLastChatRouteTarget,
   writeLastChatRouteTarget,
 } from "./chat-route-persistence";
-import type { DraftId } from "./composer-draft-store";
+import type { DraftId } from "./stores/chat-drafts";
 
 function createStorage(): Storage {
   const values = new Map<string, string>();

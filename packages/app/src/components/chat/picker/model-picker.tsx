@@ -10,7 +10,7 @@ import { ModelPickerContent } from "./model-content";
 import { ProviderInstanceIcon } from "./instance-icon";
 import { ModelEsque, getTriggerDisplayModelLabel, getTriggerDisplayModelName } from "./icon-utils";
 import { setModelPickerOpen } from "../../../stores/ui/model-picker-open-state";
-import type { ProviderInstanceEntry } from "../../../provider-instances";
+import type { ProviderInstanceEntry } from "../../../model/provider-instances";
 
 type ModelPickerPopoverPlacement =
   | "top"

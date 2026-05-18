@@ -2,14 +2,13 @@ import { useMemo, useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { DEFAULT_PROJECTLESS_CWD } from "@multi/contracts";
 
-import { SHELL_LAYOUT_CHANGED_EVENT } from "../lib/shell-runtime-constants";
-import { readStoredProjectCwd } from "../lib/project-state";
+import { readStoredProjectCwd, SHELL_LAYOUT_CHANGED_EVENT } from "../lib/project-state";
 import { useServerAvailableEditors } from "../rpc/server-state";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
   useStore,
-} from "../store";
+} from "../stores/thread-store";
 import { useRouteThreadId } from "./use-route-thread-id";
 
 function basename(cwd: string | null) {

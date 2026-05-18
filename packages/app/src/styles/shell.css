@@ -21,7 +21,6 @@
   --multi-workbench-toggle-right: var(--multi-workbench-toggle-right-user, 12px);
   --multi-workbench-changes-toggle-w: var(--multi-workbench-changes-toggle-w-user, 7rem);
   --multi-workbench-chrome-row-height: 35px;
-  --multi-workbench-sub-chrome-row-height: 26px;
   --multi-workbench-panel-title-row-height: 29px;
   --multi-workbench-chrome-padding-inline: 8px;
   --multi-workbench-sub-chrome-padding-inline: 6px;
@@ -29,7 +28,7 @@
   --multi-workbench-sub-chrome-action-gap: 2px;
   --multi-workbench-chrome-icon-padding-x: 3px;
   --multi-workbench-action-size: 22px;
-  --composer-tab-label-max-width: 200px;
+  --multi-workbench-tab-label-max-width: 200px;
 }
 
 [data-electron] {
@@ -73,11 +72,6 @@ body {
     --multi-shell-sidebar-content-top-offset,
     var(--multi-electron-traffic-padding-top)
   );
-}
-
-.traffic-lights-spacer {
-  flex-shrink: 0;
-  width: var(--multi-traffic-lights-spacer-width, var(--multi-electron-traffic-inset));
 }
 
 .agent-window {
@@ -164,10 +158,6 @@ body {
   height: var(--multi-shell-titlebar-control-size);
 }
 
-.editor-panel-inner {
-  min-height: 0;
-}
-
 /* Composite pane title band — full-width under the 35px tool island. */
 .agent-window .multi-workbench-panel-title-row {
   display: flex;
@@ -225,27 +215,6 @@ body {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-}
-
-/* Secondary pane rails / preview strips — quieter than primary 35px tool island */
-.agent-window .multi-workbench-sub-chrome {
-  display: flex;
-  align-items: center;
-  min-height: var(--multi-workbench-sub-chrome-row-height);
-  max-height: var(--multi-workbench-sub-chrome-row-height);
-  flex-shrink: 0;
-  gap: var(--multi-workbench-sub-chrome-action-gap);
-  padding-inline: var(--multi-workbench-sub-chrome-padding-inline);
-  border-bottom: 1px solid var(--multi-workbench-panel-border-faint);
-  background-color: var(--multi-workbench-panel-title-background);
-}
-
-.agent-window .multi-workbench-sub-chrome-label {
-  color: color-mix(in srgb, var(--foreground) 76%, transparent);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 14px;
-  letter-spacing: 0.015em;
 }
 
 .agent-window

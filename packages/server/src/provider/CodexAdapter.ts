@@ -56,6 +56,14 @@ import {
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
 const PROVIDER = ProviderDriverKind.make("codex");
+const isCodexAppServerProcessExitedError = Schema.is(
+  CodexErrors.CodexAppServerProcessExitedError,
+);
+const isCodexAppServerTransportError = Schema.is(CodexErrors.CodexAppServerTransportError);
+const isCodexSessionRuntimeThreadIdMissingError = Schema.is(
+  CodexSessionRuntimeThreadIdMissingError,
+);
+const isCodexResumeCursor = Schema.is(CodexResumeCursorSchema);
 
 export interface CodexAdapterLiveOptions {
   readonly makeRuntime?: (
@@ -83,8 +91,8 @@ function mapCodexRuntimeError(
   error: CodexSessionRuntimeError,
 ): ProviderAdapterError {
   if (
-    Schema.is(CodexErrors.CodexAppServerProcessExitedError)(error) ||
-    Schema.is(CodexErrors.CodexAppServerTransportError)(error)
+    isCodexAppServerProcessExitedError(error) ||
+    isCodexAppServerTransportError(error)
   ) {
     return new ProviderAdapterSessionClosedError({
       provider: PROVIDER,
@@ -93,7 +101,7 @@ function mapCodexRuntimeError(
     });
   }
 
-  if (Schema.is(CodexSessionRuntimeThreadIdMissingError)(error)) {
+  if (isCodexSessionRuntimeThreadIdMissingError(error)) {
     return new ProviderAdapterSessionNotFoundError({
       provider: PROVIDER,
       threadId,
@@ -1392,7 +1400,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           cwd: input.cwd ?? serverConfig.cwd,
           binaryPath: codexSettings.binaryPath,
           ...(codexSettings.homePath ? { homePath: codexSettings.homePath } : {}),
-          ...(Schema.is(CodexResumeCursorSchema)(input.resumeCursor)
+          ...(isCodexResumeCursor(input.resumeCursor)
             ? { resumeCursor: input.resumeCursor }
             : {}),
           runtimeMode: input.runtimeMode,

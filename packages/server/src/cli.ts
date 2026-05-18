@@ -807,7 +807,7 @@ const subjectFlag = Flag.string("subject").pipe(
 );
 
 const baseUrlFlag = Flag.string("base-url").pipe(
-  Flag.withDescription("Optional public base URL used to print a ready `/pair#token=...` link."),
+  Flag.withDescription("Optional public base URL used to print a ready `/#token=...` link."),
   Flag.optional,
 );
 
@@ -1173,9 +1173,7 @@ const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe
 );
 
 const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe(
-  Command.withDescription(
-    "Run the Multi server without opening a browser and print headless pairing details.",
-  ),
+  Command.withDescription("Run the Multi server without opening a browser and print auth details."),
   Command.withHandler((flags) =>
     runServerCommand(flags, {
       startupPresentation: "headless",

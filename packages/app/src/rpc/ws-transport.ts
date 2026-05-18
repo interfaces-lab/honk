@@ -3,7 +3,6 @@ import {
   Duration,
   Effect,
   Exit,
-  Layer,
   ManagedRuntime,
   Option,
   Scope,
@@ -11,7 +10,6 @@ import {
 } from "effect";
 import { RpcClient } from "effect/unstable/rpc";
 
-import { ClientTracingLive } from "../observability/clientTracing";
 import { clearAllTrackedRpcRequests } from "./request-latency-state";
 import {
   createWsRpcProtocolLayer,
@@ -221,13 +219,10 @@ export class WsTransport {
     this.nextSessionId = sessionId;
     this.activeSessionId = sessionId;
     const runtime = ManagedRuntime.make(
-      Layer.mergeAll(
-        createWsRpcProtocolLayer(this.url, {
-          ...this.lifecycleHandlers,
-          isActive: () => !this.disposed && this.activeSessionId === sessionId,
-        }),
-        ClientTracingLive,
-      ),
+      createWsRpcProtocolLayer(this.url, {
+        ...this.lifecycleHandlers,
+        isActive: () => !this.disposed && this.activeSessionId === sessionId,
+      }),
     );
     const clientScope = runtime.runSync(Scope.make());
     return {

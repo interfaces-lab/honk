@@ -12,10 +12,6 @@
       "types": "./src/alert-dialog.tsx",
       "import": "./src/alert-dialog.tsx"
     },
-    "./autocomplete": {
-      "types": "./src/autocomplete.tsx",
-      "import": "./src/autocomplete.tsx"
-    },
     "./badge": {
       "types": "./src/badge.tsx",
       "import": "./src/badge.tsx"
@@ -23,14 +19,6 @@
     "./button": {
       "types": "./src/button.tsx",
       "import": "./src/button.tsx"
-    },
-    "./card": {
-      "types": "./src/card.tsx",
-      "import": "./src/card.tsx"
-    },
-    "./checkbox": {
-      "types": "./src/checkbox.tsx",
-      "import": "./src/checkbox.tsx"
     },
     "./collapsible": {
       "types": "./src/collapsible.tsx",
@@ -56,18 +44,6 @@
       "types": "./src/empty.tsx",
       "import": "./src/empty.tsx"
     },
-    "./field": {
-      "types": "./src/field.tsx",
-      "import": "./src/field.tsx"
-    },
-    "./fieldset": {
-      "types": "./src/fieldset.tsx",
-      "import": "./src/fieldset.tsx"
-    },
-    "./form": {
-      "types": "./src/form.tsx",
-      "import": "./src/form.tsx"
-    },
     "./group": {
       "types": "./src/group.tsx",
       "import": "./src/group.tsx"
@@ -75,10 +51,6 @@
     "./input": {
       "types": "./src/input.tsx",
       "import": "./src/input.tsx"
-    },
-    "./input-group": {
-      "types": "./src/input-group.tsx",
-      "import": "./src/input-group.tsx"
     },
     "./kbd": {
       "types": "./src/kbd.tsx",
@@ -88,25 +60,13 @@
       "types": "./src/label.tsx",
       "import": "./src/label.tsx"
     },
-    "./list": {
-      "types": "./src/list.tsx",
-      "import": "./src/list.tsx"
-    },
     "./menu": {
       "types": "./src/menu.tsx",
       "import": "./src/menu.tsx"
     },
-    "./pill": {
-      "types": "./src/pill.tsx",
-      "import": "./src/pill.tsx"
-    },
     "./popover": {
       "types": "./src/popover.tsx",
       "import": "./src/popover.tsx"
-    },
-    "./qr-code": {
-      "types": "./src/qr-code.tsx",
-      "import": "./src/qr-code.tsx"
     },
     "./radio-group": {
       "types": "./src/radio-group.tsx",
@@ -123,14 +83,6 @@
     "./separator": {
       "types": "./src/separator.tsx",
       "import": "./src/separator.tsx"
-    },
-    "./sheet": {
-      "types": "./src/sheet.tsx",
-      "import": "./src/sheet.tsx"
-    },
-    "./sidebar": {
-      "types": "./src/sidebar.tsx",
-      "import": "./src/sidebar.tsx"
     },
     "./skeleton": {
       "types": "./src/skeleton.tsx",
@@ -160,10 +112,6 @@
       "types": "./src/textarea.tsx",
       "import": "./src/textarea.tsx"
     },
-    "./toggle": {
-      "types": "./src/toggle.tsx",
-      "import": "./src/toggle.tsx"
-    },
     "./toggle-group": {
       "types": "./src/toggle-group.tsx",
       "import": "./src/toggle-group.tsx"
@@ -179,7 +127,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
-    "@multi/shared": "workspace:*",
     "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.237",
     "class-variance-authority": "^0.7.1",
     "react": "^19.2.6",

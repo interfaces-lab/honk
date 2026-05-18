@@ -316,7 +316,7 @@ export const makeServerAuth = Effect.gen(function* () {
     issuePairingCredential({ role: "owner" }).pipe(
       Effect.map((issued) => {
         const url = new URL(baseUrl);
-        url.pathname = "/pair";
+        url.pathname = "/";
         url.searchParams.delete("token");
         url.hash = new URLSearchParams([["token", issued.credential]]).toString();
         return url.toString();
