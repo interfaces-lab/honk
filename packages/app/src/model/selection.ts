@@ -1,6 +1,4 @@
 import {
-  DEFAULT_GIT_TEXT_GENERATION_MODEL,
-  DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
   type ModelSelection,
   ProviderDriverKind,
@@ -45,11 +43,14 @@ function readInstanceCustomModels(
   if (instanceId !== defaultInstanceId) {
     return [];
   }
-  const defaultProviderConfigs = settings.providers as Record<
-    string,
-    { readonly customModels: ReadonlyArray<string> } | undefined
-  >;
-  return defaultProviderConfigs[driverKind]?.customModels ?? [];
+  const providerConfig = (settings.providers as unknown as Record<string, unknown>)[driverKind];
+  if (providerConfig !== null && typeof providerConfig === "object") {
+    const value = (providerConfig as Record<string, unknown>).customModels;
+    if (Array.isArray(value)) {
+      return value.filter((entry): entry is string => typeof entry === "string");
+    }
+  }
+  return [];
 }
 
 export interface AppModelOption {
@@ -185,13 +186,12 @@ function applyInstanceModelPreferences(
 function normalizeCustomModelSlugs(
   models: Iterable<string | null | undefined>,
   builtInModelSlugs: ReadonlySet<string>,
-  provider: ProviderDriverKind = ProviderDriverKind.make("codex"),
 ): string[] {
   const normalizedModels: string[] = [];
   const seen = new Set<string>();
 
   for (const candidate of models) {
-    const normalized = normalizeModelSlug(candidate, provider);
+    const normalized = normalizeModelSlug(candidate);
     if (
       !normalized ||
       normalized.length > MAX_CUSTOM_MODEL_LENGTH ||
@@ -222,7 +222,7 @@ function getAppModelOptionsForInstance(
   );
 
   const customModels = readInstanceCustomModels(settings, entry.instanceId, entry.driverKind);
-  for (const slug of normalizeCustomModelSlugs(customModels, builtInModelSlugs, entry.driverKind)) {
+  for (const slug of normalizeCustomModelSlugs(customModels, builtInModelSlugs)) {
     if (seen.has(slug)) {
       continue;
     }
@@ -287,9 +287,7 @@ function resolveAppModelCatalogSelection(input: {
     (item) => item.instanceId === input.instanceId && isAppModelOptionSelectable(item),
   );
   const driverKind = selectableItems[0]?.driverKind;
-  const resolvedSlug = driverKind
-    ? resolveSelectableModel(driverKind, input.model, selectableItems)
-    : null;
+  const resolvedSlug = driverKind ? resolveSelectableModel(input.model, selectableItems) : null;
   return (
     selectableItems.find((item) => item.slug === resolvedSlug) ??
     selectableItems.find((item) => item.slug === input.model) ??
@@ -613,15 +611,14 @@ export function resolveAppProviderModelState(input: {
   const selectedModelOptions = modelOptionsByInstance.get(selectedInstanceId) ?? [];
   const selectableModelOptions = selectedModelOptions.filter(isAppModelOptionSelectable);
   const resolvedRequestedModel = resolveSelectableModel(
-    selectedProvider,
     requestedModel,
     selectableModelOptions,
   );
   const selectedModel =
     resolvedRequestedModel ??
     selectableModelOptions[0]?.slug ??
-    DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[selectedProvider] ??
-    DEFAULT_GIT_TEXT_GENERATION_MODEL;
+    requestedModel ??
+    input.settings.textGenerationModelSelection.model;
   const providerStatus = getRequestedProviderStatus({
     entries: providerInstanceEntries,
     requestedInstanceId,

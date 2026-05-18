@@ -1,4 +1,5 @@
 import {
+  AmpSettings,
   ClaudeSettings,
   CodexSettings,
   CursorSettings,
@@ -8,6 +9,7 @@ import {
 import type { Schema } from "effect";
 import {
   IconClaudeai,
+  IconAmp,
   IconCursor,
   IconOpenaiCodex,
   IconOpencode,
@@ -50,16 +52,22 @@ export const DRIVER_OPTIONS: readonly DriverOption[] = [
     settingsSchema: ClaudeSettings,
   },
   {
-    value: ProviderDriverKind.make("cursor"),
-    label: "Cursor",
-    icon: IconCursor,
-    settingsSchema: CursorSettings,
+    value: ProviderDriverKind.make("amp"),
+    label: "Amp",
+    icon: IconAmp,
+    settingsSchema: AmpSettings,
   },
   {
     value: ProviderDriverKind.make("opencode"),
     label: "OpenCode",
     icon: IconOpencode,
     settingsSchema: OpenCodeSettings,
+  },
+  {
+    value: ProviderDriverKind.make("cursor"),
+    label: "Cursor",
+    icon: IconCursor,
+    settingsSchema: CursorSettings,
   },
 ];
 

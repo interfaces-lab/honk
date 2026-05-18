@@ -1186,6 +1186,11 @@ export class OrchestrationDispatchCommandError extends Schema.TaggedErrorClass<O
   },
 ) {}
 
+export const OrchestrationHttpErrorResponse = Schema.Struct({
+  error: TrimmedNonEmptyString,
+});
+export type OrchestrationHttpErrorResponse = typeof OrchestrationHttpErrorResponse.Type;
+
 export class OrchestrationGetTurnDiffError extends Schema.TaggedErrorClass<OrchestrationGetTurnDiffError>()(
   "OrchestrationGetTurnDiffError",
   {

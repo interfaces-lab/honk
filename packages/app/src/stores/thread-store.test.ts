@@ -1,7 +1,7 @@
 import { scopeThreadRef } from "@multi/client-runtime";
 import {
   CheckpointRef,
-  DEFAULT_MODEL,
+  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   EnvironmentId,
   EventId,
   MessageId,
@@ -466,7 +466,7 @@ describe("incremental orchestration updates", () => {
           cwd: "/tmp/project",
           defaultModelSelection: {
             instanceId: "codex",
-            model: DEFAULT_MODEL,
+            model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
           },
           createdAt: "2026-02-27T00:00:00.000Z",
           updatedAt: "2026-02-27T00:00:00.000Z",
@@ -483,7 +483,7 @@ describe("incremental orchestration updates", () => {
         projectRoot: "/tmp/project",
         defaultModelSelection: {
           instanceId: "codex",
-          model: DEFAULT_MODEL,
+          model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
         },
         scripts: [],
         createdAt: "2026-02-27T00:00:01.000Z",
@@ -521,7 +521,7 @@ describe("incremental orchestration updates", () => {
           cwd: "/tmp/project-1",
           defaultModelSelection: {
             instanceId: "codex",
-            model: DEFAULT_MODEL,
+            model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
           },
           createdAt: "2026-02-27T00:00:00.000Z",
           updatedAt: "2026-02-27T00:00:00.000Z",
@@ -534,7 +534,7 @@ describe("incremental orchestration updates", () => {
           cwd: "/tmp/project-2",
           defaultModelSelection: {
             instanceId: "codex",
-            model: DEFAULT_MODEL,
+            model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
           },
           createdAt: "2026-02-27T00:00:00.000Z",
           updatedAt: "2026-02-27T00:00:00.000Z",
@@ -551,7 +551,7 @@ describe("incremental orchestration updates", () => {
         title: "Recovered thread",
         modelSelection: {
           instanceId: "codex",
-          model: DEFAULT_MODEL,
+          model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
         },
         runtimeMode: DEFAULT_RUNTIME_MODE,
         interactionMode: DEFAULT_INTERACTION_MODE,

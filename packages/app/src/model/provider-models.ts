@@ -20,8 +20,8 @@ export function formatProviderDriverKindLabel(provider: ProviderDriverKind): str
 export function getProviderModelCapabilities(
   models: ReadonlyArray<ServerProviderModel>,
   model: string | null | undefined,
-  provider: ProviderDriverKind,
+  _provider: ProviderDriverKind,
 ): ModelCapabilities {
-  const slug = normalizeModelSlug(model, provider);
+  const slug = normalizeModelSlug(model);
   return models.find((candidate) => candidate.slug === slug)?.capabilities ?? EMPTY_CAPABILITIES;
 }

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_MODEL,
-  ProviderDriverKind,
-  ProviderInstanceId,
-  type ModelCapabilities,
-} from "@multi/contracts";
+import { ProviderInstanceId, type ModelCapabilities } from "@multi/contracts";
 
 import {
   applyClaudePromptEffortPrefix,
@@ -18,7 +13,6 @@ import {
   getProviderOptionStringSelectionValue,
   isClaudeUltrathinkPrompt,
   normalizeModelSlug,
-  resolveModelSlugForProvider,
   resolveSelectableModel,
   trimOrNull,
 } from "../../src/model";
@@ -71,12 +65,10 @@ const claudeCaps: ModelCapabilities = createModelCapabilities({
 });
 
 describe("normalizeModelSlug", () => {
-  it("keeps Codex slugs distinct while mapping provider aliases", () => {
-    const claude = ProviderDriverKind.make("claudeAgent");
+  it("trims model slugs without provider-specific aliasing", () => {
     expect(normalizeModelSlug("gpt-5-codex")).toBe("gpt-5-codex");
-    expect(normalizeModelSlug("5.5")).toBe("5.5");
-    expect(normalizeModelSlug("5.3")).toBe("5.3");
-    expect(normalizeModelSlug("sonnet", claude)).toBe("claude-sonnet-4-6");
+    expect(normalizeModelSlug("  composer-2.5  ")).toBe("composer-2.5");
+    expect(normalizeModelSlug("sonnet")).toBe("sonnet");
   });
 
   it("returns null for empty or missing values", () => {
@@ -87,38 +79,15 @@ describe("normalizeModelSlug", () => {
   });
 });
 
-describe("resolveModelSlugForProvider", () => {
-  it("returns defaults when the model is missing", () => {
-    expect(resolveModelSlugForProvider(ProviderDriverKind.make("codex"), undefined)).toBe(
-      DEFAULT_MODEL,
-    );
-    expect(resolveModelSlugForProvider(ProviderDriverKind.make("ollama"), undefined)).toBe(
-      DEFAULT_MODEL,
-    );
-  });
-
-  it("preserves normalized unknown models", () => {
-    expect(
-      resolveModelSlugForProvider(ProviderDriverKind.make("codex"), "custom/internal-model"),
-    ).toBe("custom/internal-model");
-  });
-});
-
 describe("resolveSelectableModel", () => {
-  it("resolves exact slugs, labels, and aliases", () => {
+  it("resolves exact slugs and labels from the live provider catalog", () => {
     const options = [
       { slug: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
       { slug: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
     ];
-    expect(resolveSelectableModel(ProviderDriverKind.make("codex"), "gpt-5.3-codex", options)).toBe(
-      "gpt-5.3-codex",
-    );
-    expect(resolveSelectableModel(ProviderDriverKind.make("codex"), "gpt-5.3 codex", options)).toBe(
-      "gpt-5.3-codex",
-    );
-    expect(resolveSelectableModel(ProviderDriverKind.make("claudeAgent"), "sonnet", options)).toBe(
-      "claude-sonnet-4-6",
-    );
+    expect(resolveSelectableModel("gpt-5.3-codex", options)).toBe("gpt-5.3-codex");
+    expect(resolveSelectableModel("gpt-5.3 codex", options)).toBe("gpt-5.3-codex");
+    expect(resolveSelectableModel("sonnet", options)).toBeNull();
   });
 });
 

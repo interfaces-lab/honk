@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import {
   ApprovalRequestId,
-  DEFAULT_MODEL_BY_PROVIDER,
   EventId,
   defaultInstanceIdForDriver,
   ProviderDriverKind,
@@ -37,6 +36,7 @@ import { expandHomePath } from "../path-expansion.ts";
 
 const PROVIDER = ProviderDriverKind.make("codex");
 const PROVIDER_INSTANCE_ID = defaultInstanceIdForDriver(PROVIDER);
+const CODEX_FALLBACK_MODEL = "gpt-5.5";
 
 const ANSI_ESCAPE_CHAR = String.fromCharCode(27);
 const ANSI_ESCAPE_REGEX = new RegExp(`${ANSI_ESCAPE_CHAR}\\[[0-9;]*m`, "g");
@@ -317,8 +317,7 @@ function buildCodexCollaborationMode(input: {
   if (input.interactionMode === undefined) {
     return undefined;
   }
-  const model =
-    normalizeCodexModelSlug(input.model) ?? DEFAULT_MODEL_BY_PROVIDER[PROVIDER] ?? "gpt-5-codex";
+  const model = normalizeCodexModelSlug(input.model) ?? CODEX_FALLBACK_MODEL;
   return {
     mode: input.interactionMode,
     settings: {

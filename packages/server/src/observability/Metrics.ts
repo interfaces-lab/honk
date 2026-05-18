@@ -1,11 +1,7 @@
 import { Duration, Effect, Exit, Metric } from "effect";
 import { dual } from "effect/Function";
 
-import {
-  compactMetricAttributes,
-  normalizeModelMetricLabel,
-  outcomeFromExit,
-} from "./Attributes.ts";
+import { compactMetricAttributes, outcomeFromExit } from "@multi/shared/observability";
 
 export const rpcRequestsTotal = Metric.counter("t3_rpc_requests_total", {
   description: "Total RPC requests handled by the websocket RPC server.",
@@ -145,6 +141,23 @@ export const providerMetricAttributes = (
     provider,
     ...extra,
   });
+
+export function normalizeModelMetricLabel(model: string | null | undefined): string | undefined {
+  const normalized = model?.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+  if (normalized.includes("gpt")) {
+    return "gpt";
+  }
+  if (normalized.includes("claude")) {
+    return "claude";
+  }
+  if (normalized.includes("gemini")) {
+    return "gemini";
+  }
+  return "other";
+}
 
 export const providerTurnMetricAttributes = (input: {
   readonly provider: string;

@@ -1,6 +1,4 @@
 import {
-  DEFAULT_MODEL,
-  DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
   type EnvironmentId,
   ModelSelection,
@@ -541,9 +539,7 @@ function normalizeModelSelection(value: unknown): NormalizedModelSelection | nul
   if (typeof rawModel !== "string") {
     return null;
   }
-  const driverKindHint =
-    normalizeProviderDriverKind(instanceId) ?? ProviderDriverKind.make("codex");
-  const model = normalizeModelSlug(rawModel, driverKindHint);
+  const model = normalizeModelSlug(rawModel);
   if (!model) {
     return null;
   }
@@ -1961,16 +1957,19 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             }
             const base = existing ?? createEmptyThreadDraft();
             const nextMap = { ...base.modelSelectionByProvider };
-            for (const provider of ["codex", "claudeAgent", "cursor", "opencode"] as const) {
+            for (const provider of ["codex", "claudeAgent", "amp", "cursor", "opencode"] as const) {
               if (!modelOptions || !(provider in modelOptions)) continue;
               const opts = modelOptions[provider];
               const driverKind = ProviderDriverKind.make(provider);
               const instanceKey = defaultInstanceIdForDriver(driverKind);
               const current = nextMap[instanceKey];
               if (opts && opts.length > 0) {
+                if (!current?.model) {
+                  continue;
+                }
                 nextMap[instanceKey] = createModelSelection(
                   instanceKey,
-                  current?.model ?? DEFAULT_MODEL_BY_PROVIDER[driverKind] ?? DEFAULT_MODEL,
+                  current.model,
                   opts,
                 );
               } else if (current?.options) {
@@ -2004,10 +2003,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             return;
           }
           const instanceKey = defaultInstanceIdForDriver(normalizedProvider);
-          const fallbackModel =
-            normalizeModelSlug(options?.model, normalizedProvider) ??
-            DEFAULT_MODEL_BY_PROVIDER[normalizedProvider] ??
-            DEFAULT_MODEL;
+          const fallbackModel = normalizeModelSlug(options?.model);
           const providerOpts =
             nextProviderOptions && nextProviderOptions.length > 0 ? nextProviderOptions : undefined;
 
@@ -2019,9 +2015,13 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             const nextMap = { ...base.modelSelectionByProvider };
             const currentForProvider = nextMap[instanceKey];
             if (providerOpts) {
+              const model = currentForProvider?.model ?? fallbackModel;
+              if (!model) {
+                return state;
+              }
               nextMap[instanceKey] = createModelSelection(
                 instanceKey,
-                currentForProvider?.model ?? fallbackModel,
+                model,
                 providerOpts,
               );
             } else if (currentForProvider && (currentForProvider.options?.length ?? 0) > 0) {
@@ -2035,16 +2035,15 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             if (options?.persistSticky === true) {
               nextStickyMap = { ...state.stickyModelSelectionByProvider };
               const stickyBase =
-                nextStickyMap[instanceKey] ??
-                base.modelSelectionByProvider[instanceKey] ??
-                createModelSelection(instanceKey, fallbackModel);
-              if (providerOpts) {
+                nextStickyMap[instanceKey] ?? base.modelSelectionByProvider[instanceKey];
+              const stickyModel = stickyBase?.model ?? fallbackModel;
+              if (providerOpts && stickyModel) {
                 nextStickyMap[instanceKey] = createModelSelection(
                   instanceKey,
-                  stickyBase.model,
+                  stickyModel,
                   providerOpts,
                 );
-              } else if ((stickyBase.options?.length ?? 0) > 0) {
+              } else if (stickyBase && (stickyBase.options?.length ?? 0) > 0) {
                 const { options: _, ...rest } = stickyBase;
                 nextStickyMap[instanceKey] = rest as ModelSelection;
               }

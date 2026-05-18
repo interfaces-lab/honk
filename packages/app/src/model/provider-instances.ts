@@ -1,6 +1,5 @@
 import {
   defaultInstanceIdForDriver,
-  PROVIDER_DISPLAY_NAMES,
   type ProviderDriverKind,
   type ProviderInstanceId,
   type ServerProvider,
@@ -37,7 +36,7 @@ function humanizeInstanceId(instanceId: ProviderInstanceId): string {
 }
 
 function driverKindLabel(driverKind: ProviderDriverKind): string {
-  return PROVIDER_DISPLAY_NAMES[driverKind] ?? formatProviderDriverKindLabel(driverKind);
+  return formatProviderDriverKindLabel(driverKind);
 }
 
 export function normalizeProviderAccentColor(value: string | undefined): string | undefined {

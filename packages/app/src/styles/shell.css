@@ -11,11 +11,14 @@
   );
   --multi-electron-traffic-inset: 80px;
   --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 0px);
-  --multi-sidebar-label-size: var(--multi-sidebar-label-size-user, var(--multi-text-detail));
+  --multi-sidebar-label-size: var(
+    --multi-sidebar-label-size-user,
+    var(--multi-ui-font-size-user, 13px)
+  );
   --multi-sidebar-label-weight: var(--multi-sidebar-label-weight-user, 400);
   --multi-sidebar-label-leading: var(
     --multi-sidebar-label-leading-user,
-    var(--multi-leading-detail)
+    calc(var(--multi-ui-font-size-user, 13px) + 3px)
   );
   --multi-workbench-toggle-left: var(--multi-workbench-toggle-left-user, 12px);
   --multi-workbench-toggle-right: var(--multi-workbench-toggle-right-user, 12px);
@@ -86,10 +89,10 @@ body {
   background: var(--multi-color-surface);
   container-type: inline-size;
   font-family: var(--multi-font-ui);
-  font-size: 12px;
+  font-size: var(--multi-ui-font-size-user, 13px);
   font-synthesis: none;
   letter-spacing: 0;
-  line-height: 16px;
+  line-height: calc(var(--multi-ui-font-size-user, 13px) + 3px);
   -webkit-font-smoothing: var(--multi-agent-window-font-smoothing-webkit);
   -moz-osx-font-smoothing: var(--multi-agent-window-font-smoothing-moz);
   --multi-shell-sash-stripe-width: 4px;
@@ -321,8 +324,8 @@ body {
   background: transparent;
   box-shadow: none;
   color: var(--multi-fg-secondary);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--multi-sidebar-label-size);
+  line-height: var(--multi-sidebar-label-leading);
 }
 
 .agent-window-chat-header [data-slot="button"]:hover,

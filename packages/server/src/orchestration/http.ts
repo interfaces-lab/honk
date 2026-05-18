@@ -1,6 +1,7 @@
 import {
   ClientOrchestrationCommand,
   OrchestrationDispatchCommandError,
+  type OrchestrationHttpErrorResponse,
   OrchestrationGetSnapshotError,
   type OrchestrationReadModel,
 } from "@multi/contracts";
@@ -21,10 +22,16 @@ const respondToOrchestrationHttpError = (
         message: error.message,
         cause: error.cause,
       });
-      return HttpServerResponse.jsonUnsafe({ error: error.message }, { status: 500 });
+      return HttpServerResponse.jsonUnsafe(
+        { error: error.message } satisfies OrchestrationHttpErrorResponse,
+        { status: 500 },
+      );
     }
 
-    return HttpServerResponse.jsonUnsafe({ error: error.message }, { status: 400 });
+    return HttpServerResponse.jsonUnsafe(
+      { error: error.message } satisfies OrchestrationHttpErrorResponse,
+      { status: 400 },
+    );
   });
 
 const authenticateOwnerSession = Effect.gen(function* () {

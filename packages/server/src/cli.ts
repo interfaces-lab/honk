@@ -4,6 +4,7 @@ import {
   AuthSessionId,
   CommandId,
   DEFAULT_PROJECTLESS_CWD,
+  OrchestrationHttpErrorResponse,
   OrchestrationReadModel,
   ProjectId,
   type ClientOrchestrationCommand,
@@ -504,9 +505,6 @@ const ProjectCliRuntimeLive = Layer.mergeAll(
 );
 
 const PROJECT_CLI_LIVE_SERVER_TIMEOUT = Duration.seconds(1);
-const OrchestrationHttpErrorResponse = Schema.Struct({
-  error: Schema.String,
-});
 
 const withProjectCliSessionToken = <A, E, R>(
   authControlPlane: AuthControlPlaneShape,

@@ -20,7 +20,7 @@ import type {
   TurnId,
 } from "@multi/contracts";
 import { isProviderDriverKind, ProviderDriverKind } from "@multi/contracts";
-import { resolveModelSlugForProvider } from "@multi/shared/model";
+import { normalizeModelSlug } from "@multi/shared/model";
 import type {
   ChatMessage,
   Project,
@@ -56,7 +56,7 @@ function normalizeModelSelection<T extends { instanceId: string; model: string }
   }
   return {
     ...selection,
-    model: resolveModelSlugForProvider(selection.instanceId, selection.model),
+    model: normalizeModelSlug(selection.model) ?? selection.model,
   };
 }
 

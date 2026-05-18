@@ -450,7 +450,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
               selectedInstanceId={railSelection}
               instanceEntries={instanceEntries}
               showFavorites
-              showComingSoon
+              showPendingProviders
               onSelectInstance={handleSidebarInstanceSelect}
             />
           ) : (

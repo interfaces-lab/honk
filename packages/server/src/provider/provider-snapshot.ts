@@ -112,7 +112,7 @@ export function parseGenericCliVersion(output: string): string | null {
 
 export function providerModelsFromSettings(
   builtInModels: ReadonlyArray<ServerProviderModel>,
-  provider: ProviderDriverKind,
+  _provider: ProviderDriverKind,
   customModels: ReadonlyArray<string>,
   customModelCapabilities: ModelCapabilities,
 ): ReadonlyArray<ServerProviderModel> {
@@ -121,7 +121,7 @@ export function providerModelsFromSettings(
   const customEntries: ServerProviderModel[] = [];
 
   for (const candidate of customModels) {
-    const normalized = normalizeModelSlug(candidate, provider);
+    const normalized = normalizeModelSlug(candidate);
     if (!normalized || seen.has(normalized)) {
       continue;
     }

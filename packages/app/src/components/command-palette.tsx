@@ -854,6 +854,28 @@ function OpenCommandPaletteDialog() {
     });
   }
 
+  if (import.meta.env.DEV) {
+    actionItems.push({
+      kind: "action",
+      value: "action:dev:chat-input-examples",
+      searchTerms: [
+        "chat input",
+        "composer",
+        "composer examples",
+        "input examples",
+        "ui examples",
+        "mobbin",
+        "design",
+      ],
+      title: "Open chat input examples",
+      description: "Compare input-only composer layouts (dev)",
+      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        await navigate({ to: "/dev/composer-examples" });
+      },
+    });
+  }
+
   const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
   const activeGroups = currentView ? currentView.groups : rootGroups;
 

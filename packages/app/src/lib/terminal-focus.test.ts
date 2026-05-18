@@ -5,18 +5,24 @@ import { isTerminalFocused } from "./terminal-focus";
 class MockHTMLElement {
   isConnected = false;
   className = "";
+  closestSelector: string | null = null;
 
   readonly classList = {
     contains: (value: string) => this.className.split(/\s+/).includes(value),
   };
 
   closest(selector: string): MockHTMLElement | null {
-    return selector === ".thread-terminal-drawer .xterm" && this.isConnected ? this : null;
+    return selector === this.closestSelector && this.isConnected ? this : null;
   }
 }
 
 const originalDocument = globalThis.document;
 const originalHTMLElement = globalThis.HTMLElement;
+
+function setActiveElement(activeElement: MockHTMLElement) {
+  globalThis.HTMLElement = MockHTMLElement as unknown as typeof HTMLElement;
+  globalThis.document = { activeElement } as unknown as Document;
+}
 
 afterEach(() => {
   if (originalDocument === undefined) {
@@ -37,8 +43,7 @@ describe("isTerminalFocused", () => {
     const detached = new MockHTMLElement();
     detached.className = "xterm-helper-textarea";
 
-    globalThis.HTMLElement = MockHTMLElement as unknown as typeof HTMLElement;
-    globalThis.document = { activeElement: detached } as Document;
+    setActiveElement(detached);
 
     expect(isTerminalFocused()).toBe(false);
   });
@@ -48,9 +53,27 @@ describe("isTerminalFocused", () => {
     attached.className = "xterm-helper-textarea";
     attached.isConnected = true;
 
-    globalThis.HTMLElement = MockHTMLElement as unknown as typeof HTMLElement;
-    globalThis.document = { activeElement: attached } as Document;
+    setActiveElement(attached);
 
     expect(isTerminalFocused()).toBe(true);
+  });
+
+  it("returns true for connected elements inside any xterm viewport", () => {
+    const activeElement = new MockHTMLElement();
+    activeElement.isConnected = true;
+    activeElement.closestSelector = ".xterm";
+
+    setActiveElement(activeElement);
+
+    expect(isTerminalFocused()).toBe(true);
+  });
+
+  it("returns false for connected non-terminal elements", () => {
+    const activeElement = new MockHTMLElement();
+    activeElement.isConnected = true;
+
+    setActiveElement(activeElement);
+
+    expect(isTerminalFocused()).toBe(false);
   });
 });

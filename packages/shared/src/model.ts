@@ -1,16 +1,10 @@
 import {
-  DEFAULT_MODEL,
-  DEFAULT_MODEL_BY_PROVIDER,
-  MODEL_SLUG_ALIASES_BY_PROVIDER,
   type ModelCapabilities,
   type ModelSelection,
-  ProviderDriverKind,
   ProviderInstanceId,
   type ProviderOptionDescriptor,
   type ProviderOptionSelection,
 } from "@multi/contracts";
-
-const DEFAULT_PROVIDER_DRIVER_KIND = ProviderDriverKind.make("codex");
 
 export interface SelectableModelOption {
   slug: string;
@@ -234,7 +228,6 @@ export function isClaudeUltrathinkPrompt(text: string | null | undefined): boole
 
 export function normalizeModelSlug(
   model: string | null | undefined,
-  provider: ProviderDriverKind = DEFAULT_PROVIDER_DRIVER_KIND,
 ): string | null {
   if (typeof model !== "string") {
     return null;
@@ -245,15 +238,10 @@ export function normalizeModelSlug(
     return null;
   }
 
-  const aliases = MODEL_SLUG_ALIASES_BY_PROVIDER[provider] ?? {};
-  const aliased = Object.prototype.hasOwnProperty.call(aliases, trimmed)
-    ? aliases[trimmed]
-    : undefined;
-  return typeof aliased === "string" ? aliased : trimmed;
+  return trimmed;
 }
 
 export function resolveSelectableModel(
-  provider: ProviderDriverKind,
   value: string | null | undefined,
   options: ReadonlyArray<SelectableModelOption>,
 ): string | null {
@@ -276,28 +264,13 @@ export function resolveSelectableModel(
     return byName.slug;
   }
 
-  const normalized = normalizeModelSlug(trimmed, provider);
+  const normalized = normalizeModelSlug(trimmed);
   if (!normalized) {
     return null;
   }
 
   const resolved = options.find((option) => option.slug === normalized);
   return resolved ? resolved.slug : null;
-}
-
-function resolveModelSlug(model: string | null | undefined, provider: ProviderDriverKind): string {
-  const normalized = normalizeModelSlug(model, provider);
-  if (!normalized) {
-    return DEFAULT_MODEL_BY_PROVIDER[provider] ?? DEFAULT_MODEL;
-  }
-  return normalized;
-}
-
-export function resolveModelSlugForProvider(
-  provider: ProviderDriverKind,
-  model: string | null | undefined,
-): string {
-  return resolveModelSlug(model, provider);
 }
 
 /** Trim a string, returning null for empty/missing values. */

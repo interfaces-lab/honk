@@ -1,5 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { DEFAULT_MODEL_BY_PROVIDER, ProjectId, ThreadId } from "@multi/contracts";
+import { DEFAULT_TEXT_GENERATION_MODEL_SELECTION, ProjectId, ThreadId } from "@multi/contracts";
 import { assert, it } from "@effect/vitest";
 import { Deferred, Effect, Fiber, Layer, Option, Ref, Stream } from "effect";
 
@@ -23,7 +23,7 @@ import {
 it("uses the canonical Codex default for auto-bootstrapped model selection", () => {
   assert.deepStrictEqual(getAutoBootstrapDefaultModelSelection(), {
     instanceId: "codex",
-    model: DEFAULT_MODEL_BY_PROVIDER.codex!,
+    model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
   });
 });
 

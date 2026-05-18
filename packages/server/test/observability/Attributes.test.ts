@@ -1,9 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
+import { compactTraceAttributes } from "@multi/shared/observability";
 
-import {
-  compactTraceAttributes,
-  normalizeModelMetricLabel,
-} from "../../src/observability/Attributes.ts";
+import { normalizeModelMetricLabel } from "../../src/observability/Metrics.ts";
 
 describe("Attributes", () => {
   it("normalizes circular arrays, maps, and sets without recursing forever", () => {

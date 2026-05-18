@@ -387,19 +387,19 @@ export const ProjectFileTree = forwardRef<
       )}
     >
       <ProjectFileTreePathsSync
-        key={treePathsKey}
+        key={`paths:${treePathsKey}`}
         model={model}
         treePaths={treePaths}
       />
       <ProjectFileTreeInitialLoadSync
-        key={`${projectFileTreeContextKey}:${loadDirectoryVersion}`}
+        key={`initial:${projectFileTreeContextKey}:${loadDirectoryVersion}`}
         active={props.active}
         cwd={props.cwd}
         environmentId={props.environmentId}
         loadDirectory={loadDirectory}
       />
       <ProjectFileTreeExpandedDirectoryLoader
-        key={`${projectFileTreeContextKey}:${loadDirectoryVersion}:${treePathsKey}`}
+        key={`expanded:${projectFileTreeContextKey}:${loadDirectoryVersion}:${treePathsKey}`}
         active={props.active}
         cwd={props.cwd}
         environmentId={props.environmentId}
@@ -408,7 +408,7 @@ export const ProjectFileTree = forwardRef<
         treePaths={treePaths}
       />
       <ProjectFileTreeSelectionSync
-        key={`${treePathsKey}:${externalSelectedPath ?? ""}`}
+        key={`selection:${treePathsKey}:${externalSelectedPath ?? ""}`}
         externalSelectedPath={externalSelectedPath}
         filePathSet={filePathSet}
         lastOpenedPathRef={lastOpenedPathRef}
@@ -416,7 +416,7 @@ export const ProjectFileTree = forwardRef<
         suppressSelectionOpenRef={suppressSelectionOpenRef}
       />
       <ProjectFileTreeGitStatusSync
-        key={gitStatusKey}
+        key={`git:${gitStatusKey}`}
         gitStatusEntries={gitStatusEntries}
         model={model}
       />

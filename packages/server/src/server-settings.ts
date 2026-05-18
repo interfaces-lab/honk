@@ -11,9 +11,8 @@
  * @module ServerSettings
  */
 import {
-  DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
   DEFAULT_SERVER_SETTINGS,
-  DEFAULT_GIT_TEXT_GENERATION_MODEL,
+  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   defaultInstanceIdForDriver,
   isProviderDriverKind,
   type ModelSelection,
@@ -153,9 +152,7 @@ function fallbackTextGenerationProvider(settings: ServerSettings): ServerSetting
       ...settings,
       textGenerationModelSelection: {
         instanceId,
-        model:
-          DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
-          DEFAULT_GIT_TEXT_GENERATION_MODEL,
+        model: settings.textGenerationModelSelection.model,
       } satisfies ModelSelection,
     };
   }
@@ -164,20 +161,19 @@ function fallbackTextGenerationProvider(settings: ServerSettings): ServerSetting
     if (instance.enabled === false) {
       continue;
     }
-    const model = DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[instance.driver];
-    if (!model) {
-      continue;
-    }
     return {
       ...settings,
       textGenerationModelSelection: {
         instanceId: ProviderInstanceId.make(rawInstanceId),
-        model,
+        model: settings.textGenerationModelSelection.model,
       } satisfies ModelSelection,
     };
   }
 
-  return settings;
+  return {
+    ...settings,
+    textGenerationModelSelection: DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+  };
 }
 
 // Values under these keys are compared as a whole — never stripped field-by-field.

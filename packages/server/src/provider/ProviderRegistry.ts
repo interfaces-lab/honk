@@ -7,10 +7,12 @@ import type { ProviderDriverKind, ServerProvider } from "@multi/contracts";
 import { Effect, Equal, FileSystem, Layer, Path, PubSub, Ref, Stream } from "effect";
 
 import { ServerConfig } from "../config.ts";
+import { AmpProviderLive } from "./AmpProvider.ts";
 import { ClaudeProviderLive } from "./ClaudeProvider.ts";
 import { CodexProviderLive } from "./CodexProvider.ts";
 import { CursorProviderLive } from "./CursorProvider.ts";
 import { OpenCodeProviderLive } from "./OpenCodeProvider.ts";
+import { AmpProvider } from "./AmpProvider.service.ts";
 import { ClaudeProvider } from "./ClaudeProvider.service.ts";
 import { CodexProvider } from "./CodexProvider.service.ts";
 import { CursorProvider } from "./CursorProvider.service.ts";
@@ -81,16 +83,17 @@ const ProviderRegistryLiveBase = Layer.effect(
   Effect.gen(function* () {
     const codexProvider = yield* CodexProvider;
     const claudeProvider = yield* ClaudeProvider;
+    const ampProvider = yield* AmpProvider;
     const openCodeProvider = yield* OpenCodeProvider;
+    const cursorProvider = yield* CursorProvider;
     const config = yield* ServerConfig;
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
 
-    const cursorProvider = yield* CursorProvider;
-
     const providerSources = createBuiltInProviderSources({
       codex: codexProvider,
       claudeAgent: claudeProvider,
+      amp: ampProvider,
       opencode: openCodeProvider,
       cursor: cursorProvider,
     }) satisfies ReadonlyArray<ProviderSnapshotSource>;
@@ -253,10 +256,11 @@ const ProviderRegistryLiveBase = Layer.effect(
 export const ProviderRegistryLive = Layer.unwrap(
   Effect.sync(() =>
     ProviderRegistryLiveBase.pipe(
-      Layer.provideMerge(CursorProviderLive),
+      Layer.provideMerge(AmpProviderLive),
       Layer.provideMerge(CodexProviderLive),
       Layer.provideMerge(ClaudeProviderLive),
       Layer.provideMerge(OpenCodeProviderLive),
+      Layer.provideMerge(CursorProviderLive),
       Layer.provideMerge(OpenCodeRuntimeLive),
     ),
   ),

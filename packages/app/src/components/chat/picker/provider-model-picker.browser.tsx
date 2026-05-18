@@ -570,8 +570,7 @@ describe("ProviderModelPicker", () => {
           "codex",
           "claudeAgent",
           "cursor",
-          "gemini-coming-soon",
-          "github-copilot-coming-soon",
+          "pi-pending",
         ]);
         expect(getVisibleModelNames()).toEqual([
           "Claude Sonnet 4.6",
@@ -678,8 +677,7 @@ describe("ProviderModelPicker", () => {
           "codex_personal",
           "codex_isolated",
           "claudeAgent",
-          "gemini-coming-soon",
-          "github-copilot-coming-soon",
+          "pi-pending",
         ]);
         expect(
           document.querySelector<HTMLElement>('[data-model-picker-provider="codex_personal"]')

@@ -1,10 +1,9 @@
 import { Effect, Layer, References, Tracer } from "effect";
 import { OtlpMetrics, OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
+import { makeLocalFileTracer, makeTraceSink } from "@multi/shared/observability";
 
 import { ServerConfig } from "../config.ts";
 import { ServerLoggerLive } from "../server-logger.ts";
-import { makeLocalFileTracer } from "./LocalFileTracer.ts";
-import { makeTraceSink } from "./TraceSink.ts";
 
 const otlpSerializationLayer = OtlpSerialization.layerJson;
 

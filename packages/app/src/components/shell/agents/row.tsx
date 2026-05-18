@@ -155,7 +155,7 @@ export const AgentRow = memo(
             <StatusSlot item={props.item} />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
               <span
-                className="min-w-0 truncate text-body font-normal text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
+                className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
                 data-agent-sidebar-title=""
                 title={props.item.title}
               >
@@ -164,7 +164,7 @@ export const AgentRow = memo(
             </span>
           </span>
           <span
-            className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-detail text-multi-fg-tertiary tabular-nums group-data-[selected=true]/agent-row:text-multi-fg-secondary"
+            className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary tabular-nums group-data-[selected=true]/agent-row:text-multi-fg-secondary"
             data-agent-sidebar-subtitle=""
           >
             {props.item.ago}
@@ -197,7 +197,7 @@ export const AgentRow = memo(
         {renaming ? (
           <div
             className={cn(
-              "font-multi relative flex h-auto w-full min-w-0 cursor-(--multi-button-cursor) items-center gap-3 rounded-multi-control border px-1.5 py-[5px] text-left text-body font-normal",
+              "font-multi relative flex h-auto w-full min-w-0 cursor-(--multi-button-cursor) items-center gap-3 rounded-multi-control border px-1.5 py-[5px] text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading)",
               "border-multi-stroke-primary bg-multi-bg-tertiary",
             )}
             data-agent-sidebar-cell=""
@@ -214,13 +214,13 @@ export const AgentRow = memo(
                   onKeyDown={onRenameKeyDown}
                   onBlur={onBlur}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full min-w-0 select-text bg-transparent text-body text-foreground outline-none ring-0"
+                  className="w-full min-w-0 select-text bg-transparent text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) text-foreground outline-none ring-0"
                   aria-label="Rename thread"
                 />
               </span>
             </span>
             <span
-              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-detail text-multi-fg-secondary tabular-nums"
+              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary tabular-nums"
               data-agent-sidebar-subtitle=""
             >
               {props.item.ago}
@@ -240,7 +240,7 @@ export const AgentRow = memo(
               <StatusSlot item={props.item} />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
                 <span
-                  className="min-w-0 truncate text-body font-normal text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
+                  className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
                   data-agent-sidebar-title=""
                   title={props.item.title}
                 >
@@ -249,7 +249,7 @@ export const AgentRow = memo(
               </span>
             </span>
             <span
-              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-detail text-multi-fg-tertiary tabular-nums group-data-[selected=true]/agent-row:text-multi-fg-secondary"
+              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary tabular-nums group-data-[selected=true]/agent-row:text-multi-fg-secondary"
               data-agent-sidebar-subtitle=""
             >
               {props.item.ago}

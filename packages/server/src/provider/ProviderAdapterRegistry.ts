@@ -26,6 +26,7 @@ import {
 import { ClaudeAdapter } from "./ClaudeAdapter.service.ts";
 import { CodexAdapter } from "./CodexAdapter.service.ts";
 import { CursorAdapter } from "./CursorAdapter.service.ts";
+import { AmpAdapter } from "./AmpAdapter.service.ts";
 import { OpenCodeAdapter } from "./OpenCodeAdapter.service.ts";
 import { createBuiltInAdapterList } from "./builtInProviderCatalog.ts";
 import { ServerSettingsService } from "../server-settings.ts";
@@ -39,15 +40,15 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
   options?: ProviderAdapterRegistryLiveOptions,
 ) {
   const serverSettings = yield* ServerSettingsService;
-  const cursorAdapterOption = yield* Effect.serviceOption(CursorAdapter);
   const adapters =
     options?.adapters !== undefined
       ? options.adapters
       : createBuiltInAdapterList({
           codex: yield* CodexAdapter,
           claudeAgent: yield* ClaudeAdapter,
+          amp: yield* AmpAdapter,
           opencode: yield* OpenCodeAdapter,
-          ...(cursorAdapterOption._tag === "Some" ? { cursor: cursorAdapterOption.value } : {}),
+          cursor: yield* CursorAdapter,
         });
   const byProvider = new Map(
     adapters.map((adapter) => [ProviderDriverKind.make(adapter.provider), adapter] as const),

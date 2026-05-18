@@ -157,6 +157,8 @@ Rules:
 
 Detailed rules: [server-shared-files.md](./server-shared-files.md).
 
+Runtime and service rules: [server-runtime.md](./server-runtime.md).
+
 ## Model And Provider
 
 Provider/model state needs one normalized resolver core. Components render its
@@ -171,6 +173,8 @@ Rules:
       UI messages.
 
 Detailed rules: [model.md](./model.md).
+
+Supported-provider source of truth: [providers.md](./providers.md).
 
 ## Routes
 

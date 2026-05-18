@@ -15,6 +15,10 @@ import {
   readTerminalHostThemeForMount,
 } from "~/components/shell/terminal/terminal-host-theme";
 import { subscribeTerminalHostDocument } from "~/components/shell/terminal/terminal-xterm-host-sync";
+import {
+  terminalDeleteShortcutData,
+  terminalNavigationShortcutData,
+} from "~/keybindings";
 import { readNativeEnvironmentApi } from "~/lib/native-runtime-api";
 import {
   clampTerminalDimensions,
@@ -174,7 +178,39 @@ function TerminalPanelSession({
       next.clear();
     };
 
+    const sendTerminalInput = (data: string) => {
+      if (
+        openSession.current?.thread !== thread ||
+        openSession.current.terminalId !== termId
+      ) {
+        return;
+      }
+      void api
+        .write({
+          threadId: thread,
+          terminalId: termId,
+          data,
+        })
+        .catch(() => undefined);
+    };
+
     next.attachCustomKeyEventHandler((event) => {
+      const navigationData = terminalNavigationShortcutData(event);
+      if (navigationData !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        sendTerminalInput(navigationData);
+        return false;
+      }
+
+      const deleteData = terminalDeleteShortcutData(event);
+      if (deleteData !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        sendTerminalInput(deleteData);
+        return false;
+      }
+
       const hit =
         event.metaKey &&
         !event.ctrlKey &&
@@ -200,19 +236,7 @@ function TerminalPanelSession({
     });
 
     data = next.onData((chunk) => {
-      if (
-        openSession.current?.thread !== thread ||
-        openSession.current.terminalId !== termId
-      ) {
-        return;
-      }
-      void api
-        .write({
-          threadId: thread,
-          terminalId: termId,
-          data: chunk,
-        })
-        .catch(() => undefined);
+      sendTerminalInput(chunk);
     });
 
     const onEvent = (event: TerminalEvent) => {

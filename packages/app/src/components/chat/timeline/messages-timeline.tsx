@@ -448,12 +448,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const lifecycleSync = (
     <>
       <WorkedHeaderOverridesPruneSync
-        key={workedHeaderIdsKey}
+        key={`worked-headers:${workedHeaderIdsKey}`}
         setWorkedHeaderOpenOverrides={setWorkedHeaderOpenOverrides}
         workedHeaderIds={workedHeaderIds}
       />
       <TimelineControllerSync
-        key={`${getIsAtBottomVersion}:${scrollToBottomVersion}`}
+        key={`controller:${getIsAtBottomVersion}:${scrollToBottomVersion}`}
         getIsAtBottom={getIsAtBottom}
         scrollToBottom={scrollToBottom}
         timelineControllerRef={timelineControllerRef}
@@ -462,7 +462,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         clearProgrammaticScrollTracking={clearProgrammaticScrollTracking}
       />
       <TimelineRowsStickToBottomSync
-        key={`${rowsVersion}:${scheduleStickToBottomVersion}`}
+        key={`rows-stick:${rowsVersion}:${scheduleStickToBottomVersion}`}
         initializedScrollRef={initializedScrollRef}
         isAtBottomRef={isAtBottomRef}
         reportIsAtBottom={reportIsAtBottom}
@@ -470,7 +470,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         scheduleStickToBottom={scheduleStickToBottom}
       />
       <TimelineActiveWorkStickToBottomSync
-        key={`${activeTurnInProgress}:${isWorking}:${scheduleStickToBottomVersion}`}
+        key={`active-work-stick:${activeTurnInProgress}:${isWorking}:${scheduleStickToBottomVersion}`}
         activeTurnInProgress={activeTurnInProgress}
         isAtBottomRef={isAtBottomRef}
         isWorking={isWorking}

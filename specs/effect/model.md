@@ -23,6 +23,32 @@ rg -n "from \"(\\.\\./|.*)model/|from \".*provider-state|from \".*provider-model
 rg -n "resolveSelectableModel|normalizeModelSlug|defaultInstanceIdForDriver|DEFAULT_MODEL|getDefaultServerModel|resolveSelectableProvider|sortModelsForProviderInstance|sortProviderModelItems|modelOptionsByInstance|providerStatuses|serverProviders" packages/app/src/components packages/app/src/routes packages/app/src/app --glob '!*.test.*' --glob '!*.browser.*'
 ```
 
+## Reference Shape
+
+Upstream comparison:
+
+- [x] `pi` keeps raw model catalogs, provider/API registry, app model registry,
+      and user-facing model resolver as separate concepts.
+- [x] `pi` treats provider plus model ID as the stable model identity and
+      rejects ambiguous bare model matches.
+- [x] opencode V2 keeps provider/model catalog mutation behind narrow catalog
+      service hooks, then resolves inherited provider/model facts at read time.
+- [x] Both references put availability, defaults, fallback, and missing-state
+      policy in the model core rather than the UI.
+
+Multi buckets:
+
+- [x] Catalog source: server provider snapshots, settings custom models, and
+      `@multi/shared/model` primitives.
+- [x] Provider instance state:
+      `packages/app/src/model/provider-instances.ts`.
+- [x] Resolved model projection: `packages/app/src/model/selection.ts`.
+- [x] Selection/fallback policy: `packages/app/src/model/selection.ts`.
+- [x] Provider option/trait interpretation:
+      `packages/app/src/model/provider-state.ts`.
+- [x] Render-only surfaces: picker, traits picker, model rows, provider settings
+      rows, and command palette grouping.
+
 ## Current Inventory
 
 - [x] `packages/app/src/model/provider-instances.ts` owns provider-instance
@@ -56,9 +82,21 @@ rg -n "resolveSelectableModel|normalizeModelSlug|defaultInstanceIdForDriver|DEFA
       banner provider lookup through the app model resolver. Direct
       instance/model selection writes remain, but they resolve the chosen slug
       through the app model resolver before persisting draft state.
+- [x] `packages/app/src/components/chat/composer/use-model-state.ts` does not
+      exist. The composer model bridge is currently a private
+      `useComposerModelState` hook inside
+      `packages/app/src/components/chat/composer/input.tsx`.
+- [x] `packages/app/src/components/chat/picker/icon-utils.ts` still exists as
+      the picker icon/display-name helper. The stale provider-option export was
+      deleted, but the file itself remains until caller inventory decides
+      whether icon/display helpers belong in the picker component boundary.
 
 ## Current Contract Facts
 
+- [x] `packages/contracts/src/model.ts` owns provider option/capability schema
+      only. It must not publish provider model catalogs, shorthand aliases, or
+      per-provider defaults; Cursor and other providers can update model lists
+      through runtime discovery.
 - [x] Provider option selections are keyed by `ProviderInstanceId`, not by
       `ProviderDriverKind`. Default instances happen to use the same slug as their
       driver, but custom instances do not.
@@ -185,6 +223,36 @@ Classify before deleting:
 - [x] `packages/app/src/components/chat/picker/status-banner.tsx` - deleted
       after caller inventory showed only `chat-view.tsx`; provider status banner
       rendering now lives at the chat view surface that displays it.
+
+## Current Follow-Up Inventory
+
+These are not deletion decisions. Re-run caller inventory before editing.
+
+- [ ] `resolveProviderDriverKindForInstanceSelection` in
+      `model/provider-instances.ts` has one production caller in
+      `model/selection.ts` and should become private or be inlined if the
+      resolver reads the provider entry directly.
+- [ ] `deriveProviderInstanceEntriesForSettings` and
+      `sortProviderInstanceEntries` in `model/provider-instances.ts` currently
+      feed the app resolver. Keep exported only if a second production boundary
+      imports them.
+- [ ] `getProviderBooleanTraitSectionLabel` and
+      `getProviderTraitsTriggerLabel` in `model/provider-state.ts` currently
+      feed `traits-picker.tsx`. Decide whether labels are provider-state policy
+      or picker-local display copy.
+- [ ] `getProviderModelCapabilityLabels` in `model/provider-state.ts` currently
+      feeds `provider-models-section.tsx`. Decide whether capability labels are
+      provider-state policy or settings-local display copy.
+- [ ] `sortProviderModelItems` in `model/ordering.ts` currently feeds
+      `chat/picker/model-content.tsx`. Keep only if ordering remains a shared
+      model primitive across picker and settings.
+- [ ] `ProviderModelsSection`, `ProviderInstanceCard`, and
+      `AddProviderInstanceDialog` are exported component boundaries with one
+      production caller each. Keep them as component slots if settings remains
+      split; do not treat them as helper files.
+- [ ] Add browser coverage for the full provider settings panel, add-provider
+      dialog, provider instance card, and provider settings schema form before
+      collapsing settings components.
 
 ## Done Means
 

@@ -82,6 +82,9 @@ Rules:
 
 - [x] Public RPC error classes belong in `packages/contracts` when clients must
       decode them.
+- [x] Orchestration HTTP errors use the contract-owned
+      `OrchestrationHttpErrorResponse` body while preserving the existing
+      `{ error: string }` wire shape.
 - [ ] Keep one-off translations inline at the handler when only one endpoint
       needs them.
 - [ ] Extract tiny route-group helpers only when a translation repeats.

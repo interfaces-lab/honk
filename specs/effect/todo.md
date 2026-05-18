@@ -16,8 +16,8 @@ P1  SCHEMA
     public transport errors.
 
 P2  MODEL
-    Finish provider/model resolver consolidation and remove UI-owned fallback
-    policy.
+    Finish provider/model resolver consolidation, make the supported-provider
+    list canonical, and remove UI-owned fallback policy.
 
 P3  COMPOSER + PLAN
     Keep composer and native plan side panel canonical against the Cursor data
@@ -76,7 +76,7 @@ P6  EFFECT
       `active project project root is not accessible` on every backend start.
 - [x] Fix WebSocket RPC subscription error cause serialization so browser tests
       do not emit repeated `SchemaError(Expected array, got Cause...)` warnings.
-- [ ] Pick one server route/RPC group and make expected errors explicit at the
+- [x] Pick one server route/RPC group and make expected errors explicit at the
       contract boundary.
 - [ ] Decide whether app toast rendering needs a shared formatter for
       schema-backed command/provider/git errors.
@@ -114,6 +114,19 @@ P6  EFFECT
 - [x] Classify `components/command-palette-model.ts`: not normalized
       provider/model output; leave any collapse to the delete inventory.
 - [x] Add compact model selector overflow browser coverage.
+- [ ] Re-run model/provider one-caller export inventory from
+      [model.md](./model.md) before the next model cleanup wave.
+- [ ] Decide whether current picker display helpers in
+      `components/chat/picker/icon-utils.ts` stay as a picker boundary or move
+      into the consuming picker files.
+- [ ] Add full provider settings browser coverage before collapsing
+      settings-provider component boundaries.
+- [~] Rewire supported providers to the canonical list in
+      [providers.md](./providers.md): Codex/OpenAI, Claude, Amp, OpenCode,
+      Cursor, and Pi pending only.
+- [x] Remove provider-specific model constants, aliases, display names, and
+      per-provider defaults from `packages/contracts/src/model.ts`; model
+      catalogs are provider/runtime-owned.
 
 ## P3: Composer And Plan
 
@@ -174,7 +187,7 @@ P6  EFFECT
       observability target.
 - [x] Add app state/store inventory covering `stores`, thread sync/state,
       sidebar projections, and timestamp helpers.
-- [ ] Consolidate duplicated server/shared observability trace files.
+- [x] Consolidate duplicated server/shared observability trace files.
 - [x] Reclassify app state one-consumer/overlap candidates:
   - [x] `stores/shell-layout-store.ts`
   - [x] `stores/thread-unread-store.ts`
@@ -266,11 +279,25 @@ Keep single-caller UI files when they are shell slots, not helper buckets:
 
 ## P6: Effect
 
+- [x] Add server runtime/service cleanup spec with opencode facade-removal
+      rules: [server-runtime.md](./server-runtime.md).
+- [x] Inventory central runtime creation: `ManagedRuntime.make` appears only in
+      `packages/server/src/server-runtime.ts`.
+- [x] Inventory service contract files: `packages/server/src` has `62`
+      `*.service.ts` files.
+- [x] Inventory current defect boundaries: `Effect.die` appears in five server
+      source locations.
 - [ ] Sweep service-local runtimes/facades and keep only real runtime bridges.
 - [ ] Prefer existing server services over raw process/filesystem APIs when
       touching effectful server code.
 - [ ] Keep app React/query boundaries plain unless there is a real durable
       Effect boundary.
+- [x] Pick one route group and make expected error contracts explicit at the
+      route/RPC boundary.
+- [x] Classify the five `Effect.die` callsites before converting or keeping
+      them.
+- [ ] Prevent new service-local runtime facades; use the central
+      `ServerRuntime` boundary or route-hosted Effect runtime.
 
 ## Completion Gates
 

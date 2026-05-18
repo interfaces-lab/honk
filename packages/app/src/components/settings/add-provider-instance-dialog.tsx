@@ -2,11 +2,8 @@
 
 import {
   IconCheckmark1 as CheckIcon,
-  IconCodeTree as ACPRegistryIcon,
   type CentralIconBaseProps,
-  IconCopilot as GithubCopilotIcon,
-  IconGemini as Gemini,
-  IconRobot as PiAgentIcon,
+  IconRobot as PiIcon,
 } from "central-icons";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import type { ComponentType } from "react";
@@ -70,32 +67,17 @@ const INSTANCE_ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
 const DEFAULT_DRIVER_OPTION = DRIVER_OPTIONS[0]!;
 const EMPTY_CONFIG_DRAFT: Record<string, unknown> = {};
-interface ComingSoonDriverOption {
+interface PendingDriverOption {
   readonly value: ProviderDriverKind;
   readonly label: string;
   readonly icon: ComponentType<CentralIconBaseProps>;
 }
 
-const COMING_SOON_DRIVER_OPTIONS: readonly ComingSoonDriverOption[] = [
+const PENDING_DRIVER_OPTIONS: readonly PendingDriverOption[] = [
   {
-    value: ProviderDriverKind.make("githubCopilot"),
-    label: "Github Copilot",
-    icon: GithubCopilotIcon,
-  },
-  {
-    value: ProviderDriverKind.make("gemini"),
-    label: "Gemini",
-    icon: Gemini,
-  },
-  {
-    value: ProviderDriverKind.make("acpRegistry"),
-    label: "ACP Registry",
-    icon: ACPRegistryIcon,
-  },
-  {
-    value: ProviderDriverKind.make("piAgent"),
-    label: "Pi Agent",
-    icon: PiAgentIcon,
+    value: ProviderDriverKind.make("pi"),
+    label: "Pi",
+    icon: PiIcon,
   },
 ];
 
@@ -329,7 +311,7 @@ function AddProviderInstanceDialogContent({
                   </RadioPrimitive.Root>
                 );
               })}
-              {COMING_SOON_DRIVER_OPTIONS.map((option) => {
+              {PENDING_DRIVER_OPTIONS.map((option) => {
                 const IconComponent = option.icon;
                 return (
                   <RadioPrimitive.Root
@@ -345,7 +327,7 @@ function AddProviderInstanceDialogContent({
                       {option.label}
                     </span>
                     <Badge variant="warning" size="sm">
-                      Coming Soon
+                      Pending
                     </Badge>
                   </RadioPrimitive.Root>
                 );

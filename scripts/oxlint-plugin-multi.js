@@ -23,7 +23,9 @@ const COMPILER_METHODS = new Set([
   "encodeUnknownSync",
 ]);
 const APP_SRC_SEGMENT = "packages/app/src/";
+const SERVER_SRC_SEGMENT = "packages/server/src/";
 const MOUNT_EFFECT_WRAPPER_SUFFIX = "packages/app/src/hooks/use-mount-effect.ts";
+const SERVER_RUNTIME_SUFFIX = "packages/server/src/server-runtime.ts";
 
 function unwrapExpression(node) {
   let current = node;
@@ -69,8 +71,20 @@ function isAppSourceFile(filename) {
   );
 }
 
+function isServerSourceFile(filename) {
+  const normalized = normalizedFilename(filename);
+  return (
+    (normalized.includes(`/${SERVER_SRC_SEGMENT}`) || normalized.startsWith(SERVER_SRC_SEGMENT)) &&
+    !/\.test\.[cm]?[jt]sx?$/.test(normalized)
+  );
+}
+
 function isMountEffectWrapperFile(filename) {
   return normalizedFilename(filename).endsWith(MOUNT_EFFECT_WRAPPER_SUFFIX);
+}
+
+function isServerRuntimeFile(filename) {
+  return normalizedFilename(filename).endsWith(SERVER_RUNTIME_SUFFIX);
 }
 
 function getSchemaCompilerMethod(callee) {
@@ -257,6 +271,73 @@ const noDirectUseEffect = {
   },
 };
 
+const noServiceLocalRuntimeFacade = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow service-local Effect runtimes in server source; use the central ServerRuntime boundary.",
+    },
+  },
+  create(context) {
+    const filename = context.filename;
+    if (!isServerSourceFile(filename) || isServerRuntimeFile(filename)) {
+      return {};
+    }
+
+    const managedRuntimeLocalNames = new Set(["ManagedRuntime"]);
+
+    function reportRuntimeFacade(node) {
+      context.report({
+        node,
+        message:
+          "Do not create service-local Effect runtimes in server source. Use packages/server/src/server-runtime.ts as the central runtime boundary.",
+      });
+    }
+
+    return {
+      ImportDeclaration(node) {
+        if (node.source?.value !== "effect") {
+          return;
+        }
+
+        for (const specifier of node.specifiers ?? []) {
+          if (specifier.type !== "ImportSpecifier") {
+            continue;
+          }
+          const imported = getPropertyName(specifier.imported);
+          if (imported === "ManagedRuntime") {
+            managedRuntimeLocalNames.add(specifier.local.name);
+          }
+        }
+      },
+      CallExpression(node) {
+        const callee = unwrapExpression(node.callee);
+        if (!callee) {
+          return;
+        }
+
+        if (callee.type === "Identifier" && callee.name === "makeRuntime") {
+          reportRuntimeFacade(callee);
+          return;
+        }
+
+        if (callee.type !== "MemberExpression") {
+          return;
+        }
+        if (getPropertyName(callee.property) !== "make") {
+          return;
+        }
+
+        const object = unwrapExpression(callee.object);
+        if (object?.type === "Identifier" && managedRuntimeLocalNames.has(object.name)) {
+          reportRuntimeFacade(callee.property);
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: {
     name: "multi",
@@ -264,5 +345,6 @@ export default {
   rules: {
     "no-inline-schema-compile": noInlineSchemaCompile,
     "no-direct-use-effect": noDirectUseEffect,
+    "no-service-local-runtime-facade": noServiceLocalRuntimeFacade,
   },
 };

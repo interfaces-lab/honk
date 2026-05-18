@@ -13,25 +13,29 @@ export type ProviderSnapshotSource = {
 
 const CODEX_PROVIDER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_PROVIDER = ProviderDriverKind.make("claudeAgent");
+const AMP_PROVIDER = ProviderDriverKind.make("amp");
 const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
 const CURSOR_PROVIDER = ProviderDriverKind.make("cursor");
 
 type BuiltInProviderServiceMap = {
   readonly codex: ServerProviderShape;
   readonly claudeAgent: ServerProviderShape;
+  readonly amp: ServerProviderShape;
   readonly opencode: ServerProviderShape;
   readonly cursor: ServerProviderShape;
 };
 type BuiltInAdapterMap = {
   readonly codex: ProviderAdapterShape<ProviderAdapterError>;
   readonly claudeAgent: ProviderAdapterShape<ProviderAdapterError>;
+  readonly amp: ProviderAdapterShape<ProviderAdapterError>;
   readonly opencode: ProviderAdapterShape<ProviderAdapterError>;
-  readonly cursor?: ProviderAdapterShape<ProviderAdapterError>;
+  readonly cursor: ProviderAdapterShape<ProviderAdapterError>;
 };
 
 export const BUILT_IN_PROVIDER_ORDER = [
   CODEX_PROVIDER,
   CLAUDE_AGENT_PROVIDER,
+  AMP_PROVIDER,
   OPENCODE_PROVIDER,
   CURSOR_PROVIDER,
 ] as const satisfies ReadonlyArray<ProviderDriverKind>;
@@ -51,6 +55,12 @@ export function createBuiltInProviderSources(
       getSnapshot: services.claudeAgent.getSnapshot,
       refresh: services.claudeAgent.refresh,
       streamChanges: services.claudeAgent.streamChanges,
+    },
+    {
+      provider: AMP_PROVIDER,
+      getSnapshot: services.amp.getSnapshot,
+      refresh: services.amp.refresh,
+      streamChanges: services.amp.streamChanges,
     },
     {
       provider: OPENCODE_PROVIDER,
@@ -73,7 +83,8 @@ export function createBuiltInAdapterList(
   return [
     adapters.codex,
     adapters.claudeAgent,
+    adapters.amp,
     adapters.opencode,
-    ...(adapters.cursor ? [adapters.cursor] : []),
+    adapters.cursor,
   ];
 }

@@ -21,6 +21,7 @@ import { ProviderSessionRuntimeRepositoryLive } from "./persistence/ProviderSess
 import { makeCodexAdapterLive } from "./provider/CodexAdapter.ts";
 import { makeClaudeAdapterLive } from "./provider/ClaudeAdapter.ts";
 import { makeCursorAdapterLive } from "./provider/CursorAdapter.ts";
+import { makeAmpAdapterLive } from "./provider/AmpAdapter.ts";
 import { makeOpenCodeAdapterLive } from "./provider/OpenCodeAdapter.ts";
 import { ProviderAdapterRegistryLive } from "./provider/ProviderAdapterRegistry.ts";
 import { makeProviderServiceLive } from "./provider/ProviderService.ts";
@@ -151,12 +152,16 @@ const ProviderLayerLive = Layer.unwrap(
     const openCodeAdapterLayer = makeOpenCodeAdapterLive(
       nativeEventLogger ? { nativeEventLogger } : undefined,
     );
+    const ampAdapterLayer = makeAmpAdapterLive(
+      nativeEventLogger ? { nativeEventLogger } : undefined,
+    );
     const cursorAdapterLayer = makeCursorAdapterLive(
       nativeEventLogger ? { nativeEventLogger } : undefined,
     );
     const adapterRegistryLayer = ProviderAdapterRegistryLive.pipe(
       Layer.provide(codexAdapterLayer),
       Layer.provide(claudeAdapterLayer),
+      Layer.provide(ampAdapterLayer),
       Layer.provide(openCodeAdapterLayer),
       Layer.provide(cursorAdapterLayer),
       Layer.provideMerge(ProviderSessionDirectoryLayerLive),

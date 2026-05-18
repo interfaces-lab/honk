@@ -42,7 +42,10 @@ export const PROVIDER_OPTIONS: Array<{
 }> = [
   { value: ProviderDriverKind.make("codex"), label: "Codex", available: true },
   { value: ProviderDriverKind.make("claudeAgent"), label: "Claude", available: true },
-  { value: ProviderDriverKind.make("cursor"), label: "Cursor", available: false },
+  { value: ProviderDriverKind.make("amp"), label: "Amp", available: true },
+  { value: ProviderDriverKind.make("opencode"), label: "OpenCode", available: true },
+  { value: ProviderDriverKind.make("cursor"), label: "Cursor", available: true },
+  { value: ProviderDriverKind.make("pi"), label: "Pi", available: false },
 ];
 
 export interface WorkLogSubagent {

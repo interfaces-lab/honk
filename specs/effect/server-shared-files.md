@@ -12,7 +12,7 @@ rg --files packages/server packages/shared
 
 Current count:
 
-- [x] `packages/server/src`: `233` files.
+- [x] `packages/server/src`: `229` files.
 - [x] `packages/server/test`: `90` files.
 - [x] `packages/shared/src`: `19` files.
 - [x] `packages/shared/test`: `9` files.
@@ -24,7 +24,7 @@ Source grouping:
 - [x] `packages/server/src/checkpointing`: `10`.
 - [x] `packages/server/src/environment`: `3`.
 - [x] `packages/server/src/git`: `18`.
-- [x] `packages/server/src/observability`: `7`.
+- [x] `packages/server/src/observability`: `3`.
 - [x] `packages/server/src/orchestration`: `27`.
 - [x] `packages/server/src/persistence`: `60`.
 - [x] `packages/server/src/project`: `13`.
@@ -154,14 +154,19 @@ Classify before keeping public:
 
 ## Observability Duplication
 
-There are duplicate observability implementations in server and shared.
+The duplicate server trace implementation was removed. Shared now owns trace
+record formatting, sinks, local file tracing, and attribute compaction; server
+keeps metrics, runtime assembly, and RPC instrumentation.
 
-Duplicated files:
+Removed duplicate files:
 
 - [x] `packages/server/src/observability/Attributes.ts`
 - [x] `packages/server/src/observability/TraceRecord.ts`
 - [x] `packages/server/src/observability/TraceSink.ts`
 - [x] `packages/server/src/observability/LocalFileTracer.ts`
+
+Canonical shared files:
+
 - [x] `packages/shared/src/observability/Attributes.ts`
 - [x] `packages/shared/src/observability/TraceRecord.ts`
 - [x] `packages/shared/src/observability/TraceSink.ts`
@@ -169,16 +174,16 @@ Duplicated files:
 
 Target:
 
-- [ ] `@multi/shared/observability` owns trace record formatting, trace sink,
+- [x] `@multi/shared/observability` owns trace record formatting, trace sink,
       local file tracer, and attribute compaction.
-- [ ] `packages/server/src/observability/Metrics.ts` keeps server-only metrics.
-- [ ] `packages/server/src/observability/Observability.ts` keeps server runtime
+- [x] `packages/server/src/observability/Metrics.ts` keeps server-only metrics.
+- [x] `packages/server/src/observability/Observability.ts` keeps server runtime
       assembly.
-- [ ] `packages/server/src/observability/RpcInstrumentation.ts` keeps server
+- [x] `packages/server/src/observability/RpcInstrumentation.ts` keeps server
       RPC instrumentation.
-- [ ] Move server-only `normalizeModelMetricLabel` into server metrics unless a
+- [x] Move server-only `normalizeModelMetricLabel` into server metrics unless a
       second package needs it.
-- [ ] Remove server duplicate trace files only after imports and tests point at
+- [x] Remove server duplicate trace files only after imports and tests point at
       shared.
 
 ## One-Off Server Helper Candidates
@@ -207,7 +212,7 @@ Rules:
 
 ## First Server/Shared Cleanup Candidates
 
-- [ ] Make shared observability canonical and remove server duplicate
+- [x] Make shared observability canonical and remove server duplicate
       trace/sink/tracer files.
 - [x] Reclassify `KeyedCoalescingWorker.ts` as shared primitive or terminal
       private helper.
@@ -246,3 +251,9 @@ Current cleanup evidence:
       `pnpm exec vitest run --config vitest.browser.config.ts src/components/chat/view/chat-view.browser.tsx -t "keeps new-worktree mode on empty server threads and bootstraps the first send"`.
 - [x] `pnpm run typecheck` passed after the shared export removals.
 - [x] Strict oxlint passed with warnings denied, and `git diff --check` is clean.
+- [x] Server observability imports now point at `@multi/shared/observability`;
+      the server duplicate trace files were deleted and
+      `normalizeModelMetricLabel` moved to server `Metrics.ts`.
+- [x] The edited observability tests passed from `packages/server` with
+      `pnpm exec vitest run test/observability/Attributes.test.ts test/observability/TraceSink.test.ts test/observability/LocalFileTracer.test.ts`.
+- [x] `pnpm run typecheck` passed after the observability consolidation.

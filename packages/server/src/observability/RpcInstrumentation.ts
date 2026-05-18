@@ -1,6 +1,6 @@
 import { Duration, Effect, Exit, Metric, Stream } from "effect";
+import { outcomeFromExit } from "@multi/shared/observability";
 
-import { outcomeFromExit } from "./Attributes.ts";
 import { metricAttributes, rpcRequestDuration, rpcRequestsTotal, withMetrics } from "./Metrics.ts";
 
 const annotateRpcSpan = (

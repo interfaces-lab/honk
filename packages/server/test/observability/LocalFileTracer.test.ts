@@ -4,9 +4,10 @@ import path from "node:path";
 
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Layer, Logger, References, Tracer } from "effect";
-
-import type { EffectTraceRecord } from "../../src/observability/TraceRecord.ts";
-import { makeLocalFileTracer } from "../../src/observability/LocalFileTracer.ts";
+import {
+  makeLocalFileTracer,
+  type EffectTraceRecord,
+} from "@multi/shared/observability";
 
 const makeTestLayer = (tracePath: string) =>
   Layer.mergeAll(

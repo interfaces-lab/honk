@@ -32,8 +32,12 @@ Current entry points:
   shell selector classification, and styling cleanup rules.
 - [effect/server-shared-files.md](./effect/server-shared-files.md): server and
   shared package file ownership, duplication, and cleanup candidates.
+- [effect/server-runtime.md](./effect/server-runtime.md): server Effect
+  runtime, service contract, route error, defect, and facade cleanup rules.
 - [effect/model.md](./effect/model.md): provider/model resolver ownership and
   picker simplification rules.
+- [effect/providers.md](./effect/providers.md): canonical supported-provider
+  list, Amp ACP contract, and Pi pending rules.
 - [effect/usability-testing.md](./effect/usability-testing.md): browser and
   integration coverage required before deleting UI helper files.
 - [effect/sidebar-usability.md](./effect/sidebar-usability.md): concrete

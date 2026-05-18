@@ -1,9 +1,8 @@
 import {
   CommandId,
-  DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   type ModelSelection,
-  ProviderDriverKind,
   ProviderInstanceId,
   ProjectId,
   ThreadId,
@@ -230,8 +229,8 @@ export const archiveThreadsForInaccessibleProjectRoots = Effect.gen(function* ()
 });
 
 export const getAutoBootstrapDefaultModelSelection = (): ModelSelection => ({
-  instanceId: ProviderInstanceId.make("codex"),
-  model: DEFAULT_MODEL_BY_PROVIDER[ProviderDriverKind.make("codex")] ?? "gpt-5-codex",
+  ...DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+  instanceId: ProviderInstanceId.make(DEFAULT_TEXT_GENERATION_MODEL_SELECTION.instanceId),
 });
 
 export const resolveWelcomeBase = Effect.gen(function* () {

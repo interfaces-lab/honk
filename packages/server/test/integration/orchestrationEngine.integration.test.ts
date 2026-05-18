@@ -5,7 +5,7 @@ import {
   ApprovalRequestId,
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
-  DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   EventId,
   MessageId,
   ProjectId,
@@ -110,7 +110,8 @@ const seedProjectAndThread = (harness: OrchestrationIntegrationHarness) =>
   Effect.gen(function* () {
     const createdAt = nowIso();
     const provider = harness.adapterHarness?.provider ?? "codex";
-    const defaultModel = DEFAULT_MODEL_BY_PROVIDER[provider] ?? DEFAULT_MODEL_BY_PROVIDER.codex!;
+    const defaultModel =
+      provider === "codex" ? DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model : "test-model";
 
     yield* harness.engine.dispatch({
       type: "project.create",

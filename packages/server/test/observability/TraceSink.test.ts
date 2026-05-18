@@ -4,9 +4,7 @@ import path from "node:path";
 
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-
-import type { TraceRecord } from "../../src/observability/TraceRecord.ts";
-import { makeTraceSink } from "../../src/observability/TraceSink.ts";
+import { makeTraceSink, type TraceRecord } from "@multi/shared/observability";
 
 const makeRecord = (name: string, suffix = ""): TraceRecord => ({
   type: "effect-span",

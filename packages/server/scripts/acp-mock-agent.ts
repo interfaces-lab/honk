@@ -516,7 +516,7 @@ const program = Effect.gen(function* () {
   );
 
   yield* agent.handleUnknownExtRequest((method, params) => {
-    if (method !== "session/mode/set") {
+    if (method !== "session/mode/set" && method !== "session/set_mode") {
       return Effect.fail(AcpError.AcpRequestError.methodNotFound(method));
     }
 

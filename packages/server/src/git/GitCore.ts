@@ -20,7 +20,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { GitCommandError, type GitBranch, type GitWorkingTreeFileStatus } from "@multi/contracts";
 import { dedupeRemoteBranchesWithLocalMatches } from "@multi/shared/git";
-import { compactTraceAttributes } from "../observability/Attributes.ts";
+import { compactTraceAttributes } from "@multi/shared/observability";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import {
   GitCore,

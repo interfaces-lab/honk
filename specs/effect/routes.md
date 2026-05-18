@@ -19,6 +19,9 @@ Rules:
 
 - [x] WebSocket RPC methods are named in `packages/contracts/src/rpc.ts`.
 - [x] App clients call the environment API rather than server internals.
+- [x] Orchestration HTTP routes return the contract-owned
+      `OrchestrationHttpErrorResponse`; the CLI decodes the same schema instead
+      of owning a duplicate local DTO.
 - [ ] Server route handlers yield stable services at handler construction or
       runtime startup boundaries.
 - [ ] Expected domain errors are translated to declared public contract errors.

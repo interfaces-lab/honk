@@ -1,7 +1,7 @@
 import { type ProviderInstanceId } from "@multi/contracts";
 import { memo, useMemo, type ReactNode } from "react";
 import { IconClock3OClock, IconSparklesThree, IconStar } from "central-icons";
-import { IconGemini, IconCopilot } from "central-icons";
+import { IconRobot } from "central-icons";
 import { ProviderInstanceIcon } from "./instance-icon";
 import { ScrollArea } from "@multi/ui/scroll-area";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
@@ -83,8 +83,8 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
   instanceEntries: ReadonlyArray<ProviderInstanceEntry>;
   /** Render the favorites rail entry. */
   showFavorites?: boolean;
-  /** Render non-configured coming-soon provider entries. */
-  showComingSoon?: boolean;
+  /** Render unsupported pending provider entries. */
+  showPendingProviders?: boolean;
   /**
    * Instance id values that should render the "new" sparkle badge. Callers
    * pass the subset of default built-in ids they want flagged (custom
@@ -96,7 +96,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
     props.onSelectInstance(instanceId);
   };
   const showFavorites = props.showFavorites ?? true;
-  const showComingSoon = props.showComingSoon ?? true;
+  const showPendingProviders = props.showPendingProviders ?? true;
   const duplicateDriverCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const entry of props.instanceEntries) {
@@ -209,57 +209,30 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
           );
         })}
 
-        {showComingSoon ? (
-          <>
-            {/* Gemini button (coming soon) */}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className="relative block w-full">
-                    <button
-                      className={cn(
-                        "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-multi-control opacity-50 transition-colors hover:bg-transparent",
-                      )}
-                      disabled
-                      type="button"
-                      data-model-picker-provider="gemini-coming-soon"
-                      aria-label="Gemini — coming soon"
-                    >
-                      <IconGemini className="size-5 text-muted-foreground/85" aria-hidden />
-                      <ProviderRailBadge variant="soon">
-                        <IconClock3OClock className="size-2" />
-                      </ProviderRailBadge>
-                    </button>
-                  </span>
-                }
-              />
-              <ModelPickerTooltipPopup>Gemini — Coming soon</ModelPickerTooltipPopup>
-            </Tooltip>
-            {/* Github Copilot button (coming soon) */}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className="relative block w-full">
-                    <button
-                      className={cn(
-                        "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-multi-control opacity-50 transition-colors hover:bg-transparent",
-                      )}
-                      disabled
-                      type="button"
-                      data-model-picker-provider="github-copilot-coming-soon"
-                      aria-label="Github Copilot — coming soon"
-                    >
-                      <IconCopilot className="size-5 text-muted-foreground/85" aria-hidden />
-                      <ProviderRailBadge variant="soon">
-                        <IconClock3OClock className="size-2" />
-                      </ProviderRailBadge>
-                    </button>
-                  </span>
-                }
-              />
-              <ModelPickerTooltipPopup>Github Copilot — Coming soon</ModelPickerTooltipPopup>
-            </Tooltip>
-          </>
+        {showPendingProviders ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="relative block w-full">
+                  <button
+                    className={cn(
+                      "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-multi-control opacity-50 transition-colors hover:bg-transparent",
+                    )}
+                    disabled
+                    type="button"
+                    data-model-picker-provider="pi-pending"
+                    aria-label="Pi — pending"
+                  >
+                    <IconRobot className="size-5 text-muted-foreground/85" aria-hidden />
+                    <ProviderRailBadge variant="soon">
+                      <IconClock3OClock className="size-2" />
+                    </ProviderRailBadge>
+                  </button>
+                </span>
+              }
+            />
+            <ModelPickerTooltipPopup>Pi — Pending</ModelPickerTooltipPopup>
+          </Tooltip>
         ) : null}
       </div>
     </ScrollArea>

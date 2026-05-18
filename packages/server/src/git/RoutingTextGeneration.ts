@@ -14,6 +14,7 @@ import { Effect, Layer, Context } from "effect";
 import { TextGeneration, type TextGenerationShape } from "./TextGeneration.service.ts";
 import { CodexTextGenerationLive } from "./CodexTextGeneration.ts";
 import { ClaudeTextGenerationLive } from "./ClaudeTextGeneration.ts";
+import { AmpTextGenerationLive } from "./AmpTextGeneration.ts";
 import { CursorTextGenerationLive } from "./CursorTextGeneration.ts";
 import { OpenCodeTextGenerationLive } from "./OpenCodeTextGeneration.ts";
 
@@ -27,6 +28,10 @@ class CodexTextGen extends Context.Service<CodexTextGen, TextGenerationShape>()(
 
 class ClaudeTextGen extends Context.Service<ClaudeTextGen, TextGenerationShape>()(
   "t3/git/RoutingTextGeneration/ClaudeTextGen",
+) {}
+
+class AmpTextGen extends Context.Service<AmpTextGen, TextGenerationShape>()(
+  "t3/git/RoutingTextGeneration/AmpTextGen",
 ) {}
 
 class CursorTextGen extends Context.Service<CursorTextGen, TextGenerationShape>()(
@@ -45,6 +50,7 @@ const makeRoutingTextGeneration = Effect.gen(function* () {
   const byInstanceId = {
     codex: yield* CodexTextGen,
     claudeAgent: yield* ClaudeTextGen,
+    amp: yield* AmpTextGen,
     cursor: yield* CursorTextGen,
     opencode: yield* OpenCodeTextGen,
   };
@@ -78,6 +84,14 @@ const InternalClaudeLayer = Layer.effect(
   }),
 ).pipe(Layer.provide(ClaudeTextGenerationLive));
 
+const InternalAmpLayer = Layer.effect(
+  AmpTextGen,
+  Effect.gen(function* () {
+    const svc = yield* TextGeneration;
+    return svc;
+  }),
+).pipe(Layer.provide(AmpTextGenerationLive));
+
 const InternalCursorLayer = Layer.effect(
   CursorTextGen,
   Effect.gen(function* () {
@@ -100,6 +114,7 @@ export const RoutingTextGenerationLive = Layer.effect(
 ).pipe(
   Layer.provide(InternalCodexLayer),
   Layer.provide(InternalClaudeLayer),
+  Layer.provide(InternalAmpLayer),
   Layer.provide(InternalCursorLayer),
   Layer.provide(InternalOpenCodeLayer),
 );
