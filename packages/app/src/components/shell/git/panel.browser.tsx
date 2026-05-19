@@ -1,5 +1,6 @@
 import "../../../index.css";
 
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
@@ -78,6 +79,31 @@ function gitPanelModel(overrides?: Partial<GitPanelModel>): GitPanelModel {
   };
 }
 
+function RerenderingGitPanel() {
+  const [renderCount, setRenderCount] = useState(0);
+
+  return (
+    <>
+      <button type="button" onClick={() => setRenderCount((value) => value + 1)}>
+        Rerender app
+      </button>
+      <ToastProvider>
+        <GitPanel
+          git={gitPanelModel({ branch: `main-${renderCount}` })}
+          onAgentAction={vi.fn()}
+          onStopAgentAction={null}
+          stoppingAgentAction={false}
+          pendingAgentAction={null}
+        />
+      </ToastProvider>
+    </>
+  );
+}
+
+function getChangesTreeText(): string {
+  return document.querySelector<HTMLElement>(".git-changes-file-tree")?.textContent ?? "";
+}
+
 describe("GitPanel", () => {
   afterEach(() => {
     for (const id of toastIds.splice(0)) {
@@ -131,6 +157,28 @@ describe("GitPanel", () => {
         expect(description).toContain("Command: git checkout -- src/app.ts");
         expect(description).toContain("Project: /repo/multi");
         expect(description).toContain("Operation: git.discardPaths");
+      });
+    } finally {
+      await screen.unmount();
+      host.remove();
+    }
+  });
+
+  it("keeps the changes tree populated after an app rerender", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const screen = await render(<RerenderingGitPanel />, { container: host });
+
+    try {
+      await vi.waitFor(() => {
+        expect(getChangesTreeText()).toContain("app.ts");
+      });
+
+      await page.getByRole("button", { name: "Rerender app" }).click();
+
+      await vi.waitFor(() => {
+        expect(getChangesTreeText()).toContain("app.ts");
       });
     } finally {
       await screen.unmount();

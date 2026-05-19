@@ -108,8 +108,12 @@ export function GitChangesFileTree(props: {
     selectedPath !== null ? normalizeTreePath(selectedPath) : null;
 
   const { model } = useTreeModel({
-    paths: [],
+    paths: treePaths,
+    preparedInput,
+    gitStatus: gitStatusEntries,
     initialExpansion: "open",
+    initialSelectedPaths:
+      selectedKey !== null && pathSet.has(selectedKey) ? [selectedKey] : [],
     search: false,
     onSelectionChange: (selectedPaths) => {
       const path = selectedPaths[0] ?? null;
