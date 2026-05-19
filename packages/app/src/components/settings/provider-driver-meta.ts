@@ -63,9 +63,8 @@ export const DRIVER_OPTIONS: readonly DriverOption[] = [
   },
 ];
 
-const DRIVER_OPTION_BY_VALUE: Partial<Record<ProviderDriverKind, DriverOption>> = Object.fromEntries(
-  DRIVER_OPTIONS.map((definition) => [definition.value, definition]),
-);
+const DRIVER_OPTION_BY_VALUE: Partial<Record<ProviderDriverKind, DriverOption>> =
+  Object.fromEntries(DRIVER_OPTIONS.map((definition) => [definition.value, definition]));
 
 /**
  * Look up the driver metadata for an instance's `driver` field. Accepts

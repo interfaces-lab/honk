@@ -22,16 +22,10 @@ import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor/preferences";
-import {
-  resolveDiffThemeName,
-  type DiffThemeName,
-} from "../../../lib/diff-rendering";
+import { resolveDiffThemeName, type DiffThemeName } from "../../../lib/diff-rendering";
 import { fnv1a32 } from "../../../lib/diff-rendering";
 import { useTheme } from "../../../hooks/use-theme";
-import {
-  resolveMarkdownFileLinkMeta,
-  rewriteMarkdownFileUriHref,
-} from "./file-links";
+import { resolveMarkdownFileLinkMeta, rewriteMarkdownFileUriHref } from "./file-links";
 import { LRUCache } from "./lru-cache";
 import { readLocalApi } from "../../../local-api";
 import { cn } from "../../../lib/utils";
@@ -74,40 +68,24 @@ function extractFenceLanguage(className: string | undefined): string {
   if (normalized === "gitignore") return "ini";
 
   if (CODE_FENCE_LANGUAGE_NAME_REGEX.test(normalized)) {
-    return CODE_FENCE_LINE_REFERENCE_REGEX.test(normalized)
-      ? "text"
-      : normalized;
+    return CODE_FENCE_LINE_REFERENCE_REGEX.test(normalized) ? "text" : normalized;
   }
 
   return inferFenceLanguageFromFilename(raw) ?? "text";
 }
 
 function inferFenceLanguageFromFilename(raw: string): string | undefined {
-  const candidates = [raw, ...raw.split(":")].filter(
-    (candidate) => candidate.length > 0,
-  );
+  const candidates = [raw, ...raw.split(":")].filter((candidate) => candidate.length > 0);
   for (const candidate of candidates) {
-    if (
-      !candidate.includes("/") &&
-      !candidate.includes("\\") &&
-      !candidate.startsWith(".")
-    ) {
+    if (!candidate.includes("/") && !candidate.includes("\\") && !candidate.startsWith(".")) {
       continue;
     }
 
     const basename = candidate.split(/[\\/]/).at(-1)?.toLowerCase();
-    if (
-      basename === ".zshrc" ||
-      basename === ".zshenv" ||
-      basename === ".zprofile"
-    ) {
+    if (basename === ".zshrc" || basename === ".zshenv" || basename === ".zprofile") {
       return "zsh";
     }
-    if (
-      basename === ".bashrc" ||
-      basename === ".bash_profile" ||
-      basename === ".profile"
-    ) {
+    if (basename === ".bashrc" || basename === ".bash_profile" || basename === ".profile") {
       return "zsh";
     }
 
@@ -133,11 +111,7 @@ function nodeToPlainText(node: ReactNode): string {
   return "";
 }
 
-function createHighlightCacheKey(
-  code: string,
-  language: string,
-  themeName: DiffThemeName,
-): string {
+function createHighlightCacheKey(code: string, language: string, themeName: DiffThemeName): string {
   return `${fnv1a32(code).toString(36)}:${code.length}:${language}:${themeName}`;
 }
 
@@ -173,8 +147,7 @@ async function getHighlightedCodeHtml(
   language: string,
   themeName: DiffThemeName,
 ): Promise<string> {
-  const { highlighter, language: resolvedLanguage } =
-    await getHighlighterPromise(language);
+  const { highlighter, language: resolvedLanguage } = await getHighlighterPromise(language);
   try {
     return highlighter.codeToHtml(code, {
       lang: resolvedLanguage,
@@ -189,13 +162,7 @@ async function getHighlightedCodeHtml(
   }
 }
 
-function MarkdownCodeBlock({
-  code,
-  children,
-}: {
-  code: string;
-  children: ReactNode;
-}) {
+function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNode }) {
   const [copied, setCopied] = useState(false);
   const resetCopied = useDebouncedCallback(() => setCopied(false), {
     wait: 1200,
@@ -222,11 +189,7 @@ function MarkdownCodeBlock({
         title={copied ? "Copied" : "Copy code"}
         aria-label={copied ? "Copied" : "Copy code"}
       >
-        {copied ? (
-          <IconCheckmark1 className="size-3" />
-        ) : (
-          <IconClipboard className="size-3" />
-        )}
+        {copied ? <IconCheckmark1 className="size-3" /> : <IconClipboard className="size-3" />}
       </button>
       {children}
     </div>
@@ -258,17 +221,11 @@ interface ShikiCodeBlockProps {
   themeName: DiffThemeName;
 }
 
-function ShikiCodeBlock({
-  className,
-  code,
-  codeProps,
-  themeName,
-}: ShikiCodeBlockProps) {
+function ShikiCodeBlock({ className, code, codeProps, themeName }: ShikiCodeBlockProps) {
   const language = extractFenceLanguage(className);
   const cacheKey = createHighlightCacheKey(code, language, themeName);
   const cachedHighlightedHtml = highlightedCodeCache.get(cacheKey);
-  const [highlightedCode, setHighlightedCode] =
-    useState<HighlightedCodeState | null>(null);
+  const [highlightedCode, setHighlightedCode] = useState<HighlightedCodeState | null>(null);
 
   if (cachedHighlightedHtml != null) {
     return (
@@ -325,11 +282,7 @@ function ShikiCodeBlockHighlightLoader({
     void getHighlightedCodeHtml(code, language, themeName).then(
       (html) => {
         if (!isCurrent) return;
-        highlightedCodeCache.set(
-          cacheKey,
-          html,
-          estimateHighlightedSize(html, code),
-        );
+        highlightedCodeCache.set(cacheKey, html, estimateHighlightedSize(html, code));
         setHighlightedCode({ cacheKey, html });
       },
       (error) => {
@@ -360,22 +313,16 @@ interface MarkdownFileLinkProps {
   className?: string | undefined;
 }
 
-const MARKDOWN_LINK_HREF_PATTERN =
-  /\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
-const MARKDOWN_LINK_PATTERN =
-  /(\[[^\]]*]\()([^\s)]+)((?:\s+["'][^"']*["'])?\))/g;
+const MARKDOWN_LINK_HREF_PATTERN = /\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
+const MARKDOWN_LINK_PATTERN = /(\[[^\]]*]\()([^\s)]+)((?:\s+["'][^"']*["'])?\))/g;
 
 function pathParentSegments(path: string): string[] {
   const normalized = path.replaceAll("\\", "/");
-  const segments = normalized
-    .split("/")
-    .filter((segment) => segment.length > 0);
+  const segments = normalized.split("/").filter((segment) => segment.length > 0);
   return segments.slice(0, -1);
 }
 
-function buildFileLinkParentSuffixByPath(
-  filePaths: ReadonlyArray<string>,
-): Map<string, string> {
+function buildFileLinkParentSuffixByPath(filePaths: ReadonlyArray<string>): Map<string, string> {
   const groups = new Map<string, Set<string>>();
   for (const filePath of filePaths) {
     const pathSegments = filePath
@@ -421,10 +368,7 @@ function buildFileLinkParentSuffixByPath(
       const segments = parentSegmentsByPath.get(filePath) ?? [];
       if (segments.length === 0) continue;
       const minUniqueDepth = minUniqueDepthByPath.get(filePath) ?? 1;
-      const suffixDepth = Math.min(
-        segments.length,
-        Math.max(minUniqueDepth, 2),
-      );
+      const suffixDepth = Math.min(segments.length, Math.max(minUniqueDepth, 2));
       suffixByPath.set(filePath, segments.slice(-suffixDepth).join("/"));
     }
   }
@@ -480,8 +424,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       toastManager.add({
         type: "error",
         title: "Unable to open file",
-        description:
-          error instanceof Error ? error.message : "An error occurred.",
+        description: error instanceof Error ? error.message : "An error occurred.",
       });
     });
   }, [targetPath]);
@@ -508,8 +451,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
         toastManager.add({
           type: "error",
           title: `Failed to copy ${title.toLowerCase()}`,
-          description:
-            error instanceof Error ? error.message : "An error occurred.",
+          description: error instanceof Error ? error.message : "An error occurred.",
         });
       },
     );
@@ -570,9 +512,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
               theme={theme}
               className="chat-markdown-file-link-icon size-3.5 shrink-0 text-current"
             />
-            <span className="chat-markdown-file-link-label min-w-0 truncate">
-              {label}
-            </span>
+            <span className="chat-markdown-file-link-label min-w-0 truncate">{label}</span>
           </a>
         }
       />
@@ -620,23 +560,17 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
     return metaByHref;
   }, [cwd, markdownText]);
   const fileLinkParentSuffixByPath = useMemo(() => {
-    const filePaths = [...markdownFileLinkMetaByHref.values()].map(
-      (meta) => meta.filePath,
-    );
+    const filePaths = [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath);
     return buildFileLinkParentSuffixByPath(filePaths);
   }, [markdownFileLinkMetaByHref]);
   const markdownUrlTransform = useCallback<UrlTransform>((href, key, node) => {
-    return (
-      rewriteMarkdownFileUriHref(href) ?? defaultUrlTransform(href, key, node)
-    );
+    return rewriteMarkdownFileUriHref(href) ?? defaultUrlTransform(href, key, node);
   }, []);
   const markdownComponents = useMemo<Components>(
     () => ({
       a({ node: _node, href, ...props }) {
         const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
-        const fileLinkMeta = normalizedHref
-          ? markdownFileLinkMetaByHref.get(normalizedHref)
-          : null;
+        const fileLinkMeta = normalizedHref ? markdownFileLinkMetaByHref.get(normalizedHref) : null;
         if (!fileLinkMeta) {
           return (
             <a
@@ -652,9 +586,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
           );
         }
 
-        const parentSuffix = fileLinkParentSuffixByPath.get(
-          fileLinkMeta.filePath,
-        );
+        const parentSuffix = fileLinkParentSuffixByPath.get(fileLinkMeta.filePath);
         const labelParts = [fileLinkMeta.basename];
         if (typeof parentSuffix === "string" && parentSuffix.length > 0) {
           labelParts.push(parentSuffix);
@@ -705,11 +637,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         if (isStreaming) {
           return (
             <MarkdownCodeBlock code={code}>
-              <PlainCodeBlock
-                className={className}
-                code={code}
-                codeProps={props}
-              />
+              <PlainCodeBlock className={className} code={code} codeProps={props} />
             </MarkdownCodeBlock>
           );
         }
@@ -726,12 +654,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         );
       },
       p({ node: _node, className, ...props }) {
-        return (
-          <p
-            {...props}
-            className={cn("mt-0 mb-[0.85em] text-pretty", className)}
-          />
-        );
+        return <p {...props} className={cn("mt-0 mb-[0.85em] text-pretty", className)} />;
       },
       h1({ node: _node, className, ...props }) {
         return (
@@ -872,12 +795,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         return <b {...props} className={cn("font-semibold", className)} />;
       },
       del({ node: _node, className, ...props }) {
-        return (
-          <del
-            {...props}
-            className={cn("text-muted-foreground line-through", className)}
-          />
-        );
+        return <del {...props} className={cn("text-muted-foreground line-through", className)} />;
       },
       img({ node: _node, className, ...props }) {
         return (
@@ -903,20 +821,14 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
       },
       table({ node: _node, className, ...props }) {
         return (
-          <table
-            {...props}
-            className={cn("mb-3 w-full border-collapse text-left", className)}
-          />
+          <table {...props} className={cn("mb-3 w-full border-collapse text-left", className)} />
         );
       },
       th({ node: _node, className, ...props }) {
         return (
           <th
             {...props}
-            className={cn(
-              "border border-(--multi-markdown-request-border) px-1.5 py-1",
-              className,
-            )}
+            className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
           />
         );
       },
@@ -924,10 +836,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         return (
           <td
             {...props}
-            className={cn(
-              "border border-(--multi-markdown-request-border) px-1.5 py-1",
-              className,
-            )}
+            className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
           />
         );
       },

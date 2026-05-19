@@ -1496,7 +1496,6 @@ describe("deriveTimelineEntries", () => {
       },
     });
   });
-
 });
 
 describe("deriveWorkLogEntries context window handling", () => {

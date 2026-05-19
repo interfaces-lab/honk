@@ -360,7 +360,9 @@ function buildCursorDiscoveredModels(
   });
 }
 
-function hasKnownCursorModelCapabilities(model: Pick<ServerProviderModel, "capabilities">): boolean {
+function hasKnownCursorModelCapabilities(
+  model: Pick<ServerProviderModel, "capabilities">,
+): boolean {
   return model.capabilities !== null;
 }
 
@@ -408,9 +410,7 @@ export function buildCursorDiscoveredModelsFromConfigOptions(
       slug: modelChoice.value.trim(),
       name: modelChoice.name.trim(),
       capabilities:
-        currentModelValue === modelChoice.value.trim()
-          ? currentModelCapabilities
-          : null,
+        currentModelValue === modelChoice.value.trim() ? currentModelCapabilities : null,
     })),
   );
 }

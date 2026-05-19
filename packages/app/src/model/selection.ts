@@ -606,10 +606,7 @@ export function resolveAppProviderModelState(input: {
   const selectedProviderModels = selectedProviderEntry?.models ?? [];
   const selectedModelOptions = modelOptionsByInstance.get(selectedInstanceId) ?? [];
   const selectableModelOptions = selectedModelOptions.filter(isAppModelOptionSelectable);
-  const resolvedRequestedModel = resolveSelectableModel(
-    requestedModel,
-    selectableModelOptions,
-  );
+  const resolvedRequestedModel = resolveSelectableModel(requestedModel, selectableModelOptions);
   const selectedModel =
     resolvedRequestedModel ??
     selectableModelOptions[0]?.slug ??

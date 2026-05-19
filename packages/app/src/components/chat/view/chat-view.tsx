@@ -1992,7 +1992,9 @@ export default function ChatView(props: ChatViewProps) {
       }
       const reuseExistingWorktree = Boolean(branch.worktreePath);
       const nextWorktreePath =
-        branch.worktreePath && branch.worktreePath !== activeProjectCwd ? branch.worktreePath : null;
+        branch.worktreePath && branch.worktreePath !== activeProjectCwd
+          ? branch.worktreePath
+          : null;
       const nextEnvMode: DraftThreadEnvMode = nextWorktreePath
         ? "worktree"
         : envMode === "worktree"
@@ -3244,9 +3246,7 @@ export default function ChatView(props: ChatViewProps) {
         markThreadVisited={markThreadVisited}
         threadId={serverThread?.id}
       />
-      <OptimisticUserMessagesUnmountCleanup
-        optimisticUserMessagesRef={optimisticUserMessagesRef}
-      />
+      <OptimisticUserMessagesUnmountCleanup optimisticUserMessagesRef={optimisticUserMessagesRef} />
       <ActiveThreadUiResetSync
         key={activeThread?.id ?? ""}
         isAtBottomRef={isAtBottomRef}
@@ -3260,9 +3260,7 @@ export default function ChatView(props: ChatViewProps) {
         value={false}
       />
       <ActiveThreadComposerFocusSync
-        key={[activeThread?.id ?? "", focusComposerVersion, terminalState.terminalOpen].join(
-          "\0",
-        )}
+        key={[activeThread?.id ?? "", focusComposerVersion, terminalState.terminalOpen].join("\0")}
         activeThreadId={activeThread?.id ?? null}
         focusComposer={focusComposer}
         terminalOpen={Boolean(terminalState.terminalOpen)}

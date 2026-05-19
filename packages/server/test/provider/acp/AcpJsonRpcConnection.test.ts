@@ -308,19 +308,17 @@ describe("AcpSessionRuntime", () => {
       yield* runtime.setModel("composer-2");
       yield* runtime.setModel("composer-2");
 
-      const setModelRequests = requestEvents.filter(
-        (event) => {
-          const payload = event.payload;
-          return (
-            event.method === "session/set_config_option" &&
-            event.status === "started" &&
-            typeof payload === "object" &&
-            payload !== null &&
-            "configId" in payload &&
-            payload.configId === "model"
-          );
-        },
-      );
+      const setModelRequests = requestEvents.filter((event) => {
+        const payload = event.payload;
+        return (
+          event.method === "session/set_config_option" &&
+          event.status === "started" &&
+          typeof payload === "object" &&
+          payload !== null &&
+          "configId" in payload &&
+          payload.configId === "model"
+        );
+      });
       expect(setModelRequests).toHaveLength(1);
     }).pipe(
       Effect.provide(

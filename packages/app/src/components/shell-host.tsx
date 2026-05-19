@@ -450,10 +450,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     }
     return ids;
   }, [sidebarThreads, threadLastVisitedAtById]);
-  const pinnedThreadKeySet = useMemo(
-    () => new Set(pinnedThreadKeys),
-    [pinnedThreadKeys],
-  );
+  const pinnedThreadKeySet = useMemo(() => new Set(pinnedThreadKeys), [pinnedThreadKeys]);
 
   const activeThread = routeActiveThread ?? null;
 

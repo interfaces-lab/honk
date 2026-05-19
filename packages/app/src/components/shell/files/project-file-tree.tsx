@@ -54,14 +54,10 @@ function directoryPlaceholderPath(relativeDir: string): string {
 }
 
 function isDirectoryPlaceholderPath(path: string): boolean {
-  return normalizeTreePath(path).endsWith(
-    `/${DIRECTORY_PLACEHOLDER_FILE_NAME}`,
-  );
+  return normalizeTreePath(path).endsWith(`/${DIRECTORY_PLACEHOLDER_FILE_NAME}`);
 }
 
-function isDirectoryHandle(
-  item: FileTreeItemHandle | null,
-): item is FileTreeDirectoryHandle {
+function isDirectoryHandle(item: FileTreeItemHandle | null): item is FileTreeDirectoryHandle {
   return item?.isDirectory() === true;
 }
 
@@ -88,9 +84,7 @@ function joinProjectPath(cwd: string, relativePath: string): string {
   return `${cwd.replace(/[\\/]+$/, "")}${separator}${relativePath.replace(/^[\\/]+/, "")}`;
 }
 
-function workingTreeFileStatusToTreesStatus(
-  status: GitWorkingTreeFileStatus,
-): GitStatus {
+function workingTreeFileStatusToTreesStatus(status: GitWorkingTreeFileStatus): GitStatus {
   switch (status) {
     case "added":
       return "added";
@@ -109,9 +103,7 @@ function workingTreeFileStatusToTreesStatus(
   }
 }
 
-function toGitStatusEntries(
-  status: ReturnType<typeof useGitStatus>["data"],
-): GitStatusEntry[] {
+function toGitStatusEntries(status: ReturnType<typeof useGitStatus>["data"]): GitStatusEntry[] {
   if (!status?.workingTree.files.length) {
     return [];
   }
@@ -143,19 +135,11 @@ function createProjectFileTreeContextKey(input: {
   cwd: string | null;
   environmentId: EnvironmentId | null;
 }): string {
-  return JSON.stringify([
-    input.active === true,
-    input.cwd,
-    input.environmentId,
-  ]);
+  return JSON.stringify([input.active === true, input.cwd, input.environmentId]);
 }
 
-function createGitStatusKey(
-  gitStatusEntries: readonly GitStatusEntry[],
-): string {
-  return gitStatusEntries
-    .map((entry) => `${entry.path}:${entry.status}`)
-    .join("\0");
+function createGitStatusKey(gitStatusEntries: readonly GitStatusEntry[]): string {
+  return gitStatusEntries.map((entry) => `${entry.path}:${entry.status}`).join("\0");
 }
 
 function useValueIdentityVersion<TValue>(value: TValue): number {
@@ -214,9 +198,7 @@ export const ProjectFileTree = forwardRef<
     const cwd = cwdRef.current;
     if (!cwd) return;
 
-    const editor = resolveAndPersistPreferredEditor(
-      availableEditorsRef.current,
-    );
+    const editor = resolveAndPersistPreferredEditor(availableEditorsRef.current);
     if (!editor) {
       toast.error("No available editor found.");
       return;
@@ -299,15 +281,9 @@ export const ProjectFileTree = forwardRef<
         setLoadError(null);
         setTreePaths((currentPaths) => {
           const nextPaths = new Set(
-            currentPaths.filter(
-              (path) =>
-                path !== directoryPlaceholderPath(normalizedRelativeDir),
-            ),
+            currentPaths.filter((path) => path !== directoryPlaceholderPath(normalizedRelativeDir)),
           );
-          for (const treePath of entriesToTreePaths(
-            result.entries,
-            loadedDirectoriesRef.current,
-          )) {
+          for (const treePath of entriesToTreePaths(result.entries, loadedDirectoriesRef.current)) {
             nextPaths.add(treePath);
           }
           return [...nextPaths];
@@ -335,25 +311,15 @@ export const ProjectFileTree = forwardRef<
     () =>
       new Set(
         treePaths
-          .filter(
-            (path) => !path.endsWith("/") && !isDirectoryPlaceholderPath(path),
-          )
+          .filter((path) => !path.endsWith("/") && !isDirectoryPlaceholderPath(path))
           .map((path) => normalizeTreePath(path)),
       ),
     [treePaths],
   );
   const treePathsKey = useMemo(() => treePaths.join("\0"), [treePaths]);
-  const gitStatusEntries = useMemo(
-    () => toGitStatusEntries(gitStatus.data),
-    [gitStatus.data],
-  );
-  const gitStatusKey = useMemo(
-    () => createGitStatusKey(gitStatusEntries),
-    [gitStatusEntries],
-  );
-  const externalSelectedPath = props.selectedPath
-    ? normalizeTreePath(props.selectedPath)
-    : null;
+  const gitStatusEntries = useMemo(() => toGitStatusEntries(gitStatus.data), [gitStatus.data]);
+  const gitStatusKey = useMemo(() => createGitStatusKey(gitStatusEntries), [gitStatusEntries]);
+  const externalSelectedPath = props.selectedPath ? normalizeTreePath(props.selectedPath) : null;
   const projectFileTreeContextKey = createProjectFileTreeContextKey({
     active: props.active,
     cwd: props.cwd,
@@ -387,11 +353,7 @@ export const ProjectFileTree = forwardRef<
         props.className,
       )}
     >
-      <ProjectFileTreePathsSync
-        key={`paths:${treePathsKey}`}
-        model={model}
-        treePaths={treePaths}
-      />
+      <ProjectFileTreePathsSync key={`paths:${treePathsKey}`} model={model} treePaths={treePaths} />
       <ProjectFileTreeInitialLoadSync
         key={`initial:${projectFileTreeContextKey}:${loadDirectoryVersion}`}
         active={props.active}
@@ -554,8 +516,7 @@ function ProjectFileTreeSelectionSync({
     }
     if (
       !filePathSet.has(externalSelectedPath) ||
-      normalizeTreePath(model.getSelectedPaths()[0] ?? "") ===
-        externalSelectedPath
+      normalizeTreePath(model.getSelectedPaths()[0] ?? "") === externalSelectedPath
     ) {
       return;
     }

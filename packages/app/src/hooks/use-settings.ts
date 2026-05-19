@@ -186,9 +186,10 @@ export function useUpdateSettings() {
     }
   }, []);
 
-  const resetSettings = useCallback(() => updateSettings(DEFAULT_UNIFIED_SETTINGS), [
-    updateSettings,
-  ]);
+  const resetSettings = useCallback(
+    () => updateSettings(DEFAULT_UNIFIED_SETTINGS),
+    [updateSettings],
+  );
 
   return {
     updateSettings,

@@ -137,6 +137,11 @@ interface StagePackageJson {
   readonly overrides: Record<string, unknown>;
 }
 
+interface InstallTarget {
+  readonly os: "darwin" | "linux";
+  readonly cpu: "arm64" | "x64" | "*";
+}
+
 const BuildEnvConfig = Config.all({
   platform: Config.schema(BuildPlatform, "MULTI_DESKTOP_PLATFORM").pipe(Config.option),
   target: Config.string("MULTI_DESKTOP_TARGET").pipe(Config.option),
@@ -382,6 +387,16 @@ function resolveDesktopRuntimeDependencies(
   );
 
   return resolveCatalogDependencies(runtimeDependencies, catalog, "packages/desktop");
+}
+
+function resolveBunInstallTarget(
+  platform: typeof BuildPlatform.Type,
+  arch: typeof BuildArch.Type,
+): InstallTarget {
+  return {
+    os: platform === "mac" ? "darwin" : "linux",
+    cpu: arch === "universal" ? "*" : arch,
+  };
 }
 
 function resolveGitHubPublishConfig():
@@ -641,11 +656,12 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   // `app.asar` for packages like `fast-check` imported from `effect`’s published files.
 
   yield* Effect.log("[desktop-artifact] Installing staged production dependencies...");
+  const installTarget = resolveBunInstallTarget(options.platform, options.arch);
   yield* runCommand(
     ChildProcess.make({
       cwd: stageAppDir,
       ...commandOutputOptions(options.verbose),
-    })`bun install --production --omit optional`,
+    })`bun install --production --os=${installTarget.os} --cpu=${installTarget.cpu}`,
   );
 
   const buildEnv: NodeJS.ProcessEnv = {

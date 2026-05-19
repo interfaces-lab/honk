@@ -24,7 +24,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   const subagents = workEntry.subagents ?? [];
 
   if (workEntry.tone === "thinking" && !isToolLikeWorkEntry(workEntry)) {
-    return <ThinkingStatus task={resolveThinkingTask(workEntry)} active={isLoading} />;
+    return <ThinkingStatus task={resolveThinkingTask(workEntry, isLoading)} active={isLoading} />;
   }
 
   const toolCall = toToolCall(workEntry, projectRoot);
@@ -91,10 +91,13 @@ function isToolLikeWorkEntry(workEntry: WorkLogEntry): boolean {
   );
 }
 
-function resolveThinkingTask(workEntry: WorkLogEntry): string {
+function resolveThinkingTask(workEntry: WorkLogEntry, isLoading: boolean): string {
+  const action = isLoading ? "Thinking" : "Thought";
+  const title = resolveTitle(workEntry);
   const detail = workEntry.detail?.trim();
-  if (detail) return `${resolveTitle(workEntry)} - ${detail}`;
-  return resolveTitle(workEntry);
+  if (detail && detail !== title) return `${action} - ${detail}`;
+  if (title !== "Thinking" && title !== "Thought") return `${action} - ${title}`;
+  return action;
 }
 
 function toToolCall(workEntry: WorkLogEntry, projectRoot: string | undefined): ToolCallModel {

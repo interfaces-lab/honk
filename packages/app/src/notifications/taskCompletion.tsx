@@ -263,7 +263,12 @@ function emitTaskCompletionNotifications(
   for (const completion of completions) {
     const copy = buildTaskCompletionCopy(completion);
     if (shouldAttemptSystemNotification) {
-      void showSystemThreadNotification(copy, completion.environmentId, completion.threadId, navigate);
+      void showSystemThreadNotification(
+        copy,
+        completion.environmentId,
+        completion.threadId,
+        navigate,
+      );
     }
   }
 
@@ -272,7 +277,12 @@ function emitTaskCompletionNotifications(
     showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", navigate);
 
     if (shouldAttemptSystemNotification) {
-      void showSystemThreadNotification(copy, candidate.environmentId, candidate.threadId, navigate);
+      void showSystemThreadNotification(
+        copy,
+        candidate.environmentId,
+        candidate.threadId,
+        navigate,
+      );
     }
   }
 }

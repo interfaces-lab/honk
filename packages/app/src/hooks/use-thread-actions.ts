@@ -242,10 +242,7 @@ export function useThreadActions() {
         commandId: newCommandId(),
         threadId: threadRef.threadId,
       });
-      enqueueArchiveUndoToast(
-        [{ threadRef, title: thread.title }],
-        undoArchiveThreads,
-      );
+      enqueueArchiveUndoToast([{ threadRef, title: thread.title }], undoArchiveThreads);
       const currentRouteThreadRef = getCurrentRouteThreadRef();
 
       if (

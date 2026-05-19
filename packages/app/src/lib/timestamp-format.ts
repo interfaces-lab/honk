@@ -71,7 +71,10 @@ export function formatRelativeTimeLabel(isoDate: string) {
   return relative.suffix ? `${relative.value} ${relative.suffix}` : relative.value;
 }
 
-export function formatCompactRelativeTimeLabel(isoDate: string, nowMs: number = Date.now()): string {
+export function formatCompactRelativeTimeLabel(
+  isoDate: string,
+  nowMs: number = Date.now(),
+): string {
   const diffMs = nowMs - new Date(isoDate).getTime();
   if (diffMs < 0) return "now";
   const seconds = Math.floor(diffMs / 1000);

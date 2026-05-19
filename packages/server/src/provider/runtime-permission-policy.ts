@@ -22,14 +22,7 @@ const READ_PERMISSION_KEYS = new Set([
   "websearch",
 ]);
 
-const EDIT_PERMISSION_KEYS = new Set([
-  "edit",
-  "write",
-  "patch",
-  "apply_patch",
-  "delete",
-  "move",
-]);
+const EDIT_PERMISSION_KEYS = new Set(["edit", "write", "patch", "apply_patch", "delete", "move"]);
 
 const COMMAND_PERMISSION_KEYS = new Set(["bash", "shell", "execute", "exec", "command"]);
 const USER_INPUT_PERMISSION_KEYS = new Set(["question", "ask_user"]);
@@ -37,15 +30,16 @@ const ENV_EXAMPLE_BASENAMES = new Set([".env.example"]);
 
 export function isEnvFileReference(value: unknown): boolean {
   if (typeof value === "string") {
-    return value
-      .split(/\s+/)
-      .some((part) => {
-        const basename = part.split(/[\\/]/).pop()?.replace(/^['"`]+|['"`.,;:]+$/g, "");
-        if (!basename || ENV_EXAMPLE_BASENAMES.has(basename)) {
-          return false;
-        }
-        return basename === ".env" || basename.endsWith(".env") || basename.startsWith(".env.");
-      });
+    return value.split(/\s+/).some((part) => {
+      const basename = part
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/^['"`]+|['"`.,;:]+$/g, "");
+      if (!basename || ENV_EXAMPLE_BASENAMES.has(basename)) {
+        return false;
+      }
+      return basename === ".env" || basename.endsWith(".env") || basename.startsWith(".env.");
+    });
   }
 
   if (Array.isArray(value)) {
@@ -134,10 +128,16 @@ export function shouldPromptForAction(
   }
 }
 
-const allow = (permission: string, pattern = "*") =>
-  ({ permission, pattern, action: "allow" as const });
-const ask = (permission: string, pattern = "*") =>
-  ({ permission, pattern, action: "ask" as const });
+const allow = (permission: string, pattern = "*") => ({
+  permission,
+  pattern,
+  action: "allow" as const,
+});
+const ask = (permission: string, pattern = "*") => ({
+  permission,
+  pattern,
+  action: "ask" as const,
+});
 
 export function buildOpenCodePermissionRuleset(runtimeMode: RuntimeMode): PermissionRuleset {
   if (runtimeMode === "full-access") {

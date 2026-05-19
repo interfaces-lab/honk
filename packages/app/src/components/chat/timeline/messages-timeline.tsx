@@ -796,6 +796,12 @@ const WorkGroupSection = memo(function WorkGroupSection({
   const { projectRoot } = use(TimelineRowCtx);
   const summary = row.summary;
   const isRunning = row.isRunning;
+  const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
+  const headerLabel = isThinkingGroup
+    ? [summary.action, summary.details].filter(Boolean).join(" ")
+    : isRunning
+      ? "Working"
+      : `Worked for ${formatDuration(row.durationMs)}`;
   const handleToggle = useCallback(() => {
     onToggleExpanded(row.id);
   }, [onToggleExpanded, row.id]);
@@ -819,10 +825,8 @@ const WorkGroupSection = memo(function WorkGroupSection({
         onClick={handleToggle}
         data-work-group-header=""
       >
-        <span className="shrink-0 whitespace-nowrap tabular-nums">
-          {isRunning ? "Working" : `Worked for ${formatDuration(row.durationMs)}`}
-        </span>
-        {!expanded && !isRunning ? (
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{headerLabel}</span>
+        {!expanded && !isRunning && !isThinkingGroup ? (
           <>
             <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
               ·

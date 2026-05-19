@@ -38,14 +38,12 @@ User chose **todo-only** placement (no `specs/timeline.md`).
 
 Cursor bundle class names (`ui-step-group-preview`, `ui-collapsible`, `ui-tool-call-line`, BEM `__stats`, etc.) are **dissection labels only**. Do **not** port them into Multi.
 
-
-| Do                                                                                                                                                                                                       | Don't                                                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Tailwind utilities on JSX or `**cva` variants** (follow [tool-renderer.tsx](packages/app/src/components/chat/message/tool-renderer.tsx): `toolCallLineVariants`, `toolCallLineActionVariants`, …)        | `*_CLASSNAME` string constants or decorative class buckets                                            |
-| Shared rhythm in [conversation.css](packages/app/src/styles/conversation.css) as `**--chat-timeline-`* tokens** (e.g. `--chat-timeline-work-preview-max-height: 144px`, `--chat-timeline-step-gap: 6px`) | New `ui-`* or `composer-*` CSS files mimicking Cursor                                                 |
-| `**data-*` for tests and state** (existing: `data-assistant-work-group`, `data-tool-call-line`, `data-chat-timeline-scroll`; add e.g. `data-work-group-preview`, `data-work-preview-scrollable`)         | Copying Cursor attribute names as implementation requirement (`data-group-loading` is reference only) |
-| Small focused components (`WorkGroupPreview`, `WorkGroupSummaryLine`) owning layout                                                                                                                      | One mega `className` template literal shared across files                                             |
-
+| Do                                                                                                                                                                                                          | Don't                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Tailwind utilities on JSX or `**cva` variants\*\* (follow [tool-renderer.tsx](packages/app/src/components/chat/message/tool-renderer.tsx): `toolCallLineVariants`, `toolCallLineActionVariants`, …)         | `*_CLASSNAME` string constants or decorative class buckets                                            |
+| Shared rhythm in [conversation.css](packages/app/src/styles/conversation.css) as `**--chat-timeline-`\* tokens\*\* (e.g. `--chat-timeline-work-preview-max-height: 144px`, `--chat-timeline-step-gap: 6px`) | New `ui-`_ or `composer-_` CSS files mimicking Cursor                                                 |
+| `**data-*` for tests and state\*\* (existing: `data-assistant-work-group`, `data-tool-call-line`, `data-chat-timeline-scroll`; add e.g. `data-work-group-preview`, `data-work-preview-scrollable`)          | Copying Cursor attribute names as implementation requirement (`data-group-loading` is reference only) |
+| Small focused components (`WorkGroupPreview`, `WorkGroupSummaryLine`) owning layout                                                                                                                         | One mega `className` template literal shared across files                                             |
 
 **Preview pane (collapsed + running):** implement as a component with Tailwind + token, e.g. `max-h-(--chat-timeline-work-preview-max-height) overflow-y-auto overscroll-y-contain` on the scroll host, not a `UI_STEP_GROUP_PREVIEW_CLASS` constant.
 
@@ -96,9 +94,6 @@ flowchart TD
   virt --> render[TimelineRowContent / WorkGroupSection / ToolCallRenderer]
 ```
 
-
-
-
 | Layer               | File                                                                                     | Responsibility                                              |
 | ------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | Activity → work log | [session-logic.ts](packages/app/src/session-logic.ts)                                    | `WorkLogEntry`, tool lifecycle collapse by `toolCallId`     |
@@ -106,7 +101,6 @@ flowchart TD
 | List + scroll       | [messages-timeline.tsx](packages/app/src/components/chat/timeline/messages-timeline.tsx) | `useVirtualizer`, sticky user rows, `collapsedWorkGroupIds` |
 | Tool lines          | [tool-renderer.tsx](packages/app/src/components/chat/message/tool-renderer.tsx)          | `data-tool-call-line-*`, per-tool expand + inline diff      |
 | Tokens              | [conversation.css](packages/app/src/styles/conversation.css)                             | `--chat-timeline-row-gap: 12px`, conversation font vars     |
-
 
 **State rules (write into spec):**
 
@@ -122,7 +116,6 @@ Point readers at dissection sources (for agents, not runtime):
 - JS: `/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js`
 - CSS: same tree; most timeline classes are **injected in JS**, not `workbench.desktop.main.css`
 
-
 | Cursor UI (screenshots)                                        | Cursor mechanism                                                         | Multi equivalent                                                           |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
 | `Worked for 46s` + chevron                                     | Turn chapter `zMr` + `Gbf` duration; `UJi` collapsible                   | `WorkGroupSection` “Worked for {formatDuration}”                           |
@@ -136,13 +129,11 @@ Point readers at dissection sources (for agents, not runtime):
 | List virtualization                                            | `virtualized-composer-messages-*` + pair grouping                        | `@tanstack/react-virtual` + `VIRTUAL_ROW_GAP_PX = 12`                      |
 | **Live preview while collapsed + running**                     | `data-group-loading` + `ui-step-group-preview`                           | **gap:** collapsed work group renders **nothing** until user expands       |
 
-
 ### 3.2.1 Loading preview while collapsed (new — from screenshot)
 
 Cursor keeps the transcript **visible and updating** even when the user has collapsed a working group (e.g. header shows `Exploring` while `Read` / `Grepped` lines stream in underneath). This is **not** the same as “expand to see tools”; it is a dedicated **preview lane** tied to `row.isRunning`.
 
 **Bundle behavior (`z$v` + `fos`):**
-
 
 | Attribute / API                      | Meaning                                                                                                                      |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -153,11 +144,10 @@ Cursor keeps the transcript **visible and updating** even when the user has coll
 | Click preview                        | `onClick={() => expand(true)}` — preview is a tap target to fully open the group                                             |
 | Header when loading + not scrollable | CSS: `[data-group-loading][data-preview-scrollable=false]` hides `.ui-step-group-header` collapsible until preview overflows |
 
-
 **Screenshot mapping:**
 
 - Top: completed `Thought for 1s` blocks with narrative + subagent chips (`Composer 2.5`, `Fast`).
-- Middle: `**Exploring`** header with live `Read …` / `Grepped …` lines — preview content under a collapsed/working group.
+- Middle: `**Exploring`\*\* header with live `Read …` / `Grepped …` lines — preview content under a collapsed/working group.
 - Bottom: `**Thinking**` collapsible (chevron) with streaming detail — separate from step-group preview but same “show work while collapsed” principle.
 
 **Multi gap:** `WorkGroupSection` only renders children when `expanded === true`. While collapsed, **no preview**, so running exploration/commands are invisible unless the user expands. Stick-to-bottom on the virtual list does not substitute for in-group preview.
@@ -165,7 +155,7 @@ Cursor keeps the transcript **visible and updating** even when the user has coll
 **Spec target (todo.md):**
 
 - When `work` row has `isRunning: true` and user has collapsed the group (`collapsedWorkGroupIds.has(id)`):
-  - Always render `**WorkGroupPreview`** (new component): fixed **max-height** via `--chat-timeline-work-preview-max-height` (144px), **full chat lane width** (same `max-w-agent-chat` — “fixed width” = bounded preview height, not narrow column). Markup: `data-work-group-preview=""` on scroll host.
+  - Always render `**WorkGroupPreview`** (new component): fixed **max-height** via `--chat-timeline-work-preview-max-height` (144px), **full chat lane width\*\* (same `max-w-agent-chat` — “fixed width” = bounded preview height, not narrow column). Markup: `data-work-group-preview=""` on scroll host.
   - **Auto-scroll preview to bottom** on each new `groupedEntries` tail (mirror `autoScrollToBottom` + `scrollTrigger`; implement with ref + `useLayoutEffect` on entry count / last entry id, not reducer).
   - Show **live tool lines** (`ToolCallMessage` / minimal density) inside preview, not only the summary header.
   - Progressive header: `Exploring` / `Editing` / `Running` from `summary.action` while running; hide duplicate summary header until `data-work-preview-scrollable="true"` (optional parity — mirror Cursor gate via tokenized CSS, not `.ui-step-group-header` selectors).
@@ -191,8 +181,6 @@ stateDiagram-v2
   end note
 ```
 
-
-
 ### 3.3 Component hierarchy and props (spec contract)
 
 Document the render tree agents must preserve:
@@ -215,13 +203,13 @@ MessagesTimeline (props: timelineEntries, isWorking, activeTurnStartedAt, timeli
                       └─ ToolCallMessage[] → ToolCallRenderer (conversationDensity="minimal")
 ```
 
-`**WorkGroupSummary` shape** (already in [timeline-rows.ts](packages/app/src/components/chat/timeline/timeline-rows.ts)):
+`**WorkGroupSummary` shape\*\* (already in [timeline-rows.ts](packages/app/src/components/chat/timeline/timeline-rows.ts)):
 
 - `action`: verb (`Explored`, `Edited`, `Ran`, `Working`/`Worked`)
 - `details`: comma-separated counts (`countLabel` pluralization)
 - `additions` / `deletions`: optional aggregate diff stats
 
-`**ToolCallRenderer` line contract** (behavioral parity with Cursor tool lines; styling via existing `cva` + `data-tool-call-line-`*):
+`**ToolCallRenderer` line contract\*_ (behavioral parity with Cursor tool lines; styling via existing `cva` + `data-tool-call-line-`_):
 
 - `data-tool-call-line-action` — darker secondary (`text-multi-fg-secondary`)
 - `data-tool-call-line-details` — tertiary metadata
@@ -232,7 +220,6 @@ MessagesTimeline (props: timelineEntries, isWorking, activeTurnStartedAt, timeli
 ### 3.4 Copywriting rules (from Cursor `NMd`, `iap`, `Kip`)
 
 Add normative bullets to todo:
-
 
 | Pattern           | Rule                                                                                                                                            |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -245,9 +232,7 @@ Add normative bullets to todo:
 | Fallback          | `Worked N steps` when kinds are mixed — keep, do not guess file/read labels                                                                     |
 | Per-tool lines    | `Grepped`/`Read`/`Edited {basename}` + per-file `+n -m` on the line, not only on group header                                                   |
 
-
 ### 3.5 Spacing and collapse semantics
-
 
 | Token / behavior        | Cursor                                                      | Multi today                                         | Spec target                                                                               |
 | ----------------------- | ----------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -258,7 +243,6 @@ Add normative bullets to todo:
 | **Running + collapsed** | 144px `ui-step-group-preview`, auto-scroll, header optional | No children when collapsed                          | **Always show preview pane** with streaming tool lines                                    |
 | Thinking default        | `defaultOpen: false` when complete                          | Always visible in expanded group                    | Collapsible `Thought` row, default closed when done                                       |
 | Chevron                 | 90° when open, `margin-left: 4px`                           | `rotate-90`, `gap-1`                                | Document as fixed interaction contract                                                    |
-
 
 ### 3.6 Grouping rules (derivation, not UI state)
 
@@ -276,7 +260,7 @@ Document in spec (matches [timeline-rows.ts](packages/app/src/components/chat/ti
 Under `## Open` or a `### TIMELINE` subsection, add checkboxes:
 
 - Default work groups **collapsed**; show `WorkGroupSummaryLine` (+ stats) in collapsed header when **idle**, `Worked for …` as secondary or combined per Cursor `z$v` header layout
-- **Loading preview while collapsed:** `WorkGroupPreview` with `--chat-timeline-work-preview-max-height`, auto-scroll, `data-work-group-preview`; live `ToolCallMessage` rows; click expands; virtualizer `estimateSize` includes preview height (AGENTS.md: Tailwind/cva/tokens only, no Cursor `ui-`* classes)
+- **Loading preview while collapsed:** `WorkGroupPreview` with `--chat-timeline-work-preview-max-height`, auto-scroll, `data-work-group-preview`; live `ToolCallMessage` rows; click expands; virtualizer `estimateSize` includes preview height (AGENTS.md: Tailwind/cva/tokens only, no Cursor `ui-`\* classes)
 - `data-work-preview-scrollable` gate (optional): hide summary header until preview overflows max height; top fade via CSS on preview host (no `ui-scroll-area` class names)
 - Thinking rows: `Thought` / `Thinking` + `briefly` / duration details (`NMd` rules); collapsible, default closed when complete
 - Collapsed header copy: optional narrative description when server provides turn summary (today only tool-derived summary — document dependency on activity payload if needed)
@@ -312,5 +296,4 @@ In the new section, link:
 
 - Re-read updated `specs/todo.md` for: reducer removed, TIMELINE track present, virtualizer named, Cursor bundle path cited, checklist actionable.
 - Ensure tone matches existing todo (tracks legend, short bullets, links to guide).
-- TIMELINE section cites [AGENTS.md](AGENTS.md) styling rule: no decorative `*_CLASSNAME`; Cursor `ui-`* names only in “Cursor reference” column, not implementation.
-
+- TIMELINE section cites [AGENTS.md](AGENTS.md) styling rule: no decorative `*_CLASSNAME`; Cursor `ui-`\* names only in “Cursor reference” column, not implementation.

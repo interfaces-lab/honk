@@ -117,11 +117,7 @@ function readProviderConfigString(config: unknown, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
-function readProviderConfigBoolean(
-  config: unknown,
-  key: string,
-  defaultValue = false,
-): boolean {
+function readProviderConfigBoolean(config: unknown, key: string, defaultValue = false): boolean {
   if (config === null || typeof config !== "object") return defaultValue;
   const value = (config as Record<string, unknown>)[key];
   return typeof value === "boolean" ? value : defaultValue;

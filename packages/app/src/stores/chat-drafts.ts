@@ -1967,11 +1967,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 if (!current?.model) {
                   continue;
                 }
-                nextMap[instanceKey] = createModelSelection(
-                  instanceKey,
-                  current.model,
-                  opts,
-                );
+                nextMap[instanceKey] = createModelSelection(instanceKey, current.model, opts);
               } else if (current?.options) {
                 const { options: _, ...rest } = current;
                 nextMap[instanceKey] = rest as ModelSelection;
@@ -2019,11 +2015,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               if (!model) {
                 return state;
               }
-              nextMap[instanceKey] = createModelSelection(
-                instanceKey,
-                model,
-                providerOpts,
-              );
+              nextMap[instanceKey] = createModelSelection(instanceKey, model, providerOpts);
             } else if (currentForProvider && (currentForProvider.options?.length ?? 0) > 0) {
               const { options: _, ...rest } = currentForProvider;
               nextMap[instanceKey] = rest as ModelSelection;

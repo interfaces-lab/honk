@@ -138,6 +138,7 @@ export interface ToolRawArtifact {
 export interface WorkLogEntry {
   id: string;
   createdAt: string;
+  completedAt?: string;
   label: string;
   detail?: string;
   output?: string;
@@ -150,6 +151,7 @@ export interface WorkLogEntry {
   toolTitle?: string;
   itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
+  taskId?: string;
   artifacts?: ReadonlyArray<ToolDisplayArtifact>;
   subagents?: ReadonlyArray<WorkLogSubagent>;
   subagentAction?: WorkLogSubagentAction;
@@ -702,13 +704,14 @@ export function deriveWorkLogEntries(
   options: WorkLogDerivationOptions = {},
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
+  const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
     .filter((activity) => activity.kind !== "account.rate-limits.updated")
     .filter((activity) => activity.kind !== "context-window.updated")
     .filter((activity) => activity.summary !== "Checkpoint captured")
     .filter((activity) => !isPlanBoundaryToolActivity(activity))
-    .map(toDerivedWorkLogEntry);
+    .map((activity) => toDerivedWorkLogEntry(activity, completedAtByTaskKey));
   const workLogEntries: WorkLogEntry[] = [];
   for (const entry of collapseDerivedWorkLogEntries(entries)) {
     const shouldSettle =
@@ -751,6 +754,35 @@ export function deriveWorkLogEntries(
   return workLogEntries;
 }
 
+function deriveTaskCompletionByKey(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): Map<string, string> {
+  const completedAtByTaskKey = new Map<string, string>();
+  for (const activity of activities) {
+    if (activity.kind !== "task.completed") {
+      continue;
+    }
+    const taskId = extractActivityTaskId(activity);
+    if (!taskId) {
+      continue;
+    }
+    completedAtByTaskKey.set(workLogTaskKey(activity.turnId, taskId), activity.createdAt);
+  }
+  return completedAtByTaskKey;
+}
+
+function extractActivityTaskId(activity: OrchestrationThreadActivity): string | undefined {
+  const payload =
+    activity.payload && typeof activity.payload === "object"
+      ? (activity.payload as Record<string, unknown>)
+      : null;
+  return asTrimmedString(payload?.taskId) ?? undefined;
+}
+
+function workLogTaskKey(turnId: TurnId | null, taskId: string): string {
+  return `${turnId ?? "thread"}:${taskId}`;
+}
+
 function isPlanBoundaryToolActivity(activity: OrchestrationThreadActivity): boolean {
   if (activity.kind !== "tool.updated" && activity.kind !== "tool.completed") {
     return false;
@@ -763,7 +795,10 @@ function isPlanBoundaryToolActivity(activity: OrchestrationThreadActivity): bool
   return typeof payload?.detail === "string" && payload.detail.startsWith("ExitPlanMode:");
 }
 
-function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWorkLogEntry {
+function toDerivedWorkLogEntry(
+  activity: OrchestrationThreadActivity,
+  completedAtByTaskKey: ReadonlyMap<string, string>,
+): DerivedWorkLogEntry {
   const payload =
     activity.payload && typeof activity.payload === "object"
       ? (activity.payload as Record<string, unknown>)
@@ -777,6 +812,7 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
     activity.kind === "task.started" ||
     activity.kind === "task.progress" ||
     activity.kind === "task.completed";
+  const taskId = isTaskActivity ? asTrimmedString(payload?.taskId) : null;
   const taskSummary =
     isTaskActivity && typeof payload?.summary === "string" && payload.summary.length > 0
       ? payload.summary
@@ -798,7 +834,11 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
       ? activity.turnId
         ? `tool:${activity.turnId}:${toolCallId}`
         : `tool:${toolCallId}`
-      : activity.id;
+      : taskId && isTaskLifecycleActivityKind(activity.kind)
+        ? activity.turnId
+          ? `task:${activity.turnId}:${taskId}`
+          : `task:${taskId}`
+        : activity.id;
   const tone: WorkLogEntry["tone"] =
     activity.kind === "task.started" || activity.kind === "task.progress"
       ? "thinking"
@@ -877,6 +917,13 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   if (status) {
     entry.status = status;
   }
+  if (taskId) {
+    entry.taskId = taskId;
+    const completedAt = completedAtByTaskKey.get(workLogTaskKey(activity.turnId, taskId));
+    if (completedAt) {
+      entry.completedAt = completedAt;
+    }
+  }
   if (toolCallId) {
     entry.toolCallId = toolCallId;
   }
@@ -908,13 +955,13 @@ function collapseDerivedWorkLogEntries(
   const lifecycleIndexByWorkEntryId = new Map<string, number>();
 
   for (const entry of entries) {
-    const workEntryId = activeToolLifecycleWorkEntryId(entry);
+    const workEntryId = activeLifecycleWorkEntryId(entry);
     const existingIndex = workEntryId ? lifecycleIndexByWorkEntryId.get(workEntryId) : undefined;
     const existingEntry = existingIndex === undefined ? undefined : collapsed[existingIndex];
     if (
       existingIndex !== undefined &&
       existingEntry &&
-      shouldCollapseToolLifecycleEntries(existingEntry, entry)
+      shouldCollapseLifecycleEntries(existingEntry, entry)
     ) {
       const merged = mergeDerivedWorkLogEntries(existingEntry, entry);
       collapsed[existingIndex] = merged;
@@ -932,14 +979,41 @@ function collapseDerivedWorkLogEntries(
   return collapsed;
 }
 
-function activeToolLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefined {
-  if (!isToolLifecycleActivityKind(entry.activityKind)) {
-    return undefined;
+function activeLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefined {
+  if (isToolLifecycleActivityKind(entry.activityKind)) {
+    if (!entry.toolCallId || isSubagentLifecycleEntry(entry)) {
+      return undefined;
+    }
+    return entry.id;
   }
-  if (!entry.toolCallId || isSubagentLifecycleEntry(entry)) {
-    return undefined;
+  if (isTaskLifecycleActivityKind(entry.activityKind)) {
+    if (!entry.taskId) {
+      return undefined;
+    }
+    return entry.id;
   }
-  return entry.id;
+  return undefined;
+}
+
+function shouldCollapseLifecycleEntries(
+  previous: DerivedWorkLogEntry,
+  next: DerivedWorkLogEntry,
+): boolean {
+  if (shouldCollapseToolLifecycleEntries(previous, next)) {
+    return true;
+  }
+  if (!isTaskLifecycleActivityKind(previous.activityKind)) {
+    return false;
+  }
+  if (!isTaskLifecycleActivityKind(next.activityKind)) {
+    return false;
+  }
+  if (next.activityKind === "task.started") {
+    return false;
+  }
+  return (
+    previous.taskId !== undefined && previous.taskId === next.taskId && previous.id === next.id
+  );
 }
 
 function shouldCollapseToolLifecycleEntries(
@@ -969,6 +1043,10 @@ function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
   return kind === "tool.started" || kind === "tool.updated" || kind === "tool.completed";
 }
 
+function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
+  return kind === "task.started" || kind === "task.progress" || kind === "task.completed";
+}
+
 function isSubagentLifecycleEntry(entry: DerivedWorkLogEntry): boolean {
   return entry.itemType === "collab_agent_tool_call" || (entry.subagents?.length ?? 0) > 0;
 }
@@ -978,13 +1056,23 @@ function mergeDerivedWorkLogEntries(
   next: DerivedWorkLogEntry,
 ): DerivedWorkLogEntry {
   const changedFiles = mergeChangedFiles(previous.changedFiles, next.changedFiles);
-  const detail = mergeStreamText(previous.detail, next.detail);
-  const output = mergeStreamText(previous.output, next.output);
+  const isTaskLifecycleMerge =
+    isTaskLifecycleActivityKind(previous.activityKind) &&
+    isTaskLifecycleActivityKind(next.activityKind);
+  const detail = isTaskLifecycleMerge
+    ? (next.detail ?? previous.detail)
+    : mergeStreamText(previous.detail, next.detail);
+  const output = isTaskLifecycleMerge
+    ? (next.output ?? previous.output)
+    : mergeStreamText(previous.output, next.output);
   const command = next.command ?? previous.command;
   const rawCommand = next.rawCommand ?? previous.rawCommand;
   const toolTitle = next.toolTitle ?? previous.toolTitle;
   const itemType = next.itemType ?? previous.itemType;
   const requestKind = next.requestKind ?? previous.requestKind;
+  const taskId = next.taskId ?? previous.taskId;
+  const completedAt = next.completedAt ?? previous.completedAt;
+  const label = shouldPreservePreviousTaskLabel(previous, next) ? previous.label : next.label;
   const status =
     previous.status === "error" || next.status === "error"
       ? "error"
@@ -1000,6 +1088,8 @@ function mergeDerivedWorkLogEntries(
     ...next,
     id: previous.id,
     createdAt: previous.createdAt,
+    label,
+    ...(completedAt ? { completedAt } : {}),
     ...(detail ? { detail } : {}),
     ...(output ? { output } : {}),
     ...(command ? { command } : {}),
@@ -1010,10 +1100,24 @@ function mergeDerivedWorkLogEntries(
     ...(requestKind ? { requestKind } : {}),
     ...(status ? { status } : {}),
     ...(toolCallId ? { toolCallId } : {}),
+    ...(taskId ? { taskId } : {}),
     ...(artifacts.length > 0 ? { artifacts } : {}),
     ...(subagents.length > 0 ? { subagents } : {}),
     ...(subagentAction ? { subagentAction } : {}),
   };
+}
+
+function shouldPreservePreviousTaskLabel(
+  previous: DerivedWorkLogEntry,
+  next: DerivedWorkLogEntry,
+): boolean {
+  if (!isTaskLifecycleActivityKind(previous.activityKind)) {
+    return false;
+  }
+  if (next.activityKind !== "task.completed") {
+    return false;
+  }
+  return next.label === "Task completed" || next.label === "Task stopped";
 }
 
 function mergeStreamText(

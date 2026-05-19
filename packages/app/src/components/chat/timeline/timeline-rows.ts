@@ -1,4 +1,4 @@
-import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
+import { formatDuration, type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type MessageId } from "@multi/contracts";
 import { formatProjectRelativePath } from "../shared/file-path-display";
@@ -106,6 +106,9 @@ export function deriveMessagesTimelineRows(input: {
       while (cursor < input.timelineEntries.length) {
         const nextEntry = input.timelineEntries[cursor];
         if (!nextEntry || nextEntry.kind !== "work") break;
+        if (isThinkingWorkEntry(timelineEntry.entry) !== isThinkingWorkEntry(nextEntry.entry)) {
+          break;
+        }
         groupedEntries.push(nextEntry.entry);
         cursor += 1;
       }
@@ -208,10 +211,18 @@ export function summarizeWorkGroup(
   projectRoot?: string | undefined,
 ): WorkGroupSummary {
   const running = entries.some((entry) => entry.status === "running");
+  const thinkingCount = entries.filter(isThinkingWorkEntry).length;
   const commandCount = entries.filter(isCommandWorkEntry).length;
   const editedFiles = collectEditedFilePaths(entries);
   const stats = summarizeEditedFileStats(entries);
   const explorationSegments = collectExplorationSegments(entries);
+
+  if (thinkingCount === entries.length && thinkingCount > 0) {
+    return {
+      action: running ? "Thinking" : "Thought",
+      details: running ? "" : formatThoughtDurationDetail(computeWorkGroupDurationMs(entries)),
+    };
+  }
 
   if (commandCount === entries.length && commandCount > 0) {
     return {
@@ -264,7 +275,7 @@ function computeWorkGroupDurationMs(entries: ReadonlyArray<WorkLogEntry>): numbe
   }
 
   const startMs = Date.parse(firstEntry.createdAt);
-  const endMs = Date.parse(lastEntry.createdAt);
+  const endMs = Date.parse(lastEntry.completedAt ?? lastEntry.createdAt);
   const timelineDurationMs =
     Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, endMs - startMs) : 0;
   const artifactDurationMs = entries.reduce((total, entry) => {
@@ -276,6 +287,17 @@ function computeWorkGroupDurationMs(entries: ReadonlyArray<WorkLogEntry>): numbe
   }, 0);
 
   return Math.max(timelineDurationMs, artifactDurationMs);
+}
+
+function isThinkingWorkEntry(entry: WorkLogEntry): boolean {
+  return entry.tone === "thinking";
+}
+
+function formatThoughtDurationDetail(durationMs: number): string {
+  if (!Number.isFinite(durationMs) || durationMs < 1_000) {
+    return "briefly";
+  }
+  return `for ${formatDuration(durationMs)}`;
 }
 
 function collectExplorationSegments(

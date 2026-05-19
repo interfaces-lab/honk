@@ -23,11 +23,11 @@ Enable at least one provider in Settings before starting a thread:
 
 Each thread uses a **runtime mode** that maps provider permission prompts into one policy. Choose it in the composer before you send.
 
-| Mode | Behavior |
-| --- | --- |
-| **Full access** | Allow commands and edits without Multi approval prompts. |
-| **Auto-accept edits** | Allow reads and search; ask before edits and commands. |
-| **Supervised** | Ask before commands and file changes (reads and search still allowed). |
+| Mode                  | Behavior                                                               |
+| --------------------- | ---------------------------------------------------------------------- |
+| **Full access**       | Allow commands and edits without Multi approval prompts.               |
+| **Auto-accept edits** | Allow reads and search; ask before edits and commands.                 |
+| **Supervised**        | Ask before commands and file changes (reads and search still allowed). |
 
 Providers may still show their own sandbox prompts. See [specs/runtime-permissions.md](./specs/runtime-permissions.md) for the full action matrix.
 

@@ -226,9 +226,7 @@ export function isClaudeUltrathinkPrompt(text: string | null | undefined): boole
   return typeof text === "string" && /\bultrathink\b/i.test(text);
 }
 
-export function normalizeModelSlug(
-  model: string | null | undefined,
-): string | null {
+export function normalizeModelSlug(model: string | null | undefined): string | null {
   if (typeof model !== "string") {
     return null;
   }

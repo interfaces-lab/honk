@@ -1,12 +1,7 @@
 "use client";
 import { IconChevronRightMedium, IconClipboard, IconStepBack } from "central-icons";
 import type { GitFilePatchResult } from "@multi/contracts";
-import {
-  type KeyboardEvent,
-  type MouseEvent,
-  type MutableRefObject,
-  useRef,
-} from "react";
+import { type KeyboardEvent, type MouseEvent, type MutableRefObject, useRef } from "react";
 import { toast } from "sonner";
 
 import type { DiffRow } from "~/hooks/use-environment-git";

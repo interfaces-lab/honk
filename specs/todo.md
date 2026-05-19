@@ -13,8 +13,7 @@ grouped work rows)
 
 ## Open
 
-- [ ] Convert four production `Effect.die` callsites to typed expected errors:
-  `NodeSqliteClient.ts`, `ProviderService.ts`, `ProviderCommandReactor.ts`
+No open cleanup items outside the timeline backlog.
 
 ## Optional follow-ups
 
@@ -42,10 +41,6 @@ summary come from pure derivation (`deriveMessagesTimelineRows`,
 
 ### Open
 
-- [ ] Thinking rows: `Thought` / `Thinking` + `briefly` or duration details
-  (`NMd` rules); collapsible, default closed when complete. Blocked on
-  `WorkLogEntry` lacking a completion timestamp — needs a derivation pass over
-  orchestration activities.
 - [ ] Collapsed header copy: optional narrative description when the server
   provides a turn summary. Document activity payload dependency if needed.
 - [ ] Per-edit inline diff: `VirtualizedDiff` parity (context lines,

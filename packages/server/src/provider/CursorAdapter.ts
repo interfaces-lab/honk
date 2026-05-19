@@ -88,10 +88,7 @@ import {
 import { CursorAdapter, type CursorAdapterShape } from "./CursorAdapter.service.ts";
 import { resolveCursorAcpBaseModelId } from "./CursorProvider.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
-import {
-  actionFromAcpPermissionKind,
-  shouldPromptForAction,
-} from "./runtime-permission-policy.ts";
+import { actionFromAcpPermissionKind, shouldPromptForAction } from "./runtime-permission-policy.ts";
 
 const PROVIDER = ProviderDriverKind.make("cursor");
 const PROVIDER_INSTANCE_ID = defaultInstanceIdForDriver(PROVIDER);
@@ -501,90 +498,96 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
       readonly activeTurnId: () => TurnId | undefined;
     }): Effect.Effect<AcpSessionRuntimeStartResult, EffectAcpErrors.AcpError> =>
       Effect.gen(function* () {
-        yield* params.acp.handleExtRequest("cursor/ask_question", CursorAskQuestionRequest, (requestParams) =>
-          Effect.gen(function* () {
-            yield* logNative(
-              params.threadId,
-              "cursor/ask_question",
-              requestParams,
-              "acp.cursor.extension",
-            );
-            const requestId = ApprovalRequestId.make(crypto.randomUUID());
-            const runtimeRequestId = RuntimeRequestId.make(requestId);
-            const answers = yield* Deferred.make<ProviderUserInputAnswers>();
-            params.pendingUserInputs.set(requestId, { answers });
-            yield* Effect.logInfo("cursor.ask-question.requested", {
-              threadId: params.threadId,
-              requestId,
-              toolCallId: requestParams.toolCallId,
-              questionIds: requestParams.questions.map((question) => question.id),
-              optionIdsByQuestionId: Object.fromEntries(
-                requestParams.questions.map((question) => [
-                  question.id,
-                  question.options.map((option) => option.id),
-                ]),
-              ),
-            });
-            yield* offerRuntimeEvent({
-              type: "user-input.requested",
-              ...(yield* makeEventStamp()),
-              provider: PROVIDER,
-              threadId: params.threadId,
-              turnId: params.activeTurnId(),
-              requestId: runtimeRequestId,
-              payload: { questions: extractAskQuestions(requestParams) },
-              raw: {
-                source: "acp.cursor.extension",
-                method: "cursor/ask_question",
-                payload: requestParams,
-              },
-            });
-            const resolved = yield* Deferred.await(answers);
-            const cursorResolved = toCursorAskQuestionAnswers(requestParams, resolved);
-            yield* Effect.logInfo("cursor.ask-question.answers-received", {
-              threadId: params.threadId,
-              requestId,
-              toolCallId: requestParams.toolCallId,
-              answerKeys: Object.keys(resolved),
-              answers: resolved,
-              cursorAnswers: cursorResolved,
-            });
-            params.pendingUserInputs.delete(requestId);
-            yield* offerRuntimeEvent({
-              type: "user-input.resolved",
-              ...(yield* makeEventStamp()),
-              provider: PROVIDER,
-              threadId: params.threadId,
-              turnId: params.activeTurnId(),
-              requestId: runtimeRequestId,
-              payload: { answers: resolved },
-            });
-            return { answers: cursorResolved };
-          }),
+        yield* params.acp.handleExtRequest(
+          "cursor/ask_question",
+          CursorAskQuestionRequest,
+          (requestParams) =>
+            Effect.gen(function* () {
+              yield* logNative(
+                params.threadId,
+                "cursor/ask_question",
+                requestParams,
+                "acp.cursor.extension",
+              );
+              const requestId = ApprovalRequestId.make(crypto.randomUUID());
+              const runtimeRequestId = RuntimeRequestId.make(requestId);
+              const answers = yield* Deferred.make<ProviderUserInputAnswers>();
+              params.pendingUserInputs.set(requestId, { answers });
+              yield* Effect.logInfo("cursor.ask-question.requested", {
+                threadId: params.threadId,
+                requestId,
+                toolCallId: requestParams.toolCallId,
+                questionIds: requestParams.questions.map((question) => question.id),
+                optionIdsByQuestionId: Object.fromEntries(
+                  requestParams.questions.map((question) => [
+                    question.id,
+                    question.options.map((option) => option.id),
+                  ]),
+                ),
+              });
+              yield* offerRuntimeEvent({
+                type: "user-input.requested",
+                ...(yield* makeEventStamp()),
+                provider: PROVIDER,
+                threadId: params.threadId,
+                turnId: params.activeTurnId(),
+                requestId: runtimeRequestId,
+                payload: { questions: extractAskQuestions(requestParams) },
+                raw: {
+                  source: "acp.cursor.extension",
+                  method: "cursor/ask_question",
+                  payload: requestParams,
+                },
+              });
+              const resolved = yield* Deferred.await(answers);
+              const cursorResolved = toCursorAskQuestionAnswers(requestParams, resolved);
+              yield* Effect.logInfo("cursor.ask-question.answers-received", {
+                threadId: params.threadId,
+                requestId,
+                toolCallId: requestParams.toolCallId,
+                answerKeys: Object.keys(resolved),
+                answers: resolved,
+                cursorAnswers: cursorResolved,
+              });
+              params.pendingUserInputs.delete(requestId);
+              yield* offerRuntimeEvent({
+                type: "user-input.resolved",
+                ...(yield* makeEventStamp()),
+                provider: PROVIDER,
+                threadId: params.threadId,
+                turnId: params.activeTurnId(),
+                requestId: runtimeRequestId,
+                payload: { answers: resolved },
+              });
+              return { answers: cursorResolved };
+            }),
         );
-        yield* params.acp.handleExtRequest("cursor/create_plan", CursorCreatePlanRequest, (requestParams) =>
-          Effect.gen(function* () {
-            yield* logNative(
-              params.threadId,
-              "cursor/create_plan",
-              requestParams,
-              "acp.cursor.extension",
-            );
-            yield* offerRuntimeEvent({
-              type: "turn.proposed.completed",
-              ...(yield* makeEventStamp()),
-              provider: PROVIDER,
-              threadId: params.threadId,
-              turnId: params.activeTurnId(),
-              payload: { planMarkdown: extractPlanMarkdown(requestParams) },
-              raw: {
-                source: "acp.cursor.extension",
-                method: "cursor/create_plan",
-                payload: requestParams,
-              },
-            });
-            return { accepted: true } as const;
-          }),
+        yield* params.acp.handleExtRequest(
+          "cursor/create_plan",
+          CursorCreatePlanRequest,
+          (requestParams) =>
+            Effect.gen(function* () {
+              yield* logNative(
+                params.threadId,
+                "cursor/create_plan",
+                requestParams,
+                "acp.cursor.extension",
+              );
+              yield* offerRuntimeEvent({
+                type: "turn.proposed.completed",
+                ...(yield* makeEventStamp()),
+                provider: PROVIDER,
+                threadId: params.threadId,
+                turnId: params.activeTurnId(),
+                payload: { planMarkdown: extractPlanMarkdown(requestParams) },
+                raw: {
+                  source: "acp.cursor.extension",
+                  method: "cursor/create_plan",
+                  payload: requestParams,
+                },
+              });
+              return { accepted: true } as const;
+            }),
         );
         yield* params.acp.handleExtNotification(
           "cursor/update_todos",
@@ -738,7 +741,9 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
           cwd: sessionCwd,
           ...(resumeSessionId ? { resumeSessionId } : {}),
           ...(params.spawnModel !== undefined ? { spawnModel: params.spawnModel } : {}),
-          ...(params.spawnSelections !== undefined ? { spawnSelections: params.spawnSelections } : {}),
+          ...(params.spawnSelections !== undefined
+            ? { spawnSelections: params.spawnSelections }
+            : {}),
           clientInfo: { name: "multi", version: "0.0.0" },
           ...acpNativeLoggers,
         }).pipe(

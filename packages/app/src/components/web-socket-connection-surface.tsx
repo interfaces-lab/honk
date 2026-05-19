@@ -1,10 +1,7 @@
 import { type MutableRefObject, type ReactNode, useRef, useState } from "react";
 
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import {
-  type SlowRpcAckRequest,
-  useSlowRpcAckRequests,
-} from "../rpc/request-latency-state";
+import { type SlowRpcAckRequest, useSlowRpcAckRequests } from "../rpc/request-latency-state";
 import {
   getWsConnectionStatus,
   getWsConnectionUiState,
@@ -71,10 +68,7 @@ export function shouldRestartStalledReconnect(
   );
 }
 
-function createWsConnectionStatusSyncKey(
-  status: WsConnectionStatus,
-  nowMs: number,
-): string {
+function createWsConnectionStatusSyncKey(status: WsConnectionStatus, nowMs: number): string {
   return JSON.stringify([
     nowMs,
     status.attemptCount,
@@ -125,12 +119,8 @@ export function WebSocketConnectionCoordinator() {
   const lastForcedReconnectAtRef = useRef(0);
   const toastIdRef = useRef<ReturnType<typeof toastManager.add> | null>(null);
   const toastResetTimerRef = useRef<number | null>(null);
-  const previousUiStateRef = useRef<WsConnectionUiState>(
-    getWsConnectionUiState(status),
-  );
-  const previousDisconnectedAtRef = useRef<string | null>(
-    status.disconnectedAt,
-  );
+  const previousUiStateRef = useRef<WsConnectionUiState>(getWsConnectionUiState(status));
+  const previousDisconnectedAtRef = useRef<string | null>(status.disconnectedAt);
 
   const runReconnect = (showFailureToast: boolean) => {
     if (toastResetTimerRef.current !== null) {
@@ -148,10 +138,7 @@ export function WebSocketConnectionCoordinator() {
         toastManager.add({
           type: "error",
           title: "Reconnect failed",
-          description:
-            error instanceof Error
-              ? error.message
-              : "Unable to restart the WebSocket.",
+          description: error instanceof Error ? error.message : "Unable to restart the WebSocket.",
           data: {
             dismissAfterVisibleMs: 8_000,
             hideCopyButton: true,
@@ -164,17 +151,12 @@ export function WebSocketConnectionCoordinator() {
   };
   const triggerAutoReconnect = (trigger: WsAutoReconnectTrigger) => {
     const currentStatus =
-      trigger === "online"
-        ? setBrowserOnlineStatus(true)
-        : getWsConnectionStatus();
+      trigger === "online" ? setBrowserOnlineStatus(true) : getWsConnectionStatus();
 
     if (!shouldAutoReconnect(currentStatus, trigger)) {
       return;
     }
-    if (
-      Date.now() - lastForcedReconnectAtRef.current <
-      FORCED_WS_RECONNECT_DEBOUNCE_MS
-    ) {
+    if (Date.now() - lastForcedReconnectAtRef.current < FORCED_WS_RECONNECT_DEBOUNCE_MS) {
       return;
     }
 
@@ -284,8 +266,7 @@ function StalledReconnectWatchdog({
     }
 
     const nextRetryAt = status.nextRetryAt;
-    const timeoutMs =
-      Math.max(0, new Date(nextRetryAt).getTime() - Date.now()) + 1_500;
+    const timeoutMs = Math.max(0, new Date(nextRetryAt).getTime() - Date.now()) + 1_500;
     const timeoutId = window.setTimeout(() => {
       const currentStatus = getWsConnectionStatus();
       if (!shouldRestartStalledReconnect(currentStatus, nextRetryAt)) {
@@ -324,28 +305,19 @@ function WsConnectionToastSync({
     const uiState = getWsConnectionUiState(status);
     const previousUiState = previousUiStateRef.current;
     const previousDisconnectedAt = previousDisconnectedAtRef.current;
-    const shouldShowReconnectToast =
-      status.hasConnected && uiState === "reconnecting";
-    const shouldShowOfflineToast =
-      uiState === "offline" && status.disconnectedAt !== null;
-    const shouldShowExhaustedToast =
-      status.hasConnected && status.reconnectPhase === "exhausted";
+    const shouldShowReconnectToast = status.hasConnected && uiState === "reconnecting";
+    const shouldShowOfflineToast = uiState === "offline" && status.disconnectedAt !== null;
+    const shouldShowExhaustedToast = status.hasConnected && status.reconnectPhase === "exhausted";
 
     if (
       toastResetTimerRef.current !== null &&
-      (shouldShowReconnectToast ||
-        shouldShowOfflineToast ||
-        shouldShowExhaustedToast)
+      (shouldShowReconnectToast || shouldShowOfflineToast || shouldShowExhaustedToast)
     ) {
       window.clearTimeout(toastResetTimerRef.current);
       toastResetTimerRef.current = null;
     }
 
-    if (
-      shouldShowReconnectToast ||
-      shouldShowOfflineToast ||
-      shouldShowExhaustedToast
-    ) {
+    if (shouldShowReconnectToast || shouldShowOfflineToast || shouldShowExhaustedToast) {
       const reconnectAttempt = Math.max(
         1,
         Math.min(status.reconnectAttemptCount, WS_RECONNECT_MAX_ATTEMPTS),
@@ -511,9 +483,7 @@ function SlowRpcAckToastSync({
     }
 
     const slowRequestCount = slowRequests.length;
-    const slowRequestThresholdSeconds = Math.round(
-      (slowRequests[0]?.thresholdMs ?? 0) / 1000,
-    );
+    const slowRequestThresholdSeconds = Math.round((slowRequests[0]?.thresholdMs ?? 0) / 1000);
     const nextToast = {
       description: `${slowRequestCount} request${slowRequestCount === 1 ? "" : "s"} waiting longer than ${slowRequestThresholdSeconds}s.`,
       timeout: 0,
@@ -531,10 +501,6 @@ function SlowRpcAckToastSync({
   return null;
 }
 
-export function WebSocketConnectionSurface({
-  children,
-}: {
-  readonly children: ReactNode;
-}) {
+export function WebSocketConnectionSurface({ children }: { readonly children: ReactNode }) {
   return children;
 }

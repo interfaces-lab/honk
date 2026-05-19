@@ -23,6 +23,8 @@ import type { Connection } from "effect/unstable/sql/SqlConnection";
 import { SqlError, classifySqliteError } from "effect/unstable/sql/SqlError";
 import * as Statement from "effect/unstable/sql/Statement";
 
+import { NodeSqliteClientCompatibilityError } from "./Errors.ts";
+
 const ATTR_DB_SYSTEM_NAME = "db.system.name";
 
 export const TypeId: TypeId = "~local/sqlite-node/SqliteClient";
@@ -57,16 +59,19 @@ export interface SqliteMemoryClientConfig extends Omit<
  *
  * @see https://github.com/nodejs/node/pull/57490
  */
-const checkNodeSqliteCompat = () => {
+const checkNodeSqliteCompat = (): Effect.Effect<void, NodeSqliteClientCompatibilityError> => {
   const parts = process.versions.node.split(".").map(Number);
   const major = parts[0] ?? 0;
   const minor = parts[1] ?? 0;
   const supported = (major === 22 && minor >= 16) || (major === 23 && minor >= 11) || major >= 24;
 
   if (!supported) {
-    return Effect.die(
-      `Node.js ${process.versions.node} is missing required node:sqlite APIs ` +
-        `(StatementSync.columns). Upgrade to Node.js >=22.16, >=23.11, or >=24.`,
+    return Effect.fail(
+      new NodeSqliteClientCompatibilityError({
+        nodeVersion: process.versions.node,
+        detail:
+          "Missing required node:sqlite APIs (StatementSync.columns). Upgrade to Node.js >=22.16, >=23.11, or >=24.",
+      }),
     );
   }
   return Effect.void;
@@ -75,7 +80,11 @@ const checkNodeSqliteCompat = () => {
 const makeWithDatabase = Effect.fn("makeWithDatabase")(function* (
   options: SqliteClientConfig,
   openDatabase: () => DatabaseSync,
-): Effect.fn.Return<Client.SqlClient, never, Scope.Scope | Reactivity.Reactivity> {
+): Effect.fn.Return<
+  Client.SqlClient,
+  NodeSqliteClientCompatibilityError,
+  Scope.Scope | Reactivity.Reactivity
+> {
   yield* checkNodeSqliteCompat();
 
   const compiler = Statement.makeCompilerSqlite(options.transformQueryNames);
@@ -221,7 +230,11 @@ const makeWithDatabase = Effect.fn("makeWithDatabase")(function* (
 
 const make = (
   options: SqliteClientConfig,
-): Effect.Effect<Client.SqlClient, never, Scope.Scope | Reactivity.Reactivity> =>
+): Effect.Effect<
+  Client.SqlClient,
+  NodeSqliteClientCompatibilityError,
+  Scope.Scope | Reactivity.Reactivity
+> =>
   makeWithDatabase(
     options,
     () =>
@@ -233,7 +246,11 @@ const make = (
 
 const makeMemory = (
   config: SqliteMemoryClientConfig = {},
-): Effect.Effect<Client.SqlClient, never, Scope.Scope | Reactivity.Reactivity> =>
+): Effect.Effect<
+  Client.SqlClient,
+  NodeSqliteClientCompatibilityError,
+  Scope.Scope | Reactivity.Reactivity
+> =>
   makeWithDatabase(
     {
       ...config,
@@ -250,7 +267,7 @@ const makeMemory = (
 
 export const layerConfig = (
   config: Config.Wrap<SqliteClientConfig>,
-): Layer.Layer<Client.SqlClient, Config.ConfigError> =>
+): Layer.Layer<Client.SqlClient, Config.ConfigError | NodeSqliteClientCompatibilityError> =>
   Layer.effectContext(
     Config.unwrap(config)
       .asEffect()
@@ -262,14 +279,18 @@ export const layerConfig = (
       ),
   ).pipe(Layer.provide(Reactivity.layer));
 
-export const layer = (config: SqliteClientConfig): Layer.Layer<Client.SqlClient> =>
+export const layer = (
+  config: SqliteClientConfig,
+): Layer.Layer<Client.SqlClient, NodeSqliteClientCompatibilityError> =>
   Layer.effectContext(
     Effect.map(make(config), (client) =>
       Context.make(SqliteClient, client).pipe(Context.add(Client.SqlClient, client)),
     ),
   ).pipe(Layer.provide(Reactivity.layer));
 
-export const layerMemory = (config: SqliteMemoryClientConfig = {}): Layer.Layer<Client.SqlClient> =>
+export const layerMemory = (
+  config: SqliteMemoryClientConfig = {},
+): Layer.Layer<Client.SqlClient, NodeSqliteClientCompatibilityError> =>
   Layer.effectContext(
     Effect.map(makeMemory(config), (client) =>
       Context.make(SqliteClient, client).pipe(Context.add(Client.SqlClient, client)),

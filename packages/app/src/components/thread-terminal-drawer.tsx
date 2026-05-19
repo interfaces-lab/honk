@@ -506,10 +506,7 @@ export function TerminalViewport({
       void api.terminal
         .write({ threadId, terminalId, data })
         .catch((err) =>
-          writeSystemMessage(
-            writer,
-            formatTerminalErrorDescription(err, "Terminal write failed"),
-          ),
+          writeSystemMessage(writer, formatTerminalErrorDescription(err, "Terminal write failed")),
         );
     });
 
@@ -764,10 +761,7 @@ export function TerminalViewport({
         }
       } catch (err) {
         if (disposed) return;
-        writeSystemMessage(
-          writer,
-          formatTerminalErrorDescription(err, "Failed to open terminal"),
-        );
+        writeSystemMessage(writer, formatTerminalErrorDescription(err, "Failed to open terminal"));
       }
     };
 
@@ -1247,12 +1241,8 @@ export default function ThreadTerminalDrawer({
       />
       {visible ? (
         <>
-          <ThreadTerminalDrawerWindowResizeSync
-            handleWindowResize={handleWindowResize}
-          />
-          <ThreadTerminalDrawerVisibleResizeEpochSync
-            setResizeEpoch={setResizeEpoch}
-          />
+          <ThreadTerminalDrawerWindowResizeSync handleWindowResize={handleWindowResize} />
+          <ThreadTerminalDrawerVisibleResizeEpochSync setResizeEpoch={setResizeEpoch} />
         </>
       ) : null}
       <ThreadTerminalDrawerUnmountHeightSync

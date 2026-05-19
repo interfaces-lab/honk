@@ -35,9 +35,7 @@ function gitFileStateToTreesStatus(state: GitFileState): GitStatus {
   }
 }
 
-function diffRowsToGitStatusEntries(
-  rows: readonly DiffRow[],
-): GitStatusEntry[] {
+function diffRowsToGitStatusEntries(rows: readonly DiffRow[]): GitStatusEntry[] {
   return rows.map((row) => ({
     path: normalizeTreePath(row.path),
     status: gitFileStateToTreesStatus(row.state),
@@ -73,10 +71,7 @@ export function GitChangesFileTree(props: {
   );
   const treePathsKey = useMemo(() => treePaths.join("\0"), [treePaths]);
 
-  const preparedInput = useMemo(
-    () => prepareFileTreeInput(treePaths),
-    [treePaths],
-  );
+  const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
 
   const pathSet = useMemo(() => new Set(treePaths), [treePaths]);
 
@@ -88,15 +83,9 @@ export function GitChangesFileTree(props: {
     return next;
   }, [sortedRows]);
 
-  const gitStatusEntries = useMemo(
-    () => diffRowsToGitStatusEntries(sortedRows),
-    [sortedRows],
-  );
+  const gitStatusEntries = useMemo(() => diffRowsToGitStatusEntries(sortedRows), [sortedRows]);
   const gitStatusKey = useMemo(
-    () =>
-      gitStatusEntries
-        .map((entry) => `${entry.path}:${entry.status}`)
-        .join("\0"),
+    () => gitStatusEntries.map((entry) => `${entry.path}:${entry.status}`).join("\0"),
     [gitStatusEntries],
   );
 
@@ -104,24 +93,18 @@ export function GitChangesFileTree(props: {
     props.selectedId !== null
       ? (sortedRows.find((row) => row.id === props.selectedId)?.path ?? null)
       : null;
-  const selectedKey =
-    selectedPath !== null ? normalizeTreePath(selectedPath) : null;
+  const selectedKey = selectedPath !== null ? normalizeTreePath(selectedPath) : null;
 
   const { model } = useTreeModel({
     paths: treePaths,
     preparedInput,
     gitStatus: gitStatusEntries,
     initialExpansion: "open",
-    initialSelectedPaths:
-      selectedKey !== null && pathSet.has(selectedKey) ? [selectedKey] : [],
+    initialSelectedPaths: selectedKey !== null && pathSet.has(selectedKey) ? [selectedKey] : [],
     search: false,
     onSelectionChange: (selectedPaths) => {
       const path = selectedPaths[0] ?? null;
-      if (
-        !path ||
-        path === lastOpenedPathRef.current ||
-        !filePathSetRef.current.has(path)
-      ) {
+      if (!path || path === lastOpenedPathRef.current || !filePathSetRef.current.has(path)) {
         return;
       }
       if (path === suppressSelectionOpenRef.current) {
@@ -224,10 +207,7 @@ function GitChangesTreeSelectionSync({
       lastOpenedPathRef.current = null;
       return;
     }
-    if (
-      !pathSet.has(selectedKey) ||
-      model.getSelectedPaths()[0] === selectedKey
-    ) {
+    if (!pathSet.has(selectedKey) || model.getSelectedPaths()[0] === selectedKey) {
       return;
     }
     const selectedItem = model.getItem(selectedKey);

@@ -62,11 +62,7 @@ function dispatchLocalStorageChange(key: string, origin: string) {
   );
 }
 
-function readLocalStorageValue<T, E>(
-  key: string,
-  schema: Schema.Codec<T, E>,
-  initialValue: T,
-): T {
+function readLocalStorageValue<T, E>(key: string, schema: Schema.Codec<T, E>, initialValue: T): T {
   try {
     const item = getLocalStorageItem(key, schema);
     return item ?? initialValue;

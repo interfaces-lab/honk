@@ -114,9 +114,9 @@ describe("resolveCursorAgentCliModelId", () => {
   });
 
   it("maps composer-2.5 with fastMode to composer-2.5-fast", () => {
-    expect(
-      resolveCursorAgentCliModelId("composer-2.5", [{ id: "fastMode", value: true }]),
-    ).toBe("composer-2.5-fast");
+    expect(resolveCursorAgentCliModelId("composer-2.5", [{ id: "fastMode", value: true }])).toBe(
+      "composer-2.5-fast",
+    );
   });
 
   it("keeps an explicit composer-2.5-fast slug", () => {

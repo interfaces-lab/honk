@@ -45,9 +45,7 @@ import { useSettings } from "~/hooks/use-settings";
 
 const routeApi = getRouteApi("__root__");
 type ServerEnvironmentDescriptor = NonNullable<ReturnType<typeof useServerEnvironment>>;
-type SetActiveEnvironmentId = (
-  environmentId: ServerEnvironmentDescriptor["environmentId"],
-) => void;
+type SetActiveEnvironmentId = (environmentId: ServerEnvironmentDescriptor["environmentId"]) => void;
 
 export function RootRouteView() {
   const { authGateState } = routeApi.useRouteContext();

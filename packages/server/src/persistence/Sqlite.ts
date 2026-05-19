@@ -3,6 +3,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { runMigrations } from "./migrations.ts";
 import { ServerConfig } from "../config.ts";
+import type { NodeSqliteClientCompatibilityError } from "./Errors.ts";
 
 type RuntimeSqliteLayerConfig = {
   readonly filename: string;
@@ -10,7 +11,9 @@ type RuntimeSqliteLayerConfig = {
 };
 
 type Loader = {
-  layer: (config: RuntimeSqliteLayerConfig) => Layer.Layer<SqlClient.SqlClient>;
+  layer: (
+    config: RuntimeSqliteLayerConfig,
+  ) => Layer.Layer<SqlClient.SqlClient, NodeSqliteClientCompatibilityError>;
 };
 const defaultSqliteClientLoaders = {
   bun: () => import("@effect/sql-sqlite-bun/SqliteClient"),

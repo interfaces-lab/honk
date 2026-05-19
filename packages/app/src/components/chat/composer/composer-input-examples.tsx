@@ -169,10 +169,7 @@ function CursorModelSelector(props: { label: string }) {
     >
       <IconCloudDownload className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
       <span className="truncate font-medium">{props.label}</span>
-      <IconChevronRightMedium
-        className="size-3 shrink-0 rotate-90 opacity-60"
-        aria-hidden="true"
-      />
+      <IconChevronRightMedium className="size-3 shrink-0 rotate-90 opacity-60" aria-hidden="true" />
     </button>
   );
 }
@@ -318,9 +315,7 @@ function CursorHeroCard(props: {
       <CursorInputFooter
         modelLabel={props.modelLabel}
         canSend={prompt.trim().length > 0}
-        {...(props.showImageAttach === undefined
-          ? {}
-          : { showImageAttach: props.showImageAttach })}
+        {...(props.showImageAttach === undefined ? {} : { showImageAttach: props.showImageAttach })}
       />
     </div>
   );
@@ -381,9 +376,7 @@ function CursorExamplePreview(props: { spec: CursorExampleSpec }) {
         </div>
       );
     case "thread-follow-up":
-      return (
-        <CursorFollowUpPill placeholder="Give Cursor a follow-up instruction..." />
-      );
+      return <CursorFollowUpPill placeholder="Give Cursor a follow-up instruction..." />;
     case "thread-model-tabs":
       return (
         <div className="mx-auto w-full max-w-2xl space-y-3">

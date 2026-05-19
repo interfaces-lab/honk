@@ -78,6 +78,18 @@ export class OrchestrationListenerCallbackError extends Schema.TaggedErrorClass<
   }
 }
 
+export class ProviderCommandReactorThreadNotFoundError extends Schema.TaggedErrorClass<ProviderCommandReactorThreadNotFoundError>()(
+  "ProviderCommandReactorThreadNotFoundError",
+  {
+    operation: Schema.String,
+    threadId: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Provider command reactor could not find thread '${this.threadId}' in ${this.operation}.`;
+  }
+}
+
 export type OrchestrationDispatchError =
   | ProjectionRepositoryError
   | OrchestrationCommandInvariantError

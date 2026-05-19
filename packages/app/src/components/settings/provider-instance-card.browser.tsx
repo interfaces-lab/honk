@@ -17,9 +17,7 @@ import { getDriverOption } from "./provider-driver-meta";
 const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const CODEX_INSTANCE_ID = ProviderInstanceId.make("codex_work");
 
-function providerInstance(
-  overrides: Partial<ProviderInstanceConfig> = {},
-): ProviderInstanceConfig {
+function providerInstance(overrides: Partial<ProviderInstanceConfig> = {}): ProviderInstanceConfig {
   return {
     driver: CODEX_DRIVER,
     displayName: "Codex Work",

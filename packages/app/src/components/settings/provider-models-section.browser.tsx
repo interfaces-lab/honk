@@ -3,11 +3,7 @@ import "../../index.css";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import {
-  ProviderDriverKind,
-  ProviderInstanceId,
-  type ServerProviderModel,
-} from "@multi/contracts";
+import { ProviderDriverKind, ProviderInstanceId, type ServerProviderModel } from "@multi/contracts";
 import { createModelCapabilities } from "@multi/shared/model";
 
 import { ProviderModelsSection } from "./provider-models-section";

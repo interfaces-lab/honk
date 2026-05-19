@@ -351,10 +351,7 @@ const makeOpenCodeTextGeneration = Effect.gen(function* () {
           });
         }
         const selectedAgent = getModelSelectionStringOptionValue(input.modelSelection, "agent");
-        const selectedVariant = getModelSelectionStringOptionValue(
-          input.modelSelection,
-          "variant",
-        );
+        const selectedVariant = getModelSelectionStringOptionValue(input.modelSelection, "variant");
 
         const result = yield* runOpenCodeSdk("session.prompt", () =>
           client.session.prompt({

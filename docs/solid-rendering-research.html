@@ -106,8 +106,7 @@
         color: var(--code);
         padding: 1px 5px;
         font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-          monospace;
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         font-size: 0.92em;
       }
 
@@ -224,11 +223,10 @@
         <p class="meta">Research date: May 18, 2026</p>
         <h1>Should Multi use Solid.js to improve rendering?</h1>
         <p class="lede">
-          Short answer: not as a broad migration. Cursor is useful evidence, but
-          it points to selective renderer boundaries, not replacing a React app
-          wholesale. Multi should keep the React/TanStack Router shell and use
-          Solid only as an isolated island if profiling proves a specific hot
-          path needs finer-grained DOM updates.
+          Short answer: not as a broad migration. Cursor is useful evidence, but it points to
+          selective renderer boundaries, not replacing a React app wholesale. Multi should keep the
+          React/TanStack Router shell and use Solid only as an isolated island if profiling proves a
+          specific hot path needs finer-grained DOM updates.
         </p>
       </header>
 
@@ -236,23 +234,22 @@
         <article class="card verdict">
           <strong>Recommendation</strong>
           <p>
-            Stay on React 19 + React Compiler + TanStack Router. Do not migrate
-            the app to Solid for a general rendering win.
+            Stay on React 19 + React Compiler + TanStack Router. Do not migrate the app to Solid for
+            a general rendering win.
           </p>
         </article>
         <article class="card">
           <strong>Best Solid use case</strong>
           <p>
-            A bounded high-frequency surface such as live token/status rows,
-            terminal-adjacent controls, or a future canvas/workbench widget.
+            A bounded high-frequency surface such as live token/status rows, terminal-adjacent
+            controls, or a future canvas/workbench widget.
           </p>
         </article>
         <article class="card">
           <strong>Main risk</strong>
           <p>
-            Mixed framework ownership adds state, context, styling, event, test,
-            and build boundaries. Without a measured hotspot, that cost is not
-            justified.
+            Mixed framework ownership adds state, context, styling, event, test, and build
+            boundaries. Without a measured hotspot, that cost is not justified.
           </p>
         </article>
       </section>
@@ -261,17 +258,16 @@
         <h2>Cursor Bundle Dissection</h2>
         <p>
           I inspected the installed Cursor app bundle at
-          <code>/Applications/Cursor.app</code>, specifically the requested
-          workbench files:
+          <code>/Applications/Cursor.app</code>, specifically the requested workbench files:
         </p>
         <ul>
           <li>
-            <code>out/vs/workbench/workbench.desktop.main.js</code> is a 62 MB
-            ASCII bundled JavaScript file.
+            <code>out/vs/workbench/workbench.desktop.main.js</code> is a 62 MB ASCII bundled
+            JavaScript file.
           </li>
           <li>
-            <code>out/vs/workbench/workbench.desktop.main.css</code> is a 2.0 MB
-            ASCII bundled CSS file.
+            <code>out/vs/workbench/workbench.desktop.main.css</code> is a 2.0 MB ASCII bundled CSS
+            file.
           </li>
         </ul>
 
@@ -288,39 +284,33 @@
             <tr>
               <td>Solid runtime</td>
               <td>
-                <code>node_modules/solid-js/dist/solid.js</code>,
-                <code>solid-js/store</code>, and <code>solid-js/web</code> are
-                bundled.
+                <code>node_modules/solid-js/dist/solid.js</code>, <code>solid-js/store</code>, and
+                <code>solid-js/web</code> are bundled.
               </td>
               <td>
-                Cursor ships Solid as a real workbench runtime, not just as an
-                unused dependency.
+                Cursor ships Solid as a real workbench runtime, not just as an unused dependency.
               </td>
             </tr>
             <tr>
               <td>Solid adapters</td>
               <td>
                 <code>vs/platform/reactivestorage/browser/solidObservable.js</code>,
-                <code>solidApplicationSetting.js</code>,
-                <code>solidEventsWrapper.js</code>,
-                <code>vs/workbench/contrib/controlCommon/browser/solid.js</code>,
-                and <code>vs/workbench/services/ai/browser/solidExports.js</code>.
+                <code>solidApplicationSetting.js</code>, <code>solidEventsWrapper.js</code>,
+                <code>vs/workbench/contrib/controlCommon/browser/solid.js</code>, and
+                <code>vs/workbench/services/ai/browser/solidExports.js</code>.
               </td>
               <td>
-                Cursor built framework-specific integration around VS Code
-                services and reactive storage.
+                Cursor built framework-specific integration around VS Code services and reactive
+                storage.
               </td>
             </tr>
             <tr>
               <td>React runtime</td>
               <td>
-                <code>react</code>, <code>react-dom</code>,
-                <code>react/jsx-runtime</code>, and multiple
-                <code>*.react.js</code> workbench modules are bundled.
+                <code>react</code>, <code>react-dom</code>, <code>react/jsx-runtime</code>, and
+                multiple <code>*.react.js</code> workbench modules are bundled.
               </td>
-              <td>
-                Cursor did not abandon React. It runs both frameworks.
-              </td>
+              <td>Cursor did not abandon React. It runs both frameworks.</td>
             </tr>
             <tr>
               <td>Bridge layer</td>
@@ -329,9 +319,8 @@
                 wraps React components for use from Solid-rendered code.
               </td>
               <td>
-                The "translator" is better described as a bridge. It mounts a
-                React root, updates props, batches React updates, and disposes
-                the root from a Solid lifecycle boundary.
+                The "translator" is better described as a bridge. It mounts a React root, updates
+                props, batches React updates, and disposes the root from a Solid lifecycle boundary.
               </td>
             </tr>
           </tbody>
@@ -341,9 +330,8 @@
           <div class="card">
             <strong>Pattern counts from Cursor workbench JS</strong>
             <p>
-              <code>solid-js: 5</code>, <code>createSignal: 10</code>,
-              <code>createEffect: 2</code>, <code>createRoot: 20</code>,
-              <code>react-dom: 9</code>, <code>jsx-runtime: 17</code>,
+              <code>solid-js: 5</code>, <code>createSignal: 10</code>, <code>createEffect: 2</code>,
+              <code>createRoot: 20</code>, <code>react-dom: 9</code>, <code>jsx-runtime: 17</code>,
               <code>React: 620</code>, <code>createElement: 1196</code>.
             </p>
           </div>
@@ -358,26 +346,25 @@
           <div class="card">
             <strong>Solid mount shape</strong>
             <p>
-              The Solid workbench adapter creates a host <code>div</code>,
-              injects service context, renders a Solid component, catches render
-              errors, and returns <code>dispose()</code> / <code>focus()</code>.
+              The Solid workbench adapter creates a host <code>div</code>, injects service context,
+              renders a Solid component, catches render errors, and returns <code>dispose()</code> /
+              <code>focus()</code>.
             </p>
           </div>
           <div class="card">
             <strong>React bridge shape</strong>
             <p>
-              The React bridge exposes a Solid component wrapper around a React
-              component, creates or registers a React root, updates it when the
-              component, props, or portal root changes, and unmounts on cleanup.
+              The React bridge exposes a Solid component wrapper around a React component, creates
+              or registers a React root, updates it when the component, props, or portal root
+              changes, and unmounts on cleanup.
             </p>
           </div>
         </div>
 
         <div class="callout warning">
           <p>
-            Cursor's architecture is evidence that mixed rendering can work, but
-            only with explicit ownership boundaries. The bridge is extra
-            infrastructure, not free performance.
+            Cursor's architecture is evidence that mixed rendering can work, but only with explicit
+            ownership boundaries. The bridge is extra infrastructure, not free performance.
           </p>
         </div>
       </section>
@@ -385,36 +372,33 @@
       <section>
         <h2>Multi App Facts</h2>
         <p>
-          Multi is currently a React renderer using TanStack Router and TanStack
-          Query. The dependency and entrypoint evidence is direct:
+          Multi is currently a React renderer using TanStack Router and TanStack Query. The
+          dependency and entrypoint evidence is direct:
         </p>
         <ul>
           <li>
-            <code>packages/app/package.json</code> has
-            <code>@tanstack/react-router</code>, <code>@tanstack/react-query</code>,
-            <code>@tanstack/react-virtual</code>, <code>react</code>, and
-            <code>react-dom</code> as app dependencies.
+            <code>packages/app/package.json</code> has <code>@tanstack/react-router</code>,
+            <code>@tanstack/react-query</code>, <code>@tanstack/react-virtual</code>,
+            <code>react</code>, and <code>react-dom</code> as app dependencies.
           </li>
           <li>
-            <code>packages/app/src/main.tsx</code> imports React,
-            <code>react-dom/client</code>, and
+            <code>packages/app/src/main.tsx</code> imports React, <code>react-dom/client</code>, and
             <code>RouterProvider</code>, then mounts the app with
             <code>ReactDOM.createRoot(...).render(...)</code>.
           </li>
           <li>
             <code>packages/app/src/router.ts</code> constructs the router with
-            <code>createRouter</code> from <code>@tanstack/react-router</code>
-            and wraps route rendering in <code>QueryClientProvider</code>.
+            <code>createRouter</code> from <code>@tanstack/react-router</code> and wraps route
+            rendering in <code>QueryClientProvider</code>.
           </li>
           <li>
-            <code>packages/app/vite.config.ts</code> already wires
-            <code>tanstackRouter()</code>, React, and
-            <code>reactCompilerPreset()</code>.
+            <code>packages/app/vite.config.ts</code> already wires <code>tanstackRouter()</code>,
+            React, and <code>reactCompilerPreset()</code>.
           </li>
           <li>
-            <code>solid-js</code> is present in <code>pnpm-lock.yaml</code> only
-            through TanStack devtools dependencies; the app does not depend on
-            <code>@tanstack/solid-router</code> or <code>@tanstack/solid-query</code>.
+            <code>solid-js</code> is present in <code>pnpm-lock.yaml</code> only through TanStack
+            devtools dependencies; the app does not depend on <code>@tanstack/solid-router</code> or
+            <code>@tanstack/solid-query</code>.
           </li>
         </ul>
 
@@ -431,47 +415,39 @@
             <tr>
               <td>Chat route shell</td>
               <td>
-                <code>ChatView</code> has many granular store selectors, local
-                refs, and memoized derivations.
+                <code>ChatView</code> has many granular store selectors, local refs, and memoized
+                derivations.
               </td>
               <td>
-                This already follows the same principle Solid would provide:
-                narrow subscription boundaries.
+                This already follows the same principle Solid would provide: narrow subscription
+                boundaries.
               </td>
             </tr>
             <tr>
               <td>Timeline</td>
               <td>
-                <code>MessagesTimeline</code> is <code>memo</code>-wrapped,
-                derives stable rows, uses <code>@tanstack/react-virtual</code>,
-                and owns scroll state.
+                <code>MessagesTimeline</code> is <code>memo</code>-wrapped, derives stable rows,
+                uses <code>@tanstack/react-virtual</code>, and owns scroll state.
               </td>
               <td>
-                The biggest list-rendering win is already virtualization, not a
-                framework swap.
+                The biggest list-rendering win is already virtualization, not a framework swap.
               </td>
             </tr>
             <tr>
               <td>Router state</td>
+              <td>Route files are intentionally thin and route views bridge client-only state.</td>
               <td>
-                Route files are intentionally thin and route views bridge
-                client-only state.
-              </td>
-              <td>
-                Replacing React Router bindings with Solid Router bindings would
-                touch a lot of shell code for little direct rendering benefit.
+                Replacing React Router bindings with Solid Router bindings would touch a lot of
+                shell code for little direct rendering benefit.
               </td>
             </tr>
             <tr>
               <td>React effects</td>
               <td>
-                Existing project docs require derived state to stay in render and
-                direct <code>useEffect</code> to be avoided in new React code.
+                Existing project docs require derived state to stay in render and direct
+                <code>useEffect</code> to be avoided in new React code.
               </td>
-              <td>
-                The app is already moving toward reactive discipline inside
-                React.
-              </td>
+              <td>The app is already moving toward reactive discipline inside React.</td>
             </tr>
           </tbody>
         </table>
@@ -481,24 +457,22 @@
         <h2>External Facts</h2>
         <ul>
           <li>
-            TanStack Router has current React and Solid documentation, including
-            Solid-specific guides and examples. TanStack describes Router as
-            type-safe routing for React and Solid applications.
+            TanStack Router has current React and Solid documentation, including Solid-specific
+            guides and examples. TanStack describes Router as type-safe routing for React and Solid
+            applications.
           </li>
           <li>
-            Solid's official docs describe fine-grained reactivity as targeted
-            updates to the changed UI data rather than re-executing a whole
-            component.
+            Solid's official docs describe fine-grained reactivity as targeted updates to the
+            changed UI data rather than re-executing a whole component.
           </li>
           <li>
-            TanStack Router's render optimization docs already recommend
-            fine-grained selectors and structural sharing for route hooks that
-            return new object values.
+            TanStack Router's render optimization docs already recommend fine-grained selectors and
+            structural sharing for route hooks that return new object values.
           </li>
           <li>
-            React Compiler is already in this app's Vite config. React's docs say
-            the compiler adds automatic memoization for update performance and
-            can skip cascading re-renders when analysis allows it.
+            React Compiler is already in this app's Vite config. React's docs say the compiler adds
+            automatic memoization for update performance and can skip cascading re-renders when
+            analysis allows it.
           </li>
         </ul>
       </section>
@@ -519,9 +493,8 @@
             <tr>
               <td>Keep React and optimize</td>
               <td>
-                Stay on React/TanStack Router, profile hot paths, tighten store
-                selectors, use router structural sharing where safe, keep React
-                Compiler healthy.
+                Stay on React/TanStack Router, profile hot paths, tighten store selectors, use
+                router structural sharing where safe, keep React Compiler healthy.
               </td>
               <td>Lowest risk. Fits current code and project rules.</td>
               <td>Does not give Solid's runtime model.</td>
@@ -530,28 +503,24 @@
             <tr>
               <td>Solid island</td>
               <td>
-                Add one isolated Solid-rendered surface behind an explicit mount
-                adapter, similar to Cursor's workbench boundary.
+                Add one isolated Solid-rendered surface behind an explicit mount adapter, similar to
+                Cursor's workbench boundary.
               </td>
+              <td>Lets us test Solid where high-frequency updates are measurable.</td>
               <td>
-                Lets us test Solid where high-frequency updates are measurable.
-              </td>
-              <td>
-                Requires bridge code for services, stores, styling, events,
-                cleanup, and tests.
+                Requires bridge code for services, stores, styling, events, cleanup, and tests.
               </td>
               <td>Only after profiling.</td>
             </tr>
             <tr>
               <td>Full Solid migration</td>
               <td>
-                Replace React app bindings with Solid Router/Solid Query and
-                port UI components.
+                Replace React app bindings with Solid Router/Solid Query and port UI components.
               </td>
               <td>Maximum framework consistency if the app were greenfield.</td>
               <td>
-                Large rewrite, package replacement, test rewrite, component API
-                churn, and uncertain payoff.
+                Large rewrite, package replacement, test rewrite, component API churn, and uncertain
+                payoff.
               </td>
               <td>Do not do this for rendering alone.</td>
             </tr>
@@ -563,50 +532,45 @@
         <h2>Recommendation</h2>
         <div class="callout">
           <p>
-            Keep React as the product renderer. Treat Solid as a possible
-            performance tool for a measured, isolated surface, not as a
-            replacement for the existing shell.
+            Keep React as the product renderer. Treat Solid as a possible performance tool for a
+            measured, isolated surface, not as a replacement for the existing shell.
           </p>
         </div>
         <p>
-          The reason is concrete: Multi's hot UI is not a simple unvirtualized
-          list that React is naively rerendering. The chat timeline is already
-          virtualized and memoized. The route layer is already thin. The build
-          already includes React Compiler. Cursor's own bundle shows that mixed
-          rendering works by adding a Solid mount adapter, a service-context
-          layer, reactive-storage wrappers, and a React bridge. That is useful
-          only when the target surface is worth owning as a separate renderer.
+          The reason is concrete: Multi's hot UI is not a simple unvirtualized list that React is
+          naively rerendering. The chat timeline is already virtualized and memoized. The route
+          layer is already thin. The build already includes React Compiler. Cursor's own bundle
+          shows that mixed rendering works by adding a Solid mount adapter, a service-context layer,
+          reactive-storage wrappers, and a React bridge. That is useful only when the target surface
+          is worth owning as a separate renderer.
         </p>
 
         <h3>What I would do next before any implementation</h3>
         <ol>
           <li>
-            Capture React Profiler traces for the exact slow workflow: streaming
-            assistant text, timeline scroll, command palette search, model
-            picker, diff panel, or terminal drawer.
+            Capture React Profiler traces for the exact slow workflow: streaming assistant text,
+            timeline scroll, command palette search, model picker, diff panel, or terminal drawer.
           </li>
           <li>
-            For route/search churn, try TanStack Router structural sharing on the
-            specific hook or router default only after confirming returned data
-            is JSON-compatible.
+            For route/search churn, try TanStack Router structural sharing on the specific hook or
+            router default only after confirming returned data is JSON-compatible.
           </li>
           <li>
-            For chat/timeline churn, inspect whether message row identity,
-            derived maps, markdown rendering, or store selector breadth is the
-            actual bottleneck.
+            For chat/timeline churn, inspect whether message row identity, derived maps, markdown
+            rendering, or store selector breadth is the actual bottleneck.
           </li>
           <li>
-            If a hotspot remains high-frequency and isolated, prototype a Solid
-            island with a Cursor-style mount boundary and a deliberately tiny
-            API: props in, events out, explicit dispose.
+            If a hotspot remains high-frequency and isolated, prototype a Solid island with a
+            Cursor-style mount boundary and a deliberately tiny API: props in, events out, explicit
+            dispose.
           </li>
         </ol>
 
         <div class="callout danger">
           <p>
-            Do not mix Solid and React inside the same ownership surface. The
-            safe shape is a hard boundary: one framework owns a subtree, the
-            other passes data and callbacks across a small adapter.
+            Do not mix Solid and React inside the same ownership surface. The safe shape is a hard
+            boundary: one framework owns a subtree, the other passes data and callbacks across a
+            small adapter.
           </p>
         </div>
       </section>
@@ -625,9 +589,8 @@
             <tr>
               <td>Dissect Cursor binary/app bundle first</td>
               <td>
-                Inspected requested JS/CSS bundle sizes, module names, local
-                package versions, Solid mount adapter, React bridge, and runtime
-                pattern counts.
+                Inspected requested JS/CSS bundle sizes, module names, local package versions, Solid
+                mount adapter, React bridge, and runtime pattern counts.
               </td>
               <td>Done</td>
             </tr>
@@ -635,25 +598,23 @@
               <td>Account for React + Solid + translator/bridge code</td>
               <td>
                 Confirmed both runtimes and documented
-                <code>react-bridge.js</code> plus
-                <code>controlCommon/browser/solid.js</code>.
+                <code>react-bridge.js</code> plus <code>controlCommon/browser/solid.js</code>.
               </td>
               <td>Done</td>
             </tr>
             <tr>
               <td>Consider TanStack Router</td>
               <td>
-                Verified current app uses <code>@tanstack/react-router</code>;
-                verified TanStack has current Solid docs and render optimization
-                guidance.
+                Verified current app uses <code>@tanstack/react-router</code>; verified TanStack has
+                current Solid docs and render optimization guidance.
               </td>
               <td>Done</td>
             </tr>
             <tr>
               <td>Give a practical opinion</td>
               <td>
-                Recommendation is to keep React, profile first, and consider
-                Solid only for bounded islands.
+                Recommendation is to keep React, profile first, and consider Solid only for bounded
+                islands.
               </td>
               <td>Done</td>
             </tr>
@@ -671,11 +632,15 @@
         <ul class="source-list">
           <li>
             Local Cursor JS:
-            <code>/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js</code>
+            <code
+              >/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js</code
+            >
           </li>
           <li>
             Local Cursor CSS:
-            <code>/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.css</code>
+            <code
+              >/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.css</code
+            >
           </li>
           <li>
             Local Multi app dependencies:

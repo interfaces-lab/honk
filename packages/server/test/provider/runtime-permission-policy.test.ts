@@ -11,11 +11,7 @@ import {
   type RuntimePermissionAction,
 } from "../../src/provider/runtime-permission-policy.ts";
 
-const modes: ReadonlyArray<RuntimeMode> = [
-  "full-access",
-  "auto-accept-edits",
-  "approval-required",
-];
+const modes: ReadonlyArray<RuntimeMode> = ["full-access", "auto-accept-edits", "approval-required"];
 
 describe("runtime permission policy", () => {
   it("allows reads and user input while prompting for mutating or unknown actions outside full access", () => {
@@ -70,21 +66,30 @@ describe("runtime permission policy", () => {
 
   it("builds OpenCode rules that allow safe reads and ask on edits", () => {
     const supervised = buildOpenCodePermissionRuleset("approval-required");
-    assert.deepEqual(supervised.find((rule) => rule.permission === "*"), {
-      permission: "*",
-      pattern: "*",
-      action: "ask",
-    });
-    assert.deepEqual(supervised.find((rule) => rule.permission === "read" && rule.pattern === "*"), {
-      permission: "read",
-      pattern: "*",
-      action: "allow",
-    });
-    assert.deepEqual(supervised.find((rule) => rule.permission === "edit"), {
-      permission: "edit",
-      pattern: "*",
-      action: "ask",
-    });
+    assert.deepEqual(
+      supervised.find((rule) => rule.permission === "*"),
+      {
+        permission: "*",
+        pattern: "*",
+        action: "ask",
+      },
+    );
+    assert.deepEqual(
+      supervised.find((rule) => rule.permission === "read" && rule.pattern === "*"),
+      {
+        permission: "read",
+        pattern: "*",
+        action: "allow",
+      },
+    );
+    assert.deepEqual(
+      supervised.find((rule) => rule.permission === "edit"),
+      {
+        permission: "edit",
+        pattern: "*",
+        action: "ask",
+      },
+    );
     assert.deepEqual(buildOpenCodePermissionRuleset("full-access"), [
       { permission: "*", pattern: "*", action: "allow" },
     ]);

@@ -11,18 +11,8 @@
 }
 
 [data-work-group-preview] {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 32px,
-    #000 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 32px,
-    #000 100%
-  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 32px, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 32px, #000 100%);
 }
 
 [data-work-group-preview][data-work-preview-scrollable="false"] {

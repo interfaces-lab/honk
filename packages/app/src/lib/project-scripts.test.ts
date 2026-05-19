@@ -125,5 +125,4 @@ describe("projectScripts helpers", () => {
       }),
     ).toThrowError(PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE);
   });
-
 });

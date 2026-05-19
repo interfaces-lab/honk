@@ -1681,9 +1681,7 @@ export const ComposerInput = memo(
     const promptRefVersion = useValueIdentityVersion(promptRef);
     const resolveComposerTriggerVersion = useValueIdentityVersion(resolveComposerTrigger);
     const applyComposerTriggerVersion = useValueIdentityVersion(applyComposerTrigger);
-    const dismissComposerCommandMenuVersion = useValueIdentityVersion(
-      dismissComposerCommandMenu,
-    );
+    const dismissComposerCommandMenuVersion = useValueIdentityVersion(dismissComposerCommandMenu);
     const pendingInputCustomAnswer = activePendingProgress?.customAnswer;
     const pendingInputQuestionId = activePendingProgress?.activeQuestion?.id ?? null;
     const pendingInputRequestId = activePendingUserInput?.requestId ?? null;
@@ -1695,11 +1693,9 @@ export const ComposerInput = memo(
           setComposerCursor={setComposerCursor}
         />
         <ComposerMenuHighlightSync
-          key={[
-            composerMenuOpen,
-            activeComposerMenuItemId ?? "",
-            composerMenuSearchKey ?? "",
-          ].join("\0")}
+          key={[composerMenuOpen, activeComposerMenuItemId ?? "", composerMenuSearchKey ?? ""].join(
+            "\0",
+          )}
           activeComposerMenuItemId={activeComposerMenuItemId}
           composerMenuOpen={composerMenuOpen}
           composerMenuSearchKey={composerMenuSearchKey}
@@ -1728,16 +1724,12 @@ export const ComposerInput = memo(
         <ComposerDraftResetSync
           key={[draftId ?? "", activeThreadId ?? "", promptRefVersion].join("\0")}
           dismissedComposerTriggerKeyRef={dismissedComposerTriggerKeyRef}
-          initialComposerTriggerSuppressionPromptRef={
-            initialComposerTriggerSuppressionPromptRef
-          }
+          initialComposerTriggerSuppressionPromptRef={initialComposerTriggerSuppressionPromptRef}
           promptRef={promptRef}
           setComposerCursor={setComposerCursor}
           setComposerHighlightedItemId={setComposerHighlightedItemId}
           setComposerTrigger={setComposerTrigger}
-          suppressInitialComposerTriggerDetectionRef={
-            suppressInitialComposerTriggerDetectionRef
-          }
+          suppressInitialComposerTriggerDetectionRef={suppressInitialComposerTriggerDetectionRef}
         />
         {composerMenuOpen ? (
           <ComposerCommandMenuPointerDismissSync

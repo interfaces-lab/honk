@@ -334,8 +334,7 @@ describe("resolveInitialServerAuthGateState", () => {
     vi.stubGlobal("fetch", fetchMock);
     installTestBrowser("http://localhost/");
 
-    const { resolveInitialServerAuthGateState, submitServerAuthCredential } =
-      await import(".");
+    const { resolveInitialServerAuthGateState, submitServerAuthCredential } = await import(".");
 
     await expect(resolveInitialServerAuthGateState()).resolves.toEqual({
       status: "requires-auth",

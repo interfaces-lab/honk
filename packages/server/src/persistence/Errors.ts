@@ -30,6 +30,18 @@ export class PersistenceDecodeError extends Schema.TaggedErrorClass<PersistenceD
   }
 }
 
+export class NodeSqliteClientCompatibilityError extends Schema.TaggedErrorClass<NodeSqliteClientCompatibilityError>()(
+  "NodeSqliteClientCompatibilityError",
+  {
+    nodeVersion: Schema.String,
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Node sqlite client is incompatible with Node.js ${this.nodeVersion}: ${this.detail}`;
+  }
+}
+
 export function toPersistenceSqlError(operation: string) {
   return (cause: unknown): PersistenceSqlError =>
     new PersistenceSqlError({

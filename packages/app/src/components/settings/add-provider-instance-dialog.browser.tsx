@@ -33,9 +33,7 @@ describe("AddProviderInstanceDialog", () => {
 
   it("creates a provider instance through identity and schema config steps", async () => {
     const onOpenChange = vi.fn();
-    const screen = await render(
-      <AddProviderInstanceDialog open onOpenChange={onOpenChange} />,
-    );
+    const screen = await render(<AddProviderInstanceDialog open onOpenChange={onOpenChange} />);
 
     try {
       await expect.element(page.getByText("Add provider instance")).toBeVisible();

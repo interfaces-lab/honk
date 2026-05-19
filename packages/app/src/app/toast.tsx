@@ -78,9 +78,7 @@ function buildVisibleToastLayout<TToast extends object>(
 }
 
 function normalizeToastHeight(height: number | null | undefined): number {
-  return typeof height === "number" && Number.isFinite(height) && height > 0
-    ? height
-    : 0;
+  return typeof height === "number" && Number.isFinite(height) && height > 0 ? height : 0;
 }
 
 function shouldRenderThreadScopedToast(
@@ -153,9 +151,7 @@ function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
     select: (params) => resolveThreadRouteTarget(params),
   });
   const activeDraftSession = useComposerDraftStore((store) =>
-    routeTarget?.kind === "draft"
-      ? store.getDraftSession(routeTarget.draftId)
-      : null,
+    routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );
 
   return useMemo(() => {
@@ -200,12 +196,9 @@ function ThreadToastVisibleAutoDismissLifecycle({
   dismissAfterVisibleMs: number;
 }) {
   useMountEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined")
-      return;
+    if (typeof window === "undefined" || typeof document === "undefined") return;
 
-    let remainingMs =
-      threadToastVisibleTimeoutRemainingMs.get(toastId) ??
-      dismissAfterVisibleMs;
+    let remainingMs = threadToastVisibleTimeoutRemainingMs.get(toastId) ?? dismissAfterVisibleMs;
     let startedAtMs: number | null = null;
     let timeoutId: number | null = null;
     let closed = false;
@@ -247,8 +240,7 @@ function ThreadToastVisibleAutoDismissLifecycle({
     };
 
     const syncTimer = () => {
-      const shouldRun =
-        document.visibilityState === "visible" && document.hasFocus();
+      const shouldRun = document.visibilityState === "visible" && document.hasFocus();
       if (shouldRun) {
         start();
         return;
@@ -277,11 +269,7 @@ function createToastIdsKey(toastIds: readonly ToastId[]): string {
   return JSON.stringify(toastIds);
 }
 
-function ThreadToastVisibleTimeoutRegistrySync({
-  toastIds,
-}: {
-  toastIds: readonly ToastId[];
-}) {
+function ThreadToastVisibleTimeoutRegistrySync({ toastIds }: { toastIds: readonly ToastId[] }) {
   useMountEffect(() => {
     const activeToastIds = new Set(toastIds);
     for (const toastId of threadToastVisibleTimeoutRemainingMs.keys()) {
@@ -294,11 +282,7 @@ function ThreadToastVisibleTimeoutRegistrySync({
   return null;
 }
 
-function ToastProvider({
-  children,
-  position = "top-right",
-  ...props
-}: ToastProviderProps) {
+function ToastProvider({ children, position = "top-right", ...props }: ToastProviderProps) {
   return (
     <Toast.Provider toastManager={toastManager} {...props}>
       {children}
@@ -344,9 +328,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
           }
         >
           {visibleToastLayout.items.map(({ toast, visibleIndex, offsetY }) => {
-            const Icon = toast.type
-              ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS]
-              : null;
+            const Icon = toast.type ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS] : null;
             const hideCollapsedContent = shouldHideCollapsedToastContent(
               visibleIndex,
               visibleToastLayout.items.length,
@@ -491,18 +473,11 @@ function AnchoredToasts() {
 
   return (
     <Toast.Portal data-slot="toast-portal-anchored">
-      <Toast.Viewport
-        className="outline-none"
-        data-slot="toast-viewport-anchored"
-      >
+      <Toast.Viewport className="outline-none" data-slot="toast-viewport-anchored">
         {toasts
-          .filter((toast) =>
-            shouldRenderThreadScopedToast(toast.data, activeThreadRef),
-          )
+          .filter((toast) => shouldRenderThreadScopedToast(toast.data, activeThreadRef))
           .map((toast) => {
-            const Icon = toast.type
-              ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS]
-              : null;
+            const Icon = toast.type ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS] : null;
             const tooltipStyle = toast.data?.tooltipStyle ?? false;
             const positionerProps = toast.positionerProps;
 
@@ -567,10 +542,7 @@ function AnchoredToasts() {
                       </div>
                       {toast.actionProps && (
                         <Toast.Action
-                          className={cn(
-                            buttonVariants({ size: "xs" }),
-                            "shrink-0",
-                          )}
+                          className={cn(buttonVariants({ size: "xs" }), "shrink-0")}
                           data-slot="toast-action"
                         >
                           {toast.actionProps.children}

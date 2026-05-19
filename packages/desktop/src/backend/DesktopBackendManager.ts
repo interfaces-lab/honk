@@ -460,9 +460,12 @@ const makeDesktopBackendManager = Effect.fn("makeDesktopBackendManager")(functio
           onHttpAvailable: Effect.fn("desktop.backendManager.onHttpAvailable")(function* () {
             yield* desktopWindow.ensureMain.pipe(
               Effect.catch((error) =>
-                logBackendManagerError("failed to open main window after backend http availability", {
-                  message: error.message,
-                }),
+                logBackendManagerError(
+                  "failed to open main window after backend http availability",
+                  {
+                    message: error.message,
+                  },
+                ),
               ),
             );
           }),

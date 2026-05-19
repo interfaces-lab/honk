@@ -183,9 +183,7 @@ describe("getComposerProviderState", () => {
           isCustom: false,
           capabilities: {
             optionDescriptors: [
-              selectDescriptor("reasoning", [
-                { id: "medium", label: "Medium", isDefault: true },
-              ]),
+              selectDescriptor("reasoning", [{ id: "medium", label: "Medium", isDefault: true }]),
               booleanDescriptor("fastMode"),
             ],
           },

@@ -200,10 +200,7 @@ describe("messages-timeline", () => {
       const group = requireElement<HTMLElement>("[data-assistant-work-group]");
       expect(group.getAttribute("data-work-group-expanded")).toBe("false");
       const header = requireElement<HTMLElement>("[data-work-group-header]", group);
-      const collapsedSummary = requireElement<HTMLElement>(
-        "[data-work-group-summary]",
-        header,
-      );
+      const collapsedSummary = requireElement<HTMLElement>("[data-work-group-summary]", header);
       expect(
         collapsedSummary.textContent,
         "collapsed work group should surface action and details without expanding",

@@ -653,9 +653,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
           theme={props.resolvedTheme}
         />
       ) : null}
-      {SlashIcon ? (
-        <SlashIcon className="size-4 shrink-0 text-multi-fg-secondary" />
-      ) : null}
+      {SlashIcon ? <SlashIcon className="size-4 shrink-0 text-multi-fg-secondary" /> : null}
       {props.item.type === "provider-slash-command" ? (
         <span className="inline-flex size-4 shrink-0 items-center justify-center text-multi-fg-secondary">
           <IconSettingsSliderHor className="size-3.5" />

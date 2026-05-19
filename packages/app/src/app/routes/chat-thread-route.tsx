@@ -6,7 +6,10 @@ import { threadHasStarted } from "~/components/chat/view/thread-lifecycle";
 import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/stores/chat-drafts";
 import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "~/stores/thread-store";
 import { createThreadSelectorByRef } from "~/stores/thread-selectors";
-import { clearLastChatRouteTarget, writeLastChatRouteTarget } from "~/app/routes/chat-route-persistence";
+import {
+  clearLastChatRouteTarget,
+  writeLastChatRouteTarget,
+} from "~/app/routes/chat-route-persistence";
 import { resolveThreadRouteRef } from "~/app/routes/thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 

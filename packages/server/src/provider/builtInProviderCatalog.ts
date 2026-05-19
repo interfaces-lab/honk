@@ -70,10 +70,5 @@ export function createBuiltInProviderSources(
 export function createBuiltInAdapterList(
   adapters: BuiltInAdapterMap,
 ): ReadonlyArray<ProviderAdapterShape<ProviderAdapterError>> {
-  return [
-    adapters.codex,
-    adapters.claudeAgent,
-    adapters.opencode,
-    adapters.cursor,
-  ];
+  return [adapters.codex, adapters.claudeAgent, adapters.opencode, adapters.cursor];
 }

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  type EnvironmentId,
-  DEFAULT_TERMINAL_ID,
-  type TerminalEvent,
-} from "@multi/contracts";
+import { type EnvironmentId, DEFAULT_TERMINAL_ID, type TerminalEvent } from "@multi/contracts";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useRef, useState } from "react";
@@ -15,18 +11,12 @@ import {
   readTerminalHostThemeForMount,
 } from "~/components/shell/terminal/terminal-host-theme";
 import { subscribeTerminalHostDocument } from "~/components/shell/terminal/terminal-xterm-host-sync";
-import {
-  terminalDeleteShortcutData,
-  terminalNavigationShortcutData,
-} from "~/keybindings";
+import { terminalDeleteShortcutData, terminalNavigationShortcutData } from "~/keybindings";
 import {
   readWorkbenchTerminalApi,
   workbenchTerminalThreadId,
 } from "~/components/shell/terminal/workbench-terminal";
-import {
-  clampTerminalDimensions,
-  waitForTerminalLayoutFrame,
-} from "~/lib/terminal-dimensions";
+import { clampTerminalDimensions, waitForTerminalLayoutFrame } from "~/lib/terminal-dimensions";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 export function TerminalPanel(props: {
@@ -63,11 +53,7 @@ function createTerminalPanelSessionKey(input: {
   environmentId: EnvironmentId | null | undefined;
   terminalId: string;
 }): string {
-  return JSON.stringify([
-    input.cwd,
-    input.environmentId ?? null,
-    input.terminalId,
-  ]);
+  return JSON.stringify([input.cwd, input.environmentId ?? null, input.terminalId]);
 }
 
 function TerminalPanelSession({
@@ -82,12 +68,8 @@ function TerminalPanelSession({
   const ref = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
-  const size = useRef<{ thread: string; cols: number; rows: number } | null>(
-    null,
-  );
-  const openSession = useRef<{ thread: string; terminalId: string } | null>(
-    null,
-  );
+  const size = useRef<{ thread: string; cols: number; rows: number } | null>(null);
+  const openSession = useRef<{ thread: string; terminalId: string } | null>(null);
   const [bootErr, setBootErr] = useState<string | null>(null);
 
   const dev = import.meta.env.DEV;
@@ -164,10 +146,7 @@ function TerminalPanelSession({
     };
 
     const sendTerminalInput = (data: string) => {
-      if (
-        openSession.current?.thread !== thread ||
-        openSession.current.terminalId !== termId
-      ) {
+      if (openSession.current?.thread !== thread || openSession.current.terminalId !== termId) {
         return;
       }
       void api
@@ -206,10 +185,7 @@ function TerminalPanelSession({
       event.preventDefault();
       event.stopPropagation();
       clear();
-      if (
-        openSession.current?.thread === thread &&
-        openSession.current.terminalId === termId
-      ) {
+      if (openSession.current?.thread === thread && openSession.current.terminalId === termId) {
         void api
           .clear({
             threadId: thread,
@@ -247,10 +223,7 @@ function TerminalPanelSession({
       const addon = fit.current;
       if (!addon || !live) return;
       addon.fit();
-      if (
-        openSession.current?.thread !== thread ||
-        openSession.current?.terminalId !== termId
-      ) {
+      if (openSession.current?.thread !== thread || openSession.current?.terminalId !== termId) {
         return;
       }
       const nextSize = clampTerminalDimensions({
@@ -327,10 +300,7 @@ function TerminalPanelSession({
 
     return () => {
       live = false;
-      if (
-        openSession.current?.thread === thread &&
-        openSession.current.terminalId === termId
-      ) {
+      if (openSession.current?.thread === thread && openSession.current.terminalId === termId) {
         openSession.current = null;
       }
       unsubscribeTerminalHost();
@@ -357,10 +327,7 @@ function TerminalPanelSession({
       if (!addon || !next || !api) return;
       addon.fit();
       const thread = workbenchTerminalThreadId(cwd);
-      if (
-        openSession.current?.thread !== thread ||
-        openSession.current.terminalId !== termId
-      ) {
+      if (openSession.current?.thread !== thread || openSession.current.terminalId !== termId) {
         return;
       }
       const nextSize = clampTerminalDimensions({
@@ -403,14 +370,9 @@ function TerminalPanelSession({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {bootErr ? (
-        <p className="shrink-0 px-2 py-1 text-detail text-destructive">
-          {bootErr}
-        </p>
+        <p className="shrink-0 px-2 py-1 text-detail text-destructive">{bootErr}</p>
       ) : null}
-      <div
-        ref={ref}
-        className="workbench-terminal-viewport min-h-0 flex-1 overflow-hidden"
-      />
+      <div ref={ref} className="workbench-terminal-viewport min-h-0 flex-1 overflow-hidden" />
     </div>
   );
 }

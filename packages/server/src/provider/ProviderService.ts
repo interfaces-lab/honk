@@ -243,10 +243,11 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       readonly provider: ProviderSession["provider"];
     },
     event: ProviderRuntimeEvent,
-  ): Effect.Effect<void> => {
+  ): Effect.Effect<void, ProviderValidationError> => {
     if (event.provider !== source.provider) {
-      return Effect.die(
-        new Error(
+      return Effect.fail(
+        toValidationError(
+          "ProviderService.streamEvents",
           `Provider instance '${source.instanceId}' is backed by '${source.provider}' but emitted '${event.provider}'.`,
         ),
       );

@@ -178,6 +178,13 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
 - `messages-timeline.browser.tsx` proves work-group layout: collapsed summary
   visible without expand, live preview while running+collapsed, and chevron
   adjacency on expanded tool rows.
+- The remaining production `Effect.die` cleanup pass converted the Node sqlite
+  compatibility check, provider event provider-mismatch guard, and provider
+  command reactor thread lookup misses to typed expected errors.
+- Thinking work rows now derive task completion from orchestration activity
+  lifecycle payloads. Task lifecycle entries collapse by `taskId`, carry
+  `completedAt`, split from tool work rows, and render completed headers as
+  `Thought briefly` or `Thought for <duration>`.
 
 ## Timeline (open gaps)
 
@@ -187,6 +194,4 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
   Preview auto-scroll and `data-work-preview-scrollable` use
   `useLayoutSyncEffect` + `ResizeObserver`.
 - Preview pane is not virtualized internally; 144px cap keeps entry count small.
-- Thinking rows still use `ThinkingStatus` (`Thinking - {task}`); see
-  [specs/todo.md](./specs/todo.md) for `Thought` / duration parity.
 - `InlineToolDiff` renders patches but does not virtualize large diffs.

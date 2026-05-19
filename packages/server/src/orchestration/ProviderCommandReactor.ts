@@ -52,6 +52,7 @@ import {
   coerceThreadProjectCwd,
 } from "../project/AccessibleProjectCwd.ts";
 import { expandHomePath } from "../os-jank.ts";
+import { ProviderCommandReactorThreadNotFoundError } from "./Errors.ts";
 
 type ProviderIntentEvent = Extract<
   OrchestrationEvent,
@@ -103,6 +104,16 @@ const isProviderAdapterRequestError = Schema.is(ProviderAdapterRequestError);
 const isProviderAdapterSessionNotFoundError = Schema.is(ProviderAdapterSessionNotFoundError);
 const isProviderAdapterSessionClosedError = Schema.is(ProviderAdapterSessionClosedError);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
+
+function threadNotFoundError(
+  operation: string,
+  threadId: ThreadId,
+): ProviderCommandReactorThreadNotFoundError {
+  return new ProviderCommandReactorThreadNotFoundError({
+    operation,
+    threadId,
+  });
+}
 
 function canReplaceThreadTitle(currentTitle: string, titleSeed?: string): boolean {
   const trimmedCurrentTitle = currentTitle.trim();
@@ -269,7 +280,7 @@ const make = Effect.gen(function* () {
     const readModel = yield* orchestrationEngine.getReadModel();
     const thread = readModel.threads.find((entry) => entry.id === threadId);
     if (!thread) {
-      return yield* Effect.die(new Error(`Thread '${threadId}' was not found in read model.`));
+      return yield* threadNotFoundError("ProviderCommandReactor.ensureSessionForThread", threadId);
     }
 
     const desiredRuntimeMode = thread.runtimeMode;
@@ -409,8 +420,9 @@ const make = Effect.gen(function* () {
     }) {
       const thread = yield* resolveThread(input.threadId);
       if (!thread) {
-        return yield* Effect.die(
-          new Error(`Thread '${input.threadId}' was not found in read model.`),
+        return yield* threadNotFoundError(
+          "ProviderCommandReactor.buildSendTurnRequestForThread",
+          input.threadId,
         );
       }
       yield* ensureSessionForThread(

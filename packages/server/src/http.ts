@@ -178,7 +178,7 @@ export const attachmentsRouteLayer = HttpRouter.add(
           relativePath: normalizedRelativePath,
         });
     if (!filePath) {
-      return yield* (isIdLookup ? new AttachmentNotFoundError() : new AttachmentPathError());
+      return yield* isIdLookup ? new AttachmentNotFoundError() : new AttachmentPathError();
     }
 
     const fileSystem = yield* FileSystem.FileSystem;
