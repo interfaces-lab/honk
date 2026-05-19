@@ -1,7 +1,4 @@
-import {
-  type EnvironmentId,
-  type MessageId,
-} from "@multi/contracts";
+import { type EnvironmentId, type MessageId } from "@multi/contracts";
 import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   createContext,
@@ -142,13 +139,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         revertTurnCountByUserMessageId,
         projectRoot,
       }),
-    [
-      timelineEntries,
-      isWorking,
-      activeTurnStartedAt,
-      revertTurnCountByUserMessageId,
-      projectRoot,
-    ],
+    [timelineEntries, isWorking, activeTurnStartedAt, revertTurnCountByUserMessageId, projectRoot],
   );
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
@@ -197,10 +188,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       return true;
     }
 
-    const maxScrollTop = Math.max(
-      0,
-      scrollElement.scrollHeight - scrollElement.clientHeight,
-    );
+    const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
     return maxScrollTop <= 1 || scrollElement.scrollTop >= maxScrollTop - 2;
   }, []);
 
@@ -224,23 +212,16 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       }
 
       const isAtBottom = getIsAtBottom();
-      if (
-        isAtBottom ||
-        window.performance.now() >= programmaticScrollDeadlineRef.current
-      ) {
+      if (isAtBottom || window.performance.now() >= programmaticScrollDeadlineRef.current) {
         programmaticScrollTargetRef.current = null;
         reportIsAtBottom(isAtBottom);
         return;
       }
 
-      programmaticScrollFrameRef.current = window.requestAnimationFrame(
-        resolveProgrammaticScroll,
-      );
+      programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
     };
 
-    programmaticScrollFrameRef.current = window.requestAnimationFrame(
-      resolveProgrammaticScroll,
-    );
+    programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
   }, [getIsAtBottom, reportIsAtBottom]);
 
   const scrollToBottom = useCallback(
@@ -250,10 +231,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         return;
       }
 
-      const maxScrollTop = Math.max(
-        0,
-        scrollElement.scrollHeight - scrollElement.clientHeight,
-      );
+      const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
       const animated = options?.animated === true;
       if (animated) {
         programmaticScrollTargetRef.current = maxScrollTop;
@@ -272,11 +250,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         reportIsAtBottom(true);
       }
     },
-    [
-      clearProgrammaticScrollTracking,
-      reportIsAtBottom,
-      scheduleProgrammaticScrollResolution,
-    ],
+    [clearProgrammaticScrollTracking, reportIsAtBottom, scheduleProgrammaticScrollResolution],
   );
 
   const scheduleStickToBottom = useThrottledCallback(
@@ -287,9 +261,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   );
   const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
   const rowsVersion = useValueIdentityVersion(rows);
-  const scheduleStickToBottomVersion = useValueIdentityVersion(
-    scheduleStickToBottom,
-  );
+  const scheduleStickToBottomVersion = useValueIdentityVersion(scheduleStickToBottom);
   const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
 
   const handleScroll = useCallback(() => {
@@ -312,16 +284,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       range.startIndex,
     );
 
-    if (
-      activeStickyIndex === null ||
-      defaultRange.includes(activeStickyIndex)
-    ) {
+    if (activeStickyIndex === null || defaultRange.includes(activeStickyIndex)) {
       return defaultRange;
     }
 
-    return [activeStickyIndex, ...defaultRange].toSorted(
-      (left, right) => left - right,
-    );
+    return [activeStickyIndex, ...defaultRange].toSorted((left, right) => left - right);
   }, []);
 
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
@@ -340,8 +307,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       }
     },
   });
-  rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange =
-    keepScrollOffsetOnMeasuredRowResize;
+  rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = keepScrollOffsetOnMeasuredRowResize;
 
   const sharedState = useMemo<TimelineRowSharedState>(
     () => ({
@@ -396,10 +362,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     return (
       <>
         {lifecycleSync}
-        <div
-          className="flex h-full items-center justify-center"
-          aria-busy="true"
-        >
+        <div className="flex h-full items-center justify-center" aria-busy="true">
           <Spinner className="size-6 text-muted-foreground" />
         </div>
       </>
@@ -429,18 +392,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           data-chat-timeline-scroll=""
           className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
         >
-          <div
-            className="mx-auto box-border w-full max-w-agent-chat"
-            style={virtualContentStyle}
-          >
+          <div className="mx-auto box-border w-full max-w-agent-chat" style={virtualContentStyle}>
             {virtualItems.map((virtualRow) => {
               const row = rows[virtualRow.index];
               if (!row) {
                 return null;
               }
 
-              const isActiveStickyUserRow =
-                virtualRow.index === activeStickyUserRowIndex;
+              const isActiveStickyUserRow = virtualRow.index === activeStickyUserRowIndex;
 
               return (
                 <div
@@ -457,9 +416,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 >
                   <TimelineRowContent
                     row={row}
-                    workGroupExpanded={
-                      row.kind === "work" && expandedWorkGroupIds.has(row.id)
-                    }
+                    workGroupExpanded={row.kind === "work" && expandedWorkGroupIds.has(row.id)}
                     onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
                     editUserMessagesDisabled={editUserMessagesDisabled}
                     isEditingUserMessage={
@@ -525,10 +482,7 @@ function TimelineRowsStickToBottomSync({
 }: {
   initializedScrollRef: MutableRefObject<boolean>;
   isAtBottomRef: MutableRefObject<boolean>;
-  reportIsAtBottom: (
-    isAtBottom: boolean,
-    options?: { force?: boolean },
-  ) => void;
+  reportIsAtBottom: (isAtBottom: boolean, options?: { force?: boolean }) => void;
   rows: readonly MessagesTimelineRow[];
   scheduleStickToBottom: (options?: { animated?: boolean }) => void;
 }) {
@@ -579,16 +533,11 @@ function TimelineActiveWorkStickToBottomSync({
   return null;
 }
 
-function isUserMessageRow(
-  row: MessagesTimelineRow,
-): row is UserMessageTimelineRow {
+function isUserMessageRow(row: MessagesTimelineRow): row is UserMessageTimelineRow {
   return row.kind === "message" && row.message.role === "user";
 }
 
-function findActiveStickyUserRowIndex(
-  indices: readonly number[],
-  visibleStartIndex: number,
-) {
+function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIndex: number) {
   let activeIndex: number | null = null;
   for (const index of indices) {
     if (index > visibleStartIndex) {
@@ -626,10 +575,7 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;
 }
 
-function virtualRowStyle(
-  virtualRow: VirtualItem,
-  isSticky: boolean,
-): CSSProperties {
+function virtualRowStyle(virtualRow: VirtualItem, isSticky: boolean): CSSProperties {
   if (isSticky) {
     return {
       position: "sticky",
@@ -671,9 +617,7 @@ const TimelineRowContent = memo(function TimelineRowContent({
     <div
       className={cn(
         "flex w-full min-w-0 flex-col gap-1 overflow-x-hidden",
-        row.kind === "message" && row.message.role === "assistant"
-          ? "group/assistant"
-          : null,
+        row.kind === "message" && row.message.role === "assistant" ? "group/assistant" : null,
       )}
       data-meta-agent-chat-bubble-id={row.id}
       data-meta-agent-chat-message-kind={timelineRowKind(row)}
@@ -733,10 +677,7 @@ function TimelineRowBody({
 
       {row.kind === "message" && row.message.role === "assistant" && (
         <div className="box-border flex w-full min-w-0 px-0">
-          <AssistantMessage
-            message={row.message}
-            markdownCwd={ctx.markdownCwd}
-          />
+          <AssistantMessage message={row.message} markdownCwd={ctx.markdownCwd} />
         </div>
       )}
 
@@ -768,11 +709,7 @@ const HumanTimelineRow = memo(function HumanTimelineRow({
         isEditing={isEditingUserMessage}
         editDisabled={editUserMessagesDisabled}
         isServerThread={ctx.isServerThread}
-        editComposer={
-          isEditingUserMessage
-            ? (ctx.renderEditComposer?.(row.message) ?? null)
-            : null
-        }
+        editComposer={isEditingUserMessage ? (ctx.renderEditComposer?.(row.message) ?? null) : null}
         onImageExpand={ctx.onImageExpand}
         onBeginEditUserMessage={ctx.onBeginEditUserMessage}
       />
@@ -985,11 +922,8 @@ function WorkGroupStats({
   );
 }
 
-function timelineRowKind(
-  row: TimelineRow,
-): "human" | "assistant" | "tool-call" | "loading" {
-  if (row.kind === "message")
-    return row.message.role === "user" ? "human" : "assistant";
+function timelineRowKind(row: TimelineRow): "human" | "assistant" | "tool-call" | "loading" {
+  if (row.kind === "message") return row.message.role === "user" ? "human" : "assistant";
   if (row.kind === "working") return "loading";
   return "tool-call";
 }
@@ -1005,10 +939,7 @@ function useStableRows(rows: MessagesTimelineRow[]): MessagesTimelineRow[] {
   });
 
   return useMemo(() => {
-    const nextState = computeStableMessagesTimelineRows(
-      rows,
-      prevState.current,
-    );
+    const nextState = computeStableMessagesTimelineRows(rows, prevState.current);
     prevState.current = nextState;
     return nextState.result;
   }, [rows]);

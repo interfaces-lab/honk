@@ -42,12 +42,9 @@ summary come from pure derivation (`deriveMessagesTimelineRows`,
 ### Open
 
 - [ ] Collapsed header copy: optional narrative description when the server
-  provides a turn summary. Document activity payload dependency if needed.
-- [ ] Per-edit inline diff: `VirtualizedDiff` parity (context lines,
-  virtualization across large patches). `InlineToolDiff` renders via
-  `@pierre/diffs` but does not virtualize.
+      provides a turn summary. Document activity payload dependency if needed.
 - [ ] (Optional) Turn-chapter collapse hiding intermediate assistant content.
-  Large scope; defer unless product requires.
+      Large scope; defer unless product requires.
 
 ## Verification
 

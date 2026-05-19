@@ -185,6 +185,9 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
   lifecycle payloads. Task lifecycle entries collapse by `taskId`, carry
   `completedAt`, split from tool work rows, and render completed headers as
   `Thought briefly` or `Thought for <duration>`.
+- Inline tool diffs now use the shared `@pierre/diffs/react` `Virtualizer`
+  around parsed `FileDiff` rows, so large per-edit patches avoid mounting every
+  file diff at once while preserving the raw-patch fallback.
 
 ## Timeline (open gaps)
 
@@ -194,4 +197,3 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
   Preview auto-scroll and `data-work-preview-scrollable` use
   `useLayoutSyncEffect` + `ResizeObserver`.
 - Preview pane is not virtualized internally; 144px cap keeps entry count small.
-- `InlineToolDiff` renders patches but does not virtualize large diffs.

@@ -234,7 +234,7 @@ export function summarizeWorkGroup(
   if (editedFiles.size > 0) {
     const editedSegment =
       editedFiles.size === 1
-        ? primaryEditedFileLabel(entries, projectRoot) ?? countLabel(1, "file")
+        ? (primaryEditedFileLabel(entries, projectRoot) ?? countLabel(1, "file"))
         : countLabel(editedFiles.size, "file");
     const trailingSegments = [
       ...explorationSegments,
@@ -242,9 +242,7 @@ export function summarizeWorkGroup(
     ];
     const detailParts = [
       editedSegment,
-      ...trailingSegments.map((segment, index) =>
-        index === 0 ? `explored ${segment}` : segment,
-      ),
+      ...trailingSegments.map((segment, index) => (index === 0 ? `explored ${segment}` : segment)),
     ];
     return {
       action: running ? "Editing" : "Edited",
@@ -300,9 +298,7 @@ function formatThoughtDurationDetail(durationMs: number): string {
   return `for ${formatDuration(durationMs)}`;
 }
 
-function collectExplorationSegments(
-  entries: ReadonlyArray<WorkLogEntry>,
-): string[] {
+function collectExplorationSegments(entries: ReadonlyArray<WorkLogEntry>): string[] {
   const exploredFiles = collectExploredFilePaths(entries);
   const readCount = entries.filter(isFileReadWorkEntry).length;
   const searchCount = entries.filter(isFileSearchWorkEntry).length;
@@ -333,10 +329,7 @@ function primaryEditedFileLabel(
   return null;
 }
 
-function formatEditedFileLabel(
-  path: string,
-  projectRoot: string | undefined,
-): string {
+function formatEditedFileLabel(path: string, projectRoot: string | undefined): string {
   if (projectRoot) {
     return formatProjectRelativePath(path, projectRoot);
   }

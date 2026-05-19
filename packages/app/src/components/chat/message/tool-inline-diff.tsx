@@ -1,5 +1,5 @@
 import { parsePatchFiles } from "@pierre/diffs";
-import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
+import { FileDiff, type FileDiffMetadata, Virtualizer } from "@pierre/diffs/react";
 import { Data, Effect, Option } from "effect";
 import { memo, useMemo } from "react";
 import type { ToolDiffArtifact } from "../../../session-logic";
@@ -32,6 +32,7 @@ class InlineToolPatchParseError extends Data.TaggedError("InlineToolPatchParseEr
 
 export const InlineToolDiff = memo(function InlineToolDiff({ artifact }: InlineToolDiffProps) {
   const { resolvedTheme } = useTheme();
+  const diffTheme = resolveDiffThemeName(resolvedTheme);
   const renderablePatch = useMemo(
     () => getRenderableToolPatch(artifact.unifiedDiff),
     [artifact.unifiedDiff],
@@ -53,30 +54,42 @@ export const InlineToolDiff = memo(function InlineToolDiff({ artifact }: InlineT
   }
 
   return (
-    <div className="web-component max-h-[42rem] min-w-0 overflow-auto" data-diffs-container>
-      {renderablePatch.files.map((fileDiff) => (
-        <div key={buildFileDiffKey(fileDiff)} className="min-w-0 first:mt-0">
-          <FileDiff
-            fileDiff={fileDiff}
-            options={{
-              theme: resolveDiffThemeName(resolvedTheme),
-              themeType: resolvedTheme,
-              unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
-              diffStyle: "unified",
-              overflow: "wrap",
-              disableFileHeader: renderablePatch.files.length === 1,
-              disableBackground: false,
-              disableLineNumbers: false,
-              diffIndicators: "none",
-              lineDiffType: "none",
-              expandUnchanged: false,
-              hunkSeparators: "simple",
-              preferredHighlighter: "shiki-js",
-            }}
-            className={cn(renderablePatch.files.length > 1 && "mb-2 last:mb-0")}
-          />
-        </div>
-      ))}
+    <div className="web-component min-w-0" data-diffs-container>
+      <Virtualizer
+        className="max-h-[42rem] min-w-0 overflow-auto"
+        contentClassName="min-w-0"
+        config={{
+          overscrollSize: 480,
+          intersectionObserverMargin: 900,
+        }}
+      >
+        {renderablePatch.files.map((fileDiff) => (
+          <div
+            key={`${buildFileDiffKey(fileDiff)}:${resolvedTheme}`}
+            className="min-w-0 first:mt-0"
+          >
+            <FileDiff
+              fileDiff={fileDiff}
+              options={{
+                theme: diffTheme,
+                themeType: resolvedTheme,
+                unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
+                diffStyle: "unified",
+                overflow: "wrap",
+                disableFileHeader: renderablePatch.files.length === 1,
+                disableBackground: false,
+                disableLineNumbers: false,
+                diffIndicators: "none",
+                lineDiffType: "none",
+                expandUnchanged: false,
+                hunkSeparators: "simple",
+                preferredHighlighter: "shiki-js",
+              }}
+              className={cn(renderablePatch.files.length > 1 && "mb-2 last:mb-0")}
+            />
+          </div>
+        ))}
+      </Virtualizer>
     </div>
   );
 });

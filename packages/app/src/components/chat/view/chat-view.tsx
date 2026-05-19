@@ -199,7 +199,6 @@ import { sanitizeThreadErrorMessage } from "~/rpc/transport-error";
 import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
 import { useGitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import { IconChevronRightMedium, IconExclamationCircle } from "central-icons";
-import { HeroActions } from "./hero-actions";
 import { useAttachmentPreviewHandoff } from "./attachment-preview-handoff";
 import { BranchToolbar } from "./branch-toolbar";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -3485,13 +3484,13 @@ export default function ChatView(props: ChatViewProps) {
             className={cn(
               "relative px-4 pb-4",
               isHeroComposer
-                ? "flex h-full flex-1 flex-col items-center outline-none data-[layout=wide]:justify-center data-[layout=wide]:px-6 data-[layout=wide]:py-12 data-[layout=wide]:[&>*]:w-full data-[layout=wide]:[&>*]:max-w-agent-chat"
+                ? "flex h-full flex-1 flex-col items-center outline-none data-[layout=wide]:justify-center data-[layout=wide]:px-6 data-[layout=wide]:py-12 data-[layout=wide]:*:w-full data-[layout=wide]:*:max-w-agent-chat"
                 : undefined,
               isConnecting
-                ? "[&_[data-chat-input-footer=true]_*]:opacity-60 [&_[data-testid=composer-editor]]:cursor-default [&_[data-testid=composer-editor]]:opacity-60"
+                ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "absolute bottom-0 left-0 right-0 isolate z-30 pointer-events-auto before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:-ml-[50vw] before:w-screen before:bg-multi-editor after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:-ml-[50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-color-editor),transparent)] [&>*]:relative [&>*]:z-[1]"
+                ? "absolute bottom-0 left-0 right-0 isolate z-30 pointer-events-auto before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-multi-editor after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-color-editor),transparent)] *:relative *:z-1"
                 : undefined,
             )}
             data-layout={isHeroComposer ? "wide" : undefined}
@@ -3578,14 +3577,6 @@ export default function ChatView(props: ChatViewProps) {
               setThreadError={setThreadError}
               onExpandImage={onExpandTimelineImage}
             />
-            {isHeroComposer ? (
-              <HeroActions
-                activeProjectName={activeProject?.name ?? null}
-                onAddProject={openAddProject}
-                onOpenAppearance={openAppearanceSettings}
-                onOpenProjects={openProject}
-              />
-            ) : null}
           </div>
 
           {pullRequestDialogState ? (
