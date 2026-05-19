@@ -1,6 +1,7 @@
 import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type MessageId } from "@multi/contracts";
+import { formatProjectRelativePath } from "../shared/file-path-display";
 
 export interface TimelineDurationMessage {
   id: string;
@@ -86,6 +87,7 @@ export function deriveMessagesTimelineRows(input: {
   isWorking: boolean;
   activeTurnStartedAt: string | null;
   revertTurnCountByUserMessageId: ReadonlyMap<MessageId, number>;
+  projectRoot?: string | undefined;
 }): MessagesTimelineRow[] {
   const baseRows: BaseMessagesTimelineRow[] = [];
   const durationStartByMessageId = computeMessageDurationStart(
@@ -114,7 +116,7 @@ export function deriveMessagesTimelineRows(input: {
         durationStart: groupedEntries[0]?.createdAt ?? timelineEntry.createdAt,
         durationMs: computeWorkGroupDurationMs(groupedEntries),
         isRunning: groupedEntries.some((entry) => entry.status === "running"),
-        summary: summarizeWorkGroup(groupedEntries),
+        summary: summarizeWorkGroup(groupedEntries, input.projectRoot),
         groupedEntries,
       });
       index = cursor - 1;
@@ -203,11 +205,13 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
 export function summarizeWorkGroup(
   entries: ReadonlyArray<WorkLogEntry>,
+  projectRoot?: string | undefined,
 ): WorkGroupSummary {
   const running = entries.some((entry) => entry.status === "running");
   const commandCount = entries.filter(isCommandWorkEntry).length;
   const editedFiles = collectEditedFilePaths(entries);
   const stats = summarizeEditedFileStats(entries);
+  const explorationSegments = collectExplorationSegments(entries);
 
   if (commandCount === entries.length && commandCount > 0) {
     return {
@@ -217,17 +221,33 @@ export function summarizeWorkGroup(
   }
 
   if (editedFiles.size > 0) {
+    const editedSegment =
+      editedFiles.size === 1
+        ? primaryEditedFileLabel(entries, projectRoot) ?? countLabel(1, "file")
+        : countLabel(editedFiles.size, "file");
+    const trailingSegments = [
+      ...explorationSegments,
+      ...(commandCount > 0 ? [countLabel(commandCount, "command")] : []),
+    ];
+    const detailParts = [
+      editedSegment,
+      ...trailingSegments.map((segment, index) =>
+        index === 0 ? `explored ${segment}` : segment,
+      ),
+    ];
     return {
       action: running ? "Editing" : "Edited",
-      details: countLabel(editedFiles.size, "file"),
+      details: detailParts.join(", "),
       ...(stats.additions > 0 ? { additions: stats.additions } : {}),
       ...(stats.deletions > 0 ? { deletions: stats.deletions } : {}),
     };
   }
 
-  const explorationSummary = summarizeExploration(entries, running);
-  if (explorationSummary) {
-    return explorationSummary;
+  if (explorationSegments.length > 0) {
+    return {
+      action: running ? "Exploring" : "Explored",
+      details: explorationSegments.join(", "),
+    };
   }
 
   return {
@@ -258,31 +278,49 @@ function computeWorkGroupDurationMs(entries: ReadonlyArray<WorkLogEntry>): numbe
   return Math.max(timelineDurationMs, artifactDurationMs);
 }
 
-function summarizeExploration(
+function collectExplorationSegments(
   entries: ReadonlyArray<WorkLogEntry>,
-  running: boolean,
-): WorkGroupSummary | null {
+): string[] {
   const exploredFiles = collectExploredFilePaths(entries);
   const readCount = entries.filter(isFileReadWorkEntry).length;
   const searchCount = entries.filter(isFileSearchWorkEntry).length;
   const webSearchCount = entries.filter((entry) => entry.itemType === "web_search").length;
   const webFetchCount = entries.filter((entry) => entry.itemType === "web_fetch").length;
   const fileCount = exploredFiles.size || readCount;
-  const details = [
+  return [
     ...(fileCount > 0 ? [countLabel(fileCount, "file")] : []),
     ...(searchCount > 0 ? [countLabel(searchCount, "search")] : []),
     ...(webSearchCount > 0 ? [countLabel(webSearchCount, "web search")] : []),
     ...(webFetchCount > 0 ? [countLabel(webFetchCount, "fetch")] : []),
   ];
+}
 
-  if (details.length === 0) {
-    return null;
+function primaryEditedFileLabel(
+  entries: ReadonlyArray<WorkLogEntry>,
+  projectRoot: string | undefined,
+): string | null {
+  for (const entry of entries) {
+    if (!isFileChangeWorkEntry(entry)) continue;
+    const path = entry.changedFiles?.[0];
+    if (path) return formatEditedFileLabel(path, projectRoot);
+    for (const artifact of diffArtifactsForEntry(entry)) {
+      const filePath = artifact.files[0]?.path;
+      if (filePath) return formatEditedFileLabel(filePath, projectRoot);
+    }
   }
+  return null;
+}
 
-  return {
-    action: running ? "Exploring" : "Explored",
-    details: details.join(", "),
-  };
+function formatEditedFileLabel(
+  path: string,
+  projectRoot: string | undefined,
+): string {
+  if (projectRoot) {
+    return formatProjectRelativePath(path, projectRoot);
+  }
+  const trimmed = path.trim();
+  const lastSeparator = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return lastSeparator === -1 ? trimmed : trimmed.slice(lastSeparator + 1);
 }
 
 function collectEditedFilePaths(entries: ReadonlyArray<WorkLogEntry>): Set<string> {

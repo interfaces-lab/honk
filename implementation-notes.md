@@ -111,9 +111,6 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
 - The group summary is derived from available `WorkLogEntry` facts. When an
   entry does not expose a precise file/read/search kind, the summary falls back
   to `Worked N steps` instead of guessing.
-- The chat implementation now has the canonical work-group row and compact
-  tool renderer shape. The remaining proof before treating this as fully closed
-  is visual verification of the intrinsic chevron cluster and truncation lane.
 
 ## Effect Logic Cleanup
 
@@ -178,6 +175,18 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
 - Direct app `useLayoutEffect` calls now go through
   `hooks/use-layout-sync-effect.ts`, and the local oxlint rule rejects direct
   `useEffect` / `useLayoutEffect` usage outside the wrapper files.
-- `messages-timeline.browser.tsx` now proves compact work-row geometry: the
-  row consumes the available chat lane for truncation, stays inside the
-  work-group lane, and keeps the chevron adjacent to visible details text.
+- `messages-timeline.browser.tsx` proves work-group layout: collapsed summary
+  visible without expand, live preview while running+collapsed, and chevron
+  adjacency on expanded tool rows.
+
+## Timeline (open gaps)
+
+- `expandedWorkGroupIds`: `id in set` = explicitly expanded; default
+  collapsed. Ephemeral only.
+- `WorkGroupPreview` is colocated in `messages-timeline.tsx` (single call site).
+  Preview auto-scroll and `data-work-preview-scrollable` use
+  `useLayoutSyncEffect` + `ResizeObserver`.
+- Preview pane is not virtualized internally; 144px cap keeps entry count small.
+- Thinking rows still use `ThinkingStatus` (`Thinking - {task}`); see
+  [specs/todo.md](./specs/todo.md) for `Thought` / duration parity.
+- `InlineToolDiff` renders patches but does not virtualize large diffs.

@@ -5,4 +5,27 @@
   --chat-timeline-row-gap: 12px;
   --chat-timeline-padding-block-start: 12px;
   --chat-timeline-assistant-top-inset: 8px;
+  --chat-timeline-step-gap: 6px;
+  --chat-timeline-collapsible-header-gap: 4px;
+  --chat-timeline-work-preview-max-height: 144px;
+}
+
+[data-work-group-preview] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 32px,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 32px,
+    #000 100%
+  );
+}
+
+[data-work-group-preview][data-work-preview-scrollable="false"] {
+  -webkit-mask-image: none;
+  mask-image: none;
 }

@@ -163,7 +163,8 @@ describe("messages-timeline", () => {
     );
 
     expect(markup).toContain('data-timeline-row-kind="work"');
-    expect(markup).toContain("Ran tool");
+    expect(markup).toContain('data-work-group-summary=""');
+    expect(markup).toMatch(/Worked\b[\s\S]*1 step/);
   });
 
   it("formats changed file paths from the project root", async () => {

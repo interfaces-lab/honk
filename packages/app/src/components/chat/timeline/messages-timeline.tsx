@@ -11,11 +11,13 @@ import {
   use,
   useCallback,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import {
   defaultRangeExtractor,
   useVirtualizer,
@@ -138,20 +140,22 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         isWorking,
         activeTurnStartedAt,
         revertTurnCountByUserMessageId,
+        projectRoot,
       }),
     [
       timelineEntries,
       isWorking,
       activeTurnStartedAt,
       revertTurnCountByUserMessageId,
+      projectRoot,
     ],
   );
   const rows = useStableRows(rawRows);
-  const [collapsedWorkGroupIds, setCollapsedWorkGroupIds] = useState<ReadonlySet<string>>(
+  const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const toggleWorkGroupExpanded = useCallback((rowId: string) => {
-    setCollapsedWorkGroupIds((current) => {
+    setExpandedWorkGroupIds((current) => {
       const next = new Set(current);
       if (next.has(rowId)) {
         next.delete(rowId);
@@ -454,7 +458,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   <TimelineRowContent
                     row={row}
                     workGroupExpanded={
-                      row.kind !== "work" || !collapsedWorkGroupIds.has(row.id)
+                      row.kind === "work" && expandedWorkGroupIds.has(row.id)
                     }
                     onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
                     editUserMessagesDisabled={editUserMessagesDisabled}
@@ -595,6 +599,9 @@ function findActiveStickyUserRowIndex(
   return activeIndex;
 }
 
+const WORK_GROUP_PREVIEW_PX = 144;
+const WORK_GROUP_HEADER_PX = 28;
+
 function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
   if (!row) {
     return 96 + VIRTUAL_ROW_GAP_PX;
@@ -612,7 +619,11 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
     return 52 + VIRTUAL_ROW_GAP_PX;
   }
 
-  return Math.min(320, 48 + row.groupedEntries.length * 26) + VIRTUAL_ROW_GAP_PX;
+  if (row.isRunning) {
+    return WORK_GROUP_HEADER_PX + WORK_GROUP_PREVIEW_PX + VIRTUAL_ROW_GAP_PX;
+  }
+
+  return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;
 }
 
 function virtualRowStyle(
@@ -784,26 +795,41 @@ const WorkGroupSection = memo(function WorkGroupSection({
 }) {
   const { projectRoot } = use(TimelineRowCtx);
   const summary = row.summary;
+  const isRunning = row.isRunning;
+  const handleToggle = useCallback(() => {
+    onToggleExpanded(row.id);
+  }, [onToggleExpanded, row.id]);
 
   return (
     <div
-      className="flex min-w-0 max-w-agent-chat flex-1 flex-col gap-0.5 py-0.5 text-conversation"
+      className="flex min-w-0 max-w-agent-chat flex-1 flex-col gap-(--chat-timeline-collapsible-header-gap) py-0.5 text-conversation"
       data-assistant-work-group=""
+      data-work-group-expanded={expanded ? "true" : "false"}
+      data-work-group-running={isRunning ? "true" : "false"}
     >
       <button
         type="button"
         className={cn(
-          "group/work-header inline-flex w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
+          "group/work-header inline-flex w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
           "border-0 bg-transparent p-0 text-left select-none",
           "text-conversation text-multi-fg-tertiary",
           "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
         )}
         aria-expanded={expanded}
-        onClick={() => onToggleExpanded(row.id)}
+        onClick={handleToggle}
+        data-work-group-header=""
       >
-        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap tabular-nums">
-          Worked for {formatDuration(row.durationMs)}
+        <span className="shrink-0 whitespace-nowrap tabular-nums">
+          {isRunning ? "Working" : `Worked for ${formatDuration(row.durationMs)}`}
         </span>
+        {!expanded && !isRunning ? (
+          <>
+            <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
+              ·
+            </span>
+            <WorkGroupSummaryLine summary={summary} />
+          </>
+        ) : null}
         <IconChevronRightMedium
           className={cn(
             "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
@@ -811,8 +837,16 @@ const WorkGroupSection = memo(function WorkGroupSection({
           )}
         />
       </button>
+      {!expanded && isRunning ? (
+        <WorkGroupPreview
+          key={`work-preview:${row.id}`}
+          row={row}
+          onExpand={handleToggle}
+          projectRoot={projectRoot}
+        />
+      ) : null}
       {expanded ? (
-        <div className="flex min-w-0 max-w-full flex-col gap-0.5">
+        <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
           <WorkGroupSummaryLine summary={summary} />
           {row.groupedEntries.map((workEntry) => (
             <ToolCallMessage
@@ -833,7 +867,10 @@ function WorkGroupSummaryLine({
   summary: Extract<MessagesTimelineRow, { kind: "work" }>["summary"];
 }) {
   return (
-    <div className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-conversation">
+    <span
+      className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-conversation"
+      data-work-group-summary=""
+    >
       <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary">
         {summary.action}
       </span>
@@ -841,8 +878,88 @@ function WorkGroupSummaryLine({
         {summary.details}
       </span>
       <WorkGroupStats summary={summary} />
+    </span>
+  );
+}
+
+const WorkGroupPreview = memo(function WorkGroupPreview({
+  row,
+  onExpand,
+  projectRoot,
+}: {
+  row: Extract<MessagesTimelineRow, { kind: "work" }>;
+  onExpand: () => void;
+  projectRoot: string | undefined;
+}) {
+  const scrollHostRef = useRef<HTMLDivElement | null>(null);
+  const entries = row.groupedEntries;
+  const lastEntryId = entries.at(-1)?.id;
+  const entryCount = entries.length;
+
+  useLayoutSyncEffect(() => {
+    const host = scrollHostRef.current;
+    if (!host) return;
+    host.scrollTop = host.scrollHeight;
+    updatePreviewScrollable(host);
+  }, [entryCount, lastEntryId, row.isRunning]);
+
+  useLayoutSyncEffect(() => {
+    const host = scrollHostRef.current;
+    if (!host) return;
+    if (typeof ResizeObserver === "undefined") {
+      updatePreviewScrollable(host);
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      updatePreviewScrollable(host);
+    });
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  const onPreviewClick = useCallback(() => {
+    onExpand();
+  }, [onExpand]);
+  const onPreviewKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      onExpand();
+    },
+    [onExpand],
+  );
+
+  return (
+    <div
+      ref={scrollHostRef}
+      role="button"
+      tabIndex={0}
+      aria-label="Expand work group"
+      onClick={onPreviewClick}
+      onKeyDown={onPreviewKeyDown}
+      data-work-group-preview=""
+      data-work-preview-scrollable="false"
+      className={cn(
+        "flex w-full min-w-0 max-w-full cursor-pointer flex-col",
+        "gap-(--chat-timeline-step-gap) overflow-y-auto overflow-x-hidden",
+        "max-h-(--chat-timeline-work-preview-max-height)",
+        "scrollbar-thin [overflow-anchor:none]",
+      )}
+    >
+      {entries.map((workEntry) => (
+        <ToolCallMessage
+          key={`work-preview-row:${workEntry.id}`}
+          workEntry={workEntry}
+          projectRoot={projectRoot}
+        />
+      ))}
     </div>
   );
+});
+
+function updatePreviewScrollable(host: HTMLDivElement): void {
+  const scrollable = host.scrollHeight > host.clientHeight + 1;
+  host.dataset.workPreviewScrollable = scrollable ? "true" : "false";
 }
 
 function WorkGroupStats({
@@ -857,7 +974,7 @@ function WorkGroupStats({
   }
 
   return (
-    <span className="inline-flex shrink-0 gap-1 tabular-nums">
+    <span className="inline-flex shrink-0 gap-1 tabular-nums" data-work-group-stats="">
       {additions > 0 ? <span className="text-multi-diff-addition">+{additions}</span> : null}
       {deletions > 0 ? <span className="text-multi-diff-deletion">-{deletions}</span> : null}
     </span>

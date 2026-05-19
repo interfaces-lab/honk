@@ -157,6 +157,7 @@ describe("messages-timeline", () => {
               label: "thinking",
               detail: "Inspecting repository state",
               tone: "thinking",
+              status: "running",
             },
           },
         ]}
@@ -170,7 +171,7 @@ describe("messages-timeline", () => {
     }
   });
 
-  it("keeps compact work row chevrons adjacent to the visible text cluster", async () => {
+  it("shows the collapsed work summary and keeps chevrons adjacent after expanding", async () => {
     const props = buildProps();
     const screen = await renderTimeline(props, [
       {
@@ -197,6 +198,27 @@ describe("messages-timeline", () => {
       });
 
       const group = requireElement<HTMLElement>("[data-assistant-work-group]");
+      expect(group.getAttribute("data-work-group-expanded")).toBe("false");
+      const header = requireElement<HTMLElement>("[data-work-group-header]", group);
+      const collapsedSummary = requireElement<HTMLElement>(
+        "[data-work-group-summary]",
+        header,
+      );
+      expect(
+        collapsedSummary.textContent,
+        "collapsed work group should surface action and details without expanding",
+      ).toMatch(/Ran/);
+      expect(
+        document.querySelector("[data-tool-call-line]"),
+        "tool rows should not render while the work group is collapsed",
+      ).toBeNull();
+
+      header.click();
+      await vi.waitFor(() => {
+        expect(group.getAttribute("data-work-group-expanded")).toBe("true");
+        expect(document.querySelector("[data-tool-call-line]")).not.toBeNull();
+      });
+
       const line = requireElement<HTMLElement>("[data-tool-call-line]", group);
       const action = requireElement<HTMLElement>("[data-tool-call-line-action]", line);
       const details = requireElement<HTMLElement>("[data-tool-call-line-details]", line);
@@ -229,6 +251,49 @@ describe("messages-timeline", () => {
     }
   });
 
+  it("renders a live preview pane when a running work group is collapsed", async () => {
+    const props = buildProps();
+    const screen = await renderTimeline(props, [
+      {
+        id: "work-running-1",
+        kind: "work",
+        createdAt: "2026-04-13T12:00:00.000Z",
+        entry: {
+          id: "work-running-1",
+          createdAt: "2026-04-13T12:00:00.000Z",
+          label: "reading",
+          detail: "src/example.ts",
+          tone: "tool",
+          status: "running",
+          requestKind: "file-read",
+        },
+      },
+    ]);
+
+    try {
+      await vi.waitFor(() => {
+        const preview = document.querySelector<HTMLElement>("[data-work-group-preview]");
+        expect(preview).not.toBeNull();
+      });
+
+      const group = requireElement<HTMLElement>("[data-assistant-work-group]");
+      expect(group.getAttribute("data-work-group-running")).toBe("true");
+      expect(group.getAttribute("data-work-group-expanded")).toBe("false");
+
+      const preview = requireElement<HTMLElement>("[data-work-group-preview]", group);
+      expect(preview.getAttribute("role")).toBe("button");
+      expect(preview.querySelectorAll("[data-tool-call-line]").length).toBeGreaterThan(0);
+
+      preview.click();
+      await vi.waitFor(() => {
+        expect(group.getAttribute("data-work-group-expanded")).toBe("true");
+        expect(document.querySelector("[data-work-group-preview]")).toBeNull();
+      });
+    } finally {
+      await screen.unmount();
+    }
+  });
+
   it("snaps to the bottom when timeline rows appear after an initially empty render", async () => {
     const props = buildProps();
     const screen = await renderTimeline(props, []);
@@ -249,6 +314,7 @@ describe("messages-timeline", () => {
                   label: "thinking",
                   detail: "Inspecting repository state",
                   tone: "thinking",
+                  status: "running",
                 },
               },
             ]}
