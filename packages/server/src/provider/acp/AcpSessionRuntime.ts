@@ -309,6 +309,38 @@ const makeAcpSessionRuntime = (
         | EffectAcpSchema.ResumeSessionResponse,
     ): Effect.Effect<void> => Ref.set(configOptionsRef, sessionConfigOptionsFromSetup(response));
 
+    const configOptionsWithCurrentValue = (
+      configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
+      configId: string,
+      value: string | boolean,
+    ): ReadonlyArray<EffectAcpSchema.SessionConfigOption> =>
+      configOptions.map((option) => {
+        if (option.id !== configId) {
+          return option;
+        }
+        if (option.type === "boolean") {
+          return {
+            ...option,
+            currentValue: typeof value === "boolean" ? value : value === "true",
+          };
+        }
+        return {
+          ...option,
+          currentValue: String(value),
+        };
+      });
+
+    const updateConfigOptionsAfterSuccessfulWrite = (
+      configId: string,
+      value: string | boolean,
+      response: EffectAcpSchema.SetSessionConfigOptionResponse,
+    ): Effect.Effect<void> =>
+      Ref.update(configOptionsRef, (currentOptions) => {
+        const responseOptions = sessionConfigOptionsFromSetup(response);
+        const nextOptions = responseOptions.length > 0 ? responseOptions : currentOptions;
+        return configOptionsWithCurrentValue(nextOptions, configId, value);
+      });
+
     const updateCurrentModeId = (modeId: string): Effect.Effect<void> =>
       Ref.update(modeStateRef, (current) =>
         current ? { ...current, currentModeId: modeId } : current,
@@ -349,7 +381,11 @@ const makeAcpSessionRuntime = (
                 "session/set_config_option",
                 requestPayload,
                 acp.agent.setSessionConfigOption(requestPayload),
-              ).pipe(Effect.tap((response) => updateConfigOptions(response)));
+              ).pipe(
+                Effect.tap((response) =>
+                  updateConfigOptionsAfterSuccessfulWrite(configId, value, response),
+                ),
+              );
             }),
           ),
         ),

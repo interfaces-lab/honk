@@ -1141,14 +1141,12 @@ export function applyThreadDetailEvent(
       return updateThreadState(state, event.payload.threadId, (thread) => ({
         ...thread,
         archivedAt: event.payload.archivedAt,
-        updatedAt: event.payload.updatedAt,
       }));
 
     case "thread.unarchived":
       return updateThreadState(state, event.payload.threadId, (thread) => ({
         ...thread,
         archivedAt: null,
-        updatedAt: event.payload.updatedAt,
       }));
 
     case "thread.meta-updated":

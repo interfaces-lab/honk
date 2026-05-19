@@ -131,7 +131,7 @@ function normalizeProviderInstanceEntryState(
   };
 }
 
-export function deriveProviderInstanceEntriesForSettings(
+function deriveProviderInstanceEntriesForSettings(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
 ): ReadonlyArray<ProviderInstanceEntry> {
@@ -140,7 +140,7 @@ export function deriveProviderInstanceEntriesForSettings(
   );
 }
 
-export function sortProviderInstanceEntries(
+function sortProviderInstanceEntries(
   entries: ReadonlyArray<ProviderInstanceEntry>,
 ): ReadonlyArray<ProviderInstanceEntry> {
   const byKind = new Map<ProviderDriverKind, ProviderInstanceEntry[]>();
@@ -161,10 +161,9 @@ export function sortProviderInstanceEntries(
   return sorted;
 }
 
-export function resolveProviderDriverKindForInstanceSelection(
-  entries: ReadonlyArray<ProviderInstanceEntry>,
-  _providers: ReadonlyArray<ServerProvider>,
-  selection: ProviderInstanceId | ProviderDriverKind | null | undefined,
-): ProviderDriverKind | undefined {
-  return entries.find((entry) => entry.instanceId === selection)?.driverKind;
+export function resolveProviderInstanceEntriesForSettings(
+  settings: UnifiedSettings,
+  providers: ReadonlyArray<ServerProvider>,
+): ReadonlyArray<ProviderInstanceEntry> {
+  return sortProviderInstanceEntries(deriveProviderInstanceEntriesForSettings(settings, providers));
 }

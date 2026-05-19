@@ -38,6 +38,7 @@ import {
   SynchronizedRef,
 } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import type * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
 import { resolveAttachmentPath } from "../attachment-store.ts";
@@ -232,8 +233,8 @@ function applyRequestedSessionConfiguration<E>(input: {
       }
     | undefined;
   readonly mapError: (context: {
-    readonly cause: import("effect-acp/errors").AcpError;
-    readonly method: "session/set_config_option" | "session/set_mode";
+    readonly cause: EffectAcpErrors.AcpError;
+    readonly method: "session/set_config_option" | "session/set_mode" | "session/set_model";
   }) => E;
 }): Effect.Effect<void, E> {
   return Effect.gen(function* () {
@@ -242,10 +243,10 @@ function applyRequestedSessionConfiguration<E>(input: {
         runtime: input.runtime,
         model: input.modelSelection.model,
         selections: input.modelSelection.options,
-        mapError: ({ cause }) =>
+        mapError: ({ cause, method }) =>
           input.mapError({
             cause,
-            method: "session/set_config_option",
+            method,
           }),
       });
     }

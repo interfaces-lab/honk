@@ -1,33 +1,28 @@
 import type { EnvironmentId, GitBranch } from "@multi/contracts";
-import { Button } from "@multi/ui/button";
+import { dedupeRemoteBranchesWithLocalMatches } from "@multi/shared/git";
 import { Input } from "@multi/ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { IconChevronRightMedium } from "central-icons";
+import { IconBranchSimple, IconChevronRightMedium } from "central-icons";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import {
-  dedupeRemoteBranchesWithLocalMatches,
-  resolveBranchToolbarValue,
-  resolveEnvModeLabel,
-  shouldIncludeBranchPickerItem,
-  type EnvMode,
-} from "../../../lib/branch-toolbar-logic";
 import { gitBranchSearchInfiniteQueryOptions } from "../../../lib/git-react-query";
 import { cn } from "../../../lib/utils";
 import { parsePullRequestReference } from "~/git/pull-request-reference";
 
+type BranchEnvMode = "local" | "worktree";
+
 interface BranchToolbarProps {
   environmentId: EnvironmentId;
   cwd: string | null;
-  envMode: EnvMode;
+  envMode: BranchEnvMode;
   activeWorktreePath: string | null;
   activeThreadBranch: string | null;
   currentGitBranch: string | null;
   isGitRepo: boolean;
   canChangeEnvMode: boolean;
   disabled: boolean;
-  onEnvModeChange: (mode: EnvMode, branch: string | null) => void;
+  onEnvModeChange: (mode: BranchEnvMode, branch: string | null) => void;
   onBranchSelect: (branch: GitBranch) => Promise<void> | void;
   onCheckoutPullRequest: (reference: string) => void;
 }
@@ -58,12 +53,10 @@ export function BranchToolbar(props: BranchToolbarProps) {
     branches.find((branch) => branch.current)?.name ??
     branches.find((branch) => branch.isDefault)?.name ??
     null;
-  const selectedBranch = resolveBranchToolbarValue({
-    envMode: props.envMode,
-    activeWorktreePath: props.activeWorktreePath,
-    activeThreadBranch: props.activeThreadBranch,
-    currentGitBranch: currentBranch,
-  });
+  const selectedBranch =
+    props.envMode === "worktree" && props.activeWorktreePath === null
+      ? (props.activeThreadBranch ?? currentBranch)
+      : (currentBranch ?? props.activeThreadBranch);
   const branchButtonLabel = selectedBranch
     ? props.envMode === "worktree" && props.activeWorktreePath === null
       ? `From ${selectedBranch}`
@@ -71,29 +64,18 @@ export function BranchToolbar(props: BranchToolbarProps) {
     : "Branch";
   const normalizedBranchQuery = branchQuery.trim();
   const parsedPullRequestReference = parsePullRequestReference(normalizedBranchQuery);
-  const checkoutPullRequestItemValue = parsedPullRequestReference
-    ? `__checkout_pull_request__:${parsedPullRequestReference}`
-    : null;
+  const normalizedBranchSearch = normalizedBranchQuery.toLowerCase();
   const filteredBranches = useMemo(
     () =>
-      branches.filter((branch) =>
-        shouldIncludeBranchPickerItem({
-          itemValue: branch.name,
-          normalizedQuery: normalizedBranchQuery.toLowerCase(),
-          createBranchItemValue: null,
-          checkoutPullRequestItemValue,
-        }),
-      ),
-    [branches, checkoutPullRequestItemValue, normalizedBranchQuery],
+      branches.filter((branch) => {
+        return (
+          normalizedBranchSearch.length === 0 ||
+          branch.name.toLowerCase().includes(normalizedBranchSearch)
+        );
+      }),
+    [branches, normalizedBranchSearch],
   );
-  const showPullRequestItem = checkoutPullRequestItemValue
-    ? shouldIncludeBranchPickerItem({
-        itemValue: checkoutPullRequestItemValue,
-        normalizedQuery: normalizedBranchQuery.toLowerCase(),
-        createBranchItemValue: null,
-        checkoutPullRequestItemValue,
-      })
-    : false;
+  const showPullRequestItem = parsedPullRequestReference !== null;
 
   const focusBranchInput = useCallback(
     (node: HTMLInputElement | null) => {
@@ -117,7 +99,7 @@ export function BranchToolbar(props: BranchToolbarProps) {
   );
 
   const selectEnvMode = useCallback(
-    (mode: EnvMode) => {
+    (mode: BranchEnvMode) => {
       props.onEnvModeChange(mode, mode === "worktree" ? selectedBranch : null);
       setEnvModeOpen(false);
     },
@@ -137,19 +119,18 @@ export function BranchToolbar(props: BranchToolbarProps) {
   }
 
   return (
-    <div className="mb-2 flex w-full items-center justify-start gap-1.5">
+    <div className="mb-2 flex w-full items-center justify-start gap-1 px-1">
       <Popover open={envModeOpen} onOpenChange={setEnvModeOpen}>
         <PopoverTrigger
           render={
-            <Button
-              size="sm"
-              variant="outline"
+            <button
+              type="button"
               disabled={props.disabled || !props.canChangeEnvMode}
-              className="gap-1.5"
+              className={toolbarButtonClass}
             />
           }
         >
-          <span>{resolveEnvModeLabel(props.envMode)}</span>
+          <span>{props.envMode === "worktree" ? "New worktree" : "Current checkout"}</span>
           {props.canChangeEnvMode ? (
             <IconChevronRightMedium className="size-3 rotate-90 opacity-70" aria-hidden />
           ) : null}
@@ -183,14 +164,14 @@ export function BranchToolbar(props: BranchToolbarProps) {
       >
         <PopoverTrigger
           render={
-            <Button
-              size="sm"
-              variant="outline"
+            <button
+              type="button"
               disabled={props.disabled || branchesQuery.isError}
-              className="max-w-64 gap-1.5"
+              className={cn(toolbarButtonClass, "max-w-64")}
             />
           }
         >
+          <IconBranchSimple className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
           <span className="min-w-0 truncate">{branchButtonLabel}</span>
           <IconChevronRightMedium className="size-3 rotate-90 opacity-70" aria-hidden />
         </PopoverTrigger>
@@ -253,9 +234,12 @@ export function BranchToolbar(props: BranchToolbarProps) {
   );
 }
 
+const toolbarButtonClass =
+  "inline-flex h-7 min-w-0 shrink-0 cursor-(--multi-button-cursor) select-none items-center gap-1.5 rounded-full border border-transparent bg-multi-bg-quaternary px-2.5 text-detail font-normal leading-none text-multi-fg-secondary shadow-none outline-none transition-[background-color,color,opacity,transform] duration-100 ease-out hover:bg-multi-bg-tertiary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 active:scale-[0.96] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-multi-bg-quaternary disabled:hover:text-multi-fg-secondary motion-reduce:transition-none motion-reduce:active:scale-100";
+
 function envModeMenuItemClass(selected: boolean): string {
   return cn(
-    "flex h-7 w-full items-center rounded-multi-control px-2 text-left text-body outline-none",
+    "flex h-7 w-full select-none items-center rounded-multi-control px-2 text-left text-body outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0",
     selected
       ? "bg-multi-bg-tertiary text-multi-fg-primary"
       : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
@@ -264,7 +248,7 @@ function envModeMenuItemClass(selected: boolean): string {
 
 function branchItemClass(selected: boolean): string {
   return cn(
-    "flex h-7 w-full items-center rounded-multi-control px-2 text-left text-body outline-none",
+    "flex h-7 w-full select-none items-center rounded-multi-control px-2 text-left text-body outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0",
     selected
       ? "bg-multi-bg-tertiary text-multi-fg-primary"
       : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",

@@ -58,15 +58,6 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   const handleOptionSelection = (questionId: string, optionLabel: string) => {
     if (!activeQuestion || isResponding) return;
     const advanceAfterSelect = !activeQuestion.multiSelect;
-    const details = {
-      requestId: prompt.requestId,
-      questionId,
-      optionLabel,
-      questionIndex,
-      multiSelect: activeQuestion.multiSelect,
-      advanceAfterSelect,
-    };
-    console.info("[pending-user-input] option selected", details);
     onToggleOption(questionId, optionLabel, advanceAfterSelect);
   };
 

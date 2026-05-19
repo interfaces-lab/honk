@@ -1,14 +1,8 @@
-import type { EnvironmentId } from "@multi/contracts";
+import type { EnvironmentId, GitFilePatchResult } from "@multi/contracts";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 
 import type { GitFileState } from "~/lib/ui-session-types";
 import { readNativeGitApi } from "~/lib/native-git-api";
-
-export interface GitPatchData {
-  kind: "patch" | "untracked" | "rename_only" | "empty";
-  patch: string | null;
-  message: string | null;
-}
 
 const GIT_PATCH_CACHE_GC_TIME_MS = 2 * 60 * 1000;
 
@@ -66,22 +60,7 @@ export function gitPatchQueryOptions(input: {
         path: input.path,
         ...(input.prevPath ? { prevPath: input.prevPath } : {}),
       });
-      switch (result.kind) {
-        case "patch":
-        case "untracked":
-          return {
-            kind: result.kind,
-            patch: result.patch,
-            message: null,
-          } satisfies GitPatchData;
-        case "rename_only":
-        case "empty":
-          return {
-            kind: result.kind,
-            patch: null,
-            message: result.message,
-          } satisfies GitPatchData;
-      }
+      return result satisfies GitFilePatchResult;
     },
     enabled: (input.enabled ?? true) && Boolean(input.cwd),
     staleTime: 0,

@@ -16,6 +16,21 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
   parameterized model picker client capability during initialize, and Multi's
   model picker should consume Cursor's discovered config options instead of
   inventing separate UI policy.
+- Treat Cursor model capabilities as live ACP facts. `null` means "not probed
+  yet"; an empty descriptor list means "probed and no options." The provider
+  registry must not copy stale option descriptors onto refreshed Cursor models,
+  because that can re-enable unsupported thinking/reasoning controls.
+- Preserve Cursor ACP model-selection failure context. Base model failures are
+  surfaced as `session/set_model`; option update failures are surfaced as
+  `session/set_config_option`, so logs and UI errors do not mislabel the broken
+  step.
+- Do not trust Cursor ACP config echoes as the source of truth immediately
+  after a successful config write. A provider log showed Cursor accepting
+  `model=composer-2.5` while the response still reported
+  `currentValue=kimi-k2.5`; Multi now records the requested value locally so it
+  does not resend the same accepted model update on every turn. The refreshed
+  `t3code` mirror still trusts the ACP response directly, so Multi intentionally
+  diverges here based on the captured Cursor behavior.
 - Keep `packages/contracts/src/model.ts` schema-only. Provider model catalogs,
   aliases, and per-provider defaults must not live in contracts because Cursor
   can add models such as Composer 2.5 through its own model/config discovery
@@ -40,3 +55,7 @@ Codex/OpenAI, Claude, OpenCode, Cursor, and Pi pending only.
 - Noncanonical coming-soon providers such as Gemini, GitHub Copilot, and ACP
   Registry should be removed from the active settings/picker surfaces. Pi is
   the only pending placeholder in the canonical list.
+- The app Vite shared config split must keep `packages/app/vite.shared.ts`
+  inside the app tsconfig include list, and helper return types must be
+  concrete rather than `UserConfig[...] | undefined` because the repo enables
+  `exactOptionalPropertyTypes`.

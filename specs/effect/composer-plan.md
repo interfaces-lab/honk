@@ -33,7 +33,7 @@ Thread composer:
 - [x] Multi-line mode expands dynamically to the same maximum height as
       new-agent composer.
 - [x] Multi-line mode moves selectors/actions into the bottom toolbar row.
-- [ ] Verify inline edit height against sent-message bubble geometry after the
+- [x] Verify inline edit height against sent-message bubble geometry after the
       remaining edit-mode latency work.
 
 Current evidence:
@@ -80,7 +80,7 @@ Rules:
       implementation actions, not a render-time `useEffect` sync.
 - [x] Proposed plan actions are copy markdown, download markdown, save to
       project, and build.
-- [ ] Save-to-project errors should preserve structured RPC error detail when
+- [x] Save-to-project errors should preserve structured RPC error detail when
       project write failures become schema-rendered in the app.
 
 ## React Effects
@@ -104,11 +104,12 @@ Rules:
 - [x] `packages/app/src/plan/proposed-plan.test.ts` covers plan markdown export
       normalization and filename derivation.
 - [x] `packages/app/src/components/shell/plan/plan-workbench-panel.browser.tsx`
-      covers active plan plus proposed markdown rendering.
+      covers active plan plus proposed markdown rendering, actions menu, save
+      dialog, and build callback.
 - [x] `packages/app/src/components/chat/view/chat-view.browser.tsx` covers
       native plan workbench actions, default draft pruning, and composer footer
       containment.
-- [ ] Resolve noisy WebSocket RPC schema warnings in browser tests so failures
+- [x] Resolve noisy WebSocket RPC schema warnings in browser tests so failures
       are not hidden by expected warning volume.
 
 CSS ownership rules live in [app-css-files.md](./app-css-files.md).

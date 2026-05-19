@@ -1,4 +1,4 @@
-import type { SidebarSectionModel } from "~/lib/sidebar-chat-view-model";
+import type { SidebarSectionModel } from "../agents/sidebar-chat-view-model";
 import { AgentList } from "~/components/shell/agents/list";
 
 export function ThreadRail(props: {

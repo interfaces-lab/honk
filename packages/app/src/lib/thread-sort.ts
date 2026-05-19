@@ -7,7 +7,7 @@ export type ThreadSortInput = Pick<Thread, "createdAt" | "updatedAt"> & {
   messages?: Pick<Thread["messages"][number], "createdAt" | "role">[];
 };
 
-export function toSortableTimestamp(iso: string | undefined): number | null {
+function toSortableTimestamp(iso: string | undefined): number | null {
   if (!iso) return null;
   const ms = Date.parse(iso);
   return Number.isFinite(ms) ? ms : null;
@@ -37,7 +37,7 @@ function getLatestUserMessageTimestamp(thread: ThreadSortInput): number {
   return toSortableTimestamp(thread.updatedAt ?? thread.createdAt) ?? Number.NEGATIVE_INFINITY;
 }
 
-export function getThreadSortTimestamp(
+function getThreadSortTimestamp(
   thread: ThreadSortInput,
   sortOrder: SidebarThreadSortOrder | Exclude<SidebarProjectSortOrder, "manual">,
 ): number {

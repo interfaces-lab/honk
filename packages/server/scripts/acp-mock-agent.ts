@@ -19,6 +19,7 @@ const emitGenericToolPlaceholders = process.env.T3_ACP_EMIT_GENERIC_TOOL_PLACEHO
 const emitAskQuestion = process.env.T3_ACP_EMIT_ASK_QUESTION === "1";
 const failSetConfigOption = process.env.T3_ACP_FAIL_SET_CONFIG_OPTION === "1";
 const exitOnSetConfigOption = process.env.T3_ACP_EXIT_ON_SET_CONFIG_OPTION === "1";
+const staleSetConfigOptionResponse = process.env.T3_ACP_STALE_SET_CONFIG_OPTION_RESPONSE === "1";
 const promptResponseText = process.env.T3_ACP_PROMPT_RESPONSE_TEXT;
 const sessionId = "mock-session-1";
 
@@ -264,6 +265,7 @@ const program = Effect.gen(function* () {
           },
         );
       }
+      const responseConfigOptions = configOptions();
       if (request.configId === "mode" && typeof request.value === "string") {
         currentModeId = request.value;
       }
@@ -280,7 +282,7 @@ const program = Effect.gen(function* () {
         currentFast = request.value === true || request.value === "true";
       }
       return {
-        configOptions: configOptions(),
+        configOptions: staleSetConfigOptionResponse ? responseConfigOptions : configOptions(),
       };
     }),
   );

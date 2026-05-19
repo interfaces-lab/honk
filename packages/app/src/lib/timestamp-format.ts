@@ -71,6 +71,19 @@ export function formatRelativeTimeLabel(isoDate: string) {
   return relative.suffix ? `${relative.value} ${relative.suffix}` : relative.value;
 }
 
+export function formatCompactRelativeTimeLabel(isoDate: string, nowMs: number = Date.now()): string {
+  const diffMs = nowMs - new Date(isoDate).getTime();
+  if (diffMs < 0) return "now";
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) return "now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
 /**
  * Relative elapsed duration since an ISO instant, without an "ago" suffix.
  * Useful for labels like "Connected for 3m".

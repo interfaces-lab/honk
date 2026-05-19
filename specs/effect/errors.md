@@ -128,11 +128,19 @@ Toast renderer inventory: [app-toast-files.md](./app-toast-files.md).
 Rules:
 
 - [x] Toast error descriptions currently have a copy button by default.
-- [ ] Error normalization should happen at action/API boundaries before
+- [x] Error normalization should happen at action/API boundaries before
       `toastManager.add(...)` is called.
-- [ ] Add shared app error formatting only when at least two action handlers
+- [x] Add shared app error formatting only when at least two action handlers
       need the same structured extraction.
 - [ ] Do not add a universal `unknown -> toast` registry.
+
+Current decision:
+
+- [x] Do not add a shared toast formatter yet. Current toast callsites mostly
+      use local `error instanceof Error ? error.message : fallback` handling,
+      and the repeated structured transport case is already isolated in
+      `packages/app/src/rpc/transport-error.ts`. A new helper would be a
+      generic unknown-error registry rather than shared structured extraction.
 
 ## Migration Order
 

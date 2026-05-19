@@ -228,29 +228,30 @@ Classify before deleting:
 
 These are not deletion decisions. Re-run caller inventory before editing.
 
-- [ ] `resolveProviderDriverKindForInstanceSelection` in
-      `model/provider-instances.ts` has one production caller in
-      `model/selection.ts` and should become private or be inlined if the
-      resolver reads the provider entry directly.
-- [ ] `deriveProviderInstanceEntriesForSettings` and
-      `sortProviderInstanceEntries` in `model/provider-instances.ts` currently
-      feed the app resolver. Keep exported only if a second production boundary
-      imports them.
-- [ ] `getProviderBooleanTraitSectionLabel` and
-      `getProviderTraitsTriggerLabel` in `model/provider-state.ts` currently
-      feed `traits-picker.tsx`. Decide whether labels are provider-state policy
-      or picker-local display copy.
-- [ ] `getProviderModelCapabilityLabels` in `model/provider-state.ts` currently
-      feeds `provider-models-section.tsx`. Decide whether capability labels are
-      provider-state policy or settings-local display copy.
-- [ ] `sortProviderModelItems` in `model/ordering.ts` currently feeds
-      `chat/picker/model-content.tsx`. Keep only if ordering remains a shared
-      model primitive across picker and settings.
-- [ ] `ProviderModelsSection`, `ProviderInstanceCard`, and
+- [x] `resolveProviderDriverKindForInstanceSelection` in
+      `model/provider-instances.ts` had one production caller in
+      `model/selection.ts`; the resolver now reads the provider entry directly
+      and the exported helper is deleted.
+- [x] `deriveProviderInstanceEntriesForSettings` and
+      `sortProviderInstanceEntries` in `model/provider-instances.ts` only fed
+      the app resolver; they are private now, behind the single exported
+      `resolveProviderInstanceEntriesForSettings` resolver handoff.
+- [x] `getProviderBooleanTraitSectionLabel` and
+      `getProviderTraitsTriggerLabel` in `model/provider-state.ts` only fed
+      `traits-picker.tsx`; the label copy is now picker-local display logic.
+- [x] `getProviderModelCapabilityLabels` in `model/provider-state.ts` only fed
+      `provider-models-section.tsx`; capability label copy is now settings-local
+      display logic.
+- [x] `sortProviderModelItems` in `model/ordering.ts` had only
+      `chat/picker/model-content.tsx` as a caller. The flattened
+      provider/model sort is now picker-local; `model/ordering.ts` only keeps
+      provider-model keys and per-provider model ordering shared by settings
+      and selection.
+- [x] `ProviderModelsSection`, `ProviderInstanceCard`, and
       `AddProviderInstanceDialog` are exported component boundaries with one
       production caller each. Keep them as component slots if settings remains
       split; do not treat them as helper files.
-- [ ] Add browser coverage for the full provider settings panel, add-provider
+- [x] Add browser coverage for the full provider settings panel, add-provider
       dialog, provider instance card, and provider settings schema form before
       collapsing settings components.
 
@@ -265,7 +266,11 @@ These are not deletion decisions. Re-run caller inventory before editing.
       `provider-model-picker.browser.tsx` covers resolver fallback, missing,
       disabled, empty, search, favorites, and provider-instance behavior;
       `provider-models-section.browser.tsx` covers settings custom-model
-      validation plus favorite/hidden model row actions; `command-palette-model`
+      validation plus favorite/hidden model row actions;
+      `provider-instance-card.browser.tsx` covers provider-instance shell,
+      enabled writes, nested model display, and unknown-driver preservation;
+      `add-provider-instance-dialog.browser.tsx` covers add-provider identity
+      flow and schema-backed config fields; `command-palette-model`
       tests cover command palette thread/action grouping and are not
       provider/model resolver tests.
 - [x] No root-level `model-ordering.ts`, `model-selection.ts`, or equivalent

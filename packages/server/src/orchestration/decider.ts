@@ -200,7 +200,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.archive": {
-      yield* requireThreadNotArchived({
+      const thread = yield* requireThreadNotArchived({
         readModel,
         command,
         threadId: command.threadId,
@@ -217,13 +217,13 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           archivedAt: occurredAt,
-          updatedAt: occurredAt,
+          updatedAt: thread.updatedAt,
         },
       };
     }
 
     case "thread.unarchive": {
-      yield* requireThreadArchived({
+      const thread = yield* requireThreadArchived({
         readModel,
         command,
         threadId: command.threadId,
@@ -239,7 +239,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         type: "thread.unarchived",
         payload: {
           threadId: command.threadId,
-          updatedAt: occurredAt,
+          updatedAt: thread.updatedAt,
         },
       };
     }

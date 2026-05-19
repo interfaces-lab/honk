@@ -19,7 +19,6 @@ import { normalizeModelSlug } from "@multi/shared/model";
 
 import { cn } from "../../lib/utils";
 import { sortModelsForProviderInstance } from "../../model/ordering";
-import { getProviderModelCapabilityLabels } from "../../model/provider-state";
 import { MAX_CUSTOM_MODEL_LENGTH } from "../../model/selection";
 import { Button } from "@multi/ui/button";
 import { Input } from "@multi/ui/input";
@@ -36,6 +35,30 @@ const CUSTOM_MODEL_PLACEHOLDER_BY_KIND: Partial<Record<ProviderDriverKind, strin
   [ProviderDriverKind.make("cursor")]: "claude-sonnet-4-6",
   [ProviderDriverKind.make("opencode")]: "openai/gpt-5",
 };
+
+function getProviderModelCapabilityLabels(model: ServerProviderModel): string[] {
+  const descriptors = model.capabilities?.optionDescriptors ?? [];
+  const labels: string[] = [];
+  if (descriptors.some((descriptor) => descriptor.id === "fastMode")) {
+    labels.push("Fast mode");
+  }
+  if (descriptors.some((descriptor) => descriptor.id === "thinking")) {
+    labels.push("Thinking");
+  }
+  if (
+    descriptors.some(
+      (descriptor) =>
+        descriptor.type === "select" &&
+        (descriptor.id === "reasoningEffort" ||
+          descriptor.id === "effort" ||
+          descriptor.id === "reasoning" ||
+          descriptor.id === "variant"),
+    )
+  ) {
+    labels.push("Reasoning");
+  }
+  return labels;
+}
 
 interface ProviderModelRowProps {
   readonly model: ServerProviderModel;

@@ -47,14 +47,7 @@ function mapCursorAcpError(
   });
 }
 
-function isTextGenerationError(error: unknown): error is TextGenerationError {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "_tag" in error &&
-    error._tag === "TextGenerationError"
-  );
-}
+const isTextGenerationError = Schema.is(TextGenerationError);
 
 const makeCursorTextGeneration = Effect.gen(function* () {
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -88,7 +81,11 @@ const makeCursorTextGeneration = Effect.gen(function* () {
         childProcessSpawner: commandSpawner,
         cwd,
         clientInfo: { name: "multi-git-text", version: "0.0.0" },
-      });
+      }).pipe(
+        Effect.mapError((cause) =>
+          mapCursorAcpError(operation, "Cursor ACP runtime creation failed.", cause),
+        ),
+      );
 
       yield* runtime.handleSessionUpdate((notification) => {
         const update = notification.update;
@@ -109,14 +106,18 @@ const makeCursorTextGeneration = Effect.gen(function* () {
           runtime,
           model: modelSelection.model,
           selections: modelSelection.options,
-          mapError: ({ cause, configId, step }) =>
-            mapCursorAcpError(
-              operation,
-              step === "set-config-option"
-                ? `Failed to set Cursor ACP config option "${configId}" for text generation.`
-                : "Failed to set Cursor ACP base model for text generation.",
-              cause,
-            ),
+          mapError: (context) =>
+            context.step === "set-config-option"
+              ? mapCursorAcpError(
+                  operation,
+                  `Failed to set Cursor ACP config option "${context.configId}" for text generation.`,
+                  context.cause,
+                )
+              : mapCursorAcpError(
+                  operation,
+                  "Failed to set Cursor ACP base model for text generation.",
+                  context.cause,
+                ),
         });
 
         return yield* runtime.prompt({
@@ -167,14 +168,7 @@ const makeCursorTextGeneration = Effect.gen(function* () {
           ),
         ),
       );
-    }).pipe(
-      Effect.mapError((cause) =>
-        isTextGenerationError(cause)
-          ? cause
-          : mapCursorAcpError(operation, "Cursor ACP text generation failed.", cause),
-      ),
-      Effect.scoped,
-    );
+    }).pipe(Effect.scoped);
 
   const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = Effect.fn(
     "CursorTextGeneration.generateCommitMessage",

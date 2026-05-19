@@ -7,6 +7,7 @@
 
 import { scopedThreadKey } from "@multi/client-runtime";
 import { type ScopedThreadRef, type TerminalEvent } from "@multi/contracts";
+import { Option, Schema } from "effect";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { resolveStorage } from "./lib/storage";
@@ -26,6 +27,29 @@ interface ThreadTerminalState {
   terminalGroups: ThreadTerminalGroup[];
   activeTerminalGroupId: string;
 }
+
+const PersistedThreadTerminalGroup = Schema.Struct({
+  id: Schema.String,
+  terminalIds: Schema.Array(Schema.String),
+});
+const PersistedThreadTerminalState = Schema.Struct({
+  terminalOpen: Schema.optionalKey(Schema.Boolean),
+  terminalHeight: Schema.optionalKey(Schema.Number),
+  terminalIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  runningTerminalIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  activeTerminalId: Schema.optionalKey(Schema.String),
+  terminalGroups: Schema.optionalKey(Schema.Array(PersistedThreadTerminalGroup)),
+  activeTerminalGroupId: Schema.optionalKey(Schema.String),
+});
+const PersistedTerminalStateStoreState = Schema.Struct({
+  terminalStateByThreadKey: Schema.optionalKey(
+    Schema.Record(Schema.String, PersistedThreadTerminalState),
+  ),
+});
+type PersistedThreadTerminalState = typeof PersistedThreadTerminalState.Type;
+const decodePersistedTerminalStateStoreStateOption = Schema.decodeUnknownOption(
+  PersistedTerminalStateStoreState,
+);
 
 export interface ThreadTerminalLaunchContext {
   cwd: string;
@@ -203,6 +227,52 @@ function createDefaultThreadTerminalState(): ThreadTerminalState {
     runningTerminalIds: [...DEFAULT_THREAD_TERMINAL_STATE.runningTerminalIds],
     terminalGroups: copyTerminalGroups(DEFAULT_THREAD_TERMINAL_STATE.terminalGroups),
   };
+}
+
+function normalizePersistedThreadTerminalState(
+  state: PersistedThreadTerminalState,
+): ThreadTerminalState {
+  return normalizeThreadTerminalState({
+    terminalOpen: state.terminalOpen ?? DEFAULT_THREAD_TERMINAL_STATE.terminalOpen,
+    terminalHeight: state.terminalHeight ?? DEFAULT_THREAD_TERMINAL_STATE.terminalHeight,
+    terminalIds: [...(state.terminalIds ?? DEFAULT_THREAD_TERMINAL_STATE.terminalIds)],
+    runningTerminalIds: [
+      ...(state.runningTerminalIds ?? DEFAULT_THREAD_TERMINAL_STATE.runningTerminalIds),
+    ],
+    activeTerminalId: state.activeTerminalId ?? DEFAULT_THREAD_TERMINAL_STATE.activeTerminalId,
+    terminalGroups: (state.terminalGroups ?? DEFAULT_THREAD_TERMINAL_STATE.terminalGroups).map(
+      (group) => ({
+        id: group.id,
+        terminalIds: [...group.terminalIds],
+      }),
+    ),
+    activeTerminalGroupId:
+      state.activeTerminalGroupId ?? DEFAULT_THREAD_TERMINAL_STATE.activeTerminalGroupId,
+  });
+}
+
+function normalizePersistedTerminalStateByThreadKey(
+  persistedState: unknown,
+): Record<string, ThreadTerminalState> {
+  const decoded = Option.getOrElse(
+    decodePersistedTerminalStateStoreStateOption(persistedState),
+    () => null,
+  );
+  const persistedTerminalStateByThreadKey = decoded?.terminalStateByThreadKey;
+  if (!persistedTerminalStateByThreadKey) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(persistedTerminalStateByThreadKey).flatMap(([threadKey, state]) => {
+      const trimmedThreadKey = threadKey.trim();
+      if (trimmedThreadKey.length === 0) {
+        return [];
+      }
+      const normalized = normalizePersistedThreadTerminalState(state);
+      return isDefaultThreadTerminalState(normalized) ? [] : [[trimmedThreadKey, normalized]];
+    }),
+  );
 }
 
 function getDefaultThreadTerminalState(): ThreadTerminalState {
@@ -832,6 +902,10 @@ export const useTerminalStateStore = create<TerminalStateStoreState>()(
       storage: createJSONStorage(createTerminalStateStorage),
       partialize: (state) => ({
         terminalStateByThreadKey: state.terminalStateByThreadKey,
+      }),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        terminalStateByThreadKey: normalizePersistedTerminalStateByThreadKey(persistedState),
       }),
     },
   ),

@@ -17,7 +17,7 @@ import {
 } from "../../../keybindings";
 import { useSettings, useUpdateSettings } from "~/hooks/use-settings";
 import type { ProviderInstanceEntry } from "../../../model/provider-instances";
-import { providerModelKey, sortProviderModelItems } from "../../../model/ordering";
+import { providerModelKey } from "../../../model/ordering";
 import type { AppModelCatalogItem, AppModelResolverStatus } from "../../../model/selection";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
@@ -116,6 +116,47 @@ function scoreModelPickerSearch(model: ModelPickerSearchableModel, query: string
   }
 
   return model.isFavorite ? score - MODEL_PICKER_FAVORITE_SCORE_BOOST : score;
+}
+
+function sortModelPickerItems(
+  items: ReadonlyArray<AppModelCatalogItem>,
+  options: {
+    readonly favoriteModelKeys: ReadonlySet<string>;
+    readonly groupFavorites: boolean;
+    readonly instanceOrder: ReadonlyArray<ProviderInstanceId>;
+  },
+): AppModelCatalogItem[] {
+  const instanceRank = new Map(
+    options.instanceOrder.map((instanceId, index) => [instanceId, index] as const),
+  );
+  const originalRank = new Map(
+    items.map((item, index) => [providerModelKey(item.instanceId, item.slug), index] as const),
+  );
+
+  return items.toSorted((a, b) => {
+    const aKey = providerModelKey(a.instanceId, a.slug);
+    const bKey = providerModelKey(b.instanceId, b.slug);
+
+    if (options.groupFavorites) {
+      const aFavorite = options.favoriteModelKeys.has(aKey);
+      const bFavorite = options.favoriteModelKeys.has(bKey);
+      if (aFavorite !== bFavorite) {
+        return aFavorite ? -1 : 1;
+      }
+    }
+
+    const instanceDelta =
+      (instanceRank.get(a.instanceId) ?? Number.POSITIVE_INFINITY) -
+      (instanceRank.get(b.instanceId) ?? Number.POSITIVE_INFINITY);
+    if (instanceDelta !== 0) {
+      return instanceDelta;
+    }
+
+    return (
+      (originalRank.get(aKey) ?? Number.POSITIVE_INFINITY) -
+      (originalRank.get(bKey) ?? Number.POSITIVE_INFINITY)
+    );
+  });
 }
 
 export const ModelPickerContent = memo(function ModelPickerContent(props: {
@@ -300,7 +341,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       sortOrder = [rid, ...instanceOrder.filter((instanceId) => instanceId !== rid)];
     }
 
-    return sortProviderModelItems(result, {
+    return sortModelPickerItems(result, {
       favoriteModelKeys: favoritesSet,
       groupFavorites: true,
       instanceOrder: sortOrder,

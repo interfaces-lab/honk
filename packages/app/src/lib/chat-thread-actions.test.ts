@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   resolveThreadActionProjectRef,
   startNewLocalThreadFromContext,
+  startNewThreadInProjectFromContext,
   startNewThreadFromContext,
   type ChatThreadActionContext,
 } from "./chat-thread-actions";
@@ -88,6 +89,118 @@ describe("chatThreadActions", () => {
     expect(didStart).toBe(true);
     expect(handleNewThread).toHaveBeenCalledWith(scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID), {
       envMode: "worktree",
+    });
+  });
+
+  it("starts a project thread in default worktree mode without inheriting active context", async () => {
+    const handleNewThread = vi.fn<ChatThreadActionContext["handleNewThread"]>(async () => {});
+    const projectRef = scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID);
+
+    await startNewThreadInProjectFromContext(
+      createContext({
+        activeDraftThread: {
+          environmentId: ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          branch: "feature/draft",
+          worktreePath: "/repo/.multi/worktrees/draft",
+          envMode: "worktree",
+        },
+        activeThread: {
+          environmentId: ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          branch: "feature/existing",
+          worktreePath: "/repo/.multi/worktrees/existing",
+        },
+        defaultThreadEnvMode: "worktree",
+        handleNewThread,
+      }),
+      projectRef,
+    );
+
+    expect(handleNewThread).toHaveBeenCalledWith(projectRef, {
+      envMode: "worktree",
+      reuseExistingDraft: false,
+    });
+  });
+
+  it("starts a project thread from the active server thread context", async () => {
+    const handleNewThread = vi.fn<ChatThreadActionContext["handleNewThread"]>(async () => {});
+    const projectRef = scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID);
+
+    await startNewThreadInProjectFromContext(
+      createContext({
+        activeThread: {
+          environmentId: ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          branch: "effect-atom",
+          worktreePath: null,
+        },
+        handleNewThread,
+      }),
+      projectRef,
+    );
+
+    expect(handleNewThread).toHaveBeenCalledWith(projectRef, {
+      branch: "effect-atom",
+      worktreePath: null,
+      envMode: "local",
+      reuseExistingDraft: false,
+    });
+  });
+
+  it("starts a project thread from the matching active draft context first", async () => {
+    const handleNewThread = vi.fn<ChatThreadActionContext["handleNewThread"]>(async () => {});
+    const projectRef = scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID);
+
+    await startNewThreadInProjectFromContext(
+      createContext({
+        activeDraftThread: {
+          environmentId: ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          branch: "feature/new-draft",
+          worktreePath: "/repo/worktree",
+          envMode: "worktree",
+        },
+        activeThread: {
+          environmentId: ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          branch: "effect-atom",
+          worktreePath: null,
+        },
+        handleNewThread,
+      }),
+      projectRef,
+    );
+
+    expect(handleNewThread).toHaveBeenCalledWith(projectRef, {
+      branch: "feature/new-draft",
+      worktreePath: "/repo/worktree",
+      envMode: "worktree",
+      reuseExistingDraft: false,
+    });
+  });
+
+  it("starts a project thread with the default mode when active context belongs elsewhere", async () => {
+    const handleNewThread = vi.fn<ChatThreadActionContext["handleNewThread"]>(async () => {});
+    const projectRef = scopeProjectRef(ENVIRONMENT_ID, FALLBACK_PROJECT_ID);
+
+    await startNewThreadInProjectFromContext(
+      createContext({
+        activeThread: {
+          environmentId: ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          branch: "effect-atom",
+          worktreePath: null,
+        },
+        defaultThreadEnvMode: "worktree",
+        handleNewThread,
+      }),
+      projectRef,
+    );
+
+    expect(handleNewThread).toHaveBeenCalledWith(projectRef, {
+      envMode: "worktree",
+      reuseExistingDraft: false,
     });
   });
 

@@ -1,5 +1,6 @@
 import {
   type EnvironmentId,
+  type GitFilePatchResult,
   type GitManagerServiceError,
   type GitStatusResult,
   type GitWorkingTreeFileStatus,
@@ -23,7 +24,6 @@ import {
   gitPatchQueryOptions,
   gitQueryKeys,
   invalidateGitPatchQueries,
-  type GitPatchData,
 } from "../lib/native-git-react-query";
 import { useLocalStorage } from "./use-local-storage";
 import { useMountEffect } from "./use-mount-effect";
@@ -79,7 +79,7 @@ export interface GitPanelModel {
   totalAdd: number;
   totalDel: number;
   focusId: string | null;
-  patchesByPath: Map<string, GitPatchData>;
+  patchesByPath: Map<string, GitFilePatchResult>;
   diffLoadingByPath: Set<string>;
   diffErrorByPath: Map<string, string>;
   expandedIds: Set<string>;
@@ -320,7 +320,7 @@ export function useEnvironmentGitPanel(
     ),
   });
 
-  const patchesByPath = new Map<string, GitPatchData>();
+  const patchesByPath = new Map<string, GitFilePatchResult>();
   const diffLoadingByPath = new Set<string>();
   const diffErrorByPath = new Map<string, string>();
 

@@ -7,6 +7,7 @@ import type {
   ThreadId,
 } from "@multi/contracts";
 
+import { formatCompactRelativeTimeLabel } from "~/lib/timestamp-format";
 import type { HarnessKind } from "~/lib/ui-session-types";
 
 export interface SidebarDraftSummary {
@@ -32,6 +33,7 @@ export interface SidebarThreadSummary {
   name: string | null;
   createdAt: string;
   modifiedAt: string;
+  latestReadableAt?: string | null;
   messageCount: number;
   firstMessage: string;
   isStreaming: boolean;
@@ -54,11 +56,12 @@ interface SidebarChatItemBase {
 export type SidebarChatItem =
   | (SidebarChatItemBase & {
       id: ThreadId;
-      kind: "thread";
-      state: SidebarThreadState;
-      unread: boolean;
-      threadRef: ScopedThreadRef;
-    })
+    kind: "thread";
+    state: SidebarThreadState;
+    unread: boolean;
+    latestReadableAt: string | null;
+    threadRef: ScopedThreadRef;
+  })
   | (SidebarChatItemBase & {
       id: string;
       kind: "draft";
@@ -74,6 +77,7 @@ export interface SidebarSectionModel {
   environmentId?: EnvironmentId;
   projectId?: ProjectId;
   projectCwd?: string;
+  projectStateKey?: string;
   sectionThreadRefs: readonly ScopedThreadRef[];
   threadRefs: readonly ScopedThreadRef[];
   items: readonly SidebarChatItem[];
@@ -110,19 +114,6 @@ function shortProjectPathLabel(path: string, home: string | null): string {
   return segments[0] ?? "Project";
 }
 
-function timeAgo(iso: string) {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return "now";
-  const sec = Math.floor(ms / 1000);
-  if (sec < 60) return "now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h`;
-  const day = Math.floor(hr / 24);
-  return `${day}d`;
-}
-
 function draftTitle(draft: SidebarDraftSummary) {
   const text = draft.text.trim();
   if (text) {
@@ -143,7 +134,8 @@ function buildThreadChat(sum: SidebarThreadSummary, unreadIds?: ReadonlySet<stri
     state: threadState(sum),
     unread: unreadIds?.has(sum.id) ?? false,
     updatedAt: sum.modifiedAt,
-    ago: timeAgo(sum.modifiedAt),
+    latestReadableAt: sum.latestReadableAt ?? sum.modifiedAt,
+    ago: formatCompactRelativeTimeLabel(sum.modifiedAt),
     cwd: sum.cwd || "/",
     environmentId: sum.environmentId,
     projectId: sum.projectId,
@@ -173,7 +165,7 @@ function buildDraftChat(draft: SidebarDraftSummary) {
     state: "draft",
     unread: false,
     updatedAt: draft.updatedAt,
-    ago: timeAgo(draft.updatedAt),
+    ago: formatCompactRelativeTimeLabel(draft.updatedAt),
     cwd: draft.cwd || "/",
     environmentId: draft.environmentId,
     projectId: draft.projectId,
@@ -188,7 +180,7 @@ export function buildProjectChatSections(
   home: string | null,
   unreadIds?: ReadonlySet<string>,
   projectCwds: readonly string[] = [],
-) {
+): SidebarSectionModel[] {
   const list = [
     ...threadSummaries.map((sum) => buildThreadChat(sum, unreadIds)),
     ...drafts.map(buildDraftChat),

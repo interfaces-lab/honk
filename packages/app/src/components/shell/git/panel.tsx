@@ -39,6 +39,7 @@ import {
   GIT_AGENT_PRIMARY_ACTION,
   type GitAgentAction,
 } from "~/lib/git-agent-actions";
+import { toastManager } from "~/app/toast";
 import { useGitViewed } from "~/hooks/use-git-viewed-state";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "~/app/routes/chat-shell-search";
 import { cn } from "~/lib/utils";
@@ -71,6 +72,49 @@ const GIT_CHANGES_FILTER_LABELS: Record<GitChangesFilter, string> = {
   staged: "Staged",
   branch: "All commits",
 };
+
+function readRecordField(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
+}
+
+function readNonEmptyStringField(value: unknown, key: string): string | null {
+  const field = readRecordField(value, key);
+  return typeof field === "string" && field.trim().length > 0 ? field.trim() : null;
+}
+
+function formatGitActionErrorDescription(error: unknown): string {
+  const message =
+    readNonEmptyStringField(error, "message") ??
+    (error instanceof Error && error.message.trim().length > 0 ? error.message.trim() : null);
+  const detail = readNonEmptyStringField(error, "detail");
+  const command = readNonEmptyStringField(error, "command");
+  const cwd = readNonEmptyStringField(error, "cwd");
+  const operation = readNonEmptyStringField(error, "operation");
+  const lines = [detail ?? message ?? "Git action failed."];
+
+  if (command) {
+    lines.push(`Command: ${command}`);
+  }
+  if (cwd) {
+    lines.push(`Project: ${cwd}`);
+  }
+  if (operation) {
+    lines.push(`Operation: ${operation}`);
+  }
+
+  return lines.join("\n");
+}
+
+function showGitActionErrorToast(title: string, error: unknown): void {
+  toastManager.add({
+    type: "error",
+    title,
+    description: formatGitActionErrorDescription(error),
+  });
+}
 
 function resolveGitPanelSelectedId(input: {
   readonly visibleFiles: readonly DiffRow[];
@@ -150,10 +194,10 @@ export function GitPanel(props: {
               void git
                 .init()
                 .catch((error: unknown) =>
-                  toast.error(error instanceof Error ? error.message : String(error)),
+                  showGitActionErrorToast("Could not initialize Git", error),
                 );
             }}
-            className="rounded-multi-control border border-multi-border/60 bg-multi-active/40 px-3 py-2 text-body font-medium text-foreground transition-colors hover:bg-multi-hover"
+            className="select-none rounded-multi-control border border-multi-border/60 bg-multi-active/40 px-3 py-2 text-body font-medium text-foreground transition-colors hover:bg-multi-hover"
           >
             Init Git
           </button>
@@ -258,9 +302,7 @@ function GitPanelInner(props: {
     if (!pending) return;
     void git
       .discard([pending.path])
-      .catch((error: unknown) =>
-        toast.error(error instanceof Error ? error.message : String(error)),
-      );
+      .catch((error: unknown) => showGitActionErrorToast("Could not discard changes", error));
     setPending(null);
   }, [git, pending]);
 
@@ -268,9 +310,7 @@ function GitPanelInner(props: {
     const allPaths = files.map((f) => f.path);
     void git
       .discard(allPaths)
-      .catch((error: unknown) =>
-        toast.error(error instanceof Error ? error.message : String(error)),
-      );
+      .catch((error: unknown) => showGitActionErrorToast("Could not discard changes", error));
     setDiscardAllPending(false);
   }, [git, files]);
 
@@ -554,12 +594,12 @@ function LocalBranchBar(props: {
           </div>
           <div className="no-drag relative min-w-0 shrink-0">
             <div
-              className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 overflow-hidden rounded-multi-control border border-primary bg-primary text-body font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
+              className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none overflow-hidden rounded-multi-control border border-primary bg-primary text-body font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
               data-pending={isAgentActionPending || undefined}
             >
               <button
                 type="button"
-                className="inline-flex h-full min-w-0 items-center justify-center gap-1.5 px-2 text-inherit transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent group-data-[pending=true]:hover:bg-rose-500/90"
+                className="inline-flex h-full min-w-0 select-none items-center justify-center gap-1.5 px-2 text-inherit transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent group-data-[pending=true]:hover:bg-rose-500/90"
                 disabled={
                   isAgentActionPending &&
                   (props.onStopAgentAction === null || props.stoppingAgentAction)
@@ -582,7 +622,7 @@ function LocalBranchBar(props: {
               </button>
               <button
                 type="button"
-                className="inline-flex h-full w-6 shrink-0 items-center justify-center border-l border-primary-foreground/18 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[open=true]:bg-primary/90"
+                className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-primary-foreground/18 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[open=true]:bg-primary/90"
                 disabled={isAgentActionPending}
                 onClick={() => {
                   if (isAgentActionPending) return;
@@ -631,7 +671,7 @@ function LocalBranchBar(props: {
       <button
         type="button"
         onClick={copyBranch}
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
         title="Copy branch name"
       >
         <IconBranch className="size-3 shrink-0 text-multi-icon-tertiary" />
@@ -721,7 +761,7 @@ function ChangesFilterMenu(props: {
     <Menu>
       <MenuTrigger
         type="button"
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 max-w-64 items-center gap-1 overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-secondary tabular-nums outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 max-w-64 select-none items-center gap-1 overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-secondary tabular-nums outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
         aria-label="Change filter"
       >
         <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />

@@ -48,10 +48,10 @@ Rules:
 - [x] Effect Schema decoder/encoder compilers are hoisted outside function
       bodies; `multi/no-inline-schema-compile` enforces this through oxlint.
 - [x] Strict oxlint runs with warnings denied after schema compiler hoisting.
-- [ ] New app store persisted shapes should be schema-backed when they cross
+- [x] New app store persisted shapes should be schema-backed when they cross
       localStorage/desktop persistence or runtime boundaries.
-- [ ] Avoid ad hoc string parsing for contract-shaped data when a schema exists.
-- [ ] Avoid generic schema bridges. Use boundary-specific helpers.
+- [x] Avoid ad hoc string parsing for contract-shaped data when a schema exists.
+- [x] Avoid generic schema bridges. Use boundary-specific helpers.
 
 ## Source Of Truth Rule
 
@@ -63,9 +63,25 @@ For each shape, choose one owner:
 - Generated external protocol shape: generated protocol package, with narrow
   adapters into Multi contracts.
 
+Current app persistence boundaries:
+
+- `packages/app/src/stores/chat-drafts.ts` owns composer and draft-thread
+  persistence schemas.
+- `packages/app/src/stores/ui-state-store.ts`,
+  `packages/app/src/stores/shell-panels-store.ts`, and
+  `packages/app/src/terminal-state-store.ts` decode persisted store payloads
+  with boundary-local schemas before normalizing state.
+- `packages/app/src/app/routes/chat-route-persistence.ts` decodes the last chat
+  route cache with the contract `ScopedThreadRef` schema plus the app `DraftId`
+  schema.
+- `packages/app/src/lib/native-git-react-query.ts` returns the contract
+  `GitFilePatchResult` directly instead of an app-local mirrored patch DTO.
+- Scalar preferences such as theme, project cwd, and appearance settings are
+  intentionally stored as scalar keys and clamped or narrowed at read time.
+
 Rules:
 
-- [ ] Do not fork public DTO types in app query hooks.
+- [x] Do not fork public DTO types in app query hooks.
 - [ ] Do not define server-only aliases unless they point back to contracts.
 - [ ] Do not add model/provider option types inside composer or picker
       components.
@@ -86,4 +102,4 @@ Rules:
 - [ ] Remaining non-Effect validation is an intentional boundary.
 - [ ] Public RPC/HTTP shape is unchanged or intentionally changed.
 - [ ] App stores persist facts, not editor-internal JSON documents.
-- [ ] Typecheck passes.
+- [x] Typecheck passes.

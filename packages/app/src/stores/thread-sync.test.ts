@@ -10,7 +10,12 @@ import {
 } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
-import { applyShellEvent, syncServerShellSnapshot, syncServerThreadDetail } from "./thread-sync";
+import {
+  applyOrchestrationEvent,
+  applyShellEvent,
+  syncServerShellSnapshot,
+  syncServerThreadDetail,
+} from "./thread-sync";
 import { initialState } from "./thread-store";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
 
@@ -169,6 +174,66 @@ describe("thread sync", () => {
     expect(environmentState?.threadIds).toEqual([]);
     expect(environmentState?.messageByThreadId[threadId]).toBeUndefined();
     expect(environmentState?.sidebarThreadSummaryById[threadId]).toBeUndefined();
+  });
+
+  it("archives and unarchives without changing the thread activity timestamp", () => {
+    const bootstrapped = syncServerShellSnapshot(initialState, shellSnapshot(), environmentId);
+    const archived = applyOrchestrationEvent(
+      bootstrapped,
+      {
+        sequence: 2,
+        eventId: EventId.make("event-thread-archived"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        occurredAt: "2026-01-01T00:00:10.000Z",
+        commandId: CommandId.make("command-thread-archive"),
+        causationEventId: null,
+        correlationId: CommandId.make("command-thread-archive"),
+        metadata: {},
+        type: "thread.archived",
+        payload: {
+          threadId,
+          archivedAt: "2026-01-01T00:00:10.000Z",
+          updatedAt: "2026-01-01T00:00:10.000Z",
+        },
+      } satisfies OrchestrationEvent,
+      environmentId,
+    );
+
+    expect(
+      archived.environmentStateById[environmentId]?.threadShellById[threadId]?.archivedAt,
+    ).toBe("2026-01-01T00:00:10.000Z");
+    expect(
+      archived.environmentStateById[environmentId]?.threadShellById[threadId]?.updatedAt,
+    ).toBe("2026-01-01T00:00:00.000Z");
+
+    const unarchived = applyOrchestrationEvent(
+      archived,
+      {
+        sequence: 3,
+        eventId: EventId.make("event-thread-unarchived"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        occurredAt: "2026-01-01T00:00:20.000Z",
+        commandId: CommandId.make("command-thread-unarchive"),
+        causationEventId: null,
+        correlationId: CommandId.make("command-thread-unarchive"),
+        metadata: {},
+        type: "thread.unarchived",
+        payload: {
+          threadId,
+          updatedAt: "2026-01-01T00:00:20.000Z",
+        },
+      } satisfies OrchestrationEvent,
+      environmentId,
+    );
+
+    expect(
+      unarchived.environmentStateById[environmentId]?.threadShellById[threadId]?.archivedAt,
+    ).toBeNull();
+    expect(
+      unarchived.environmentStateById[environmentId]?.threadShellById[threadId]?.updatedAt,
+    ).toBe("2026-01-01T00:00:00.000Z");
   });
 
   it("applies project events with canonical project names", () => {

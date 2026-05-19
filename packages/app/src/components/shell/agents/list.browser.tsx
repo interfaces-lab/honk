@@ -9,8 +9,46 @@ import { scopeThreadRef } from "@multi/client-runtime";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SidebarSectionModel } from "~/lib/sidebar-chat-view-model";
+import {
+  buildProjectChatSections,
+  type SidebarSectionModel,
+  type SidebarThreadSummary,
+} from "./sidebar-chat-view-model";
+import { useUiStateStore } from "~/stores/ui-state-store";
 import { AgentList } from "./list";
+
+const retainThreadDetailSubscriptionMock = vi.hoisted(() =>
+  vi.fn((_environmentId: EnvironmentId, _threadId: ThreadId) => vi.fn()),
+);
+
+vi.mock("~/environments/runtime/service", () => {
+  const environmentId = EnvironmentId.make("env-1");
+  const primaryConnection = {
+    environmentId,
+    client: {
+      server: {
+        getConfig: vi.fn(),
+        updateSettings: vi.fn(),
+      },
+    },
+  };
+
+  return {
+    applyEnvironmentThreadDetailEvent: vi.fn(),
+    ensureEnvironmentConnectionBootstrapped: async () => undefined,
+    getPrimaryEnvironmentConnection: () => primaryConnection,
+    listEnvironmentConnections: () => [],
+    readEnvironmentConnection: () => null,
+    retainThreadDetailSubscription: retainThreadDetailSubscriptionMock,
+    requireEnvironmentConnection: () => primaryConnection,
+    resetEnvironmentServiceForTests: vi.fn(),
+    shouldApplyProjectionEvent: () => true,
+    shouldApplyProjectionSnapshot: () => true,
+    shouldApplyTerminalEvent: () => true,
+    startEnvironmentConnectionService: () => () => undefined,
+    subscribeEnvironmentConnections: () => () => undefined,
+  };
+});
 
 vi.mock("~/components/shell/sidebar/thread-context-menu", () => ({
   SidebarSectionContextMenu: (props: { children: ReactNode }) => <div>{props.children}</div>,
@@ -33,15 +71,59 @@ vi.mock("~/hooks/use-thread-actions", () => ({
   }),
 }));
 
-vi.mock("~/stores/thread-unread-store", () => ({
-  useThreadUnreadStore: (
-    selector: (state: { clear: (id: string) => void; mark: (id: string) => void }) => unknown,
-  ) => selector({ clear: vi.fn(), mark: vi.fn() }),
-}));
-
 const ENVIRONMENT_ID = EnvironmentId.make("env-1");
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
+const PROJECT_STATE_KEY = "project-state-key";
+const indicatorRows = [
+  {
+    id: ThreadId.make("thread-running"),
+    label: "running",
+    title: "Running branch handoff with a long title",
+    state: "running",
+    unread: false,
+    ago: "2m",
+  },
+  {
+    id: ThreadId.make("thread-attention"),
+    label: "attention",
+    title: "Pending approval and plan ready row",
+    state: "needs_attention",
+    unread: false,
+    ago: "18m",
+  },
+  {
+    id: ThreadId.make("thread-unread"),
+    label: "unread",
+    title: "Unread completed thread with long title",
+    state: "idle",
+    unread: true,
+    ago: "4h",
+  },
+  {
+    id: ThreadId.make("thread-completed"),
+    label: "completed",
+    title: "Completed read thread with long title",
+    state: "idle",
+    unread: false,
+    ago: "3d",
+  },
+  {
+    id: ThreadId.make("thread-error"),
+    label: "error",
+    title: "Failed thread row with long title",
+    state: "error",
+    unread: false,
+    ago: "9d",
+  },
+] as const satisfies ReadonlyArray<{
+  id: ThreadId;
+  label: string;
+  title: string;
+  state: "idle" | "running" | "needs_attention" | "error";
+  unread: boolean;
+  ago: string;
+}>;
 
 const sections: SidebarSectionModel[] = [
   {
@@ -62,6 +144,7 @@ const sections: SidebarSectionModel[] = [
         state: "running",
         unread: true,
         updatedAt: "2026-04-29T12:00:00.000Z",
+        latestReadableAt: "2026-04-29T12:00:00.000Z",
         ago: "4m",
         cwd: "/tmp/project",
         environmentId: ENVIRONMENT_ID,
@@ -86,19 +169,121 @@ const sections: SidebarSectionModel[] = [
   },
 ];
 
-async function mount(props: Partial<ComponentProps<typeof AgentList>> = {}) {
+function makeThreadSection(
+  count: number,
+  options: { projectStateKey?: string } = {},
+): SidebarSectionModel {
+  const threadRefs = Array.from({ length: count }, (_, index) =>
+    scopeThreadRef(ENVIRONMENT_ID, ThreadId.make(`thread-${index + 1}`)),
+  );
+
+  return {
+    id: "ws:/tmp/project",
+    label: "project",
+    cwd: "/tmp/project",
+    active: true,
+    environmentId: ENVIRONMENT_ID,
+    projectId: PROJECT_ID,
+    projectCwd: "/tmp/project",
+    ...(options.projectStateKey ? { projectStateKey: options.projectStateKey } : {}),
+    sectionThreadRefs: threadRefs,
+    threadRefs,
+    items: threadRefs.map((threadRef, index) => ({
+      id: threadRef.threadId,
+      kind: "thread",
+      title: `Thread ${index + 1}`,
+      state: "idle",
+      unread: false,
+      updatedAt: "2026-04-29T12:00:00.000Z",
+      latestReadableAt: "2026-04-29T12:00:00.000Z",
+      ago: `${index + 1}m`,
+      cwd: "/tmp/project",
+      environmentId: ENVIRONMENT_ID,
+      projectId: PROJECT_ID,
+      projectCwd: "/tmp/project",
+      threadRef,
+    })),
+  };
+}
+
+function makeIndicatorSection(): SidebarSectionModel {
+  const threadRefs = indicatorRows.map((row) => scopeThreadRef(ENVIRONMENT_ID, row.id));
+
+  return {
+    id: "ws:/tmp/indicators",
+    label: "indicators",
+    cwd: "/tmp/indicators",
+    active: true,
+    environmentId: ENVIRONMENT_ID,
+    projectId: PROJECT_ID,
+    projectCwd: "/tmp/indicators",
+    sectionThreadRefs: threadRefs,
+    threadRefs,
+    items: indicatorRows.map((row) => ({
+      id: row.id,
+      kind: "thread",
+      title: row.title,
+      state: row.state,
+      unread: row.unread,
+      updatedAt: "2026-04-29T12:00:00.000Z",
+      latestReadableAt: "2026-04-29T12:00:00.000Z",
+      ago: row.ago,
+      cwd: "/tmp/indicators",
+      environmentId: ENVIRONMENT_ID,
+      projectId: PROJECT_ID,
+      projectCwd: "/tmp/indicators",
+      threadRef: scopeThreadRef(ENVIRONMENT_ID, row.id),
+    })),
+  };
+}
+
+function makeOrderingSummary(
+  id: string,
+  projectId: ProjectId,
+  projectCwd: string,
+  modifiedAt: string,
+): SidebarThreadSummary {
+  return {
+    id: ThreadId.make(id),
+    environmentId: ENVIRONMENT_ID,
+    projectId,
+    projectCwd,
+    harness: "codex",
+    path: projectCwd,
+    cwd: projectCwd,
+    name: id,
+    createdAt: modifiedAt,
+    modifiedAt,
+    latestReadableAt: modifiedAt,
+    messageCount: 1,
+    firstMessage: id,
+    isStreaming: false,
+  };
+}
+
+async function mount(
+  props: Partial<ComponentProps<typeof AgentList>> = {},
+  options: { width?: string } = {},
+) {
   const host = document.createElement("div");
+  if (options.width) {
+    host.style.width = options.width;
+  }
   document.body.append(host);
   const root = createRoot(host);
-  root.render(
-    <AgentList
-      sections={sections}
-      selectedId="thread-1"
-      onSelectAgent={vi.fn()}
-      onNewAgent={vi.fn()}
-      {...props}
-    />,
-  );
+  const render = (nextProps: Partial<ComponentProps<typeof AgentList>> = {}) => {
+    root.render(
+      <AgentList
+        sections={sections}
+        selectedId="thread-1"
+        onSelectAgent={vi.fn()}
+        onNewAgent={vi.fn()}
+        {...props}
+        {...nextProps}
+      />,
+    );
+  };
+  render();
   await Promise.resolve();
   const cleanup = async () => {
     root.unmount();
@@ -107,12 +292,24 @@ async function mount(props: Partial<ComponentProps<typeof AgentList>> = {}) {
   return {
     [Symbol.asyncDispose]: cleanup,
     cleanup,
+    host,
+    rerender: async (nextProps: Partial<ComponentProps<typeof AgentList>>) => {
+      render(nextProps);
+      await Promise.resolve();
+    },
   };
 }
 
 describe("AgentList sidebar", () => {
   afterEach(() => {
     document.body.innerHTML = "";
+    retainThreadDetailSubscriptionMock.mockClear();
+    useUiStateStore.setState({
+      projectExpandedById: {},
+      projectOrder: [],
+      threadLastVisitedAtById: {},
+      threadChangedFilesExpandedById: {},
+    });
   });
 
   it("renders compact selected rows with stable status and time slots", async () => {
@@ -126,9 +323,101 @@ describe("AgentList sidebar", () => {
     const selectedElement = document.querySelector<HTMLElement>(
       '[data-agent-sidebar-cell][data-selected="true"]',
     );
-    expect(selectedElement?.querySelector("[data-agent-sidebar-status]")).not.toBeNull();
-    expect(selectedElement?.querySelector("[data-agent-sidebar-subtitle]")).not.toBeNull();
-    expect(selectedElement?.querySelector("[data-agent-sidebar-subtitle]")?.textContent).toBe("4m");
+    expect(
+      selectedElement?.querySelector("[data-agent-sidebar-status]"),
+      "selected row: expected status slot to render",
+    ).not.toBeNull();
+    expect(
+      selectedElement?.querySelector("[data-agent-sidebar-subtitle]"),
+      "selected row: expected time slot to render",
+    ).not.toBeNull();
+    expect(
+      selectedElement?.querySelector("[data-agent-sidebar-subtitle]")?.textContent,
+      "selected row: expected compact relative time",
+    ).toBe("4m");
+  });
+
+  it("keeps project sections, active rows, and new-thread actions reachable", async () => {
+    const onNewAgent = vi.fn();
+    const onSelectAgent = vi.fn();
+    await using _ = await mount({ onNewAgent, onSelectAgent });
+
+    await expect.element(page.getByRole("button", { name: "project", exact: true })).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: /Implement compact sidebar rows/ }))
+      .toHaveAttribute("data-selected", "true");
+
+    await page.getByRole("button", { name: "New agent in project" }).click();
+    expect(onNewAgent, "project section: expected new-agent action to receive cwd").toHaveBeenCalledWith(
+      "/tmp/project",
+    );
+
+    await page.getByRole("button", { name: /Draft follow-up/ }).click();
+    expect(onSelectAgent, "draft row: expected selection action to receive draft id").toHaveBeenCalledWith(
+      "draft-1",
+    );
+  });
+
+  it("reveals a newly selected thread below the folded preview", async () => {
+    const section = makeThreadSection(9);
+    await using mounted = await mount({
+      sections: [section],
+      selectedId: "thread-1",
+    });
+
+    expect(
+      document.querySelector('[data-agent-sidebar-cell][title="Thread 8"]'),
+      "folded preview: thread 8 should be hidden before selection",
+    ).toBeNull();
+
+    await mounted.rerender({
+      sections: [section],
+      selectedId: "thread-8",
+    });
+
+    const selectedRow = page.getByRole("button", { name: "Thread 8" });
+    await expect.element(selectedRow).toHaveAttribute("data-selected", "true");
+  });
+
+  it("persists project expansion state across sidebar remounts", async () => {
+    const section = makeThreadSection(2, { projectStateKey: PROJECT_STATE_KEY });
+    const projectToggle = () =>
+      document.querySelector<HTMLButtonElement>(
+        '[data-agent-sidebar-section] button[aria-expanded]',
+      );
+    const firstMount = await mount({
+      sections: [section],
+      selectedId: null,
+    });
+
+    await page.getByRole("button", { name: "project", exact: true }).click();
+    await vi.waitFor(() => {
+      expect(
+        projectToggle()?.getAttribute("aria-expanded"),
+        "first mount: expected project section toggle to collapse",
+      ).toBe("false");
+      expect(
+        document.querySelector('[data-agent-sidebar-cell][title="Thread 1"]'),
+        "first mount: expected collapsed project to hide rows",
+      ).toBeNull();
+    });
+    await firstMount.cleanup();
+
+    await using _ = await mount({
+      sections: [section],
+      selectedId: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        projectToggle()?.getAttribute("aria-expanded"),
+        "second mount: expected persisted project section collapse",
+      ).toBe("false");
+      expect(
+        document.querySelector('[data-agent-sidebar-cell][title="Thread 1"]'),
+        "second mount: expected persisted collapse to keep rows hidden",
+      ).toBeNull();
+    });
   });
 
   it("keeps the row geometry when entering rename mode", async () => {
@@ -139,11 +428,166 @@ describe("AgentList sidebar", () => {
     const renameRow = document.querySelector<HTMLElement>(
       "[data-agent-sidebar-cell][data-renaming]",
     );
-    expect(renameRow).not.toBeNull();
-    expect(renameRow?.querySelector("[data-agent-sidebar-status]")).not.toBeNull();
-    expect(renameRow?.querySelector("[data-agent-sidebar-subtitle]")?.textContent).toBe("4m");
+    expect(renameRow, "rename mode: expected selected row wrapper").not.toBeNull();
+    expect(
+      renameRow?.querySelector("[data-agent-sidebar-status]"),
+      "rename mode: expected status slot to stay mounted",
+    ).not.toBeNull();
+    expect(
+      renameRow?.querySelector("[data-agent-sidebar-subtitle]")?.textContent,
+      "rename mode: expected time slot to stay visible",
+    ).toBe("4m");
     await expect
       .element(page.getByLabelText("Rename thread"))
       .toHaveValue("Implement compact sidebar rows");
+  });
+
+  it("retains thread details only for the first ten expanded visible rows", async () => {
+    await using _ = await mount({
+      sections: [makeThreadSection(14)],
+      selectedId: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        retainThreadDetailSubscriptionMock,
+        "collapsed project: expected subscriptions only for the five preview rows",
+      ).toHaveBeenCalledTimes(5);
+    });
+    retainThreadDetailSubscriptionMock.mockClear();
+
+    await page.getByRole("button", { name: "More" }).click();
+
+    await vi.waitFor(() => {
+      expect(
+        retainThreadDetailSubscriptionMock,
+        "expanded project: expected subscriptions only for the first ten visible rows",
+      ).toHaveBeenCalledTimes(10);
+    });
+    expect(
+      retainThreadDetailSubscriptionMock.mock.calls.map((call) => call[1]),
+      "expanded project: expected subscriptions to follow visible row order",
+    ).toEqual(Array.from({ length: 10 }, (_, index) => ThreadId.make(`thread-${index + 1}`)),
+    );
+  });
+
+  it("keeps project section order stable when projects are added and removed", async () => {
+    const projectA = ProjectId.make("project-a");
+    const projectB = ProjectId.make("project-b");
+    const projectC = ProjectId.make("project-c");
+    const makeSections = (summaries: readonly SidebarThreadSummary[]) =>
+      buildProjectChatSections(
+        summaries,
+        [],
+        "/repo/beta",
+        "/Users/workgyver",
+        undefined,
+        ["/repo/alpha", "/repo/beta", "/repo/gamma"],
+      );
+    const mounted = await mount({
+      sections: makeSections([
+        makeOrderingSummary("thread-alpha", projectA, "/repo/alpha", "2026-04-29T12:00:00.000Z"),
+        makeOrderingSummary("thread-beta", projectB, "/repo/beta", "2026-04-29T12:01:00.000Z"),
+      ]),
+      selectedId: null,
+    });
+    const sectionLabels = () =>
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          "[data-agent-sidebar-section] button[aria-expanded]",
+        ),
+        (element) => element.textContent?.trim(),
+      );
+
+    await vi.waitFor(() => {
+      expect(sectionLabels(), "initial projects: expected source project order").toEqual([
+        "repo/alpha",
+        "repo/beta",
+      ]);
+    });
+
+    await mounted.rerender({
+      sections: makeSections([
+        makeOrderingSummary("thread-alpha", projectA, "/repo/alpha", "2026-04-29T12:00:00.000Z"),
+        makeOrderingSummary("thread-beta", projectB, "/repo/beta", "2026-04-29T12:01:00.000Z"),
+        makeOrderingSummary("thread-gamma", projectC, "/repo/gamma", "2026-04-29T12:02:00.000Z"),
+      ]),
+      selectedId: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        sectionLabels(),
+        "added project: expected new project appended without reordering",
+      ).toEqual(["repo/alpha", "repo/beta", "repo/gamma"]);
+    });
+
+    await mounted.rerender({
+      sections: makeSections([
+        makeOrderingSummary("thread-beta", projectB, "/repo/beta", "2026-04-29T12:01:00.000Z"),
+        makeOrderingSummary("thread-gamma", projectC, "/repo/gamma", "2026-04-29T12:02:00.000Z"),
+      ]),
+      selectedId: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        sectionLabels(),
+        "removed project: expected remaining project order to stay stable",
+      ).toEqual(["repo/beta", "repo/gamma"]);
+    });
+
+    await mounted.cleanup();
+  });
+
+  it("keeps status, title, and time slots separated in narrow rows", async () => {
+    await using _ = await mount(
+      {
+        sections: [makeIndicatorSection()],
+        selectedId: "thread-attention",
+      },
+      { width: "172px" },
+    );
+
+    await vi.waitFor(() => {
+      expect(
+        document.querySelectorAll("[data-agent-sidebar-cell]").length,
+        "indicator rows: expected all five status cases to render",
+      ).toBe(5);
+    });
+
+    for (const expected of indicatorRows) {
+      const titleElement = document.querySelector<HTMLElement>(
+        `[data-agent-sidebar-title][title="${expected.title}"]`,
+      );
+      if (!titleElement) {
+        throw new Error(`${expected.label}: expected title slot to render.`);
+      }
+      const row = titleElement.closest<HTMLElement>("[data-agent-sidebar-cell]");
+      if (!row) {
+        throw new Error(`${expected.label}: expected row wrapper to render.`);
+      }
+      const status = row.querySelector<HTMLElement>("[data-agent-sidebar-status]");
+      const subtitle = row.querySelector<HTMLElement>("[data-agent-sidebar-subtitle]");
+      if (!status || !subtitle) {
+        throw new Error(`${expected.label}: expected status and subtitle slots to render.`);
+      }
+
+      const statusRect = status.getBoundingClientRect();
+      const titleRect = titleElement.getBoundingClientRect();
+      const subtitleRect = subtitle.getBoundingClientRect();
+
+      expect(statusRect.width, `${expected.label}: status slot width`).toBeGreaterThan(0);
+      expect(titleRect.width, `${expected.label}: title slot width`).toBeGreaterThan(0);
+      expect(subtitleRect.width, `${expected.label}: time slot width`).toBeGreaterThan(0);
+      expect(
+        statusRect.right,
+        `${expected.label}: status slot overlaps title slot`,
+      ).toBeLessThanOrEqual(titleRect.left + 0.5);
+      expect(
+        titleRect.right,
+        `${expected.label}: title slot overlaps time slot`,
+      ).toBeLessThanOrEqual(subtitleRect.left + 0.5);
+    }
   });
 });

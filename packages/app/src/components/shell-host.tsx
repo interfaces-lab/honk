@@ -44,16 +44,16 @@ import {
   useSecondaryRail,
   useTerminalSessions,
 } from "~/stores/shell-panels-store";
-import { useThreadUnreadStore } from "~/stores/thread-unread-store";
+import { useUiStateStore } from "~/stores/ui-state-store";
 import { writeStoredProjectCwd } from "~/lib/project-state";
+import { deriveLogicalProjectKey } from "~/stores/project-identity";
 import { buildPlanImplementationPrompt } from "~/plan/proposed-plan";
 import {
   buildProjectChatSections,
   type SidebarDraftSummary,
   type SidebarThreadSummary as SidebarSectionThreadSummary,
-} from "~/lib/sidebar-chat-view-model";
+} from "./shell/agents/sidebar-chat-view-model";
 import { cn, newCommandId, newMessageId, newThreadId } from "~/lib/utils";
-import { resolveSidebarNewThreadEnvMode, resolveThreadStatusPill } from "~/lib/thread-sidebar";
 import { useSettings } from "~/hooks/use-settings";
 import {
   deriveActivePlanState,
@@ -130,8 +130,35 @@ function projectScopedKeyFor(
 
 function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefined): boolean {
   if (!sidebarThread) return false;
-  const label = resolveThreadStatusPill({ thread: sidebarThread })?.label;
-  return label === "Pending Approval" || label === "Awaiting Input" || label === "Plan Ready";
+  if (sidebarThread.hasPendingApprovals || sidebarThread.hasPendingUserInput) {
+    return true;
+  }
+  if (
+    sidebarThread.session?.status === "running" ||
+    sidebarThread.session?.status === "connecting"
+  ) {
+    return false;
+  }
+  return (
+    sidebarThread.interactionMode === "plan" &&
+    isLatestTurnSettled(sidebarThread.latestTurn, sidebarThread.session) &&
+    sidebarThread.hasActionableProposedPlan
+  );
+}
+
+function isUnreadFromVisitBoundary(
+  latestReadableAt: string | null | undefined,
+  lastVisitedAt: string | null | undefined,
+): boolean {
+  if (!latestReadableAt) return false;
+  if (!lastVisitedAt) return true;
+  const latestReadableAtMs = Date.parse(latestReadableAt);
+  const lastVisitedAtMs = Date.parse(lastVisitedAt);
+  return (
+    Number.isFinite(latestReadableAtMs) &&
+    Number.isFinite(lastVisitedAtMs) &&
+    latestReadableAtMs > lastVisitedAtMs
+  );
 }
 
 function hasGitAgentStartFailure(thread: Thread, action: GitAgentAction): boolean {
@@ -207,6 +234,7 @@ function toSummaryFromSidebarThread(
     name: thread.title,
     createdAt: thread.createdAt,
     modifiedAt: thread.updatedAt ?? thread.createdAt,
+    latestReadableAt: thread.latestTurn?.completedAt ?? null,
     messageCount: 0,
     firstMessage: thread.title,
     isStreaming: orchestrationStatus === "starting" || orchestrationStatus === "running",
@@ -310,7 +338,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const cancelDraftThreadPromotion = useComposerDraftStore(
     (store) => store.cancelDraftThreadPromotion,
   );
-  const unread = useThreadUnreadStore((store) => store.unread);
+  const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
   const {
     activeDraftThread,
     activeThread: routeActiveThread,
@@ -404,10 +432,18 @@ function ChatShellHost(props: { children?: ReactNode }) {
     });
   }, [projectByScopedKey, sidebarThreads]);
 
-  const unreadIds = useMemo(
-    () => new Set(Object.keys(unread).filter((id) => unread[id])),
-    [unread],
-  );
+  const unreadIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const thread of sidebarThreads) {
+      const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
+      if (
+        isUnreadFromVisitBoundary(thread.latestTurn?.completedAt, threadLastVisitedAtById[threadKey])
+      ) {
+        ids.add(thread.id);
+      }
+    }
+    return ids;
+  }, [sidebarThreads, threadLastVisitedAtById]);
 
   const activeThread = routeActiveThread ?? null;
 
@@ -709,15 +745,24 @@ function ChatShellHost(props: { children?: ReactNode }) {
     onImplementPlan: showPlanImplementationActions ? implementPlanInCurrentThread : undefined,
   };
   const sections = useMemo(
-    () =>
-      buildProjectChatSections(
+    () => {
+      const projectStateKeyByCwd = new Map(
+        projects.map((project) => [project.cwd, deriveLogicalProjectKey(project)] as const),
+      );
+      return buildProjectChatSections(
         summaries,
         drafts,
         activeCwd,
         null,
         unreadIds,
         projects.map((project) => project.cwd),
-      ),
+      ).map((section) => {
+        const projectStateKey = section.projectCwd
+          ? projectStateKeyByCwd.get(section.projectCwd)
+          : undefined;
+        return projectStateKey ? { ...section, projectStateKey } : section;
+      });
+    },
     [activeCwd, drafts, projects, summaries, unreadIds],
   );
 
@@ -727,9 +772,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         activeDraftThread,
         activeThread: routeActiveThread,
         defaultProjectRef,
-        defaultThreadEnvMode: resolveSidebarNewThreadEnvMode({
-          defaultEnvMode: defaultThreadEnvMode,
-        }),
+        defaultThreadEnvMode,
         handleNewThread,
       };
       const project =
@@ -754,7 +797,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     ],
   );
 
-  const clearThreadUnread = useThreadUnreadStore((store) => store.clear);
+  const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
 
   const select = useCallback(
     (id: string) => {
@@ -766,9 +809,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
         void navigate({ to: "/draft/$draftId", params: { draftId: id } });
         return;
       }
-      clearThreadUnread(id);
       const summary = summaries.find((entry) => entry.id === id);
       if (summary) {
+        markThreadVisited(scopedThreadKey(scopeThreadRef(summary.environmentId, summary.id)));
         if (summary.projectId !== null && summary.cwd) {
           writeStoredProjectCwd(summary.cwd);
         }
@@ -778,7 +821,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         });
       }
     },
-    [clearThreadUnread, drafts, navigate, summaries],
+    [drafts, markThreadVisited, navigate, summaries],
   );
 
   const prefetchAgent = useCallback(

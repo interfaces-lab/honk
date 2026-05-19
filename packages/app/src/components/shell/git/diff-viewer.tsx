@@ -1,14 +1,14 @@
+import type { GitFilePatchResult } from "@multi/contracts";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
 import { memo } from "react";
 
 import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
-import type { GitPatchData } from "~/lib/native-git-react-query";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
 
 interface Props {
-  filePatch?: GitPatchData | null;
+  filePatch?: GitFilePatchResult | null;
   path?: string;
   state?: GitFileState;
   prevPath?: string | null;
@@ -21,7 +21,10 @@ interface Props {
 export const DiffViewer = memo(function DiffViewer(props: Props) {
   const { resolvedTheme } = useTheme();
   const theme = resolveDiffThemeName(resolvedTheme);
-  const patch = props.filePatch?.patch?.trim() ?? "";
+  const patch =
+    props.filePatch?.kind === "patch" || props.filePatch?.kind === "untracked"
+      ? props.filePatch.patch.trim()
+      : "";
 
   if (patch.length > 0) {
     return (

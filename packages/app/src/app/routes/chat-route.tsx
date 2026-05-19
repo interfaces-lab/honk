@@ -13,7 +13,6 @@ import { isTerminalFocused } from "~/lib/terminal-focus";
 import { resolveShortcutCommand } from "~/keybindings";
 import { selectThreadTerminalState, useTerminalStateStore } from "~/terminal-state-store";
 import { useThreadSelectionStore } from "~/stores/thread-selection-store";
-import { resolveSidebarNewThreadEnvMode } from "~/lib/thread-sidebar";
 import { useSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
 
@@ -57,9 +56,7 @@ function ChatRouteGlobalShortcuts() {
         activeDraftThread,
         activeThread,
         defaultProjectRef,
-        defaultThreadEnvMode: resolveSidebarNewThreadEnvMode({
-          defaultEnvMode: defaultThreadEnvMode,
-        }),
+        defaultThreadEnvMode,
         handleNewThread,
       });
       return;
@@ -72,9 +69,7 @@ function ChatRouteGlobalShortcuts() {
         activeDraftThread,
         activeThread,
         defaultProjectRef,
-        defaultThreadEnvMode: resolveSidebarNewThreadEnvMode({
-          defaultEnvMode: defaultThreadEnvMode,
-        }),
+        defaultThreadEnvMode,
         handleNewThread,
       });
     }

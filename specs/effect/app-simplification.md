@@ -20,11 +20,13 @@ each deletion needs a verifier that covers the behavior being kept.
 
 Snapshot from `rg --files packages/app/src`:
 
-- [x] `325` app `ts` / `tsx` files.
+- [x] `331` app `ts` / `tsx` files.
 - [x] `17` root-level app `ts` / `tsx` files.
-- [x] `84` `*.test.*` / `*.browser.*` files.
+- [x] `90` `*.test.*` / `*.browser.*` files.
 - [x] `10` CSS files under `packages/app/src`.
 - [x] `0` remaining `*.logic.ts` files under `packages/app/src/app`.
+- [x] `0` `*logic*` files outside `session-logic.ts` /
+      `session-logic.test.ts`.
 
 This is a planning inventory, not a completion proof. Re-run the inventory
 before starting a deletion wave.
@@ -179,12 +181,16 @@ Detailed inventory: [app-root-files.md](./app-root-files.md).
       picker files only own picker UI.
 - [x] Keep `lib/thread-sort.ts` as a shared sidebar/command-palette ordering
       contract and `lib/timestamp-format.ts` as a shared app display formatter.
+- [x] Delete `lib/branch-toolbar-logic.ts` and its helper-only test after
+      draft-only branch toolbar behavior moved into `chat-view.browser.tsx` and
+      shared Git branch dedupe coverage moved to `packages/shared/test/lib/git.test.ts`.
 - [x] Keep terminal helpers only when they are shared by composer, messages, and
       terminal surfaces. Current retained `lib` boundaries are
       `terminal-context.ts`, `terminal-links.ts`, `terminal-dimensions.ts`, and
       `terminal-focus.ts`; single-caller terminal helper files were already
       inlined or deleted in the terminal helper inventory.
-- [ ] Re-evaluate `sidebar-chat-view-model.ts` after sidebar behavior coverage;
+- [x] Re-evaluate `sidebar-chat-view-model.ts` after sidebar behavior coverage;
+      moved the section projection under `components/shell/agents`.
       `thread-sort.ts` and `timestamp-format.ts` are retained shared
       projections.
 - [ ] Delete tests whose only reason to exist is a helper split; replace with
@@ -195,11 +201,11 @@ Detailed state inventory: [app-state-files.md](./app-state-files.md).
 ### Wave C: CSS
 
 - [x] Classify app CSS files into token/global renderer/feature-delete buckets.
-- [ ] Keep token and external renderer CSS:
+- [x] Keep token and external renderer CSS:
   - [x] `index.css`
   - [x] `styles/tokens.css`
   - [x] `styles/terminal.css`
-- [ ] Re-evaluate feature CSS files for Tailwind/component ownership:
+- [x] Re-evaluate feature CSS files for Tailwind/component ownership:
   - [x] `styles/app.css`
   - [x] `styles/conversation.css`
   - [x] `styles/git-diff.css`
@@ -207,7 +213,7 @@ Detailed state inventory: [app-state-files.md](./app-state-files.md).
   - [x] `styles/settings.css`
   - [x] `styles/shell.css`
   - [x] `styles/tool-call.css`
-- [ ] No new feature CSS file without a renderer or global token reason.
+- [x] No new feature CSS file without a renderer or global token reason.
 
 Detailed inventory: [app-css-files.md](./app-css-files.md).
 

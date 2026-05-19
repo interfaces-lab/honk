@@ -47,10 +47,10 @@ File: `packages/app/src/components/chat/view/chat-view.tsx`
 - [x] `1575`: `reset-by-key` plus `resource-cleanup`; thread/draft optimistic
       message, handoff, local dispatch, and expanded image reset now lives in a
       keyed mount-only child.
-- [x] `1617`: `reset-by-key`; pending server thread env override reset now
-      lives in a keyed mount-only child.
-- [x] `1622`: `derived-state`; pending env override capability cleanup now
-      lives in a keyed mount-only child.
+- [x] `1617`: deleted; server-thread env override state was removed when
+      branch/worktree controls became draft-only.
+- [x] `1622`: deleted; the pending env override capability cleanup disappeared
+      with the server-thread override path.
 - [x] `1630`: `route-sync`; terminal launch context active-thread
       reconciliation now lives in a keyed mount-only child.
 - [x] `1732`: `route-sync`; local terminal launch context settled-cwd cleanup
@@ -298,7 +298,6 @@ Files:
 - `packages/app/src/hooks/use-theme.ts`
 - `packages/app/src/hooks/use-local-storage.ts`
 - `packages/app/src/hooks/use-copy-to-clipboard.ts`
-- `packages/app/src/lib/thread-sidebar.ts`
 
 Classified:
 
@@ -325,9 +324,8 @@ Classified:
       local-storage event subscriptions into the `useSyncExternalStore` owner.
 - [x] `use-copy-to-clipboard.ts:57`: `resource-cleanup`; clears a pending copy
       reset timer on unmount through the mount-only effect wrapper.
-- [x] `thread-sidebar.ts:121`: `resource-cleanup`; creates the thread jump hint
-      visibility controller once and disposes it on unmount through the
-      mount-only effect wrapper.
+- [x] `thread-sidebar.ts:121`: deleted with the unused jump-hint helper surface
+      after caller inventory showed no production consumer.
 
 Target:
 

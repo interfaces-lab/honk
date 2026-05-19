@@ -21,6 +21,7 @@ export default mergeConfig(
     },
     test: {
       include: ["src/components/**/*.browser.tsx"],
+      setupFiles: ["./src/test/browser-console-guard.ts"],
       browser: {
         enabled: true,
         provider: playwright(),

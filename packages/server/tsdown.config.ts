@@ -11,8 +11,8 @@ export default defineConfig({
   clean: true,
   deps: {
     alwaysBundle: (id) => id.startsWith("@multi/"),
+    onlyBundle: false,
   },
-  inlineOnly: false,
   banner: {
     js: "#!/usr/bin/env node\n",
   },

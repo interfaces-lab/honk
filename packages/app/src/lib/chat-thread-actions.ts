@@ -1,7 +1,6 @@
 import { scopeProjectRef } from "@multi/client-runtime";
 import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
 import type { DraftThreadEnvMode } from "../stores/chat-drafts";
-import { resolveSidebarNewThreadSeedContext } from "./thread-sidebar";
 
 interface ThreadContextLike {
   environmentId: EnvironmentId;
@@ -68,30 +67,43 @@ function buildDefaultThreadOptions(context: ChatThreadActionContext): NewThreadO
   };
 }
 
+function buildProjectThreadOptions(
+  context: ChatThreadActionContext,
+  projectRef: ScopedProjectRef,
+): NewThreadOptions {
+  if (context.defaultThreadEnvMode === "worktree") {
+    return {
+      envMode: "worktree",
+    };
+  }
+
+  if (context.activeDraftThread?.projectId === projectRef.projectId) {
+    return {
+      branch: context.activeDraftThread.branch,
+      worktreePath: context.activeDraftThread.worktreePath,
+      envMode: context.activeDraftThread.envMode,
+    };
+  }
+
+  if (context.activeThread?.projectId === projectRef.projectId) {
+    return {
+      branch: context.activeThread.branch,
+      worktreePath: context.activeThread.worktreePath,
+      envMode: context.activeThread.worktreePath ? "worktree" : "local",
+    };
+  }
+
+  return {
+    envMode: context.defaultThreadEnvMode,
+  };
+}
+
 export async function startNewThreadInProjectFromContext(
   context: ChatThreadActionContext,
   projectRef: ScopedProjectRef,
 ): Promise<void> {
   await context.handleNewThread(projectRef, {
-    ...resolveSidebarNewThreadSeedContext({
-      projectId: projectRef.projectId,
-      defaultEnvMode: context.defaultThreadEnvMode,
-      activeThread: context.activeThread?.projectId
-        ? {
-            projectId: context.activeThread.projectId,
-            branch: context.activeThread.branch,
-            worktreePath: context.activeThread.worktreePath,
-          }
-        : null,
-      activeDraftThread: context.activeDraftThread?.projectId
-        ? {
-            projectId: context.activeDraftThread.projectId,
-            branch: context.activeDraftThread.branch,
-            worktreePath: context.activeDraftThread.worktreePath,
-            envMode: context.activeDraftThread.envMode,
-          }
-        : null,
-    }),
+    ...buildProjectThreadOptions(context, projectRef),
     reuseExistingDraft: false,
   });
 }

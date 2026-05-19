@@ -8,7 +8,8 @@ allowBuilds:
   electron: true
   msgpackr-extract: false
   msw: false
-  node-pty: true
+  "@lydell/node-pty": false
+  esbuild: true
 
 catalog:
   effect: "4.0.0-beta.59"

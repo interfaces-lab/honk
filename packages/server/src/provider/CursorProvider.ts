@@ -102,7 +102,7 @@ interface CursorSessionSelectOption {
 interface CursorAcpDiscoveredModel {
   readonly slug: string;
   readonly name: string;
-  readonly capabilities: ModelCapabilities;
+  readonly capabilities: ModelCapabilities | null;
 }
 
 function flattenSessionConfigSelectOptions(
@@ -360,8 +360,27 @@ function buildCursorDiscoveredModels(
   });
 }
 
-function hasCursorModelCapabilities(model: Pick<ServerProviderModel, "capabilities">): boolean {
-  return (model.capabilities?.optionDescriptors?.length ?? 0) > 0;
+function hasKnownCursorModelCapabilities(model: Pick<ServerProviderModel, "capabilities">): boolean {
+  return model.capabilities !== null;
+}
+
+export function buildCursorCapabilitiesForModelConfigResponse(
+  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
+  expectedModel: string | null | undefined,
+): ModelCapabilities {
+  const expectedModelValue = expectedModel?.trim();
+  if (!expectedModelValue) {
+    return EMPTY_CAPABILITIES;
+  }
+
+  const modelOption = findCursorModelConfigOption(configOptions ?? []);
+  const currentModelValue =
+    modelOption?.type === "select" ? modelOption.currentValue?.trim() || undefined : undefined;
+  if (currentModelValue !== expectedModelValue) {
+    return EMPTY_CAPABILITIES;
+  }
+
+  return buildCursorCapabilitiesFromConfigOptions(configOptions);
 }
 
 export function buildCursorDiscoveredModelsFromConfigOptions(
@@ -379,7 +398,10 @@ export function buildCursorDiscoveredModelsFromConfigOptions(
 
   const currentModelValue =
     modelOption.type === "select" ? modelOption.currentValue?.trim() || undefined : undefined;
-  const currentModelCapabilities = buildCursorCapabilitiesFromConfigOptions(configOptions);
+  const currentModelCapabilities = buildCursorCapabilitiesForModelConfigResponse(
+    configOptions,
+    currentModelValue,
+  );
 
   return buildCursorDiscoveredModels(
     modelChoices.map((modelChoice) => ({
@@ -388,7 +410,7 @@ export function buildCursorDiscoveredModelsFromConfigOptions(
       capabilities:
         currentModelValue === modelChoice.value.trim()
           ? currentModelCapabilities
-          : EMPTY_CAPABILITIES,
+          : null,
     })),
   );
 }
@@ -549,17 +571,21 @@ export const discoverCursorModelCapabilitiesViaAcp = (
 
       const currentModelValue =
         modelOption.type === "select" ? modelOption.currentValue?.trim() || undefined : undefined;
-      const capabilitiesBySlug = new Map<string, ModelCapabilities>();
+      const capabilitiesBySlug = new Map(
+        existingModels.flatMap((model) =>
+          model.capabilities === null ? [] : ([[model.slug, model.capabilities]] as const),
+        ),
+      );
       if (currentModelValue) {
         capabilitiesBySlug.set(
           currentModelValue,
-          buildCursorCapabilitiesFromConfigOptions(initialConfigOptions),
+          buildCursorCapabilitiesForModelConfigResponse(initialConfigOptions, currentModelValue),
         );
       }
 
       const targetModelSlugs = new Set(
         existingModels
-          .filter((model) => !model.isCustom && !hasCursorModelCapabilities(model))
+          .filter((model) => !model.isCustom && !hasKnownCursorModelCapabilities(model))
           .map((model) => model.slug),
       );
       if (targetModelSlugs.size === 0) {
@@ -567,7 +593,7 @@ export const discoverCursorModelCapabilitiesViaAcp = (
           modelChoices.map((modelChoice) => ({
             slug: modelChoice.value.trim(),
             name: modelChoice.name.trim(),
-            capabilities: capabilitiesBySlug.get(modelChoice.value.trim()) ?? EMPTY_CAPABILITIES,
+            capabilities: capabilitiesBySlug.get(modelChoice.value.trim()) ?? null,
           })),
         );
       }
@@ -604,7 +630,7 @@ export const discoverCursorModelCapabilitiesViaAcp = (
                       .pipe(Effect.map((response) => response.configOptions ?? probeConfigOptions));
               return [
                 modelSlug,
-                buildCursorCapabilitiesFromConfigOptions(nextConfigOptions),
+                buildCursorCapabilitiesForModelConfigResponse(nextConfigOptions, modelSlug),
               ] as const;
             }),
           ).pipe(
@@ -633,7 +659,7 @@ export const discoverCursorModelCapabilitiesViaAcp = (
         modelChoices.map((modelChoice) => ({
           slug: modelChoice.value.trim(),
           name: modelChoice.name.trim(),
-          capabilities: capabilitiesBySlug.get(modelChoice.value.trim()) ?? EMPTY_CAPABILITIES,
+          capabilities: capabilitiesBySlug.get(modelChoice.value.trim()) ?? null,
         })),
       );
     }).pipe(Effect.withSpan("cursor-acp-model-capability-discovery", {})),
@@ -1180,7 +1206,9 @@ export const CursorProviderLive = Layer.effect(
         if (
           !settings.enabled ||
           snapshot.auth.status === "unauthenticated" ||
-          !snapshot.models.some((model) => !model.isCustom && !hasCursorModelCapabilities(model))
+          !snapshot.models.some(
+            (model) => !model.isCustom && !hasKnownCursorModelCapabilities(model),
+          )
         ) {
           return Effect.void;
         }

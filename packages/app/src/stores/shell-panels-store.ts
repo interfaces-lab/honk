@@ -1,3 +1,4 @@
+import { Option, Schema } from "effect";
 import { create } from "zustand";
 
 const STORAGE_KEY = "multi.shell.panels.v3";
@@ -76,6 +77,37 @@ interface PersistedShellPanelsState {
   muted?: boolean;
 }
 
+const WorkbenchTabSchema = Schema.Literals(["plan", "git", "terminal", "files"]);
+const PersistedShellPanelsStateSchema = Schema.Struct({
+  leftOpen: Schema.optionalKey(Schema.Boolean),
+  leftW: Schema.optionalKey(Schema.Number),
+  rightOpen: Schema.optionalKey(Schema.Boolean),
+  rightW: Schema.optionalKey(Schema.Number),
+  activeTab: Schema.optionalKey(WorkbenchTabSchema),
+  muted: Schema.optionalKey(Schema.Boolean),
+});
+const PersistedSecondaryRailStateSchema = Schema.Struct({
+  open: Schema.optionalKey(Schema.Boolean),
+  width: Schema.optionalKey(Schema.Number),
+});
+const PersistedTerminalSessionEntrySchema = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+});
+const PersistedTerminalSessionsStateSchema = Schema.Struct({
+  activeId: Schema.String,
+  sessions: Schema.Array(PersistedTerminalSessionEntrySchema),
+});
+const decodePersistedShellPanelsStateOption = Schema.decodeUnknownOption(
+  PersistedShellPanelsStateSchema,
+);
+const decodePersistedSecondaryRailStateOption = Schema.decodeUnknownOption(
+  PersistedSecondaryRailStateSchema,
+);
+const decodePersistedTerminalSessionsStateOption = Schema.decodeUnknownOption(
+  PersistedTerminalSessionsStateSchema,
+);
+
 const DEFAULT_LEFT_PANEL_STATE: LeftPanelState = Object.freeze({
   leftOpen: true,
   leftW: 180,
@@ -127,18 +159,12 @@ function readPersistedPanels(): {
   }
 
   try {
-    const parsed = JSON.parse(raw) as PersistedShellPanelsState | null;
+    const parsed = Option.getOrElse(decodePersistedShellPanelsStateOption(JSON.parse(raw)), () =>
+      null,
+    ) satisfies PersistedShellPanelsState | null;
     if (!parsed || typeof parsed !== "object") {
       return { ...DEFAULT_LEFT_PANEL_STATE, ...DEFAULT_WORKBENCH_PANEL_STATE };
     }
-
-    const activeTab =
-      parsed.activeTab === "plan" ||
-      parsed.activeTab === "files" ||
-      parsed.activeTab === "git" ||
-      parsed.activeTab === "terminal"
-        ? parsed.activeTab
-        : DEFAULT_WORKBENCH_PANEL_STATE.activeTab;
 
     return {
       leftOpen:
@@ -157,7 +183,7 @@ function readPersistedPanels(): {
         RIGHT_WORKBENCH_WIDTH_LIMITS.min,
         RIGHT_WORKBENCH_WIDTH_LIMITS.max,
       ),
-      activeTab,
+      activeTab: parsed.activeTab ?? DEFAULT_WORKBENCH_PANEL_STATE.activeTab,
       muted: typeof parsed.muted === "boolean" ? parsed.muted : DEFAULT_WORKBENCH_PANEL_STATE.muted,
     };
   } catch {
@@ -189,14 +215,16 @@ function readPersistedSecondaryRails(): Record<string, SecondaryRailState> {
   const raw = window.localStorage.getItem(SECONDARY_RAIL_STORAGE_KEY);
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Record<string, Partial<SecondaryRailState>> | null;
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return {};
     const result: Record<string, SecondaryRailState> = {};
     for (const [key, value] of Object.entries(parsed)) {
+      const decoded = Option.getOrElse(decodePersistedSecondaryRailStateOption(value), () => null);
+      if (!decoded) continue;
       result[key] = {
-        open: typeof value?.open === "boolean" ? value.open : DEFAULT_SECONDARY_RAIL.open,
+        open: decoded.open ?? DEFAULT_SECONDARY_RAIL.open,
         width: clampWidth(
-          typeof value?.width === "number" ? value.width : DEFAULT_SECONDARY_RAIL.width,
+          decoded.width ?? DEFAULT_SECONDARY_RAIL.width,
           SECONDARY_RAIL_LIMITS.min,
           SECONDARY_RAIL_LIMITS.max,
         ),
@@ -218,14 +246,20 @@ function readPersistedTerminalSessions(): Record<string, TerminalSessionsState> 
   const raw = window.localStorage.getItem(TERMINAL_SESSIONS_STORAGE_KEY);
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Record<string, TerminalSessionsState> | null;
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return {};
     const result: Record<string, TerminalSessionsState> = {};
     for (const [key, value] of Object.entries(parsed)) {
-      if (!value?.activeId || !Array.isArray(value.sessions) || value.sessions.length === 0) {
+      const decoded = Option.getOrElse(decodePersistedTerminalSessionsStateOption(value), () =>
+        null,
+      );
+      if (!decoded?.activeId || decoded.sessions.length === 0) {
         continue;
       }
-      result[key] = value;
+      result[key] = {
+        activeId: decoded.activeId,
+        sessions: decoded.sessions.map((session) => ({ ...session })),
+      };
     }
     return result;
   } catch {

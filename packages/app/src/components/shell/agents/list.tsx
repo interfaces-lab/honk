@@ -1,4 +1,4 @@
-import { scopeProjectRef } from "@multi/client-runtime";
+import { scopedThreadKey, scopeProjectRef } from "@multi/client-runtime";
 import type { ScopedThreadRef } from "@multi/contracts";
 import { IconChevronRightMedium } from "central-icons";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -9,15 +9,15 @@ import { resolveAndPersistPreferredEditor } from "~/editor/preferences";
 import { retainThreadDetailSubscription } from "~/environments/runtime/service";
 import { useThreadActions } from "~/hooks/use-thread-actions";
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import type { SidebarSectionModel } from "~/lib/sidebar-chat-view-model";
-import { getSidebarThreadIdsToPrewarm } from "~/lib/thread-sidebar";
-import { useThreadUnreadStore } from "~/stores/thread-unread-store";
+import type { SidebarSectionModel } from "./sidebar-chat-view-model";
+import { useUiStateStore } from "~/stores/ui-state-store";
 import { readLocalApi } from "~/local-api";
 import { AgentRow } from "./row";
 
 const initialMaxVisible = 5;
 const pageStep = 8;
 const nearViewportPrefetchLimit = 12;
+const sidebarThreadPrewarmLimit = 10;
 const EMPTY_VISIBLE_THREAD_REFS: readonly ScopedThreadRef[] = [];
 
 export interface AgentListProps {
@@ -92,9 +92,14 @@ function Section(props: {
   const { onPrefetchAgent, section } = props;
   const prefetchAgentVersion = useCallbackIdentityVersion(onPrefetchAgent);
   const { archiveThreads, removeProjectFromSidebar } = useThreadActions();
-  const clearThreadUnread = useThreadUnreadStore((store) => store.clear);
-  const [open, setOpen] = useState(true);
+  const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
+  const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
+  const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
+  const [localOpen, setLocalOpen] = useState(true);
   const [extra, setExtra] = useState(0);
+  const open = section.projectStateKey
+    ? (projectExpandedById[section.projectStateKey] ?? true)
+    : localOpen;
   const labelId = `agent-section-label-${section.id}`;
   const panelId = `agent-section-panel-${section.id}`;
   const minVisible = useMemo(
@@ -181,9 +186,9 @@ function Section(props: {
 
   const markSectionRead = useCallback(() => {
     for (const threadRef of section.threadRefs) {
-      clearThreadUnread(threadRef.threadId);
+      markThreadVisited(scopedThreadKey(threadRef));
     }
-  }, [clearThreadUnread, section.threadRefs]);
+  }, [markThreadVisited, section.threadRefs]);
 
   const archiveSectionThreads = useCallback(() => {
     void archiveThreads(section.threadRefs).catch((error) => {
@@ -209,6 +214,13 @@ function Section(props: {
   }, [removeProjectFromSidebar, section.environmentId, section.projectId]);
 
   const { onVisibleThreadRefsChange } = props;
+  const toggleOpen = useCallback(() => {
+    if (section.projectStateKey) {
+      setProjectExpanded(section.projectStateKey, !open);
+      return;
+    }
+    setLocalOpen(!open);
+  }, [open, section.projectStateKey, setProjectExpanded]);
 
   return (
     <section
@@ -242,7 +254,7 @@ function Section(props: {
             type="button"
             aria-expanded={open}
             aria-controls={open ? panelId : undefined}
-            onClick={() => setOpen((value) => !value)}
+            onClick={toggleOpen}
             className="relative m-0 inline-flex min-h-0 min-w-0 flex-auto cursor-(--multi-button-cursor) touch-manipulation items-center gap-1 border-0 bg-transparent p-0 font-multi leading-(--multi-sidebar-label-leading) text-inherit shadow-none outline-none focus-visible:rounded focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
           >
             <span className="min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary text-(length:--multi-sidebar-label-size) font-(--multi-sidebar-label-weight) leading-(--multi-sidebar-label-leading)">
@@ -380,7 +392,7 @@ function AgentListContent(props: AgentListProps) {
     [props.sections, visibleThreadRefsBySectionId],
   );
   const prewarmedSidebarThreadRefs = useMemo(
-    () => getSidebarThreadIdsToPrewarm(visibleThreadRefs),
+    () => visibleThreadRefs.slice(0, sidebarThreadPrewarmLimit),
     [visibleThreadRefs],
   );
   const prewarmedSidebarThreadRefsKey = useMemo(

@@ -1,14 +1,19 @@
 import { Debouncer } from "@tanstack/react-pacer";
+import { Option, Schema } from "effect";
 import { create } from "zustand";
 
 const PERSISTED_STATE_KEY = "multi:ui-state:v1";
 
-interface PersistedUiState {
-  collapsedProjectCwds?: string[];
-  expandedProjectCwds?: string[];
-  projectOrderCwds?: string[];
-  threadChangedFilesExpandedById?: Record<string, Record<string, boolean>>;
-}
+const PersistedUiState = Schema.Struct({
+  collapsedProjectCwds: Schema.optionalKey(Schema.Array(Schema.String)),
+  expandedProjectCwds: Schema.optionalKey(Schema.Array(Schema.String)),
+  projectOrderCwds: Schema.optionalKey(Schema.Array(Schema.String)),
+  threadChangedFilesExpandedById: Schema.optionalKey(
+    Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Boolean)),
+  ),
+});
+type PersistedUiState = typeof PersistedUiState.Type;
+const decodePersistedUiStateOption = Schema.decodeUnknownOption(PersistedUiState);
 
 export interface UiProjectState {
   projectExpandedById: Record<string, boolean>;
@@ -58,7 +63,10 @@ function readPersistedState(): UiState {
     if (!raw) {
       return initialState;
     }
-    const parsed = JSON.parse(raw) as PersistedUiState;
+    const parsed = Option.getOrElse(decodePersistedUiStateOption(JSON.parse(raw)), () => null);
+    if (parsed === null) {
+      return initialState;
+    }
     hydratePersistedProjectState(parsed);
     return {
       ...initialState,
@@ -407,16 +415,16 @@ export function markThreadVisited(state: UiState, threadId: string, visitedAt?: 
 export function markThreadUnread(
   state: UiState,
   threadId: string,
-  latestTurnCompletedAt: string | null | undefined,
+  latestReadableAt: string | null | undefined,
 ): UiState {
-  if (!latestTurnCompletedAt) {
+  if (!latestReadableAt) {
     return state;
   }
-  const latestTurnCompletedAtMs = Date.parse(latestTurnCompletedAt);
-  if (Number.isNaN(latestTurnCompletedAtMs)) {
+  const latestReadableAtMs = Date.parse(latestReadableAt);
+  if (Number.isNaN(latestReadableAtMs)) {
     return state;
   }
-  const unreadVisitedAt = new Date(latestTurnCompletedAtMs - 1).toISOString();
+  const unreadVisitedAt = new Date(latestReadableAtMs - 1).toISOString();
   if (state.threadLastVisitedAtById[threadId] === unreadVisitedAt) {
     return state;
   }
@@ -566,7 +574,7 @@ interface UiStateStore extends UiState {
   syncProjects: (projects: readonly SyncProjectInput[]) => void;
   syncThreads: (threads: readonly SyncThreadInput[]) => void;
   markThreadVisited: (threadId: string, visitedAt?: string) => void;
-  markThreadUnread: (threadId: string, latestTurnCompletedAt: string | null | undefined) => void;
+  markThreadUnread: (threadId: string, latestReadableAt: string | null | undefined) => void;
   clearThreadUi: (threadId: string) => void;
   setThreadChangedFilesExpanded: (threadId: string, turnId: string, expanded: boolean) => void;
   toggleProject: (projectId: string) => void;
@@ -583,8 +591,8 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
   syncThreads: (threads) => set((state) => syncThreads(state, threads)),
   markThreadVisited: (threadId, visitedAt) =>
     set((state) => markThreadVisited(state, threadId, visitedAt)),
-  markThreadUnread: (threadId, latestTurnCompletedAt) =>
-    set((state) => markThreadUnread(state, threadId, latestTurnCompletedAt)),
+  markThreadUnread: (threadId, latestReadableAt) =>
+    set((state) => markThreadUnread(state, threadId, latestReadableAt)),
   clearThreadUi: (threadId) => set((state) => clearThreadUi(state, threadId)),
   setThreadChangedFilesExpanded: (threadId, turnId, expanded) =>
     set((state) => setThreadChangedFilesExpanded(state, threadId, turnId, expanded)),

@@ -245,7 +245,6 @@ export function projectEvent(
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             archivedAt: payload.archivedAt,
-            updatedAt: payload.updatedAt,
           }),
         })),
       );
@@ -256,7 +255,6 @@ export function projectEvent(
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             archivedAt: null,
-            updatedAt: payload.updatedAt,
           }),
         })),
       );

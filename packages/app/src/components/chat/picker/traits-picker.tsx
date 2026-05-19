@@ -8,6 +8,7 @@ import {
 import {
   applyClaudePromptEffortPrefix,
   buildProviderOptionSelectionsFromDescriptors,
+  getProviderOptionCurrentLabel,
 } from "@multi/shared/model";
 import { memo, useCallback, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
@@ -25,9 +26,7 @@ import {
 } from "@multi/ui/menu";
 import { useComposerDraftStore, DraftId } from "../../../stores/chat-drafts";
 import {
-  getProviderBooleanTraitSectionLabel,
   getProviderSelectTraitValue,
-  getProviderTraitsTriggerLabel,
   resolveProviderTraitsState,
   type ProviderTraitsScope,
 } from "../../../model/provider-state";
@@ -48,8 +47,39 @@ type TraitsPersistence =
 
 const ULTRATHINK_PROMPT_PREFIX = "Ultrathink:\n";
 
+type ProviderBooleanDescriptor = Extract<ProviderOptionDescriptor, { type: "boolean" }>;
+
+function getProviderBooleanTraitSectionLabel(descriptor: ProviderBooleanDescriptor): string {
+  return descriptor.id === "fastMode" ? "Fast" : descriptor.label;
+}
+
+function getProviderTraitsTriggerLabel(
+  state: ReturnType<typeof resolveProviderTraitsState>,
+): string {
+  return (
+    state.descriptors
+      .map((descriptor) => {
+        if (
+          state.ultrathinkPromptControlled &&
+          descriptor.id === state.primarySelectDescriptor?.id
+        ) {
+          return "Ultrathink";
+        }
+        if (descriptor.type === "boolean") {
+          if (descriptor.id === "fastMode") {
+            return descriptor.currentValue === true ? "Fast" : "Normal";
+          }
+          return `${descriptor.label} ${descriptor.currentValue === true ? "On" : "Off"}`;
+        }
+        return getProviderOptionCurrentLabel(descriptor);
+      })
+      .filter((label): label is string => typeof label === "string" && label.length > 0)
+      .join(" · ") || ""
+  );
+}
+
 function WorkbenchBooleanTraitMenuGroup(props: {
-  descriptor: Extract<ProviderOptionDescriptor, { type: "boolean" }>;
+  descriptor: ProviderBooleanDescriptor;
   descriptors: ReadonlyArray<ProviderOptionDescriptor>;
   updateDescriptors: (nextDescriptors: ReadonlyArray<ProviderOptionDescriptor>) => void;
 }) {

@@ -26,6 +26,7 @@ import {
 import { memo, type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
+import { toastManager } from "~/app/toast";
 import ChatMarkdown from "~/components/chat/markdown/chat-markdown";
 import { readEnvironmentApi } from "~/environment-api";
 import { cn } from "~/lib/utils";
@@ -198,6 +199,45 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
   );
 });
 
+function readRecordField(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
+}
+
+function readNonEmptyStringField(value: unknown, key: string): string | null {
+  const field = readRecordField(value, key);
+  return typeof field === "string" && field.trim().length > 0 ? field.trim() : null;
+}
+
+function formatProjectWriteErrorDescription(error: unknown): string {
+  const message =
+    readNonEmptyStringField(error, "message") ??
+    (error instanceof Error && error.message.trim().length > 0 ? error.message.trim() : null);
+  const cause = readRecordField(error, "cause");
+  const detail = readNonEmptyStringField(cause, "detail");
+  const operation = readNonEmptyStringField(cause, "operation");
+  const cwd = readNonEmptyStringField(cause, "cwd");
+  const relativePath = readNonEmptyStringField(cause, "relativePath");
+  const lines = [message ?? "An error occurred."];
+
+  if (detail && detail !== message) {
+    lines.push(detail);
+  }
+  if (operation) {
+    lines.push(`Operation: ${operation}`);
+  }
+  if (cwd) {
+    lines.push(`Project: ${cwd}`);
+  }
+  if (relativePath) {
+    lines.push(`Path: ${relativePath}`);
+  }
+
+  return lines.join("\n");
+}
+
 function PlanActions(props: {
   environmentId: EnvironmentId | null;
   markdownCwd: string | undefined;
@@ -210,6 +250,7 @@ function PlanActions(props: {
     buildProposedPlanMarkdownFilename(props.planMarkdown),
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const copyPlan = async (): Promise<void> => {
     if (!navigator.clipboard?.writeText) {
@@ -263,6 +304,7 @@ function PlanActions(props: {
     }
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       const result = await api.projects.writeFile({
         cwd: props.markdownCwd,
@@ -272,8 +314,12 @@ function PlanActions(props: {
       toast.success(`Saved ${result.relativePath}.`);
       setSaveDialogOpen(false);
     } catch (error) {
-      toast.error("Could not save plan.", {
-        description: error instanceof Error ? error.message : "An error occurred.",
+      const description = formatProjectWriteErrorDescription(error);
+      setSaveError(description);
+      toastManager.add({
+        type: "error",
+        title: "Could not save plan",
+        description,
       });
     } finally {
       setIsSaving(false);
@@ -299,14 +345,28 @@ function PlanActions(props: {
             <IconFileDownload className="size-3.5" aria-hidden />
             <span>Download markdown</span>
           </MenuItem>
-          <MenuItem variant="workbench" onClick={() => setSaveDialogOpen(true)}>
+          <MenuItem
+            variant="workbench"
+            onClick={() => {
+              setSaveError(null);
+              setSaveDialogOpen(true);
+            }}
+          >
             <IconFileText className="size-3.5" aria-hidden />
             <span>Save to project</span>
           </MenuItem>
         </MenuPopup>
       </Menu>
 
-      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+      <Dialog
+        open={saveDialogOpen}
+        onOpenChange={(open) => {
+          setSaveDialogOpen(open);
+          if (!open) {
+            setSaveError(null);
+          }
+        }}
+      >
         <DialogPopup className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save plan</DialogTitle>
@@ -321,10 +381,22 @@ function PlanActions(props: {
                 <Input
                   autoFocus
                   value={relativePath}
-                  onChange={(event) => setRelativePath(event.target.value)}
+                  onChange={(event) => {
+                    setRelativePath(event.target.value);
+                    setSaveError(null);
+                  }}
                   placeholder="docs/plan.md"
                 />
               </label>
+              {saveError ? (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2 text-detail text-destructive"
+                >
+                  <p className="font-medium">Could not save plan.</p>
+                  <p className="whitespace-pre-wrap text-destructive/85">{saveError}</p>
+                </div>
+              ) : null}
             </form>
           </DialogPanel>
           <DialogFooter>

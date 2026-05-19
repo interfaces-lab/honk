@@ -299,6 +299,53 @@ describe("AcpSessionRuntime", () => {
     );
   });
 
+  it.effect("keeps requested config values current when ACP echoes stale config options", () => {
+    const requestEvents: Array<AcpSessionRequestLogEvent> = [];
+    return Effect.gen(function* () {
+      const runtime = yield* AcpSessionRuntime;
+      yield* runtime.start();
+
+      yield* runtime.setModel("composer-2");
+      yield* runtime.setModel("composer-2");
+
+      const setModelRequests = requestEvents.filter(
+        (event) => {
+          const payload = event.payload;
+          return (
+            event.method === "session/set_config_option" &&
+            event.status === "started" &&
+            typeof payload === "object" &&
+            payload !== null &&
+            "configId" in payload &&
+            payload.configId === "model"
+          );
+        },
+      );
+      expect(setModelRequests).toHaveLength(1);
+    }).pipe(
+      Effect.provide(
+        AcpSessionRuntime.layer({
+          authMethodId: "test",
+          spawn: {
+            command: bunExe,
+            args: [mockAgentPath],
+            env: {
+              T3_ACP_STALE_SET_CONFIG_OPTION_RESPONSE: "1",
+            },
+          },
+          cwd: process.cwd(),
+          clientInfo: { name: "t3-test", version: "0.0.0" },
+          requestLogger: (event) =>
+            Effect.sync(() => {
+              requestEvents.push(event);
+            }),
+        }),
+      ),
+      Effect.scoped,
+      Effect.provide(NodeServices.layer),
+    );
+  });
+
   it.effect("sets ACP session mode through session/set_mode", () => {
     const requestEvents: Array<AcpSessionRequestLogEvent> = [];
     return Effect.gen(function* () {

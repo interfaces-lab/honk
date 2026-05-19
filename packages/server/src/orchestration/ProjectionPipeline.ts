@@ -482,7 +482,6 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
             archivedAt: event.payload.archivedAt,
-            updatedAt: event.payload.updatedAt,
           });
           return;
         }
@@ -497,7 +496,6 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
             archivedAt: null,
-            updatedAt: event.payload.updatedAt,
           });
           return;
         }

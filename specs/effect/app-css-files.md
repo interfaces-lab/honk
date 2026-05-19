@@ -15,6 +15,7 @@ Current count:
 - [x] `10` app CSS files are tracked.
 - [x] No non-ignored untracked CSS files were found.
 - [x] No `agent-panel` selector was found.
+- [x] No `agent-window__layout` selector was found.
 - [x] `agent-window*` selectors are current shell layout selectors.
 
 ## Canonical CSS Boundaries
@@ -63,10 +64,10 @@ styling.
       buckets for new work.
 - [x] Use Tailwind utilities on elements or existing `cva` variants for
       component-local styling.
-- [ ] Add CSS selectors only for global renderer integration, generated content,
+- [x] Add CSS selectors only for global renderer integration, generated content,
       shell/workbench geometry, test selectors, or stable third-party host slots.
-- [ ] Put reusable tokens in `tokens.css`, not component CSS.
-- [ ] Keep feature CSS files small and renderer-owned.
+- [x] Put reusable tokens in `tokens.css`, not component CSS.
+- [x] Keep feature CSS files small and renderer-owned.
 
 ## Composer And Menu Styling Notes
 
@@ -75,7 +76,7 @@ The active one-off-looking hooks are in TSX, not CSS files.
 - [x] `packages/app/src/components/chat/composer/slash-menu.tsx` no longer
       contains `ui-slash-menu__*`, `mentions-menu__content`, or `ui-menu__*`
       class hooks.
-- [ ] Do not delete `prompt-segments.ts` or `prompt-triggers.ts` as styling
+- [x] Do not delete `prompt-segments.ts` or `prompt-triggers.ts` as styling
       cleanup; they are active behavior helpers used by composer, slash menu, and
       chat view.
 - [x] Replace unowned menu class hooks only when the slash menu component is
@@ -88,4 +89,4 @@ The active one-off-looking hooks are in TSX, not CSS files.
 - [ ] Shell geometry is verified in browser when `shell.css` changes.
 - [ ] Composer overflow and row containment are verified in browser when
       composer styling changes.
-- [ ] No new feature CSS file is added without a renderer/global-token reason.
+- [x] No new feature CSS file is added without a renderer/global-token reason.

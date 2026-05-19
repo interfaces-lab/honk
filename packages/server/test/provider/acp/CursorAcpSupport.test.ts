@@ -1,10 +1,11 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import type * as EffectAcpSchema from "effect-acp/schema";
 import { describe, expect, it } from "vitest";
 
 import {
   applyCursorAcpModelSelection,
   buildCursorAcpSpawnInput,
+  type CursorAcpModelSelectionErrorContext,
 } from "../../../src/provider/acp/CursorAcpSupport.ts";
 
 const parameterizedGpt54ConfigOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> = [
@@ -52,6 +53,69 @@ const parameterizedGpt54ConfigOptions: ReadonlyArray<EffectAcpSchema.SessionConf
     ],
   },
 ];
+
+const modelOnlyConfigOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> = [
+  {
+    id: "mode",
+    name: "Mode",
+    category: "mode",
+    type: "select",
+    currentValue: "agent",
+    options: [{ value: "agent", name: "Agent" }],
+  },
+  {
+    id: "model",
+    name: "Model",
+    category: "model",
+    type: "select",
+    currentValue: "kimi-k2.5",
+    options: [
+      { value: "composer-2.5", name: "Composer 2.5" },
+      { value: "kimi-k2.5", name: "Kimi K2.5" },
+    ],
+  },
+];
+
+class CursorAcpModelSelectionTestError extends Schema.TaggedErrorClass<CursorAcpModelSelectionTestError>()(
+  "CursorAcpModelSelectionTestError",
+  {
+    step: Schema.Union([Schema.Literal("set-config-option"), Schema.Literal("set-model")]),
+    method: Schema.Union([
+      Schema.Literal("session/set_config_option"),
+      Schema.Literal("session/set_model"),
+    ]),
+    configId: Schema.optional(Schema.String),
+    detail: Schema.String,
+    cause: Schema.Defect,
+  },
+) {
+  override get message(): string {
+    if (this.configId) {
+      return `${this.method} failed for ${this.configId}: ${this.detail}`;
+    }
+    return `${this.method} failed: ${this.detail}`;
+  }
+}
+
+const mapCursorAcpModelSelectionTestError = (
+  context: CursorAcpModelSelectionErrorContext,
+): CursorAcpModelSelectionTestError => {
+  if (context.step === "set-config-option") {
+    return new CursorAcpModelSelectionTestError({
+      step: context.step,
+      method: context.method,
+      configId: context.configId,
+      detail: context.cause.message,
+      cause: context.cause,
+    });
+  }
+  return new CursorAcpModelSelectionTestError({
+    step: context.step,
+    method: context.method,
+    detail: context.cause.message,
+    cause: context.cause,
+  });
+};
 
 describe("buildCursorAcpSpawnInput", () => {
   it("builds the default Cursor ACP command", () => {
@@ -107,12 +171,7 @@ describe("applyCursorAcpModelSelection", () => {
           { id: "contextWindow", value: "1m" },
           { id: "fastMode", value: true },
         ],
-        mapError: ({ step, configId, cause }) =>
-          new Error(
-            step === "set-config-option"
-              ? `failed to set config option ${configId}: ${cause.message}`
-              : `failed to set model: ${cause.message}`,
-          ),
+        mapError: mapCursorAcpModelSelectionTestError,
       }),
     );
 
@@ -122,5 +181,39 @@ describe("applyCursorAcpModelSelection", () => {
       { type: "config", configId: "context", value: "1m" },
       { type: "config", configId: "fast", value: "true" },
     ]);
+  });
+
+  it("does not send stale option selections when Cursor exposes no matching config option", async () => {
+    const calls: Array<
+      | { readonly type: "model"; readonly value: string }
+      | { readonly type: "config"; readonly configId: string; readonly value: string | boolean }
+    > = [];
+
+    const runtime = {
+      getConfigOptions: Effect.succeed(modelOnlyConfigOptions),
+      setModel: (value: string) =>
+        Effect.sync(() => {
+          calls.push({ type: "model", value });
+        }),
+      setConfigOption: (configId: string, value: string | boolean) =>
+        Effect.sync(() => {
+          calls.push({ type: "config", configId, value });
+        }),
+    };
+
+    await Effect.runPromise(
+      applyCursorAcpModelSelection({
+        runtime,
+        model: "kimi-k2.5",
+        selections: [
+          { id: "reasoning", value: "high" },
+          { id: "thinking", value: true },
+          { id: "fastMode", value: true },
+        ],
+        mapError: mapCursorAcpModelSelectionTestError,
+      }),
+    );
+
+    expect(calls).toEqual([{ type: "model", value: "kimi-k2.5" }]);
   });
 });

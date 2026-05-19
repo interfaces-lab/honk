@@ -219,6 +219,7 @@ function buildOpenCodeProvider(models: ServerProvider["models"]): ServerProvider
   return {
     driver: ProviderDriverKind.make("opencode"),
     instanceId: ProviderInstanceId.make("opencode"),
+    displayName: "OpenCode",
     enabled: true,
     installed: true,
     version: "1.0.0",

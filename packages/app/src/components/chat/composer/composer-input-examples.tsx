@@ -10,7 +10,7 @@ import {
   IconSparklesThree,
   IconSquareChecklist,
 } from "central-icons";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 
 import { ComposerPromptEditor } from "./prompt-editor";
 import { collapseExpandedComposerCursor } from "./prompt-triggers";
@@ -183,7 +183,7 @@ function CursorInputFooter(props: {
   showImageAttach?: boolean;
 }) {
   return (
-    <motion-reduce-friendly className="flex items-center justify-between gap-2 border-t border-multi-stroke-quaternary px-3 py-2">
+    <div className="flex items-center justify-between gap-2 border-t border-multi-stroke-quaternary px-3 py-2">
       <CursorModelSelector label={props.modelLabel} />
       <div className="flex shrink-0 items-center gap-1">
         {props.showImageAttach ? (
@@ -197,7 +197,7 @@ function CursorInputFooter(props: {
         ) : null}
         <CursorSendButton disabled={!props.canSend} />
       </div>
-    </motion-reduce-friendly>
+    </div>
   );
 }
 
@@ -243,7 +243,7 @@ function CursorContextRow() {
 
 function CursorSuggestionChips() {
   return (
-    <motion-reduce-friendly className="space-y-2.5">
+    <div className="space-y-2.5">
       <Text render={<p />} size="sm" tone="tertiary" className="text-center">
         Try these examples to get started
       </Text>
@@ -262,7 +262,7 @@ function CursorSuggestionChips() {
           );
         })}
       </div>
-    </motion-reduce-friendly>
+    </div>
   );
 }
 
@@ -289,7 +289,7 @@ function CursorModelTabs(props: { activeModel: (typeof CURSOR_MODEL_TABS)[number
           </button>
         );
       })}
-    </motion-reduce-friendly>
+    </div>
   );
 }
 
@@ -318,7 +318,9 @@ function CursorHeroCard(props: {
       <CursorInputFooter
         modelLabel={props.modelLabel}
         canSend={prompt.trim().length > 0}
-        showImageAttach={props.showImageAttach}
+        {...(props.showImageAttach === undefined
+          ? {}
+          : { showImageAttach: props.showImageAttach })}
       />
     </div>
   );
@@ -376,7 +378,7 @@ function CursorExamplePreview(props: { spec: CursorExampleSpec }) {
           />
           <CursorContextRow />
           <CursorSuggestionChips />
-        </motion-reduce-friendly>
+        </div>
       );
     case "thread-follow-up":
       return (
@@ -431,7 +433,7 @@ export function ComposerInputExamplesPage() {
 function ComposerInputExamplesGallery() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-multi-editor">
-      <motion-reduce-friendly className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
         <header className="space-y-2">
           <Text render={<h1 />} size="xl" tone="primary" weight="medium">
             Chat input examples (Cursor)
@@ -461,7 +463,7 @@ function ComposerInputExamplesGallery() {
             <CursorExampleCard key={spec.id} spec={spec} />
           ))}
         </div>
-      </motion-reduce-friendly>
+      </div>
     </div>
   );
 }

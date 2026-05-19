@@ -792,7 +792,7 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
 }) {
   if (props.pendingAction) {
     return (
-      <div className={cn("flex items-center justify-end", props.compact ? "gap-1.5" : "gap-2")}>
+      <div className={cn("flex items-center justify-end", props.compact ? "gap-1" : "gap-2")}>
         {props.pendingAction.questionIndex > 0 ? (
           props.compact ? (
             <Button
@@ -820,7 +820,7 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
         <Button
           type="button"
           size="sm"
-          className={cn("rounded-full", props.compact ? "px-3" : "px-4")}
+          className={cn("rounded-full", props.compact ? "px-2.5" : "px-4")}
           onClick={props.onAdvancePendingQuestion}
           disabled={
             props.pendingAction.isResponding ||

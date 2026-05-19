@@ -1,9 +1,11 @@
-import type { GitStatusRemoteResult, GitStatusResult } from "@multi/contracts";
+import type { GitBranch, GitStatusRemoteResult, GitStatusResult } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
   applyGitStatusStreamEvent,
   buildTemporaryWorktreeBranchName,
+  dedupeRemoteBranchesWithLocalMatches,
+  deriveLocalBranchNameFromRemoteRef,
   isTemporaryWorktreeBranch,
   normalizeGitRemoteUrl,
   parseGitHubRepositoryNameWithOwnerFromRemoteUrl,
@@ -68,6 +70,129 @@ describe("isTemporaryWorktreeBranch", () => {
     expect(isTemporaryWorktreeBranch(`${WORKTREE_BRANCH_PREFIX}/feature/demo`)).toBe(false);
     expect(isTemporaryWorktreeBranch("main")).toBe(false);
     expect(isTemporaryWorktreeBranch(`${WORKTREE_BRANCH_PREFIX}/deadbeef-extra`)).toBe(false);
+  });
+});
+
+describe("deriveLocalBranchNameFromRemoteRef", () => {
+  it("strips the remote prefix from a remote ref", () => {
+    expect(deriveLocalBranchNameFromRemoteRef("origin/feature/demo")).toBe("feature/demo");
+  });
+
+  it("supports remote names that contain slashes", () => {
+    expect(deriveLocalBranchNameFromRemoteRef("my-org/upstream/feature/demo")).toBe(
+      "upstream/feature/demo",
+    );
+  });
+
+  it("returns the original name when ref is malformed", () => {
+    expect(deriveLocalBranchNameFromRemoteRef("origin/")).toBe("origin/");
+    expect(deriveLocalBranchNameFromRemoteRef("/feature/demo")).toBe("/feature/demo");
+  });
+});
+
+describe("dedupeRemoteBranchesWithLocalMatches", () => {
+  it("hides remote refs when the matching local branch exists", () => {
+    const input: GitBranch[] = [
+      {
+        name: "feature/demo",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+      {
+        name: "origin/feature/demo",
+        isRemote: true,
+        remoteName: "origin",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+      {
+        name: "origin/feature/remote-only",
+        isRemote: true,
+        remoteName: "origin",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+    ];
+
+    expect(dedupeRemoteBranchesWithLocalMatches(input).map((branch) => branch.name)).toEqual([
+      "feature/demo",
+      "origin/feature/remote-only",
+    ]);
+  });
+
+  it("keeps all entries when no local match exists for a remote ref", () => {
+    const input: GitBranch[] = [
+      {
+        name: "feature/local",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+      {
+        name: "origin/feature/remote-only",
+        isRemote: true,
+        remoteName: "origin",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+    ];
+
+    expect(dedupeRemoteBranchesWithLocalMatches(input).map((branch) => branch.name)).toEqual([
+      "feature/local",
+      "origin/feature/remote-only",
+    ]);
+  });
+
+  it("keeps non-origin remote refs visible even when a matching local branch exists", () => {
+    const input: GitBranch[] = [
+      {
+        name: "feature/demo",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+      {
+        name: "my-org/upstream/feature/demo",
+        isRemote: true,
+        remoteName: "my-org/upstream",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+    ];
+
+    expect(dedupeRemoteBranchesWithLocalMatches(input).map((branch) => branch.name)).toEqual([
+      "feature/demo",
+      "my-org/upstream/feature/demo",
+    ]);
+  });
+
+  it("keeps non-origin remote refs visible when git tracks with first-slash local naming", () => {
+    const input: GitBranch[] = [
+      {
+        name: "upstream/feature",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+      {
+        name: "my-org/upstream/feature",
+        isRemote: true,
+        remoteName: "my-org/upstream",
+        current: false,
+        isDefault: false,
+        worktreePath: null,
+      },
+    ];
+
+    expect(dedupeRemoteBranchesWithLocalMatches(input).map((branch) => branch.name)).toEqual([
+      "upstream/feature",
+      "my-org/upstream/feature",
+    ]);
   });
 });
 

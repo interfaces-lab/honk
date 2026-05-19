@@ -1,5 +1,6 @@
 "use client";
 import { IconChevronLeftMedium, IconChevronRightMedium, IconClipboard } from "central-icons";
+import type { GitFilePatchResult } from "@multi/contracts";
 import {
   type KeyboardEvent,
   type MouseEvent,
@@ -10,7 +11,6 @@ import { toast } from "sonner";
 
 import { PretextOneLine } from "~/components/pretext-one-line";
 import type { DiffRow } from "~/hooks/use-environment-git";
-import type { GitPatchData } from "~/lib/native-git-react-query";
 import { cn } from "~/lib/utils";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
@@ -29,7 +29,7 @@ export function GitDiffCard(props: {
   selected: boolean;
   expanded: boolean;
   onExpandedChange: (open: boolean) => void;
-  patch: GitPatchData | null;
+  patch: GitFilePatchResult | null;
   loaded: boolean;
   loading: boolean;
   error: string | null;

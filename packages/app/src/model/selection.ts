@@ -16,9 +16,7 @@ import { UnifiedSettings } from "@multi/contracts/settings";
 import { sortModelsForProviderInstance } from "./ordering";
 import {
   type ProviderInstanceEntry,
-  deriveProviderInstanceEntriesForSettings,
-  resolveProviderDriverKindForInstanceSelection,
-  sortProviderInstanceEntries,
+  resolveProviderInstanceEntriesForSettings,
 } from "./provider-instances";
 import { getComposerProviderState } from "./provider-state";
 
@@ -521,11 +519,8 @@ function resolveAppProviderModelRequest(input: {
     null;
   const explicitSelectedInstanceId = input.draft?.activeProvider ?? threadProvider;
   const selectedProvider =
-    resolveProviderDriverKindForInstanceSelection(
-      input.providerInstanceEntries,
-      input.providers,
-      explicitSelectedInstanceId,
-    ) ?? DEFAULT_TEXT_GENERATION_DRIVER_KIND;
+    input.providerInstanceEntries.find((entry) => entry.instanceId === explicitSelectedInstanceId)
+      ?.driverKind ?? DEFAULT_TEXT_GENERATION_DRIVER_KIND;
   const selectedInstanceId = resolveSelectedInstanceId({
     providerInstanceEntries: input.providerInstanceEntries,
     selectedProvider,
@@ -569,8 +564,9 @@ export function resolveAppProviderModelState(input: {
   readonly threadModelSelection?: ModelSelection | null | undefined;
   readonly projectModelSelection?: ModelSelection | null | undefined;
 }): AppProviderModelState {
-  const providerInstanceEntries = sortProviderInstanceEntries(
-    deriveProviderInstanceEntriesForSettings(input.settings, input.providers),
+  const providerInstanceEntries = resolveProviderInstanceEntriesForSettings(
+    input.settings,
+    input.providers,
   );
   const request = resolveAppProviderModelRequest({
     settings: input.settings,

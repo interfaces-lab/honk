@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "~/lib/utils";
 
 export const workbenchIconButtonVariants = cva(
-  "no-drag ui-icon-button box-border flex shrink-0 items-center justify-center rounded-multi-control border-0 px-(--multi-workbench-chrome-icon-padding-x) text-multi-icon-secondary shadow-none outline-hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:text-multi-fg-quaternary/45 disabled:hover:bg-transparent disabled:hover:text-multi-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
+  "no-drag ui-icon-button box-border flex shrink-0 select-none items-center justify-center rounded-multi-control border-0 px-(--multi-workbench-chrome-icon-padding-x) text-multi-icon-secondary shadow-none outline-hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:text-multi-fg-quaternary/45 disabled:hover:bg-transparent disabled:hover:text-multi-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
   {
     variants: {
       active: {
@@ -37,7 +37,7 @@ type WorkbenchIconButtonChrome = NonNullable<
 >;
 
 const workbenchTextButtonVariants = cva(
-  "no-drag box-border inline-flex h-(--multi-workbench-action-size) min-w-0 shrink-0 items-center justify-center gap-1 truncate rounded-multi-control border-0 px-1.5 text-body font-medium outline-hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:pointer-events-none disabled:text-multi-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
+  "no-drag box-border inline-flex h-(--multi-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-1 truncate rounded-multi-control border-0 px-1.5 text-body font-medium outline-hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:pointer-events-none disabled:text-multi-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
   {
     variants: {
       tone: {

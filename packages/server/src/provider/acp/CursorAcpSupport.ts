@@ -25,11 +25,18 @@ export interface CursorAcpRuntimeInput extends Omit<
   readonly cursorSettings: CursorAcpRuntimeCursorSettings | null | undefined;
 }
 
-export interface CursorAcpModelSelectionErrorContext {
-  readonly cause: EffectAcpErrors.AcpError;
-  readonly step: "set-config-option" | "set-model";
-  readonly configId?: string;
-}
+export type CursorAcpModelSelectionErrorContext =
+  | {
+      readonly cause: EffectAcpErrors.AcpError;
+      readonly method: "session/set_model";
+      readonly step: "set-model";
+    }
+  | {
+      readonly cause: EffectAcpErrors.AcpError;
+      readonly configId: string;
+      readonly method: "session/set_config_option";
+      readonly step: "set-config-option";
+    };
 
 export function buildCursorAcpSpawnInput(
   cursorSettings: CursorAcpRuntimeCursorSettings | null | undefined,
@@ -84,6 +91,7 @@ export function applyCursorAcpModelSelection<E>(input: {
       Effect.mapError((cause) =>
         input.mapError({
           cause,
+          method: "session/set_model",
           step: "set-model",
         }),
       ),
@@ -98,8 +106,9 @@ export function applyCursorAcpModelSelection<E>(input: {
         Effect.mapError((cause) =>
           input.mapError({
             cause,
-            step: "set-config-option",
             configId: update.configId,
+            method: "session/set_config_option",
+            step: "set-config-option",
           }),
         ),
       );

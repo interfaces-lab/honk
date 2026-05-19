@@ -151,9 +151,7 @@ body {
 
 .multi-shell-titlebar-right-toggle {
   right: var(--multi-shell-titlebar-gutter);
-  top: calc(
-    (var(--multi-workbench-chrome-row-height) - var(--multi-shell-titlebar-control-size)) / 2
-  );
+  top: var(--multi-shell-titlebar-control-y);
 }
 
 .multi-workbench-titlebar-end-space {
@@ -276,7 +274,7 @@ body {
 }
 
 @container (max-width: 900px) {
-  .agent-window__workbench {
+  .agent-window:not([data-shell-right-intent="expanded"]) .agent-window__workbench {
     width: var(--multi-shell-right-workbench-collapsed-width);
     min-width: 0;
     pointer-events: none;

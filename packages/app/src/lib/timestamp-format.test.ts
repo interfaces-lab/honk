@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  formatCompactRelativeTimeLabel,
   formatElapsedDurationLabel,
   formatExpiresInLabel,
   formatRelativeTimeUntilLabel,
@@ -58,6 +59,28 @@ describe("formatRelativeTimeUntilLabel", () => {
 
   it("formats hours remaining", () => {
     expect(formatRelativeTimeUntilLabel("2026-04-07T18:00:00.000Z")).toBe("6h left");
+  });
+});
+
+describe("formatCompactRelativeTimeLabel", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-07T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns now for current or future instants", () => {
+    expect(formatCompactRelativeTimeLabel("2026-04-07T12:00:00.000Z")).toBe("now");
+    expect(formatCompactRelativeTimeLabel("2026-04-07T12:01:00.000Z")).toBe("now");
+  });
+
+  it("formats minutes, hours, and days without an ago suffix", () => {
+    expect(formatCompactRelativeTimeLabel("2026-04-07T11:45:00.000Z")).toBe("15m");
+    expect(formatCompactRelativeTimeLabel("2026-04-07T06:00:00.000Z")).toBe("6h");
+    expect(formatCompactRelativeTimeLabel("2026-04-03T12:00:00.000Z")).toBe("4d");
   });
 });
 

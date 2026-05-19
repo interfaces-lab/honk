@@ -129,6 +129,7 @@ describe("orchestration projector", () => {
   it("applies thread.archived and thread.unarchived events", async () => {
     const now = new Date().toISOString();
     const later = new Date(Date.parse(now) + 1_000).toISOString();
+    const latest = new Date(Date.parse(now) + 2_000).toISOString();
     const created = await Effect.runPromise(
       projectEvent(
         createEmptyReadModel(now),
@@ -177,6 +178,7 @@ describe("orchestration projector", () => {
       ),
     );
     expect(archived.threads[0]?.archivedAt).toBe(later);
+    expect(archived.threads[0]?.updatedAt).toBe(now);
 
     const unarchived = await Effect.runPromise(
       projectEvent(
@@ -190,12 +192,13 @@ describe("orchestration projector", () => {
           commandId: "cmd-thread-unarchive",
           payload: {
             threadId: "thread-1",
-            updatedAt: later,
+            updatedAt: latest,
           },
         }),
       ),
     );
     expect(unarchived.threads[0]?.archivedAt).toBeNull();
+    expect(unarchived.threads[0]?.updatedAt).toBe(now);
   });
 
   it("ignores unhandled event types", async () => {

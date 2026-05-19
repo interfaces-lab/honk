@@ -11,8 +11,8 @@ foundation.
 - [x] Codex/OpenAI: supported through the Codex app-server provider and adapter.
 - [x] Claude: supported through the Claude provider and adapter.
 - [x] OpenCode: supported through the OpenCode server/SDK provider and adapter.
-- [~] Cursor: supported through Cursor Agent ACP over stdio.
-- [ ] Pi: visible only as an unsupported pending provider. It must not route
+- [x] Cursor: supported through Cursor Agent ACP over stdio.
+- [x] Pi: visible only as an unsupported pending provider. It must not route
       sessions until a real provider contract and adapter exist.
 
 No other hosted provider, ACP registry provider, or placeholder provider should
@@ -35,8 +35,8 @@ appear in settings, picker rails, or built-in server registries.
 - [x] `codex`
 - [x] `claudeAgent`
 - [x] `opencode`
-- [~] `cursor`
-- [ ] `pi` as pending only
+- [x] `cursor`
+- [x] `pi` as pending only
 
 Driver keys are persisted identifiers. UI labels may say `Claude` or `Pi`, but
 server routing uses the exact driver key above.
@@ -51,15 +51,29 @@ server routing uses the exact driver key above.
 - [x] Sessions: mode/config state comes from ACP setup responses and updates.
 - [x] Model switching: set the base model through ACP and apply model option
       config updates.
+- [x] Model option capabilities: `null` capabilities mean a Cursor model has
+      not been probed yet; an empty descriptor list means Cursor exposed no
+      supported options for that model.
+- [x] Cursor thinking/reasoning controls are shown and sent only when the
+      selected model's current ACP config options expose the matching option.
+      Refreshed empty capabilities must not inherit stale descriptors from a
+      previous provider snapshot.
+- [x] Cursor model-selection errors preserve the failed step:
+      `session/set_model` for base model selection and
+      `session/set_config_option` for model option updates.
+- [x] After a successful `session/set_config_option`, Multi records the
+      requested value as the local current value. Cursor can echo stale
+      `configOptions.currentValue` in the response even after accepting the
+      write, and Multi must not repeatedly resend the same model/config update.
 - [x] Extension events: Cursor plan/todo/question extension messages are mapped
       into Multi plan and pending-user-input events.
 
 ## Done Means
 
-- [ ] `packages/contracts` exposes model capability schema without
+- [x] `packages/contracts` exposes model capability schema without
       provider-specific model defaults.
-- [ ] Built-in server registries include only Codex/OpenAI, Claude, OpenCode,
+- [x] Built-in server registries include only Codex/OpenAI, Claude, OpenCode,
       and Cursor.
-- [ ] Renderer provider settings and model picker include only supported
+- [x] Renderer provider settings and model picker include only supported
       providers plus Pi pending.
-- [ ] Typecheck passes after the provider rewrite.
+- [x] Typecheck passes after the provider rewrite.

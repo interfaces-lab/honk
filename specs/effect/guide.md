@@ -238,9 +238,9 @@ UI cleanup must preserve the product surface, not private helper files.
 
 Rules:
 
-- [ ] Sidebar behavior is covered at multiple viewport sizes.
-- [ ] Composer single-line/multi-line transitions are covered as UI behavior.
-- [ ] Plan workbench actions are covered in browser tests.
+- [x] Sidebar behavior is covered at multiple viewport sizes.
+- [x] Composer single-line/multi-line transitions are covered as UI behavior.
+- [x] Plan workbench actions are covered in browser tests.
 - [ ] Helper tests are deleted or moved when the helper is deleted or inlined.
 
 Detailed rules: [usability-testing.md](./usability-testing.md).

@@ -9,7 +9,6 @@ import {
   useComposerDraftStore,
 } from "../stores/chat-drafts";
 import { newDraftId, newThreadId } from "../lib/utils";
-import { orderItemsByPreferredIds } from "../lib/thread-sidebar";
 import { findProjectByPath } from "../lib/project-paths";
 import { deriveLogicalProjectKey, getProjectOrderKey } from "../stores/project-identity";
 import { useServerConfig } from "../rpc/server-state";
@@ -17,6 +16,34 @@ import { selectProjectsAcrossEnvironments, useStore } from "../stores/thread-sto
 import { createThreadSelectorByRef } from "../stores/thread-selectors";
 import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
 import { useUiStateStore } from "../stores/ui-state-store";
+
+function orderItemsByPreferredIds<TItem, TId>(input: {
+  items: readonly TItem[];
+  preferredIds: readonly TId[];
+  getId: (item: TItem) => TId;
+}): TItem[] {
+  const { getId, items, preferredIds } = input;
+  if (preferredIds.length === 0) {
+    return [...items];
+  }
+
+  const itemsById = new Map(items.map((item) => [getId(item), item] as const));
+  const preferredIdSet = new Set(preferredIds);
+  const emittedPreferredIds = new Set<TId>();
+  const ordered = preferredIds.flatMap((id) => {
+    if (emittedPreferredIds.has(id)) {
+      return [];
+    }
+    const item = itemsById.get(id);
+    if (!item) {
+      return [];
+    }
+    emittedPreferredIds.add(id);
+    return [item];
+  });
+  const remaining = items.filter((item) => !preferredIdSet.has(getId(item)));
+  return [...ordered, ...remaining];
+}
 
 function useNewThreadState() {
   const projects = useStore(useShallow((store) => selectProjectsAcrossEnvironments(store)));

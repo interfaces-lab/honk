@@ -326,7 +326,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
       <Toast.Portal data-slot="toast-portal">
         <Toast.Viewport
           className={cn(
-            "fixed z-100 mx-auto flex w-auto max-w-90 [--toast-header-offset:52px] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
+            "fixed z-100 mx-auto flex w-[calc(100vw-(var(--toast-inset)*2))] max-w-[340px] [--toast-header-offset:52px] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
             // Vertical positioning
             "data-[position*=top]:top-[calc(var(--toast-inset)+var(--toast-header-offset))]",
             "data-[position*=bottom]:bottom-(--toast-inset)",
@@ -355,7 +355,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
             return (
               <Toast.Root
                 className={cn(
-                  "absolute z-[calc(9999-var(--toast-index))] h-(--toast-calc-height) w-full select-none rounded-lg border bg-popover not-dark:bg-clip-padding text-popover-foreground shadow-lg/5 [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+                  "absolute isolate z-[calc(9999-var(--toast-index))] box-border h-(--toast-calc-height) w-full select-none overflow-hidden rounded-[6px] border bg-popover not-dark:bg-clip-padding text-popover-foreground shadow-lg/5 [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s] before:pointer-events-none before:absolute before:inset-0 before:rounded-[5px] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
                   // Base positioning using data-position
                   "data-[position*=right]:right-0 data-[position*=right]:left-auto",
                   "data-[position*=left]:right-auto data-[position*=left]:left-0",
@@ -401,6 +401,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                   "data-expanded:data-ending-style:data-[swipe-direction=down]:transform-[translateY(calc(var(--toast-swipe-movement-y)+100%+var(--toast-inset)))]",
                 )}
                 data-position={position}
+                data-slot="toast-popup"
                 key={toast.id}
                 style={
                   {
@@ -427,6 +428,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                     hideCollapsedContent &&
                       "not-data-expanded:pointer-events-none not-data-expanded:opacity-0",
                   )}
+                  data-slot="toast-content"
                 >
                   <div className="flex min-w-0 flex-1 gap-2">
                     {Icon && (
@@ -531,7 +533,10 @@ function AnchoredToasts() {
                       <Toast.Title data-slot="toast-title" />
                     </Toast.Content>
                   ) : (
-                    <Toast.Content className="pointer-events-auto flex items-center justify-between gap-1.5 overflow-hidden px-3.5 py-3 text-sm">
+                    <Toast.Content
+                      className="pointer-events-auto flex items-center justify-between gap-1.5 overflow-hidden px-3.5 py-3 text-sm"
+                      data-slot="toast-content"
+                    >
                       <div className="flex min-w-0 flex-1 gap-2">
                         {Icon && (
                           <div

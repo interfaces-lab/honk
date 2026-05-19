@@ -161,57 +161,6 @@ export function resolveProviderTraitsState(input: ProviderTraitsStateInput): Pro
   };
 }
 
-export function getProviderBooleanTraitSectionLabel(descriptor: ProviderBooleanDescriptor): string {
-  return descriptor.id === "fastMode" ? "Fast" : descriptor.label;
-}
-
-export function getProviderTraitsTriggerLabel(state: ProviderTraitsState): string {
-  return (
-    state.descriptors
-      .map((descriptor) => {
-        if (
-          state.ultrathinkPromptControlled &&
-          descriptor.id === state.primarySelectDescriptor?.id
-        ) {
-          return "Ultrathink";
-        }
-        if (descriptor.type === "boolean") {
-          if (descriptor.id === "fastMode") {
-            return descriptor.currentValue === true ? "Fast" : "Normal";
-          }
-          return `${descriptor.label} ${descriptor.currentValue === true ? "On" : "Off"}`;
-        }
-        return getProviderOptionCurrentLabel(descriptor);
-      })
-      .filter((label): label is string => typeof label === "string" && label.length > 0)
-      .join(" · ") || ""
-  );
-}
-
-export function getProviderModelCapabilityLabels(model: ServerProviderModel): string[] {
-  const descriptors = model.capabilities?.optionDescriptors ?? [];
-  const labels: string[] = [];
-  if (descriptors.some((descriptor) => descriptor.id === "fastMode")) {
-    labels.push("Fast mode");
-  }
-  if (descriptors.some((descriptor) => descriptor.id === "thinking")) {
-    labels.push("Thinking");
-  }
-  if (
-    descriptors.some(
-      (descriptor) =>
-        descriptor.type === "select" &&
-        (descriptor.id === "reasoningEffort" ||
-          descriptor.id === "effort" ||
-          descriptor.id === "reasoning" ||
-          descriptor.id === "variant"),
-    )
-  ) {
-    labels.push("Reasoning");
-  }
-  return labels;
-}
-
 export function getComposerProviderState(input: ComposerProviderStateInput): ComposerProviderState {
   const { provider, model, models, prompt, modelOptions } = input;
   const caps = getProviderModelCapabilities(models, model, provider);

@@ -250,7 +250,7 @@ describe("OrchestrationEngine", () => {
   it("archives and unarchives threads through orchestration commands", async () => {
     const system = await createOrchestrationSystem();
     const { engine } = system;
-    const createdAt = now();
+    const createdAt = "2026-01-01T00:00:00.000Z";
 
     await system.run(
       engine.dispatch({
@@ -292,11 +292,11 @@ describe("OrchestrationEngine", () => {
         threadId: ThreadId.make("thread-archive"),
       }),
     );
-    expect(
-      (await system.run(engine.getReadModel())).threads.find(
-        (thread) => thread.id === "thread-archive",
-      )?.archivedAt,
-    ).not.toBeNull();
+    const archivedThread = (await system.run(engine.getReadModel())).threads.find(
+      (thread) => thread.id === "thread-archive",
+    );
+    expect(archivedThread?.archivedAt).not.toBeNull();
+    expect(archivedThread?.updatedAt).toBe(createdAt);
 
     await system.run(
       engine.dispatch({
@@ -305,11 +305,11 @@ describe("OrchestrationEngine", () => {
         threadId: ThreadId.make("thread-archive"),
       }),
     );
-    expect(
-      (await system.run(engine.getReadModel())).threads.find(
-        (thread) => thread.id === "thread-archive",
-      )?.archivedAt,
-    ).toBeNull();
+    const unarchivedThread = (await system.run(engine.getReadModel())).threads.find(
+      (thread) => thread.id === "thread-archive",
+    );
+    expect(unarchivedThread?.archivedAt).toBeNull();
+    expect(unarchivedThread?.updatedAt).toBe(createdAt);
 
     await system.dispose();
   });

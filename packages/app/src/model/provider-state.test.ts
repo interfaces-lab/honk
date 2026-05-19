@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ProviderDriverKind,
   ProviderOptionDescriptor,
   ProviderOptionSelection,
   ServerProviderModel,
@@ -165,6 +166,37 @@ describe("getComposerProviderState", () => {
 
     expect(state).toEqual({
       provider: PROVIDER,
+      promptEffort: null,
+      modelOptionsForDispatch: undefined,
+      ultrathinkActive: false,
+    });
+  });
+
+  it("does not render Cursor Composer controls from stale cached descriptors", () => {
+    const state = getComposerProviderState({
+      provider: ProviderDriverKind.make("cursor"),
+      model: "composer-2.5",
+      models: [
+        {
+          slug: "composer-2.5",
+          name: "Composer 2.5",
+          isCustom: false,
+          capabilities: {
+            optionDescriptors: [
+              selectDescriptor("reasoning", [
+                { id: "medium", label: "Medium", isDefault: true },
+              ]),
+              booleanDescriptor("fastMode"),
+            ],
+          },
+        },
+      ],
+      prompt: "",
+      modelOptions: selections(["reasoning", "medium"], ["fastMode", true]),
+    });
+
+    expect(state).toEqual({
+      provider: ProviderDriverKind.make("cursor"),
       promptEffort: null,
       modelOptionsForDispatch: undefined,
       ultrathinkActive: false,

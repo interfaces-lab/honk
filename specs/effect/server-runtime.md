@@ -35,6 +35,11 @@ Current facts:
       `packages/server/src/server-runtime.ts`.
 - [x] No service-local `makeRuntime(...)` facade callsites were found outside
       the central server runtime wrapper.
+- [x] Current non-central Effect callback bridges are real runtime-edge
+      adapters, not service-local runtimes: terminal PTY callbacks re-enter the
+      manager context with `Effect.runForkWith`, and Claude SDK permission /
+      stream callbacks re-enter the adapter session context with
+      `Effect.runForkWith` / `Effect.runPromiseWith`.
 - [x] `Effect.die` appears in five current server source locations:
       `terminal/BunPTY.ts`, `provider/ProviderService.ts`,
       `orchestration/ProviderCommandReactor.ts`, and
@@ -54,11 +59,11 @@ Rules:
 - [x] `makeRoutesLayer` owns HTTP/WebSocket route layer assembly.
 - [x] `ServerRuntime.make(...)` is the only current `ManagedRuntime.make`
       boundary.
-- [ ] Do not add service-local runtimes or exported async facades on top of
+- [x] Do not add service-local runtimes or exported async facades on top of
       services.
-- [ ] Non-Effect entrypoints should use the central runtime boundary or the
+- [x] Non-Effect entrypoints should use the central runtime boundary or the
       route runtime they are already hosted by.
-- [ ] If a service needs startup work, put it in the owning layer/startup
+- [x] If a service needs startup work, put it in the owning layer/startup
       service instead of exporting a `start()` facade from the service module.
 
 ## Service Shape
@@ -174,15 +179,15 @@ Observability duplication is the first concrete server/shared cleanup target.
 
 Rules:
 
-- [ ] `@multi/shared/observability` owns trace record formatting, trace sinks,
+- [x] `@multi/shared/observability` owns trace record formatting, trace sinks,
       local file tracing, and attribute compaction.
-- [ ] `packages/server/src/observability/Metrics.ts` keeps server-only metric
+- [x] `packages/server/src/observability/Metrics.ts` keeps server-only metric
       instruments and labels.
-- [ ] `packages/server/src/observability/Observability.ts` keeps server runtime
+- [x] `packages/server/src/observability/Observability.ts` keeps server runtime
       assembly.
-- [ ] `packages/server/src/observability/RpcInstrumentation.ts` keeps server
+- [x] `packages/server/src/observability/RpcInstrumentation.ts` keeps server
       RPC span boundaries.
-- [ ] Delete server duplicate trace files only after imports and focused
+- [x] Delete server duplicate trace files only after imports and focused
       observability tests point at shared.
 
 ## First Work Items
@@ -194,17 +199,17 @@ Rules:
 - [x] Classify the five current `Effect.die` callsites before editing them.
 - [x] Make shared observability canonical and remove server duplicate
       trace/sink/tracer files.
-- [ ] Re-run the runtime facade inventory before any service-shape cleanup:
+- [x] Re-run the runtime facade inventory before any service-shape cleanup:
       `rg -n "ManagedRuntime\.make|makeRuntime\(" packages/server/src packages/shared/src packages/contracts/src --glob '*.ts'`.
-- [ ] Keep `pnpm run typecheck` as the verifier for code changes.
+- [x] Keep `pnpm run typecheck` as the verifier for code changes.
 
 ## Done Means
 
-- [ ] No service-local runtime or async facade is introduced.
+- [x] No service-local runtime or async facade is introduced.
 - [ ] Any changed service method exposes expected failures in its Effect error
       type.
 - [ ] Any changed route maps expected service errors at the route/RPC boundary.
 - [ ] Generic middleware or catch-all translation does not grow new domain
       knowledge.
-- [ ] Server/shared observability has one canonical trace implementation.
-- [ ] `pnpm run typecheck` passes after code changes.
+- [x] Server/shared observability has one canonical trace implementation.
+- [x] `pnpm run typecheck` passes after code changes.

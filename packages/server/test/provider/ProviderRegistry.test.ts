@@ -389,7 +389,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         ]);
       });
 
-      it("fills missing capabilities from the previous provider snapshot", () => {
+      it("does not backfill stale capabilities onto refreshed models", () => {
         const previousProvider = {
           instanceId: "cursor",
           driver: "cursor",
@@ -434,7 +434,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         } satisfies ServerProvider;
 
         assert.deepStrictEqual(mergeProviderSnapshot(previousProvider, refreshedProvider).models, [
-          ...previousProvider.models,
+          ...refreshedProvider.models,
         ]);
       });
 

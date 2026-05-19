@@ -40,7 +40,7 @@ Rules:
       renderer through a clear app action handler, not an unhandled promise.
 - [ ] Error descriptions should keep structured details when transport errors
       provide them.
-- [ ] Copy buttons remain for detailed error descriptions unless the callsite
+- [x] Copy buttons remain for detailed error descriptions unless the callsite
       opts out.
 
 ## `.logic.ts` Classification
@@ -72,7 +72,7 @@ Target:
 - [x] Delete `toast.logic.test.ts` after replacing helper assertions with a
       toast/browser behavior suite.
 - [x] Cover thread-scoped filtering through rendered toasts, not helper exports.
-- [ ] Add rendered coverage for visible stacking.
+- [x] Add rendered coverage for visible stacking.
 
 ## Toast Behavior Coverage Needed
 
@@ -81,22 +81,30 @@ Before deleting the helper test, keep or add behavior coverage for:
 - [x] A toast scoped to the active thread is visible.
 - [x] A toast scoped to another environment/thread is hidden.
 - [x] Global toasts remain visible without thread scope.
-- [ ] Multiple visible toasts keep the front-most toast readable in a collapsed
+- [x] Global action toasts render as fixed rounded blocks with action buttons
+      contained inside the toast surface.
+- [x] Multiple visible toasts keep the front-most toast readable in a collapsed
       stack.
-- [ ] Error toast descriptions can be copied.
-- [ ] Visible-only auto-dismiss pauses while document is hidden or unfocused.
+- [x] Error toast descriptions can be copied.
+- [x] Visible-only auto-dismiss pauses while document is hidden or unfocused.
 
 ## Error Rendering Follow-Up
 
 The toast renderer is the final UI surface; error normalization should happen
 before the toast is created.
 
-- [ ] Add a small structured error formatter only if at least two action
+- [x] Add a small structured error formatter only if at least two action
       handlers need the same contract/error extraction.
-- [ ] Do not add a universal unknown-error registry.
-- [ ] Keep one-off fallback messages at the triggering action handler.
+- [x] Do not add a universal unknown-error registry.
+- [x] Keep one-off fallback messages at the triggering action handler.
 - [ ] Preserve copyable details for Git, provider, project, terminal, and
       schema-backed transport errors.
+
+Current decision:
+
+- [x] No shared toast formatter is needed yet. The repeated structured
+      transport case is already handled by `packages/app/src/rpc/transport-error.ts`;
+      current action toasts use local fallback copy at the triggering handler.
 
 ## Done Means
 

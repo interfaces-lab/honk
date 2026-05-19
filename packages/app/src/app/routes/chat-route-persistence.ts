@@ -1,9 +1,22 @@
-import type { EnvironmentId, ThreadId } from "@multi/contracts";
+import { ScopedThreadRef } from "@multi/contracts";
+import { Option, Schema } from "effect";
 
-import type { DraftId } from "~/stores/chat-drafts";
+import { DraftId } from "~/stores/chat-drafts";
 import type { ThreadRouteTarget } from "./thread-route-targets";
 
 const LAST_CHAT_ROUTE_KEY = "multi:last-chat-route";
+
+const LastChatRouteTargetSchema = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("server"),
+    threadRef: ScopedThreadRef,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("draft"),
+    draftId: DraftId,
+  }),
+]);
+const decodeLastChatRouteTargetOption = Schema.decodeUnknownOption(LastChatRouteTargetSchema);
 
 export function readLastChatRouteTarget(): ThreadRouteTarget | null {
   if (typeof window === "undefined") {
@@ -16,35 +29,7 @@ export function readLastChatRouteTarget(): ThreadRouteTarget | null {
   }
 
   try {
-    const candidate = JSON.parse(raw) as Partial<Record<string, unknown>> | null;
-    if (!candidate || typeof candidate !== "object") {
-      return null;
-    }
-
-    if (candidate.kind === "draft" && typeof candidate.draftId === "string") {
-      return { kind: "draft", draftId: candidate.draftId as DraftId };
-    }
-
-    if (candidate.kind !== "server" || typeof candidate.threadRef !== "object") {
-      return null;
-    }
-
-    const threadRef = candidate.threadRef as Partial<Record<string, unknown>> | null;
-    if (
-      !threadRef ||
-      typeof threadRef.environmentId !== "string" ||
-      typeof threadRef.threadId !== "string"
-    ) {
-      return null;
-    }
-
-    return {
-      kind: "server",
-      threadRef: {
-        environmentId: threadRef.environmentId as EnvironmentId,
-        threadId: threadRef.threadId as ThreadId,
-      },
-    };
+    return Option.getOrNull(decodeLastChatRouteTargetOption(JSON.parse(raw)));
   } catch {
     return null;
   }

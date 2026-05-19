@@ -248,7 +248,7 @@ Current cleanup evidence:
       `pnpm exec vitest run test/terminal/KeyedCoalescingWorker.test.ts`.
 - [x] The retained thread title trim/truncate behavior passed from
       `packages/app` with
-      `pnpm exec vitest run --config vitest.browser.config.ts src/components/chat/view/chat-view.browser.tsx -t "keeps new-worktree mode on empty server threads and bootstraps the first send"`.
+      `pnpm exec vitest run --config vitest.browser.config.ts src/components/chat/view/chat-view.browser.tsx -t "does not render branch controls on server thread mode"`.
 - [x] `pnpm run typecheck` passed after the shared export removals.
 - [x] Strict oxlint passed with warnings denied, and `git diff --check` is clean.
 - [x] Server observability imports now point at `@multi/shared/observability`;

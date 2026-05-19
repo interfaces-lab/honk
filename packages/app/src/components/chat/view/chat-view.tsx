@@ -154,11 +154,6 @@ import {
   type InlineEditSubmitInput,
 } from "./inline-message-edit-composer";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
-import {
-  resolveBranchSelectionTarget,
-  resolveDraftEnvModeAfterBranchChange,
-  resolveEffectiveEnvMode,
-} from "../../../lib/branch-toolbar-logic";
 import { gitCheckoutMutationOptions } from "../../../lib/git-react-query";
 import { ThreadErrorBanner } from "../message/error-banner";
 import {
@@ -586,41 +581,6 @@ function ThreadDraftResetSync({
   return null;
 }
 
-function PendingServerThreadEnvResetSync({
-  setPendingServerThreadBranch,
-  setPendingServerThreadEnvMode,
-}: {
-  setPendingServerThreadBranch: Dispatch<SetStateAction<string | null | undefined>>;
-  setPendingServerThreadEnvMode: Dispatch<SetStateAction<DraftThreadEnvMode | null>>;
-}) {
-  useMountEffect(() => {
-    setPendingServerThreadEnvMode(null);
-    setPendingServerThreadBranch(undefined);
-  });
-
-  return null;
-}
-
-function PendingServerThreadEnvCapabilitySync({
-  canOverrideServerThreadEnvMode,
-  setPendingServerThreadBranch,
-  setPendingServerThreadEnvMode,
-}: {
-  canOverrideServerThreadEnvMode: boolean;
-  setPendingServerThreadBranch: Dispatch<SetStateAction<string | null | undefined>>;
-  setPendingServerThreadEnvMode: Dispatch<SetStateAction<DraftThreadEnvMode | null>>;
-}) {
-  useMountEffect(() => {
-    if (canOverrideServerThreadEnvMode) {
-      return;
-    }
-    setPendingServerThreadEnvMode(null);
-    setPendingServerThreadBranch(undefined);
-  });
-
-  return null;
-}
-
 function TerminalLaunchActiveThreadSync({
   activeThreadId,
   routeThreadRef,
@@ -1012,9 +972,6 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalLaunchContext, setTerminalLaunchContext] = useState<TerminalLaunchContext | null>(
     null,
   );
-  const [pendingServerThreadEnvMode, setPendingServerThreadEnvMode] =
-    useState<DraftThreadEnvMode | null>(null);
-  const [pendingServerThreadBranch, setPendingServerThreadBranch] = useState<string | null>();
   const [lastInvokedScriptByProjectId, setLastInvokedScriptByProjectId] = useLocalStorage(
     LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
     {},
@@ -1583,12 +1540,6 @@ export default function ChatView(props: ChatViewProps) {
     });
   }, [diffOpen, environmentId, isServerThread, navigate, openGitWorkbench, threadId]);
 
-  const envLocked = Boolean(
-    activeThread &&
-    (activeThread.messages.length > 0 ||
-      (activeThread.session !== null && activeThread.session.status !== "closed")),
-  );
-
   const activeTerminalGroup =
     terminalState.terminalGroups.find(
       (group) => group.id === terminalState.activeTerminalGroupId,
@@ -2053,39 +2004,27 @@ export default function ChatView(props: ChatViewProps) {
   }, []);
 
   const activeWorktreePath = activeThread?.worktreePath ?? null;
-  const derivedEnvMode: DraftThreadEnvMode = resolveEffectiveEnvMode({
-    activeWorktreePath,
-    hasServerThread: isServerThread,
-    draftThreadEnvMode: isLocalDraftThread ? draftThread?.envMode : undefined,
-  });
-  const canOverrideServerThreadEnvMode = Boolean(
-    isServerThread &&
-    activeThread &&
-    activeThread.messages.length === 0 &&
-    activeThread.worktreePath === null &&
-    !envLocked,
-  );
-  const envMode: DraftThreadEnvMode = canOverrideServerThreadEnvMode
-    ? (pendingServerThreadEnvMode ?? draftThread?.envMode ?? derivedEnvMode)
-    : derivedEnvMode;
-  const activeThreadBranch =
-    canOverrideServerThreadEnvMode && pendingServerThreadBranch !== undefined
-      ? pendingServerThreadBranch
-      : (activeThread?.branch ?? null);
+  const envMode: DraftThreadEnvMode = isServerThread
+    ? activeWorktreePath
+      ? "worktree"
+      : "local"
+    : activeWorktreePath
+      ? "local"
+      : isLocalDraftThread && draftThread?.envMode === "worktree"
+        ? "worktree"
+        : "local";
+  const activeThreadBranch = activeThread?.branch ?? null;
   const currentGitBranch = gitStatusQuery.data?.branch ?? null;
   const sendEnvMode = resolveSendEnvMode({
     requestedEnvMode: envMode,
     isGitRepo,
   });
+  const showBranchToolbar =
+    isLocalDraftThread && activeProjectCwd !== null && activeThreadWorktreePath === null;
 
   const handleBranchEnvModeChange = useCallback(
     (mode: DraftThreadEnvMode, branch: string | null) => {
       const nextBranch = mode === "worktree" ? (branch ?? activeThreadBranch) : activeThreadBranch;
-      if (canOverrideServerThreadEnvMode) {
-        setPendingServerThreadEnvMode(mode);
-        setPendingServerThreadBranch(nextBranch);
-        return;
-      }
       if (!isLocalDraftThread || !draftId) {
         return;
       }
@@ -2098,7 +2037,6 @@ export default function ChatView(props: ChatViewProps) {
     [
       activeThreadBranch,
       activeThreadWorktreePath,
-      canOverrideServerThreadEnvMode,
       draftId,
       isLocalDraftThread,
       setDraftThreadContext,
@@ -2110,19 +2048,17 @@ export default function ChatView(props: ChatViewProps) {
       if (!activeProjectCwd) {
         return;
       }
-      const target = resolveBranchSelectionTarget({
-        activeProjectCwd,
-        activeWorktreePath,
-        branch,
-      });
-      const nextEnvMode = resolveDraftEnvModeAfterBranchChange({
-        nextWorktreePath: target.nextWorktreePath,
-        currentWorktreePath: activeWorktreePath,
-        effectiveEnvMode: envMode,
-      });
+      const reuseExistingWorktree = Boolean(branch.worktreePath);
+      const nextWorktreePath =
+        branch.worktreePath && branch.worktreePath !== activeProjectCwd ? branch.worktreePath : null;
+      const nextEnvMode: DraftThreadEnvMode = nextWorktreePath
+        ? "worktree"
+        : envMode === "worktree"
+          ? "worktree"
+          : "local";
 
       try {
-        if (nextEnvMode === "local" && !target.reuseExistingWorktree) {
+        if (nextEnvMode === "local" && !reuseExistingWorktree) {
           await checkoutBranchMutation.mutateAsync(branch.name);
         }
       } catch (error) {
@@ -2134,24 +2070,16 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
-      if (canOverrideServerThreadEnvMode) {
-        setPendingServerThreadEnvMode(nextEnvMode);
-        setPendingServerThreadBranch(branch.name);
-        return;
-      }
-
       if (isLocalDraftThread && draftId) {
         setDraftThreadContext(draftId, {
           branch: branch.name,
-          worktreePath: target.nextWorktreePath,
+          worktreePath: nextWorktreePath,
           envMode: nextEnvMode,
         });
       }
     },
     [
       activeProjectCwd,
-      activeWorktreePath,
-      canOverrideServerThreadEnvMode,
       checkoutBranchMutation,
       draftId,
       envMode,
@@ -2915,30 +2843,12 @@ export default function ChatView(props: ChatViewProps) {
     async (requestId: ApprovalRequestId, answers: Record<string, unknown>) => {
       const api = readEnvironmentApi(environmentId);
       if (!api || !activeThreadId) {
-        const details = {
-          environmentId,
-          activeThreadId,
-          requestId,
-          hasApi: Boolean(api),
-          answerKeys: Object.keys(answers),
-          answers,
-        };
-        console.warn("[pending-user-input] respond blocked: missing context", details);
         return;
       }
 
-      const details = {
-        environmentId,
-        threadId: activeThreadId,
-        requestId,
-        answerKeys: Object.keys(answers),
-        answers,
-      };
-      console.info("[pending-user-input] dispatching response", details);
       setRespondingUserInputRequestIds((existing) =>
         existing.includes(requestId) ? existing : [...existing, requestId],
       );
-      let failed = false;
       await api.orchestration
         .dispatchCommand({
           type: "thread.user-input.respond",
@@ -2949,22 +2859,12 @@ export default function ChatView(props: ChatViewProps) {
           createdAt: new Date().toISOString(),
         })
         .catch((err: unknown) => {
-          failed = true;
-          const failureDetails = {
-            ...details,
-            error: err,
-          };
-          console.error("[pending-user-input] response dispatch failed", failureDetails);
           setThreadError(
             activeThreadId,
             err instanceof Error ? err.message : "Failed to submit user input.",
           );
         });
       setRespondingUserInputRequestIds((existing) => existing.filter((id) => id !== requestId));
-      console.info("[pending-user-input] response dispatch finished", {
-        ...details,
-        failed,
-      });
     },
     [activeThreadId, environmentId, setThreadError],
   );
@@ -2985,7 +2885,6 @@ export default function ChatView(props: ChatViewProps) {
   const onAdvanceActivePendingUserInput = useCallback(
     (draftAnswersOverride?: Record<string, PendingUserInputDraftAnswer>) => {
       if (!activePendingUserInput) {
-        console.warn("[pending-user-input] advance blocked: no active input");
         return;
       }
 
@@ -2995,25 +2894,8 @@ export default function ChatView(props: ChatViewProps) {
         draftAnswers,
         activePendingQuestionIndex,
       );
-      const details = {
-        requestId: activePendingUserInput.requestId,
-        questionIndex: progress.questionIndex,
-        questionCount: activePendingUserInput.questions.length,
-        activeQuestionId: progress.activeQuestion?.id ?? null,
-        canAdvance: progress.canAdvance,
-        isLastQuestion: progress.isLastQuestion,
-        isComplete: progress.isComplete,
-        answeredQuestionCount: progress.answeredQuestionCount,
-        selectedOptionLabels: progress.selectedOptionLabels,
-        usingCustomAnswer: progress.usingCustomAnswer,
-        hasOverride: draftAnswersOverride !== undefined,
-        draftAnswerKeys: Object.keys(draftAnswers),
-        draftAnswers,
-      };
-      console.info("[pending-user-input] advance requested", details);
 
       if (!progress.canAdvance) {
-        console.warn("[pending-user-input] advance blocked: cannot advance", details);
         return;
       }
       if (progress.isLastQuestion) {
@@ -3021,23 +2903,12 @@ export default function ChatView(props: ChatViewProps) {
           activePendingUserInput.questions,
           draftAnswers,
         );
-        console.info("[pending-user-input] resolving final answer", {
-          ...details,
-          resolvedAnswerKeys: resolvedAnswers ? Object.keys(resolvedAnswers) : [],
-          resolvedAnswers,
-        });
         if (resolvedAnswers) {
           void onRespondToUserInput(activePendingUserInput.requestId, resolvedAnswers);
-        } else {
-          console.warn("[pending-user-input] final answer build returned null", details);
         }
         return;
       }
 
-      console.info("[pending-user-input] moving to next question", {
-        ...details,
-        nextQuestionIndex: progress.questionIndex + 1,
-      });
       setActivePendingUserInputQuestionIndex(progress.questionIndex + 1);
     },
     [
@@ -3052,23 +2923,10 @@ export default function ChatView(props: ChatViewProps) {
   const onSelectActivePendingUserInputOption = useCallback(
     (questionId: string, optionLabel: string, advanceAfterSelect = false) => {
       if (!activePendingUserInput) {
-        console.warn("[pending-user-input] option ignored: no active input", {
-          questionId,
-          optionLabel,
-          advanceAfterSelect,
-        });
         return;
       }
       const question = activePendingUserInput.questions.find((entry) => entry.id === questionId);
       if (!question) {
-        const details = {
-          requestId: activePendingUserInput.requestId,
-          questionId,
-          optionLabel,
-          advanceAfterSelect,
-          knownQuestionIds: activePendingUserInput.questions.map((entry) => entry.id),
-        };
-        console.warn("[pending-user-input] option ignored: unknown question", details);
         return;
       }
 
@@ -3082,18 +2940,6 @@ export default function ChatView(props: ChatViewProps) {
           optionLabel,
         ),
       };
-      const details = {
-        requestId: activePendingUserInput.requestId,
-        questionId,
-        optionLabel,
-        multiSelect: question.multiSelect,
-        advanceAfterSelect,
-        previousDraftAnswer: requestDraftAnswers[questionId],
-        nextDraftAnswer: nextRequestDraftAnswers[questionId],
-        nextDraftAnswerKeys: Object.keys(nextRequestDraftAnswers),
-      };
-      console.info("[pending-user-input] option stored", details);
-
       setPendingUserInputAnswersByRequestId((existing) => {
         return {
           ...existing,
@@ -3527,17 +3373,6 @@ export default function ChatView(props: ChatViewProps) {
         setExpandedImage={setExpandedImage}
         setOptimisticUserMessages={setOptimisticUserMessages}
       />
-      <PendingServerThreadEnvResetSync
-        key={`pending-env:${activeThread?.id ?? ""}`}
-        setPendingServerThreadBranch={setPendingServerThreadBranch}
-        setPendingServerThreadEnvMode={setPendingServerThreadEnvMode}
-      />
-      <PendingServerThreadEnvCapabilitySync
-        key={`pending-env-capability:${canOverrideServerThreadEnvMode}`}
-        canOverrideServerThreadEnvMode={canOverrideServerThreadEnvMode}
-        setPendingServerThreadBranch={setPendingServerThreadBranch}
-        setPendingServerThreadEnvMode={setPendingServerThreadEnvMode}
-      />
       <TerminalLaunchActiveThreadSync
         key={[
           activeThreadId ?? "",
@@ -3644,6 +3479,7 @@ export default function ChatView(props: ChatViewProps) {
           "agent-window-chat-header drag-region box-border flex h-(--multi-workbench-chrome-row-height) select-none items-start px-3 pt-(--multi-titlebar-control-row-top)",
           isElectron &&
             cn(
+              reserveTitleBarControlInset && "pr-(--multi-shell-right-workbench-header-end-space)",
               reserveTitleBarControlInset &&
                 "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
             ),
@@ -3750,24 +3586,22 @@ export default function ChatView(props: ChatViewProps) {
             {...(isConnecting ? { "data-disabled": "true" } : {})}
             {...(showScrollToBottom ? {} : { "data-scrolled-to-bottom": "" })}
           >
-            <BranchToolbar
-              environmentId={environmentId}
-              cwd={gitCwd}
-              envMode={envMode}
-              activeWorktreePath={activeWorktreePath}
-              activeThreadBranch={activeThreadBranch}
-              currentGitBranch={currentGitBranch}
-              isGitRepo={isGitRepo}
-              canChangeEnvMode={
-                Boolean(activeProjectCwd) &&
-                (canOverrideServerThreadEnvMode ||
-                  (isLocalDraftThread && activeThreadWorktreePath === null))
-              }
-              disabled={isConnecting || isSendBusy}
-              onEnvModeChange={handleBranchEnvModeChange}
-              onBranchSelect={handleBranchSelect}
-              onCheckoutPullRequest={openPullRequestBranchDialog}
-            />
+            {showBranchToolbar ? (
+              <BranchToolbar
+                environmentId={environmentId}
+                cwd={gitCwd}
+                envMode={envMode}
+                activeWorktreePath={activeWorktreePath}
+                activeThreadBranch={activeThreadBranch}
+                currentGitBranch={currentGitBranch}
+                isGitRepo={isGitRepo}
+                canChangeEnvMode={true}
+                disabled={isConnecting || isSendBusy}
+                onEnvModeChange={handleBranchEnvModeChange}
+                onBranchSelect={handleBranchSelect}
+                onCheckoutPullRequest={openPullRequestBranchDialog}
+              />
+            ) : null}
             <ComposerInput
               ref={composerRef}
               variant={isHeroComposer ? "hero" : "dock"}

@@ -1,4 +1,4 @@
-import { EnvironmentId, ThreadId, TurnId } from "@multi/contracts";
+import { EnvironmentId, ThreadId, TurnId, type EnvironmentApi } from "@multi/contracts";
 import "../../../index.css";
 
 import { page } from "vitest/browser";
@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import type { ActivePlanState, LatestProposedPlanState } from "../../../session-logic";
+import {
+  __resetEnvironmentApiOverridesForTests,
+  __setEnvironmentApiOverrideForTests,
+} from "../../../environment-api";
 import { PlanWorkbenchPanel } from "./plan-workbench-panel";
 
 const createdAt = "2026-05-15T12:00:00.000Z";
@@ -35,8 +39,58 @@ function proposedPlan(): LatestProposedPlanState {
   };
 }
 
+async function unexpectedEnvironmentApiCall(): Promise<never> {
+  throw new Error("Unexpected environment API call.");
+}
+
+function createProjectWriteApi(writeFile: EnvironmentApi["projects"]["writeFile"]): EnvironmentApi {
+  return {
+    terminal: {
+      open: unexpectedEnvironmentApiCall,
+      write: unexpectedEnvironmentApiCall,
+      resize: unexpectedEnvironmentApiCall,
+      clear: unexpectedEnvironmentApiCall,
+      restart: unexpectedEnvironmentApiCall,
+      close: unexpectedEnvironmentApiCall,
+      onEvent: () => () => undefined,
+    },
+    projects: {
+      listDirectory: unexpectedEnvironmentApiCall,
+      readFile: unexpectedEnvironmentApiCall,
+      searchEntries: unexpectedEnvironmentApiCall,
+      writeFile,
+    },
+    filesystem: {
+      browse: unexpectedEnvironmentApiCall,
+    },
+    git: {
+      listBranches: unexpectedEnvironmentApiCall,
+      createWorktree: unexpectedEnvironmentApiCall,
+      removeWorktree: unexpectedEnvironmentApiCall,
+      createBranch: unexpectedEnvironmentApiCall,
+      checkout: unexpectedEnvironmentApiCall,
+      init: unexpectedEnvironmentApiCall,
+      resolvePullRequest: unexpectedEnvironmentApiCall,
+      preparePullRequestThread: unexpectedEnvironmentApiCall,
+      pull: unexpectedEnvironmentApiCall,
+      discardPaths: unexpectedEnvironmentApiCall,
+      getFilePatch: unexpectedEnvironmentApiCall,
+      refreshStatus: unexpectedEnvironmentApiCall,
+      onStatus: () => () => undefined,
+    },
+    orchestration: {
+      dispatchCommand: unexpectedEnvironmentApiCall,
+      getTurnDiff: unexpectedEnvironmentApiCall,
+      getFullThreadDiff: unexpectedEnvironmentApiCall,
+      subscribeShell: () => () => undefined,
+      subscribeThread: () => () => undefined,
+    },
+  };
+}
+
 describe("PlanWorkbenchPanel", () => {
   afterEach(() => {
+    __resetEnvironmentApiOverridesForTests();
     document.body.innerHTML = "";
   });
 
@@ -64,5 +118,100 @@ describe("PlanWorkbenchPanel", () => {
     });
 
     await screen.unmount();
+  });
+
+  it("renders proposed-plan actions and build controls", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const onImplementPlan = vi.fn();
+
+    const screen = await render(
+      <PlanWorkbenchPanel
+        activePlan={activePlan()}
+        activeProposedPlan={proposedPlan()}
+        environmentId={EnvironmentId.make("local")}
+        label="Plan"
+        markdownCwd="/tmp/project"
+        timestampFormat="24-hour"
+        canImplementPlan
+        onImplementPlan={onImplementPlan}
+      />,
+      { container: host },
+    );
+
+    try {
+      await page.getByTitle("Build plan").click();
+      expect(onImplementPlan).toHaveBeenCalledOnce();
+
+      await page.getByRole("button", { name: "Plan actions" }).click();
+      await expect.element(page.getByText("Copy markdown")).toBeVisible();
+      await expect.element(page.getByText("Download markdown")).toBeVisible();
+
+      await page.getByText("Save to project").click();
+      await expect.element(page.getByText("Save plan")).toBeVisible();
+      await expect.element(page.getByText("Enter a path relative to /tmp/project.")).toBeVisible();
+      await expect.element(page.getByPlaceholder("docs/plan.md")).toHaveValue("proposed-plan.md");
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("renders structured project write errors when saving a proposed plan", async () => {
+    const environmentId = EnvironmentId.make("local");
+    const writeFile = vi.fn<EnvironmentApi["projects"]["writeFile"]>(async () => {
+      throw {
+        _tag: "ProjectWriteFileError",
+        message: "Project file path must stay within the project root.",
+        cause: {
+          operation: "projectFileSystem.writeFile",
+          cwd: "/tmp/project",
+          relativePath: "../secret.md",
+          detail: "Resolved path escapes /tmp/project.",
+        },
+      };
+    });
+    __setEnvironmentApiOverrideForTests(environmentId, createProjectWriteApi(writeFile));
+
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const screen = await render(
+      <PlanWorkbenchPanel
+        activePlan={activePlan()}
+        activeProposedPlan={proposedPlan()}
+        environmentId={environmentId}
+        label="Plan"
+        markdownCwd="/tmp/project"
+        timestampFormat="24-hour"
+      />,
+      { container: host },
+    );
+
+    try {
+      await page.getByRole("button", { name: "Plan actions" }).click();
+      await page.getByText("Save to project").click();
+      await page.getByPlaceholder("docs/plan.md").fill("../secret.md");
+      await page.getByRole("button", { name: "Save" }).click();
+
+      await vi.waitFor(async () => {
+        await expect.element(page.getByRole("alert")).toBeVisible();
+        await expect
+          .element(page.getByText("Project file path must stay within the project root."))
+          .toBeVisible();
+        await expect.element(page.getByText("Resolved path escapes /tmp/project.")).toBeVisible();
+        await expect
+          .element(page.getByText("Operation: projectFileSystem.writeFile"))
+          .toBeVisible();
+        await expect.element(page.getByText("Project: /tmp/project")).toBeVisible();
+        await expect.element(page.getByText("Path: ../secret.md")).toBeVisible();
+      });
+      expect(writeFile).toHaveBeenCalledWith({
+        cwd: "/tmp/project",
+        relativePath: "../secret.md",
+        contents: "# Proposed Plan\n\n1. Keep tasks visible.\n2. Render markdown.\n",
+      });
+    } finally {
+      await screen.unmount();
+    }
   });
 });

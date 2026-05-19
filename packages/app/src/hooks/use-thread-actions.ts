@@ -5,15 +5,16 @@ import {
   scopeThreadRef,
 } from "@multi/client-runtime";
 import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@multi/contracts";
+import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useRef } from "react";
 
-import { getFallbackThreadIdAfterDelete } from "../lib/thread-sidebar";
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { useNewThreadHandler } from "./use-handle-new-thread";
 import { ensureEnvironmentApi, readEnvironmentApi } from "../environment-api";
 import { invalidateGitQueries } from "../lib/git-react-query";
+import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
 import { newCommandId } from "../lib/utils";
 import { readLocalApi } from "../local-api";
 import {
@@ -34,6 +35,110 @@ import {
 } from "../git/worktree-cleanup";
 import { toastManager } from "~/app/toast";
 import { useSettings } from "./use-settings";
+import type { Thread } from "../types";
+
+function getFallbackThreadIdAfterDelete<
+  T extends Pick<Thread, "id" | "projectId" | "createdAt" | "updatedAt"> & ThreadSortInput,
+>(input: {
+  threads: readonly T[];
+  deletedThreadId: T["id"];
+  sortOrder: SidebarThreadSortOrder;
+  deletedThreadIds?: ReadonlySet<T["id"]>;
+}): T["id"] | null {
+  const { deletedThreadId, deletedThreadIds, sortOrder, threads } = input;
+  const deletedThread = threads.find((thread) => thread.id === deletedThreadId);
+  if (!deletedThread) {
+    return null;
+  }
+
+  return (
+    sortThreads(
+      threads.filter(
+        (thread) =>
+          thread.projectId === deletedThread.projectId &&
+          thread.id !== deletedThreadId &&
+          !deletedThreadIds?.has(thread.id),
+      ),
+      sortOrder,
+    )[0]?.id ?? null
+  );
+}
+
+type ArchiveToastItem = {
+  threadRef: ScopedThreadRef;
+  title: string | null;
+};
+
+type ArchiveToastId = ReturnType<typeof toastManager.add>;
+
+const archiveToastBatchWindowMs = 2_000;
+let archiveToastId: ArchiveToastId | null = null;
+let archiveToastItems: ArchiveToastItem[] = [];
+let archiveToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function formatArchiveToastTitle(items: readonly ArchiveToastItem[]): string {
+  if (items.length === 1) {
+    const title = items[0]?.title?.trim();
+    return title ? `Archived "${title}"` : "Archived agent";
+  }
+  return `Archived ${items.length} threads`;
+}
+
+function resetArchiveToastBatch(): void {
+  archiveToastId = null;
+  archiveToastItems = [];
+  if (archiveToastTimer) {
+    clearTimeout(archiveToastTimer);
+    archiveToastTimer = null;
+  }
+}
+
+function enqueueArchiveUndoToast(
+  items: readonly ArchiveToastItem[],
+  undoArchiveThreads: (targets: readonly ScopedThreadRef[]) => void,
+): void {
+  if (items.length === 0) {
+    return;
+  }
+
+  const itemByKey = new Map(
+    archiveToastItems.map((item) => [scopedThreadKey(item.threadRef), item] as const),
+  );
+  for (const item of items) {
+    itemByKey.set(scopedThreadKey(item.threadRef), item);
+  }
+  archiveToastItems = [...itemByKey.values()];
+  const toastItems = [...archiveToastItems];
+  const undoTargets = toastItems.map((item) => item.threadRef);
+  const toastPayload = {
+    type: "success" as const,
+    title: formatArchiveToastTitle(toastItems),
+    actionProps: {
+      children: toastItems.length === 1 ? "Undo" : "Undo all",
+      onClick: () => {
+        if (archiveToastId) {
+          toastManager.close(archiveToastId);
+        }
+        resetArchiveToastBatch();
+        undoArchiveThreads(undoTargets);
+      },
+    },
+    data: {
+      dismissAfterVisibleMs: 8_000,
+    },
+  };
+
+  if (archiveToastId) {
+    toastManager.update(archiveToastId, toastPayload);
+  } else {
+    archiveToastId = toastManager.add(toastPayload);
+  }
+
+  if (archiveToastTimer) {
+    clearTimeout(archiveToastTimer);
+  }
+  archiveToastTimer = setTimeout(resetArchiveToastBatch, archiveToastBatchWindowMs);
+}
 
 export function useThreadActions() {
   const sidebarThreadSortOrder = useSettings((settings) => settings.sidebarThreadSortOrder);
@@ -98,6 +203,31 @@ export function useThreadActions() {
     [],
   );
 
+  const unarchiveThread = useCallback(async (target: ScopedThreadRef) => {
+    const api = readEnvironmentApi(target.environmentId);
+    if (!api) return;
+    await api.orchestration.dispatchCommand({
+      type: "thread.unarchive",
+      commandId: newCommandId(),
+      threadId: target.threadId,
+    });
+  }, []);
+
+  const undoArchiveThreads = useCallback(
+    (targets: readonly ScopedThreadRef[]) => {
+      for (const target of targets) {
+        void unarchiveThread(target).catch((error) => {
+          toastManager.add({
+            type: "error",
+            title: "Failed to restore archived agent",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          });
+        });
+      }
+    },
+    [unarchiveThread],
+  );
+
   const archiveThread = useCallback(
     async (target: ScopedThreadRef) => {
       const api = readEnvironmentApi(target.environmentId);
@@ -111,6 +241,10 @@ export function useThreadActions() {
         commandId: newCommandId(),
         threadId: threadRef.threadId,
       });
+      enqueueArchiveUndoToast(
+        [{ threadRef, title: thread.title }],
+        undoArchiveThreads,
+      );
       const currentRouteThreadRef = getCurrentRouteThreadRef();
 
       if (
@@ -124,7 +258,7 @@ export function useThreadActions() {
         await handleNewThreadRef.current(scopeProjectRef(thread.environmentId, thread.projectId));
       }
     },
-    [getCurrentRouteThreadRef, resolveThreadTarget, router],
+    [getCurrentRouteThreadRef, resolveThreadTarget, router, undoArchiveThreads],
   );
 
   const archiveThreads = useCallback(
@@ -183,6 +317,7 @@ export function useThreadActions() {
           ? scopeThreadRef(currentRouteThreadRef.environmentId, fallbackThreadId)
           : null;
 
+      const archivedToastItems: ArchiveToastItem[] = [];
       for (const target of archiveTargets) {
         const api = readEnvironmentApi(target.environmentId);
         if (!api) {
@@ -193,7 +328,13 @@ export function useThreadActions() {
           commandId: newCommandId(),
           threadId: target.threadId,
         });
+        const thread = selectThreadByRef(state, target);
+        archivedToastItems.push({
+          threadRef: target,
+          title: thread?.title ?? null,
+        });
       }
+      enqueueArchiveUndoToast(archivedToastItems, undoArchiveThreads);
 
       if (!shouldNavigateToFallback) {
         return;
@@ -215,7 +356,7 @@ export function useThreadActions() {
 
       await router.navigate({ to: "/", replace: true });
     },
-    [getCurrentRouteThreadRef, router, sidebarThreadSortOrder],
+    [getCurrentRouteThreadRef, router, sidebarThreadSortOrder, undoArchiveThreads],
   );
 
   const removeProjectFromSidebar = useCallback(
@@ -269,16 +410,6 @@ export function useThreadActions() {
     },
     [getCurrentRouteTarget, router],
   );
-
-  const unarchiveThread = useCallback(async (target: ScopedThreadRef) => {
-    const api = readEnvironmentApi(target.environmentId);
-    if (!api) return;
-    await api.orchestration.dispatchCommand({
-      type: "thread.unarchive",
-      commandId: newCommandId(),
-      threadId: target.threadId,
-    });
-  }, []);
 
   const deleteThread = useCallback(
     async (target: ScopedThreadRef, opts: { deletedThreadKeys?: ReadonlySet<string> } = {}) => {

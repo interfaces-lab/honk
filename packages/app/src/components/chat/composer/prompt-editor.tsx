@@ -551,11 +551,7 @@ function emitMeasuredMultiline(
   const contentHeight = range.getBoundingClientRect().height;
   range.detach();
   const value = promptTextFromDoc(editor.state.doc);
-  callback(
-    value.includes("\n") ||
-      dom.scrollHeight > resolvedLineHeight * 1.5 ||
-      contentHeight > resolvedLineHeight * 1.5,
-  );
+  callback(value.includes("\n") || contentHeight > resolvedLineHeight * 1.5);
 }
 
 function selectionContainsComposerAtom(
