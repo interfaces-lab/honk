@@ -41,7 +41,7 @@ export const ChatHeader = memo(function ChatHeader({
   onDeleteProjectScript,
 }: ChatHeaderProps) {
   return (
-    <div className="@container/header-actions pointer-events-auto flex min-w-0 flex-1 translate-y-[var(--multi-titlebar-content-nudge-y)] select-none items-center gap-2 text-body">
+    <div className="@container/header-actions pointer-events-auto flex min-w-0 flex-1 select-none items-center gap-2 text-body">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         <Button
           type="button"

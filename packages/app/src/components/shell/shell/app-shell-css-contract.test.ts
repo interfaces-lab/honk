@@ -114,13 +114,17 @@ describe("AppShell CSS root contract", () => {
     expect(appShellSource).not.toContain("multi-shell-titlebar-drag-region");
     expect(shellCssSource).not.toContain("multi-shell-titlebar-drag-region");
     expect(chatHeaderSource).not.toContain("multi-agent-panel-header");
+    expect(chatHeaderSource).not.toContain("multi-titlebar-content-nudge-y");
+    expect(shellCssSource).not.toContain("--multi-titlebar-row-center-top");
+    expect(shellCssSource).not.toContain("--multi-titlebar-content-nudge-y");
     expect(shellCssSource).not.toContain("multi-shell-titlebar-right-toggle--web");
   });
 
   it("lets Electron fullscreen chrome update traffic-light shell spacing", () => {
     expect(desktopChromeSource).toContain("--multi-shell-sidebar-content-top-offset");
     expect(desktopChromeSource).toContain("TITLEBAR_CONTENT_RESERVE_PX");
-    expect(desktopChromeSource).toContain("FULLSCREEN_TITLEBAR_CONTROL_OFFSET_TOP_PX");
+    expect(desktopChromeSource).not.toContain("--multi-titlebar-control-row-top");
+    expect(desktopChromeSource).toContain("TRAFFIC_LIGHT_Y_PX");
     expect(shellCssSource).toContain("--multi-shell-sidebar-content-top-offset");
     expect(shellCssSource).toContain("var(--multi-electron-traffic-padding-top)");
   });

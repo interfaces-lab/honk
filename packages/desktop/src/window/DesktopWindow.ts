@@ -19,6 +19,11 @@ import * as IpcChannels from "../ipc/channels";
 import * as DesktopServerExposure from "../backend/DesktopServerExposure";
 
 const TITLEBAR_HEIGHT = 40;
+const MACOS_TITLEBAR_BAND_HEIGHT_PX = 34;
+const MACOS_TRAFFIC_LIGHT_CLUSTER_HEIGHT_PX = 16;
+/** Keep in sync with MACOS_TRAFFIC_LIGHTS.y in packages/app/src/lib/desktop-chrome.ts */
+const MACOS_TRAFFIC_LIGHT_Y_PX =
+  (MACOS_TITLEBAR_BAND_HEIGHT_PX - MACOS_TRAFFIC_LIGHT_CLUSTER_HEIGHT_PX) / 2;
 const TITLEBAR_COLOR = "#01000000"; // #00000000 does not work correctly on Linux
 const TITLEBAR_LIGHT_SYMBOL_COLOR = "#1f2937";
 const TITLEBAR_DARK_SYMBOL_COLOR = "#f8fafc";
@@ -99,8 +104,7 @@ function getWindowTitleBarOptions(shouldUseDarkColors: boolean): WindowTitleBarO
   if (process.platform === "darwin") {
     return {
       titleBarStyle: "hiddenInset",
-      // Keep in sync with MACOS_TRAFFIC_LIGHTS in packages/app/src/lib/desktop-chrome.ts
-      trafficLightPosition: { x: 14, y: 14 },
+      trafficLightPosition: { x: 14, y: MACOS_TRAFFIC_LIGHT_Y_PX },
     };
   }
 

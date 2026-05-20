@@ -9,13 +9,6 @@
   --multi-titlebar-control-row-top: calc(
     (var(--multi-header-height) - var(--multi-titlebar-control-height)) / 2
   );
-  --multi-titlebar-row-center-top: calc(
-    (var(--multi-header-height) - var(--multi-titlebar-control-height)) / 2
-  );
-  /* Nudge centered chrome (chat title) down to match traffic-light-aligned controls on macOS. */
-  --multi-titlebar-content-nudge-y: calc(
-    var(--multi-titlebar-control-row-top) - var(--multi-titlebar-row-center-top)
-  );
   --multi-electron-traffic-inset: 80px;
   --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 0px);
   --multi-sidebar-label-size: var(
