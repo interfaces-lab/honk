@@ -64,6 +64,42 @@ function StatusSlot(props: { item: SidebarChatItem }) {
   );
 }
 
+function ThreadStatusActionSlot(props: {
+  item: SidebarChatItem;
+  pinned: boolean;
+  onTogglePinned: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <span
+      className="relative flex size-5 shrink-0 items-center justify-center text-multi-icon-secondary"
+      data-agent-sidebar-status=""
+      data-agent-sidebar-pin-slot=""
+    >
+      <span className="flex size-3.5 items-center justify-center group-hover/agent-row-shell:opacity-0 group-focus-within/agent-row-shell:opacity-0">
+        <StatusDot item={props.item} />
+      </span>
+      <button
+        type="button"
+        aria-label={props.pinned ? "Unpin" : "Pin"}
+        title={props.pinned ? "Unpin" : "Pin"}
+        onClick={props.onTogglePinned}
+        onMouseDown={stopActionPointerDown}
+        className={cn(
+          hoverActionButtonClass,
+          "pointer-events-none absolute inset-0 opacity-0 group-hover/agent-row-shell:pointer-events-auto group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:pointer-events-auto group-focus-within/agent-row-shell:opacity-100",
+        )}
+        data-agent-sidebar-pin-action=""
+      >
+        {props.pinned ? (
+          <IconUnpin className="size-3.5" aria-hidden />
+        ) : (
+          <IconPin className="size-3.5" aria-hidden />
+        )}
+      </button>
+    </span>
+  );
+}
+
 const hoverActionButtonClass = cn(
   "flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-fg-tertiary outline-none",
   "hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
@@ -265,59 +301,37 @@ export const AgentRow = memo(
           </div>
         ) : (
           <div
-            className="group/agent-row-shell flex min-w-0 items-center"
+            className="group/agent-row-shell flex min-w-0 items-center gap-1 rounded-multi-control px-1.5 hover:bg-multi-bg-quaternary focus-within:bg-multi-bg-quaternary data-[selected=true]:bg-multi-bg-tertiary data-[selected=true]:hover:bg-multi-bg-tertiary data-[selected=true]:focus-within:bg-multi-bg-tertiary"
+            data-selected={props.selected}
+            data-agent-sidebar-cell=""
             data-agent-sidebar-row-shell=""
           >
-            <span
-              className={cn(
-                "flex w-5 shrink-0 items-center justify-center",
-                threadItem.pinned
-                  ? ""
-                  : "max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-100 ease-out group-hover/agent-row-shell:max-w-5 group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:max-w-5 group-focus-within/agent-row-shell:opacity-100 motion-reduce:transition-none",
-              )}
-              data-agent-sidebar-pin-slot=""
-            >
-              <button
-                type="button"
-                aria-label={threadItem.pinned ? "Unpin" : "Pin"}
-                title={threadItem.pinned ? "Unpin" : "Pin"}
-                onClick={togglePinnedThread}
-                onMouseDown={stopActionPointerDown}
-                className={hoverActionButtonClass}
-                data-agent-sidebar-pin-action=""
-              >
-                {threadItem.pinned ? (
-                  <IconUnpin className="size-3.5" aria-hidden />
-                ) : (
-                  <IconPin className="size-3.5" aria-hidden />
-                )}
-              </button>
-            </span>
+            <ThreadStatusActionSlot
+              item={props.item}
+              pinned={threadItem.pinned}
+              onTogglePinned={togglePinnedThread}
+            />
             <RowButton
               variant="agent"
-              className="min-w-0 flex-1 gap-1.5 pr-1"
+              className="min-w-0 flex-1 gap-1.5 px-0 pr-1 transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent"
               data-selected={props.selected}
               data-chat-item=""
-              data-agent-sidebar-cell=""
               onFocus={() => props.onPrefetchAgent?.(props.item.id)}
               onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
               onClick={() => props.onSelectAgent(props.item.id)}
             >
-              <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                <StatusSlot item={props.item} />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
-                  <span
-                    className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
-                    data-agent-sidebar-title=""
-                    title={props.item.title}
-                  >
-                    {props.item.title}
-                  </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                <span
+                  className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
+                  data-agent-sidebar-title=""
+                  title={props.item.title}
+                >
+                  {props.item.title}
                 </span>
               </span>
               <span
                 className={cn(
-                  "max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) tabular-nums",
+                  "max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) opacity-0 tabular-nums group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:opacity-100",
                   props.selected ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
                 )}
                 data-agent-sidebar-subtitle=""
@@ -327,7 +341,7 @@ export const AgentRow = memo(
               </span>
             </RowButton>
             <span
-              className="flex max-w-0 shrink-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-100 ease-out group-hover/agent-row-shell:max-w-5 group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:max-w-5 group-focus-within/agent-row-shell:opacity-100 motion-reduce:transition-none"
+              className="flex max-w-0 shrink-0 overflow-hidden opacity-0 group-hover/agent-row-shell:max-w-5 group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:max-w-5 group-focus-within/agent-row-shell:opacity-100"
               data-agent-sidebar-actions=""
               data-agent-sidebar-archive-slot=""
             >

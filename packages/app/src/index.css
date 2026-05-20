@@ -12,8 +12,8 @@
   --animate-thinking-details-in: thinking-details-in 0.14s ease-out;
   --animate-thinking-glyph: thinking-glyph 2.8s ease-in-out infinite;
   --animate-thinking-word-in: thinking-word-in 0.22s ease-out;
-  --animate-dotmatrix-diagonal-alt-sweep: dotmatrix-diagonal-alt-sweep var(--dmx-duration, 1.2s)
-    ease-in-out infinite;
+  --animate-chat-loader-diagonal-alt-sweep: chat-loader-diagonal-alt-sweep
+    var(--chat-loader-duration, 1.2s) ease-in-out infinite;
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
   --color-success-foreground: var(--success-foreground);
@@ -182,10 +182,10 @@
       transform: translateY(0);
     }
   }
-  @keyframes dotmatrix-diagonal-alt-sweep {
+  @keyframes chat-loader-diagonal-alt-sweep {
     0%,
     100% {
-      opacity: var(--dmx-rest-opacity, 0.16);
+      opacity: calc(0.1 + var(--chat-loader-diagonal-parity, 0) * 0.08);
       transform: scale(0.72);
     }
     45% {
@@ -193,7 +193,7 @@
       transform: scale(1);
     }
     72% {
-      opacity: var(--dmx-tail-opacity, 0.32);
+      opacity: calc(0.22 + (1 - var(--chat-loader-diagonal-parity, 0)) * 0.2);
       transform: scale(0.86);
     }
   }
@@ -214,24 +214,25 @@
   }
 }
 
-@utility dmx-dot {
-  display: block;
-  width: var(--dmx-dot-size, 3px);
-  height: var(--dmx-dot-size, 3px);
-  border-radius: 9999px;
-  background: currentColor;
-  opacity: 0.18;
-  transform-origin: center;
-}
+@layer utilities {
+  .chat-loader-dot {
+    display: block;
+    width: var(--chat-loader-dot-size, 2px);
+    height: var(--chat-loader-dot-size, 2px);
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.18;
+    transform-origin: center;
+  }
 
-@utility dmx-inactive {
-  opacity: 0.08;
-}
+  .chat-loader-dot-inactive {
+    opacity: 0.08;
+  }
 
-@utility dmx-diagonal-alt-sweep {
-  animation: var(--animate-dotmatrix-diagonal-alt-sweep);
-  animation-delay: var(--dmx-delay, 0ms);
-  will-change: opacity, transform;
+  .chat-loader-diagonal-alt-sweep {
+    animation: var(--animate-chat-loader-diagonal-alt-sweep);
+    animation-delay: calc(var(--chat-loader-path, 0) * -0.72s);
+  }
 }
 
 @layer base {

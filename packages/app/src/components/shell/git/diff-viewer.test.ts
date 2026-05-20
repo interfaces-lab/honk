@@ -22,8 +22,15 @@ describe("DiffViewer", () => {
   });
 
   it("does not make each expanded card a nested scroll container", () => {
-    expect(gitDiffCardSource).not.toContain("flex-1 overflow-auto");
-    expect(gitDiffCardSource).not.toContain("flex-1 overflow-hidden");
+    expect(gitDiffCardSource).toContain(
+      'className="min-h-0 min-w-0 bg-(--multi-git-diff-editor-background) select-text"',
+    );
+    expect(gitDiffCardSource).not.toContain(
+      "min-h-0 min-w-0 flex-1 overflow-auto bg-(--multi-git-diff-editor-background) select-text",
+    );
+    expect(gitDiffCardSource).not.toContain(
+      "min-h-0 min-w-0 flex-1 overflow-hidden bg-(--multi-git-diff-editor-background) select-text",
+    );
     expect(source).not.toContain("overflow-y-auto");
     expect(source).not.toContain("overscroll-contain");
   });

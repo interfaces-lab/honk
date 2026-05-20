@@ -8,6 +8,7 @@ import {
   IconDotGrid1x3Horizontal,
   IconFolder1,
   IconSplit,
+  IconStepBack,
   IconStop,
 } from "central-icons";
 import { Virtualizer } from "@pierre/diffs/react";
@@ -678,7 +679,7 @@ function ChangesHeader(props: {
             title="Discard all changes"
             chrome="panel"
           >
-            <IconChevronLeftMedium className="size-3.5 shrink-0" />
+            <IconStepBack className="size-3.5 shrink-0" />
           </WorkbenchIconButton>
           <WorkbenchIconButton
             onClick={toggleAll}

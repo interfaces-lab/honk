@@ -984,6 +984,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
   onToggleInteractionMode: () => void;
 }) {
   const dockSingleRow = props.composerVariant === "compact" && !props.isDockComposerExpanded;
+  const dockExpanded = props.composerVariant === "compact" && props.isDockComposerExpanded;
   const primaryActionsCompact =
     dockSingleRow ||
     props.primaryActionState.showPlanFollowUpPrompt ||
@@ -998,8 +999,13 @@ const ComposerFooter = memo(function ComposerFooter(props: {
         dockSingleRow
           ? "flex min-w-0 shrink items-center gap-1"
           : cn(
-              "flex w-full items-center justify-between gap-2",
-              props.inlineEdit ? "px-3 pb-2" : "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+              "flex w-full items-center justify-between",
+              dockExpanded ? "gap-[0.55rem]" : "gap-2",
+              props.inlineEdit
+                ? "px-3 pb-2"
+                : dockExpanded
+                  ? ""
+                  : "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
             ),
       )}
     >
@@ -2163,7 +2169,9 @@ export const ComposerInput = memo(
                   ? "flex flex-col"
                   : isDockComposerSingleLine
                     ? "flex min-h-11 items-center gap-1 px-2.5 py-2"
-                    : "flex flex-col",
+                    : isDockComposerExpanded
+                      ? "flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5"
+                      : "flex flex-col",
                 variant === "hero" ? "min-h-44" : "",
                 composerProviderState.ultrathinkActive &&
                   "shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset]",
@@ -2210,7 +2218,9 @@ export const ComposerInput = memo(
                     ? "min-h-5"
                     : isDockComposerSingleLine
                       ? "flex min-h-0 flex-1 items-center"
-                      : "min-h-9",
+                      : isDockComposerExpanded
+                        ? "min-h-5"
+                        : "min-h-9",
                   variant === "hero" && !isDockComposerSingleLine ? "flex flex-1 flex-col" : "",
                 )}
                 data-composer-menu-anchor=""
@@ -2252,6 +2262,9 @@ export const ComposerInput = memo(
                   onPaste={onComposerPaste}
                   className={cn(
                     isInlineEditComposer && "!min-h-5 !max-h-60 !px-3 !py-2",
+                    isDockComposerExpanded &&
+                      !isInlineEditComposer &&
+                      "!min-h-5 !max-h-60 !px-0 !py-0 [&>p]:leading-[1.5]",
                     isDockComposerSingleLine && "!min-h-5 !max-h-5 !overflow-hidden !p-0 !pl-1",
                   )}
                   placeholder={
@@ -2277,7 +2290,14 @@ export const ComposerInput = memo(
               </div>
               {/* Bottom toolbar */}
               {activePendingApproval ? (
-                <div className="flex items-center justify-end gap-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
+                <div
+                  className={cn(
+                    "flex items-center justify-end",
+                    isDockComposerExpanded
+                      ? "gap-[0.55rem]"
+                      : "gap-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+                  )}
+                >
                   <ComposerPendingApprovalActions
                     requestId={activePendingApproval.requestId}
                     isResponding={respondingRequestIds.includes(activePendingApproval.requestId)}

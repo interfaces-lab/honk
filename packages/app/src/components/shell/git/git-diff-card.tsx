@@ -166,7 +166,7 @@ export function GitDiffCard(props: {
         </span>
       </div>
       {props.expanded ? (
-        <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-(--multi-git-diff-editor-background) select-text">
+        <div className="min-h-0 min-w-0 bg-(--multi-git-diff-editor-background) select-text">
           {showLoading ? (
             <div className="flex flex-col gap-2 p-3">
               <div className="h-3 w-full max-w-56 animate-pulse rounded bg-muted/35" />
@@ -181,7 +181,7 @@ export function GitDiffCard(props: {
               state={props.file.state}
               prevPath={props.file.prevPath}
               diffStyle={props.diffStyle}
-              className="h-full min-h-[12rem]"
+              className="min-h-[12rem]"
               layoutKey={props.diffLayoutKey}
             />
           )}

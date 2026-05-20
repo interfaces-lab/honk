@@ -36,10 +36,6 @@
       "types": "./src/dialog.tsx",
       "import": "./src/dialog.tsx"
     },
-    "./dotm-square-1": {
-      "types": "./src/dotm-square-1.tsx",
-      "import": "./src/dotm-square-1.tsx"
-    },
     "./empty": {
       "types": "./src/empty.tsx",
       "import": "./src/empty.tsx"

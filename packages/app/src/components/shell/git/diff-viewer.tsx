@@ -14,7 +14,6 @@ interface Props {
   prevPath?: string | null;
   diffStyle?: "unified" | "split";
   className?: string;
-  collapsed?: boolean;
   layoutKey?: string;
 }
 
@@ -28,29 +27,26 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
 
   if (patch.length > 0) {
     return (
-      <div className={cn("min-h-0 min-w-0 w-full overflow-auto", props.className)}>
-        <div className="web-component min-h-0 min-w-0 w-full overflow-auto" data-diffs-container>
-          <PatchDiff
-            key={props.layoutKey}
-            patch={patch}
-            options={{
-              theme,
-              themeType: resolvedTheme,
-              unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
-              diffStyle: props.diffStyle ?? "unified",
-              overflow: "wrap",
-              disableFileHeader: true,
-              disableBackground: false,
-              disableLineNumbers: false,
-              diffIndicators: "none",
-              lineDiffType: "none",
-              expandUnchanged: false,
-              hunkSeparators: "simple",
-              preferredHighlighter: "shiki-js",
-              ...(props.collapsed !== undefined ? { collapsed: props.collapsed } : {}),
-            }}
-          />
-        </div>
+      <div className={cn("web-component min-w-0 w-full", props.className)} data-diffs-container>
+        <PatchDiff
+          key={props.layoutKey}
+          patch={patch}
+          options={{
+            theme,
+            themeType: resolvedTheme,
+            unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
+            diffStyle: props.diffStyle ?? "unified",
+            overflow: "wrap",
+            disableFileHeader: true,
+            disableBackground: false,
+            disableLineNumbers: false,
+            diffIndicators: "none",
+            lineDiffType: "none",
+            expandUnchanged: false,
+            hunkSeparators: "simple",
+            preferredHighlighter: "shiki-js",
+          }}
+        />
       </div>
     );
   }

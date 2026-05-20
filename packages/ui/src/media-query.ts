@@ -1,18 +1,28 @@
-import * as React from "react";
+import { useSyncExternalStore } from "react";
+
+const MOBILE_QUERY = "(max-width: 767px)";
+
+function subscribeToMobileQuery(onStoreChange: () => void) {
+  const media = window.matchMedia(MOBILE_QUERY);
+  media.addEventListener("change", onStoreChange);
+
+  return () => {
+    media.removeEventListener("change", onStoreChange);
+  };
+}
+
+function getMobileQuerySnapshot() {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
+
+function getMobileQueryServerSnapshot() {
+  return false;
+}
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState(false);
-
-  React.useEffect(() => {
-    const media = window.matchMedia("(max-width: 767px)");
-    const sync = () => setIsMobile(media.matches);
-
-    sync();
-    media.addEventListener("change", sync);
-    return () => {
-      media.removeEventListener("change", sync);
-    };
-  }, []);
-
-  return isMobile;
+  return useSyncExternalStore(
+    subscribeToMobileQuery,
+    getMobileQuerySnapshot,
+    getMobileQueryServerSnapshot,
+  );
 }
