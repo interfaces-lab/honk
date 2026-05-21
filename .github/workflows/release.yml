@@ -15,6 +15,9 @@ permissions:
   contents: write
   id-token: write
 
+env:
+  CENTRAL_LICENSE_KEY: ${{ secrets.CENTRAL_LICENSE_KEY }}
+
 jobs:
   preflight:
     name: Preflight

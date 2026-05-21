@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+env:
+  CENTRAL_LICENSE_KEY: ${{ secrets.CENTRAL_LICENSE_KEY }}
+
 jobs:
   quality:
     name: Format, Lint, Typecheck, Test, Browser Test, Build
