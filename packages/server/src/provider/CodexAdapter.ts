@@ -1381,10 +1381,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           ),
         );
         const configuredServiceTier = parseCodexServiceTier(
-          getModelSelectionStringOptionValue(
-            input.modelSelection,
-            "serviceTier",
-          ),
+          getModelSelectionStringOptionValue(input.modelSelection, "serviceTier"),
         );
         const startServiceTier =
           configuredServiceTier ??
@@ -1515,10 +1512,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       "reasoningEffort",
     );
     const configuredServiceTier = parseCodexServiceTier(
-      getModelSelectionStringOptionValue(
-        input.modelSelection,
-        "serviceTier",
-      ),
+      getModelSelectionStringOptionValue(input.modelSelection, "serviceTier"),
     );
     const serviceTier =
       configuredServiceTier ??

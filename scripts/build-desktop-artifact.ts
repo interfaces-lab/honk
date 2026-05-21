@@ -470,12 +470,7 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   verbose: boolean,
 ) {
   if (platform === "mac") {
-    yield* stageMacIcons(
-      stageResourcesDir,
-      iconAssets.macIconIcns,
-      iconAssets.macIconPng,
-      verbose,
-    );
+    yield* stageMacIcons(stageResourcesDir, iconAssets.macIconIcns, iconAssets.macIconPng, verbose);
     return;
   }
 
