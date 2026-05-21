@@ -13,6 +13,15 @@ function isCursorComposerModel(provider: ProviderDriverKind, slug: string | null
   return provider === ProviderDriverKind.make("cursor") && slug?.startsWith("composer-") === true;
 }
 
+function getCursorComposerModelCapabilities(capabilities: ModelCapabilities): ModelCapabilities {
+  const fastModeDescriptor = capabilities.optionDescriptors?.find(
+    (descriptor) => descriptor.type === "boolean" && descriptor.id === "fastMode",
+  );
+  return createModelCapabilities({
+    optionDescriptors: fastModeDescriptor ? [fastModeDescriptor] : [],
+  });
+}
+
 export function formatProviderDriverKindLabel(provider: ProviderDriverKind): string {
   return provider
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -27,8 +36,10 @@ export function getProviderModelCapabilities(
   provider: ProviderDriverKind,
 ): ModelCapabilities {
   const slug = normalizeModelSlug(model);
+  const capabilities =
+    models.find((candidate) => candidate.slug === slug)?.capabilities ?? EMPTY_CAPABILITIES;
   if (isCursorComposerModel(provider, slug)) {
-    return EMPTY_CAPABILITIES;
+    return getCursorComposerModelCapabilities(capabilities);
   }
-  return models.find((candidate) => candidate.slug === slug)?.capabilities ?? EMPTY_CAPABILITIES;
+  return capabilities;
 }

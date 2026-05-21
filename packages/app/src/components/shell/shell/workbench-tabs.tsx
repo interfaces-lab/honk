@@ -94,7 +94,7 @@ export function WorkbenchTabBar(props: {
               aria-label={`${tab.label}${countText}`}
               title={`${tab.label}${countText}`}
             >
-              <Icon className="size-3.5" aria-hidden />
+              <Icon className="size-4 shrink-0" aria-hidden />
             </button>
           );
         })}
@@ -117,7 +117,7 @@ export function WorkbenchTabBar(props: {
           aria-label="Open new tab menu"
           title="Open new tab menu"
         >
-          <IconPlusLarge className="size-3.5" aria-hidden />
+          <IconPlusLarge className="size-4 shrink-0" aria-hidden />
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner
@@ -135,7 +135,7 @@ export function WorkbenchTabBar(props: {
             >
               <div className="flex items-center gap-1 border-b border-multi-stroke-tertiary px-1.5 py-1.5">
                 <IconMagnifyingGlass
-                  className="size-3.5 shrink-0 text-multi-fg-tertiary"
+                  className="size-4 shrink-0 text-multi-fg-tertiary"
                   aria-hidden
                 />
                 <input
@@ -162,7 +162,7 @@ export function WorkbenchTabBar(props: {
                       className={cn(workbenchMenuItemClassName, "gap-2")}
                     >
                       <span className={workbenchMenuIconSlotClassName}>
-                        <Icon className="size-3.5" aria-hidden />
+                        <Icon className="size-4 shrink-0" aria-hidden />
                       </span>
                       <span className={cn(workbenchMenuPrimaryTextClassName, "flex-1")}>
                         {item.menuLabel}
@@ -171,7 +171,7 @@ export function WorkbenchTabBar(props: {
                         <span className={workbenchMenuMetaTextClassName}>Soon</span>
                       ) : null}
                       {isActive ? (
-                        <IconCheckmark1 className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+                        <IconCheckmark1 className="size-4 shrink-0 text-multi-fg-tertiary" />
                       ) : null}
                     </Menu.Item>
                   );

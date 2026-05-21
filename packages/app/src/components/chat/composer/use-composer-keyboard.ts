@@ -4,7 +4,7 @@ import { useMemo, type RefObject } from "react";
 
 import { shortcutForCommand } from "../../../keybindings";
 
-const DISABLED_COMPOSER_CYCLE_HOTKEY = { key: "Tab", shift: true } as const;
+const DISABLED_HOTKEY = { key: "Tab", shift: true } as const;
 
 function keybindingShortcutKeyForHotkey(shortcut: KeybindingShortcut): string {
   if (shortcut.key === " ") return "Space";
@@ -30,7 +30,7 @@ function keybindingShortcutToHotkey(shortcut: KeybindingShortcut): Parameters<ty
   };
 }
 
-export function useComposerModeHotkey(input: {
+export function useComposerKeyboard(input: {
   keybindings: ResolvedKeybindingsConfig;
   terminalOpen: boolean;
   targetRef: RefObject<HTMLDivElement | null>;
@@ -44,7 +44,7 @@ export function useComposerModeHotkey(input: {
   }, [input.keybindings, input.terminalOpen]);
 
   useHotkey(
-    cycleInteractionModeHotkey ?? DISABLED_COMPOSER_CYCLE_HOTKEY,
+    cycleInteractionModeHotkey ?? DISABLED_HOTKEY,
     () => {
       input.onToggleInteractionMode();
     },

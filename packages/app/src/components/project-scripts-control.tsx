@@ -43,10 +43,10 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@multi/ui/dialog";
-import { Group, GroupSeparator } from "@multi/ui/group";
 import { Input } from "@multi/ui/input";
+import { Kbd } from "@multi/ui/kbd";
 import { Label } from "@multi/ui/label";
-import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "@multi/ui/menu";
+import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger, workbenchMenuMetaTextClassName } from "@multi/ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
 import { Switch } from "@multi/ui/switch";
 import { Textarea } from "@multi/ui/textarea";
@@ -62,7 +62,7 @@ const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
 
 function ScriptIcon({
   icon,
-  className = "size-3.5",
+  className = "size-4 shrink-0",
 }: {
   icon: ProjectScriptIcon;
   className?: string;
@@ -175,6 +175,12 @@ function keybindingValueForCommand(
   return null;
 }
 
+const headerActionButtonClassName =
+  "h-(--multi-titlebar-control-height) min-h-(--multi-titlebar-control-height) shrink-0 rounded-multi-control px-1.5 shadow-none before:hidden";
+
+const headerActionIconButtonClassName =
+  "size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden";
+
 export default function ProjectScriptsControl({
   scripts,
   keybindings,
@@ -205,8 +211,6 @@ export default function ProjectScriptsControl({
     return primaryProjectScript(scripts);
   }, [preferredScriptId, scripts]);
   const isEditing = editingScriptId !== null;
-  const dropdownItemClassName =
-    "data-highlighted:bg-transparent data-highlighted:text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground data-highlighted:hover:bg-accent data-highlighted:hover:text-accent-foreground data-highlighted:focus-visible:bg-accent data-highlighted:focus-visible:text-accent-foreground";
 
   const captureKeybinding = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Tab") return;
@@ -298,10 +302,15 @@ export default function ProjectScriptsControl({
   return (
     <>
       {primaryScript ? (
-        <Group aria-label="Project scripts">
+        <div
+          className="flex shrink-0 items-center gap-0.5"
+          role="group"
+          aria-label="Project scripts"
+        >
           <Button
             size="xs"
-            variant="outline"
+            variant="ghost"
+            className={headerActionButtonClassName}
             onClick={() => onRunScript(primaryScript)}
             title={`Run ${primaryScript.name}`}
           >
@@ -310,14 +319,20 @@ export default function ProjectScriptsControl({
               {primaryScript.name}
             </span>
           </Button>
-          <GroupSeparator className="hidden @3xl/header-actions:block" />
           <Menu highlightItemOnHover={false}>
             <MenuTrigger
-              render={<Button size="icon-xs" variant="outline" aria-label="Script actions" />}
+              render={
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  className={headerActionIconButtonClassName}
+                  aria-label="Script actions"
+                />
+              }
             >
-              <IconChevronRightMedium className="size-4 rotate-90" />
+              <IconChevronRightMedium className="size-4 shrink-0 rotate-90" />
             </MenuTrigger>
-            <MenuPopup align="end">
+            <MenuPopup align="end" side="bottom" variant="workbench">
               {scripts.map((script) => {
                 const shortcutLabel = shortcutLabelForCommand(
                   keybindings,
@@ -326,24 +341,27 @@ export default function ProjectScriptsControl({
                 return (
                   <MenuItem
                     key={script.id}
-                    className={`group ${dropdownItemClassName}`}
+                    className="group"
+                    variant="workbench"
                     onClick={() => onRunScript(script)}
                   >
-                    <ScriptIcon icon={script.icon} className="size-4" />
-                    <span className="truncate">
+                    <ScriptIcon icon={script.icon} className="size-3" />
+                    <span className="min-w-0 truncate">
                       {script.runOnWorktreeCreate ? `${script.name} (setup)` : script.name}
                     </span>
-                    <span className="relative ms-auto flex h-6 min-w-6 items-center justify-end">
-                      {shortcutLabel && (
-                        <MenuShortcut className="ms-0 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0">
+                    <span className="relative ms-auto flex h-4 min-w-4 items-center justify-end">
+                      {shortcutLabel ? (
+                        <MenuShortcut
+                          className={`${workbenchMenuMetaTextClassName} ms-0 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0`}
+                        >
                           {shortcutLabel}
                         </MenuShortcut>
-                      )}
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        className="absolute right-0 top-1/2 size-6 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-visible:opacity-100 group-focus-visible:pointer-events-auto"
+                        className="absolute right-0 top-1/2 size-4 -translate-y-1/2 opacity-0 pointer-events-none shadow-none before:hidden transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-visible:opacity-100 group-focus-visible:pointer-events-auto"
                         aria-label={`Edit ${script.name}`}
                         onPointerDown={(event) => {
                           event.preventDefault();
@@ -355,22 +373,28 @@ export default function ProjectScriptsControl({
                           openEditDialog(script);
                         }}
                       >
-                        <IconSettingsGear2 className="size-3.5" />
+                        <IconSettingsGear2 className="size-3" />
                       </Button>
                     </span>
                   </MenuItem>
                 );
               })}
-              <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>
-                <IconPlusLarge className="size-4" />
+              <MenuItem variant="workbench" onClick={openAddDialog}>
+                <IconPlusLarge className="size-3" />
                 Add action
               </MenuItem>
             </MenuPopup>
           </Menu>
-        </Group>
+        </div>
       ) : (
-        <Button size="xs" variant="outline" onClick={openAddDialog} title="Add action">
-          <IconPlusLarge className="size-3.5" />
+        <Button
+          size="xs"
+          variant="ghost"
+          className={headerActionButtonClassName}
+          onClick={openAddDialog}
+          title="Add action"
+        >
+          <IconPlusLarge className="size-4 shrink-0" />
           <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
             Add action
           </span>
@@ -396,7 +420,7 @@ export default function ProjectScriptsControl({
         }}
         open={dialogOpen}
       >
-        <DialogPopup>
+        <DialogPopup className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Action" : "Add Action"}</DialogTitle>
             <DialogDescription>
@@ -414,14 +438,14 @@ export default function ProjectScriptsControl({
                         <Button
                           type="button"
                           variant="outline"
-                          className="size-9 shrink-0 hover:bg-popover active:bg-popover data-pressed:bg-popover data-pressed:shadow-xs/5 data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] dark:data-pressed:before:shadow-[0_-1px_--theme(--color-white/6%)]"
+                          size="icon-xl"
                           aria-label="Choose icon"
                         />
                       }
                     >
                       <ScriptIcon icon={icon} className="size-4.5" />
                     </PopoverTrigger>
-                    <PopoverPopup align="start">
+                    <PopoverPopup align="start" className="p-2" variant="workbench">
                       <div className="grid grid-cols-3 gap-2">
                         {SCRIPT_ICONS.map((entry) => {
                           const isSelected = entry.id === icon;
@@ -429,10 +453,10 @@ export default function ProjectScriptsControl({
                             <button
                               key={entry.id}
                               type="button"
-                              className={`relative flex flex-col items-center gap-2 rounded-md border px-2 py-2 text-xs ${
+                              className={`relative flex flex-col items-center gap-2 rounded-multi-control border px-2 py-2 text-detail transition-colors ${
                                 isSelected
-                                  ? "border-primary/70 bg-primary/10"
-                                  : "border-border/70 hover:bg-accent/60"
+                                  ? "border-multi-stroke-focused bg-multi-bg-quaternary text-multi-fg-primary"
+                                  : "border-multi-stroke-tertiary text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
                               }`}
                               onClick={() => {
                                 setIcon(entry.id);
@@ -465,8 +489,8 @@ export default function ProjectScriptsControl({
                   readOnly
                   onKeyDown={captureKeybinding}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Press a shortcut. Use <code>Backspace</code> to clear.
+                <p className="text-detail text-multi-fg-tertiary">
+                  Press a shortcut. Use <Kbd>Backspace</Kbd> to clear.
                 </p>
               </div>
               <div className="space-y-1.5">
@@ -479,7 +503,7 @@ export default function ProjectScriptsControl({
                 />
               </div>
               <label
-                className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-3 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-body text-multi-fg-primary"
                 htmlFor={runOnWorktreeCreateId}
               >
                 <span>Run automatically on worktree creation</span>
@@ -489,7 +513,7 @@ export default function ProjectScriptsControl({
                   onCheckedChange={(checked) => setRunOnWorktreeCreate(Boolean(checked))}
                 />
               </label>
-              {validationError && <p className="text-sm text-destructive">{validationError}</p>}
+              {validationError && <p className="text-body text-multi-fg-red-primary">{validationError}</p>}
             </form>
           </DialogPanel>
           <DialogFooter>

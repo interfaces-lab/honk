@@ -62,6 +62,7 @@
     "babel-plugin-react-compiler": "^19.0.0-beta-ebf51a3-20250411",
     "msw": "2.12.11",
     "playwright": "^1.60.0",
+    "react-grab": "^0.1.37",
     "tailwindcss": "^4.3.0",
     "typescript": "catalog:",
     "vite": "^8.0.13",

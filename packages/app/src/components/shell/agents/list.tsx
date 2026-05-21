@@ -1,6 +1,6 @@
 import { scopedThreadKey, scopeProjectRef } from "@multi/client-runtime";
 import type { ScopedThreadRef } from "@multi/contracts";
-import { IconChevronRightMedium } from "central-icons";
+import { IconFolder1, IconFolderOpen } from "central-icons";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import type { SidebarSectionModel } from "./sidebar-chat-view-model";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { readLocalApi } from "~/local-api";
+import { cn } from "~/lib/utils";
 import { AgentRow } from "./row";
 
 const initialMaxVisible = 5;
@@ -207,7 +208,7 @@ function Section(props: {
   }, [open, section.projectStateKey, setProjectExpanded]);
 
   return (
-    <section className="flex min-w-0 w-full select-none flex-col" data-agent-sidebar-section="">
+    <section className="flex w-full min-w-0 select-none flex-col" data-agent-sidebar-section="">
       {onPrefetchAgent ? (
         <SectionPrefetchSync
           key={`${section.id}:${prefetchAgentVersion}:${prefetchItemsKey}`}
@@ -230,25 +231,44 @@ function Section(props: {
         onArchiveAll={archiveSectionThreads}
         onRemoveFromSidebar={removeSectionProject}
       >
-        <div className="group/agent-section-title flex h-6 min-h-6 min-w-0 w-full items-center gap-0 px-1.5">
+        <div className="px-2">
+          <div
+            className={cn(
+              "group/agent-section-title flex min-h-6 w-full min-w-0 items-center gap-2 overflow-hidden rounded-multi-control px-1.5 outline-none transition-[background-color,color] duration-100 ease-out [@media(hover:hover)]:hover:bg-multi-bg-quaternary data-popup-open:bg-multi-bg-quaternary motion-reduce:transition-none",
+              section.active ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
+            )}
+            data-agent-sidebar-section-title=""
+            tabIndex={-1}
+          >
           <button
             id={labelId}
             type="button"
             aria-expanded={open}
             aria-controls={open ? panelId : undefined}
             onClick={toggleOpen}
-            className="relative m-0 inline-flex min-h-0 min-w-0 flex-auto cursor-(--multi-button-cursor) touch-manipulation items-center gap-1 border-0 bg-transparent p-0 font-multi leading-(--multi-sidebar-label-leading) text-inherit shadow-none outline-none focus-visible:rounded focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
+            className="relative m-0 inline-flex min-h-6 min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-2 rounded-multi-control border-0 bg-transparent p-0 font-multi leading-(--multi-sidebar-label-leading) text-inherit shadow-none outline-none focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
           >
-            <span className="min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary text-(length:--multi-sidebar-label-size) font-(--multi-sidebar-label-weight) leading-(--multi-sidebar-label-leading)">
+            <span
+              className="relative flex size-4 shrink-0 items-center justify-center text-current"
+              data-agent-sidebar-section-folder=""
+              aria-hidden
+            >
+              <IconFolder1
+                className={cn(
+                  "absolute size-4 transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+                  open ? "scale-95 opacity-0" : "scale-100 opacity-100",
+                )}
+              />
+              <IconFolderOpen
+                className={cn(
+                  "absolute size-4 transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+                  open ? "scale-100 opacity-100" : "scale-95 opacity-0",
+                )}
+              />
+            </span>
+            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-(length:--multi-sidebar-label-size) font-(--multi-sidebar-label-weight) leading-(--multi-sidebar-label-leading)">
               {section.label}
             </span>
-            <IconChevronRightMedium
-              size={14}
-              className={`inline-flex size-3.5 shrink-0 items-center justify-center text-multi-fg-tertiary opacity-0 transition-[opacity,transform] duration-100 ease-out group-hover/agent-section-title:opacity-100 group-focus-within/agent-section-title:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none ${
-                open ? "rotate-90" : ""
-              }`}
-              aria-hidden
-            />
           </button>
           {props.onNewAgent && canCreateAgent ? (
             <button
@@ -256,21 +276,18 @@ function Section(props: {
               onClick={() => props.onNewAgent?.(section.cwd)}
               aria-label={`New agent in ${section.label}`}
               title={`New agent in ${section.label}`}
-              className={`relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-multi-control border border-transparent p-0 opacity-0 outline-none touch-manipulation transition-[color,background-color,opacity] duration-100 ease-out group-hover/agent-section-title:opacity-100 group-focus-within/agent-section-title:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 ${
-                section.active
-                  ? "text-multi-fg-secondary [@media(hover:hover)]:hover:bg-multi-bg-quaternary [@media(hover:hover)]:hover:text-multi-fg-primary"
-                  : "text-multi-fg-tertiary [@media(hover:hover)]:hover:bg-multi-bg-quaternary [@media(hover:hover)]:hover:text-multi-fg-primary"
-              }`}
+              className="relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-inherit outline-none touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
             >
               <span aria-hidden>+</span>
             </button>
           ) : null}
+          </div>
         </div>
       </SidebarSectionContextMenu>
       {open ? (
         <div
           id={panelId}
-          className="flex min-w-0 flex-col gap-px pb-[11px]"
+          className="flex min-w-0 flex-col gap-px px-2 pb-[11px]"
           role="region"
           aria-labelledby={labelId}
         >
@@ -287,7 +304,7 @@ function Section(props: {
             <button
               type="button"
               onClick={() => setExtra((count) => count + 1)}
-              className="relative flex min-h-6 w-full select-none cursor-pointer items-center gap-1.5 rounded-multi-control border border-transparent px-1.5 py-0.5 text-left font-multi text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-tertiary outline-none touch-manipulation transition-[color,background-color] duration-100 ease-out motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 [@media(hover:hover)]:hover:bg-multi-bg-quaternary [@media(hover:hover)]:hover:text-multi-fg-primary"
+              className="relative flex min-h-6 w-full select-none cursor-pointer items-center gap-2 rounded-multi-control border border-transparent px-1.5 py-0.5 text-left font-multi text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-tertiary outline-none touch-manipulation transition-[color,background-color] duration-100 ease-out motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 [@media(hover:hover)]:hover:bg-multi-bg-quaternary [@media(hover:hover)]:hover:text-multi-fg-primary"
             >
               <span className="size-2.5 shrink-0 opacity-55" aria-hidden>
                 ⋯
@@ -377,7 +394,7 @@ function AgentListContent(props: AgentListProps) {
   );
 
   return (
-    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-2 pt-0 pb-4 scrollbar-gutter-stable">
+    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pt-0 pb-4">
       <RetainedThreadDetailSubscriptions
         key={prewarmedSidebarThreadRefsKey}
         threadRefs={prewarmedSidebarThreadRefs}
@@ -419,7 +436,7 @@ function RetainedThreadDetailSubscriptions({
 
 function SkeletonRows() {
   return (
-    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-2 pt-0 pb-4 scrollbar-gutter-stable">
+    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pt-0 pb-4">
       {[0, 1].map((i) => (
         <div className="flex flex-col gap-2" key={i}>
           <div

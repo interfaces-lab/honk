@@ -28,8 +28,11 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@mu
 import { Separator } from "@multi/ui/separator";
 import {
   IconArrowUp,
+  IconChecklist,
   IconChevronLeftMedium,
+  IconCrossSmall,
   IconDotGrid1x3Horizontal,
+  IconEyeOpen,
   IconLock,
   IconPencilLine,
   IconPlusSmall,
@@ -40,6 +43,7 @@ import {
 } from "central-icons";
 import {
   defaultInstanceIdForDriver,
+  type MessageId,
   type ModelSelection,
   type ProviderDriverKind,
   type ProviderInteractionMode,
@@ -58,19 +62,13 @@ import {
   expandCollapsedComposerCursor,
   replaceTextRange,
 } from "./prompt-triggers";
-import { deriveComposerSendState } from "./send";
+import { deriveComposerSendState } from "../composer-submit";
 import {
   type ComposerThreadDraftState,
   type DraftId,
   useComposerDraftStore,
   useComposerThreadDraft,
 } from "../../../stores/chat-drafts";
-import {
-  type TerminalContextDraft,
-  type TerminalContextSelection,
-  insertInlineTerminalContextPlaceholder,
-  removeInlineTerminalContextPlaceholder,
-} from "../../../lib/terminal-context";
 import { type ComposerPromptEditorHandle, ComposerPromptEditor } from "./prompt-editor";
 import { ProviderModelPicker } from "../picker/model-picker";
 import {
@@ -81,9 +79,11 @@ import {
 import { ComposerPendingApprovalActions } from "./pending-approval-actions";
 import { ComposerPendingApprovalPanel } from "./pending-approval-panel";
 import { ComposerPendingUserInputPanel } from "./pending-user-input-panel";
-import { cn, randomUUID } from "~/lib/utils";
-import type { QueuedComposerItem, QueuedComposerItemId } from "../../../stores/chat-send-queue";
-import { useComposerModeHotkey } from "./use-mode-hotkey";
+import { cn } from "~/lib/utils";
+import { cva } from "class-variance-authority";
+import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
+import { useComposerKeyboard } from "./use-composer-keyboard";
+import { resolveShortcutCommand } from "~/keybindings";
 import { useComposerImageAttachments } from "./use-image-attachments";
 import { ComposerImageAttachmentStrip } from "./image-attachment-strip";
 import {
@@ -106,14 +106,50 @@ import {
 } from "../../../model/provider-state";
 import { TraitsMenuContent, TraitsPicker } from "../picker/traits-picker";
 import { resolveAppProviderModelState } from "../../../model/selection";
+import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
+
+const composerEditorClass = cva(
+  "block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-conversation text-foreground outline-hidden",
+  {
+    variants: {
+      mode: {
+        "new-agent":
+          "min-h-[var(--multi-composer-new-agent-editor-min-height)] max-h-[var(--multi-composer-new-agent-editor-max-height)] px-3 py-2 [&>p]:leading-[1.5]",
+        "thread-multiline":
+          "min-h-[var(--multi-composer-editor-min-height)] max-h-[var(--multi-composer-editor-max-height)] [&>p]:leading-[1.5]",
+        "thread-pill": "min-h-5 max-h-5 overflow-hidden pl-1",
+        "inline-edit": "min-h-5 max-h-60 px-3 py-2",
+      },
+    },
+  },
+);
+
+const composerShellClass = cva(
+  "relative min-w-0 rounded-[inherit] overflow-visible transition-[background-color,box-shadow] duration-200",
+  {
+    variants: {
+      mode: {
+        "new-agent": "flex flex-col gap-[var(--multi-composer-section-gap)] px-2.5 pt-2 pb-1.5",
+        "thread-multiline": "flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5",
+        "thread-pill":
+          "flex min-h-[var(--multi-composer-compact-shell-min-height)] items-center gap-1 px-2.5 py-2",
+        "inline-edit": "flex flex-col",
+      },
+    },
+  },
+);
+
+type ComposerEditorMode = "new-agent" | "thread-multiline" | "thread-pill" | "inline-edit";
 
 const EMPTY_QUEUED_COMPOSER_ITEMS: QueuedComposerItem[] = [];
 Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
+
+const PLAN_TRAY_PREVIEW_LINE_LIMIT = 6;
 
 type TraitsRenderInput = {
   provider: ProviderDriverKind;
@@ -179,6 +215,111 @@ function renderTraitsControl(
     />
   );
 }
+
+function buildPlanTrayPreview(planMarkdown: string): string {
+  const displayedPlan = stripDisplayedPlanMarkdown(planMarkdown).trim();
+  if (!displayedPlan) {
+    return "";
+  }
+
+  const lines = displayedPlan.split(/\r?\n/);
+  const previewLines = lines.slice(0, PLAN_TRAY_PREVIEW_LINE_LIMIT);
+  if (lines.length > previewLines.length) {
+    previewLines.push("...");
+  }
+  return previewLines.join("\n");
+}
+
+const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
+  plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
+  compact: boolean;
+  isBuilding: boolean;
+  planSurfaceOpen: boolean;
+  onBuildPlan: (() => void) | undefined;
+  onViewPlan: (() => void) | undefined;
+}) {
+  const planKey = String(props.plan.id);
+  const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
+  const title = useMemo(() => proposedPlanTitle(props.plan.planMarkdown) ?? "Plan", [props.plan]);
+  const preview = useMemo(() => buildPlanTrayPreview(props.plan.planMarkdown), [props.plan]);
+  const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
+
+  if (dismissedPlanId === planKey) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-2xl border border-multi-stroke-tertiary bg-(--glass-chat-bubble-background) text-multi-fg-primary shadow-sm",
+        props.compact ? "mx-auto w-full" : "",
+      )}
+      data-testid="plan-tray"
+      data-visible="true"
+      style={{ transformOrigin: "bottom left" }}
+    >
+      <div className="flex min-w-0 items-start gap-2 px-3 pt-2.5 pb-1.5">
+        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
+          <IconChecklist className="size-3.5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-caption font-semibold text-multi-fg-tertiary uppercase">
+            Review Plan
+          </div>
+          <div className="truncate text-body font-medium text-multi-fg-primary" title={title}>
+            {title}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex size-6 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-secondary"
+          aria-label="Dismiss plan"
+          title="Dismiss plan"
+          onClick={() => setDismissedPlanId(planKey)}
+        >
+          <IconCrossSmall className="size-3.5" aria-hidden />
+        </button>
+      </div>
+
+      {preview ? (
+        <div className="plan-tray__description px-3 pb-2">
+          <div className="plan-tray__description-text max-h-28 overflow-hidden whitespace-pre-wrap text-detail leading-5 text-multi-fg-tertiary">
+            {preview}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex min-w-0 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-2.5 py-2">
+        {showViewPlan ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="rounded-full px-2"
+            onClick={props.onViewPlan}
+          >
+            <IconEyeOpen className="size-3.5" aria-hidden />
+            <span>View Plan</span>
+          </Button>
+        ) : (
+          <span className="min-w-0" aria-hidden />
+        )}
+        <Button
+          type="button"
+          size="sm"
+          className="rounded-full border-amber-500/20 bg-amber-500/90 px-4 text-white hover:bg-amber-500 data-pressed:bg-amber-600"
+          disabled={props.isBuilding || !props.onBuildPlan}
+          aria-label="Build plan"
+          title="Build plan"
+          onClick={props.onBuildPlan}
+        >
+          <IconArrowUp className="size-3.5" aria-hidden />
+          <span>{props.isBuilding ? "Building" : "Build"}</span>
+        </Button>
+      </div>
+    </div>
+  );
+});
 
 function renderProviderTraitsMenuContent(input: TraitsRenderInput): ReactNode {
   return renderTraitsControl(TraitsMenuContent, input);
@@ -302,7 +443,6 @@ function useComposerModelState(input: {
     selectedProviderModels,
     composerProviderState,
     selectedPromptEffort: composerProviderState.promptEffort,
-    selectedModelOptionsForDispatch: composerProviderState.modelOptionsForDispatch,
     composerProviderControls,
     modelResolverStatus: chatModelSelection.status,
     selectedModelSelection: chatModelSelection.modelSelection,
@@ -320,9 +460,8 @@ const EMPTY_PENDING_USER_INPUT_ANSWERS: NonNullable<
 const EMPTY_RESPONDING_REQUEST_IDS: NonNullable<ComposerInputProps["respondingRequestIds"]> = [];
 Object.freeze(EMPTY_RESPONDING_REQUEST_IDS);
 
-const ignoreQueuedComposerItem = (_itemId: QueuedComposerItemId): void => undefined;
+const ignoreQueuedComposerItem = (_itemId: MessageId): void => undefined;
 const ignoreQueuedComposerEditCancel = (): void => undefined;
-
 function useValueIdentityVersion<TValue>(value: TValue): number {
   const valueRef = useRef(value);
   const versionRef = useRef(0);
@@ -372,23 +511,6 @@ const extendReplacementRangeForTrailingSpace = (
   }
   return text[rangeEnd] === " " ? rangeEnd + 1 : rangeEnd;
 };
-
-const syncTerminalContextsByIds = (
-  contexts: ReadonlyArray<TerminalContextDraft>,
-  ids: ReadonlyArray<string>,
-): TerminalContextDraft[] => {
-  const contextsById = new Map(contexts.map((context) => [context.id, context]));
-  return ids.flatMap((id) => {
-    const context = contextsById.get(id);
-    return context ? [context] : [];
-  });
-};
-
-const terminalContextIdListsEqual = (
-  contexts: ReadonlyArray<TerminalContextDraft>,
-  ids: ReadonlyArray<string>,
-): boolean =>
-  contexts.length === ids.length && contexts.every((context, index) => context.id === ids[index]);
 
 type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -1091,7 +1213,8 @@ const ComposerFooter = memo(function ComposerFooter(props: {
 export const ComposerInput = memo(
   forwardRef<ComposerInputHandle, ComposerInputProps>(function ComposerInput(props, ref) {
     const {
-      variant = "dock",
+      variant = "compact",
+      layout = "thread",
       modelPickerPlacement: modelPickerPlacementProp,
       composerDraftTarget,
       environmentId,
@@ -1121,6 +1244,7 @@ export const ComposerInput = memo(
       respondingRequestIds = EMPTY_RESPONDING_REQUEST_IDS,
       showPlanFollowUpPrompt = false,
       activeProposedPlan = null,
+      planSurfaceOpen = false,
       runtimeMode,
       interactionMode,
       providerStatuses,
@@ -1134,10 +1258,11 @@ export const ComposerInput = memo(
       gitCwd,
       promptRef,
       composerImagesRef,
-      composerTerminalContextsRef,
       footerSecondaryAction,
       onSend,
       onInterrupt,
+      onBuildPlan,
+      onViewPlan,
       onRespondToApproval,
       onSelectActivePendingUserInputOption,
       onAdvanceActivePendingUserInput,
@@ -1180,30 +1305,21 @@ export const ComposerInput = memo(
     > =
       onChangeActivePendingUserInputCustomAnswer ??
       missingPendingHandlers.changeActivePendingUserInputCustomAnswer;
-    const isInlineEditComposer = variant === "inline-edit";
-    const composerVariant = variant === "hero" ? "expanded" : "compact";
+    const isInlineEditComposer = layout === "inline-edit";
+    const isNewAgentComposer = layout === "new-agent";
+    const composerVariant = variant;
     const modelPickerPlacement =
       modelPickerPlacementProp ?? (composerVariant === "compact" ? "top-start" : "bottom-start");
 
     // ------------------------------------------------------------------
-    // Store subscriptions (prompt / images / terminal contexts)
+    // Store subscriptions (prompt / images)
     // ------------------------------------------------------------------
     const composerDraft = useComposerThreadDraft(composerDraftTarget);
     const prompt = composerDraft.prompt;
     const composerImages = composerDraft.images;
-    const composerTerminalContexts = composerDraft.terminalContexts;
     const nonPersistedComposerImageIds = composerDraft.nonPersistedImageIds;
 
     const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
-    const insertComposerDraftTerminalContext = useComposerDraftStore(
-      (store) => store.insertTerminalContext,
-    );
-    const removeComposerDraftTerminalContext = useComposerDraftStore(
-      (store) => store.removeTerminalContext,
-    );
-    const setComposerDraftTerminalContexts = useComposerDraftStore(
-      (store) => store.setTerminalContexts,
-    );
 
     // ------------------------------------------------------------------
     // Model state
@@ -1220,7 +1336,6 @@ export const ComposerInput = memo(
       selectedProviderModels,
       composerProviderState,
       selectedPromptEffort,
-      selectedModelOptionsForDispatch,
       composerProviderControls,
       modelResolverStatus,
       selectedModelSelection,
@@ -1278,7 +1393,7 @@ export const ComposerInput = memo(
       });
     }, []);
 
-    useComposerModeHotkey({
+    useComposerKeyboard({
       keybindings,
       terminalOpen,
       targetRef: composerEditorHotkeyRef,
@@ -1319,9 +1434,8 @@ export const ComposerInput = memo(
         deriveComposerSendState({
           prompt,
           imageCount: composerImages.length,
-          terminalContexts: composerTerminalContexts,
         }),
-      [composerImages.length, composerTerminalContexts, prompt],
+      [composerImages.length, prompt],
     );
 
     // ------------------------------------------------------------------
@@ -1408,6 +1522,19 @@ export const ComposerInput = memo(
         isComposerEditorMultiline);
 
     const isDockComposerSingleLine = composerVariant === "compact" && !isDockComposerExpanded;
+    const composerEditorMode: ComposerEditorMode = isInlineEditComposer
+      ? "inline-edit"
+      : isNewAgentComposer
+        ? "new-agent"
+        : isDockComposerSingleLine
+          ? "thread-pill"
+          : "thread-multiline";
+    const showPlanTray =
+      !isInlineEditComposer &&
+      !isComposerApprovalState &&
+      pendingUserInputs.length === 0 &&
+      showPlanFollowUpPrompt &&
+      activeProposedPlan !== null;
 
     // ------------------------------------------------------------------
     // Prompt helpers
@@ -1496,31 +1623,6 @@ export const ComposerInput = memo(
       [applyPromptReplacement, isComposerApprovalState, promptRef],
     );
 
-    const removeComposerTerminalContextFromDraft = useCallback(
-      (contextId: string) => {
-        const contextIndex = composerTerminalContexts.findIndex(
-          (context) => context.id === contextId,
-        );
-        if (contextIndex < 0) return;
-        const removal = removeInlineTerminalContextPlaceholder(promptRef.current, contextIndex);
-        promptRef.current = removal.prompt;
-        setPrompt(removal.prompt);
-        removeComposerDraftTerminalContext(composerDraftTarget, contextId);
-        const nextCursor = collapseExpandedComposerCursor(removal.prompt, removal.cursor);
-        setComposerCursor(nextCursor);
-        applyComposerTrigger(resolveComposerTrigger(removal.prompt, removal.cursor));
-      },
-      [
-        applyComposerTrigger,
-        composerDraftTarget,
-        composerTerminalContexts,
-        promptRef,
-        resolveComposerTrigger,
-        removeComposerDraftTerminalContext,
-        setPrompt,
-      ],
-    );
-
     // ------------------------------------------------------------------
     // Provider traits UI
     // ------------------------------------------------------------------
@@ -1595,7 +1697,6 @@ export const ComposerInput = memo(
     // ------------------------------------------------------------------
     promptRef.current = prompt;
     composerImagesRef.current = composerImages;
-    composerTerminalContextsRef.current = composerTerminalContexts;
 
     const lastSyncedPendingInputRef = useRef<{
       requestId: string | null;
@@ -1611,7 +1712,6 @@ export const ComposerInput = memo(
         nextCursor: number,
         expandedCursor: number,
         cursorAdjacentToMention: boolean,
-        terminalContextIds: string[],
       ) => {
         if (activePendingProgress?.activeQuestion && pendingUserInputs.length > 0) {
           promptRef.current = nextPrompt;
@@ -1633,12 +1733,6 @@ export const ComposerInput = memo(
         }
         promptRef.current = nextPrompt;
         setPrompt(nextPrompt);
-        if (!terminalContextIdListsEqual(composerTerminalContexts, terminalContextIds)) {
-          setComposerDraftTerminalContexts(
-            composerDraftTarget,
-            syncTerminalContextsByIds(composerTerminalContexts, terminalContextIds),
-          );
-        }
         setComposerCursor(nextCursor);
         applyComposerTrigger(
           cursorAdjacentToMention ? null : resolveComposerTrigger(nextPrompt, expandedCursor),
@@ -1651,10 +1745,7 @@ export const ComposerInput = memo(
         handleChangeActivePendingUserInputCustomAnswer,
         promptRef,
         setPrompt,
-        composerDraftTarget,
-        composerTerminalContexts,
         resolveComposerTrigger,
-        setComposerDraftTerminalContexts,
       ],
     );
 
@@ -1662,7 +1753,6 @@ export const ComposerInput = memo(
       value: string;
       cursor: number;
       expandedCursor: number;
-      terminalContextIds: string[];
     } => {
       const editorSnapshot = composerEditorRef.current?.readSnapshot();
       if (editorSnapshot) {
@@ -1672,9 +1762,8 @@ export const ComposerInput = memo(
         value: promptRef.current,
         cursor: composerCursor,
         expandedCursor: expandCollapsedComposerCursor(promptRef.current, composerCursor),
-        terminalContextIds: composerTerminalContexts.map((context) => context.id),
       };
-    }, [composerCursor, composerTerminalContexts, promptRef]);
+    }, [composerCursor, promptRef]);
 
     const resolveActiveComposerTrigger = useCallback((): {
       snapshot: { value: string; cursor: number; expandedCursor: number };
@@ -1915,8 +2004,15 @@ export const ComposerInput = memo(
           return true;
         }
       }
-      if (key === "Enter" && !event.shiftKey) {
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: { terminalOpen, composerFocus: true },
+      });
+      if (command === "composer.send") {
         void onSend();
+        return true;
+      }
+      if (command === "composer.interrupt") {
+        void onInterrupt();
         return true;
       }
       return false;
@@ -1967,49 +2063,12 @@ export const ComposerInput = memo(
               : null,
           );
         },
-        addTerminalContext: (selection: TerminalContextSelection) => {
-          if (!activeThread) return;
-          const snapshot = composerEditorRef.current?.readSnapshot() ?? {
-            value: promptRef.current,
-            cursor: composerCursor,
-            expandedCursor: expandCollapsedComposerCursor(promptRef.current, composerCursor),
-            terminalContextIds: composerTerminalContexts.map((context) => context.id),
-          };
-          const insertion = insertInlineTerminalContextPlaceholder(
-            snapshot.value,
-            snapshot.expandedCursor,
-          );
-          const nextCollapsedCursor = collapseExpandedComposerCursor(
-            insertion.prompt,
-            insertion.cursor,
-          );
-          const inserted = insertComposerDraftTerminalContext(
-            composerDraftTarget,
-            insertion.prompt,
-            {
-              id: randomUUID(),
-              threadId: activeThread.id,
-              createdAt: new Date().toISOString(),
-              ...selection,
-            },
-            insertion.contextIndex,
-          );
-          if (!inserted) return;
-          promptRef.current = insertion.prompt;
-          setComposerCursor(nextCollapsedCursor);
-          applyComposerTrigger(resolveComposerTrigger(insertion.prompt, insertion.cursor));
-          window.requestAnimationFrame(() => {
-            composerEditorRef.current?.focusAt(nextCollapsedCursor);
-          });
-        },
         getSendContext: () => {
           const submitData = composerEditorRef.current?.getSubmitData();
           return {
             prompt: submitData?.text ?? promptRef.current,
             images: composerImagesRef.current,
-            terminalContexts: composerTerminalContextsRef.current,
             selectedPromptEffort,
-            selectedModelOptionsForDispatch,
             selectedModelSelection,
             selectedProvider,
             selectedModel: instanceCoherentSelectedModel,
@@ -2018,20 +2077,13 @@ export const ComposerInput = memo(
         },
       }),
       [
-        activeThread,
         applyComposerTrigger,
-        composerDraftTarget,
-        composerCursor,
-        composerTerminalContexts,
-        insertComposerDraftTerminalContext,
         promptRef,
         composerImagesRef,
-        composerTerminalContextsRef,
         isComposerModelPickerOpen,
         readComposerSnapshot,
         resolveComposerTrigger,
         instanceCoherentSelectedModel,
-        selectedModelOptionsForDispatch,
         selectedModelSelection,
         selectedPromptEffort,
         selectedProvider,
@@ -2105,6 +2157,7 @@ export const ComposerInput = memo(
         onSubmit={onSend}
         className={cn("w-full min-w-0", !isInlineEditComposer && "mx-auto max-w-agent-chat")}
         data-variant={composerVariant}
+        data-layout={layout}
         data-chat-input-form="true"
       >
         {lifecycleSync}
@@ -2119,6 +2172,16 @@ export const ComposerInput = memo(
           data-slash-menu-variant="glass"
           data-variant={composerVariant}
         >
+          {showPlanTray ? (
+            <PlanFollowUpTray
+              plan={activeProposedPlan}
+              compact={composerVariant === "compact"}
+              isBuilding={isConnecting || isSendBusy}
+              planSurfaceOpen={planSurfaceOpen}
+              onBuildPlan={onBuildPlan}
+              onViewPlan={onViewPlan}
+            />
+          ) : null}
           {promptInputHeaderContent ? (
             <div
               className={cn(
@@ -2164,15 +2227,7 @@ export const ComposerInput = memo(
           >
             <div
               className={cn(
-                "relative min-w-0 rounded-[inherit] overflow-visible transition-[background-color,box-shadow] duration-200",
-                isInlineEditComposer
-                  ? "flex flex-col"
-                  : isDockComposerSingleLine
-                    ? "flex min-h-11 items-center gap-1 px-2.5 py-2"
-                    : isDockComposerExpanded
-                      ? "flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5"
-                      : "flex flex-col",
-                variant === "hero" ? "min-h-44" : "",
+                composerShellClass({ mode: composerEditorMode }),
                 composerProviderState.ultrathinkActive &&
                   "shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset]",
               )}
@@ -2214,14 +2269,10 @@ export const ComposerInput = memo(
                 ref={composerMenuAnchorRef}
                 className={cn(
                   "relative min-w-0 select-text",
-                  isInlineEditComposer
-                    ? "min-h-5"
-                    : isDockComposerSingleLine
-                      ? "flex min-h-0 flex-1 items-center"
-                      : isDockComposerExpanded
-                        ? "min-h-5"
-                        : "min-h-9",
-                  variant === "hero" && !isDockComposerSingleLine ? "flex flex-1 flex-col" : "",
+                  composerEditorMode === "inline-edit" && "min-h-5",
+                  composerEditorMode === "thread-pill" && "flex min-h-0 flex-1 items-center",
+                  composerEditorMode === "thread-multiline" && "min-h-5",
+                  composerEditorMode === "new-agent" && "flex min-h-0 flex-1 flex-col",
                 )}
                 data-composer-menu-anchor=""
                 data-expanded={isDockComposerExpanded ? "" : undefined}
@@ -2248,25 +2299,13 @@ export const ComposerInput = memo(
                         : prompt
                   }
                   cursor={composerCursor}
-                  terminalContexts={
-                    !isComposerApprovalState && pendingUserInputs.length === 0
-                      ? composerTerminalContexts
-                      : []
-                  }
                   skills={selectedProviderStatus?.skills ?? []}
-                  onRemoveTerminalContext={removeComposerTerminalContextFromDraft}
                   onMeasuredMultilineChange={setIsComposerEditorMultiline}
                   onChange={onPromptChange}
                   onCommandKeyDown={onComposerCommandKey}
                   hotkeyTargetRef={composerEditorHotkeyRef}
                   onPaste={onComposerPaste}
-                  className={cn(
-                    isInlineEditComposer && "!min-h-5 !max-h-60 !px-3 !py-2",
-                    isDockComposerExpanded &&
-                      !isInlineEditComposer &&
-                      "!min-h-5 !max-h-60 !px-0 !py-0 [&>p]:leading-[1.5]",
-                    isDockComposerSingleLine && "!min-h-5 !max-h-5 !overflow-hidden !p-0 !pl-1",
-                  )}
+                  className={composerEditorClass({ mode: composerEditorMode })}
                   placeholder={
                     isComposerApprovalState
                       ? (activePendingApproval?.detail ??

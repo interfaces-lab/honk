@@ -1,7 +1,8 @@
 import { IconChevronRightMedium, IconCrossMediumDefault, IconPencilLine } from "central-icons";
+import type { MessageId } from "@multi/contracts";
 import { memo } from "react";
 
-import type { QueuedComposerItem, QueuedComposerItemId } from "../../../stores/chat-send-queue";
+import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import { cn } from "~/lib/utils";
 
 function formatQueuedComposerItemPreview(item: QueuedComposerItem): string {
@@ -15,12 +16,6 @@ function formatQueuedComposerItemPreview(item: QueuedComposerItem): string {
       ? (item.sendContext.images[0]?.name ?? "Image")
       : `${imageCount} images`;
   }
-  const terminalContextCount = item.sendContext.terminalContexts.length;
-  if (terminalContextCount > 0) {
-    return terminalContextCount === 1
-      ? "Terminal context"
-      : `${terminalContextCount} terminal contexts`;
-  }
   return "Queued message";
 }
 
@@ -29,20 +24,17 @@ function formatQueuedComposerItemMeta(item: QueuedComposerItem, index: number): 
   if (item.sendContext.images.length > 0) {
     parts.push(`${item.sendContext.images.length} img`);
   }
-  if (item.sendContext.terminalContexts.length > 0) {
-    parts.push(`${item.sendContext.terminalContexts.length} ctx`);
-  }
   return parts.join(" / ");
 }
 
 export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(props: {
   items: readonly QueuedComposerItem[];
-  editingItemId: QueuedComposerItemId | null;
+  editingItemId: MessageId | null;
   isBusy: boolean;
-  onBeginEdit: (itemId: QueuedComposerItemId) => void;
+  onBeginEdit: (itemId: MessageId) => void;
   onCancelEdit: () => void;
-  onRemove: (itemId: QueuedComposerItemId) => void;
-  onSendNow: (itemId: QueuedComposerItemId) => void;
+  onRemove: (itemId: MessageId) => void;
+  onSendNow: (itemId: MessageId) => void;
 }) {
   if (props.items.length === 0) {
     return null;

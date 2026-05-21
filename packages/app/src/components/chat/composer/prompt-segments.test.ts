@@ -4,7 +4,6 @@ import {
   selectionTouchesMentionBoundary,
   splitPromptIntoComposerSegments,
 } from "./prompt-segments";
-import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "../../../lib/terminal-context";
 
 describe("splitPromptIntoComposerSegments", () => {
   it("splits mention tokens followed by whitespace into mention segments", () => {
@@ -72,39 +71,9 @@ describe("splitPromptIntoComposerSegments", () => {
     ]);
   });
 
-  it("keeps inline terminal context placeholders at their prompt positions", () => {
-    expect(
-      splitPromptIntoComposerSegments(
-        `Inspect ${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}@AGENTS.md please`,
-      ),
-    ).toEqual([
+  it("keeps skill parsing alongside mentions", () => {
+    expect(splitPromptIntoComposerSegments("Inspect $review-follow-up after @AGENTS.md ")).toEqual([
       { type: "text", text: "Inspect " },
-      { type: "terminal-context", context: null },
-      { type: "mention", path: "AGENTS.md" },
-      { type: "text", text: " please" },
-    ]);
-  });
-
-  it("preserves consecutive terminal context placeholders without dropping positions", () => {
-    expect(
-      splitPromptIntoComposerSegments(
-        `${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}tail`,
-      ),
-    ).toEqual([
-      { type: "terminal-context", context: null },
-      { type: "terminal-context", context: null },
-      { type: "text", text: "tail" },
-    ]);
-  });
-
-  it("keeps skill parsing alongside mentions and terminal placeholders", () => {
-    expect(
-      splitPromptIntoComposerSegments(
-        `Inspect ${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}$review-follow-up after @AGENTS.md `,
-      ),
-    ).toEqual([
-      { type: "text", text: "Inspect " },
-      { type: "terminal-context", context: null },
       { type: "skill", name: "review-follow-up" },
       { type: "text", text: " after " },
       { type: "mention", path: "AGENTS.md" },
@@ -144,12 +113,12 @@ describe("selectionTouchesMentionBoundary", () => {
     ).toBe(false);
   });
 
-  it("returns true when selection includes whitespace after a mention following a terminal placeholder", () => {
-    const prompt = `${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}@AGENTS.md there`;
+  it("returns true when selection includes whitespace after a leading mention", () => {
+    const prompt = "@AGENTS.md there";
     expect(
       selectionTouchesMentionBoundary(
         prompt,
-        `${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}@AGENTS.md`.length,
+        "@AGENTS.md".length,
         prompt.length,
       ),
     ).toBe(true);

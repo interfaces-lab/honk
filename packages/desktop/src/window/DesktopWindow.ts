@@ -100,11 +100,23 @@ function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
   return shouldUseDarkColors ? "#161616" : "#ffffff";
 }
 
+function getMacOSTrafficLightPosition(): { x: number; y: number } {
+  return { x: 14, y: MACOS_TRAFFIC_LIGHT_Y_PX };
+}
+
+function syncMacOSTrafficLightPosition(window: Electron.BrowserWindow): void {
+  if (process.platform !== "darwin" || window.isDestroyed()) {
+    return;
+  }
+
+  window.setWindowButtonPosition(getMacOSTrafficLightPosition());
+}
+
 function getWindowTitleBarOptions(shouldUseDarkColors: boolean): WindowTitleBarOptions {
   if (process.platform === "darwin") {
     return {
       titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 14, y: MACOS_TRAFFIC_LIGHT_Y_PX },
+      trafficLightPosition: getMacOSTrafficLightPosition(),
     };
   }
 
@@ -122,6 +134,7 @@ function sendWindowChromeState(window: Electron.BrowserWindow): void {
   if (window.isDestroyed()) {
     return;
   }
+  syncMacOSTrafficLightPosition(window);
   window.webContents.send(IpcChannels.WINDOW_CHROME_STATE_CHANNEL, {
     fullscreen: window.isFullScreen(),
   });
@@ -192,6 +205,7 @@ function syncWindowAppearance(
     if (typeof titleBarOverlay === "object") {
       window.setTitleBarOverlay(titleBarOverlay);
     }
+    syncMacOSTrafficLightPosition(window);
   });
 }
 

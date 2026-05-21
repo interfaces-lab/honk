@@ -46,12 +46,12 @@ export const ChatHeader = memo(function ChatHeader({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="size-6 shrink-0 md:hidden"
+          size="icon-sm"
+          className="size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden md:hidden"
           aria-label="Toggle sidebar"
           onClick={() => shellPanelsActions.toggleLeft()}
         >
-          <IconSidebar className="size-3.5" />
+          <IconSidebar className="size-4 shrink-0" />
         </Button>
         <div className="no-drag flex min-w-0 shrink items-center">
           <button

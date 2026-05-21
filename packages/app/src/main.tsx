@@ -1,3 +1,7 @@
+if (import.meta.env.DEV) {
+  void import("./dev/react-grab");
+}
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";

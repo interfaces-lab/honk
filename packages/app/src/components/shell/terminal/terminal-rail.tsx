@@ -20,7 +20,7 @@ export function TerminalRail(props: {
             <div
               key={session.id}
               className={cn(
-                "group flex min-h-6 items-center gap-1.5 rounded-multi-control px-1.5 py-1 text-body transition-colors",
+                "group flex min-h-6 items-center gap-2 rounded-multi-control px-1.5 py-1 text-body transition-colors",
                 active
                   ? "bg-multi-bg-tertiary text-foreground"
                   : "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",
@@ -29,9 +29,9 @@ export function TerminalRail(props: {
               <button
                 type="button"
                 onClick={() => props.onActivate(session.id)}
-                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                <IconConsole className="size-3.5 shrink-0 opacity-60" />
+                <IconConsole className="size-4 shrink-0 opacity-60" />
                 <span className="min-w-0 truncate">{session.label}</span>
               </button>
               {props.sessions.length > 1 ? (

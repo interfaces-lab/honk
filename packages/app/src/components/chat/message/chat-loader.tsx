@@ -23,6 +23,16 @@ interface ChatLoaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "children
   speed?: number;
 }
 
+interface ChatLoaderGlyphProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
+  animated?: boolean;
+  boxSize?: number;
+  cellPadding?: number;
+  dotSize?: number;
+  minSize?: number;
+  pattern?: ChatLoaderPattern;
+  speed?: number;
+}
+
 interface ChatLoaderDotInput {
   col: number;
   index: number;
@@ -217,6 +227,34 @@ export function ChatLoader({
   );
 }
 
+export function ChatLoaderGlyph({
+  animated = true,
+  boxSize = 24,
+  cellPadding = 1,
+  dotSize = 2,
+  minSize = 24,
+  pattern = "full",
+  speed = 1,
+  ...props
+}: ChatLoaderGlyphProps) {
+  const reducedMotion = usePrefersReducedMotion();
+  const phase: ChatLoaderPhase = animated && !reducedMotion ? "active" : "idle";
+
+  return (
+    <ChatLoaderMatrix
+      boxSize={boxSize}
+      cellPadding={cellPadding}
+      dotSize={dotSize}
+      minSize={minSize}
+      pattern={pattern}
+      phase={phase}
+      reducedMotion={reducedMotion}
+      speed={speed}
+      {...props}
+    />
+  );
+}
+
 function ChatLoaderMatrix({
   boxSize,
   cellPadding,
@@ -228,7 +266,7 @@ function ChatLoaderMatrix({
   reducedMotion,
   speed,
   ...props
-}: Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
+}: Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
   boxSize: number;
   cellPadding: number;
   dotSize: number;

@@ -523,7 +523,7 @@ function LocalBranchBar(props: {
               title="Editor Options"
               chrome="panel"
             >
-              <IconDotGrid1x3Horizontal className="size-3.5" />
+              <IconDotGrid1x3Horizontal className="size-4" />
             </WorkbenchIconButton>
             {props.editorMenuOpen && (
               <>
@@ -643,7 +643,7 @@ function LocalBranchBar(props: {
         className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
         title="Copy branch name"
       >
-        <IconBranch className="size-3 shrink-0 text-multi-icon-tertiary" />
+        <IconBranch className="size-4 shrink-0 text-multi-icon-tertiary" />
         <span className="truncate font-mono">{props.branch ?? "detached"}</span>
       </button>
     </WorkbenchChromeRow>
@@ -679,7 +679,7 @@ function ChangesHeader(props: {
             title="Discard all changes"
             chrome="panel"
           >
-            <IconStepBack className="size-3.5 shrink-0" />
+            <IconStepBack className="size-4 shrink-0" />
           </WorkbenchIconButton>
           <WorkbenchIconButton
             onClick={toggleAll}
@@ -704,7 +704,7 @@ function ChangesHeader(props: {
         title={props.railOpen ? "Hide changes list" : "Show changes list"}
         chrome="panel"
       >
-        <IconBarsThree className="size-3.5 shrink-0" aria-hidden />
+        <IconBarsThree className="size-4 shrink-0" aria-hidden />
       </WorkbenchIconButton>
       <ChangesFilterMenu
         count={props.count}
@@ -733,7 +733,7 @@ function ChangesFilterMenu(props: {
         className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 max-w-64 select-none items-center gap-1 overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-secondary tabular-nums outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
         aria-label="Change filter"
       >
-        <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
+        <IconFolder1 className="size-4 shrink-0 text-multi-icon-tertiary" aria-hidden />
         <span className="min-w-0 truncate">{label}</span>
         <IconChevronRightMedium
           className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary"

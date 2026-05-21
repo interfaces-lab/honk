@@ -13,7 +13,8 @@ import {
 import { toast } from "sonner";
 
 import { ThreadContextMenu } from "~/components/shell/sidebar/thread-context-menu";
-import { RowButton } from "~/components/shell/shared/row-button";
+import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";
+import { RowButton, agentRowSelectedClassName } from "~/components/shell/shared/row-button";
 import { useThreadActions } from "~/hooks/use-thread-actions";
 import type { SidebarChatItem } from "./sidebar-chat-view-model";
 import { useUiStateStore } from "~/stores/ui-state-store";
@@ -21,11 +22,11 @@ import { cn } from "~/lib/utils";
 
 type UiStatusDotState = NonNullable<ComponentProps<typeof UiStatusDot>["state"]>;
 
-function SidebarDot(props: { state: UiStatusDotState; className?: string }) {
+function SidebarDot(props: { state: UiStatusDotState }) {
   return (
     <UiStatusDot
       state={props.state}
-      className={cn("size-3.5", props.className)}
+      className="size-4 shrink-0"
       role="presentation"
       aria-hidden
     />
@@ -36,27 +37,35 @@ function StatusDot(props: { item: SidebarChatItem }) {
   if (props.item.kind === "draft") {
     return <SidebarDot state="draft" />;
   }
+
   if (props.item.state === "running") {
     return (
-      <span className="relative flex size-3.5 shrink-0 items-center justify-center">
-        <span className="absolute size-[11px] animate-ping rounded-full bg-emerald-500/35" />
-        <SidebarDot state="running" className="after:bg-emerald-500" />
-      </span>
+      <ChatLoaderGlyph
+        aria-hidden
+        boxSize={14}
+        cellPadding={0.55}
+        className="text-emerald-500"
+        dotSize={1.5}
+        minSize={14}
+        role="presentation"
+        speed={1.1}
+      />
     );
   }
-  if (props.item.state === "error") {
-    return <SidebarDot state="critical" />;
-  }
-  if (props.item.state === "needs_attention") {
-    return <SidebarDot state="needsAttention" />;
-  }
-  return <SidebarDot state={props.item.unread ? "doneUnseen" : "doneSeen"} />;
+
+  return <SidebarDot state={sidebarDotStateForItem(props.item)} />;
+}
+
+function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
+  if (item.state === "error") return "critical";
+  if (item.state === "needs_attention") return "needsAttention";
+  return item.unread ? "doneUnseen" : "doneSeen";
 }
 
 function StatusSlot(props: { item: SidebarChatItem }) {
   return (
     <span
-      className="flex size-3.5 shrink-0 items-center justify-center text-multi-icon-secondary"
+      className="flex size-4 shrink-0 items-center justify-center text-multi-icon-secondary"
       data-agent-sidebar-status=""
     >
       <StatusDot item={props.item} />
@@ -75,7 +84,7 @@ function ThreadStatusActionSlot(props: {
       data-agent-sidebar-status=""
       data-agent-sidebar-pin-slot=""
     >
-      <span className="flex size-3.5 items-center justify-center group-hover/agent-row-shell:opacity-0 group-focus-within/agent-row-shell:opacity-0">
+      <span className="flex size-4 shrink-0 items-center justify-center group-hover/agent-row-shell:opacity-0 group-focus-within/agent-row-shell:opacity-0 group-data-[popup-open]/agent-row-shell:opacity-0">
         <StatusDot item={props.item} />
       </span>
       <button
@@ -86,14 +95,14 @@ function ThreadStatusActionSlot(props: {
         onMouseDown={stopActionPointerDown}
         className={cn(
           hoverActionButtonClass,
-          "pointer-events-none absolute inset-0 opacity-0 group-hover/agent-row-shell:pointer-events-auto group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:pointer-events-auto group-focus-within/agent-row-shell:opacity-100",
+          "pointer-events-none absolute inset-0 opacity-0 group-hover/agent-row-shell:pointer-events-auto group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:pointer-events-auto group-focus-within/agent-row-shell:opacity-100 group-data-[popup-open]/agent-row-shell:pointer-events-auto group-data-[popup-open]/agent-row-shell:opacity-100",
         )}
         data-agent-sidebar-pin-action=""
       >
         {props.pinned ? (
-          <IconUnpin className="size-3.5" aria-hidden />
+          <IconUnpin className="size-4 shrink-0" aria-hidden />
         ) : (
-          <IconPin className="size-3.5" aria-hidden />
+          <IconPin className="size-4 shrink-0" aria-hidden />
         )}
       </button>
     </span>
@@ -125,6 +134,10 @@ export const AgentRow = memo(
     const [renaming, setRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState("");
     const committedRef = useRef(false);
+
+    const selectCurrentAgent = useCallback(() => {
+      props.onSelectAgent(props.item.id);
+    }, [props.onSelectAgent, props.item.id]);
 
     const focusRenameInput = useCallback((node: HTMLInputElement | null) => {
       if (!node) return;
@@ -195,16 +208,17 @@ export const AgentRow = memo(
       return (
         <RowButton
           variant="agent"
+          className={agentRowSelectedClassName}
           data-selected={props.selected}
           data-chat-item=""
           data-agent-sidebar-cell=""
           onFocus={() => props.onPrefetchAgent?.(props.item.id)}
           onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
-          onClick={() => props.onSelectAgent(props.item.id)}
+          onClick={selectCurrentAgent}
         >
-          <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             <StatusSlot item={props.item} />
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
               <span
                 className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
                 data-agent-sidebar-title=""
@@ -245,6 +259,42 @@ export const AgentRow = memo(
       }
       setThreadPinned(scopedThreadKey(targetThreadRef), !threadItem.pinned);
     };
+    if (renaming) {
+      return (
+        <div
+          className={cn(
+            "font-multi relative flex h-auto w-full min-w-0 cursor-(--multi-button-cursor) items-center gap-2 rounded-multi-control border px-1.5 py-[5px] text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading)",
+            "border-multi-stroke-primary bg-multi-bg-tertiary",
+          )}
+          data-agent-sidebar-cell=""
+          data-renaming="true"
+        >
+          <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+            <StatusSlot item={props.item} />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
+              <input
+                ref={focusRenameInput}
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={onRenameKeyDown}
+                onBlur={onBlur}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full min-w-0 select-text bg-transparent text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) text-foreground outline-none ring-0"
+                aria-label="Rename thread"
+              />
+            </span>
+          </span>
+          <span
+            className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary tabular-nums"
+            data-agent-sidebar-subtitle=""
+          >
+            {props.item.ago}
+          </span>
+        </div>
+      );
+    }
+
     return (
       <ThreadContextMenu
         threadId={threadItem.id}
@@ -267,98 +317,69 @@ export const AgentRow = memo(
           });
         }}
       >
-        {renaming ? (
-          <div
-            className={cn(
-              "font-multi relative flex h-auto w-full min-w-0 cursor-(--multi-button-cursor) items-center gap-3 rounded-multi-control border px-1.5 py-[5px] text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading)",
-              "border-multi-stroke-primary bg-multi-bg-tertiary",
-            )}
-            data-agent-sidebar-cell=""
-            data-renaming="true"
+        <div
+          className={cn(
+            "group/agent-row-shell flex w-full min-w-0 items-center gap-2 rounded-multi-control px-1.5 outline-none hover:bg-multi-bg-quaternary focus:bg-multi-bg-quaternary focus-within:bg-multi-bg-quaternary data-popup-open:bg-multi-bg-quaternary",
+            agentRowSelectedClassName,
+            "data-[selected=true]:focus-within:bg-multi-bg-tertiary data-[selected=true]:data-popup-open:bg-multi-bg-tertiary",
+          )}
+          data-selected={props.selected}
+          data-agent-sidebar-cell=""
+          data-agent-sidebar-row-shell=""
+          onClick={selectCurrentAgent}
+          tabIndex={-1}
+        >
+          <ThreadStatusActionSlot
+            item={props.item}
+            pinned={threadItem.pinned}
+            onTogglePinned={togglePinnedThread}
+          />
+          <RowButton
+            variant="agent"
+            className="min-w-0 flex-1 gap-2 bg-transparent px-0 pr-1 transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[selected=true]:!bg-transparent data-[highlighted=true]:!bg-transparent"
+            data-selected={props.selected}
+            data-chat-item=""
+            onFocus={() => props.onPrefetchAgent?.(props.item.id)}
+            onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
           >
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-              <StatusSlot item={props.item} />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pl-0.5">
-                <input
-                  ref={focusRenameInput}
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={onRenameKeyDown}
-                  onBlur={onBlur}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full min-w-0 select-text bg-transparent text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) text-foreground outline-none ring-0"
-                  aria-label="Rename thread"
-                />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
+              <span
+                className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
+                data-agent-sidebar-title=""
+                title={props.item.title}
+              >
+                {props.item.title}
               </span>
             </span>
             <span
-              className="max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary tabular-nums"
+              className={cn(
+                "max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) opacity-0 tabular-nums group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:opacity-100 group-data-[popup-open]/agent-row-shell:opacity-100",
+                props.selected ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
+              )}
               data-agent-sidebar-subtitle=""
+              data-agent-sidebar-trailing-content=""
             >
               {props.item.ago}
             </span>
-          </div>
-        ) : (
-          <div
-            className="group/agent-row-shell flex min-w-0 items-center gap-1 rounded-multi-control px-1.5 hover:bg-multi-bg-quaternary focus-within:bg-multi-bg-quaternary data-[selected=true]:bg-multi-bg-tertiary data-[selected=true]:hover:bg-multi-bg-tertiary data-[selected=true]:focus-within:bg-multi-bg-tertiary"
-            data-selected={props.selected}
-            data-agent-sidebar-cell=""
-            data-agent-sidebar-row-shell=""
+          </RowButton>
+          <span
+            className="flex max-w-0 shrink-0 overflow-hidden opacity-0 group-hover/agent-row-shell:max-w-5 group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:max-w-5 group-focus-within/agent-row-shell:opacity-100 group-data-[popup-open]/agent-row-shell:max-w-5 group-data-[popup-open]/agent-row-shell:opacity-100"
+            data-agent-sidebar-actions=""
+            data-agent-sidebar-archive-slot=""
           >
-            <ThreadStatusActionSlot
-              item={props.item}
-              pinned={threadItem.pinned}
-              onTogglePinned={togglePinnedThread}
-            />
-            <RowButton
-              variant="agent"
-              className="min-w-0 flex-1 gap-1.5 px-0 pr-1 transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent"
-              data-selected={props.selected}
-              data-chat-item=""
-              onFocus={() => props.onPrefetchAgent?.(props.item.id)}
-              onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
-              onClick={() => props.onSelectAgent(props.item.id)}
+            <button
+              type="button"
+              aria-label="Archive"
+              title="Archive"
+              onClick={archiveCurrentThread}
+              onMouseDown={stopActionPointerDown}
+              className={hoverActionButtonClass}
+              data-agent-sidebar-archive-action=""
             >
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                <span
-                  className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary group-data-[selected=true]/agent-row:text-multi-fg-primary"
-                  data-agent-sidebar-title=""
-                  title={props.item.title}
-                >
-                  {props.item.title}
-                </span>
-              </span>
-              <span
-                className={cn(
-                  "max-w-14 min-w-8 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) opacity-0 tabular-nums group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:opacity-100",
-                  props.selected ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
-                )}
-                data-agent-sidebar-subtitle=""
-                data-agent-sidebar-trailing-content=""
-              >
-                {props.item.ago}
-              </span>
-            </RowButton>
-            <span
-              className="flex max-w-0 shrink-0 overflow-hidden opacity-0 group-hover/agent-row-shell:max-w-5 group-hover/agent-row-shell:opacity-100 group-focus-within/agent-row-shell:max-w-5 group-focus-within/agent-row-shell:opacity-100"
-              data-agent-sidebar-actions=""
-              data-agent-sidebar-archive-slot=""
-            >
-              <button
-                type="button"
-                aria-label="Archive"
-                title="Archive"
-                onClick={archiveCurrentThread}
-                onMouseDown={stopActionPointerDown}
-                className={hoverActionButtonClass}
-                data-agent-sidebar-archive-action=""
-              >
-                <IconArchive1 className="size-3.5" aria-hidden />
-              </button>
-            </span>
-          </div>
-        )}
+              <IconArchive1 className="size-4 shrink-0" aria-hidden />
+            </button>
+          </span>
+        </div>
       </ThreadContextMenu>
     );
   },

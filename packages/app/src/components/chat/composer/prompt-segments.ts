@@ -1,8 +1,3 @@
-import {
-  INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
-  type TerminalContextDraft,
-} from "../../../lib/terminal-context";
-
 export type ComposerPromptSegment =
   | {
       type: "text";
@@ -22,10 +17,6 @@ export type ComposerPromptSegment =
       label: string;
       sourceUri: string;
       markdown: string;
-    }
-  | {
-      type: "terminal-context";
-      context: TerminalContextDraft | null;
     };
 
 const MENTION_TOKEN_REGEX = /(^|\s)@([^\s@]+)(?=\s)/g;
@@ -146,82 +137,16 @@ function collectInlineTokenMatches(text: string): InlineTokenMatch[] {
   return matches.toSorted((left, right) => left.start - right.start);
 }
 
-function forEachPromptSegmentSlice(
-  prompt: string,
-  visitor: (
-    slice:
-      | {
-          type: "text";
-          text: string;
-          promptOffset: number;
-        }
-      | {
-          type: "terminal-context";
-          promptOffset: number;
-        },
-  ) => boolean | void,
-): boolean {
-  let textCursor = 0;
-
-  for (let index = 0; index < prompt.length; index += 1) {
-    if (prompt[index] !== INLINE_TERMINAL_CONTEXT_PLACEHOLDER) {
-      continue;
-    }
-
-    if (
-      index > textCursor &&
-      visitor({
-        type: "text",
-        text: prompt.slice(textCursor, index),
-        promptOffset: textCursor,
-      }) === true
-    ) {
-      return true;
-    }
-    if (visitor({ type: "terminal-context", promptOffset: index }) === true) {
-      return true;
-    }
-    textCursor = index + 1;
-  }
-
-  if (
-    textCursor < prompt.length &&
-    visitor({
-      type: "text",
-      text: prompt.slice(textCursor),
-      promptOffset: textCursor,
-    }) === true
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function forEachPromptTextSlice(
-  prompt: string,
-  visitor: (text: string, promptOffset: number) => boolean | void,
-): boolean {
-  return forEachPromptSegmentSlice(prompt, (slice) => {
-    if (slice.type !== "text") {
-      return false;
-    }
-    return visitor(slice.text, slice.promptOffset);
-  });
-}
-
 function forEachMentionMatch(
   prompt: string,
   visitor: (match: RegExpMatchArray, promptOffset: number) => boolean | void,
 ): boolean {
-  return forEachPromptTextSlice(prompt, (text, promptOffset) => {
-    for (const match of text.matchAll(MENTION_TOKEN_REGEX)) {
-      if (visitor(match, promptOffset) === true) {
-        return true;
-      }
+  for (const match of prompt.matchAll(MENTION_TOKEN_REGEX)) {
+    if (visitor(match, 0) === true) {
+      return true;
     }
-    return false;
-  });
+  }
+  return false;
 }
 
 function splitPromptTextIntoComposerSegments(text: string): ComposerPromptSegment[] {
@@ -305,29 +230,9 @@ export function selectionTouchesMentionBoundary(
   });
 }
 
-export function splitPromptIntoComposerSegments(
-  prompt: string,
-  terminalContexts: ReadonlyArray<TerminalContextDraft> = [],
-): ComposerPromptSegment[] {
+export function splitPromptIntoComposerSegments(prompt: string): ComposerPromptSegment[] {
   if (!prompt) {
     return [];
   }
-
-  const segments: ComposerPromptSegment[] = [];
-  let terminalContextIndex = 0;
-  forEachPromptSegmentSlice(prompt, (slice) => {
-    if (slice.type === "text") {
-      segments.push(...splitPromptTextIntoComposerSegments(slice.text));
-      return false;
-    }
-
-    segments.push({
-      type: "terminal-context",
-      context: terminalContexts[terminalContextIndex] ?? null,
-    });
-    terminalContextIndex += 1;
-    return false;
-  });
-
-  return segments;
+  return splitPromptTextIntoComposerSegments(prompt);
 }

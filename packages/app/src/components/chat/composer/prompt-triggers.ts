@@ -1,5 +1,4 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
-import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "../../../lib/terminal-context";
 
 export type ComposerTriggerKind = "path" | "slash-command" | "slash-model";
 export type ComposerSlashCommand = "model" | "plan" | "default";
@@ -19,13 +18,7 @@ function clampCursor(text: string, cursor: number): number {
 }
 
 function isWhitespace(char: string): boolean {
-  return (
-    char === " " ||
-    char === "\n" ||
-    char === "\t" ||
-    char === "\r" ||
-    char === INLINE_TERMINAL_CONTEXT_PLACEHOLDER
-  );
+  return char === " " || char === "\n" || char === "\t" || char === "\r";
 }
 
 function tokenStartForCursor(text: string, cursor: number): number {
@@ -67,14 +60,6 @@ export function expandCollapsedComposerCursor(text: string, cursorInput: number)
       }
       remaining -= 1;
       expandedCursor += expandedLength;
-      continue;
-    }
-    if (segment.type === "terminal-context") {
-      if (remaining <= 1) {
-        return expandedCursor + remaining;
-      }
-      remaining -= 1;
-      expandedCursor += 1;
       continue;
     }
     if (segment.type === "inline-token") {
@@ -158,14 +143,6 @@ export function collapseExpandedComposerCursor(text: string, cursorInput: number
         return collapsedCursor + 1;
       }
       remaining -= expandedLength;
-      collapsedCursor += 1;
-      continue;
-    }
-    if (segment.type === "terminal-context") {
-      if (remaining <= 1) {
-        return collapsedCursor + remaining;
-      }
-      remaining -= 1;
       collapsedCursor += 1;
       continue;
     }

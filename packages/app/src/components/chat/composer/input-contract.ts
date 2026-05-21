@@ -1,26 +1,26 @@
 import type {
   ApprovalRequestId,
   EnvironmentId,
+  MessageId,
   ModelSelection,
   ProviderApprovalDecision,
-  ProviderDriverKind,
   ProviderInteractionMode,
   ResolvedKeybindingsConfig,
   RuntimeMode,
   ScopedThreadRef,
-  ServerProvider,
   ThreadId,
+  ServerProvider,
 } from "@multi/contracts";
 import type { UnifiedSettings } from "@multi/contracts/settings";
 import type { MutableRefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
-import type { QueuedComposerItem, QueuedComposerItemId } from "../../../stores/chat-send-queue";
-import type { TerminalContextDraft, TerminalContextSelection } from "../../../lib/terminal-context";
+import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import type { PendingUserInputDraftAnswer } from "./pending-user-input";
 import type { PendingApproval, PendingUserInput } from "../../../session-logic";
 import type { SessionPhase, Thread } from "../../../types";
 import type { ExpandedImagePreview } from "../message/expanded-image-preview";
+import type { ComposerSubmitContext } from "../composer-submit";
 
 export type ComposerMenuPlacement =
   | "top"
@@ -40,7 +40,6 @@ export interface ComposerInputHandle {
     value: string;
     cursor: number;
     expandedCursor: number;
-    terminalContextIds: string[];
   };
   /** Reset composer cursor/trigger/highlight after external prompt mutations, such as send. */
   resetCursorState: (options?: {
@@ -48,24 +47,17 @@ export interface ComposerInputHandle {
     prompt?: string;
     detectTrigger?: boolean;
   }) => void;
-  /** Insert a terminal context from the terminal drawer. */
-  addTerminalContext: (selection: TerminalContextSelection) => void;
   /** Read prompt, attachments, effort, model, and provider state for dispatch. */
-  getSendContext: () => {
-    prompt: string;
-    images: ComposerImageAttachment[];
-    terminalContexts: TerminalContextDraft[];
-    selectedPromptEffort: string | null;
-    selectedModelOptionsForDispatch: unknown;
-    selectedModelSelection: ModelSelection;
-    selectedProvider: ProviderDriverKind;
-    selectedModel: string;
-    selectedProviderModels: ReadonlyArray<ServerProvider["models"][number]>;
-  };
+  getSendContext: () => ComposerSubmitContext;
 }
 
+export type ComposerInputVariant = "expanded" | "compact";
+
+export type ComposerInputLayout = "new-agent" | "thread" | "inline-edit";
+
 export interface ComposerInputProps {
-  variant?: "hero" | "dock" | "inline-edit";
+  variant?: ComposerInputVariant;
+  layout?: ComposerInputLayout;
   modelPickerPlacement?: ComposerMenuPlacement;
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
@@ -85,7 +77,7 @@ export interface ComposerInputProps {
   isPreparingWorktree: boolean;
   submitDisabled?: boolean | undefined;
   queuedComposerItems?: QueuedComposerItem[] | undefined;
-  editingQueuedComposerItemId?: QueuedComposerItemId | null | undefined;
+  editingQueuedComposerItemId?: MessageId | null | undefined;
 
   activePendingApproval?: PendingApproval | null | undefined;
   pendingApprovals?: PendingApproval[] | undefined;
@@ -108,6 +100,7 @@ export interface ComposerInputProps {
 
   showPlanFollowUpPrompt?: boolean | undefined;
   activeProposedPlan?: Thread["proposedPlans"][number] | null | undefined;
+  planSurfaceOpen?: boolean | undefined;
 
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
@@ -126,10 +119,11 @@ export interface ComposerInputProps {
 
   promptRef: MutableRefObject<string>;
   composerImagesRef: MutableRefObject<ComposerImageAttachment[]>;
-  composerTerminalContextsRef: MutableRefObject<TerminalContextDraft[]>;
 
   onSend: (e?: { preventDefault: () => void }) => void;
   onInterrupt: () => void;
+  onBuildPlan?: (() => void) | undefined;
+  onViewPlan?: (() => void) | undefined;
   footerSecondaryAction?: ReactNode | undefined;
 
   onRespondToApproval?:
@@ -153,10 +147,10 @@ export interface ComposerInputProps {
     | undefined;
 
   onProviderModelSelect: (selection: ModelSelection) => void;
-  onBeginEditQueuedComposerItem?: ((itemId: QueuedComposerItemId) => void) | undefined;
+  onBeginEditQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
   onCancelEditingQueuedComposerItem?: (() => void) | undefined;
-  onRemoveQueuedComposerItem?: ((itemId: QueuedComposerItemId) => void) | undefined;
-  onSendQueuedComposerItemNow?: ((itemId: QueuedComposerItemId) => void) | undefined;
+  onRemoveQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
+  onSendQueuedComposerItemNow?: ((itemId: MessageId) => void) | undefined;
   toggleInteractionMode: () => void;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
   handleInteractionModeChange: (mode: ProviderInteractionMode) => void;

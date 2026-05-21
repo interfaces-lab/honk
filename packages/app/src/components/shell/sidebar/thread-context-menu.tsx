@@ -8,7 +8,7 @@ import {
   IconEditSmall1,
   IconTrashCan,
 } from "central-icons";
-import type { ReactNode } from "react";
+import { useCallback, useRef, type ReactElement } from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -26,23 +26,56 @@ const itemClass = cn(
   "focus-visible:outline-none",
 );
 
+function useContextMenuTriggerFocus() {
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+
+  const setTriggerRef = useCallback((element: HTMLDivElement | null) => {
+    triggerRef.current = element;
+  }, []);
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    if (!open) {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && trigger.contains(active)) {
+        active.blur();
+      }
+      return;
+    }
+
+    const focusTarget =
+      trigger.tabIndex >= 0
+        ? trigger
+        : trigger.querySelector<HTMLElement>("[tabindex]:not([tabindex='-1'])") ??
+          trigger.querySelector<HTMLElement>("[tabindex]");
+    focusTarget?.focus({ preventScroll: true });
+  }, []);
+
+  return { handleOpenChange, setTriggerRef };
+}
+
 export function ThreadContextMenu(props: {
-  children: ReactNode;
+  children: ReactElement;
   threadId: string;
   onRename: () => void;
   onMarkUnread: () => void;
   onArchive: () => void;
 }) {
+  const { handleOpenChange, setTriggerRef } = useContextMenuTriggerFocus();
+
   return (
-    <ContextMenu.Root data-slot="context-menu-root">
-      <ContextMenu.Trigger className="w-full min-w-0" data-slot="context-menu-trigger">
-        {props.children}
-      </ContextMenu.Trigger>
+    <ContextMenu.Root data-slot="context-menu-root" onOpenChange={handleOpenChange}>
+      <ContextMenu.Trigger
+        ref={setTriggerRef}
+        render={props.children}
+        data-slot="context-menu-trigger"
+      />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50 outline-none" sideOffset={8} align="start">
           <ContextMenu.Popup
             data-slot="context-menu-popup"
-            finalFocus={false}
             className={cn(popupSurface, "z-50")}
           >
             <div className="flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1">
@@ -89,7 +122,7 @@ export function ThreadContextMenu(props: {
 }
 
 export function SidebarSectionContextMenu(props: {
-  children: ReactNode;
+  children: ReactElement;
   hasThreads: boolean;
   canOpenInEditor: boolean;
   canRemoveProject: boolean;
@@ -98,16 +131,19 @@ export function SidebarSectionContextMenu(props: {
   onArchiveAll: () => void;
   onRemoveFromSidebar: () => void;
 }) {
+  const { handleOpenChange, setTriggerRef } = useContextMenuTriggerFocus();
+
   return (
-    <ContextMenu.Root data-slot="context-menu-root">
-      <ContextMenu.Trigger className="w-full min-w-0" data-slot="context-menu-trigger">
-        {props.children}
-      </ContextMenu.Trigger>
+    <ContextMenu.Root data-slot="context-menu-root" onOpenChange={handleOpenChange}>
+      <ContextMenu.Trigger
+        ref={setTriggerRef}
+        render={props.children}
+        data-slot="context-menu-trigger"
+      />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50 outline-none" sideOffset={8} align="start">
           <ContextMenu.Popup
             data-slot="context-menu-popup"
-            finalFocus={false}
             className={cn(popupSurface, "z-50")}
           >
             <div className="flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1">

@@ -42,7 +42,7 @@ export function ShellSidebarFooter(props: { settings?: boolean }) {
       aria-current="page"
       aria-label="Back to chat"
     >
-      <IconSettingsGear2 className="size-3.5" />
+      <IconSettingsGear2 className="size-4 shrink-0" />
     </button>
   ) : null;
 
@@ -58,7 +58,7 @@ export function ShellSidebarFooter(props: { settings?: boolean }) {
             )}
             aria-label="Open settings"
           >
-            <IconSettingsGear2 className="size-3.5" />
+            <IconSettingsGear2 className="size-4 shrink-0" />
           </Link>
         )}
       </div>

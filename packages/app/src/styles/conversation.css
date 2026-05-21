@@ -8,6 +8,16 @@
   --chat-timeline-step-gap: 6px;
   --chat-timeline-collapsible-header-gap: 4px;
   --chat-timeline-work-preview-max-height: 144px;
+
+  /* Composer geometry (Cursor ui-prompt-input parity). */
+  --multi-composer-editor-min-height: 36px;
+  --multi-composer-editor-max-height: 200px;
+  --multi-composer-new-agent-editor-min-height: 56px;
+  --multi-composer-new-agent-editor-max-height: min(75vh, 420px);
+  --multi-composer-section-gap: 8px;
+  --multi-composer-compact-shell-min-height: 44px;
+  --multi-composer-compact-send-size: 28px;
+  --multi-composer-expanded-send-size: 32px;
 }
 
 [data-work-group-preview] {

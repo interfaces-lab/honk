@@ -17,7 +17,7 @@ function Textarea({ className, size = "default", unstyled = false, ...props }: T
       className={
         cn(
           !unstyled &&
-            "relative inline-flex w-full rounded-multi-control border border-input bg-background not-dark:bg-clip-padding text-foreground shadow-xs/5 ring-ring/24 transition-shadow before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] has-focus-visible:has-aria-invalid:border-destructive/64 has-focus-visible:has-aria-invalid:ring-destructive/16 has-aria-invalid:border-destructive/36 has-focus-visible:border-ring has-disabled:opacity-64 has-[:disabled,:focus-visible,[aria-invalid]]:shadow-none has-focus-visible:ring-[3px] not-has-disabled:has-not-focus-visible:not-has-aria-invalid:before:shadow-[0_1px_--theme(--color-black/4%)] dark:bg-input/32 dark:has-aria-invalid:ring-destructive/24 dark:not-has-disabled:has-not-focus-visible:not-has-aria-invalid:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "relative inline-flex w-full rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-primary shadow-none transition-colors has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused/30 has-focus-visible:has-aria-invalid:border-multi-stroke-red-primary has-focus-visible:has-aria-invalid:ring-multi-stroke-red-primary/20 has-aria-invalid:border-multi-stroke-red-primary has-disabled:opacity-64",
           className,
         ) || undefined
       }
@@ -28,7 +28,7 @@ function Textarea({ className, size = "default", unstyled = false, ...props }: T
         render={(defaultProps) => (
           <textarea
             className={cn(
-              "field-sizing-content min-h-17.5 w-full rounded-[inherit] px-1.5 py-1 font-multi text-[12px]/[16px] outline-none max-sm:min-h-20.5",
+              "field-sizing-content min-h-17.5 w-full rounded-[inherit] px-1.5 py-1 font-multi text-body outline-none max-sm:min-h-20.5",
               size === "sm" && "min-h-16.5 px-1.5 py-1 max-sm:min-h-19.5",
               size === "lg" && "min-h-18.5 py-1.5 max-sm:min-h-21.5",
             )}

@@ -94,13 +94,13 @@ export function GitDiffCard(props: {
         >
           <span className="relative inline-flex size-4 items-center justify-center" aria-hidden>
             <span className="absolute inset-0 inline-flex items-center justify-center text-multi-icon-tertiary opacity-100 transition-opacity duration-100 ease-out group-hover/git-diff-header:opacity-0 group-hover/git-diff-toggle:opacity-0">
-              <VsFileIcon path={props.file.path} className="size-3.5" />
+              <VsFileIcon path={props.file.path} className="size-4" />
             </span>
             <span className="absolute inset-0 inline-flex items-center justify-center text-multi-icon-tertiary opacity-0 transition-opacity duration-100 ease-out group-hover/git-diff-header:opacity-100 group-hover/git-diff-toggle:opacity-100">
               {props.expanded ? (
-                <IconChevronRightMedium className="size-3.5 shrink-0 rotate-90" />
+                <IconChevronRightMedium className="size-4 shrink-0 rotate-90" />
               ) : (
-                <IconChevronRightMedium className="size-3.5 shrink-0" />
+                <IconChevronRightMedium className="size-4 shrink-0" />
               )}
             </span>
           </span>
@@ -129,7 +129,7 @@ export function GitDiffCard(props: {
             aria-label="Copy path"
             title="Copy path"
           >
-            <IconClipboard className="size-3.5 shrink-0" />
+            <IconClipboard className="size-4 shrink-0" />
           </button>
           <button
             type="button"
@@ -141,7 +141,7 @@ export function GitDiffCard(props: {
             aria-label="Discard changes"
             title="Discard changes"
           >
-            <IconStepBack className="size-3.5 shrink-0" />
+            <IconStepBack className="size-4 shrink-0" />
           </button>
           <label
             className="inline-flex min-h-(--multi-workbench-action-size) shrink-0 cursor-(--multi-button-cursor) items-center gap-1 rounded-[5px] px-[3px] pr-1 text-[11px]/4 text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] hover:bg-(--multi-workbench-toolbar-hover-background) hover:text-foreground @max-[360px]:w-(--multi-workbench-action-size) @max-[360px]:justify-center @max-[360px]:px-[3px]"
@@ -156,7 +156,7 @@ export function GitDiffCard(props: {
                 props.onToggleViewed();
                 props.onExpandedChange(false);
               }}
-              className="size-3.5 rounded border-multi-border/60 accent-primary"
+              className="size-4 rounded border-multi-border/60 accent-primary"
             />
             <span className="@max-[360px]:absolute @max-[360px]:size-px @max-[360px]:overflow-hidden @max-[360px]:whitespace-nowrap @max-[360px]:[clip-path:inset(50%)]">
               Viewed

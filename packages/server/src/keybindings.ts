@@ -63,6 +63,8 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
   { key: "mod+k", command: "commandPalette.toggle", when: "!terminalFocus" },
   { key: "shift+tab", command: "composer.cycleInteractionMode", when: "!terminalFocus" },
+  { key: "enter", command: "composer.send", when: "composerFocus" },
+  { key: "mod+.", command: "composer.interrupt", when: "composerFocus" },
   { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+n", command: "chat.newLocal", when: "!terminalFocus" },

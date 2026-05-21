@@ -189,6 +189,8 @@ const makeAcpSessionRuntime = (
         ChildProcess.make(options.spawn.command, [...options.spawn.args], {
           ...(options.spawn.cwd ? { cwd: options.spawn.cwd } : {}),
           ...(options.spawn.env ? { env: { ...process.env, ...options.spawn.env } } : {}),
+          detached: false,
+          forceKillAfter: "2 seconds",
           shell: process.platform === "win32",
         }),
       )

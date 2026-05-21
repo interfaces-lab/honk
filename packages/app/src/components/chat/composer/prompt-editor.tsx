@@ -39,12 +39,6 @@ import {
   selectionTouchesMentionBoundary,
   splitPromptIntoComposerSegments,
 } from "./prompt-segments";
-import {
-  INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
-  formatTerminalContextLabel,
-  isTerminalContextExpired,
-  type TerminalContextDraft,
-} from "~/lib/terminal-context";
 import { cn } from "~/lib/utils";
 import {
   basenameOfPath,
@@ -52,7 +46,6 @@ import {
   inferEntryKindFromPath,
 } from "../shared/vscode-entry-icons";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
-import { TerminalContextInlineChip } from "../message/terminal-context-chip";
 import { formatProviderSkillDisplayName } from "./provider-skills";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -76,7 +69,6 @@ const COMPOSER_ATOM_NODE_NAMES = new Set([
   "commandNode",
   "skillNode",
   "inlineTokenNode",
-  "terminalContextNode",
 ]);
 const COMPOSER_MENTION_PLUGIN_KEY = new PluginKey("composer-mention");
 const EMPTY_DOC = Object.freeze({
@@ -117,7 +109,6 @@ export interface ComposerPromptEditorSnapshot {
   value: string;
   cursor: number;
   expandedCursor: number;
-  terminalContextIds: string[];
 }
 
 export interface ComposerPromptEditorHandle {
@@ -148,20 +139,17 @@ export interface ComposerPromptEditorHandle {
 interface ComposerPromptEditorProps {
   value: string;
   cursor: number;
-  terminalContexts: ReadonlyArray<TerminalContextDraft>;
   skills: ReadonlyArray<ServerProviderSkill>;
   disabled: boolean;
   placeholder: string;
   className?: string | undefined;
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
-  onRemoveTerminalContext: (contextId: string) => void;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
   onChange: (
     nextValue: string,
     nextCursor: number,
     expandedCursor: number,
     cursorAdjacentToMention: boolean,
-    terminalContextIds: string[],
   ) => void;
   onCommandKeyDown?: (
     key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
@@ -210,23 +198,6 @@ function skillMetadataByName(
       },
     ]),
   );
-}
-
-function terminalContextSignature(contexts: ReadonlyArray<TerminalContextDraft>): string {
-  return contexts
-    .map((context) =>
-      [
-        context.id,
-        context.threadId,
-        context.terminalId,
-        context.terminalLabel,
-        context.lineStart,
-        context.lineEnd,
-        context.createdAt,
-        context.text,
-      ].join("\u001f"),
-    )
-    .join("\u001e");
 }
 
 function skillSignature(skills: ReadonlyArray<ServerProviderSkill>): string {
@@ -278,10 +249,6 @@ function inlineTokenText(attrs: Record<string, unknown>): string {
   return stringAttr(attrs.markdown);
 }
 
-function terminalContextText(): string {
-  return INLINE_TERMINAL_CONTEXT_PLACEHOLDER;
-}
-
 function expandedLeafText(node: ProseMirrorNode): string {
   switch (node.type.name) {
     case "hardBreak":
@@ -294,8 +261,6 @@ function expandedLeafText(node: ProseMirrorNode): string {
       return skillText(node.attrs);
     case "inlineTokenNode":
       return inlineTokenText(node.attrs);
-    case "terminalContextNode":
-      return terminalContextText();
     default:
       return "";
   }
@@ -375,7 +340,6 @@ function appendTextNodes(content: JSONContent[], text: string): void {
 
 function promptToTiptapDoc(
   prompt: string,
-  terminalContexts: ReadonlyArray<TerminalContextDraft>,
   skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
 ): PromptEditorDoc {
   if (!prompt) {
@@ -383,7 +347,7 @@ function promptToTiptapDoc(
   }
 
   const content: JSONContent[] = [];
-  for (const segment of splitPromptIntoComposerSegments(prompt, terminalContexts)) {
+  for (const segment of splitPromptIntoComposerSegments(prompt)) {
     if (segment.type === "text") {
       appendTextNodes(content, segment.text);
       continue;
@@ -420,12 +384,6 @@ function promptToTiptapDoc(
       });
       continue;
     }
-    if (segment.type === "terminal-context" && segment.context) {
-      content.push({
-        type: "terminalContextNode",
-        attrs: { context: segment.context },
-      });
-    }
   }
 
   return {
@@ -437,24 +395,6 @@ function promptToTiptapDoc(
       },
     ],
   };
-}
-
-function collectTerminalContextIds(doc: ProseMirrorNode): string[] {
-  const ids: string[] = [];
-  doc.descendants((node) => {
-    if (node.type.name !== "terminalContextNode") {
-      return true;
-    }
-    const context = node.attrs.context;
-    if (context && typeof context === "object" && "id" in context) {
-      const id = context.id;
-      if (typeof id === "string") {
-        ids.push(id);
-      }
-    }
-    return false;
-  });
-  return ids;
 }
 
 function collectCommands(doc: ProseMirrorNode): ComposerCommandData[] {
@@ -503,7 +443,6 @@ function readSnapshotFromEditor(editor: Editor): ComposerPromptEditorSnapshot {
     value,
     cursor,
     expandedCursor,
-    terminalContextIds: collectTerminalContextIds(doc),
   };
 }
 
@@ -514,9 +453,7 @@ function snapshotsEqual(
   return (
     left.value === right.value &&
     left.cursor === right.cursor &&
-    left.expandedCursor === right.expandedCursor &&
-    left.terminalContextIds.length === right.terminalContextIds.length &&
-    left.terminalContextIds.every((id, index) => id === right.terminalContextIds[index])
+    left.expandedCursor === right.expandedCursor
   );
 }
 
@@ -548,9 +485,6 @@ function usePromptEditorControlledStateSync({
   skillsSignatureRef,
   skillMetadataRef,
   snapshotRef,
-  terminalContexts,
-  terminalContextsSignature,
-  terminalContextsSignatureRef,
   value,
 }: {
   cursor: number;
@@ -561,47 +495,39 @@ function usePromptEditorControlledStateSync({
   skillsSignatureRef: RefObject<string>;
   skillMetadataRef: RefObject<ReadonlyMap<string, ComposerSkillMetadata>>;
   snapshotRef: RefObject<ComposerPromptEditorSnapshot>;
-  terminalContexts: ReadonlyArray<TerminalContextDraft>;
-  terminalContextsSignature: string;
-  terminalContextsSignatureRef: RefObject<string>;
   value: string;
 }) {
   useLayoutSyncEffect(() => {
     if (!editor) return;
     const normalizedCursor = clampCollapsedComposerCursor(value, cursor);
     const previousSnapshot = snapshotRef.current;
-    const contextsChanged = terminalContextsSignatureRef.current !== terminalContextsSignature;
     const skillsChanged = skillsSignatureRef.current !== skillsSignature;
     if (
       previousSnapshot.value === value &&
       previousSnapshot.cursor === normalizedCursor &&
-      !contextsChanged &&
       !skillsChanged
     ) {
       return;
     }
 
-    const nextDoc = promptToTiptapDoc(value, terminalContexts, skillMetadataRef.current);
+    const nextDoc = promptToTiptapDoc(value, skillMetadataRef.current);
     snapshotRef.current = {
       value,
       cursor: normalizedCursor,
       expandedCursor: expandCollapsedComposerCursor(value, normalizedCursor),
-      terminalContextIds: terminalContexts.map((context) => context.id),
     };
-    terminalContextsSignatureRef.current = terminalContextsSignature;
     skillsSignatureRef.current = skillsSignature;
 
     const rootElement = editor.view.dom;
     const isFocused = document.activeElement === rootElement;
-    if (previousSnapshot.value === value && !contextsChanged && !skillsChanged && !isFocused) {
+    if (previousSnapshot.value === value && !skillsChanged && !isFocused) {
       return;
     }
 
     isApplyingControlledUpdateRef.current = true;
-    const shouldRewriteEditorState =
-      previousSnapshot.value !== value || contextsChanged || skillsChanged;
+    const shouldRewriteEditorState = previousSnapshot.value !== value || skillsChanged;
     if (shouldRewriteEditorState) {
-      editor.commands.setContent(nextDoc as JSONContent, { emitUpdate: false });
+      editor.commands.setContent(nextDoc, { emitUpdate: false });
     }
     if (shouldRewriteEditorState || isFocused) {
       setSelectionAtCollapsedOffset(editor, normalizedCursor);
@@ -610,7 +536,7 @@ function usePromptEditorControlledStateSync({
       isApplyingControlledUpdateRef.current = false;
       emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current);
     });
-  }, [cursor, editor, skillsSignature, terminalContexts, terminalContextsSignature, value]);
+  }, [cursor, editor, skillsSignature, value]);
 }
 
 function usePromptEditorMultilineMeasurement({
@@ -789,7 +715,7 @@ function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
   );
 }
 
-const SkillIcon = IconBuildingBlocks as ComponentType<CentralIconBaseProps>;
+const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
 
 function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
   const label =
@@ -857,21 +783,6 @@ function ComposerInlineTokenNodeView(props: NodeViewProps): ReactElement {
       ) : (
         chip
       )}
-    </NodeViewWrapper>
-  );
-}
-
-function ComposerTerminalContextNodeView(props: NodeViewProps): ReactElement {
-  const context = props.node.attrs.context as TerminalContextDraft;
-  const label = formatTerminalContextLabel(context);
-  const expired = isTerminalContextExpired(context);
-  const tooltipText = expired
-    ? `Terminal context expired. Remove and re-add ${label} to include it in your message.`
-    : context.text;
-
-  return (
-    <NodeViewWrapper as="span" className="inline-flex align-middle">
-      <TerminalContextInlineChip label={label} tooltipText={tooltipText} expired={expired} />
     </NodeViewWrapper>
   );
 }
@@ -1034,38 +945,6 @@ const ComposerInlineTokenExtension = TiptapNode.create({
   },
 });
 
-const ComposerTerminalContextExtension = TiptapNode.create({
-  name: "terminalContextNode",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: true,
-
-  addAttributes() {
-    return {
-      context: { default: null },
-    };
-  },
-
-  renderText() {
-    return terminalContextText();
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "terminalContextNode",
-      }),
-      terminalContextText(),
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(ComposerTerminalContextNodeView);
-  },
-});
-
 function createComposerExtensions(placeholderRef: { current: string }) {
   return [
     StarterKit.configure({
@@ -1115,7 +994,6 @@ function createComposerExtensions(placeholderRef: { current: string }) {
     ComposerMentionExtension,
     ComposerSkillExtension,
     ComposerInlineTokenExtension,
-    ComposerTerminalContextExtension,
   ];
 }
 
@@ -1126,13 +1004,11 @@ export const ComposerPromptEditor = forwardRef<
   {
     value,
     cursor,
-    terminalContexts,
     skills,
     disabled,
     placeholder,
     className,
     hotkeyTargetRef,
-    onRemoveTerminalContext: _onRemoveTerminalContext,
     onMeasuredMultilineChange,
     onChange,
     onCommandKeyDown,
@@ -1157,19 +1033,14 @@ export const ComposerPromptEditor = forwardRef<
   const isApplyingControlledUpdateRef = useRef(false);
   const skillMetadataRef = useRef(skillMetadata);
   skillMetadataRef.current = skillMetadata;
-  const initialDocRef = useRef(
-    promptToTiptapDoc(value, terminalContexts, skillMetadataRef.current),
-  );
+  const initialDocRef = useRef(promptToTiptapDoc(value, skillMetadataRef.current));
   const initialCursor = clampCollapsedComposerCursor(value, cursor);
   const initialSnapshotRef = useRef<ComposerPromptEditorSnapshot>({
     value,
     cursor: initialCursor,
     expandedCursor: expandCollapsedComposerCursor(value, initialCursor),
-    terminalContextIds: terminalContexts.map((context) => context.id),
   });
   const snapshotRef = useRef(initialSnapshotRef.current);
-  const terminalContextsSignature = terminalContextSignature(terminalContexts);
-  const terminalContextsSignatureRef = useRef(terminalContextsSignature);
   const skillsSignature = skillSignature(skills);
   const skillsSignatureRef = useRef(skillsSignature);
   const emitSnapshotRef = useRef<(editor: Editor) => void>(() => {});
@@ -1177,14 +1048,14 @@ export const ComposerPromptEditor = forwardRef<
   const beforeInputHandlerRef = useRef<(event: InputEvent) => boolean>(() => false);
 
   const editorClassName = cn(
-    "block min-h-9 max-h-[200px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-conversation text-foreground outline-hidden [&>p]:m-0 [&>p.is-editor-empty:first-child::before]:float-left [&>p.is-editor-empty:first-child::before]:h-0 [&>p.is-editor-empty:first-child::before]:max-w-full [&>p.is-editor-empty:first-child::before]:overflow-hidden [&>p.is-editor-empty:first-child::before]:text-ellipsis [&>p.is-editor-empty:first-child::before]:whitespace-nowrap [&>p.is-editor-empty:first-child::before]:text-[13px] [&>p.is-editor-empty:first-child::before]:font-normal [&>p.is-editor-empty:first-child::before]:leading-[1.5] [&>p.is-editor-empty:first-child::before]:text-multi-fg-quaternary [&>p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
+    "block w-full whitespace-pre-wrap break-words text-foreground outline-hidden [&>p]:m-0 [&>p.is-editor-empty:first-child::before]:float-left [&>p.is-editor-empty:first-child::before]:h-0 [&>p.is-editor-empty:first-child::before]:max-w-full [&>p.is-editor-empty:first-child::before]:overflow-hidden [&>p.is-editor-empty:first-child::before]:text-ellipsis [&>p.is-editor-empty:first-child::before]:whitespace-nowrap [&>p.is-editor-empty:first-child::before]:text-[13px] [&>p.is-editor-empty:first-child::before]:font-normal [&>p.is-editor-empty:first-child::before]:leading-[1.5] [&>p.is-editor-empty:first-child::before]:text-multi-fg-quaternary [&>p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
     className,
   );
 
   const editor = useEditor(
     {
       extensions: extensionsRef.current,
-      content: initialDocRef.current as JSONContent,
+      content: initialDocRef.current,
       editable: !disabled,
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
@@ -1243,7 +1114,6 @@ export const ComposerPromptEditor = forwardRef<
       nextSnapshot.cursor,
       nextSnapshot.expandedCursor,
       cursorAdjacentToMention,
-      nextSnapshot.terminalContextIds,
     );
     emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current);
   };
@@ -1323,9 +1193,6 @@ export const ComposerPromptEditor = forwardRef<
     skillsSignatureRef,
     skillMetadataRef,
     snapshotRef,
-    terminalContexts,
-    terminalContextsSignature,
-    terminalContextsSignatureRef,
     value,
   });
 
@@ -1347,7 +1214,6 @@ export const ComposerPromptEditor = forwardRef<
         nextSnapshot.cursor,
         nextSnapshot.expandedCursor,
         false,
-        nextSnapshot.terminalContextIds,
       );
     },
     [editor],
@@ -1428,7 +1294,7 @@ export const ComposerPromptEditor = forwardRef<
         setSelectionAtCollapsedOffset(editor, 0);
         const nextSnapshot = readSnapshotFromEditor(editor);
         snapshotRef.current = nextSnapshot;
-        onChangeRef.current("", 0, 0, false, []);
+        onChangeRef.current("", 0, 0, false);
       },
       focusAt,
       focusAtEnd: () => {

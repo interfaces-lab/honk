@@ -15,10 +15,6 @@ import { page } from "vitest/browser";
 import { describe, expect, it, vi } from "vitest";
 
 import { useComposerDraftStore, DraftId } from "../../../stores/chat-drafts";
-import {
-  INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
-  removeInlineTerminalContextPlaceholder,
-} from "../../../lib/terminal-context";
 import { useTerminalStateStore } from "../../../terminal-state-store";
 import { useUiStateStore } from "../../../stores/ui-state-store";
 import { useShellPanelsStore } from "~/stores/shell-panels-store";
@@ -48,7 +44,6 @@ import {
   createSnapshotWithLongProposedPlan,
   createSnapshotWithPendingUserInput,
   createSnapshotWithSecondaryProject,
-  createTerminalContext,
   draftIdFromPath,
   draftThreadIdFor,
   serverThreadPath,

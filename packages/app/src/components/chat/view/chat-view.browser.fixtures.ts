@@ -16,7 +16,6 @@ import {
 import { DEFAULT_CLIENT_SETTINGS } from "@multi/contracts/settings";
 import { scopedThreadKey, scopeThreadRef } from "@multi/client-runtime";
 import { DraftId, useComposerDraftStore } from "../../../stores/chat-drafts";
-import type { TerminalContextDraft } from "../../../lib/terminal-context";
 import { derivePhysicalProjectKeyFromPath } from "../../../stores/project-identity";
 export const THREAD_ID = "thread-browser-test" as ThreadId;
 export const THREAD_TITLE = "Browser test thread";
@@ -154,24 +153,6 @@ export function createAssistantMessage(options: {
     streaming: false,
     createdAt: isoAt(options.offsetSeconds),
     updatedAt: isoAt(options.offsetSeconds + 1),
-  };
-}
-export function createTerminalContext(input: {
-  id: string;
-  terminalLabel: string;
-  lineStart: number;
-  lineEnd: number;
-  text: string;
-}): TerminalContextDraft {
-  return {
-    id: input.id,
-    threadId: THREAD_ID,
-    terminalId: `terminal-${input.id}`,
-    terminalLabel: input.terminalLabel,
-    lineStart: input.lineStart,
-    lineEnd: input.lineEnd,
-    text: input.text,
-    createdAt: NOW_ISO,
   };
 }
 export function createSnapshotForTargetUser(options: {

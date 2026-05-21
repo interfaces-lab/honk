@@ -3,15 +3,12 @@ import { scopedThreadKey, scopeThreadRef } from "@multi/client-runtime";
 
 import { readEnvironmentApi } from "../environment-api";
 import { newCommandId } from "../lib/utils";
-import { appendTerminalContextsToPrompt } from "../lib/terminal-context";
 import { useComposerQueueStore } from "./chat-send-queue";
 import { selectThreadByRef, useStore } from "./thread-store";
 import {
-  deriveComposerSendState,
-  formatOutgoingPrompt,
-  IMAGE_ONLY_BOOTSTRAP_PROMPT,
-  readFileAsDataUrl,
-} from "../components/chat/composer/send";
+  compileComposerSubmitTurn,
+  prepareComposerTurnAttachments,
+} from "../components/chat/composer-submit";
 
 const dispatchingThreadKeys = new Set<string>();
 
@@ -48,36 +45,13 @@ export async function dispatchNextQueuedComposerItemForThread(
 
   dispatchingThreadKeys.add(threadKey);
   try {
-    const { sendableTerminalContexts, hasSendableContent } = deriveComposerSendState({
-      prompt: item.sendContext.prompt,
-      imageCount: item.sendContext.images.length,
-      terminalContexts: item.sendContext.terminalContexts,
-    });
-    if (!hasSendableContent) {
+    const compiledTurn = compileComposerSubmitTurn(item.sendContext);
+    if (!compiledTurn.hasSendableContent) {
       useComposerQueueStore.getState().restoreQueuedComposerItem(threadKey, item, 0);
       return;
     }
 
-    const messageTextForSend = appendTerminalContextsToPrompt(
-      item.sendContext.prompt,
-      sendableTerminalContexts,
-    );
-    const outgoingMessageText = formatOutgoingPrompt({
-      provider: item.sendContext.selectedProvider,
-      model: item.sendContext.selectedModel,
-      models: item.sendContext.selectedProviderModels,
-      effort: item.sendContext.selectedPromptEffort,
-      text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
-    });
-    const attachments = await Promise.all(
-      item.sendContext.images.map(async (image) => ({
-        type: "image" as const,
-        name: image.name,
-        mimeType: image.mimeType,
-        sizeBytes: image.sizeBytes,
-        dataUrl: await readFileAsDataUrl(image.file),
-      })),
-    );
+    const attachments = await prepareComposerTurnAttachments(item.sendContext.images);
 
     await api.orchestration.dispatchCommand({
       type: "thread.turn.start",
@@ -86,7 +60,7 @@ export async function dispatchNextQueuedComposerItemForThread(
       message: {
         messageId: item.id,
         role: "user",
-        text: outgoingMessageText,
+        text: compiledTurn.outgoingMessageText,
         attachments,
       },
       modelSelection: item.sendContext.selectedModelSelection,

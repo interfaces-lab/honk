@@ -60,7 +60,7 @@ export function UpdatePill() {
     >
       {action === "install" ? (
         <>
-          <IconChevronRightMedium className="size-3.5 shrink-0" />
+          <IconChevronRightMedium className="size-4 shrink-0" />
           <span className="truncate">
             {state?.errorContext === "install" && typeof state.message === "string"
               ? "Retry update"
@@ -69,7 +69,7 @@ export function UpdatePill() {
         </>
       ) : state?.status === "downloading" ? (
         <>
-          <IconCloudDownload className="size-3.5 shrink-0 animate-pulse" />
+          <IconCloudDownload className="size-4 shrink-0 animate-pulse" />
           <span className="truncate">
             Downloading
             {typeof state.downloadPercent === "number"
@@ -79,7 +79,7 @@ export function UpdatePill() {
         </>
       ) : (
         <>
-          <IconCloudDownload className="size-3.5 shrink-0" />
+          <IconCloudDownload className="size-4 shrink-0" />
           <span className="truncate">Update available</span>
         </>
       )}

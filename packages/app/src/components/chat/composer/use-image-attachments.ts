@@ -25,7 +25,7 @@ import {
 } from "../../../stores/chat-drafts";
 import { randomUUID } from "~/lib/utils";
 import { toastManager } from "~/app/toast";
-import { readFileAsDataUrl } from "./send";
+import { readFileAsDataUrl } from "../composer-submit";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;

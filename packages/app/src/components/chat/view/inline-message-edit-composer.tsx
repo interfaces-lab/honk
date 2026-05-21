@@ -7,19 +7,16 @@ import {
   useComposerDraftStore,
   useComposerThreadDraft,
 } from "../../../stores/chat-drafts";
-import type { TerminalContextDraft } from "../../../lib/terminal-context";
 import type { ChatMessage } from "../../../types";
-import { deriveComposerSendState } from "../composer/send";
+import { deriveComposerSendState, type ComposerSubmitContext } from "../composer-submit";
 import {
   ComposerInput,
   type ComposerInputHandle,
   type ComposerInputProps,
 } from "../composer/input";
 
-type ComposerInputSendContext = ReturnType<ComposerInputHandle["getSendContext"]>;
-
 export type InlineEditSubmitInput = {
-  sendContext: ComposerInputSendContext;
+  sendContext: ComposerSubmitContext;
   runtimeMode: ComposerInputProps["runtimeMode"];
   interactionMode: ComposerInputProps["interactionMode"];
 };
@@ -75,7 +72,6 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
   const editDraft = useComposerThreadDraft(composerDraftTarget);
   const promptRef = useRef(editDraft.prompt || message.text);
   const composerImagesRef = useRef<ComposerImageAttachment[]>(editDraft.images);
-  const composerTerminalContextsRef = useRef<TerminalContextDraft[]>(editDraft.terminalContexts);
   const setComposerDraftModelSelection = useComposerDraftStore((store) => store.setModelSelection);
   const setStickyComposerModelSelection = useComposerDraftStore(
     (store) => store.setStickyModelSelection,
@@ -89,12 +85,9 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
   const submitState = deriveComposerSendState({
     prompt: editDraft.prompt,
     imageCount: editDraft.images.length,
-    terminalContexts: editDraft.terminalContexts,
   });
   const submitDisabled =
-    (editDraft.prompt === message.text &&
-      editDraft.images.length === 0 &&
-      submitState.sendableTerminalContexts.length === 0) ||
+    (editDraft.prompt === message.text && editDraft.images.length === 0) ||
     !submitState.hasSendableContent;
 
   const scheduleComposerFocus = useCallback(() => {
@@ -186,7 +179,8 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
       <ComposerInput
         {...composerProps}
         ref={setInlineComposerRef}
-        variant="inline-edit"
+        variant="compact"
+        layout="inline-edit"
         modelPickerPlacement="bottom-start"
         composerDraftTarget={composerDraftTarget}
         runtimeMode={inlineRuntimeMode}
@@ -195,7 +189,6 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
         settings={settings}
         promptRef={promptRef}
         composerImagesRef={composerImagesRef}
-        composerTerminalContextsRef={composerTerminalContextsRef}
         footerSecondaryAction={cancelButton}
         onSend={handleSend}
         onProviderModelSelect={handleProviderModelSelect}

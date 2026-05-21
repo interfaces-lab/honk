@@ -114,9 +114,9 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
                   disabled={!canImplementPlan || isImplementingPlan}
                 >
                   {isImplementingPlan ? (
-                    <IconLoader className="size-3.5 shrink-0 animate-spin" aria-hidden />
+                    <IconLoader className="size-4 shrink-0 animate-spin" aria-hidden />
                   ) : (
-                    <IconArrowUp className="size-3.5 shrink-0" aria-hidden />
+                    <IconArrowUp className="size-4 shrink-0" aria-hidden />
                   )}
                   <span>{isImplementingPlan ? "Building" : "Build"}</span>
                 </WorkbenchTextButton>
@@ -296,15 +296,15 @@ function PlanActions(props: {
           aria-label="Plan actions"
           className={workbenchIconButtonVariants({ chrome: "panel" })}
         >
-          <IconDotGrid1x3Horizontal className="size-3.5" aria-hidden />
+          <IconDotGrid1x3Horizontal className="size-4" aria-hidden />
         </MenuTrigger>
         <MenuPopup align="end" side="bottom" variant="workbench">
           <MenuItem variant="workbench" onClick={() => void copyPlan()}>
-            <IconClipboard className="size-3.5" aria-hidden />
+            <IconClipboard className="size-4" aria-hidden />
             <span>Copy markdown</span>
           </MenuItem>
           <MenuItem variant="workbench" onClick={downloadPlan}>
-            <IconFileDownload className="size-3.5" aria-hidden />
+            <IconFileDownload className="size-4" aria-hidden />
             <span>Download markdown</span>
           </MenuItem>
           <MenuItem
@@ -314,7 +314,7 @@ function PlanActions(props: {
               setSaveDialogOpen(true);
             }}
           >
-            <IconFileText className="size-3.5" aria-hidden />
+            <IconFileText className="size-4" aria-hidden />
             <span>Save to project</span>
           </MenuItem>
         </MenuPopup>

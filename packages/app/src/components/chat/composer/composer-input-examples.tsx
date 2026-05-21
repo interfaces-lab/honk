@@ -1,98 +1,88 @@
 import {
+  IconArchive1,
+  IconArchiveJunk,
   IconArrowUp,
-  IconBranch,
-  IconChevronRightMedium,
-  IconCloudDownload,
-  IconFileText,
+  IconDotGrid1x3Horizontal,
   IconFolder1,
-  IconPaperclip1,
-  IconRocket,
   IconSparklesThree,
-  IconSquareChecklist,
+  IconTrashCan,
 } from "central-icons";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { ComposerPromptEditor } from "./prompt-editor";
-import { collapseExpandedComposerCursor } from "./prompt-triggers";
 import { Text } from "@multi/ui/text";
 import { cn } from "~/lib/utils";
 
-const CURSOR_REFERENCE_LINKS = [
-  {
-    label: "Agents hero (empty)",
-    href: "https://mobbin.com/screens/5af422b9-b919-4149-8805-fdba29c61e17",
-  },
-  {
-    label: "Agents hero (attachment)",
-    href: "https://mobbin.com/screens/fea6bbb3-a38e-477a-9546-55defd5e70c5",
-  },
-  {
-    label: "Thread follow-up pill",
-    href: "https://mobbin.com/screens/3042c35c-2024-4d76-b9a5-5661ff32ea09",
-  },
-  {
-    label: "Agent run + model tabs",
-    href: "https://mobbin.com/screens/a23b3cb3-e683-44b1-a273-029c419329cb",
-  },
-] as const;
+import { ComposerPromptEditor } from "./prompt-editor";
+import { collapseExpandedComposerCursor } from "./prompt-triggers";
 
-const CURSOR_SUGGESTION_CHIPS = [
-  { label: "Write documentation", icon: IconFileText },
-  { label: "Optimize performance", icon: IconRocket },
-  { label: "Find and fix 3 bugs", icon: IconSquareChecklist },
-] as const;
+const COMPACT_EXAMPLE_EDITOR_CLASS = "min-h-5 max-h-5 overflow-hidden py-0";
 
 const CURSOR_MODEL_TABS = ["o3", "gpt-5", "claude-4-sonnet"] as const;
 
-const AGENT_PROMPT_EXAMPLE = `Create a new git branch called feature/random-demo in the connected GitHub repo.
-Initialize a random project idea (for example a Next.js app).
-Then edit it into a simple productivity app to catalogue tasks:
-- Next.js with Tailwind for UI
-- API route /api/tasks with in-memory CRUD
-- UI: input box to add a task, list with checkboxes, delete button
-- Include a README and .gitignore
-Make the initial commit on feature/random-demo.`;
+const MOCK_ARCHIVED_PROJECT = {
+  name: "multi",
+  path: "workgyver/Developer/multi",
+} as const;
 
-type CursorExampleSpec = {
-  readonly id: string;
-  readonly title: string;
-  readonly cursorRef: string;
-  readonly description: string;
-};
-
-const CURSOR_EXAMPLES: readonly CursorExampleSpec[] = [
+const MOCK_ARCHIVED_THREADS = [
   {
-    id: "agents-hero",
-    title: "Agents hero card",
-    cursorRef: "cursor.com/agents",
-    description:
-      "Large rounded card: editor on top, model selector and send in an internal footer row.",
+    id: "thread-1",
+    title: "Implement compact sidebar rows",
+    archivedAgo: "2d ago",
+    createdAgo: "5d ago",
   },
   {
-    id: "agents-with-attachment",
-    title: "Agents with attachment chip",
-    cursorRef: "cursor.com/agents",
-    description: "Attachment chip above the editor, multiline task prompt, same footer controls.",
-  },
-  {
-    id: "agents-context-chips",
-    title: "Agents + repo context + suggestions",
-    cursorRef: "cursor.com/agents",
-    description: "Input card with repository/branch row underneath and starter suggestion chips.",
-  },
-  {
-    id: "thread-follow-up",
-    title: "Thread follow-up pill",
-    cursorRef: "Agent thread dock",
-    description: "Minimal dock pill: single-line placeholder and send affordance only.",
-  },
-  {
-    id: "thread-model-tabs",
-    title: "Thread with model tabs",
-    cursorRef: "Agent thread header",
-    description: "Model pills above the dock follow-up input.",
+    id: "thread-2",
+    title: "Archive confirmation and settings polish",
+    archivedAgo: "1w ago",
+    createdAgo: "2w ago",
   },
 ] as const;
+
+const ARCHIVE_UI_VARIANTS = [
+  {
+    id: "settings-rows",
+    label: "Settings rows (current)",
+    description: "Project sections with outline Unarchive on every row.",
+  },
+  {
+    id: "sidebar-rows",
+    label: "Sidebar-style rows",
+    description: "Match agent list density; restore and delete on hover.",
+  },
+  {
+    id: "inline-actions",
+    label: "Inline icon actions",
+    description: "Always-visible trailing actions for touch and scanability.",
+  },
+  {
+    id: "timeline-groups",
+    label: "Timeline groups",
+    description: "Bucket by recency; title-forward rows with text restore.",
+  },
+  {
+    id: "stacked-cards",
+    label: "Stacked cards",
+    description: "Each thread is an isolated surface with actions in a footer row.",
+  },
+  {
+    id: "restore-primary",
+    label: "Restore-primary",
+    description: "Restore is the obvious primary action; delete stays low-emphasis.",
+  },
+  {
+    id: "overflow-menu",
+    label: "Overflow menu",
+    description: "Single ⋯ control per row; keeps rows quiet until opened.",
+  },
+  {
+    id: "meta-split",
+    label: "Meta split",
+    description: "Title block plus a second line for project, dates, and actions.",
+  },
+] as const;
+
+type ArchiveUiVariantId = (typeof ARCHIVE_UI_VARIANTS)[number]["id"];
 
 function useExamplePrompt(initialPrompt: string) {
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -106,7 +96,6 @@ function useExamplePrompt(initialPrompt: string) {
       nextCursor: number,
       _expandedCursor: number,
       _cursorAdjacentToMention: boolean,
-      _terminalContextIds: string[],
     ) => {
       setPrompt(nextPrompt);
       setCursor(nextCursor);
@@ -123,24 +112,17 @@ function ExamplePromptEditor(props: {
   cursor: number;
   onPromptChange: ReturnType<typeof useExamplePrompt>["onPromptChange"];
   className?: string;
-  minHeight?: "compact" | "hero";
 }) {
   return (
     <ComposerPromptEditor
       value={props.prompt}
       cursor={props.cursor}
-      terminalContexts={[]}
       skills={[]}
       disabled={false}
       placeholder={props.placeholder}
-      onRemoveTerminalContext={() => undefined}
       onChange={props.onPromptChange}
       onPaste={() => undefined}
-      className={cn(
-        props.minHeight === "compact" && "!min-h-5 !max-h-5 !overflow-hidden !py-0",
-        props.minHeight === "hero" && "!min-h-28 !max-h-56",
-        props.className,
-      )}
+      className={cn(COMPACT_EXAMPLE_EDITOR_CLASS, props.className)}
     />
   );
 }
@@ -158,108 +140,6 @@ function CursorSendButton(props: { disabled?: boolean; className?: string }) {
     >
       <IconArrowUp className="size-3.5" aria-hidden="true" />
     </button>
-  );
-}
-
-function CursorModelSelector(props: { label: string }) {
-  return (
-    <button
-      type="button"
-      className="inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-detail text-multi-fg-secondary transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-primary"
-    >
-      <IconCloudDownload className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-      <span className="truncate font-medium">{props.label}</span>
-      <IconChevronRightMedium className="size-3 shrink-0 rotate-90 opacity-60" aria-hidden="true" />
-    </button>
-  );
-}
-
-function CursorInputFooter(props: {
-  modelLabel: string;
-  canSend: boolean;
-  showImageAttach?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2 border-t border-multi-stroke-quaternary px-3 py-2">
-      <CursorModelSelector label={props.modelLabel} />
-      <div className="flex shrink-0 items-center gap-1">
-        {props.showImageAttach ? (
-          <button
-            type="button"
-            className="flex size-8 items-center justify-center rounded-md text-multi-icon-tertiary transition-colors hover:bg-multi-bg-tertiary hover:text-multi-icon-secondary"
-            aria-label="Attach images"
-          >
-            <IconPaperclip1 className="size-3.5" aria-hidden="true" />
-          </button>
-        ) : null}
-        <CursorSendButton disabled={!props.canSend} />
-      </div>
-    </div>
-  );
-}
-
-function CursorAttachmentChip(props: { label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-multi-stroke-tertiary bg-multi-bg-tertiary px-2 py-1 text-detail text-multi-fg-secondary">
-      <span className="flex size-5 items-center justify-center rounded bg-multi-bg-quaternary text-multi-fg-tertiary">
-        <IconPaperclip1 className="size-3" aria-hidden="true" />
-      </span>
-      {props.label}
-    </span>
-  );
-}
-
-function CursorContextRow() {
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-detail text-multi-fg-tertiary">
-      <button
-        type="button"
-        className="inline-flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-secondary"
-      >
-        <IconFolder1 className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate">samleemobbin-dot/mini-landing-page</span>
-        <IconChevronRightMedium
-          className="size-3 shrink-0 rotate-90 opacity-60"
-          aria-hidden="true"
-        />
-      </button>
-      <button
-        type="button"
-        className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-secondary"
-      >
-        <IconBranch className="size-3.5 shrink-0" aria-hidden="true" />
-        <span>main</span>
-        <IconChevronRightMedium
-          className="size-3 shrink-0 rotate-90 opacity-60"
-          aria-hidden="true"
-        />
-      </button>
-    </div>
-  );
-}
-
-function CursorSuggestionChips() {
-  return (
-    <div className="space-y-2.5">
-      <Text render={<p />} size="sm" tone="tertiary" className="text-center">
-        Try these examples to get started
-      </Text>
-      <div className="flex flex-wrap justify-center gap-2">
-        {CURSOR_SUGGESTION_CHIPS.map((chip) => {
-          const Icon = chip.icon;
-          return (
-            <button
-              key={chip.label}
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-full border border-multi-stroke-tertiary bg-multi-bg-elevated px-3 py-1.5 text-detail text-multi-fg-secondary transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
-            >
-              <Icon className="size-3.5 opacity-70" aria-hidden="true" />
-              {chip.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -290,37 +170,6 @@ function CursorModelTabs(props: { activeModel: (typeof CURSOR_MODEL_TABS)[number
   );
 }
 
-function CursorHeroCard(props: {
-  placeholder: string;
-  initialPrompt: string;
-  modelLabel: string;
-  attachmentChip?: string;
-  showImageAttach?: boolean;
-}) {
-  const { prompt, cursor, onPromptChange } = useExamplePrompt(props.initialPrompt);
-
-  return (
-    <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-multi-stroke-tertiary bg-(--glass-chat-bubble-background) shadow-sm">
-      <div className="space-y-2 px-3 pt-3">
-        {props.attachmentChip ? <CursorAttachmentChip label={props.attachmentChip} /> : null}
-        <ExamplePromptEditor
-          placeholder={props.placeholder}
-          prompt={prompt}
-          cursor={cursor}
-          onPromptChange={onPromptChange}
-          minHeight={props.initialPrompt ? "hero" : "hero"}
-          className="!min-h-24 !px-0"
-        />
-      </div>
-      <CursorInputFooter
-        modelLabel={props.modelLabel}
-        canSend={prompt.trim().length > 0}
-        {...(props.showImageAttach === undefined ? {} : { showImageAttach: props.showImageAttach })}
-      />
-    </div>
-  );
-}
-
 function CursorFollowUpPill(props: { placeholder: string; initialPrompt?: string }) {
   const { prompt, cursor, onPromptChange } = useExamplePrompt(props.initialPrompt ?? "");
 
@@ -332,7 +181,6 @@ function CursorFollowUpPill(props: { placeholder: string; initialPrompt?: string
           prompt={prompt}
           cursor={cursor}
           onPromptChange={onPromptChange}
-          minHeight="compact"
           className="!px-0"
         />
       </div>
@@ -341,75 +189,439 @@ function CursorFollowUpPill(props: { placeholder: string; initialPrompt?: string
   );
 }
 
-function CursorExamplePreview(props: { spec: CursorExampleSpec }) {
-  switch (props.spec.id) {
-    case "agents-hero":
-      return (
-        <CursorHeroCard
-          placeholder="Ask Cursor to build, fix bugs, explore"
-          initialPrompt=""
-          modelLabel="GPT-5 MAX"
-          showImageAttach
-        />
-      );
-    case "agents-with-attachment":
-      return (
-        <CursorHeroCard
-          placeholder="Ask Cursor to build, fix bugs, explore"
-          initialPrompt={AGENT_PROMPT_EXAMPLE}
-          modelLabel="GPT-5, Claude 4 Sonnet, o3 MAX"
-          attachmentChip="Image 1"
-          showImageAttach
-        />
-      );
-    case "agents-context-chips":
-      return (
-        <div className="mx-auto w-full max-w-2xl space-y-3">
-          <CursorHeroCard
-            placeholder="Ask Cursor to build, fix bugs, explore"
-            initialPrompt=""
-            modelLabel="GPT-5 MAX"
-            showImageAttach
-          />
-          <CursorContextRow />
-          <CursorSuggestionChips />
-        </div>
-      );
-    case "thread-follow-up":
-      return <CursorFollowUpPill placeholder="Give Cursor a follow-up instruction..." />;
-    case "thread-model-tabs":
-      return (
-        <div className="mx-auto w-full max-w-2xl space-y-3">
-          <CursorModelTabs activeModel="claude-4-sonnet" />
-          <CursorFollowUpPill placeholder="Give Cursor a follow-up instruction..." />
-        </div>
-      );
-    default:
-      return null;
-  }
-}
-
-function CursorExampleCard(props: { spec: CursorExampleSpec }) {
+function ThreadModelTabsExample() {
   return (
     <section className="space-y-4 rounded-xl border border-multi-stroke-tertiary bg-multi-bg-elevated p-4 sm:p-5">
       <div className="space-y-1">
         <Text render={<h2 />} size="lg" tone="primary" weight="medium">
-          {props.spec.title}
+          Thread with model tabs
         </Text>
         <Text render={<p />} size="sm" tone="tertiary">
-          {props.spec.description} · Ref: {props.spec.cursorRef}
+          Model pills above the dock follow-up input.
         </Text>
       </div>
-      <CursorExamplePreview spec={props.spec} />
+      <div className="mx-auto w-full max-w-2xl space-y-3">
+        <CursorModelTabs activeModel="claude-4-sonnet" />
+        <CursorFollowUpPill placeholder="Give Cursor a follow-up instruction..." />
+      </div>
     </section>
   );
+}
+
+const archiveRowActionClass = cn(
+  "flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-fg-tertiary outline-none",
+  "hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
+  "focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0",
+);
+
+function ArchiveRowActions(props: { alwaysVisible?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-0.5",
+        !props.alwaysVisible &&
+          "opacity-0 group-hover/archive-row:pointer-events-auto group-hover/archive-row:opacity-100",
+      )}
+    >
+      <button type="button" className={archiveRowActionClass} aria-label="Unarchive">
+        <IconArchiveJunk className="size-3.5" aria-hidden="true" />
+      </button>
+      <button type="button" className={archiveRowActionClass} aria-label="Delete">
+        <IconTrashCan className="size-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
+function ArchiveProjectHeader() {
+  return (
+    <div className="flex min-h-6 items-center gap-1.5 px-3.5 py-1">
+      <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden="true" />
+      <span className="min-w-0 truncate text-(length:--multi-sidebar-label-size) font-(--multi-sidebar-label-weight) leading-(--multi-sidebar-label-leading) text-multi-fg-tertiary">
+        {MOCK_ARCHIVED_PROJECT.name}
+      </span>
+      <span className="min-w-0 truncate text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-quaternary">
+        {MOCK_ARCHIVED_PROJECT.path}
+      </span>
+    </div>
+  );
+}
+
+function ArchiveSettingsRowsVariant() {
+  return (
+    <div className="overflow-hidden rounded-lg bg-multi-bg-quinary text-card-foreground">
+      <ArchiveProjectHeader />
+      {MOCK_ARCHIVED_THREADS.map((thread, index) => (
+        <div
+          key={thread.id}
+          className={cn(
+            "flex items-center justify-between gap-3 px-4 py-3 sm:px-5",
+            index > 0 && "border-t border-multi-stroke-quaternary",
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-(length:--multi-sidebar-label-size) font-medium leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+              {thread.title}
+            </h3>
+            <p className="mt-0.5 text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              Archived {thread.archivedAgo} · Created {thread.createdAgo}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-multi-control border border-multi-stroke-tertiary bg-transparent px-2.5 text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+          >
+            <IconArchiveJunk className="size-3.5" aria-hidden="true" />
+            Unarchive
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveSidebarRowsVariant() {
+  return (
+    <div className="overflow-hidden rounded-lg bg-multi-bg-quinary">
+      <ArchiveProjectHeader />
+      <div className="flex flex-col gap-px pb-2">
+        {MOCK_ARCHIVED_THREADS.map((thread) => (
+          <div
+            key={thread.id}
+            className="group/archive-row flex w-full min-w-0 items-center gap-1.5 rounded-multi-control px-3.5 py-[5px] hover:bg-multi-bg-quaternary"
+          >
+            <span className="flex size-3.5 shrink-0 items-center justify-center text-multi-icon-tertiary">
+              <IconArchive1 className="size-3.5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className="truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-secondary">
+                {thread.title}
+              </p>
+              <p className="truncate text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+                Archived {thread.archivedAgo}
+              </p>
+            </div>
+            <span className="shrink-0 text-(length:--multi-text-detail) leading-(--multi-leading-detail) tabular-nums text-multi-fg-tertiary opacity-0 group-hover/archive-row:opacity-100">
+              {thread.createdAgo}
+            </span>
+            <ArchiveRowActions />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ArchiveInlineActionsVariant() {
+  return (
+    <div className="overflow-hidden rounded-lg bg-multi-bg-quinary">
+      <ArchiveProjectHeader />
+      {MOCK_ARCHIVED_THREADS.map((thread, index) => (
+        <div
+          key={thread.id}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-2.5",
+            index > 0 && "border-t border-multi-stroke-quaternary",
+          )}
+        >
+          <span className="flex size-3.5 shrink-0 items-center justify-center text-multi-icon-tertiary">
+            <IconArchive1 className="size-3.5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+              {thread.title}
+            </p>
+            <p className="truncate text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              {thread.archivedAgo}
+            </p>
+          </div>
+          <ArchiveRowActions alwaysVisible />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveStackedCardsVariant() {
+  return (
+    <div className="space-y-2">
+      <ArchiveProjectHeader />
+      {MOCK_ARCHIVED_THREADS.map((thread) => (
+        <article
+          key={thread.id}
+          className="overflow-hidden rounded-lg border border-multi-stroke-quaternary bg-multi-bg-quinary"
+        >
+          <div className="px-3.5 py-2.5">
+            <p className="truncate text-(length:--multi-sidebar-label-size) font-medium leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+              {thread.title}
+            </p>
+            <p className="mt-1 text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              Archived {thread.archivedAgo} · Created {thread.createdAgo}
+            </p>
+          </div>
+          <div className="flex items-center justify-end gap-1 border-t border-multi-stroke-quaternary px-2 py-1.5">
+            <button
+              type="button"
+              className="rounded-multi-control px-2 py-1 text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              className="rounded-multi-control bg-multi-bg-quaternary px-2.5 py-1 text-(length:--multi-text-detail) font-medium leading-(--multi-leading-detail) text-multi-fg-primary hover:bg-multi-bg-tertiary"
+            >
+              Restore
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveRestorePrimaryVariant() {
+  return (
+    <div className="overflow-hidden rounded-lg bg-multi-bg-quinary">
+      <ArchiveProjectHeader />
+      {MOCK_ARCHIVED_THREADS.map((thread, index) => (
+        <div
+          key={thread.id}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-2.5",
+            index > 0 && "border-t border-multi-stroke-quaternary",
+          )}
+        >
+          <span className="flex size-3.5 shrink-0 items-center justify-center text-multi-icon-tertiary">
+            <IconArchive1 className="size-3.5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+              {thread.title}
+            </p>
+            <p className="truncate text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              {thread.archivedAgo}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-multi-control px-2 py-1 text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+          >
+            Delete
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-quaternary px-2.5 text-(length:--multi-text-detail) font-medium leading-(--multi-leading-detail) text-multi-fg-primary hover:bg-multi-bg-tertiary"
+          >
+            <IconArchiveJunk className="size-3.5" aria-hidden="true" />
+            Restore
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveOverflowMenuVariant() {
+  return (
+    <div className="overflow-hidden rounded-lg bg-multi-bg-quinary">
+      <ArchiveProjectHeader />
+      {MOCK_ARCHIVED_THREADS.map((thread, index) => (
+        <div
+          key={thread.id}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-2",
+            index > 0 && "border-t border-multi-stroke-quaternary",
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+              {thread.title}
+            </p>
+            <p className="truncate text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              Archived {thread.archivedAgo} · {MOCK_ARCHIVED_PROJECT.name}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={archiveRowActionClass}
+            aria-label="Thread actions"
+          >
+            <IconDotGrid1x3Horizontal className="size-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveMetaSplitVariant() {
+  return (
+    <div className="overflow-hidden rounded-lg bg-multi-bg-quinary">
+      <ArchiveProjectHeader />
+      {MOCK_ARCHIVED_THREADS.map((thread, index) => (
+        <div
+          key={thread.id}
+          className={cn("px-3.5 py-2.5", index > 0 && "border-t border-multi-stroke-quaternary")}
+        >
+          <p className="truncate text-(length:--multi-sidebar-label-size) font-medium leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+            {thread.title}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex items-center gap-1 text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              <IconFolder1 className="size-3 shrink-0 opacity-70" aria-hidden="true" />
+              {MOCK_ARCHIVED_PROJECT.name}
+            </span>
+            <span className="text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-quaternary">
+              ·
+            </span>
+            <span className="text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+              Archived {thread.archivedAgo}
+            </span>
+            <span className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                className="text-(length:--multi-text-detail) font-medium leading-(--multi-leading-detail) text-multi-fg-secondary hover:text-multi-fg-primary"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                className={archiveRowActionClass}
+                aria-label="Delete"
+              >
+                <IconTrashCan className="size-3.5" aria-hidden="true" />
+              </button>
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveTimelineGroupsVariant() {
+  const groups = [
+    { label: "This week", threads: [MOCK_ARCHIVED_THREADS[0]] },
+    { label: "Earlier", threads: [MOCK_ARCHIVED_THREADS[1]] },
+  ] as const;
+
+  return (
+    <div className="space-y-4 rounded-lg bg-multi-bg-quinary p-3 sm:p-4">
+      {groups.map((group) => (
+        <div key={group.label} className="space-y-1">
+          <p className="px-1.5 text-(length:--multi-text-detail) font-medium leading-(--multi-leading-detail) text-multi-fg-tertiary">
+            {group.label}
+          </p>
+          <ul className="space-y-px">
+            {group.threads.map((thread) => (
+              <li
+                key={thread.id}
+                className="group/archive-row flex items-center gap-2 rounded-multi-control px-1.5 py-1.5 hover:bg-multi-bg-quaternary"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-multi-fg-primary">
+                    {thread.title}
+                  </p>
+                  <p className="text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
+                    {MOCK_ARCHIVED_PROJECT.name} · {thread.archivedAgo}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 text-(length:--multi-text-detail) font-medium leading-(--multi-leading-detail) text-multi-fg-secondary hover:text-multi-fg-primary"
+                >
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  className={cn(archiveRowActionClass, "opacity-0 group-hover/archive-row:opacity-100")}
+                  aria-label="Delete"
+                >
+                  <IconTrashCan className="size-3.5" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArchiveUiVariantPreview(props: { variantId: ArchiveUiVariantId }) {
+  switch (props.variantId) {
+    case "settings-rows":
+      return <ArchiveSettingsRowsVariant />;
+    case "sidebar-rows":
+      return <ArchiveSidebarRowsVariant />;
+    case "inline-actions":
+      return <ArchiveInlineActionsVariant />;
+    case "timeline-groups":
+      return <ArchiveTimelineGroupsVariant />;
+    case "stacked-cards":
+      return <ArchiveStackedCardsVariant />;
+    case "restore-primary":
+      return <ArchiveRestorePrimaryVariant />;
+    case "overflow-menu":
+      return <ArchiveOverflowMenuVariant />;
+    case "meta-split":
+      return <ArchiveMetaSplitVariant />;
+  }
+}
+
+function ArchiveUiExamples() {
+  return (
+    <section className="space-y-4 rounded-xl border border-multi-stroke-tertiary bg-multi-bg-elevated p-4 sm:p-5">
+      <div className="space-y-1">
+        <Text render={<h2 />} size="lg" tone="primary" weight="medium">
+          Archived threads (settings)
+        </Text>
+        <Text render={<p />} size="sm" tone="tertiary">
+          Use the picker toolbar to compare layouts. Default is the current settings panel pattern.
+        </Text>
+      </div>
+
+      <div data-uidotsh-pick="Archived threads layout" className="contents">
+        {ARCHIVE_UI_VARIANTS.map((variant, index) => (
+          <div
+            key={variant.id}
+            data-uidotsh-option={variant.label}
+            className="contents"
+            {...(index === 0 ? {} : { hidden: true })}
+          >
+            <div className="space-y-2">
+              <Text render={<p />} size="sm" tone="tertiary">
+                {variant.description}
+              </Text>
+              <ArchiveUiVariantPreview variantId={variant.id} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function useUiPickerScript() {
+  useEffect(() => {
+    if (document.querySelector("script[data-uidotsh-picker]")) {
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://ui.sh/ui-picker.js";
+    script.dataset.uidotshPicker = "";
+    document.body.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, []);
 }
 
 function ComposerInputExamplesNotAvailable() {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-8">
       <Text render={<p />} size="base" tone="tertiary">
-        Chat input examples are only available in development builds.
+        UI examples are only available in development builds.
       </Text>
     </div>
   );
@@ -424,38 +636,24 @@ export function ComposerInputExamplesPage() {
 }
 
 function ComposerInputExamplesGallery() {
+  useUiPickerScript();
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-multi-editor">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
         <header className="space-y-2">
           <Text render={<h1 />} size="xl" tone="primary" weight="medium">
-            Chat input examples (Cursor)
+            UI examples
           </Text>
           <Text render={<p />} size="base" tone="tertiary">
-            Input shells modeled on Cursor Agents and agent-thread follow-up patterns, built with
-            ComposerPromptEditor and Multi tokens.
+            Dev-only gallery for composer and settings patterns. Open{" "}
+            <code className="text-multi-fg-secondary">/dev/composer-examples</code> and use the UI
+            picker toolbar to switch archive layouts.
           </Text>
-          <ul className="flex flex-wrap gap-2 pt-1">
-            {CURSOR_REFERENCE_LINKS.map((link) => (
-              <li key={link.href}>
-                <a
-                  href={link.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full border border-multi-stroke-tertiary px-2.5 py-1 text-detail text-multi-fg-secondary transition-colors hover:border-multi-stroke-secondary hover:text-multi-fg-primary"
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-          </ul>
         </header>
 
-        <div className="space-y-5">
-          {CURSOR_EXAMPLES.map((spec) => (
-            <CursorExampleCard key={spec.id} spec={spec} />
-          ))}
-        </div>
+        <ArchiveUiExamples />
+        <ThreadModelTabsExample />
       </div>
     </div>
   );

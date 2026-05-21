@@ -55,6 +55,8 @@ const STATIC_KEYBINDING_COMMANDS = [
   "diff.toggle",
   "commandPalette.toggle",
   "composer.cycleInteractionMode",
+  "composer.send",
+  "composer.interrupt",
   "chat.new",
   "chat.newLocal",
   "route.back",

@@ -732,13 +732,14 @@ export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPo
     () => (open ? composerMenuCollisionPadding() : { top: 8, bottom: 8, left: 8, right: 8 }),
     [open],
   );
+  const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
 
   return (
     <Popover open={open}>
       <PopoverPopup
         anchor={anchorRef}
         align="start"
-        collisionBoundary="viewport"
+        collisionBoundary={collisionBoundary}
         collisionPadding={collisionPadding}
         initialFocus={false}
         instant

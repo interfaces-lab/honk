@@ -91,7 +91,7 @@ function EmptyFilePreview(props: { onOpenFile: () => void }) {
         onClick={props.onOpenFile}
         className="flex h-7 items-center gap-1.5 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2.5 text-body font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
       >
-        <IconFiles className="size-3.5" />
+        <IconFiles className="size-4" />
         Open File
       </button>
     </div>
@@ -270,7 +270,7 @@ function ProjectFilesPanelContent(props: {
           chrome="panel"
           onClick={() => fileTreeRef.current?.refresh()}
         >
-          <IconChevronRightMedium className="size-3.5" />
+          <IconChevronRightMedium className="size-4" />
         </WorkbenchIconButton>
         <NavButton
           disabled={!canGoBack}
@@ -278,7 +278,7 @@ function ProjectFilesPanelContent(props: {
           label="Back"
           onClick={() => navigatePreviewHistory(-1)}
         >
-          <IconChevronLeftMedium className="size-3.5" />
+          <IconChevronLeftMedium className="size-4" />
         </NavButton>
         <NavButton
           chrome="panel"
@@ -286,7 +286,7 @@ function ProjectFilesPanelContent(props: {
           label="Forward"
           onClick={() => navigatePreviewHistory(1)}
         >
-          <IconChevronRightMedium className="size-3.5" />
+          <IconChevronRightMedium className="size-4" />
         </NavButton>
         <div className="min-w-0 flex-1" />
       </div>

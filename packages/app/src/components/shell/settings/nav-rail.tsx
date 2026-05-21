@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import {
   IconArchive1,
   IconCode,
+  IconCollaborationPointerRight,
   IconColorSwatch,
-  IconRobot,
   IconSettingsGear2,
   IconStepBack,
 } from "central-icons";
@@ -25,7 +25,7 @@ const items: {
 }[] = [
   { to: "/settings/general", label: "General", icon: IconSettingsGear2 },
   { to: "/settings/appearance", label: "Appearance", icon: IconColorSwatch },
-  { to: "/settings/agents", label: "Agents", icon: IconRobot },
+  { to: "/settings/agents", label: "Agents", icon: IconCollaborationPointerRight },
   { to: "/settings/models", label: "Models", icon: IconCode },
   { to: "/settings/archived", label: "Archived", icon: IconArchive1 },
 ];
@@ -44,19 +44,19 @@ export function SettingsNavRail() {
               to={item.to}
               activeProps={{
                 className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-1.5 rounded-multi-control border border-transparent px-1.5 py-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) transition-colors",
+                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) transition-colors",
                   "border-multi-border/90 bg-multi-active text-foreground",
                 ),
                 "aria-current": "page",
               }}
               inactiveProps={{
                 className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-1.5 rounded-multi-control border border-transparent px-1.5 py-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) transition-colors",
+                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) transition-colors",
                   "text-muted-foreground hover:bg-multi-hover hover:text-foreground",
                 ),
               }}
             >
-              <Icon className="size-3.5 shrink-0 opacity-60" />
+              <Icon className="size-4 shrink-0 opacity-60" />
               {item.label}
             </Link>
           );
@@ -71,7 +71,7 @@ export function SettingsNavRail() {
           disabled={changedSettingLabels.length === 0}
           onClick={() => void restoreDefaults()}
         >
-          <IconStepBack className="size-3.5" />
+          <IconStepBack className="size-4 shrink-0" />
           Restore defaults
         </Button>
       </div>

@@ -1,34 +1,16 @@
 import type {
   MessageId,
-  ModelSelection,
-  ProviderDriverKind,
   ProviderInteractionMode,
   RuntimeMode,
-  ServerProvider,
 } from "@multi/contracts";
 import { create } from "zustand";
 
-import type { ComposerImageAttachment } from "./chat-drafts";
-import type { TerminalContextDraft } from "../lib/terminal-context";
-
-export type QueuedComposerItemId = MessageId;
-
-export interface QueuedComposerSendContext {
-  prompt: string;
-  images: ComposerImageAttachment[];
-  terminalContexts: TerminalContextDraft[];
-  selectedPromptEffort: string | null;
-  selectedModelOptionsForDispatch: unknown;
-  selectedModelSelection: ModelSelection;
-  selectedProvider: ProviderDriverKind;
-  selectedModel: string;
-  selectedProviderModels: ReadonlyArray<ServerProvider["models"][number]>;
-}
+import type { ComposerSubmitContext } from "../components/chat/composer-submit";
 
 export interface QueuedComposerItem {
-  id: QueuedComposerItemId;
+  id: MessageId;
   threadKey: string;
-  sendContext: QueuedComposerSendContext;
+  sendContext: ComposerSubmitContext;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
   planFollowUp: { planMarkdown: string } | null;
@@ -37,19 +19,19 @@ export interface QueuedComposerItem {
 
 interface ComposerQueueStoreState {
   queueItemsByThreadKey: Record<string, QueuedComposerItem[]>;
-  editingQueueItemIdByThreadKey: Record<string, QueuedComposerItemId | null>;
+  editingQueueItemIdByThreadKey: Record<string, MessageId | null>;
   getQueueItems: (threadKey: string) => QueuedComposerItem[];
-  getQueueItem: (threadKey: string, itemId: QueuedComposerItemId) => QueuedComposerItem | null;
-  getEditingQueueItemId: (threadKey: string) => QueuedComposerItemId | null;
+  getQueueItem: (threadKey: string, itemId: MessageId) => QueuedComposerItem | null;
+  getEditingQueueItemId: (threadKey: string) => MessageId | null;
   enqueueComposerItem: (threadKey: string, item: QueuedComposerItem) => void;
-  removeQueuedComposerItem: (threadKey: string, itemId: QueuedComposerItemId) => void;
+  removeQueuedComposerItem: (threadKey: string, itemId: MessageId) => void;
   takeQueuedComposerItem: (
     threadKey: string,
-    itemId: QueuedComposerItemId,
+    itemId: MessageId,
   ) => QueuedComposerItem | null;
   takeNextQueuedComposerItem: (threadKey: string) => QueuedComposerItem | null;
   restoreQueuedComposerItem: (threadKey: string, item: QueuedComposerItem, index: number) => void;
-  beginEditingQueuedComposerItem: (threadKey: string, itemId: QueuedComposerItemId) => void;
+  beginEditingQueuedComposerItem: (threadKey: string, itemId: MessageId) => void;
   cancelEditingQueuedComposerItem: (threadKey: string) => void;
   replaceEditingQueuedComposerItem: (threadKey: string, item: QueuedComposerItem) => void;
 }
@@ -99,9 +81,9 @@ function withoutEmptyThreadQueue(
 }
 
 function withoutThreadEdit(
-  editingQueueItemIdByThreadKey: Record<string, QueuedComposerItemId | null>,
+  editingQueueItemIdByThreadKey: Record<string, MessageId | null>,
   threadKey: string,
-): Record<string, QueuedComposerItemId | null> {
+): Record<string, MessageId | null> {
   if (!(threadKey in editingQueueItemIdByThreadKey)) {
     return editingQueueItemIdByThreadKey;
   }

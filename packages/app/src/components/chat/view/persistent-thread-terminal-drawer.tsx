@@ -5,7 +5,6 @@ import { memo, useCallback, useMemo, useState } from "react";
 
 import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { readEnvironmentApi } from "../../../environment-api";
-import type { TerminalContextSelection } from "../../../lib/terminal-context";
 import {
   createProjectSelectorByRef,
   createThreadSelectorByRef,
@@ -30,7 +29,6 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   splitShortcutLabel: string | undefined;
   newShortcutLabel: string | undefined;
   closeShortcutLabel: string | undefined;
-  onAddTerminalContext: (selection: TerminalContextSelection) => void;
 }) {
   const {
     threadRef,
@@ -41,7 +39,6 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     splitShortcutLabel,
     newShortcutLabel,
     closeShortcutLabel,
-    onAddTerminalContext,
   } = props;
   const serverThread = useStore(useMemo(() => createThreadSelectorByRef(threadRef), [threadRef]));
   const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
@@ -154,16 +151,6 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     [bumpFocusRequestId, storeCloseTerminal, terminalState.terminalIds.length, threadId, threadRef],
   );
 
-  const handleAddTerminalContext = useCallback(
-    (selection: TerminalContextSelection) => {
-      if (!visible) {
-        return;
-      }
-      onAddTerminalContext(selection);
-    },
-    [onAddTerminalContext, visible],
-  );
-
   if (!project || !terminalState.terminalOpen || !cwd) {
     return null;
   }
@@ -191,7 +178,6 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
         onActiveTerminalChange={activateTerminal}
         onCloseTerminal={closeTerminal}
         onHeightChange={setTerminalHeight}
-        onAddTerminalContext={handleAddTerminalContext}
       />
     </div>
   );

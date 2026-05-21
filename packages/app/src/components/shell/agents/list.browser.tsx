@@ -369,9 +369,38 @@ describe("AgentList sidebar", () => {
   it("keeps project sections, active rows, and new-thread actions reachable", async () => {
     const onNewAgent = vi.fn();
     const onSelectAgent = vi.fn();
-    await using _ = await mount({ onNewAgent, onSelectAgent });
+    await using mounted = await mount({ onNewAgent, onSelectAgent }, { width: "240px" });
 
-    await expect.element(page.getByRole("button", { name: "project", exact: true })).toBeVisible();
+    const projectSectionToggle = page.getByRole("button", { name: "project", exact: true });
+    await expect.element(projectSectionToggle).toBeVisible();
+    const sectionTitle = document.querySelector<HTMLElement>("[data-agent-sidebar-section-title]");
+    const selectedRow = document.querySelector<HTMLElement>(
+      '[data-agent-sidebar-cell][data-selected="true"]',
+    );
+    if (!sectionTitle || !selectedRow) {
+      throw new Error("project section: expected section title and selected row to render.");
+    }
+    const listGutter = 16;
+    expect(
+      sectionTitle.getBoundingClientRect().width,
+      "project section: expected section header background to inset from the list edges",
+    ).toBeCloseTo(mounted.host.getBoundingClientRect().width - listGutter, 0);
+    expect(
+      selectedRow.getBoundingClientRect().width,
+      "project section: expected selected row background to inset from the list edges",
+    ).toBeCloseTo(mounted.host.getBoundingClientRect().width - listGutter, 0);
+    expect(
+      selectedRow.className,
+      "project section: expected selected row to show an active background color",
+    ).toContain("selected=true]:bg");
+    expect(
+      projectToggle()?.querySelector("svg"),
+      "project section: expected no decorative chevron icon in the collapsible header",
+    ).toBeNull();
+    expect(
+      page.getByRole("button", { name: "New agent in project" }).element().className,
+      "project section: expected new-agent action to avoid separate hover styling",
+    ).not.toContain("hover:");
     await expect
       .element(page.getByRole("button", { name: /Implement compact sidebar rows/ }))
       .toHaveAttribute("data-selected", "true");

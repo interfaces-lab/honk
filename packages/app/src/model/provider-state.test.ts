@@ -172,7 +172,7 @@ describe("getComposerProviderState", () => {
     });
   });
 
-  it("does not render Cursor Composer controls from stale cached descriptors", () => {
+  it("renders only Fast for Cursor Composer controls", () => {
     const state = getComposerProviderState({
       provider: ProviderDriverKind.make("cursor"),
       model: "composer-2.5",
@@ -185,18 +185,19 @@ describe("getComposerProviderState", () => {
             optionDescriptors: [
               selectDescriptor("reasoning", [{ id: "medium", label: "Medium", isDefault: true }]),
               booleanDescriptor("fastMode"),
+              booleanDescriptor("thinking"),
             ],
           },
         },
       ],
       prompt: "",
-      modelOptions: selections(["reasoning", "medium"], ["fastMode", true]),
+      modelOptions: selections(["reasoning", "medium"], ["fastMode", true], ["thinking", true]),
     });
 
     expect(state).toEqual({
       provider: ProviderDriverKind.make("cursor"),
       promptEffort: null,
-      modelOptionsForDispatch: undefined,
+      modelOptionsForDispatch: selections(["fastMode", true]),
       ultrathinkActive: false,
     });
   });

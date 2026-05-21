@@ -38,7 +38,7 @@ function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
       title={`${props.tab.label}${badgeText}`}
     >
       <span className="ui-tab-system-tab__content flex size-full min-w-0 flex-none items-center justify-center">
-        <Icon className="ui-tab-system-tab__icon size-3.5 shrink-0" aria-hidden />
+        <Icon className="ui-tab-system-tab__icon size-4 shrink-0" aria-hidden />
       </span>
     </TabsTab>
   );
@@ -170,7 +170,7 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
               />
             ) : null}
             <WorkbenchChromeButton label="New terminal" onClick={props.onNewTerminal}>
-              <IconPlusLarge className="size-3.5" aria-hidden />
+              <IconPlusLarge className="size-4 shrink-0" aria-hidden />
             </WorkbenchChromeButton>
           </>
         ) : null}

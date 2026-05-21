@@ -19,7 +19,7 @@ function Input({
   ...props
 }: InputProps) {
   const inputClassName = cn(
-    "h-7 w-full min-w-0 rounded-[inherit] px-2 py-0 font-multi text-[12px]/[16px] outline-none placeholder:text-muted-foreground/72 [transition:background-color_5000000s_ease-in-out_0s]",
+    "h-7 w-full min-w-0 rounded-[inherit] px-2 py-0 font-multi text-body outline-none placeholder:text-multi-fg-tertiary/72 [transition:background-color_5000000s_ease-in-out_0s]",
     size === "sm" && "h-7 px-2",
     size === "lg" && "h-8 px-2.5 sm:h-8",
     props.type === "search" &&
@@ -33,7 +33,7 @@ function Input({
       className={
         cn(
           !unstyled &&
-            "relative inline-flex w-full rounded-multi-control border border-input bg-background not-dark:bg-clip-padding text-foreground shadow-xs/5 ring-ring/24 transition-shadow before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] not-has-disabled:not-has-focus-visible:not-has-aria-invalid:before:shadow-[0_1px_--theme(--color-black/4%)] has-focus-visible:has-aria-invalid:border-destructive/64 has-focus-visible:has-aria-invalid:ring-destructive/16 has-aria-invalid:border-destructive/36 has-focus-visible:border-ring has-autofill:bg-foreground/4 has-disabled:opacity-64 has-[:disabled,:focus-visible,[aria-invalid]]:shadow-none has-focus-visible:ring-[3px] dark:bg-input/32 dark:has-autofill:bg-foreground/8 dark:has-aria-invalid:ring-destructive/24 dark:not-has-disabled:not-has-focus-visible:not-has-aria-invalid:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "relative inline-flex w-full rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-primary shadow-none transition-colors has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused/30 has-focus-visible:has-aria-invalid:border-multi-stroke-red-primary has-focus-visible:has-aria-invalid:ring-multi-stroke-red-primary/20 has-aria-invalid:border-multi-stroke-red-primary has-disabled:opacity-64",
           className,
         ) || undefined
       }

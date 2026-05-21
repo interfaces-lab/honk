@@ -12,22 +12,24 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
           className="flex-1 bg-multi-bg-quinary pl-2 pr-1.5 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
           data-testid="new-thread-button"
         >
-          <IconCollaborationPointerRight className="size-3.5 shrink-0 opacity-65" />
+          <IconCollaborationPointerRight className="size-4 shrink-0 opacity-65" />
           <span className="min-w-0 flex-1 truncate">New Agent</span>
           <span className="shrink-0 text-caption text-multi-fg-quaternary">⌘N</span>
         </RowButton>
       </div>
       {props.onAddProject ? (
-        <RowButton
-          variant="chrome"
-          onClick={props.onAddProject}
-          className="flex-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
-          aria-label="Open project"
-          data-testid="sidebar-add-project-trigger"
-        >
-          <IconPlusLarge className="size-3.5 shrink-0 opacity-65" />
-          <span className="min-w-0 flex-1 truncate">Open Project</span>
-        </RowButton>
+        <div className="flex min-h-[22px] min-w-0 w-full items-center gap-0.5">
+          <RowButton
+            variant="chrome"
+            onClick={props.onAddProject}
+            className="w-full flex-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+            aria-label="Open project"
+            data-testid="sidebar-add-project-trigger"
+          >
+            <IconPlusLarge className="size-4 shrink-0 opacity-65" />
+            <span className="min-w-0 flex-1 truncate">Open Project</span>
+          </RowButton>
+        </div>
       ) : null}
     </div>
   );

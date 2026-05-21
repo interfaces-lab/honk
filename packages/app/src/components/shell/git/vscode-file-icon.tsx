@@ -68,7 +68,7 @@ export const VsFileIcon = memo(function VsFileIcon(props: {
     return (
       <IconFileBend
         className={cn(
-          "size-3.5 shrink-0",
+          "size-4 shrink-0",
           props.errored && "text-destructive/80",
           "text-foreground/48",
         )}
@@ -82,7 +82,7 @@ export const VsFileIcon = memo(function VsFileIcon(props: {
       alt=""
       width={14}
       height={14}
-      className={cn("size-3.5 shrink-0 object-contain", props.className)}
+      className={cn("size-4 shrink-0 object-contain", props.className)}
       onError={() => setBroken(true)}
     />
   );

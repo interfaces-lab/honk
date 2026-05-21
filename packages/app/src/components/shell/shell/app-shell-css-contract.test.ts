@@ -26,6 +26,11 @@ const desktopChromeSource = readFileSync(
   resolve(shellDir, "../../../lib/desktop-chrome.ts"),
   "utf8",
 );
+const desktopWindowSource = readFileSync(
+  resolve(__dirname, "../../../../../desktop/src/window/DesktopWindow.ts"),
+  "utf8",
+);
+const chatViewSource = readFileSync(resolve(shellDir, "../../chat/view/chat-view.tsx"), "utf8");
 
 describe("AppShell CSS root contract", () => {
   it("sources shared UI package utilities for app Tailwind output", () => {
@@ -127,6 +132,40 @@ describe("AppShell CSS root contract", () => {
     expect(desktopChromeSource).toContain("TRAFFIC_LIGHT_Y_PX");
     expect(shellCssSource).toContain("--multi-shell-sidebar-content-top-offset");
     expect(shellCssSource).toContain("var(--multi-electron-traffic-padding-top)");
+  });
+
+  it("centers titlebar sidebar toggles on the workbench chrome row band", () => {
+    expect(shellCssSource).toContain("--multi-header-height: var(--multi-header-height-user, 34px)");
+    expect(shellCssSource).toContain("--multi-workbench-chrome-row-height: 34px");
+    expect(shellCssSource).toContain("--multi-titlebar-control-height: 22px");
+    expect(shellCssSource).toContain("--multi-workbench-action-size: 22px");
+    expect(shellCssSource).toContain(
+      "--multi-titlebar-control-row-top: calc(\n    (var(--multi-header-height) - var(--multi-titlebar-control-height)) / 2\n  )",
+    );
+    expect(appShellSource).toContain(
+      '"--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)"',
+    );
+    expect(appShellSource).toContain(
+      "multi-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-50 box-border flex h-(--multi-header-height) min-w-0 items-center",
+    );
+    expect(appShellSource).toContain("h-(--multi-titlebar-control-height)");
+    expect(workbenchChromeRowSource).toContain("items-center");
+    expect(workbenchChromeRowSource).toContain("h-(--multi-workbench-action-size) self-center");
+    expect(chatViewSource).toContain(
+      "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center",
+    );
+    expect(chatViewSource).not.toContain("pr-(--multi-shell-right-workbench-header-end-space)");
+    expect(shellCssSource).toContain(
+      '[data-shell-right-panel="true"][data-shell-right-intent="collapsed"]',
+    );
+    expect(shellCssSource).toContain(
+      "padding-right: calc(0.75rem + var(--multi-shell-right-workbench-header-end-space))",
+    );
+    expect(chatHeaderSource).not.toContain("translate-y-[var(--multi-titlebar-content-nudge-y)]");
+    expect(shellCssSource).toContain("top: var(--multi-shell-titlebar-control-y)");
+    expect(desktopWindowSource).toContain("MACOS_TRAFFIC_LIGHT_Y_PX");
+    expect(desktopWindowSource).toContain("setWindowButtonPosition");
+    expect(desktopWindowSource).toContain("getMacOSTrafficLightPosition");
   });
 
   it("projects secondary rail width through CSS variables", () => {

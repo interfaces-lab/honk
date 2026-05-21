@@ -122,19 +122,19 @@ import {
 import {
   useComposerQueueStore,
   type QueuedComposerItem,
-  type QueuedComposerItemId,
 } from "../../../stores/chat-send-queue";
-import {
-  appendTerminalContextsToPrompt,
-  type TerminalContextDraft,
-  type TerminalContextSelection,
-} from "../../../lib/terminal-context";
 import {
   selectThreadTerminalState,
   type ThreadTerminalLaunchContext,
   useTerminalStateStore,
 } from "../../../terminal-state-store";
-import { readTerminalSessions, shellPanelsActions } from "~/stores/shell-panels-store";
+import {
+  readTerminalSessions,
+  shellPanelsActions,
+  useActiveTab,
+  useIsMuted,
+  useRightOpen,
+} from "~/stores/shell-panels-store";
 import {
   readWorkbenchTerminalApi,
   workbenchTerminalThreadId,
@@ -157,20 +157,17 @@ import { gitCheckoutMutationOptions } from "../../../lib/git-react-query";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
 import { ThreadErrorBanner } from "../message/error-banner";
 import {
-  buildExpiredTerminalContextToastCopy,
   cloneComposerImageForRetry,
-  deriveComposerSendState,
-  formatOutgoingPrompt,
-  IMAGE_ONLY_BOOTSTRAP_PROMPT,
   resolveSendEnvMode,
 } from "../composer/send";
+import { createQueuedComposerItem } from "./chat-view-send-flow";
 import {
-  buildOptimisticImageAttachments,
-  createQueuedComposerItem,
-  readComposerImageAttachmentsForTurn,
-  resolveComposerThreadTitle,
-  type ComposerInputSendContext,
-} from "./chat-view-send-flow";
+  compileComposerSubmitTurn,
+  type ComposerSubmitContext,
+  deriveComposerSendState,
+  formatOutgoingPrompt,
+  prepareComposerTurnAttachments,
+} from "../composer-submit";
 import {
   collectUserMessageBlobPreviewUrls,
   revokeUserMessagePreviewUrls,
@@ -248,7 +245,7 @@ function useValueIdentityVersion<TValue>(value: TValue): number {
 }
 
 type ComposerSendSnapshot = {
-  sendContext: ComposerInputSendContext;
+  sendContext: ComposerSubmitContext;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
   planFollowUp: { planMarkdown: string } | null;
@@ -910,9 +907,6 @@ export default function ChatView(props: ChatViewProps) {
   );
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
-  const setComposerDraftTerminalContexts = useComposerDraftStore(
-    (store) => store.setTerminalContexts,
-  );
   const setComposerDraftModelSelection = useComposerDraftStore((store) => store.setModelSelection);
   const setComposerDraftRuntimeMode = useComposerDraftStore((store) => store.setRuntimeMode);
   const setComposerDraftInteractionMode = useComposerDraftStore(
@@ -941,7 +935,6 @@ export default function ChatView(props: ChatViewProps) {
   );
   const promptRef = useRef("");
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
-  const composerTerminalContextsRef = useRef<TerminalContextDraft[]>([]);
   const localComposerRef = useRef<ComposerInputHandle | null>(null);
   const composerRef = useComposerHandleContext() ?? localComposerRef;
   const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
@@ -1252,6 +1245,11 @@ export default function ChatView(props: ChatViewProps) {
       activeLatestTurn?.turnId ?? null,
     );
   }, [activeLatestTurn?.turnId, activeThread?.proposedPlans, latestTurnSettled]);
+  const activeWorkbenchTab = useActiveTab();
+  const rightWorkbenchOpen = useRightOpen();
+  const rightWorkbenchMuted = useIsMuted();
+  const planSurfaceOpen =
+    activeWorkbenchTab === "plan" && rightWorkbenchOpen && !rightWorkbenchMuted;
   const showPlanFollowUpPrompt =
     pendingUserInputs.length === 0 &&
     interactionMode === "plan" &&
@@ -1559,12 +1557,6 @@ export default function ChatView(props: ChatViewProps) {
       focusComposer();
     });
   }, [focusComposer]);
-  const addTerminalContextToDraft = useCallback(
-    (selection: TerminalContextSelection) => {
-      composerRef.current?.addTerminalContext(selection);
-    },
-    [composerRef],
-  );
   const setTerminalOpen = useCallback(
     (open: boolean) => {
       if (!activeThreadRef) return;
@@ -2102,29 +2094,16 @@ export default function ChatView(props: ChatViewProps) {
       const {
         prompt: promptForSend,
         images: composerImages,
-        terminalContexts: composerTerminalContexts,
-        selectedProvider: ctxSelectedProvider,
         selectedModel: ctxSelectedModel,
-        selectedProviderModels: ctxSelectedProviderModels,
-        selectedPromptEffort: ctxSelectedPromptEffort,
         selectedModelSelection: ctxSelectedModelSelection,
       } = input.sendContext;
-      const {
-        sendableTerminalContexts: sendableComposerTerminalContexts,
-        expiredTerminalContextCount,
-        hasSendableContent,
-      } = deriveComposerSendState({
-        prompt: promptForSend,
-        imageCount: composerImages.length,
-        terminalContexts: composerTerminalContexts,
-      });
+      const compiledTurn = compileComposerSubmitTurn(input.sendContext);
+      const { hasSendableContent } = compiledTurn;
       const originalMessage = timelineMessages.find(
         (message) => message.id === messageId && message.role === "user",
       );
       const unchanged =
-        originalMessage?.text === promptForSend &&
-        composerImages.length === 0 &&
-        sendableComposerTerminalContexts.length === 0;
+        originalMessage?.text === compiledTurn.trimmedPrompt && composerImages.length === 0;
       if (!hasSendableContent || !originalMessage || unchanged) {
         return false;
       }
@@ -2142,20 +2121,8 @@ export default function ChatView(props: ChatViewProps) {
       const messageIdForSend = newMessageId();
       const messageCreatedAt = new Date().toISOString();
       const composerImagesSnapshot = [...composerImages];
-      const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
-      const messageTextForSend = appendTerminalContextsToPrompt(
-        promptForSend,
-        composerTerminalContextsSnapshot,
-      );
-      const outgoingMessageText = formatOutgoingPrompt({
-        provider: ctxSelectedProvider,
-        model: ctxSelectedModel,
-        models: ctxSelectedProviderModels,
-        effort: ctxSelectedPromptEffort,
-        text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
-      });
-      const turnAttachmentsPromise = readComposerImageAttachmentsForTurn(composerImagesSnapshot);
-      const optimisticAttachments = buildOptimisticImageAttachments(composerImagesSnapshot);
+      const turnAttachmentsPromise = prepareComposerTurnAttachments(composerImagesSnapshot);
+      const optimisticAttachments = compiledTurn.optimisticAttachments;
       let turnStartSucceeded = false;
       let optimisticMessageAdded = false;
 
@@ -2177,7 +2144,7 @@ export default function ChatView(props: ChatViewProps) {
           {
             id: messageIdForSend,
             role: "user",
-            text: outgoingMessageText,
+            text: compiledTurn.outgoingMessageText,
             ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
             createdAt: messageCreatedAt,
             streaming: false,
@@ -2185,17 +2152,6 @@ export default function ChatView(props: ChatViewProps) {
         ]);
         optimisticMessageAdded = true;
         setThreadError(threadIdForSend, null);
-        if (expiredTerminalContextCount > 0) {
-          const toastCopy = buildExpiredTerminalContextToastCopy(
-            expiredTerminalContextCount,
-            "omitted",
-          );
-          toastManager.add({
-            type: "warning",
-            title: toastCopy.title,
-            description: toastCopy.description,
-          });
-        }
 
         await persistThreadSettingsForNextTurn({
           threadId: threadIdForSend,
@@ -2213,7 +2169,7 @@ export default function ChatView(props: ChatViewProps) {
           message: {
             messageId: messageIdForSend,
             role: "user",
-            text: outgoingMessageText,
+            text: compiledTurn.outgoingMessageText,
             attachments: turnAttachments,
           },
           modelSelection: ctxSelectedModelSelection,
@@ -2281,23 +2237,11 @@ export default function ChatView(props: ChatViewProps) {
     const {
       prompt: promptForSend,
       images: composerImages,
-      terminalContexts: composerTerminalContexts,
-      selectedProvider: ctxSelectedProvider,
       selectedModel: ctxSelectedModel,
-      selectedProviderModels: ctxSelectedProviderModels,
-      selectedPromptEffort: ctxSelectedPromptEffort,
       selectedModelSelection: ctxSelectedModelSelection,
     } = sendCtx;
-    const {
-      trimmedPrompt: trimmed,
-      sendableTerminalContexts: sendableComposerTerminalContexts,
-      expiredTerminalContextCount,
-      hasSendableContent,
-    } = deriveComposerSendState({
-      prompt: promptForSend,
-      imageCount: composerImages.length,
-      terminalContexts: composerTerminalContexts,
-    });
+    const compiledTurn = compileComposerSubmitTurn(sendCtx);
+    const { trimmedPrompt: trimmed, hasSendableContent } = compiledTurn;
     if (planFollowUp) {
       const followUp = resolvePlanFollowUpSubmission({
         draftText: trimmed,
@@ -2315,7 +2259,7 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     const standaloneSlashCommand =
-      composerImages.length === 0 && sendableComposerTerminalContexts.length === 0
+      composerImages.length === 0
         ? parseStandaloneComposerSlashCommand(trimmed)
         : null;
     if (standaloneSlashCommand) {
@@ -2328,17 +2272,6 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     if (!hasSendableContent) {
-      if (expiredTerminalContextCount > 0) {
-        const toastCopy = buildExpiredTerminalContextToastCopy(
-          expiredTerminalContextCount,
-          "empty",
-        );
-        toastManager.add({
-          type: "warning",
-          title: toastCopy.title,
-          description: toastCopy.description,
-        });
-      }
       return;
     }
     const threadIdForSend = activeThread.id;
@@ -2374,22 +2307,10 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     const composerImagesSnapshot = [...composerImages];
-    const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
-    const messageTextForSend = appendTerminalContextsToPrompt(
-      promptForSend,
-      composerTerminalContextsSnapshot,
-    );
     const messageIdForSend = snapshot.messageId ?? newMessageId();
     const messageCreatedAt = snapshot.createdAt ?? new Date().toISOString();
-    const outgoingMessageText = formatOutgoingPrompt({
-      provider: ctxSelectedProvider,
-      model: ctxSelectedModel,
-      models: ctxSelectedProviderModels,
-      effort: ctxSelectedPromptEffort,
-      text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
-    });
-    const turnAttachmentsPromise = readComposerImageAttachmentsForTurn(composerImagesSnapshot);
-    const optimisticAttachments = buildOptimisticImageAttachments(composerImagesSnapshot);
+    const turnAttachmentsPromise = prepareComposerTurnAttachments(composerImagesSnapshot);
+    const optimisticAttachments = compiledTurn.optimisticAttachments;
     // Scroll to the current end before adding the optimistic message so the
     // virtualizer pins to the new item when the data changes.
     isAtBottomRef.current = true;
@@ -2402,7 +2323,7 @@ export default function ChatView(props: ChatViewProps) {
       {
         id: messageIdForSend,
         role: "user",
-        text: outgoingMessageText,
+        text: compiledTurn.outgoingMessageText,
         ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
         createdAt: messageCreatedAt,
         streaming: false,
@@ -2410,17 +2331,6 @@ export default function ChatView(props: ChatViewProps) {
     ]);
 
     setThreadError(threadIdForSend, null);
-    if (expiredTerminalContextCount > 0) {
-      const toastCopy = buildExpiredTerminalContextToastCopy(
-        expiredTerminalContextCount,
-        "omitted",
-      );
-      toastManager.add({
-        type: "warning",
-        title: toastCopy.title,
-        description: toastCopy.description,
-      });
-    }
     if (clearComposerOnSubmit) {
       promptRef.current = "";
       clearComposerDraftContent(composerDraftTarget);
@@ -2431,11 +2341,7 @@ export default function ChatView(props: ChatViewProps) {
 
     let turnStartSucceeded = false;
     await (async () => {
-      const title = resolveComposerThreadTitle({
-        trimmedPrompt: trimmed,
-        composerImages: composerImagesSnapshot,
-        terminalContexts: composerTerminalContextsSnapshot,
-      });
+      const title = compiledTurn.title;
       const threadCreateModelSelection = ctxSelectedModelSelection;
 
       // Auto-title from first message
@@ -2505,7 +2411,7 @@ export default function ChatView(props: ChatViewProps) {
         message: {
           messageId: messageIdForSend,
           role: "user",
-          text: outgoingMessageText,
+          text: compiledTurn.outgoingMessageText,
           attachments: turnAttachments,
         },
         modelSelection: ctxSelectedModelSelection,
@@ -2528,8 +2434,7 @@ export default function ChatView(props: ChatViewProps) {
       if (
         !turnStartSucceeded &&
         promptRef.current.length === 0 &&
-        composerImagesRef.current.length === 0 &&
-        composerTerminalContextsRef.current.length === 0
+        composerImagesRef.current.length === 0
       ) {
         setOptimisticUserMessages((existing) => {
           const removed = existing.filter((message) => message.id === messageIdForSend);
@@ -2542,10 +2447,8 @@ export default function ChatView(props: ChatViewProps) {
         promptRef.current = promptForSend;
         const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
         composerImagesRef.current = retryComposerImages;
-        composerTerminalContextsRef.current = composerTerminalContextsSnapshot;
         setComposerDraftPrompt(composerDraftTarget, promptForSend);
         addComposerDraftImages(composerDraftTarget, retryComposerImages);
-        setComposerDraftTerminalContexts(composerDraftTarget, composerTerminalContextsSnapshot);
         composerRef.current?.resetCursorState({
           cursor: collapseExpandedComposerCursor(promptForSend, promptForSend.length),
           prompt: promptForSend,
@@ -2591,19 +2494,21 @@ export default function ChatView(props: ChatViewProps) {
     if (!sendContext) return;
 
     const sendWhileStreamingBehavior = settings.agentWindowSendWhileStreamingBehavior;
-    const hasPromptText = sendContext.prompt.trim().length > 0;
-    const planFollowUp =
-      showPlanFollowUpPrompt && activeProposedPlan && hasPromptText
-        ? { planMarkdown: activeProposedPlan.planMarkdown }
-        : null;
     const currentComposerSendState = deriveComposerSendState({
       prompt: sendContext.prompt,
       imageCount: sendContext.images.length,
-      terminalContexts: sendContext.terminalContexts,
     });
+    const hasPlanFeedbackText = sendContext.prompt.trim().length > 0;
+    const hasOnlyBlankPlanFollowUp =
+      !currentComposerSendState.hasSendableContent;
+    const planFollowUp =
+      showPlanFollowUpPrompt &&
+      activeProposedPlan &&
+      (hasPlanFeedbackText || hasOnlyBlankPlanFollowUp)
+        ? { planMarkdown: activeProposedPlan.planMarkdown }
+        : null;
     if (
       !currentComposerSendState.hasSendableContent &&
-      currentComposerSendState.expiredTerminalContextCount === 0 &&
       planFollowUp === null &&
       !editingQueuedComposerItemId &&
       queuedComposerItems.length > 0
@@ -2622,19 +2527,8 @@ export default function ChatView(props: ChatViewProps) {
     if (editingQueuedComposerItemId) {
       const existingQueuedItem =
         queuedComposerItems.find((item) => item.id === editingQueuedComposerItemId) ?? null;
-      const { expiredTerminalContextCount, hasSendableContent } = currentComposerSendState;
+      const { hasSendableContent } = currentComposerSendState;
       if (!hasSendableContent) {
-        if (expiredTerminalContextCount > 0) {
-          const toastCopy = buildExpiredTerminalContextToastCopy(
-            expiredTerminalContextCount,
-            "empty",
-          );
-          toastManager.add({
-            type: "warning",
-            title: toastCopy.title,
-            description: toastCopy.description,
-          });
-        }
         return;
       }
 
@@ -2656,19 +2550,8 @@ export default function ChatView(props: ChatViewProps) {
       phase === "running" &&
       (sendWhileStreamingBehavior === "queue" || sendWhileStreamingBehavior === "stop-and-send")
     ) {
-      const { expiredTerminalContextCount, hasSendableContent } = currentComposerSendState;
+      const { hasSendableContent } = currentComposerSendState;
       if (!hasSendableContent) {
-        if (expiredTerminalContextCount > 0) {
-          const toastCopy = buildExpiredTerminalContextToastCopy(
-            expiredTerminalContextCount,
-            "empty",
-          );
-          toastManager.add({
-            type: "warning",
-            title: toastCopy.title,
-            description: toastCopy.description,
-          });
-        }
         return;
       }
 
@@ -2703,6 +2586,35 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
 
+  const onBuildActiveProposedPlan = () => {
+    if (
+      !showPlanFollowUpPrompt ||
+      !activeProposedPlan ||
+      isConnecting ||
+      isSendBusy ||
+      sendInFlightRef.current
+    ) {
+      return;
+    }
+
+    const sendContext = composerRef.current?.getSendContext();
+    if (!sendContext) {
+      return;
+    }
+
+    void submitComposerSendSnapshot({
+      sendContext: {
+        ...sendContext,
+        prompt: "",
+        images: [],
+      },
+      runtimeMode,
+      interactionMode,
+      planFollowUp: { planMarkdown: activeProposedPlan.planMarkdown },
+      clearComposerOnSubmit: true,
+    });
+  };
+
   const onInterrupt = useCallback(async () => {
     const api = readEnvironmentApi(environmentId);
     if (!api || !activeThread) return;
@@ -2720,11 +2632,9 @@ export default function ChatView(props: ChatViewProps) {
     const imagesForEdit = item.sendContext.images.map(cloneComposerImageForRetry);
     promptRef.current = item.sendContext.prompt;
     composerImagesRef.current = imagesForEdit;
-    composerTerminalContextsRef.current = item.sendContext.terminalContexts;
     clearComposerDraftContent(composerDraftTarget);
     setComposerDraftPrompt(composerDraftTarget, item.sendContext.prompt);
     addComposerDraftImages(composerDraftTarget, imagesForEdit);
-    setComposerDraftTerminalContexts(composerDraftTarget, item.sendContext.terminalContexts);
     setComposerDraftModelSelection(composerDraftTarget, item.sendContext.selectedModelSelection);
     setComposerDraftRuntimeMode(composerDraftTarget, item.runtimeMode);
     setComposerDraftInteractionMode(composerDraftTarget, item.interactionMode);
@@ -2739,7 +2649,7 @@ export default function ChatView(props: ChatViewProps) {
     scheduleComposerFocus();
   };
 
-  const onBeginEditQueuedComposerItem = (itemId: QueuedComposerItemId) => {
+  const onBeginEditQueuedComposerItem = (itemId: MessageId) => {
     const item = queuedComposerItems.find((entry) => entry.id === itemId);
     if (!item) {
       return;
@@ -2753,14 +2663,14 @@ export default function ChatView(props: ChatViewProps) {
     clearLiveComposer();
   };
 
-  const onRemoveQueuedComposerItem = (itemId: QueuedComposerItemId) => {
+  const onRemoveQueuedComposerItem = (itemId: MessageId) => {
     if (editingQueuedComposerItemId === itemId) {
       clearLiveComposer();
     }
     removeQueuedComposerItem(routeThreadKey, itemId);
   };
 
-  const onSendQueuedComposerItemNow = (itemId: QueuedComposerItemId) => {
+  const onSendQueuedComposerItemNow = (itemId: MessageId) => {
     if (isConnecting || isSendBusy || sendInFlightRef.current) {
       return;
     }
@@ -3414,11 +3324,8 @@ export default function ChatView(props: ChatViewProps) {
         className={cn(
           "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center px-3",
           isElectron &&
-            cn(
-              reserveTitleBarControlInset && "pr-(--multi-shell-right-workbench-header-end-space)",
-              reserveTitleBarControlInset &&
-                "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
-            ),
+            reserveTitleBarControlInset &&
+            "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
         )}
       >
         <ChatHeader
@@ -3535,7 +3442,8 @@ export default function ChatView(props: ChatViewProps) {
             ) : null}
             <ComposerInput
               ref={composerRef}
-              variant={isHeroComposer ? "hero" : "dock"}
+              variant={isHeroComposer ? "expanded" : "compact"}
+              layout={isHeroComposer ? "new-agent" : "thread"}
               composerDraftTarget={composerDraftTarget}
               environmentId={environmentId}
               routeKind={routeKind}
@@ -3563,6 +3471,7 @@ export default function ChatView(props: ChatViewProps) {
               respondingRequestIds={respondingRequestIds}
               showPlanFollowUpPrompt={showPlanFollowUpPrompt}
               activeProposedPlan={activeProposedPlan}
+              planSurfaceOpen={planSurfaceOpen}
               runtimeMode={runtimeMode}
               interactionMode={interactionMode}
               providerStatuses={providerStatuses}
@@ -3576,9 +3485,10 @@ export default function ChatView(props: ChatViewProps) {
               gitCwd={gitCwd}
               promptRef={promptRef}
               composerImagesRef={composerImagesRef}
-              composerTerminalContextsRef={composerTerminalContextsRef}
               onSend={onSend}
               onInterrupt={onInterrupt}
+              onBuildPlan={onBuildActiveProposedPlan}
+              onViewPlan={shellPanelsActions.activatePlanTab}
               onRespondToApproval={onRespondToApproval}
               onSelectActivePendingUserInputOption={onSelectActivePendingUserInputOption}
               onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
@@ -3633,7 +3543,6 @@ export default function ChatView(props: ChatViewProps) {
           splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
           newShortcutLabel={newTerminalShortcutLabel ?? undefined}
           closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
-          onAddTerminalContext={addTerminalContextToDraft}
         />
       ))}
 

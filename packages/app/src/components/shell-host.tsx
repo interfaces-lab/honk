@@ -87,7 +87,7 @@ import { RightWorkbenchLayout } from "./shell/shell/right-workbench-layout";
 import { WorkbenchPanel } from "./shell/shell/workbench-panel";
 import { PlanWorkbenchPanel } from "./shell/plan/plan-workbench-panel";
 import { getComposerProviderState } from "../model/provider-state";
-import { formatOutgoingPrompt } from "./chat/composer/send";
+import { formatOutgoingPrompt } from "./chat/composer-submit";
 import { ShellSettingsProvider } from "./shell/settings/context";
 import { SettingsNavRail } from "./shell/settings/nav-rail";
 import { ShellSidebarFooter } from "./shell/sidebar/footer";
