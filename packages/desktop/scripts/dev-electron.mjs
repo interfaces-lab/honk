@@ -102,7 +102,7 @@ function signalProcessTree(pid, signal) {
 
   try {
     process.kill(pid, signal);
-  } catch (error) {
+  } catch {
     return;
   }
   killChildTreeByPid(pid, signal);

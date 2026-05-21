@@ -490,6 +490,7 @@ export function useComposerCommandMenu(input: {
     input.providerStatuses,
     input.selectedProvider,
     input.selectedProviderStatus,
+    projectEntries,
   ]);
 
   const composerMenuOpen = input.composerTrigger !== null;
