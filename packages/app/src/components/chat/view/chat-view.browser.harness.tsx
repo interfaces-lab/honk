@@ -22,6 +22,7 @@ import { __resetLocalApiForTests } from "../../../local-api";
 import { AppAtomRegistryProvider } from "../../../rpc/atom-registry";
 import { getServerConfig } from "../../../rpc/server-state";
 import { getRouter } from "../../../router";
+import { splitPromptIntoComposerSegments } from "../composer/prompt-segments";
 import {
   selectBootstrapCompleteForActiveEnvironment,
   useStore,
@@ -427,7 +428,7 @@ export async function waitForComposerText(
   expectedText: string,
   options: { renderedText?: string } = {},
 ): Promise<void> {
-  const expectedRenderedText = options.renderedText ?? expectedText;
+  const expectedRenderedText = options.renderedText ?? renderComposerTextForPrompt(expectedText);
   await vi.waitFor(
     () => {
       expect(useComposerDraftStore.getState().draftsByThreadKey[THREAD_KEY]?.prompt ?? "").toBe(
@@ -439,6 +440,17 @@ export async function waitForComposerText(
     },
     { timeout: 8_000, interval: 16 },
   );
+}
+
+function renderComposerTextForPrompt(prompt: string): string {
+  return splitPromptIntoComposerSegments(prompt)
+    .map((segment) => {
+      if (segment.type === "text") return segment.text;
+      if (segment.type === "mention") return segment.path;
+      if (segment.type === "skill") return segment.name;
+      return segment.label;
+    })
+    .join("");
 }
 export async function setComposerSelectionByTextOffsets(options: {
   start: number;

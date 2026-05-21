@@ -1669,7 +1669,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       );
 
       const autoAcceptItem = await waitForSelectItemContainingText("Auto-accept edits");
-      expect(autoAcceptItem.textContent).toContain("Auto-approve edits");
+      expect(autoAcceptItem.textContent).toContain("Auto-accept edits");
       expect((await waitForSelectItemContainingText("Full access")).textContent).toContain(
         "Allow commands and edits without prompts",
       );
@@ -3119,6 +3119,8 @@ describe("ChatView timeline estimator parity (full app)", () => {
     try {
       await waitForComposerEditor();
       await page.getByTestId("composer-editor").fill("/model");
+      await waitForComposerMenuItem("slash:model");
+      await pressComposerKey("Enter");
 
       await vi.waitFor(
         () => {

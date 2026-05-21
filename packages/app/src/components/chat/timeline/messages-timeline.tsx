@@ -167,9 +167,22 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const programmaticScrollTargetRef = useRef<number | null>(null);
   const initializedScrollRef = useRef(false);
   const stickyUserRowIndicesRef = useRef(stickyUserRowIndices);
+  const scrollSnapshotRef = useRef({ rowsLength: 0, scrollTop: 0 });
+  const renderedRowsLengthRef = useRef(0);
+  const pendingScrollTopRestoreRef = useRef<number | null>(null);
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
 
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
+  if (renderedRowsLengthRef.current !== rows.length) {
+    if (
+      renderedRowsLengthRef.current > 0 &&
+      rows.length > renderedRowsLengthRef.current &&
+      !isAtBottomRef.current
+    ) {
+      pendingScrollTopRestoreRef.current = scrollSnapshotRef.current.scrollTop;
+    }
+    renderedRowsLengthRef.current = rows.length;
+  }
 
   const reportIsAtBottom = useCallback(
     (isAtBottom: boolean, options?: { force?: boolean }) => {
@@ -265,7 +278,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
 
   const handleScroll = useCallback(() => {
+    const scrollElement = scrollElementRef.current;
     const isAtBottom = getIsAtBottom();
+    if (scrollElement) {
+      scrollSnapshotRef.current = {
+        rowsLength: rows.length,
+        scrollTop: scrollElement.scrollTop,
+      };
+    }
     if (programmaticScrollTargetRef.current !== null) {
       if (isAtBottom) {
         clearProgrammaticScrollTracking();
@@ -275,7 +295,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     }
 
     reportIsAtBottom(isAtBottom);
-  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom]);
+  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom, rows.length]);
 
   const rangeExtractor = useCallback((range: Range) => {
     const defaultRange = defaultRangeExtractor(range);
@@ -308,6 +328,31 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     },
   });
   rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = keepScrollOffsetOnMeasuredRowResize;
+
+  useLayoutSyncEffect(() => {
+    const scrollElement = scrollElementRef.current;
+    if (!scrollElement) {
+      scrollSnapshotRef.current = { rowsLength: rows.length, scrollTop: 0 };
+      return;
+    }
+
+    const restoreScrollTop = pendingScrollTopRestoreRef.current;
+    if (restoreScrollTop !== null) {
+      pendingScrollTopRestoreRef.current = null;
+      isAtBottomRef.current = false;
+      rowVirtualizer.scrollToOffset(restoreScrollTop, { behavior: "auto" });
+      scrollElement.scrollTop = restoreScrollTop;
+      window.requestAnimationFrame(() => {
+        rowVirtualizer.scrollToOffset(restoreScrollTop, { behavior: "auto" });
+        scrollElement.scrollTop = restoreScrollTop;
+      });
+    }
+
+    scrollSnapshotRef.current = {
+      rowsLength: rows.length,
+      scrollTop: scrollElement.scrollTop,
+    };
+  }, [rows.length]);
 
   const sharedState = useMemo<TimelineRowSharedState>(
     () => ({

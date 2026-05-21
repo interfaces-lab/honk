@@ -196,7 +196,28 @@ interface TerminalViewportProps {
   drawerHeight: number;
 }
 
-export function TerminalViewport({
+function terminalRuntimeEnvKey(runtimeEnv: Record<string, string> | undefined): string {
+  if (!runtimeEnv) return "";
+  return Object.entries(runtimeEnv)
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\0");
+}
+
+export function TerminalViewport(props: TerminalViewportProps) {
+  const lifecycleKey = [
+    props.threadRef.environmentId,
+    props.threadId,
+    props.terminalId,
+    props.cwd,
+    props.worktreePath ?? "",
+    terminalRuntimeEnvKey(props.runtimeEnv),
+  ].join("\0");
+
+  return <TerminalViewportInner key={lifecycleKey} {...props} />;
+}
+
+function TerminalViewportInner({
   threadRef,
   threadId,
   terminalId,
@@ -609,7 +630,10 @@ export function TerminalViewport({
         terminalRef={terminalRef}
         threadId={threadId}
       />
-      <div ref={containerRef} className="thread-terminal-viewport relative h-full w-full" />
+      <div
+        ref={containerRef}
+        className="thread-terminal-viewport relative h-full w-full bg-transparent"
+      />
     </>
   );
 }

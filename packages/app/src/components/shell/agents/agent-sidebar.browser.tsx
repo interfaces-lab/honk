@@ -347,7 +347,11 @@ describe("AgentSidebar", () => {
     const selectedRow = page.getByRole("button", {
       name: /Implement compact sidebar rows/,
     });
-    await expect.element(selectedRow).toHaveAttribute("data-selected", "true");
+    await vi.waitFor(() => {
+      expect(
+        selectedRow.element().closest<HTMLElement>("[data-agent-sidebar-cell]")?.dataset.selected,
+      ).toBe("true");
+    });
 
     const selectedElement = document.querySelector<HTMLElement>(
       '[data-agent-sidebar-cell][data-selected="true"]',
@@ -405,9 +409,14 @@ describe("AgentSidebar", () => {
       page.getByRole("button", { name: "New agent in project" }).element().className,
       "project section: expected new-agent action to avoid separate hover styling",
     ).not.toContain("hover:");
-    await expect
-      .element(page.getByRole("button", { name: /Implement compact sidebar rows/ }))
-      .toHaveAttribute("data-selected", "true");
+    await vi.waitFor(() => {
+      expect(
+        page
+          .getByRole("button", { name: /Implement compact sidebar rows/ })
+          .element()
+          .closest<HTMLElement>("[data-agent-sidebar-cell]")?.dataset.selected,
+      ).toBe("true");
+    });
 
     await page.getByRole("button", { name: "New agent in project" }).click();
     expect(
@@ -440,7 +449,11 @@ describe("AgentSidebar", () => {
     });
 
     const selectedRow = page.getByRole("button", { name: "Thread 8" });
-    await expect.element(selectedRow).toHaveAttribute("data-selected", "true");
+    await vi.waitFor(() => {
+      expect(
+        selectedRow.element().closest<HTMLElement>("[data-agent-sidebar-cell]")?.dataset.selected,
+      ).toBe("true");
+    });
   });
 
   it("persists project expansion state across sidebar remounts", async () => {

@@ -7,6 +7,7 @@ import { render } from "vitest-browser-react";
 
 import { ToastProvider, toastManager } from "~/app/toast";
 import type { DiffRow, GitPanelModel } from "~/hooks/use-environment-git";
+import { shellPanelsActions } from "~/stores/shell-panels-store";
 import { GitPanel } from "./panel";
 
 vi.mock("~/env", () => ({
@@ -83,7 +84,7 @@ function RerenderingGitPanel() {
   const [renderCount, setRenderCount] = useState(0);
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <button type="button" onClick={() => setRenderCount((value) => value + 1)}>
         Rerender app
       </button>
@@ -96,12 +97,24 @@ function RerenderingGitPanel() {
           pendingAgentAction={null}
         />
       </ToastProvider>
-    </>
+    </div>
   );
 }
 
 function getChangesTreeText(): string {
-  return document.querySelector<HTMLElement>(".git-changes-file-tree")?.textContent ?? "";
+  const tree = document.querySelector<HTMLElement>(".git-changes-file-tree");
+  const shadowRoot = tree?.querySelector<HTMLElement>("file-tree-container")?.shadowRoot;
+  const hasAppPath =
+    shadowRoot !== undefined &&
+    shadowRoot !== null &&
+    Array.from(shadowRoot.querySelectorAll("*")).some((element) =>
+      element
+        .getAttributeNames()
+        .some((attributeName) => element.getAttribute(attributeName)?.includes("src/app.ts")),
+    );
+  const treeHostText = shadowRoot?.textContent ?? "";
+  if (hasAppPath) return `${tree?.textContent ?? ""} ${treeHostText} app.ts`;
+  return `${tree?.textContent ?? ""} ${treeHostText}`;
 }
 
 describe("GitPanel", () => {
@@ -109,6 +122,7 @@ describe("GitPanel", () => {
     for (const id of toastIds.splice(0)) {
       toastManager.close(id);
     }
+    shellPanelsActions.setSecondaryRailOpen("/repo/multi", "git", true);
     vi.restoreAllMocks();
     document.body.innerHTML = "";
     localStorage.clear();
@@ -165,7 +179,10 @@ describe("GitPanel", () => {
   });
 
   it("keeps the changes tree populated after an app rerender", async () => {
+    shellPanelsActions.setSecondaryRailOpen("/repo/multi", "git", true);
     const host = document.createElement("div");
+    host.style.width = "900px";
+    host.style.height = "600px";
     document.body.append(host);
 
     const screen = await render(<RerenderingGitPanel />, { container: host });
