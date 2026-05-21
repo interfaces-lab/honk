@@ -1,11 +1,19 @@
 import type {
   MessageId,
+  OrchestrationProposedPlanId,
   ProviderInteractionMode,
   RuntimeMode,
+  ThreadId,
 } from "@multi/contracts";
 import { create } from "zustand";
 
 import type { ComposerSubmitContext } from "../components/chat/composer-submit";
+
+export interface QueuedComposerPlanFollowUp {
+  planMarkdown: string;
+  planId: OrchestrationProposedPlanId;
+  planThreadId: ThreadId;
+}
 
 export interface QueuedComposerItem {
   id: MessageId;
@@ -13,7 +21,7 @@ export interface QueuedComposerItem {
   sendContext: ComposerSubmitContext;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
-  planFollowUp: { planMarkdown: string } | null;
+  planFollowUp: QueuedComposerPlanFollowUp | null;
   createdAt: string;
 }
 

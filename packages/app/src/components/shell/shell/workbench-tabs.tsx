@@ -75,7 +75,7 @@ export function WorkbenchTabBar(props: {
   }, [query]);
 
   return (
-    <div className="ui-tab-system editor-panel-tab-root editor-panel-tab-root--simple-tabs no-drag flex h-(--multi-workbench-chrome-row-height) flex-none shrink-0 items-stretch bg-(--glass-editor-panel-tab-background) px-1.5 backdrop-blur-xl [--tab-system-bar-background:transparent]">
+    <div className="ui-tab-system editor-panel-tab-root editor-panel-tab-root--simple-tabs no-drag flex h-(--multi-workbench-chrome-row-height) flex-none shrink-0 items-stretch bg-(--multi-workbench-editor-panel-tab-background) px-1.5 [--tab-system-bar-background:transparent]">
       <div className="editor-panel-tab-bar-tab-cluster no-scrollbar flex min-w-0 flex-1 items-stretch overflow-hidden">
         {tabs.map((tab) => {
           const selected = tab.id === props.active;

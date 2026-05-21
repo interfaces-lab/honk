@@ -237,6 +237,22 @@ function searchProviderSkills(
   return ranked.map((entry) => entry.item);
 }
 
+function collectProviderSkillItems(
+  providerStatuses: ReadonlyArray<ServerProvider>,
+): Array<Extract<ComposerCommandItem, { type: "skill" }>> {
+  const items: Array<Extract<ComposerCommandItem, { type: "skill" }>> = [];
+  const seen = new Set<string>();
+  for (const providerStatus of providerStatuses) {
+    for (const skill of searchProviderSkills(providerStatus.skills, "")) {
+      const key = `${skill.path}\u0000${skill.name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(toProviderSkillItem(providerStatus.driver, skill));
+    }
+  }
+  return items;
+}
+
 function scoreSlashCommandItem(
   item: Extract<
     ComposerCommandItem,
@@ -337,6 +353,36 @@ function searchSlashCommandItems(
   return ranked.map((entry) => entry.item);
 }
 
+function toPathCommandItems(entries: ReadonlyArray<ProjectEntry>): ComposerCommandItem[] {
+  const seenPaths = new Set<string>();
+  const uniqueEntries = entries.filter((entry) => {
+    if (seenPaths.has(entry.path)) {
+      return false;
+    }
+    seenPaths.add(entry.path);
+    return true;
+  });
+  const basenameCounts = new Map<string, number>();
+  for (const entry of uniqueEntries) {
+    const basename = basenameOfPath(entry.path).toLowerCase();
+    basenameCounts.set(basename, (basenameCounts.get(basename) ?? 0) + 1);
+  }
+  return uniqueEntries.map((entry) => {
+    const basename = basenameOfPath(entry.path);
+    const parentPath = entry.parentPath ?? "";
+    const description =
+      (basenameCounts.get(basename.toLowerCase()) ?? 0) > 1 ? entry.path : parentPath;
+    return {
+      id: `path:${entry.kind}:${entry.path}`,
+      type: "path" as const,
+      path: entry.path,
+      pathKind: entry.kind,
+      label: basename,
+      description,
+    };
+  });
+}
+
 function resolveComposerMenuActiveItemId(input: {
   items: ReadonlyArray<{ id: string }>;
   highlightedItemId: string | null;
@@ -364,13 +410,13 @@ export function useComposerCommandMenu(input: {
   gitCwd: string | null;
   selectedProvider: ProviderDriverKind;
   selectedProviderStatus: ServerProvider | null | undefined;
+  providerStatuses: ReadonlyArray<ServerProvider>;
   highlightedItemId: string | null;
   highlightedSearchKey: string | null;
 }) {
   const composerTriggerKind = input.composerTrigger?.kind ?? null;
-  const pathTriggerQuery =
-    input.composerTrigger?.kind === "path" ? input.composerTrigger.query : "";
-  const isPathTrigger = composerTriggerKind === "path";
+  const pathTriggerQuery = input.composerTrigger?.kind === "path" ? input.composerTrigger.query : "";
+  const shouldSearchProjectEntries = composerTriggerKind === "path";
   const [debouncedPathQuery, pathQueryDebouncer] = useDebouncedValue(
     pathTriggerQuery,
     { wait: PATH_QUERY_DEBOUNCE_MS },
@@ -382,7 +428,7 @@ export function useComposerCommandMenu(input: {
       environmentId: input.environmentId,
       cwd: input.gitCwd,
       query: effectivePathQuery,
-      enabled: isPathTrigger,
+      enabled: shouldSearchProjectEntries,
       limit: 80,
     }),
   );
@@ -391,33 +437,7 @@ export function useComposerCommandMenu(input: {
   const composerMenuItems = useMemo<ComposerCommandItem[]>(() => {
     if (!input.composerTrigger) return [];
     if (input.composerTrigger.kind === "path") {
-      const seenPaths = new Set<string>();
-      const uniqueEntries = projectEntries.filter((entry) => {
-        if (seenPaths.has(entry.path)) {
-          return false;
-        }
-        seenPaths.add(entry.path);
-        return true;
-      });
-      const basenameCounts = new Map<string, number>();
-      for (const entry of uniqueEntries) {
-        const basename = basenameOfPath(entry.path).toLowerCase();
-        basenameCounts.set(basename, (basenameCounts.get(basename) ?? 0) + 1);
-      }
-      return uniqueEntries.map((entry) => {
-        const basename = basenameOfPath(entry.path);
-        const parentPath = entry.parentPath ?? "";
-        const description =
-          (basenameCounts.get(basename.toLowerCase()) ?? 0) > 1 ? entry.path : parentPath;
-        return {
-          id: `path:${entry.kind}:${entry.path}`,
-          type: "path" as const,
-          path: entry.path,
-          pathKind: entry.kind,
-          label: basename,
-          description,
-        };
-      });
+      return toPathCommandItems(projectEntries);
     }
     if (input.composerTrigger.kind !== "slash-command") {
       return [];
@@ -456,22 +476,23 @@ export function useComposerCommandMenu(input: {
         description: command.description ?? command.input?.hint ?? "Run provider command",
       }),
     );
-    const providerSkillItems = searchProviderSkills(
-      input.selectedProviderStatus?.skills ?? [],
-      "",
-    ).map((skill) => toProviderSkillItem(input.selectedProvider, skill));
+    const providerSkillItems = collectProviderSkillItems(input.providerStatuses);
     const slashItems = [
       ...providerSkillItems,
       ...providerSlashCommandItems,
       ...builtInSlashCommandItems,
     ];
     const query = input.composerTrigger.query.trim();
-    return query ? searchSlashCommandItems(slashItems, query) : slashItems;
-  }, [input.composerTrigger, input.selectedProvider, input.selectedProviderStatus, projectEntries]);
+    const matchingSlashItems = query ? searchSlashCommandItems(slashItems, query) : slashItems;
+    return matchingSlashItems;
+  }, [
+    input.composerTrigger,
+    input.providerStatuses,
+    input.selectedProvider,
+    input.selectedProviderStatus,
+  ]);
 
-  const composerMenuOpen = input.composerTrigger
-    ? input.composerTrigger.kind !== "slash-model"
-    : false;
+  const composerMenuOpen = input.composerTrigger !== null;
   const composerMenuSearchKey = input.composerTrigger
     ? `${input.composerTrigger.kind}:${input.composerTrigger.query.trim().toLowerCase()}`
     : null;
@@ -491,16 +512,18 @@ export function useComposerCommandMenu(input: {
   );
 
   const isComposerMenuLoading =
-    composerTriggerKind === "path" &&
+    shouldSearchProjectEntries &&
     ((pathTriggerQuery.length > 0 && pathQueryDebouncer.state.isPending) ||
       projectEntriesQuery.isLoading ||
       projectEntriesQuery.isFetching);
   const composerMenuEmptyState =
-    composerTriggerKind === "path" ? "No results found" : "No matching command.";
+    composerTriggerKind === "path" ? "No results found" : "No commands found";
   const composerMenuAriaLabel: "Slash commands" | "Mentions" =
     composerTriggerKind === "slash-command" ? "Slash commands" : "Mentions";
   const composerMenuKind: ComposerCommandMenuKind =
     composerTriggerKind === "slash-command" ? "slash" : "mentions";
+  const composerMenuIsSearching =
+    composerTriggerKind === "slash-command" && pathTriggerQuery.trim().length > 0;
 
   return {
     composerTriggerKind,
@@ -513,6 +536,7 @@ export function useComposerCommandMenu(input: {
     composerMenuEmptyState,
     composerMenuAriaLabel,
     composerMenuKind,
+    composerMenuIsSearching,
   };
 }
 
@@ -532,6 +556,7 @@ function groupCommandItems(
   items: ComposerCommandItem[],
   triggerKind: ComposerTriggerKind | null,
   groupSlashCommandSections: boolean,
+  isSearching: boolean,
 ): ComposerCommandGroup[] {
   if (triggerKind === "path") {
     return items.length > 0 ? [{ id: "files", label: "Files & Folders", items }] : [];
@@ -539,11 +564,14 @@ function groupCommandItems(
   if (triggerKind !== "slash-command" || !groupSlashCommandSections) {
     return [{ id: "default", label: null, items }];
   }
+  if (isSearching) {
+    return items.length > 0 ? [{ id: "results", label: "Results", items }] : [];
+  }
 
   const modeItems = items.filter(
     (item) => item.type === "slash-command" && item.command !== "model",
   );
-  const openItems = items.filter(
+  const modelItems = items.filter(
     (item) => item.type === "slash-command" && item.command === "model",
   );
   const providerItems = items.filter((item) => item.type === "provider-slash-command");
@@ -559,8 +587,8 @@ function groupCommandItems(
   if (modeItems.length > 0) {
     groups.push({ id: "modes", label: "Modes", items: modeItems });
   }
-  if (openItems.length > 0) {
-    groups.push({ id: "open", label: "Open", items: openItems });
+  if (modelItems.length > 0) {
+    groups.push({ id: "models", label: "Models", items: modelItems });
   }
   return groups;
 }
@@ -573,6 +601,7 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
   menuKind: ComposerCommandMenuKind;
   triggerKind: ComposerTriggerKind | null;
   groupSlashCommandSections?: boolean;
+  isSearching?: boolean;
   emptyStateText?: string;
   activeItemId: string | null;
   onHighlightedItemChange: (itemId: string | null) => void;
@@ -580,8 +609,13 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
 }) {
   const groups = useMemo(
     () =>
-      groupCommandItems(props.items, props.triggerKind, props.groupSlashCommandSections ?? true),
-    [props.groupSlashCommandSections, props.items, props.triggerKind],
+      groupCommandItems(
+        props.items,
+        props.triggerKind,
+        props.groupSlashCommandSections ?? true,
+        props.isSearching ?? false,
+      ),
+    [props.groupSlashCommandSections, props.isSearching, props.items, props.triggerKind],
   );
 
   return (
@@ -596,9 +630,9 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
       }}
     >
       <div
-        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-multi-stroke-secondary bg-[color-mix(in_srgb,var(--glass-chat-bubble-opaque-background)_96%,transparent)] font-multi text-body text-multi-fg-primary shadow-multi-popup backdrop-blur-[18px] motion-reduce:animate-none motion-reduce:transition-none"
+        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-multi-stroke-secondary bg-[color-mix(in_srgb,var(--multi-chat-bubble-opaque-background)_96%,transparent)] font-multi text-body text-multi-fg-primary shadow-multi-popup motion-reduce:animate-none motion-reduce:transition-none"
         data-menu-kind={props.menuKind}
-        data-variant="glass"
+        data-variant="surface"
       >
         <CommandList className="max-h-[min(20rem,var(--available-height))] overflow-y-auto">
           {groups.map((group, groupIndex) => (

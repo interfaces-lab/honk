@@ -53,7 +53,7 @@ describe("AppShell CSS root contract", () => {
     expect(appShellSource).toContain("data-shell-right-intent");
     expect(appShellSource).toContain("data-shell-right-panel");
     expect(appShellSource).toContain("data-shell-platform");
-    expect(appShellSource).toContain('data-shell-chrome="glass"');
+    expect(appShellSource).toContain('data-shell-chrome="surface"');
   });
 
   it("keeps responsive effective state out of React and Zustand", () => {
@@ -154,6 +154,12 @@ describe("AppShell CSS root contract", () => {
     expect(chatViewSource).toContain(
       "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center",
     );
+    expect(shellCssSource).toMatch(
+      /\.agent-window-chat-header \{[\s\S]*background:\s*var\(--multi-chat-surface-background\)/,
+    );
+    expect(shellCssSource).toContain(
+      "--multi-workbench-editor-panel-tab-background: var(--multi-workbench-tool-island-background)",
+    );
     expect(chatViewSource).not.toContain("pr-(--multi-shell-right-workbench-header-end-space)");
     expect(shellCssSource).toContain(
       '[data-shell-right-panel="true"][data-shell-right-intent="collapsed"]',
@@ -176,5 +182,27 @@ describe("AppShell CSS root contract", () => {
     expect(rightWorkbenchLayoutSource).toContain('data-shell-panel="secondary"');
     expect(rightWorkbenchLayoutSource).toContain("data-resizing");
     expect(shellCssSource).toContain("width: var(--multi-shell-secondary-rail-effective-width)");
+  });
+
+  it("routes sidebar and chat surfaces through Multi surface variables", () => {
+    expect(shellCssSource).toContain(
+      "var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg))",
+    );
+    expect(shellCssSource).toMatch(
+      /html\.multi-reduce-transparency \.multi-shell-sidebar[\s\S]*background:\s*var\(--multi-color-sidebar-opaque\)/,
+    );
+    expect(appShellSource).toContain('data-component="root"');
+    expect(appShellSource).toContain('setAttribute("data-cursor-glass-mode", "true")');
+    expect(appShellSource).toContain("syncAppearanceVibrancy");
+    expect(appShellSource).toContain("bg-(--multi-chat-surface-background");
+  });
+
+  it("keeps transparent document backgrounds Electron-only", () => {
+    expect(indexCssSource).toContain(
+      'html[data-electron]:has(body[data-cursor-glass-mode="true"]:not(.multi-reduce-transparency))',
+    );
+    expect(indexCssSource).toContain(
+      'html[data-electron] body[data-cursor-glass-mode="true"]:not(.multi-reduce-transparency)',
+    );
   });
 });

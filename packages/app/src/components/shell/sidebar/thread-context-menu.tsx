@@ -15,7 +15,7 @@ import { cn } from "~/lib/utils";
 const popupSurface = cn(
   "multi-slash-menu-popup",
   "origin-(--transform-origin)",
-  "overflow-hidden rounded-multi-card border border-multi-stroke bg-multi-bubble shadow-multi-popup backdrop-blur-xl",
+  "overflow-hidden rounded-multi-card border border-multi-stroke bg-multi-bubble shadow-multi-popup",
   "w-72 max-w-screen text-body select-none outline-hidden",
 );
 

@@ -292,7 +292,7 @@ function ProjectFilesPanelContent(props: {
       </div>
 
       <RightWorkbenchLayout cwd={props.cwd} tab="files" rail={tree}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--glass-editor-surface-background)">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)">
           <div className="flex min-h-0 flex-1 flex-col">
             {selectedPath ? (
               <SourcePreview

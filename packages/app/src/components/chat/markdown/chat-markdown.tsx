@@ -206,7 +206,7 @@ function PlainCodeBlock({
   codeProps?: ComponentProps<"code"> | undefined;
 }) {
   return (
-    <pre className="m-0 max-w-full overflow-x-auto rounded-lg border border-(--multi-markdown-code-border) bg-(--multi-markdown-code-background) px-4 py-3.5">
+    <pre className="chat-markdown-plain-pre">
       <code {...codeProps} className={className}>
         {code}
       </code>
@@ -622,13 +622,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         const code = nodeToPlainText(children);
         if (dataBlock == null) {
           return (
-            <code
-              {...props}
-              className={cn(
-                "rounded-[3px] bg-(--multi-markdown-code-background) px-[0.3em] py-[0.1em] font-mono text-multi-code text-(--multi-markdown-preformat-foreground)",
-                className,
-              )}
-            >
+            <code {...props} className={cn("chat-markdown-inline-code", className)}>
               {children}
             </code>
           );
@@ -803,17 +797,6 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
             {...props}
             className={cn(
               "h-auto max-w-full rounded-lg align-middle shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]",
-              className,
-            )}
-          />
-        );
-      },
-      pre({ node: _node, className, ...props }) {
-        return (
-          <pre
-            {...props}
-            className={cn(
-              "m-0 max-w-full overflow-x-auto rounded-lg border border-(--multi-markdown-code-border) bg-(--multi-markdown-code-background) px-4 py-3.5",
               className,
             )}
           />

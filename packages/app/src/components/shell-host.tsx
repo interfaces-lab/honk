@@ -92,7 +92,7 @@ import { ShellSettingsProvider } from "./shell/settings/context";
 import { SettingsNavRail } from "./shell/settings/nav-rail";
 import { ShellSidebarFooter } from "./shell/sidebar/footer";
 import { ShellSidebarHeader } from "./shell/sidebar/header";
-import { AgentList } from "./shell/agents/list";
+import { AgentSidebar } from "./shell/agents/agent-sidebar";
 import { TerminalPanel } from "./shell/terminal/panel";
 import { TerminalRail } from "./shell/terminal/terminal-rail";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
@@ -305,7 +305,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
         className="pointer-events-none absolute inset-x-0 top-0 h-(--multi-shell-sidebar-content-top-offset,var(--multi-electron-traffic-padding-top))"
         aria-hidden="true"
       />
-      <SettingsNavRail />
+      <SettingsNavRail onBack={backToChat} />
       <ShellSidebarFooter settings />
     </div>
   );
@@ -314,7 +314,6 @@ function SettingsShellHost(props: { children?: ReactNode }) {
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
       <AppShell
         cwd={firstProjectCwd}
-        onBack={backToChat}
         left={settingsLeft}
         center={props.children ?? <Outlet />}
         right={null}
@@ -1136,7 +1135,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       <div className={cn("shrink-0", isElectron && "no-drag")}>
         <ShellSidebarHeader onNewChat={create} onAddProject={openAddProject} />
       </div>
-      <AgentList
+      <AgentSidebar
         loading={false}
         error={false}
         sections={sections}

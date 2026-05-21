@@ -63,7 +63,7 @@ export const HumanMessage = memo(function HumanMessage({
         {userImages.map((image) => (
           <div
             key={image.id}
-            className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-multi-editor"
+            className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-chat-bubble-background)"
           >
             {image.previewUrl ? (
               <button

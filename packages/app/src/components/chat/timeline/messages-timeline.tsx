@@ -407,11 +407,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   ref={rowVirtualizer.measureElement}
                   data-index={virtualRow.index}
                   data-sticky={isActiveStickyUserRow ? "true" : undefined}
-                  className={cn(
-                    "w-full px-4 pb-(--chat-timeline-row-gap)",
-                    isActiveStickyUserRow &&
-                      "isolate bg-[color-mix(in_srgb,var(--multi-color-editor)_72%,transparent)]",
-                  )}
+                  className="w-full px-4 pb-(--chat-timeline-row-gap)"
                   style={virtualRowStyle(virtualRow, isActiveStickyUserRow)}
                 >
                   <TimelineRowContent

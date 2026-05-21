@@ -1,3 +1,5 @@
+import { isElectron } from "../env";
+
 export const STORAGE_REDUCE_TRANSPARENCY = "multi:reduce-transparency";
 export const STORAGE_WINDOW_TRANSPARENCY = "multi:window-transparency";
 export const STORAGE_TINT_HUE = "multi:accent-hue";
@@ -56,19 +58,29 @@ function emitAppearanceSettingsChanged() {
 
 function wantsOsVibrancy() {
   if (localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1") return false;
-  return true;
+  if (!isElectron) return false;
+  if (document.body.getAttribute("data-cursor-glass-mode") !== "true") return false;
+  return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
 function syncVibrancy() {
-  const bridge = window.desktopBridge as
-    | (typeof window.desktopBridge & { setVibrancy?: (enabled: boolean) => Promise<void> })
-    | undefined;
+  const wantsVibrancy = wantsOsVibrancy();
+  const glassMode = document.body.getAttribute("data-cursor-glass-mode") === "true";
+  document.body.classList.toggle("multi-os-vibrancy-on", glassMode && wantsVibrancy);
+  document.body.classList.toggle("multi-os-vibrancy-off", glassMode && !wantsVibrancy);
+
+  const bridge = window.desktopBridge;
   if (!bridge?.setVibrancy) return;
-  void bridge.setVibrancy(wantsOsVibrancy());
+  void bridge.setVibrancy(wantsVibrancy);
+}
+
+export function syncAppearanceVibrancy() {
+  syncVibrancy();
 }
 
 function applyChromeRoot() {
   const root = document.documentElement;
+  const body = document.body;
 
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
   const transparency = parseIntStored(
@@ -78,6 +90,7 @@ function applyChromeRoot() {
     100,
   );
   root.classList.toggle("multi-reduce-transparency", reduce);
+  body.classList.toggle("multi-reduce-transparency", reduce);
   root.style.setProperty("--multi-transparency", String(transparency));
 
   const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
@@ -107,6 +120,7 @@ function applyChromeRoot() {
 
 export function applyAppearanceBoot() {
   applyChromeRoot();
+  syncVibrancy();
 }
 
 function applyAppearanceSettings() {

@@ -180,6 +180,7 @@ function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridg
     confirm: async () => true,
     setTheme: async () => undefined,
     setBackgroundColor: async () => undefined,
+    setVibrancy: async () => undefined,
     showContextMenu: async () => null,
     openExternal: async () => true,
     onMenuAction: () => () => undefined,

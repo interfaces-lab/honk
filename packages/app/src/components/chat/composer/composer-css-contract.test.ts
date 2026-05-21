@@ -7,6 +7,9 @@ const composerDir = resolve(__dirname);
 const stylesDir = resolve(composerDir, "../../../styles");
 const conversationCss = readFileSync(resolve(stylesDir, "conversation.css"), "utf8");
 const inputSource = readFileSync(resolve(composerDir, "input.tsx"), "utf8");
+const promptEditorSource = readFileSync(resolve(composerDir, "prompt-editor.tsx"), "utf8");
+const queuedItemsPanelSource = readFileSync(resolve(composerDir, "queued-items-panel.tsx"), "utf8");
+const slashMenuSource = readFileSync(resolve(composerDir, "slash-menu.tsx"), "utf8");
 
 describe("Composer CSS contract", () => {
   it("stores composer geometry in conversation.css vars", () => {
@@ -25,5 +28,127 @@ describe("Composer CSS contract", () => {
     expect(inputSource).toContain("var(--multi-composer-new-agent-editor-min-height)");
     expect(inputSource).toContain("data-layout={layout}");
     expect(inputSource).not.toMatch(/composer-height|HERO_COMPOSER_|!min-h-|!max-h-/);
+  });
+
+  it("uses a single thread shell driven by data-expanded (no rounded-full pill swap)", () => {
+    expect(conversationCss).toContain('[data-multi-composer-shell="thread"]');
+    expect(conversationCss).toContain('[data-multi-composer-shell="thread"][data-expanded=""]');
+    expect(conversationCss).toMatch(
+      /\[data-multi-composer-shell="thread"\]:not\(\[data-expanded=""\]\)\s+\[data-multi-composer-toolbar="bottom"\]\s*\{\s*display:\s*contents/,
+    );
+    expect(inputSource).toContain('"data-multi-composer-shell": "thread"');
+    expect(inputSource).toContain('data-multi-composer-toolbar={isThreadShell ? "bottom"');
+    expect(inputSource).not.toMatch(/isDockComposerSingleLine\s*\?\s*"rounded-full"/);
+  });
+
+  it("removes the editor min-h-5/max-h-5 forced-height jump in compact pill mode", () => {
+    expect(inputSource).toContain('"thread-pill": "min-h-0 max-h-none');
+    expect(inputSource).not.toMatch(/"thread-pill":\s*"min-h-5\s+max-h-5/);
+  });
+});
+
+describe("Composer queue contract", () => {
+  it("queue presence alone does not force the composer into expanded mode", () => {
+    const expansionMatch = inputSource.match(
+      /const isDockComposerExpanded =[\s\S]*?isComposerEditorMultiline\);/,
+    );
+    expect(expansionMatch, "missing expanded-state derivation").not.toBeNull();
+    const block = expansionMatch?.[0] ?? "";
+    expect(block).toContain("isEditingQueuedComposerItem");
+    expect(block).not.toContain("hasQueuedComposerItems");
+  });
+
+  it("renders the queue as a compact badge instead of an always-expanded panel", () => {
+    expect(queuedItemsPanelSource).toContain("export const QueuedComposerItemsBadge");
+    expect(queuedItemsPanelSource).toContain("export const QueuedComposerEditBanner");
+    expect(queuedItemsPanelSource).not.toMatch(/export const QueuedComposerItemsPanel\b/);
+    expect(inputSource).toContain("QueuedComposerItemsBadge");
+    expect(inputSource).toContain("QueuedComposerEditBanner");
+  });
+
+  it("uses queue action strings", () => {
+    expect(queuedItemsPanelSource).toContain('"Edit queued message"');
+    expect(queuedItemsPanelSource).toContain('"Send now"');
+    expect(queuedItemsPanelSource).toContain('"Remove from queue"');
+    expect(queuedItemsPanelSource).toContain("Editing queued message");
+    expect(queuedItemsPanelSource).toContain('"Queued"');
+  });
+});
+
+describe("Composer send/stop contract", () => {
+  it("tags send and stop buttons with data-multi-composer-action and data-multi-composer-state", () => {
+    expect(inputSource).toContain('data-multi-composer-action="submit"');
+    expect(inputSource).toContain('data-multi-composer-action="stop"');
+    expect(inputSource).toContain("data-multi-composer-state={dataState}");
+    expect(inputSource).toMatch(/dataState[^\n]*=[^;]*"running"/);
+    expect(inputSource).toMatch(/dataState[^\n]*=[^;]*"busy"/);
+  });
+
+  it("centralizes send/stop sizing classes so the running and idle paths cannot drift", () => {
+    expect(inputSource).toContain("COMPOSER_ACTION_SIZE_COMPACT");
+    expect(inputSource).toContain("COMPOSER_ACTION_SIZE_EXPANDED");
+    expect(inputSource).toContain("--multi-composer-compact-send-size");
+    expect(inputSource).toContain("--multi-composer-expanded-send-size");
+    expect(inputSource).toContain("COMPOSER_SUBMIT_BASE_CLASS");
+    expect(inputSource).toContain("COMPOSER_STOP_BASE_CLASS");
+    const primaryActionsSource = inputSource.slice(
+      inputSource.indexOf("const PrimaryActionControls"),
+      inputSource.indexOf("const ComposerFooter"),
+    );
+    expect(primaryActionsSource).not.toMatch(/"h-7 w-7"|"h-9 w-9 sm:h-8 sm:w-8"/);
+  });
+});
+
+describe("Composer slash menu contract", () => {
+  it("keeps slash commands separate from the @ files and folders menu", () => {
+    expect(slashMenuSource).toContain("collectProviderSkillItems");
+    expect(slashMenuSource).toContain("providerStatuses: ReadonlyArray<ServerProvider>");
+    expect(slashMenuSource).toContain('triggerKind === "path"');
+    expect(slashMenuSource).toContain("const shouldSearchProjectEntries = composerTriggerKind === \"path\"");
+    expect(slashMenuSource).not.toContain("projectListDirectoryQueryOptions");
+    expect(slashMenuSource).not.toContain("toPathCommandItems(projectEntries)]");
+  });
+
+  it("anchors the slash/mention menu at the caret via a 1x1 span inside the prompt editor", () => {
+    expect(promptEditorSource).toContain('data-composer-menu-anchor=""');
+    expect(promptEditorSource).toContain("usePromptEditorCaretAnchor");
+    expect(promptEditorSource).toContain("editor.view.coordsAtPos");
+    expect(inputSource).not.toContain('data-composer-menu-anchor=""');
+    expect(inputSource).toContain("caretAnchorRef={composerMenuAnchorRef}");
+    expect(inputSource).toContain("caretTriggerExpandedOffset={composerTrigger?.rangeStart");
+  });
+});
+
+describe("Composer surface contract", () => {
+  it("tags the composer card for surface targeting", () => {
+    expect(inputSource).toContain("data-multi-composer-surface");
+  });
+
+  it("applies composer blur via conversation.css in translucent mode", () => {
+    expect(conversationCss).toContain("--multi-composer-blur: 10px");
+    expect(conversationCss).toContain(
+      'body[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+    );
+    expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
+  });
+
+  it("removes composer blur under reduce transparency", () => {
+    expect(conversationCss).toContain(
+      'body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+    );
+    expect(conversationCss).toMatch(
+      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*backdrop-filter:\s*none/,
+    );
+  });
+
+  it("does not hardcode composer shell blur in input.tsx", () => {
+    expect(inputSource).not.toMatch(/backdrop-blur/);
+  });
+
+  it("moves slash menu blur to conversation.css", () => {
+    expect(slashMenuSource).not.toMatch(/backdrop-blur/);
+    expect(conversationCss).toContain(
+      'body[data-cursor-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"]',
+    );
   });
 });

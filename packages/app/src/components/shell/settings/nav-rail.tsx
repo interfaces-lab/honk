@@ -1,17 +1,20 @@
 import { Link } from "@tanstack/react-router";
 import {
   IconArchive1,
+  IconChevronLeftMedium,
   IconCode,
   IconCollaborationPointerRight,
   IconColorSwatch,
   IconSettingsGear2,
-  IconStepBack,
 } from "central-icons";
 import type { ComponentType } from "react";
 
-import { Button } from "@multi/ui/button";
+import {
+  SidebarButton,
+  SidebarItem,
+} from "~/components/shell/shared/sidebar-button";
+import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
-import { useSettingsRestoreState } from "../../settings/settings-restore-context";
 
 const items: {
   to:
@@ -30,51 +33,50 @@ const items: {
   { to: "/settings/archived", label: "Archived", icon: IconArchive1 },
 ];
 
-export function SettingsNavRail() {
-  const { changedSettingLabels, restoreDefaults } = useSettingsRestoreState();
-
+export function SettingsNavRail(props: { onBack: () => void }) {
   return (
-    <div className="flex min-h-0 flex-1 select-none flex-col px-2.5 py-1.5">
-      <nav className="flex min-h-0 flex-1 flex-col gap-px" aria-label="Settings">
+    <div className="flex min-h-0 flex-1 select-none flex-col">
+      <div className={cn("shrink-0", isElectron && "no-drag")}>
+        <div className="flex flex-col gap-1 px-2 pt-2 pb-1.5">
+          <SidebarButton
+            variant="chrome"
+            onClick={props.onBack}
+            className="w-full text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+            aria-label="Back to chat"
+          >
+            <IconChevronLeftMedium className="size-4 shrink-0 opacity-65" />
+            <span className="min-w-0 flex-1 truncate text-left">Back</span>
+          </SidebarButton>
+        </div>
+      </div>
+      <nav
+        className="flex min-h-0 flex-1 flex-col gap-px px-2 pb-1.5"
+        aria-label="Settings"
+      >
         {items.map((item) => {
           const Icon = item.icon;
           return (
-            <Link
+            <SidebarItem
               key={item.to}
-              to={item.to}
-              activeProps={{
-                className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) transition-colors",
-                  "border-multi-border/90 bg-multi-active text-foreground",
-                ),
-                "aria-current": "page",
-              }}
-              inactiveProps={{
-                className: cn(
-                  "font-multi flex min-h-[26px] min-w-0 w-full select-none items-center justify-start gap-2 rounded-multi-control border border-transparent px-1.5 py-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading) transition-colors",
-                  "text-muted-foreground hover:bg-multi-hover hover:text-foreground",
-                ),
-              }}
+              render={
+                <Link
+                  to={item.to}
+                  activeProps={{
+                    className: "border-multi-border/90 bg-multi-active text-foreground",
+                    "aria-current": "page",
+                  }}
+                  inactiveProps={{
+                    className: "text-muted-foreground hover:bg-multi-hover hover:text-foreground",
+                  }}
+                />
+              }
             >
               <Icon className="size-4 shrink-0 opacity-60" />
               {item.label}
-            </Link>
+            </SidebarItem>
           );
         })}
       </nav>
-      <div className="shrink-0 border-t border-multi-border/40 pt-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-full select-none px-1.5 text-(length:--multi-sidebar-label-size) leading-(--multi-sidebar-label-leading)"
-          disabled={changedSettingLabels.length === 0}
-          onClick={() => void restoreDefaults()}
-        >
-          <IconStepBack className="size-4 shrink-0" />
-          Restore defaults
-        </Button>
-      </div>
     </div>
   );
 }

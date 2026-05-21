@@ -345,7 +345,7 @@ function GitPanelInner(props: {
         >
           <div
             ref={deckRootRef}
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--glass-editor-surface-background)"
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)"
           >
             {selectedId ? (
               <SelectedGitDiffSync

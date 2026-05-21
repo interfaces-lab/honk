@@ -2504,8 +2504,13 @@ export default function ChatView(props: ChatViewProps) {
     const planFollowUp =
       showPlanFollowUpPrompt &&
       activeProposedPlan &&
+      activeThread &&
       (hasPlanFeedbackText || hasOnlyBlankPlanFollowUp)
-        ? { planMarkdown: activeProposedPlan.planMarkdown }
+        ? {
+            planMarkdown: activeProposedPlan.planMarkdown,
+            planId: activeProposedPlan.id,
+            planThreadId: activeThread.id,
+          }
         : null;
     if (
       !currentComposerSendState.hasSendableContent &&
@@ -3316,7 +3321,7 @@ export default function ChatView(props: ChatViewProps) {
   assertActiveThread(activeThread, { routeKind, environmentId, threadId, draftId });
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
       {chatViewLifecycleSync}
       {attachmentPreviewHandoffSync}
       {/* Top bar */}
@@ -3388,11 +3393,11 @@ export default function ChatView(props: ChatViewProps) {
               />
 
               {showScrollToBottom && (
-                <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                <div className="pointer-events-none absolute bottom-[calc(var(--multi-composer-compact-shell-min-height)_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
                   <button
                     type="button"
                     onClick={() => scrollTimelineToBottom(true)}
-                    className="pointer-events-auto inline-flex size-7 min-h-7 min-w-7 shrink-0 cursor-(--multi-button-cursor) appearance-none items-center justify-center rounded-full border border-multi-stroke-tertiary bg-(--glass-chat-bubble-background)! p-0 text-multi-icon-secondary shadow-none transition-[background-color,border-color] duration-150 ease-out hover:border-multi-stroke-secondary hover:bg-(--glass-chat-bubble-background)! active:border-multi-stroke-secondary active:bg-(--glass-chat-bubble-background)! focus-visible:border-multi-stroke-secondary focus-visible:bg-(--glass-chat-bubble-background)!"
+                    className="pointer-events-auto inline-flex size-7 min-h-7 min-w-7 shrink-0 cursor-(--multi-button-cursor) appearance-none items-center justify-center rounded-full border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)! p-0 text-multi-icon-secondary shadow-none transition-[background-color,border-color] duration-150 ease-out hover:border-multi-stroke-secondary hover:bg-(--multi-chat-bubble-background)! active:border-multi-stroke-secondary active:bg-(--multi-chat-bubble-background)! focus-visible:border-multi-stroke-secondary focus-visible:bg-(--multi-chat-bubble-background)!"
                     aria-label="Scroll to bottom"
                     title="Scroll to bottom"
                   >
@@ -3417,7 +3422,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "absolute bottom-0 left-0 right-0 isolate z-30 pointer-events-auto before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:-ml-[50vw] before:w-screen before:bg-multi-editor after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:-ml-[50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-color-editor),transparent)] [&>*]:relative [&>*]:z-1"
+                ? "absolute bottom-0 left-0 right-0 isolate z-30 pointer-events-auto before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:-ml-[50vw] before:w-screen before:bg-(--multi-chat-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:-ml-[50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-chat-surface-background),transparent)] [&>*]:relative [&>*]:z-1"
                 : undefined,
             )}
             data-layout={isHeroComposer ? "wide" : undefined}

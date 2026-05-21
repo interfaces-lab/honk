@@ -1,5 +1,5 @@
 /*
- * Design tokens: Pierre palette, typography, shared semantic roles, and glass opacity tunables.
+ * Design tokens: Pierre palette, typography, shared semantic roles, and opacity tunables.
  * Feature-owned variables live beside their selectors (shell, composer, terminal, markdown, git).
  */
 
@@ -28,7 +28,7 @@
   --multi-radius-card: var(--multi-radius-card-user, 10px);
   --multi-radius-chip: var(--multi-radius-chip-user, 20px);
   --multi-radius-pill: var(--multi-radius-chip-user, 20px);
-  /* Glass / panel opacities (user-tunable; Pierre fills base chroma). */
+  /* Panel opacities (user-tunable; Pierre fills base chroma). */
   --multi-transparency: 18;
   --multi-sidebar-opacity: calc((84 - var(--multi-transparency, 18) * 0.32) * 1%);
   --multi-chat-opacity: calc((92 - var(--multi-transparency, 18) * 0.24) * 1%);
@@ -131,6 +131,24 @@
   );
   --multi-color-bubble-opaque: oklch(
     0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+  );
+  --multi-color-sidebar-opaque: oklch(
+    0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
+  );
+  --multi-color-chat-opaque: oklch(
+    0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
+  );
+  --multi-color-editor-opaque: oklch(
+    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247)
+  );
+  --multi-color-surface-opaque: oklch(
+    0.964 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247)
+  );
+  --multi-color-elevated-opaque: oklch(
+    0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+  );
+  --multi-color-menubar-opaque: oklch(
+    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247)
   );
   --multi-color-menubar: color-mix(
     in oklch,
@@ -246,6 +264,24 @@
   --multi-color-bubble-opaque: oklch(
     0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
   );
+  --multi-color-sidebar-opaque: oklch(
+    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+  );
+  --multi-color-chat-opaque: oklch(
+    0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
+  );
+  --multi-color-editor-opaque: oklch(
+    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
+  );
+  --multi-color-surface-opaque: oklch(
+    0.182 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247)
+  );
+  --multi-color-elevated-opaque: oklch(
+    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+  );
+  --multi-color-menubar-opaque: oklch(
+    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
+  );
   --multi-color-menubar: color-mix(
     in oklch,
     oklch(0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
@@ -298,14 +334,22 @@
 
 /*
  * Shared semantic roles + chrome (after Pierre + P3 so primitives exist).
- * Workbench, terminal chrome, and glass aliases — same math app-wide; .agent-window only
+ * Workbench, terminal chrome, and surface aliases — same math app-wide; .agent-window only
  * sets font smoothing + sash hit targets.
  */
 html {
   --multi-chat-surface-background: var(--multi-color-chat);
-  --glass-chat-bubble-background: var(--multi-color-bubble);
-  --glass-chat-bubble-opaque-background: var(--multi-color-bubble-opaque);
-  --glass-chat-surface-background: var(--multi-chat-surface-background);
+  --multi-chat-bubble-translucent-background: color-mix(
+    in srgb,
+    var(--multi-color-chat) 88%,
+    var(--multi-color-editor) 12%
+  );
+  --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
+  --multi-chat-bubble-opaque-background: color-mix(
+    in srgb,
+    var(--multi-color-chat-opaque) 88%,
+    var(--multi-color-editor-opaque) 12%
+  );
   --multi-shadow-primary: oklch(0 0 0 / 0.18);
   --multi-shadow-secondary: color-mix(in srgb, var(--multi-shadow-primary) 60%, transparent);
   --multi-shadow-tertiary: color-mix(in srgb, var(--multi-shadow-primary) 30%, transparent);
@@ -405,7 +449,6 @@ html {
   --multi-icon-warning: var(--warning);
   --multi-shadow-card: 0 1px 2px 0 oklch(0 0 0 / 0.05);
   --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.18);
-  --multi-chat-bubble-background: var(--glass-chat-bubble-background, var(--multi-color-bubble));
   --multi-shell-blur: 28px;
   --multi-shell-saturate: 160%;
   --multi-shell-sidebar-bg: var(--multi-color-sidebar);
@@ -415,8 +458,63 @@ html {
 
 html.dark {
   --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
+  --multi-chat-bubble-translucent-background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--multi-color-chat) 88%, var(--multi-color-editor) 12%) 96%,
+    #fff
+  );
+  --multi-chat-bubble-opaque-background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--multi-color-chat-opaque) 88%, var(--multi-color-editor-opaque) 12%) 96%,
+    #fff
+  );
+  --multi-vibrancy-sidebar-mix: calc(56% + (100 - var(--multi-transparency, 18)) * 0.2%);
+  --multi-vibrancy-chat-mix: calc(56% + (100 - var(--multi-transparency, 18)) * 0.16%);
 }
 
+/*
+ * Vibrancy surface layer — scoped to shell root; vibrancy-on mixes follow Cursor bands,
+ * slider shifts within each band. Reduce transparency forces opaque semantic remaps.
+ */
+:root:not(.dark) {
+  --multi-vibrancy-sidebar-mix: calc(32% + (100 - var(--multi-transparency, 18)) * 0.24%);
+  --multi-vibrancy-chat-mix: calc(72% + (100 - var(--multi-transparency, 18)) * 0.12%);
+}
+
+body[data-cursor-glass-mode="true"] [data-component="root"] {
+  --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);
+  --multi-vibrancy-off-chat-surface-background: var(--multi-color-chat-opaque);
+  --multi-vibrancy-on-sidebar-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-sidebar-opaque) var(--multi-vibrancy-sidebar-mix),
+    transparent
+  );
+  --multi-vibrancy-on-chat-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-chat-opaque) var(--multi-vibrancy-chat-mix),
+    transparent
+  );
+  --multi-sidebar-surface-background: var(
+    --multi-vibrancy-off-sidebar-surface-background
+  );
+  --multi-chat-surface-background: var(--multi-vibrancy-off-chat-surface-background);
+  --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
+  --multi-color-sidebar: var(--multi-sidebar-surface-background);
+  --multi-color-chat: var(--multi-chat-surface-background);
+  --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
+  --multi-chat-bubble-background: var(--multi-chat-bubble-opaque-background);
+}
+
+body.multi-os-vibrancy-on[data-cursor-glass-mode="true"] [data-component="root"] {
+  --multi-sidebar-surface-background: var(--multi-vibrancy-on-sidebar-surface-background);
+  --multi-chat-surface-background: var(--multi-vibrancy-on-chat-surface-background);
+  --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
+  --multi-color-sidebar: var(--multi-sidebar-surface-background);
+  --multi-color-chat: var(--multi-chat-surface-background);
+  --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
+}
+
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-component="root"],
 html.multi-reduce-transparency {
   --multi-sidebar-opacity: 100%;
   --multi-chat-opacity: 100%;
@@ -425,10 +523,28 @@ html.multi-reduce-transparency {
   --multi-elevated-opacity: 100%;
   --multi-bubble-opacity: 100%;
   --multi-menubar-opacity: 100%;
+  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
+  --multi-color-chat: var(--multi-color-chat-opaque);
+  --multi-color-editor: var(--multi-color-editor-opaque);
+  --multi-color-surface: var(--multi-color-surface-opaque);
+  --multi-color-elevated: var(--multi-color-elevated-opaque);
   --multi-color-bubble: var(--multi-color-bubble-opaque);
-  --multi-color-menubar: var(--multi-color-editor);
+  --multi-color-menubar: var(--multi-color-menubar-opaque);
+  --multi-chat-bubble-background: var(--multi-chat-bubble-opaque-background);
+  --multi-chat-surface-background: var(--multi-color-chat-opaque);
+  --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
+  --multi-workbench-surface-background: var(--multi-color-surface-opaque);
+  --multi-bg-elevated: var(--multi-color-elevated-opaque);
   --multi-shell-blur: 0px;
   --multi-shell-saturate: 100%;
-  --multi-shell-sidebar-bg: var(--multi-color-sidebar);
-  --multi-shell-surface-bg: var(--multi-color-surface);
+  --multi-shell-sidebar-bg: var(--multi-color-sidebar-opaque);
+  --multi-shell-surface-bg: var(--multi-color-surface-opaque);
+  --multi-sidebar-surface-background: var(--multi-color-sidebar-opaque);
+  --multi-chat-surface-background: var(--multi-color-chat-opaque);
+  --multi-composer-blur: 0px;
+  --multi-bg-secondary: color-mix(in oklch, var(--foreground) 14%, var(--multi-color-sidebar-opaque));
+  --multi-bg-secondary-wash: var(--multi-bg-secondary);
+  --multi-bg-tertiary: color-mix(in oklch, var(--foreground) 8%, var(--multi-color-sidebar-opaque));
+  --multi-bg-quaternary: color-mix(in oklch, var(--foreground) 6%, var(--multi-color-sidebar-opaque));
+  --multi-bg-quinary: color-mix(in oklch, var(--foreground) 4%, var(--multi-color-sidebar-opaque));
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import type { CSSProperties, HTMLAttributes, MouseEventHandler } from "react";
-import { useCallback, useState, useSyncExternalStore } from "react";
+import type { CSSProperties, HTMLAttributes, MouseEventHandler, RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { cn } from "~/lib/utils";
 
-const CHAT_LOADER_GRID_SIZE = 5;
+const CHAT_LOADER_MAX_GRID = 5;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 type ChatLoaderPhase = "idle" | "active";
@@ -13,28 +13,27 @@ type ChatLoaderPattern = "full" | "ring" | "checker" | "cross" | "slash" | "back
 
 interface ChatLoaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   animated?: boolean;
-  boxSize?: number;
   cellPadding?: number;
   dotSize?: number;
   hoverAnimated?: boolean;
   label?: string;
-  minSize?: number;
+  maxExtent?: number;
   pattern?: ChatLoaderPattern;
   speed?: number;
 }
 
 interface ChatLoaderGlyphProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
   animated?: boolean;
-  boxSize?: number;
   cellPadding?: number;
   dotSize?: number;
-  minSize?: number;
+  maxExtent?: number;
   pattern?: ChatLoaderPattern;
   speed?: number;
 }
 
 interface ChatLoaderDotInput {
   col: number;
+  gridSize: number;
   index: number;
   isActive: boolean;
   phase: ChatLoaderPhase;
@@ -56,15 +55,13 @@ type ChatLoaderStyle = CSSProperties & {
 };
 
 type ChatLoaderDotStyle = CSSProperties & {
-  "--chat-loader-diagonal-parity"?: number;
   "--chat-loader-path"?: number;
 };
 
 const chatLoaderDotResolver: ChatLoaderDotResolver = ({
   isActive,
   index,
-  row,
-  col,
+  gridSize,
   reducedMotion,
   phase,
 }) => {
@@ -72,11 +69,8 @@ const chatLoaderDotResolver: ChatLoaderDotResolver = ({
     return { className: "chat-loader-dot-inactive" };
   }
 
-  const path = trBlPathNormFromIndex(index);
-  const slice = row + (CHAT_LOADER_GRID_SIZE - 1 - col);
-  const parity = slice % 2;
+  const path = trBlPathNormFromIndex(index, gridSize);
   const style: ChatLoaderDotStyle = {
-    "--chat-loader-diagonal-parity": parity,
     "--chat-loader-path": path,
   };
 
@@ -84,12 +78,12 @@ const chatLoaderDotResolver: ChatLoaderDotResolver = ({
     return {
       style: {
         ...style,
-        opacity: parity === 0 ? 0.88 : 0.14,
+        opacity: 0.55,
       },
     };
   }
 
-  return { className: "chat-loader-diagonal-alt-sweep", style };
+  return { className: "chat-loader-diagonal-sweep", style };
 };
 
 function subscribeReducedMotion(callback: () => void): () => void {
@@ -124,12 +118,52 @@ function usePrefersReducedMotion(): boolean {
   );
 }
 
-function trBlPathNormFromIndex(index: number, gridSize = CHAT_LOADER_GRID_SIZE): number {
+function trBlPathNormFromIndex(index: number, gridSize: number): number {
   const row = Math.floor(index / gridSize);
   const col = index % gridSize;
   const maxPath = Math.max(1, (gridSize - 1) * 2);
 
   return (row + (gridSize - 1 - col)) / maxPath;
+}
+
+function resolveGridSizeFromExtent(extentPx: number, cellSize: number): number {
+  if (!Number.isFinite(extentPx) || extentPx <= 0) {
+    return CHAT_LOADER_MAX_GRID;
+  }
+
+  return Math.min(CHAT_LOADER_MAX_GRID, Math.max(1, Math.floor(extentPx / cellSize)));
+}
+
+function useMatrixGridSize(options: {
+  cellSize: number;
+  fitToLineHeight: boolean;
+  maxExtentPx: number | null;
+  rootRef: RefObject<HTMLSpanElement | null>;
+}): number {
+  const { cellSize, fitToLineHeight, maxExtentPx, rootRef } = options;
+  const [gridSize, setGridSize] = useState(() => {
+    if (maxExtentPx != null) {
+      return resolveGridSizeFromExtent(maxExtentPx, cellSize);
+    }
+
+    return CHAT_LOADER_MAX_GRID;
+  });
+
+  useLayoutEffect(() => {
+    if (fitToLineHeight && rootRef.current) {
+      const extentPx = rootRef.current.getBoundingClientRect().height;
+      const next = resolveGridSizeFromExtent(extentPx, cellSize);
+      setGridSize((prev) => (prev === next ? prev : next));
+      return;
+    }
+
+    if (maxExtentPx != null) {
+      const next = resolveGridSizeFromExtent(maxExtentPx, cellSize);
+      setGridSize((prev) => (prev === next ? prev : next));
+    }
+  }, [cellSize, fitToLineHeight, maxExtentPx, rootRef]);
+
+  return gridSize;
 }
 
 function useChatLoaderPhases(options: {
@@ -161,13 +195,12 @@ function useChatLoaderPhases(options: {
 
 export function ChatLoader({
   animated = true,
-  boxSize = 24,
   cellPadding = 1,
   className,
   dotSize = 2,
   hoverAnimated = false,
   label = "Thinking",
-  minSize = 24,
+  maxExtent,
   onMouseEnter,
   onMouseLeave,
   pattern = "full",
@@ -211,10 +244,10 @@ export function ChatLoader({
     >
       <ChatLoaderMatrix
         aria-hidden="true"
-        boxSize={boxSize}
         cellPadding={cellPadding}
         dotSize={dotSize}
-        minSize={minSize}
+        fitToLineHeight={maxExtent == null}
+        {...(maxExtent == null ? {} : { maxExtent })}
         pattern={pattern}
         phase={phase}
         reducedMotion={reducedMotion}
@@ -229,10 +262,9 @@ export function ChatLoader({
 
 export function ChatLoaderGlyph({
   animated = true,
-  boxSize = 24,
   cellPadding = 1,
   dotSize = 2,
-  minSize = 24,
+  maxExtent = 16,
   pattern = "full",
   speed = 1,
   ...props
@@ -242,10 +274,10 @@ export function ChatLoaderGlyph({
 
   return (
     <ChatLoaderMatrix
-      boxSize={boxSize}
       cellPadding={cellPadding}
       dotSize={dotSize}
-      minSize={minSize}
+      fitToLineHeight={false}
+      maxExtent={maxExtent}
       pattern={pattern}
       phase={phase}
       reducedMotion={reducedMotion}
@@ -256,48 +288,55 @@ export function ChatLoaderGlyph({
 }
 
 function ChatLoaderMatrix({
-  boxSize,
   cellPadding,
   className,
   dotSize,
-  minSize,
+  fitToLineHeight,
+  maxExtent,
   pattern,
   phase,
   reducedMotion,
   speed,
   ...props
 }: Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
-  boxSize: number;
   cellPadding: number;
   dotSize: number;
-  minSize: number;
+  fitToLineHeight: boolean;
+  maxExtent?: number;
   pattern: ChatLoaderPattern;
   phase: ChatLoaderPhase;
   reducedMotion: boolean;
   speed: number;
 }) {
+  const rootRef = useRef<HTMLSpanElement>(null);
   const normalizedDotSize = positiveNumber(dotSize, 2);
   const normalizedCellPadding = nonNegativeNumber(cellPadding, 1);
-  const normalizedBoxSize = positiveNumber(boxSize, 24);
-  const normalizedMinSize = positiveNumber(minSize, 24);
+  const normalizedMaxExtent =
+    maxExtent == null ? null : positiveNumber(maxExtent, CHAT_LOADER_MAX_GRID * 4);
   const normalizedSpeed = positiveNumber(speed, 1);
   const cellSize = normalizedDotSize + normalizedCellPadding * 2;
+  const gridSize = useMatrixGridSize({
+    cellSize,
+    fitToLineHeight,
+    maxExtentPx: normalizedMaxExtent,
+    rootRef,
+  });
+  const matrixExtent = gridSize * cellSize;
   const rootStyle: ChatLoaderStyle = {
     "--chat-loader-cell-size": `${cellSize}px`,
     "--chat-loader-dot-size": `${normalizedDotSize}px`,
     "--chat-loader-duration": `${Math.max(0.24, 1.2 / normalizedSpeed).toFixed(3)}s`,
-    height: `${normalizedBoxSize}px`,
-    minHeight: `${normalizedMinSize}px`,
-    minWidth: `${normalizedMinSize}px`,
-    width: `${normalizedBoxSize}px`,
+    height: fitToLineHeight ? "var(--text-body--line-height, 1em)" : `${matrixExtent}px`,
+    width: `${matrixExtent}px`,
   };
   const gridStyle: CSSProperties = {
-    gridTemplateColumns: `repeat(${CHAT_LOADER_GRID_SIZE}, var(--chat-loader-cell-size))`,
-    gridTemplateRows: `repeat(${CHAT_LOADER_GRID_SIZE}, var(--chat-loader-cell-size))`,
+    gridTemplateColumns: `repeat(${gridSize}, var(--chat-loader-cell-size))`,
+    gridTemplateRows: `repeat(${gridSize}, var(--chat-loader-cell-size))`,
   };
 
   return (
     <span
+      ref={rootRef}
       className={cn("inline-grid shrink-0 place-items-center", className)}
       data-phase={phase}
       data-slot="chat-loader-matrix"
@@ -305,12 +344,13 @@ function ChatLoaderMatrix({
       {...props}
     >
       <span aria-hidden="true" className="grid" style={gridStyle}>
-        {Array.from({ length: CHAT_LOADER_GRID_SIZE * CHAT_LOADER_GRID_SIZE }, (_, index) => {
-          const row = Math.floor(index / CHAT_LOADER_GRID_SIZE);
-          const col = index % CHAT_LOADER_GRID_SIZE;
-          const isActive = dotMatchesPattern(pattern, row, col);
+        {Array.from({ length: gridSize * gridSize }, (_, index) => {
+          const row = Math.floor(index / gridSize);
+          const col = index % gridSize;
+          const isActive = dotMatchesPattern(pattern, row, col, gridSize);
           const resolved = chatLoaderDotResolver({
             col,
+            gridSize,
             index,
             isActive,
             phase,
@@ -333,8 +373,13 @@ function ChatLoaderMatrix({
   );
 }
 
-function dotMatchesPattern(pattern: ChatLoaderPattern, row: number, col: number): boolean {
-  const last = CHAT_LOADER_GRID_SIZE - 1;
+function dotMatchesPattern(
+  pattern: ChatLoaderPattern,
+  row: number,
+  col: number,
+  gridSize: number,
+): boolean {
+  const last = gridSize - 1;
 
   switch (pattern) {
     case "backslash":

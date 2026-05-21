@@ -91,7 +91,7 @@ import {
   type ComposerInputHandle,
   type ComposerInputProps,
 } from "./input-contract";
-import { QueuedComposerItemsPanel } from "./queued-items-panel";
+import { QueuedComposerEditBanner, QueuedComposerItemsBadge } from "./queued-items-panel";
 import { ContextWindowMeter } from "./context-window-meter";
 import {
   deriveLatestContextWindowSnapshot,
@@ -119,7 +119,7 @@ const composerEditorClass = cva(
           "min-h-[var(--multi-composer-new-agent-editor-min-height)] max-h-[var(--multi-composer-new-agent-editor-max-height)] px-3 py-2 [&>p]:leading-[1.5]",
         "thread-multiline":
           "min-h-[var(--multi-composer-editor-min-height)] max-h-[var(--multi-composer-editor-max-height)] [&>p]:leading-[1.5]",
-        "thread-pill": "min-h-5 max-h-5 overflow-hidden pl-1",
+        "thread-pill": "min-h-0 max-h-none overflow-hidden pl-1 [&>p]:leading-[1.5]",
         "inline-edit": "min-h-5 max-h-60 px-3 py-2",
       },
     },
@@ -132,9 +132,7 @@ const composerShellClass = cva(
     variants: {
       mode: {
         "new-agent": "flex flex-col gap-[var(--multi-composer-section-gap)] px-2.5 pt-2 pb-1.5",
-        "thread-multiline": "flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5",
-        "thread-pill":
-          "flex min-h-[var(--multi-composer-compact-shell-min-height)] items-center gap-1 px-2.5 py-2",
+        thread: "",
         "inline-edit": "flex flex-col",
       },
     },
@@ -142,6 +140,7 @@ const composerShellClass = cva(
 );
 
 type ComposerEditorMode = "new-agent" | "thread-multiline" | "thread-pill" | "inline-edit";
+type ComposerShellMode = "new-agent" | "thread" | "inline-edit";
 
 const EMPTY_QUEUED_COMPOSER_ITEMS: QueuedComposerItem[] = [];
 Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
@@ -251,7 +250,7 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-2xl border border-multi-stroke-tertiary bg-(--glass-chat-bubble-background) text-multi-fg-primary shadow-sm",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-2xl border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary shadow-sm",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
@@ -314,7 +313,7 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
           onClick={props.onBuildPlan}
         >
           <IconArrowUp className="size-3.5" aria-hidden />
-          <span>{props.isBuilding ? "Building" : "Build"}</span>
+          <span>{props.isBuilding ? "Building..." : "Build"}</span>
         </Button>
       </div>
     </div>
@@ -906,6 +905,17 @@ const ModeAccessControls = memo(function ModeAccessControls(props: {
   );
 });
 
+const COMPOSER_ACTION_SIZE_COMPACT =
+  "h-[var(--multi-composer-compact-send-size)] w-[var(--multi-composer-compact-send-size)]";
+const COMPOSER_ACTION_SIZE_EXPANDED =
+  "h-[var(--multi-composer-expanded-send-size)] w-[var(--multi-composer-expanded-send-size)]";
+const COMPOSER_ACTION_ICON_COMPACT = "size-3";
+const COMPOSER_ACTION_ICON_EXPANDED = "size-3.5";
+const COMPOSER_SUBMIT_BASE_CLASS =
+  "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-150 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30";
+const COMPOSER_STOP_BASE_CLASS =
+  "flex cursor-pointer items-center justify-center rounded-full bg-rose-500/90 text-white transition-[background-color,color,opacity,transform] duration-150 hover:bg-rose-500 motion-reduce:transition-colors motion-reduce:active:scale-100 active:scale-[0.96]";
+
 const PrimaryActionControls = memo(function PrimaryActionControls(props: {
   compact: boolean;
   dockSingleRow: boolean;
@@ -922,6 +932,17 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
 }) {
+  const sizeClass = props.dockSingleRow
+    ? COMPOSER_ACTION_SIZE_COMPACT
+    : COMPOSER_ACTION_SIZE_EXPANDED;
+  const iconSizeClass = props.dockSingleRow
+    ? COMPOSER_ACTION_ICON_COMPACT
+    : COMPOSER_ACTION_ICON_EXPANDED;
+  const dataState: "running" | "busy" | "idle" = props.isRunning
+    ? "running"
+    : props.isConnecting || props.isSendBusy || props.isPreparingWorktree
+      ? "busy"
+      : "idle";
   if (props.pendingAction) {
     return (
       <div className={cn("flex items-center justify-end", props.compact ? "gap-1" : "gap-2")}>
@@ -983,14 +1004,13 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
     const stopButton = (
       <button
         type="button"
-        className={cn(
-          "flex cursor-pointer items-center justify-center rounded-full bg-rose-500/90 text-white transition-[background-color,color,opacity,transform] duration-150 hover:bg-rose-500 motion-reduce:transition-colors motion-reduce:active:scale-100 active:scale-[0.96]",
-          props.dockSingleRow ? "h-7 w-7" : "h-9 w-9 sm:h-8 sm:w-8",
-        )}
+        data-multi-composer-action="stop"
+        data-multi-composer-state={dataState}
+        className={cn(COMPOSER_STOP_BASE_CLASS, sizeClass)}
         onClick={props.onInterrupt}
         aria-label="Stop generation"
       >
-        <IconStop className={props.dockSingleRow ? "size-3" : "size-3.5"} />
+        <IconStop className={iconSizeClass} />
       </button>
     );
 
@@ -1000,15 +1020,14 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
           {stopButton}
           <button
             type="submit"
-            className={cn(
-              "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-150 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30",
-              props.dockSingleRow ? "h-7 w-7" : "h-9 w-9 sm:h-8 sm:w-8",
-            )}
+            data-multi-composer-action="submit"
+            data-multi-composer-state={dataState}
+            className={cn(COMPOSER_SUBMIT_BASE_CLASS, sizeClass)}
             disabled={props.isSendBusy || props.isConnecting || !props.hasSendableContent}
             aria-label={runningSendLabel}
             title={runningSendLabel}
           >
-            <IconArrowUp className={props.dockSingleRow ? "size-3" : "size-3.5"} />
+            <IconArrowUp className={iconSizeClass} />
           </button>
         </div>
       );
@@ -1030,13 +1049,17 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
     );
   }
 
+  const spinnerSize = props.dockSingleRow ? 12 : 14;
+  const spinnerCenter = spinnerSize / 2;
+  const spinnerRadius = props.dockSingleRow ? 4.5 : 5.5;
+  const spinnerDash = props.dockSingleRow ? "17 10" : "20 12";
+
   return (
     <button
       type="submit"
-      className={cn(
-        "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-150 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30",
-        props.dockSingleRow ? "h-7 w-7" : "h-9 w-9 sm:h-8 sm:w-8",
-      )}
+      data-multi-composer-action="submit"
+      data-multi-composer-state={dataState}
+      className={cn(COMPOSER_SUBMIT_BASE_CLASS, sizeClass)}
       disabled={props.isSendBusy || props.isConnecting || !props.hasSendableContent}
       aria-label={
         props.isConnecting
@@ -1051,25 +1074,25 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
     >
       {props.isConnecting || props.isSendBusy ? (
         <svg
-          width={props.dockSingleRow ? "12" : "14"}
-          height={props.dockSingleRow ? "12" : "14"}
-          viewBox={props.dockSingleRow ? "0 0 12 12" : "0 0 14 14"}
+          width={spinnerSize}
+          height={spinnerSize}
+          viewBox={`0 0 ${spinnerSize} ${spinnerSize}`}
           fill="none"
           className="animate-spin"
           aria-hidden="true"
         >
           <circle
-            cx={props.dockSingleRow ? "6" : "7"}
-            cy={props.dockSingleRow ? "6" : "7"}
-            r={props.dockSingleRow ? "4.5" : "5.5"}
+            cx={spinnerCenter}
+            cy={spinnerCenter}
+            r={spinnerRadius}
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
-            strokeDasharray={props.dockSingleRow ? "17 10" : "20 12"}
+            strokeDasharray={spinnerDash}
           />
         </svg>
       ) : (
-        <IconArrowUp className={props.dockSingleRow ? "size-3" : "size-3.5"} />
+        <IconArrowUp className={iconSizeClass} />
       )}
     </button>
   );
@@ -1079,6 +1102,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
   compactControlsMenu: ReactNode;
   composerVariant: "compact" | "expanded";
   inlineEdit: boolean;
+  queuedComposerBadge?: ReactNode;
   interactionMode: ProviderInteractionMode;
   isDockComposerExpanded: boolean;
   primaryActionState: {
@@ -1112,10 +1136,13 @@ const ComposerFooter = memo(function ComposerFooter(props: {
     props.primaryActionState.showPlanFollowUpPrompt ||
     props.primaryActionState.pendingAction !== null;
 
+  const isThreadShell = !props.inlineEdit && props.composerVariant === "compact";
+
   return (
     <div
       data-chat-input-footer="true"
       data-chat-input-footer-compact={dockSingleRow ? "true" : "false"}
+      data-multi-composer-toolbar={isThreadShell ? "bottom" : undefined}
       className={cn(
         "min-w-0",
         dockSingleRow
@@ -1125,7 +1152,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
               dockExpanded ? "gap-[0.55rem]" : "gap-2",
               props.inlineEdit
                 ? "px-3 pb-2"
-                : dockExpanded
+                : isThreadShell
                   ? ""
                   : "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
             ),
@@ -1149,6 +1176,8 @@ const ComposerFooter = memo(function ComposerFooter(props: {
         <span className={cn("inline-flex shrink-0", dockSingleRow ? "" : "sm:hidden")}>
           {props.compactControlsMenu}
         </span>
+
+        {props.queuedComposerBadge}
 
         {!dockSingleRow ? (
           <span className="hidden min-w-0 shrink-0 items-center gap-1 sm:inline-flex">
@@ -1374,7 +1403,7 @@ export const ComposerInput = memo(
     const composerEditorRef = useRef<ComposerPromptEditorHandle>(null);
     const composerEditorHotkeyRef = useRef<HTMLDivElement>(null);
     const composerFormRef = useRef<HTMLFormElement>(null);
-    const composerMenuAnchorRef = useRef<HTMLDivElement>(null);
+    const composerMenuAnchorRef = useRef<HTMLSpanElement | null>(null);
     const composerSelectLockRef = useRef(false);
     const composerMenuOpenRef = useRef(false);
     const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
@@ -1452,12 +1481,14 @@ export const ComposerInput = memo(
       composerMenuEmptyState,
       composerMenuAriaLabel,
       composerMenuKind,
+      composerMenuIsSearching,
     } = useComposerCommandMenu({
       composerTrigger,
       environmentId,
       gitCwd,
       selectedProvider,
       selectedProviderStatus,
+      providerStatuses,
       highlightedItemId: composerHighlightedItemId,
       highlightedSearchKey: composerHighlightedSearchKey,
     });
@@ -1515,7 +1546,7 @@ export const ComposerInput = memo(
       composerVariant === "compact" &&
       (isInlineEditComposer ||
         hasComposerHeader ||
-        hasQueuedComposerItems ||
+        isEditingQueuedComposerItem ||
         composerImages.length > 0 ||
         activePendingProgress !== null ||
         promptHasExplicitLineBreak ||
@@ -1529,6 +1560,11 @@ export const ComposerInput = memo(
         : isDockComposerSingleLine
           ? "thread-pill"
           : "thread-multiline";
+    const composerShellMode: ComposerShellMode = isInlineEditComposer
+      ? "inline-edit"
+      : isNewAgentComposer
+        ? "new-agent"
+        : "thread";
     const showPlanTray =
       !isInlineEditComposer &&
       !isComposerApprovalState &&
@@ -1597,32 +1633,6 @@ export const ComposerInput = memo(
       ],
     );
 
-    const applyComposerTrigger = useCallback(
-      (nextTrigger: ComposerTrigger | null) => {
-        if (!nextTrigger || nextTrigger.kind !== "slash-model" || isComposerApprovalState) {
-          setComposerTrigger(nextTrigger);
-          return false;
-        }
-
-        const currentText = promptRef.current;
-        const expectedSlice = currentText.slice(nextTrigger.rangeStart, nextTrigger.rangeEnd);
-        const applied = applyPromptReplacement(nextTrigger.rangeStart, nextTrigger.rangeEnd, "", {
-          expectedText: expectedSlice,
-          focusEditorAfterReplace: true,
-        });
-        if (!applied) {
-          setComposerTrigger(nextTrigger);
-          return false;
-        }
-
-        setComposerHighlightedItemId(null);
-        setModelPickerOpenSearchSeed(nextTrigger.query.trim());
-        setIsComposerModelPickerOpen(true);
-        return true;
-      },
-      [applyPromptReplacement, isComposerApprovalState, promptRef],
-    );
-
     // ------------------------------------------------------------------
     // Provider traits UI
     // ------------------------------------------------------------------
@@ -1636,11 +1646,10 @@ export const ComposerInput = memo(
         setComposerDraftPrompt(composerDraftTarget, nextPrompt);
         const nextCursor = collapseExpandedComposerCursor(nextPrompt, nextPrompt.length);
         setComposerCursor(nextCursor);
-        applyComposerTrigger(resolveComposerTrigger(nextPrompt, nextPrompt.length));
+        setComposerTrigger(resolveComposerTrigger(nextPrompt, nextPrompt.length));
         scheduleComposerFocus();
       },
       [
-        applyComposerTrigger,
         composerDraftTarget,
         promptRef,
         resolveComposerTrigger,
@@ -1716,12 +1725,9 @@ export const ComposerInput = memo(
         if (activePendingProgress?.activeQuestion && pendingUserInputs.length > 0) {
           promptRef.current = nextPrompt;
           setComposerCursor(nextCursor);
-          const triggerHandled = applyComposerTrigger(
+          setComposerTrigger(
             cursorAdjacentToMention ? null : resolveComposerTrigger(nextPrompt, expandedCursor),
           );
-          if (triggerHandled) {
-            return;
-          }
           handleChangeActivePendingUserInputCustomAnswer(
             activePendingProgress.activeQuestion.id,
             nextPrompt,
@@ -1734,13 +1740,12 @@ export const ComposerInput = memo(
         promptRef.current = nextPrompt;
         setPrompt(nextPrompt);
         setComposerCursor(nextCursor);
-        applyComposerTrigger(
+        setComposerTrigger(
           cursorAdjacentToMention ? null : resolveComposerTrigger(nextPrompt, expandedCursor),
         );
       },
       [
         activePendingProgress?.activeQuestion,
-        applyComposerTrigger,
         pendingUserInputs.length,
         handleChangeActivePendingUserInputCustomAnswer,
         promptRef,
@@ -1789,7 +1794,6 @@ export const ComposerInput = memo(
 
     const promptRefVersion = useValueIdentityVersion(promptRef);
     const resolveComposerTriggerVersion = useValueIdentityVersion(resolveComposerTrigger);
-    const applyComposerTriggerVersion = useValueIdentityVersion(applyComposerTrigger);
     const dismissComposerCommandMenuVersion = useValueIdentityVersion(dismissComposerCommandMenu);
     const pendingInputCustomAnswer = activePendingProgress?.customAnswer;
     const pendingInputQuestionId = activePendingProgress?.activeQuestion?.id ?? null;
@@ -1818,7 +1822,6 @@ export const ComposerInput = memo(
             pendingInputRequestId ?? "",
             promptRefVersion,
             resolveComposerTriggerVersion,
-            applyComposerTriggerVersion,
           ].join("\0")}
           activeQuestionId={pendingInputQuestionId}
           customAnswer={pendingInputCustomAnswer}
@@ -1828,7 +1831,7 @@ export const ComposerInput = memo(
           resolveComposerTrigger={resolveComposerTrigger}
           setComposerCursor={setComposerCursor}
           setComposerHighlightedItemId={setComposerHighlightedItemId}
-          setComposerTrigger={applyComposerTrigger}
+          setComposerTrigger={setComposerTrigger}
         />
         <ComposerDraftResetSync
           key={[draftId ?? "", activeThreadId ?? "", promptRefVersion].join("\0")}
@@ -2054,7 +2057,7 @@ export const ComposerInput = memo(
           const cursor = clampCollapsedComposerCursor(promptForState, options?.cursor ?? 0);
           setComposerHighlightedItemId(null);
           setComposerCursor(cursor);
-          applyComposerTrigger(
+          setComposerTrigger(
             options?.detectTrigger
               ? resolveComposerTrigger(
                   promptForState,
@@ -2077,7 +2080,6 @@ export const ComposerInput = memo(
         },
       }),
       [
-        applyComposerTrigger,
         promptRef,
         composerImagesRef,
         isComposerModelPickerOpen,
@@ -2168,8 +2170,7 @@ export const ComposerInput = memo(
           )}
           data-menu-open={composerMenuOpen ? "" : undefined}
           data-running={phase === "running" ? "" : undefined}
-          data-slash-menu-anchor="cursor"
-          data-slash-menu-variant="glass"
+          data-slash-menu-variant="surface"
           data-variant={composerVariant}
         >
           {showPlanTray ? (
@@ -2185,9 +2186,10 @@ export const ComposerInput = memo(
           {promptInputHeaderContent ? (
             <div
               className={cn(
-                "select-none overflow-hidden border border-b-0 border-multi-stroke-tertiary bg-(--glass-chat-bubble-background) text-multi-fg-primary",
+                "select-none overflow-hidden border border-b-0 border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary",
                 composerVariant === "compact" ? "rounded-t-2xl" : "rounded-t-xl",
               )}
+              data-multi-composer-surface=""
               data-visible={hasComposerHeader ? "true" : "false"}
             >
               {promptInputHeaderContent}
@@ -2195,23 +2197,22 @@ export const ComposerInput = memo(
           ) : null}
           <div
             className={cn(
-              "group relative w-full max-w-full min-w-0 cursor-text overflow-hidden border shadow-sm transition-[border-color,background-color] duration-200 hover:border-multi-stroke-secondary focus-within:border-multi-stroke-secondary",
+              "group relative w-full max-w-full min-w-0 cursor-text overflow-hidden border shadow-sm transition-[border-color,background-color,border-radius] duration-200 hover:border-multi-stroke-secondary focus-within:border-multi-stroke-secondary",
               isInlineEditComposer
-                ? "rounded-xl border-multi-stroke-tertiary bg-multi-bubble"
-                : "border-multi-stroke-tertiary bg-(--glass-chat-bubble-background)",
+                ? "rounded-xl border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)"
+                : "border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)",
               !isInlineEditComposer &&
                 (hasComposerHeader
                   ? "rounded-b-2xl rounded-t-none"
-                  : isDockComposerSingleLine
-                    ? "rounded-full"
-                    : composerVariant === "compact"
-                      ? "rounded-2xl"
-                      : "rounded-xl"),
+                  : composerVariant === "compact"
+                    ? "rounded-2xl"
+                    : "rounded-xl"),
               isDragOverComposer ? "border-primary bg-accent/30 ring-2 ring-primary/60" : "",
               composerProviderState.ultrathinkActive &&
                 "animate-[ultrathink-rainbow_10s_linear_infinite] bg-[linear-gradient(120deg,oklch(0.712_0.181_22.839)_0%,oklch(0.769_0.165_70.08)_18%,oklch(0.723_0.192_149.579)_36%,oklch(0.704_0.123_182.503)_54%,oklch(0.623_0.188_259.815)_72%,oklch(0.656_0.212_354.308)_90%,oklch(0.712_0.181_22.839)_100%)] bg-[length:220%_220%]",
             )}
             data-has-header={hasComposerHeader ? "" : undefined}
+            data-multi-composer-surface=""
             data-has-images={composerImages.length > 0 ? "" : undefined}
             data-dragging={isDragOverComposer ? "" : undefined}
             data-expanded={isDockComposerExpanded ? "" : undefined}
@@ -2227,10 +2228,16 @@ export const ComposerInput = memo(
           >
             <div
               className={cn(
-                composerShellClass({ mode: composerEditorMode }),
+                composerShellClass({ mode: composerShellMode }),
                 composerProviderState.ultrathinkActive &&
                   "shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset]",
               )}
+              {...(composerShellMode === "thread"
+                ? {
+                    "data-multi-composer-shell": "thread",
+                    ...(isDockComposerExpanded ? { "data-expanded": "" } : {}),
+                  }
+                : {})}
             >
               {isDockComposerSingleLine && !isComposerApprovalState ? (
                 <>
@@ -2245,38 +2252,27 @@ export const ComposerInput = memo(
                   />
                   <button
                     type="button"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary transition-colors duration-150 hover:bg-multi-bg-tertiary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-multi-bg-quaternary p-0 text-multi-icon-tertiary transition-[background-color,color] duration-150 hover:bg-multi-bg-tertiary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35"
                     aria-label="Attach images"
                     disabled={pendingUserInputs.length > 0 || isConnecting}
                     onClick={() => composerImageInputRef.current?.click()}
                   >
-                    <IconPlusSmall className="size-3.5" aria-hidden="true" />
+                    <IconPlusSmall className="size-3.5 shrink-0" aria-hidden="true" />
                   </button>
                 </>
               ) : null}
-              {showQueuedComposerItems ? (
-                <QueuedComposerItemsPanel
-                  items={queuedComposerItems}
-                  editingItemId={editingQueuedComposerItemId}
-                  isBusy={isConnecting || isSendBusy}
-                  onBeginEdit={handleBeginEditQueuedComposerItem}
-                  onCancelEdit={handleCancelEditingQueuedComposerItem}
-                  onRemove={handleRemoveQueuedComposerItem}
-                  onSendNow={handleSendQueuedComposerItemNow}
-                />
+              {isEditingQueuedComposerItem ? (
+                <QueuedComposerEditBanner onCancelEdit={handleCancelEditingQueuedComposerItem} />
               ) : null}
               <div
-                ref={composerMenuAnchorRef}
                 className={cn(
                   "relative min-w-0 select-text",
                   composerEditorMode === "inline-edit" && "min-h-5",
-                  composerEditorMode === "thread-pill" && "flex min-h-0 flex-1 items-center",
-                  composerEditorMode === "thread-multiline" && "min-h-5",
-                  composerEditorMode === "new-agent" && "flex min-h-0 flex-1 flex-col",
+                  composerEditorMode === "thread-pill" &&
+                    "flex min-h-0 min-w-0 flex-1 items-center",
+                  composerEditorMode === "thread-multiline" && "min-h-5 min-w-0 px-3 pt-2",
+                  composerEditorMode === "new-agent" && "flex min-h-0 min-w-0 flex-1 flex-col",
                 )}
-                data-composer-menu-anchor=""
-                data-expanded={isDockComposerExpanded ? "" : undefined}
-                data-variant={composerVariant}
               >
                 {!isComposerApprovalState &&
                   pendingUserInputs.length === 0 &&
@@ -2300,6 +2296,8 @@ export const ComposerInput = memo(
                   }
                   cursor={composerCursor}
                   skills={selectedProviderStatus?.skills ?? []}
+                  caretAnchorRef={composerMenuAnchorRef}
+                  caretTriggerExpandedOffset={composerTrigger?.rangeStart ?? null}
                   onMeasuredMultilineChange={setIsComposerEditorMultiline}
                   onChange={onPromptChange}
                   onCommandKeyDown={onComposerCommandKey}
@@ -2330,6 +2328,9 @@ export const ComposerInput = memo(
               {/* Bottom toolbar */}
               {activePendingApproval ? (
                 <div
+                  data-multi-composer-toolbar={
+                    composerShellMode === "thread" ? "bottom" : undefined
+                  }
                   className={cn(
                     "flex items-center justify-end",
                     isDockComposerExpanded
@@ -2348,6 +2349,20 @@ export const ComposerInput = memo(
                   composerVariant={composerVariant}
                   inlineEdit={isInlineEditComposer}
                   isDockComposerExpanded={isDockComposerExpanded}
+                  queuedComposerBadge={
+                    showQueuedComposerItems ? (
+                      <QueuedComposerItemsBadge
+                        items={queuedComposerItems}
+                        editingItemId={editingQueuedComposerItemId}
+                        isBusy={isConnecting || isSendBusy}
+                        compact={isDockComposerSingleLine}
+                        onBeginEdit={handleBeginEditQueuedComposerItem}
+                        onCancelEdit={handleCancelEditingQueuedComposerItem}
+                        onRemove={handleRemoveQueuedComposerItem}
+                        onSendNow={handleSendQueuedComposerItemNow}
+                      />
+                    ) : null
+                  }
                   providerModelPicker={providerModelPicker}
                   compactControlsMenu={compactControlsMenu}
                   providerTraitsPicker={providerTraitsPicker}
@@ -2394,6 +2409,7 @@ export const ComposerInput = memo(
           menuKind={composerMenuKind}
           triggerKind={composerTriggerKind}
           groupSlashCommandSections={composerTrigger?.kind === "slash-command"}
+          isSearching={composerMenuIsSearching}
           emptyStateText={composerMenuEmptyState}
           activeItemId={activeComposerMenuItem?.id ?? null}
           onHighlightedItemChange={onComposerMenuItemHighlighted}

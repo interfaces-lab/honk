@@ -15,7 +15,7 @@ import {
   type SidebarThreadSummary,
 } from "./sidebar-chat-view-model";
 import { useUiStateStore } from "~/stores/ui-state-store";
-import { AgentList } from "./list";
+import { AgentSidebar } from "./agent-sidebar";
 
 const retainThreadDetailSubscriptionMock = vi.hoisted(() =>
   vi.fn((_environmentId: EnvironmentId, _threadId: ThreadId) => vi.fn()),
@@ -292,7 +292,7 @@ function makeOrderingSummary(
 }
 
 async function mount(
-  props: Partial<ComponentProps<typeof AgentList>> = {},
+  props: Partial<ComponentProps<typeof AgentSidebar>> = {},
   options: { width?: string } = {},
 ) {
   const host = document.createElement("div");
@@ -301,9 +301,9 @@ async function mount(
   }
   document.body.append(host);
   const root = createRoot(host);
-  const render = (nextProps: Partial<ComponentProps<typeof AgentList>> = {}) => {
+  const render = (nextProps: Partial<ComponentProps<typeof AgentSidebar>> = {}) => {
     root.render(
-      <AgentList
+      <AgentSidebar
         sections={sections}
         selectedId="thread-1"
         onSelectAgent={vi.fn()}
@@ -323,14 +323,14 @@ async function mount(
     [Symbol.asyncDispose]: cleanup,
     cleanup,
     host,
-    rerender: async (nextProps: Partial<ComponentProps<typeof AgentList>>) => {
+    rerender: async (nextProps: Partial<ComponentProps<typeof AgentSidebar>>) => {
       render(nextProps);
       await Promise.resolve();
     },
   };
 }
 
-describe("AgentList sidebar", () => {
+describe("AgentSidebar", () => {
   afterEach(() => {
     document.body.innerHTML = "";
     retainThreadDetailSubscriptionMock.mockClear();
@@ -394,9 +394,13 @@ describe("AgentList sidebar", () => {
       "project section: expected selected row to show an active background color",
     ).toContain("selected=true]:bg");
     expect(
-      projectToggle()?.querySelector("svg"),
-      "project section: expected no decorative chevron icon in the collapsible header",
-    ).toBeNull();
+      projectToggle()?.querySelector("[data-agent-sidebar-section-folder] svg"),
+      "project section: expected folder icon in the section header",
+    ).not.toBeNull();
+    expect(
+      projectToggle()?.querySelector("[data-agent-sidebar-section-chevron] svg"),
+      "project section: expected collapsible chevron affordance in the section header",
+    ).not.toBeNull();
     expect(
       page.getByRole("button", { name: "New agent in project" }).element().className,
       "project section: expected new-agent action to avoid separate hover styling",
@@ -606,6 +610,7 @@ describe("AgentList sidebar", () => {
       if (!row) {
         throw new Error(`${expected.label}: expected row wrapper to render.`);
       }
+      await page.elementLocator(row).hover();
       const status = row.querySelector<HTMLElement>("[data-agent-sidebar-status]");
       const subtitle = row.querySelector<HTMLElement>("[data-agent-sidebar-subtitle]");
       if (!status || !subtitle) {

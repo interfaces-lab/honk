@@ -858,22 +858,20 @@ function OpenCommandPaletteDialog() {
   if (import.meta.env.DEV) {
     actionItems.push({
       kind: "action",
-      value: "action:dev:chat-input-examples",
+      value: "action:dev:archive-ui-example",
       searchTerms: [
-        "chat input",
-        "composer",
-        "composer examples",
-        "cursor",
-        "cursor input",
-        "input examples",
+        "archive",
+        "archived",
+        "archive ui",
         "ui examples",
         "design",
+        "sidebar archive",
       ],
-      title: "Open chat input examples",
-      description: "Cursor-style input layouts for comparison (dev)",
+      title: "Open archive UI examples",
+      description: "Compare archived-thread layouts (dev)",
       icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
       run: async () => {
-        await navigate({ to: "/dev/composer-examples" });
+        await navigate({ to: "/dev/archive-ui-example" });
       },
     });
   }

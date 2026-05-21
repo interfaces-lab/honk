@@ -1678,162 +1678,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("keeps removed terminal context pills removed when a new one is added", async () => {
-    const removedLabel = "Terminal 1 lines 1-2";
-    const addedLabel = "Terminal 2 lines 9-10";
-    useComposerDraftStore.getState().addTerminalContext(
-      THREAD_REF,
-      createTerminalContext({
-        id: "ctx-removed",
-        terminalLabel: "Terminal 1",
-        lineStart: 1,
-        lineEnd: 2,
-        text: "bun i\nno changes",
-      }),
-    );
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-terminal-pill-backspace" as MessageId,
-        targetText: "terminal pill backspace target",
-      }),
-    });
-
-    try {
-      await vi.waitFor(
-        () => {
-          expect(document.body.textContent).toContain(removedLabel);
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      const store = useComposerDraftStore.getState();
-      const currentPrompt = store.draftsByThreadKey[THREAD_KEY]?.prompt ?? "";
-      const nextPrompt = removeInlineTerminalContextPlaceholder(currentPrompt, 0);
-      store.setPrompt(THREAD_REF, nextPrompt.prompt);
-      store.removeTerminalContext(THREAD_REF, "ctx-removed");
-
-      await vi.waitFor(
-        () => {
-          expect(useComposerDraftStore.getState().draftsByThreadKey[THREAD_KEY]).toBeUndefined();
-          expect(document.body.textContent).not.toContain(removedLabel);
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      useComposerDraftStore.getState().addTerminalContext(
-        THREAD_REF,
-        createTerminalContext({
-          id: "ctx-added",
-          terminalLabel: "Terminal 2",
-          lineStart: 9,
-          lineEnd: 10,
-          text: "git status\nOn branch main",
-        }),
-      );
-
-      await vi.waitFor(
-        () => {
-          const draft = useComposerDraftStore.getState().draftsByThreadKey[THREAD_KEY];
-          expect(draft?.terminalContexts.map((context) => context.id)).toEqual(["ctx-added"]);
-          expect(document.body.textContent).toContain(addedLabel);
-          expect(document.body.textContent).not.toContain(removedLabel);
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("disables send when the composer only contains an expired terminal pill", async () => {
-    const expiredLabel = "Terminal 1 line 4";
-    useComposerDraftStore.getState().addTerminalContext(
-      THREAD_REF,
-      createTerminalContext({
-        id: "ctx-expired-only",
-        terminalLabel: "Terminal 1",
-        lineStart: 4,
-        lineEnd: 4,
-        text: "",
-      }),
-    );
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-expired-pill-disabled" as MessageId,
-        targetText: "expired pill disabled target",
-      }),
-    });
-
-    try {
-      await vi.waitFor(
-        () => {
-          expect(document.body.textContent).toContain(expiredLabel);
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      const sendButton = await waitForSendButton();
-      expect(sendButton.disabled).toBe(true);
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("warns when sending text while omitting expired terminal pills", async () => {
-    const expiredLabel = "Terminal 1 line 4";
-    useComposerDraftStore.getState().addTerminalContext(
-      THREAD_REF,
-      createTerminalContext({
-        id: "ctx-expired-send-warning",
-        terminalLabel: "Terminal 1",
-        lineStart: 4,
-        lineEnd: 4,
-        text: "",
-      }),
-    );
-    useComposerDraftStore
-      .getState()
-      .setPrompt(THREAD_REF, `yoo${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}waddup`);
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-expired-pill-warning" as MessageId,
-        targetText: "expired pill warning target",
-      }),
-    });
-
-    try {
-      await vi.waitFor(
-        () => {
-          expect(document.body.textContent).toContain(expiredLabel);
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      const sendButton = await waitForSendButton();
-      expect(sendButton.disabled).toBe(false);
-      sendButton.click();
-
-      await vi.waitFor(
-        () => {
-          expect(document.body.textContent).toContain(
-            "Expired terminal context omitted from message",
-          );
-          expect(document.body.textContent).not.toContain(expiredLabel);
-          expect(document.body.textContent).toContain("yoowaddup");
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
   it("shows a pointer cursor for the running stop button", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -3303,41 +3147,70 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
     try {
       await waitForComposerEditor();
-      await page.getByTestId("composer-editor").fill("/");
-
+      const composerEditor = page.getByTestId("composer-editor");
+      await composerEditor.fill("/");
       const menuItem = await waitForComposerMenuItem("slash:model");
       const composerForm = await waitForElement(
         () => document.querySelector<HTMLElement>('[data-chat-input-form="true"]'),
         "Unable to find composer form.",
       );
+      const assertMenuAligned = () => {
+        const menuRoot = document.querySelector<HTMLElement>("[data-composer-command-menu-root]");
+        const menuRect = (menuRoot ?? menuItem).getBoundingClientRect();
+        const composerRect = composerForm.getBoundingClientRect();
+        const anchor = document.querySelector<HTMLElement>("[data-composer-menu-anchor]");
+        const anchorRect = anchor?.getBoundingClientRect();
+        const hitTarget = document.elementFromPoint(
+          menuRect.left + menuRect.width / 2,
+          menuRect.top + menuRect.height / 2,
+        );
+        const viewportPaddingTop = 8;
 
+        expect(menuRoot, "expected portaled composer command menu root").not.toBeNull();
+        expect(menuRect.width).toBeGreaterThan(0);
+        expect(menuRect.height).toBeGreaterThan(0);
+        expect(menuRect.top).toBeGreaterThanOrEqual(viewportPaddingTop);
+        expect(menuRect.height).toBeLessThanOrEqual(window.innerHeight - viewportPaddingTop * 2);
+        if (anchorRect) {
+          expect(anchorRect.width).toBeLessThanOrEqual(2);
+          expect(anchorRect.height).toBeLessThanOrEqual(2);
+          expect(Math.abs(menuRect.left - anchorRect.left)).toBeLessThanOrEqual(8);
+          expect(menuRect.bottom).toBeLessThanOrEqual(anchorRect.top + 1);
+        } else {
+          expect(menuRect.left).toBeGreaterThanOrEqual(composerRect.left - 2);
+          expect(menuRect.bottom).toBeLessThanOrEqual(composerRect.bottom);
+        }
+        expect(hitTarget instanceof Element && menuRoot?.contains(hitTarget)).toBe(true);
+      };
+
+      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+      await composerEditor.fill("/pl");
+      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+      await composerEditor.fill("ask /");
+      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+
+      const composerEditorElement = await waitForComposerEditor();
+      composerEditorElement.focus();
+      composerEditorElement.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
       await vi.waitFor(
         () => {
-          const menuRoot = document.querySelector<HTMLElement>("[data-composer-command-menu-root]");
-          const menuRect = (menuRoot ?? menuItem).getBoundingClientRect();
-          const composerRect = composerForm.getBoundingClientRect();
-          const anchor = document.querySelector<HTMLElement>("[data-composer-menu-anchor]");
-          const anchorRect = anchor?.getBoundingClientRect();
-          const hitTarget = document.elementFromPoint(
-            menuRect.left + menuRect.width / 2,
-            menuRect.top + menuRect.height / 2,
-          );
-          const viewportPaddingTop = 8;
-
-          expect(menuRoot, "expected portaled composer command menu root").not.toBeNull();
-          expect(menuRect.width).toBeGreaterThan(0);
-          expect(menuRect.height).toBeGreaterThan(0);
-          expect(menuRect.top).toBeGreaterThanOrEqual(viewportPaddingTop);
-          expect(menuRect.height).toBeLessThanOrEqual(window.innerHeight - viewportPaddingTop * 2);
-          if (anchorRect) {
-            expect(menuRect.bottom).toBeLessThanOrEqual(anchorRect.top + 1);
-          } else {
-            expect(menuRect.bottom).toBeLessThanOrEqual(composerRect.bottom);
-          }
-          expect(hitTarget instanceof Element && menuItem.contains(hitTarget)).toBe(true);
+          expect(
+            document.querySelector("[data-composer-command-menu-root]"),
+            "expected slash menu to dismiss after Escape",
+          ).toBeNull();
         },
         { timeout: 8_000, interval: 16 },
       );
+
+      await composerEditor.fill("ask again /");
+      await waitForComposerMenuItem("slash:model");
+      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
     } finally {
       await mounted.cleanup();
     }

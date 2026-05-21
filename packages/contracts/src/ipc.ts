@@ -259,6 +259,7 @@ export interface DesktopBridge {
   confirm: (message: string) => Promise<boolean>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
   setBackgroundColor: (color: string) => Promise<void>;
+  setVibrancy: (enabled: boolean) => Promise<void>;
   showContextMenu: <T extends string>(
     items: readonly ContextMenuItem<T>[],
     position?: { x: number; y: number },

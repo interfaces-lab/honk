@@ -1,9 +1,15 @@
-import type { EnvironmentId, ThreadId } from "@multi/contracts";
+import type {
+  EnvironmentId,
+  OrchestrationProposedPlanId,
+  ProviderInteractionMode,
+  ThreadId,
+} from "@multi/contracts";
 import { scopedThreadKey, scopeThreadRef } from "@multi/client-runtime";
 
 import { readEnvironmentApi } from "../environment-api";
 import { newCommandId } from "../lib/utils";
-import { useComposerQueueStore } from "./chat-send-queue";
+import { resolvePlanFollowUpSubmission } from "../plan/proposed-plan";
+import { useComposerQueueStore, type QueuedComposerItem } from "./chat-send-queue";
 import { selectThreadByRef, useStore } from "./thread-store";
 import {
   compileComposerSubmitTurn,
@@ -11,6 +17,48 @@ import {
 } from "../components/chat/composer-submit";
 
 const dispatchingThreadKeys = new Set<string>();
+
+type SourceProposedPlanReference = {
+  threadId: ThreadId;
+  planId: OrchestrationProposedPlanId;
+};
+
+type PreparedQueuedTurn = {
+  messageText: string;
+  interactionMode: ProviderInteractionMode;
+  sourceProposedPlan?: SourceProposedPlanReference;
+};
+
+function prepareQueuedTurn(item: QueuedComposerItem): PreparedQueuedTurn | null {
+  const compiledTurn = compileComposerSubmitTurn(item.sendContext);
+
+  if (item.planFollowUp) {
+    const followUp = resolvePlanFollowUpSubmission({
+      draftText: compiledTurn.trimmedPrompt,
+      planMarkdown: item.planFollowUp.planMarkdown,
+    });
+    const prepared: PreparedQueuedTurn = {
+      messageText: followUp.text,
+      interactionMode: followUp.interactionMode,
+    };
+    if (followUp.interactionMode === "default") {
+      prepared.sourceProposedPlan = {
+        threadId: item.planFollowUp.planThreadId,
+        planId: item.planFollowUp.planId,
+      };
+    }
+    return prepared;
+  }
+
+  if (!compiledTurn.hasSendableContent) {
+    return null;
+  }
+
+  return {
+    messageText: compiledTurn.outgoingMessageText,
+    interactionMode: item.interactionMode,
+  };
+}
 
 export async function dispatchNextQueuedComposerItemForThread(
   environmentId: EnvironmentId,
@@ -45,8 +93,8 @@ export async function dispatchNextQueuedComposerItemForThread(
 
   dispatchingThreadKeys.add(threadKey);
   try {
-    const compiledTurn = compileComposerSubmitTurn(item.sendContext);
-    if (!compiledTurn.hasSendableContent) {
+    const prepared = prepareQueuedTurn(item);
+    if (!prepared) {
       useComposerQueueStore.getState().restoreQueuedComposerItem(threadKey, item, 0);
       return;
     }
@@ -60,13 +108,16 @@ export async function dispatchNextQueuedComposerItemForThread(
       message: {
         messageId: item.id,
         role: "user",
-        text: compiledTurn.outgoingMessageText,
+        text: prepared.messageText,
         attachments,
       },
       modelSelection: item.sendContext.selectedModelSelection,
       titleSeed: thread.title,
       runtimeMode: item.runtimeMode,
-      interactionMode: item.interactionMode,
+      interactionMode: prepared.interactionMode,
+      ...(prepared.sourceProposedPlan
+        ? { sourceProposedPlan: prepared.sourceProposedPlan }
+        : {}),
       createdAt: item.createdAt,
     });
   } catch (err) {

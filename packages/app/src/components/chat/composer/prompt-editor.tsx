@@ -144,6 +144,8 @@ interface ComposerPromptEditorProps {
   placeholder: string;
   className?: string | undefined;
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
+  caretAnchorRef?: RefObject<HTMLSpanElement | null>;
+  caretTriggerExpandedOffset?: number | null;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
   onChange: (
     nextValue: string,
@@ -457,6 +459,8 @@ function snapshotsEqual(
   );
 }
 
+const COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD = 24;
+
 function emitMeasuredMultiline(
   editor: Editor,
   callback: ((multiline: boolean) => void) | undefined,
@@ -473,7 +477,7 @@ function emitMeasuredMultiline(
     return;
   }
 
-  callback(dom.scrollHeight > dom.clientHeight + 1);
+  callback(dom.scrollHeight > COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD);
 }
 
 function usePromptEditorControlledStateSync({
@@ -557,6 +561,56 @@ function usePromptEditorMultilineMeasurement({
     });
     observer.observe(dom);
     return () => {
+      observer.disconnect();
+    };
+  }, [editor]);
+}
+
+// Mirrors Cursor's caret-tracked menu anchor: a 1x1 span whose position is
+// rewritten from `coordsAtPos` so the slash/mention popover follows the caret
+// instead of the editor wrapper. The wrapper's bounding box jumps when the
+// composer transitions between pill (single-line, padded shell) and multiline
+// (block, no-padding shell) layouts, which is what made the menu drift.
+function usePromptEditorCaretAnchor({
+  editor,
+  anchorElementRef,
+  triggerOffsetRef,
+}: {
+  editor: Editor | null;
+  anchorElementRef: RefObject<HTMLSpanElement | null>;
+  triggerOffsetRef: RefObject<number | null>;
+}) {
+  useLayoutSyncEffect(() => {
+    if (!editor) return;
+    const anchor = anchorElementRef.current;
+    const editorDom = editor.view.dom;
+    const container = editorDom.parentElement;
+    if (!anchor || !container) return;
+
+    const place = () => {
+      const triggerOffset = triggerOffsetRef.current;
+      const pmPos =
+        typeof triggerOffset === "number"
+          ? textToPosition(editor.state.doc, triggerOffset, "expanded")
+          : editor.state.selection.head;
+      const coords = editor.view.coordsAtPos(pmPos);
+      const rect = container.getBoundingClientRect();
+      anchor.style.left = `${coords.left - rect.left}px`;
+      anchor.style.top = `${coords.top - rect.top}px`;
+    };
+
+    place();
+    editor.on("transaction", place);
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        editor.off("transaction", place);
+      };
+    }
+    const observer = new ResizeObserver(place);
+    observer.observe(editorDom);
+    observer.observe(container);
+    return () => {
+      editor.off("transaction", place);
       observer.disconnect();
     };
   }, [editor]);
@@ -1009,6 +1063,8 @@ export const ComposerPromptEditor = forwardRef<
     placeholder,
     className,
     hotkeyTargetRef,
+    caretAnchorRef,
+    caretTriggerExpandedOffset = null,
     onMeasuredMultilineChange,
     onChange,
     onCommandKeyDown,
@@ -1027,6 +1083,18 @@ export const ComposerPromptEditor = forwardRef<
   onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
   onPasteRef.current = onPaste;
   placeholderRef.current = placeholder;
+  const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const caretTriggerOffsetRef = useRef<number | null>(caretTriggerExpandedOffset);
+  caretTriggerOffsetRef.current = caretTriggerExpandedOffset;
+  const setCaretAnchor = useCallback(
+    (element: HTMLSpanElement | null) => {
+      localCaretAnchorRef.current = element;
+      if (caretAnchorRef) {
+        caretAnchorRef.current = element;
+      }
+    },
+    [caretAnchorRef],
+  );
   const extensionsRef = useRef<ReturnType<typeof createComposerExtensions> | null>(null);
   extensionsRef.current ??= createComposerExtensions(placeholderRef);
   const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
@@ -1201,6 +1269,12 @@ export const ComposerPromptEditor = forwardRef<
     onMeasuredMultilineChangeRef,
   });
 
+  usePromptEditorCaretAnchor({
+    editor,
+    anchorElementRef: localCaretAnchorRef,
+    triggerOffsetRef: caretTriggerOffsetRef,
+  });
+
   const focusAt = useCallback(
     (nextCursor: number) => {
       if (!editor) return;
@@ -1326,11 +1400,18 @@ export const ComposerPromptEditor = forwardRef<
   );
 
   return (
-    <div ref={hotkeyTargetRef} className="relative">
+    <div ref={hotkeyTargetRef} className="relative w-full min-w-0">
       {editor ? (
         <PromptEditorEditableSync key={String(disabled)} disabled={disabled} editor={editor} />
       ) : null}
       <EditorContent editor={editor} />
+      <span
+        ref={setCaretAnchor}
+        aria-hidden="true"
+        data-composer-menu-anchor=""
+        className="pointer-events-none absolute h-px w-px"
+        style={{ left: 0, top: 0 }}
+      />
     </div>
   );
 });

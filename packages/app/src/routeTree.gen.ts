@@ -18,7 +18,7 @@ import { Route as SettingsArchivedRouteImport } from './routes/settings.archived
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
-import { Route as ChatDevComposerExamplesRouteImport } from './routes/_chat.dev.composer-examples'
+import { Route as ChatDevArchiveUiExampleRouteImport } from './routes/_chat.dev.archive-ui-example'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -65,9 +65,9 @@ const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
   path: '/draft/$draftId',
   getParentRoute: () => ChatRoute,
 } as any)
-const ChatDevComposerExamplesRoute = ChatDevComposerExamplesRouteImport.update({
-  id: '/dev/composer-examples',
-  path: '/dev/composer-examples',
+const ChatDevArchiveUiExampleRoute = ChatDevArchiveUiExampleRouteImport.update({
+  id: '/dev/archive-ui-example',
+  path: '/dev/archive-ui-example',
   getParentRoute: () => ChatRoute,
 } as any)
 const ChatEnvironmentIdThreadIdRoute =
@@ -86,7 +86,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/models': typeof SettingsModelsRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
-  '/dev/composer-examples': typeof ChatDevComposerExamplesRoute
+  '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesByTo {
@@ -98,7 +98,7 @@ export interface FileRoutesByTo {
   '/settings/models': typeof SettingsModelsRoute
   '/': typeof ChatIndexRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
-  '/dev/composer-examples': typeof ChatDevComposerExamplesRoute
+  '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesById {
@@ -112,7 +112,7 @@ export interface FileRoutesById {
   '/settings/models': typeof SettingsModelsRoute
   '/_chat/': typeof ChatIndexRoute
   '/_chat/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
-  '/_chat/dev/composer-examples': typeof ChatDevComposerExamplesRoute
+  '/_chat/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
   '/_chat/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRouteTypes {
@@ -126,7 +126,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/models'
     | '/$environmentId/$threadId'
-    | '/dev/composer-examples'
+    | '/dev/archive-ui-example'
     | '/draft/$draftId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -138,7 +138,7 @@ export interface FileRouteTypes {
     | '/settings/models'
     | '/'
     | '/$environmentId/$threadId'
-    | '/dev/composer-examples'
+    | '/dev/archive-ui-example'
     | '/draft/$draftId'
   id:
     | '__root__'
@@ -151,7 +151,7 @@ export interface FileRouteTypes {
     | '/settings/models'
     | '/_chat/'
     | '/_chat/$environmentId/$threadId'
-    | '/_chat/dev/composer-examples'
+    | '/_chat/dev/archive-ui-example'
     | '/_chat/draft/$draftId'
   fileRoutesById: FileRoutesById
 }
@@ -225,11 +225,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatDraftDraftIdRouteImport
       parentRoute: typeof ChatRoute
     }
-    '/_chat/dev/composer-examples': {
-      id: '/_chat/dev/composer-examples'
-      path: '/dev/composer-examples'
-      fullPath: '/dev/composer-examples'
-      preLoaderRoute: typeof ChatDevComposerExamplesRouteImport
+    '/_chat/dev/archive-ui-example': {
+      id: '/_chat/dev/archive-ui-example'
+      path: '/dev/archive-ui-example'
+      fullPath: '/dev/archive-ui-example'
+      preLoaderRoute: typeof ChatDevArchiveUiExampleRouteImport
       parentRoute: typeof ChatRoute
     }
     '/_chat/$environmentId/$threadId': {
@@ -245,14 +245,14 @@ declare module '@tanstack/react-router' {
 interface ChatRouteChildren {
   ChatIndexRoute: typeof ChatIndexRoute
   ChatEnvironmentIdThreadIdRoute: typeof ChatEnvironmentIdThreadIdRoute
-  ChatDevComposerExamplesRoute: typeof ChatDevComposerExamplesRoute
+  ChatDevArchiveUiExampleRoute: typeof ChatDevArchiveUiExampleRoute
   ChatDraftDraftIdRoute: typeof ChatDraftDraftIdRoute
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
   ChatIndexRoute: ChatIndexRoute,
   ChatEnvironmentIdThreadIdRoute: ChatEnvironmentIdThreadIdRoute,
-  ChatDevComposerExamplesRoute: ChatDevComposerExamplesRoute,
+  ChatDevArchiveUiExampleRoute: ChatDevArchiveUiExampleRoute,
   ChatDraftDraftIdRoute: ChatDraftDraftIdRoute,
 }
 

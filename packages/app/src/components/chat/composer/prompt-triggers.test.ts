@@ -35,13 +35,37 @@ describe("detectComposerTrigger", () => {
     });
   });
 
-  it("detects slash-model for bare /model", () => {
+  it("detects standalone slash command after preceding text", () => {
+    const text = "Try /pl";
+    const trigger = detectComposerTrigger(text, text.length);
+
+    expect(trigger).toEqual({
+      kind: "slash-command",
+      query: "pl",
+      rangeStart: "Try ".length,
+      rangeEnd: text.length,
+    });
+  });
+
+  it("detects bare standalone slash after preceding text", () => {
+    const text = "Try /";
+    const trigger = detectComposerTrigger(text, text.length);
+
+    expect(trigger).toEqual({
+      kind: "slash-command",
+      query: "",
+      rangeStart: "Try ".length,
+      rangeEnd: text.length,
+    });
+  });
+
+  it("detects /model as a regular slash command", () => {
     const text = "/model";
     const trigger = detectComposerTrigger(text, text.length);
 
     expect(trigger).toEqual({
-      kind: "slash-model",
-      query: "",
+      kind: "slash-command",
+      query: "model",
       rangeStart: 0,
       rangeEnd: text.length,
     });
@@ -52,11 +76,40 @@ describe("detectComposerTrigger", () => {
     const trigger = detectComposerTrigger(text, text.length);
 
     expect(trigger).toEqual({
-      kind: "slash-model",
-      query: "spark",
+      kind: "slash-command",
+      query: "model spark",
       rangeStart: 0,
       rangeEnd: text.length,
     });
+  });
+
+  it("detects slash model query after preceding text", () => {
+    const text = "Try /model spark";
+    const trigger = detectComposerTrigger(text, text.length);
+
+    expect(trigger).toEqual({
+      kind: "slash-command",
+      query: "model spark",
+      rangeStart: "Try ".length,
+      rangeEnd: text.length,
+    });
+  });
+
+  it("detects standalone slash after an opening parenthesis", () => {
+    const text = "Try (/pl";
+    const trigger = detectComposerTrigger(text, text.length);
+
+    expect(trigger).toEqual({
+      kind: "slash-command",
+      query: "pl",
+      rangeStart: "Try (".length,
+      rangeEnd: text.length,
+    });
+  });
+
+  it("ignores non-standalone slash tokens", () => {
+    const text = "Try path/to/file";
+    expect(detectComposerTrigger(text, text.length)).toBeNull();
   });
 
   it("detects non-model slash commands while typing", () => {
@@ -79,18 +132,6 @@ describe("detectComposerTrigger", () => {
       kind: "slash-command",
       query: "rev",
       rangeStart: 0,
-      rangeEnd: text.length,
-    });
-  });
-
-  it("detects $skill trigger at cursor", () => {
-    const text = "Use $gh-fi";
-    const trigger = detectComposerTrigger(text, text.length);
-
-    expect(trigger).toEqual({
-      kind: "skill",
-      query: "gh-fi",
-      rangeStart: "Use ".length,
       rangeEnd: text.length,
     });
   });
@@ -324,4 +365,5 @@ describe("parseStandaloneComposerSlashCommand", () => {
   it("ignores slash commands with extra message text", () => {
     expect(parseStandaloneComposerSlashCommand("/plan explain this")).toBeNull();
   });
+
 });

@@ -15,7 +15,7 @@
   );
   --multi-markdown-prose-max-width: 38rem;
   --multi-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 5%, var(--background));
+  --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 8%, transparent);
   --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 8%, transparent);
   --multi-markdown-blockquote-background: transparent;
   --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
@@ -27,7 +27,7 @@
     var(--foreground)
   );
   --multi-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 30%, transparent);
-  --multi-markdown-preformat-foreground: color-mix(in srgb, var(--foreground) 82%, transparent);
+  --multi-markdown-preformat-foreground: var(--foreground);
   --multi-markdown-request-border: var(--border);
   --multi-markdown-rule-color: color-mix(in srgb, var(--foreground) 8%, transparent);
   --multi-markdown-kbd-background: var(--muted);
@@ -37,7 +37,6 @@
 }
 
 .dark .chat-markdown {
-  --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 8%, var(--background));
   --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 10%, transparent);
   --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 22%, transparent);
   --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 62%, transparent);
@@ -93,16 +92,45 @@
   list-style-type: none;
 }
 
+.chat-markdown .chat-markdown-inline-code {
+  padding: 1.5px 4px;
+  border-radius: 5px;
+  background-color: var(--multi-markdown-code-background);
+  color: var(--multi-markdown-preformat-foreground);
+  font-family: var(--multi-font-mono);
+  font-size: 0.9em;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
 .chat-markdown .chat-markdown-codeblock pre {
   margin: 0;
+  padding: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--multi-markdown-code-border);
+  border-radius: 8px;
+  background-color: var(--multi-markdown-code-background) !important;
+  color: var(--multi-markdown-preformat-foreground);
+  font-family: var(--multi-font-mono);
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+.chat-markdown .chat-markdown-codeblock pre code {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  word-break: normal;
 }
 
 .chat-markdown .chat-markdown-codeblock:hover .chat-markdown-copy-button,
 .chat-markdown .chat-markdown-codeblock:focus-within .chat-markdown-copy-button {
   opacity: 1;
   pointer-events: auto;
-}
-
-.chat-markdown .chat-markdown-shiki .shiki {
-  background: var(--multi-markdown-code-background) !important;
 }

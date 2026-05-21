@@ -1,6 +1,6 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
 
-export type ComposerTriggerKind = "path" | "slash-command" | "slash-model";
+export type ComposerTriggerKind = "path" | "slash-command";
 export type ComposerSlashCommand = "model" | "plan" | "default";
 
 export interface ComposerTrigger {
@@ -27,6 +27,19 @@ function tokenStartForCursor(text: string, cursor: number): number {
     index -= 1;
   }
   return index + 1;
+}
+
+function standaloneSlashStartForCursor(text: string, cursor: number): number {
+  const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
+  let index = cursor - 1;
+  while (index >= lineStart) {
+    const before = text[index - 1] ?? "";
+    if (text[index] === "/" && (index === lineStart || isWhitespace(before) || before === "(")) {
+      return index;
+    }
+    index -= 1;
+  }
+  return -1;
 }
 
 function expandedSkillSegmentLength(segment: { type: "skill"; name: string; path?: string }) {
@@ -202,35 +215,16 @@ export const isCollapsedCursorAdjacentToMention = isCollapsedCursorAdjacentToInl
 
 export function detectComposerTrigger(text: string, cursorInput: number): ComposerTrigger | null {
   const cursor = clampCursor(text, cursorInput);
-  const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
-  const linePrefix = text.slice(lineStart, cursor);
+  const slashStart = standaloneSlashStartForCursor(text, cursor);
+  const slashPrefix = slashStart >= 0 ? text.slice(slashStart, cursor) : "";
 
-  if (linePrefix.startsWith("/")) {
-    const commandMatch = /^\/(\S*)$/.exec(linePrefix);
+  if (slashStart >= 0) {
+    const commandMatch = /^\/(.*)$/.exec(slashPrefix);
     if (commandMatch) {
-      const commandQuery = commandMatch[1] ?? "";
-      if (commandQuery.toLowerCase() === "model") {
-        return {
-          kind: "slash-model",
-          query: "",
-          rangeStart: lineStart,
-          rangeEnd: cursor,
-        };
-      }
       return {
         kind: "slash-command",
-        query: commandQuery,
-        rangeStart: lineStart,
-        rangeEnd: cursor,
-      };
-    }
-
-    const modelMatch = /^\/model(?:\s+(.*))?$/.exec(linePrefix);
-    if (modelMatch) {
-      return {
-        kind: "slash-model",
-        query: (modelMatch[1] ?? "").trim(),
-        rangeStart: lineStart,
+        query: commandMatch[1] ?? "",
+        rangeStart: slashStart,
         rangeEnd: cursor,
       };
     }

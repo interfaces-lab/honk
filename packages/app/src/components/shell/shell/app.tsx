@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  IconChevronLeftMedium,
   IconSidebar,
   IconSidebarHiddenLeftWide,
   IconSidebarHiddenRightWide,
@@ -12,6 +11,7 @@ import { cva } from "class-variance-authority";
 import { type CSSProperties, type ReactNode, useCallback, useMemo, useRef } from "react";
 
 import { isElectron, isElectronHost } from "~/env";
+import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
 import {
@@ -251,7 +251,7 @@ function RightAside(props: {
           <TabsRoot
             value={effectiveActiveTab}
             onValueChange={handleWorkbenchTabChange}
-            className="relative z-10 flex h-full min-h-0 w-full flex-col bg-(--glass-editor-surface-background) opacity-100"
+            className="relative z-10 flex h-full min-h-0 w-full flex-col bg-(--multi-workbench-editor-surface-background) opacity-100"
           >
             <RightAsideHeader
               cwd={props.cwd}
@@ -328,7 +328,6 @@ function RightAsidePanels(props: { activeTab: WorkbenchTab; right: RightWorkbenc
 
 function ShellHeaderControls(props: {
   showRight: boolean;
-  onBack?: () => void;
   routeThreadId: string | null;
   gitFocusId: string | null;
 }) {
@@ -347,16 +346,6 @@ function ShellHeaderControls(props: {
   return (
     <div className="multi-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-50 box-border flex h-(--multi-header-height) min-w-0 items-center">
       <div className="multi-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--multi-titlebar-control-height) shrink-0 items-center gap-0.5">
-        {props.onBack ? (
-          <button
-            type="button"
-            onClick={() => props.onBack?.()}
-            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground active:scale-[0.96] transition-transform"
-            aria-label="Back to chat"
-          >
-            <IconChevronLeftMedium className="size-4 shrink-0" />
-          </button>
-        ) : null}
         <button
           type="button"
           onClick={() => shellPanelsActions.toggleLeft()}
@@ -399,7 +388,6 @@ export function AppShell(props: {
   right: RightWorkbenchDefinition | null;
   routeThreadId?: string | null;
   gitFocusId?: string | null;
-  onBack?: () => void;
 }) {
   const electron = isElectronHost();
   const showRight = props.right !== null;
@@ -441,12 +429,14 @@ export function AppShell(props: {
   useMountEffect(() => {
     const previousValue = document.body.getAttribute("data-cursor-glass-mode");
     document.body.setAttribute("data-cursor-glass-mode", "true");
+    syncAppearanceVibrancy();
     return () => {
       if (previousValue === null) {
         document.body.removeAttribute("data-cursor-glass-mode");
       } else {
         document.body.setAttribute("data-cursor-glass-mode", previousValue);
       }
+      syncAppearanceVibrancy();
     };
   });
 
@@ -460,7 +450,7 @@ export function AppShell(props: {
       data-shell-right-panel={showRight ? "true" : "false"}
       data-shell-right-open={shellRightOpen ? "true" : "false"}
       data-shell-platform={electron ? "electron" : "web"}
-      data-shell-chrome="glass"
+      data-shell-chrome="surface"
       data-agent-window-font-smoothing={
         agentWindowFontSmoothingAntialiased ? "antialiased" : "subpixel"
       }
@@ -471,7 +461,7 @@ export function AppShell(props: {
       <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col">
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-row">
           <main
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-multi-chat outline-hidden"
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-chat-surface-background,var(--multi-color-chat)) outline-hidden"
             data-component="chat-panel"
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden outline-hidden">
@@ -494,7 +484,6 @@ export function AppShell(props: {
         showRight={showRight}
         routeThreadId={props.routeThreadId ?? null}
         gitFocusId={props.gitFocusId ?? null}
-        {...(props.onBack ? { onBack: props.onBack } : {})}
       />
     </div>
   );

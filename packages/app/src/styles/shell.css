@@ -15,7 +15,6 @@
     --multi-sidebar-label-size-user,
     var(--multi-ui-font-size-user, 13px)
   );
-  --multi-sidebar-label-weight: var(--multi-sidebar-label-weight-user, 400);
   --multi-sidebar-label-leading: var(
     --multi-sidebar-label-leading-user,
     calc(var(--multi-ui-font-size-user, 13px) + 3px)
@@ -53,7 +52,7 @@
   );
 }
 
-/* Glass panels: backdrop-filter + isolation */
+/* Translucent panels: backdrop-filter + isolation */
 .multi-shell-sidebar,
 .multi-shell-surface {
   isolation: isolate;
@@ -63,11 +62,25 @@
 }
 
 .multi-shell-sidebar {
-  background: var(--multi-shell-sidebar-bg);
+  background: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
 }
 
 .multi-shell-surface {
   background: var(--multi-shell-surface-bg);
+}
+
+html.multi-reduce-transparency .multi-shell-sidebar,
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-sidebar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--multi-color-sidebar-opaque);
+}
+
+html.multi-reduce-transparency .multi-shell-surface,
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-surface {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--multi-color-surface-opaque);
 }
 
 body {
@@ -132,15 +145,30 @@ body {
 }
 
 .agent-window__sidebar {
-  background: var(--multi-shell-sidebar-bg);
+  background: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
   box-shadow: none;
   width: var(--multi-shell-left-effective-width);
   min-width: min(var(--multi-shell-left-effective-width), var(--multi-shell-left-min-width));
   max-width: var(--multi-shell-left-max-width);
 }
 
+.agent-window__sidebar .sidebar-body {
+  font-size: var(--multi-sidebar-label-size);
+  line-height: var(--multi-sidebar-label-leading);
+  font-weight: 400;
+}
+
+.agent-window__sidebar [data-slot="button"] {
+  font-size: var(--multi-sidebar-label-size);
+  line-height: var(--multi-sidebar-label-leading);
+  font-weight: 400;
+}
+
 .agent-window__workbench {
-  background: var(--glass-editor-surface-background, var(--multi-workbench-surface-background));
+  background: var(
+    --multi-workbench-editor-surface-background,
+    var(--multi-workbench-surface-background)
+  );
   box-shadow: none;
   width: var(--multi-shell-right-effective-width);
   min-width: min(
@@ -195,12 +223,18 @@ body {
   background-color: var(--multi-workbench-panel-title-background);
 }
 
-/* Primary Electron workbench tabs — matte strip without heavy glass blur. */
+/* Primary Electron workbench tabs — matte strip without heavy blur. */
 .agent-window .multi-workbench-tool-island.editor-panel-tab-root {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--multi-workbench-tool-island-background);
   border-bottom-color: var(--multi-workbench-panel-border-soft);
+}
+
+html.multi-reduce-transparency .editor-panel-tab-root--simple-tabs,
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] .editor-panel-tab-root--simple-tabs {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .agent-window
@@ -313,16 +347,11 @@ body {
 }
 
 .editor-panel-container {
-  --glass-editor-panel-tab-background: color-mix(
-    in srgb,
-    var(--multi-bg-elevated) 88%,
-    transparent
-  );
-  --glass-editor-surface-background: var(--multi-workbench-editor-surface-background);
+  --multi-workbench-editor-panel-tab-background: var(--multi-workbench-tool-island-background);
 }
 
 .agent-window-chat-header {
-  background: var(--multi-color-editor);
+  background: var(--multi-chat-surface-background);
   color: var(--multi-fg-secondary);
 }
 

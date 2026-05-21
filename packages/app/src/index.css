@@ -12,7 +12,7 @@
   --animate-thinking-details-in: thinking-details-in 0.14s ease-out;
   --animate-thinking-glyph: thinking-glyph 2.8s ease-in-out infinite;
   --animate-thinking-word-in: thinking-word-in 0.22s ease-out;
-  --animate-chat-loader-diagonal-alt-sweep: chat-loader-diagonal-alt-sweep
+  --animate-chat-loader-diagonal-sweep: chat-loader-diagonal-sweep
     var(--chat-loader-duration, 1.2s) ease-in-out infinite;
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
@@ -182,19 +182,19 @@
       transform: translateY(0);
     }
   }
-  @keyframes chat-loader-diagonal-alt-sweep {
+  @keyframes chat-loader-diagonal-sweep {
     0%,
     100% {
-      opacity: calc(0.1 + var(--chat-loader-diagonal-parity, 0) * 0.08);
-      transform: scale(0.72);
+      opacity: 0.2;
+      transform: scale(0.78);
     }
     45% {
-      opacity: 0.94;
+      opacity: 0.88;
       transform: scale(1);
     }
     72% {
-      opacity: calc(0.22 + (1 - var(--chat-loader-diagonal-parity, 0)) * 0.2);
-      transform: scale(0.86);
+      opacity: 0.42;
+      transform: scale(0.9);
     }
   }
 }
@@ -229,8 +229,8 @@
     opacity: 0.08;
   }
 
-  .chat-loader-diagonal-alt-sweep {
-    animation: var(--animate-chat-loader-diagonal-alt-sweep);
+  .chat-loader-diagonal-sweep {
+    animation: var(--animate-chat-loader-diagonal-sweep);
     animation-delay: calc(var(--chat-loader-path, 0) * -0.72s);
   }
 }
@@ -266,9 +266,16 @@
     --multi-button-cursor: pointer;
     background-color: var(--app-background);
   }
+  html[data-electron]:has(body[data-cursor-glass-mode="true"]:not(.multi-reduce-transparency)) {
+    background-color: transparent;
+  }
   body {
     @apply text-foreground relative;
     background-color: var(--app-background);
+  }
+  html[data-electron] body[data-cursor-glass-mode="true"]:not(.multi-reduce-transparency) {
+    background-color: transparent;
+    background-image: none;
   }
 }
 

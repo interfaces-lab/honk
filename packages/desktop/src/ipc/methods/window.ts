@@ -140,6 +140,34 @@ export const setBackgroundColor = makeIpcMethod({
   }),
 });
 
+function getMacWindowBackgroundColor(shouldUseDarkColors: boolean): string {
+  return shouldUseDarkColors ? "#161616" : "#ffffff";
+}
+
+export const setVibrancy = makeIpcMethod({
+  channel: IpcChannels.SET_VIBRANCY_CHANNEL,
+  payload: Schema.Boolean,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.setVibrancy")(function* (enabled) {
+    if (process.platform !== "darwin") {
+      return;
+    }
+
+    const electronWindow = yield* ElectronWindow.ElectronWindow;
+    const electronTheme = yield* ElectronTheme.ElectronTheme;
+    const window = yield* electronWindow.currentMainOrFirst;
+    if (Option.isNone(window) || window.value.isDestroyed()) {
+      return;
+    }
+
+    const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
+    window.value.setVibrancy(enabled ? "sidebar" : null);
+    window.value.setBackgroundColor(
+      enabled ? "#00000000" : getMacWindowBackgroundColor(shouldUseDarkColors),
+    );
+  }),
+});
+
 export const showContextMenu = makeIpcMethod({
   channel: IpcChannels.CONTEXT_MENU_CHANNEL,
   payload: ContextMenuInput,

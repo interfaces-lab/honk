@@ -9,7 +9,6 @@
   --chat-timeline-collapsible-header-gap: 4px;
   --chat-timeline-work-preview-max-height: 144px;
 
-  /* Composer geometry (Cursor ui-prompt-input parity). */
   --multi-composer-editor-min-height: 36px;
   --multi-composer-editor-max-height: 200px;
   --multi-composer-new-agent-editor-min-height: 56px;
@@ -18,6 +17,65 @@
   --multi-composer-compact-shell-min-height: 44px;
   --multi-composer-compact-send-size: 28px;
   --multi-composer-expanded-send-size: 32px;
+  --multi-composer-toolbar-padding-x: 10px;
+  --multi-composer-toolbar-padding-y: 8px;
+  --multi-composer-blur: 10px;
+}
+
+[data-multi-composer-shell="thread"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--multi-composer-toolbar-padding-y) var(--multi-composer-toolbar-padding-x);
+  min-height: var(--multi-composer-compact-shell-min-height);
+}
+
+[data-multi-composer-shell="thread"][data-expanded=""] {
+  display: block;
+  padding: 0;
+  min-height: 0;
+}
+
+[data-multi-composer-shell="thread"][data-expanded=""] [data-multi-composer-toolbar="bottom"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--multi-composer-toolbar-padding-y) var(--multi-composer-toolbar-padding-x);
+  gap: 8px;
+}
+
+[data-multi-composer-shell="thread"]:not([data-expanded=""]) [data-multi-composer-toolbar="bottom"] {
+  display: contents;
+}
+
+html.multi-reduce-transparency .multi-shell-sidebar,
+html.multi-reduce-transparency .multi-shell-surface,
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-sidebar,
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-surface {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+body[data-cursor-glass-mode="true"] [data-multi-composer-surface] {
+  backdrop-filter: blur(var(--multi-composer-blur, 10px));
+  -webkit-backdrop-filter: blur(var(--multi-composer-blur, 10px));
+}
+
+html.multi-reduce-transparency [data-composer-command-menu-root] [data-variant="surface"],
+html.multi-reduce-transparency [data-multi-composer-surface],
+html.multi-reduce-transparency .multi-slash-menu-popup,
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"],
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-multi-composer-surface],
+body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-slash-menu-popup {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--multi-chat-bubble-opaque-background);
+}
+
+body[data-cursor-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"],
+body[data-cursor-glass-mode="true"] .multi-slash-menu-popup {
+  backdrop-filter: blur(var(--multi-composer-blur, 10px));
+  -webkit-backdrop-filter: blur(var(--multi-composer-blur, 10px));
 }
 
 [data-work-group-preview] {

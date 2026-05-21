@@ -421,15 +421,15 @@ export default function ProjectScriptsControl({
         open={dialogOpen}
       >
         <DialogPopup className="max-w-md">
-          <DialogHeader>
+          <DialogHeader className="gap-0.5 px-5 pt-4 pb-0">
             <DialogTitle>{isEditing ? "Edit Action" : "Add Action"}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="leading-snug">
               Actions are project-scoped commands you can run from the top bar or keybindings.
             </DialogDescription>
           </DialogHeader>
-          <DialogPanel>
-            <form id={addScriptFormId} className="space-y-4" onSubmit={submitAddScript}>
-              <div className="space-y-1.5">
+          <DialogPanel className="px-5 pt-1.5 pb-4">
+            <form id={addScriptFormId} className="space-y-2.5" onSubmit={submitAddScript}>
+              <div className="space-y-1">
                 <Label htmlFor="script-name">Name</Label>
                 <div className="flex items-center gap-2">
                   <Popover onOpenChange={setIconPickerOpen} open={iconPickerOpen}>
@@ -480,7 +480,7 @@ export default function ProjectScriptsControl({
                   />
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label htmlFor="script-keybinding">Keybinding</Label>
                 <Input
                   id="script-keybinding"
@@ -493,7 +493,7 @@ export default function ProjectScriptsControl({
                   Press a shortcut. Use <Kbd>Backspace</Kbd> to clear.
                 </p>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label htmlFor="script-command">Command</Label>
                 <Textarea
                   id="script-command"
@@ -503,7 +503,7 @@ export default function ProjectScriptsControl({
                 />
               </div>
               <label
-                className="flex items-center justify-between gap-3 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-body text-multi-fg-primary"
+                className="flex items-center justify-between gap-3 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-1.5 text-body text-multi-fg-primary"
                 htmlFor={runOnWorktreeCreateId}
               >
                 <span>Run automatically on worktree creation</span>
@@ -516,7 +516,7 @@ export default function ProjectScriptsControl({
               {validationError && <p className="text-body text-multi-fg-red-primary">{validationError}</p>}
             </form>
           </DialogPanel>
-          <DialogFooter>
+          <DialogFooter className="gap-1.5 px-5 py-3">
             {isEditing && (
               <Button
                 type="button"

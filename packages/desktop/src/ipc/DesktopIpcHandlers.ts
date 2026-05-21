@@ -13,6 +13,7 @@ import {
   pickFolder,
   setBackgroundColor,
   setTheme,
+  setVibrancy,
   showContextMenu,
 } from "./methods/window";
 
@@ -33,6 +34,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(confirm);
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);
+  yield* ipc.handle(setVibrancy);
   yield* ipc.handle(showContextMenu);
   yield* ipc.handle(openExternal);
 

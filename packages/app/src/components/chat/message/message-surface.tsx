@@ -57,7 +57,7 @@ const assistantMessageSurfaceVariants = cva("box-border flex w-full justify-star
 const humanMessageBubbleVariants = cva(
   cn(
     "group/message-bubble box-border w-full min-w-0 max-w-full",
-    "rounded-xl border border-multi-stroke-tertiary bg-multi-bubble px-3 py-2 shadow-xs",
+    "rounded-xl border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) px-3 py-2 shadow-xs",
   ),
   {
     variants: {
