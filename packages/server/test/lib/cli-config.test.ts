@@ -1,14 +1,28 @@
 import os from "node:os";
+import nodePath from "node:path";
 
 import { assert, expect, it } from "@effect/vitest";
 import { ConfigProvider, Effect, FileSystem, Layer, Option, Path } from "effect";
 
 import { NetService } from "@multi/shared/Net";
+import { DEFAULT_PROJECTLESS_CWD } from "@multi/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { deriveServerPaths } from "../../src/config";
 import { resolveServerConfig } from "../../src/cli";
 
+function expandDefaultProjectlessCwd(): string {
+  const projectlessCwd: string = DEFAULT_PROJECTLESS_CWD;
+  if (projectlessCwd === "~") {
+    return os.homedir();
+  }
+  if (projectlessCwd.startsWith("~/")) {
+    return nodePath.join(os.homedir(), projectlessCwd.slice(2));
+  }
+  return nodePath.resolve(projectlessCwd);
+}
+
 it.layer(NodeServices.layer)("cli config resolution", (it) => {
+  const defaultProjectlessCwd = expandDefaultProjectlessCwd();
   const defaultObservabilityConfig = {
     traceMinLevel: "Info",
     traceTimingEnabled: true,
@@ -76,7 +90,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         ...defaultObservabilityConfig,
         mode: "desktop",
         port: 4001,
-        cwd: process.cwd(),
+        cwd: defaultProjectlessCwd,
         baseDir,
         ...derivedPaths,
         host: "0.0.0.0",
@@ -270,7 +284,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         otlpMetricsUrl: "http://localhost:4318/v1/metrics",
         mode: "desktop",
         port: 4888,
-        cwd: process.cwd(),
+        cwd: defaultProjectlessCwd,
         baseDir,
         ...derivedPaths,
         host: "127.0.0.2",
@@ -452,7 +466,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         otlpMetricsUrl: "http://localhost:4318/v1/metrics",
         mode: "desktop",
         port: 4888,
-        cwd: process.cwd(),
+        cwd: defaultProjectlessCwd,
         baseDir,
         ...derivedPaths,
         host: "127.0.0.1",

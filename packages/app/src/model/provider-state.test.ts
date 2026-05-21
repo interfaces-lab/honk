@@ -6,7 +6,7 @@ import {
   ServerProviderModel,
 } from "@multi/contracts";
 
-import { getComposerProviderState } from "./provider-state";
+import { getComposerProviderState, resolveProviderTraitsState } from "./provider-state";
 
 // Provider state is data-driven by the model's optionDescriptors, so these tests
 // use a single synthetic provider/model and vary only the descriptor shape.
@@ -200,6 +200,51 @@ describe("getComposerProviderState", () => {
       modelOptionsForDispatch: selections(["fastMode", true]),
       ultrathinkActive: false,
     });
+  });
+
+  it("shows Fast for Cursor Composer models with empty advertised capabilities", () => {
+    const state = resolveProviderTraitsState({
+      provider: ProviderDriverKind.make("cursor"),
+      model: "composer-2.5",
+      models: [
+        {
+          slug: "composer-2.5",
+          name: "Composer 2.5",
+          isCustom: false,
+          capabilities: { optionDescriptors: [] },
+        },
+      ],
+      prompt: "",
+      modelOptions: undefined,
+    });
+
+    expect(state.showFastMode).toBe(true);
+    expect(state.fastModeDescriptor).toEqual({
+      id: "fastMode",
+      label: "Fast Mode",
+      type: "boolean",
+    });
+    expect(state.fastModeEnabled).toBe(false);
+  });
+
+  it("does not show Fast for Cursor Composer fast-only model slugs without descriptors", () => {
+    const state = resolveProviderTraitsState({
+      provider: ProviderDriverKind.make("cursor"),
+      model: "composer-2.5-fast",
+      models: [
+        {
+          slug: "composer-2.5-fast",
+          name: "Composer 2.5 Fast",
+          isCustom: false,
+          capabilities: { optionDescriptors: [] },
+        },
+      ],
+      prompt: "",
+      modelOptions: undefined,
+    });
+
+    expect(state.showFastMode).toBe(false);
+    expect(state.fastModeDescriptor).toBeNull();
   });
 
   it("marks ultrathink active when the prompt triggers a promptInjectedValues descriptor", () => {

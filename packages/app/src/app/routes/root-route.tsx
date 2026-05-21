@@ -36,7 +36,7 @@ import {
   startEnvironmentConnectionService,
 } from "~/environments/runtime";
 import { updatePrimaryEnvironmentDescriptor } from "~/environments/primary";
-import { RouterDevtoolsPanel } from "~/dev/router-devtools";
+import { DevDevtoolsPanel } from "~/dev/devtools-panel";
 import {
   deriveLogicalProjectKey,
   derivePhysicalProjectKeyFromPath,
@@ -60,7 +60,7 @@ export function RootRouteView() {
             "The local environment did not accept the desktop bootstrap credential."
           }
         />
-        <RouterDevtoolsPanel />
+        <DevDevtoolsPanel />
       </>
     );
   }
@@ -80,7 +80,7 @@ export function RootRouteView() {
             <Outlet />
           </CommandPalette>
         </WebSocketConnectionSurface>
-        <RouterDevtoolsPanel />
+        <DevDevtoolsPanel />
       </AnchoredToastProvider>
     </ToastProvider>
   );

@@ -8,7 +8,10 @@ import {
   ThreadProjection,
   type ThreadCheckpointContext,
 } from "../../src/orchestration/ThreadProjection.service.ts";
-import { checkpointRefForThreadTurn } from "../../src/checkpointing/Utils.ts";
+import {
+  checkpointRefForThreadTurn,
+  preTurnCheckpointRefForThreadTurn,
+} from "../../src/checkpointing/Utils.ts";
 import { CheckpointDiffQueryLive } from "../../src/checkpointing/CheckpointDiffQuery.ts";
 import {
   CheckpointStore,
@@ -113,8 +116,8 @@ describe("CheckpointDiffQueryLive", () => {
       }).pipe(Effect.provide(Layer.mergeAll(layer, NodeServices.layer))),
     );
 
-    const expectedFromRef = checkpointRefForThreadTurn(threadId, 0);
-    expect(hasCheckpointRefCalls).toEqual([expectedFromRef, toCheckpointRef]);
+    const expectedFromRef = preTurnCheckpointRefForThreadTurn(threadId, 1);
+    expect(hasCheckpointRefCalls).toEqual([expectedFromRef]);
     expect(diffCheckpointsCalls).toEqual([
       {
         cwd: process.cwd(),

@@ -4,6 +4,10 @@ import { Suspense } from "react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 export function RouterDevtoolsPanel() {
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
   return (
     <Suspense fallback={null}>
       <TanStackDevtools
