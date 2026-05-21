@@ -11,6 +11,7 @@ import {
   getWindowChromeState,
   openExternal,
   pickFolder,
+  setActiveWorkState,
   setBackgroundColor,
   setTheme,
   setVibrancy,
@@ -32,6 +33,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* ipc.handle(pickFolder);
   yield* ipc.handle(confirm);
+  yield* ipc.handle(setActiveWorkState);
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);
   yield* ipc.handle(setVibrancy);

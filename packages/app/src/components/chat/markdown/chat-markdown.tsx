@@ -496,7 +496,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
           <a
             href={href}
             className={cn(
-              "chat-markdown-file-link inline-flex max-w-full min-w-0 items-center gap-1 align-middle no-underline",
+              "chat-markdown-file-link inline-flex max-w-full min-w-0 items-center gap-1 align-middle text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground)",
               className,
             )}
             onClick={(event) => {

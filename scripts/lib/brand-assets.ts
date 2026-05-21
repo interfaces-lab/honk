@@ -5,14 +5,14 @@ export const BRAND_ASSET_PATHS = {
   productionWebFaviconIco: "assets/prod/multi-black-web-favicon.ico",
   productionWebFavicon16Png: "assets/prod/multi-black-web-favicon-16x16.png",
   productionWebFavicon32Png: "assets/prod/multi-black-web-favicon-32x32.png",
-  productionWebAppleTouchIconPng: "assets/prod/multi-black-web-apple-touch-180.png",
+  productionSplashIconPng: "assets/prod/multi-production-splash-icon-180.png",
 
   developmentMacIconIcns: "assets/dev/multi-development-macos-icon.icns",
   developmentDesktopIconPng: "assets/dev/multi-development-desktop-icon-1024.png",
   developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",
   developmentWebFavicon16Png: "assets/dev/blueprint-web-favicon-16x16.png",
   developmentWebFavicon32Png: "assets/dev/blueprint-web-favicon-32x32.png",
-  developmentWebAppleTouchIconPng: "assets/dev/blueprint-web-apple-touch-180.png",
+  developmentSplashIconPng: "assets/dev/multi-development-splash-icon-180.png",
 } as const;
 
 export interface IconOverride {
@@ -34,7 +34,7 @@ export const DEVELOPMENT_ICON_OVERRIDES: ReadonlyArray<IconOverride> = [
     targetRelativePath: "dist/client/favicon-32x32.png",
   },
   {
-    sourceRelativePath: BRAND_ASSET_PATHS.developmentWebAppleTouchIconPng,
+    sourceRelativePath: BRAND_ASSET_PATHS.developmentSplashIconPng,
     targetRelativePath: "dist/client/apple-touch-icon.png",
   },
 ];
@@ -53,7 +53,7 @@ export const PUBLISH_ICON_OVERRIDES: ReadonlyArray<IconOverride> = [
     targetRelativePath: "dist/client/favicon-32x32.png",
   },
   {
-    sourceRelativePath: BRAND_ASSET_PATHS.productionWebAppleTouchIconPng,
+    sourceRelativePath: BRAND_ASSET_PATHS.productionSplashIconPng,
     targetRelativePath: "dist/client/apple-touch-icon.png",
   },
 ];

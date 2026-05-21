@@ -20,6 +20,8 @@
   --multi-composer-toolbar-padding-x: 10px;
   --multi-composer-toolbar-padding-y: 8px;
   --multi-composer-blur: 10px;
+  --multi-composer-queue-max-height: 200px;
+  --multi-composer-context-usage-bar-max-height: 24px;
 }
 
 [data-multi-composer-shell="thread"] {
@@ -47,6 +49,24 @@
 [data-multi-composer-shell="thread"]:not([data-expanded=""])
   [data-multi-composer-toolbar="bottom"] {
   display: contents;
+}
+
+[data-composer-context-usage-bar] {
+  max-height: var(--multi-composer-context-usage-bar-max-height);
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height 0.2s ease-in-out,
+    opacity 0.15s ease-in-out,
+    visibility 0.15s ease-in-out;
+  visibility: visible;
+}
+
+:not([data-scrolled-to-bottom]) [data-composer-context-usage-bar] {
+  max-height: 0;
+  opacity: 0;
+  padding-block: 0;
+  visibility: hidden;
 }
 
 html.multi-reduce-transparency .multi-shell-sidebar,

@@ -164,6 +164,7 @@ function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridg
     getLocalEnvironmentBootstrap: () => null,
     getWindowChromeState: () => ({ fullscreen: false }),
     onWindowChromeState: () => () => undefined,
+    setActiveWorkState: async () => undefined,
     getClientSettings: async () => null,
     setClientSettings: async () => undefined,
     getServerExposureState: async () => ({

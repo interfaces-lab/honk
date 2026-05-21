@@ -6,6 +6,7 @@ import {
   type WorkLogSubagent,
 } from "../../../session-logic";
 import { formatProjectRelativePath } from "../shared/file-path-display";
+import { formatContextWindowTokens } from "~/lib/context-window";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 
 type ToolCallStatus = "loading" | "completed" | "error";
@@ -74,12 +75,28 @@ function SubagentStatusSurface({ subagents }: { subagents: ReadonlyArray<WorkLog
                   {subagent.latestUpdate ?? subagent.statusLabel}
                 </span>
               ) : null}
+              {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
+                <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+                  {formatSubagentUsageLabel(subagent)}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
       ))}
     </div>
   );
+}
+
+function formatSubagentUsageLabel(subagent: WorkLogSubagent): string {
+  const usedLabel = formatContextWindowTokens(subagent.usedTokens ?? null);
+  if (subagent.usedPercentage !== undefined && subagent.usedPercentage !== null) {
+    return `${usedLabel} (${Math.round(subagent.usedPercentage)}%)`;
+  }
+  if (subagent.maxTokens !== undefined) {
+    return `${usedLabel} / ${formatContextWindowTokens(subagent.maxTokens ?? null)}`;
+  }
+  return `${usedLabel} tokens`;
 }
 
 function isToolLikeWorkEntry(workEntry: WorkLogEntry): boolean {

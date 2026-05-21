@@ -61,6 +61,7 @@ import type {
 import { Schema } from "effect";
 
 import { EditorId } from "./editor";
+import { NonNegativeInt } from "./base-schemas";
 import { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings";
 
 export interface ContextMenuItem<T extends string = string> {
@@ -103,7 +104,7 @@ export type DesktopUpdateStatus =
 
 export type DesktopRuntimeArch = "arm64" | "x64" | "other";
 export type DesktopTheme = "light" | "dark" | "system";
-export type DesktopAppStageLabel = "Alpha" | "Dev";
+export type DesktopAppStageLabel = "Dev";
 
 export const DesktopUpdateStatusSchema = Schema.Literals([
   "disabled",
@@ -117,17 +118,17 @@ export const DesktopUpdateStatusSchema = Schema.Literals([
 ]);
 export const DesktopRuntimeArchSchema = Schema.Literals(["arm64", "x64", "other"]);
 export const DesktopThemeSchema = Schema.Literals(["light", "dark", "system"]);
-export const DesktopAppStageLabelSchema = Schema.Literals(["Alpha", "Dev"]);
+export const DesktopAppStageLabelSchema = Schema.Literal("Dev");
 
 export interface DesktopAppBranding {
   baseName: string;
-  stageLabel: DesktopAppStageLabel;
+  stageLabel: DesktopAppStageLabel | null;
   displayName: string;
 }
 
 export const DesktopAppBrandingSchema = Schema.Struct({
   baseName: Schema.String,
-  stageLabel: DesktopAppStageLabelSchema,
+  stageLabel: Schema.NullOr(DesktopAppStageLabelSchema),
   displayName: Schema.String,
 });
 
@@ -238,6 +239,14 @@ export const DesktopWindowChromeStateSchema = Schema.Struct({
   fullscreen: Schema.Boolean,
 });
 
+export interface DesktopActiveWorkState {
+  runningThreadCount: number;
+}
+
+export const DesktopActiveWorkStateSchema = Schema.Struct({
+  runningThreadCount: NonNegativeInt,
+});
+
 export interface PickFolderOptions {
   initialPath?: string | null;
 }
@@ -251,6 +260,7 @@ export interface DesktopBridge {
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   getWindowChromeState: () => DesktopWindowChromeState;
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;
+  setActiveWorkState: (state: DesktopActiveWorkState) => Promise<void>;
   getClientSettings: () => Promise<ClientSettings | null>;
   setClientSettings: (settings: ClientSettings) => Promise<void>;
   getServerExposureState: () => Promise<DesktopServerExposureState>;

@@ -1,6 +1,5 @@
-// This file patches Electron bundles for packaged-style launches. Dev uses the
-// stock Electron binary because copied dev bundles can break helper resource
-// lookup on macOS (for example icudtl.dat).
+// This file patches Electron bundles so macOS uses the Multi app identity
+// instead of the stock Electron identity.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -19,9 +18,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
-const APP_DISPLAY_NAME = isDevelopment ? "Multi (Dev)" : "Multi (Alpha)";
-const APP_BUNDLE_ID = isDevelopment ? "com.interfacesco.multi.dev" : "com.interfacesco.multi";
-const LAUNCHER_VERSION = 2;
+const LAUNCHER_VERSION = 3;
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const desktopDir = resolve(currentDir, "..");
@@ -34,10 +31,22 @@ const developmentLauncherIconPath = resolve(
   "dev",
   "multi-development-macos-icon.icns",
 );
-const resolveLauncherIconPath = () =>
-  isDevelopment && existsSync(developmentLauncherIconPath)
-    ? developmentLauncherIconPath
-    : productionLauncherIconPath;
+
+function resolveLauncherIdentity() {
+  return isDevelopment
+    ? {
+        appDisplayName: "Multi (Dev)",
+        appBundleId: "com.interfacesco.multi.dev",
+        iconPath: existsSync(developmentLauncherIconPath)
+          ? developmentLauncherIconPath
+          : productionLauncherIconPath,
+      }
+    : {
+        appDisplayName: "Multi",
+        appBundleId: "com.interfacesco.multi",
+        iconPath: productionLauncherIconPath,
+      };
+}
 
 function setPlistString(plistPath, key, value) {
   const replaceResult = spawnSync("plutil", ["-replace", key, "-string", value, plistPath], {
@@ -58,19 +67,19 @@ function setPlistString(plistPath, key, value) {
   throw new Error(`Failed to update plist key "${key}" at ${plistPath}: ${details}`.trim());
 }
 
-function patchMainBundleInfoPlist(appBundlePath, iconPath) {
+function patchMainBundleInfoPlist(appBundlePath, identity) {
   const infoPlistPath = join(appBundlePath, "Contents", "Info.plist");
-  setPlistString(infoPlistPath, "CFBundleDisplayName", APP_DISPLAY_NAME);
-  setPlistString(infoPlistPath, "CFBundleName", APP_DISPLAY_NAME);
-  setPlistString(infoPlistPath, "CFBundleIdentifier", APP_BUNDLE_ID);
+  setPlistString(infoPlistPath, "CFBundleDisplayName", identity.appDisplayName);
+  setPlistString(infoPlistPath, "CFBundleName", identity.appDisplayName);
+  setPlistString(infoPlistPath, "CFBundleIdentifier", identity.appBundleId);
   setPlistString(infoPlistPath, "CFBundleIconFile", "icon.icns");
 
   const resourcesDir = join(appBundlePath, "Contents", "Resources");
-  copyFileSync(iconPath, join(resourcesDir, "icon.icns"));
-  copyFileSync(iconPath, join(resourcesDir, "electron.icns"));
+  copyFileSync(identity.iconPath, join(resourcesDir, "icon.icns"));
+  copyFileSync(identity.iconPath, join(resourcesDir, "electron.icns"));
 }
 
-function patchHelperBundleInfoPlists(appBundlePath) {
+function patchHelperBundleInfoPlists(appBundlePath, identity) {
   const frameworksDir = join(appBundlePath, "Contents", "Frameworks");
   if (!existsSync(frameworksDir)) {
     return;
@@ -91,12 +100,12 @@ function patchHelperBundleInfoPlists(appBundlePath) {
 
     const suffix = entry.name.replace("Electron Helper", "").replace(".app", "").trim();
     const helperName = suffix
-      ? `${APP_DISPLAY_NAME} Helper ${suffix}`
-      : `${APP_DISPLAY_NAME} Helper`;
+      ? `${identity.appDisplayName} Helper ${suffix}`
+      : `${identity.appDisplayName} Helper`;
     const helperIdSuffix = suffix.replace(/[()]/g, "").trim().toLowerCase().replace(/\s+/g, "-");
     const helperBundleId = helperIdSuffix
-      ? `${APP_BUNDLE_ID}.helper.${helperIdSuffix}`
-      : `${APP_BUNDLE_ID}.helper`;
+      ? `${identity.appBundleId}.helper.${helperIdSuffix}`
+      : `${identity.appBundleId}.helper`;
 
     setPlistString(helperPlistPath, "CFBundleDisplayName", helperName);
     setPlistString(helperPlistPath, "CFBundleName", helperName);
@@ -112,27 +121,45 @@ function readJson(path) {
   }
 }
 
+function hasMacRuntimeResources(appBundlePath) {
+  return existsSync(
+    join(
+      appBundlePath,
+      "Contents",
+      "Frameworks",
+      "Electron Framework.framework",
+      "Versions",
+      "A",
+      "Resources",
+      "icudtl.dat",
+    ),
+  );
+}
+
 function buildMacLauncher(electronBinaryPath) {
+  const identity = resolveLauncherIdentity();
   const sourceAppBundlePath = resolve(electronBinaryPath, "../../..");
   const runtimeDir = join(desktopDir, ".electron-runtime");
-  const targetAppBundlePath = join(runtimeDir, `${APP_DISPLAY_NAME}.app`);
+  const targetAppBundlePath = join(runtimeDir, `${identity.appDisplayName}.app`);
   const targetBinaryPath = join(targetAppBundlePath, "Contents", "MacOS", "Electron");
-  const iconPath = resolveLauncherIconPath();
-  const metadataPath = join(runtimeDir, "metadata.json");
+  const metadataPath = join(runtimeDir, `${identity.appDisplayName}.metadata.json`);
 
   mkdirSync(runtimeDir, { recursive: true });
 
   const expectedMetadata = {
     launcherVersion: LAUNCHER_VERSION,
+    appDisplayName: identity.appDisplayName,
+    appBundleId: identity.appBundleId,
     sourceAppBundlePath,
     sourceAppMtimeMs: statSync(sourceAppBundlePath).mtimeMs,
-    iconPath,
-    iconMtimeMs: statSync(iconPath).mtimeMs,
+    iconPath: identity.iconPath,
+    iconMtimeMs: statSync(identity.iconPath).mtimeMs,
   };
 
   const currentMetadata = readJson(metadataPath);
   if (
     existsSync(targetBinaryPath) &&
+    hasMacRuntimeResources(targetAppBundlePath) &&
     currentMetadata &&
     JSON.stringify(currentMetadata) === JSON.stringify(expectedMetadata)
   ) {
@@ -140,9 +167,9 @@ function buildMacLauncher(electronBinaryPath) {
   }
 
   rmSync(targetAppBundlePath, { recursive: true, force: true });
-  cpSync(sourceAppBundlePath, targetAppBundlePath, { recursive: true });
-  patchMainBundleInfoPlist(targetAppBundlePath, iconPath);
-  patchHelperBundleInfoPlists(targetAppBundlePath);
+  cpSync(sourceAppBundlePath, targetAppBundlePath, { recursive: true, verbatimSymlinks: true });
+  patchMainBundleInfoPlist(targetAppBundlePath, identity);
+  patchHelperBundleInfoPlists(targetAppBundlePath, identity);
   writeFileSync(metadataPath, `${JSON.stringify(expectedMetadata, null, 2)}\n`);
 
   return targetBinaryPath;
@@ -177,10 +204,6 @@ export function resolveElectronPath() {
   }
 
   if (process.platform !== "darwin") {
-    return electronBinaryPath;
-  }
-
-  if (isDevelopment) {
     return electronBinaryPath;
   }
 

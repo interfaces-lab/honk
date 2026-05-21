@@ -39,7 +39,7 @@ function withActiveEnvironmentState(
     ...environmentOverrides
   } = overrides;
   const activeEnvironmentId = overrideActiveEnvironmentId ?? localEnvironmentId;
-  const mergedEnvironmentState = {
+  const mergedEnvironmentState: EnvironmentState = {
     ...environmentState,
     ...environmentOverrides,
   };
@@ -103,7 +103,7 @@ function makeState(thread: Thread): AppState {
   const threadIdsByProjectId: EnvironmentState["threadIdsByProjectId"] = {
     [projectId]: [thread.id],
   };
-  const environmentState = {
+  const environmentState: EnvironmentState = {
     projectIds: [projectId],
     projectById: {
       [projectId]: project,
@@ -173,6 +173,7 @@ function makeState(thread: Thread): AppState {
       ) as EnvironmentState["turnDiffSummaryByThreadId"][ThreadId],
     },
     sidebarThreadSummaryById: {},
+    snapshotSource: "server",
     bootstrapComplete: true,
   };
   return withActiveEnvironmentState(environmentState, {
@@ -199,6 +200,7 @@ function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): A
     turnDiffIdsByThreadId: {},
     turnDiffSummaryByThreadId: {},
     sidebarThreadSummaryById: {},
+    snapshotSource: "server",
     bootstrapComplete: true,
   };
   return withActiveEnvironmentState(environmentState, overrides);

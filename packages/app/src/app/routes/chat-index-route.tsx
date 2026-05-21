@@ -2,7 +2,10 @@ import type { EnvironmentId } from "@multi/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useStore } from "~/stores/thread-store";
-import { selectEnvironmentState } from "~/stores/thread-store";
+import {
+  selectEnvironmentSnapshotSource,
+  type EnvironmentSnapshotSource,
+} from "~/stores/thread-store";
 import { newDraftId, newThreadId } from "~/lib/utils";
 import { readLastChatRouteTarget } from "~/app/routes/chat-route-persistence";
 import { buildDraftThreadRouteParams } from "~/app/routes/thread-route-targets";
@@ -12,19 +15,20 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 export function ChatIndexRouteView() {
   const navigate = useNavigate();
   const activeEnvironmentId = useStore((state) => state.activeEnvironmentId);
-  const bootstrapComplete = useStore(
-    (state) => selectEnvironmentState(state, activeEnvironmentId).bootstrapComplete,
+  const snapshotSource = useStore((state) =>
+    selectEnvironmentSnapshotSource(state, activeEnvironmentId),
   );
 
-  if (!activeEnvironmentId || !bootstrapComplete) {
+  if (!activeEnvironmentId || snapshotSource === "none") {
     return null;
   }
 
   return (
     <ChatIndexRouteSync
-      key={activeEnvironmentId}
+      key={`${activeEnvironmentId}:${snapshotSource}`}
       activeEnvironmentId={activeEnvironmentId}
       navigate={navigate}
+      snapshotSource={snapshotSource}
     />
   );
 }
@@ -32,6 +36,7 @@ export function ChatIndexRouteView() {
 function ChatIndexRouteSync(props: {
   readonly activeEnvironmentId: EnvironmentId;
   readonly navigate: ReturnType<typeof useNavigate>;
+  readonly snapshotSource: EnvironmentSnapshotSource;
 }) {
   const getProjectlessDraftSession = useComposerDraftStore(
     (store) => store.getProjectlessDraftSession,
@@ -60,6 +65,10 @@ function ChatIndexRouteSync(props: {
         },
         replace: true,
       });
+      return;
+    }
+
+    if (props.snapshotSource !== "server") {
       return;
     }
 

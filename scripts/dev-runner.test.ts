@@ -306,6 +306,35 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
+    it.effect("uses a shared fallback offset for dev:desktop", () =>
+      Effect.gen(function* () {
+        const taken = new Set([13773, 5733]);
+        const offsets = yield* resolveModePortOffsets({
+          mode: "dev:desktop",
+          startOffset: 0,
+          hasExplicitServerPort: false,
+          hasExplicitDevUrl: false,
+          checkPortAvailability: (port) => Effect.succeed(!taken.has(port)),
+        });
+
+        assert.deepStrictEqual(offsets, { serverOffset: 1, webOffset: 1 });
+      }),
+    );
+
+    it.effect("keeps dev:desktop offsets stable when ports are explicitly overridden", () =>
+      Effect.gen(function* () {
+        const offsets = yield* resolveModePortOffsets({
+          mode: "dev:desktop",
+          startOffset: 0,
+          hasExplicitServerPort: true,
+          hasExplicitDevUrl: true,
+          checkPortAvailability: () => Effect.succeed(false),
+        });
+
+        assert.deepStrictEqual(offsets, { serverOffset: 0, webOffset: 0 });
+      }),
+    );
+
     it.effect("keeps server offset stable for dev:app and only shifts web offset", () =>
       Effect.gen(function* () {
         const taken = new Set([5733]);

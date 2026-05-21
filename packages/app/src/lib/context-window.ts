@@ -73,6 +73,27 @@ export function deriveLatestContextWindowSnapshot(
   return null;
 }
 
+export function formatContextUsagePercentage(value: number | null): string | null {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+  if (value < 10) {
+    return `${value.toFixed(1).replace(/\.0$/, "")}%`;
+  }
+  return `${Math.round(value)}%`;
+}
+
+export function formatContextUsageSummary(usage: ContextWindowSnapshot): string {
+  const usedPercentage = formatContextUsagePercentage(usage.usedPercentage);
+  if (usedPercentage === null) {
+    return `${formatContextWindowTokens(usage.usedTokens)} context used`;
+  }
+  if (usage.maxTokens != null) {
+    return `${usedPercentage} · ${formatContextWindowTokens(usage.usedTokens)} / ${formatContextWindowTokens(usage.maxTokens ?? null)} context used`;
+  }
+  return `${usedPercentage} context used`;
+}
+
 export function formatContextWindowTokens(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return "0";

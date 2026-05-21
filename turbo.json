@@ -4,7 +4,6 @@
     "HOST",
     "PORT",
     "VITE_WS_URL",
-    "VITE_DEV_SERVER_URL",
     "MULTI_LOG_WS_EVENTS",
     "MULTI_MODE",
     "MULTI_PORT",
@@ -31,6 +30,7 @@
     },
     "dev": {
       "dependsOn": ["@multi/contracts#build"],
+      "env": ["VITE_DEV_SERVER_URL"],
       "cache": false,
       "persistent": true
     },

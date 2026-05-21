@@ -53,6 +53,7 @@ export function RootRouteView() {
   if (authGateState.status !== "authenticated") {
     return (
       <>
+        <RootMountPerformanceMark />
         <BrowserChromeThemeSync key={authGateState.status} />
         <AuthenticationRequiredView
           message={
@@ -66,6 +67,7 @@ export function RootRouteView() {
   }
   return (
     <ToastProvider>
+      <RootMountPerformanceMark />
       <BrowserChromeThemeSync key={authGateState.status} />
       <AnchoredToastProvider>
         <CursorPreferenceSync />
@@ -84,6 +86,14 @@ export function RootRouteView() {
       </AnchoredToastProvider>
     </ToastProvider>
   );
+}
+
+function RootMountPerformanceMark() {
+  useMountEffect(() => {
+    window.performance.mark("multi:root-mounted");
+  });
+
+  return null;
 }
 
 function BrowserChromeThemeSync() {

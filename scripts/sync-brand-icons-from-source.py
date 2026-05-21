@@ -8,8 +8,8 @@ Default source: assets/app-icon-source.png (square raster; outer cream backgroun
 
 Writes:
   - packages/desktop/resources/icon.png and icon.icns (production artwork)
-  - assets/prod/* (named desktop 1024 PNGs, legacy mobile/web PNGs + favicon ICO)
-  - assets/dev/* (named desktop 1024 PNG, legacy blueprint web assets)
+  - assets/prod/* (named desktop/splash PNGs, legacy mobile/web PNGs + favicon ICO)
+  - assets/dev/* (named desktop/splash PNGs, legacy blueprint web assets)
 """
 
 from __future__ import annotations
@@ -229,6 +229,7 @@ def main() -> int:
         write_icns_macos(tmp1024, prod / "multi-production-macos-icon.icns")
         write_png(prod / "multi-production-desktop-icon-1024.png", master)
         write_png(prod / "multi-production-linux-icon-1024.png", master)
+        write_png(prod / "multi-production-splash-icon-180.png", _resize(master, 180))
         write_png(prod / "black-macos-1024.png", master)
         write_png(prod / "black-universal-1024.png", master)
         write_png(prod / "black-ios-1024.png", master)
@@ -240,6 +241,7 @@ def main() -> int:
         dev = repo / "assets" / "dev"
         write_icns_macos(tmp_dev_1024, dev / "multi-development-macos-icon.icns")
         write_png(dev / "multi-development-desktop-icon-1024.png", master_dev)
+        write_png(dev / "multi-development-splash-icon-180.png", _resize(master_dev, 180))
         write_png(dev / "blueprint-macos-1024.png", master_dev)
         write_png(dev / "blueprint-universal-1024.png", master_dev)
         write_png(dev / "blueprint-ios-1024.png", master_dev)
@@ -255,7 +257,7 @@ def main() -> int:
         shutil.copyfile(dev_base / "blueprint-web-favicon.ico", web_public / "favicon.ico")
         shutil.copyfile(dev_base / "blueprint-web-favicon-16x16.png", web_public / "favicon-16x16.png")
         shutil.copyfile(dev_base / "blueprint-web-favicon-32x32.png", web_public / "favicon-32x32.png")
-        shutil.copyfile(dev_base / "blueprint-web-apple-touch-180.png", web_public / "apple-touch-icon.png")
+        shutil.copyfile(dev_base / "multi-development-splash-icon-180.png", web_public / "apple-touch-icon.png")
 
     print("Updated desktop resources (prod), assets/prod, and dev blueprint assets.")
     return 0

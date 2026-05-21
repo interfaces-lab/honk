@@ -19,3 +19,4 @@ export const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-st
 export const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
 export const GET_WINDOW_CHROME_STATE_CHANNEL = "desktop:get-window-chrome-state";
 export const WINDOW_CHROME_STATE_CHANNEL = "desktop:window-chrome-state";
+export const SET_ACTIVE_WORK_STATE_CHANNEL = "desktop:set-active-work-state";

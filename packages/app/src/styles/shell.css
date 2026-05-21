@@ -90,6 +90,12 @@ body {
     var(--multi-color-surface);
 }
 
+body.multi-reduce-transparency[data-cursor-glass-mode="true"],
+html.multi-reduce-transparency body {
+  background: var(--multi-color-chat-opaque);
+  background-image: none;
+}
+
 /* Shell utility classes */
 .thread-rail-pad {
   padding-top: var(

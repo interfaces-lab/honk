@@ -2291,6 +2291,50 @@ describe("ProviderRuntimeIngestion", () => {
     });
   });
 
+  it("projects collab subagent token usage into subagent usage activities", async () => {
+    const harness = await createHarness();
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "thread.token-usage.updated",
+      eventId: asEventId("evt-subagent-token-usage-updated"),
+      provider: "codex",
+      providerInstanceId: "codex",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      payload: {
+        providerThreadId: "codex-subagent-thread-1",
+        usage: {
+          usedTokens: 2048,
+          totalProcessedTokens: 4096,
+          maxTokens: 128_000,
+          inputTokens: 1800,
+          cachedInputTokens: 200,
+          outputTokens: 48,
+          reasoningOutputTokens: 0,
+          lastUsedTokens: 2048,
+          compactsAutomatically: true,
+        },
+      },
+    });
+
+    const thread = await waitForThread(harness.engine, (entry) =>
+      entry.activities.some(
+        (activity: ProviderRuntimeTestActivity) => activity.kind === "subagent.usage.updated",
+      ),
+    );
+
+    const usageActivity = thread.activities.find(
+      (activity: ProviderRuntimeTestActivity) => activity.kind === "subagent.usage.updated",
+    );
+    expect(usageActivity).toBeDefined();
+    expect(usageActivity?.payload).toMatchObject({
+      providerThreadId: "codex-subagent-thread-1",
+      usedTokens: 2048,
+      maxTokens: 128_000,
+    });
+  });
+
   it("projects Codex camelCase token usage payloads into normalized thread activities", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();

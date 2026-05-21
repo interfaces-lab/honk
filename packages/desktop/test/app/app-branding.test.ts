@@ -11,20 +11,20 @@ describe("resolveDesktopAppStageLabel", () => {
     ).toBe("Dev");
   });
 
-  it("uses Alpha for packaged builds", () => {
+  it("uses no stage label for packaged builds", () => {
     expect(
       resolveDesktopAppStageLabel({
         isDevelopment: false,
       }),
-    ).toBe("Alpha");
+    ).toBe(null);
   });
 
-  it("uses Alpha for packaged stable builds", () => {
+  it("uses no stage label for packaged stable builds", () => {
     expect(
       resolveDesktopAppStageLabel({
         isDevelopment: false,
       }),
-    ).toBe("Alpha");
+    ).toBe(null);
   });
 });
 
@@ -36,8 +36,8 @@ describe("resolveDesktopAppBranding", () => {
       }),
     ).toEqual({
       baseName: "Multi",
-      stageLabel: "Alpha",
-      displayName: "Multi (Alpha)",
+      stageLabel: null,
+      displayName: "Multi",
     });
   });
 });

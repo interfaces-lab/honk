@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { EventId, type OrchestrationThreadActivity, TurnId } from "@multi/contracts";
 
-import { deriveLatestContextWindowSnapshot, formatContextWindowTokens } from "./context-window";
+import {
+  deriveLatestContextWindowSnapshot,
+  formatContextWindowTokens,
+  formatContextUsageSummary,
+} from "./context-window";
 
 function makeActivity(id: string, kind: string, payload: unknown): OrchestrationThreadActivity {
   return {
@@ -49,6 +53,18 @@ describe("contextWindow", () => {
     expect(formatContextWindowTokens(1400)).toBe("1.4k");
     expect(formatContextWindowTokens(14_000)).toBe("14k");
     expect(formatContextWindowTokens(258_000)).toBe("258k");
+  });
+
+  it("formats context usage summaries", () => {
+    const snapshot = deriveLatestContextWindowSnapshot([
+      makeActivity("activity-1", "context-window.updated", {
+        usedTokens: 14_000,
+        maxTokens: 258_000,
+      }),
+    ]);
+
+    expect(snapshot).not.toBeNull();
+    expect(formatContextUsageSummary(snapshot!)).toBe("5.4% · 14k / 258k context used");
   });
 
   it("includes total processed tokens when available", () => {

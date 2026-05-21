@@ -87,6 +87,7 @@ function makeEmptyEnvironmentState(): EnvironmentState {
     turnDiffIdsByThreadId: {},
     turnDiffSummaryByThreadId: {},
     sidebarThreadSummaryById: {},
+    snapshotSource: "server",
     bootstrapComplete: true,
   };
 }

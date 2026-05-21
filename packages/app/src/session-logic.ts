@@ -61,6 +61,9 @@ export interface WorkLogSubagent {
   title?: string | undefined;
   statusLabel?: string | undefined;
   isActive?: boolean | undefined;
+  usedTokens?: number | undefined;
+  maxTokens?: number | undefined;
+  usedPercentage?: number | undefined;
 }
 
 export interface WorkLogSubagentAction {
@@ -705,10 +708,12 @@ export function deriveWorkLogEntries(
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
+  const subagentUsageByProviderThreadId = deriveSubagentUsageByProviderThreadId(ordered);
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
     .filter((activity) => activity.kind !== "account.rate-limits.updated")
     .filter((activity) => activity.kind !== "context-window.updated")
+    .filter((activity) => activity.kind !== "subagent.usage.updated")
     .filter((activity) => activity.summary !== "Checkpoint captured")
     .filter((activity) => !isPlanBoundaryToolActivity(activity))
     .map((activity) => toDerivedWorkLogEntry(activity, completedAtByTaskKey));
@@ -749,9 +754,68 @@ export function deriveWorkLogEntries(
         }
       : entry;
     const { activityKind: _activityKind, turnId: _turnId, ...workEntry } = settledEntry;
-    workLogEntries.push(workEntry);
+    workLogEntries.push(
+      workEntry.subagents && workEntry.subagents.length > 0
+        ? {
+            ...workEntry,
+            subagents: applySubagentUsage(workEntry.subagents, subagentUsageByProviderThreadId),
+          }
+        : workEntry,
+    );
   }
   return workLogEntries;
+}
+
+function deriveSubagentUsageByProviderThreadId(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): Map<string, Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">> {
+  const usageByProviderThreadId = new Map<
+    string,
+    Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">
+  >();
+
+  for (const activity of activities) {
+    if (activity.kind !== "subagent.usage.updated") {
+      continue;
+    }
+
+    const payload = asRecord(activity.payload);
+    const providerThreadId = asTrimmedString(payload?.providerThreadId);
+    const usedTokens = asFiniteNumber(payload?.usedTokens);
+    if (!providerThreadId || usedTokens === null || usedTokens <= 0) {
+      continue;
+    }
+
+    const maxTokens = asFiniteNumber(payload?.maxTokens);
+    const usedPercentage =
+      maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null;
+
+    usageByProviderThreadId.set(providerThreadId, {
+      usedTokens,
+      ...(maxTokens !== null ? { maxTokens } : {}),
+      ...(usedPercentage !== null ? { usedPercentage } : {}),
+    });
+  }
+
+  return usageByProviderThreadId;
+}
+
+function applySubagentUsage(
+  subagents: ReadonlyArray<WorkLogSubagent>,
+  usageByProviderThreadId: Map<
+    string,
+    Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">
+  >,
+): WorkLogSubagent[] {
+  return subagents.map((subagent) => {
+    const key = subagent.providerThreadId ?? subagent.threadId;
+    const usage = key ? usageByProviderThreadId.get(key) : undefined;
+    return usage ? { ...subagent, ...usage } : subagent;
+  });
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function deriveTaskCompletionByKey(

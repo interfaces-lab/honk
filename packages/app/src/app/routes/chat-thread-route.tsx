@@ -4,7 +4,13 @@ import { useMemo } from "react";
 import ChatView from "~/components/chat/view/chat-view";
 import { threadHasStarted } from "~/components/chat/view/thread-lifecycle";
 import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/stores/chat-drafts";
-import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "~/stores/thread-store";
+import {
+  selectEnvironmentSnapshotSource,
+  selectEnvironmentState,
+  selectThreadExistsByRef,
+  useStore,
+  type EnvironmentSnapshotSource,
+} from "~/stores/thread-store";
 import { createThreadSelectorByRef } from "~/stores/thread-selectors";
 import {
   clearLastChatRouteTarget,
@@ -40,8 +46,8 @@ export function ChatThreadRouteView() {
     select: (params) => resolveThreadRouteRef(params),
   });
   const navigate = useNavigate();
-  const bootstrapComplete = useStore(
-    (store) => selectEnvironmentState(store, threadRef?.environmentId ?? null).bootstrapComplete,
+  const snapshotSource = useStore((store) =>
+    selectEnvironmentSnapshotSource(store, threadRef?.environmentId ?? null),
   );
   const serverThread = useStore(useMemo(() => createThreadSelectorByRef(threadRef), [threadRef]));
   const threadExists = useStore((store) => selectThreadExistsByRef(store, threadRef));
@@ -63,6 +69,7 @@ export function ChatThreadRouteView() {
   const routeThreadExists = threadExists || draftThreadExists;
   const serverThreadStarted = threadHasStarted(serverThread);
   const environmentHasAnyThreads = environmentHasServerThreads || environmentHasDraftThreads;
+  const hasRenderableSnapshot = snapshotSource !== "none";
 
   if (!threadRef) {
     throw new Error("Thread route rendered without thread route params.");
@@ -70,14 +77,14 @@ export function ChatThreadRouteView() {
 
   const threadRouteKey = threadRouteRefKey(threadRef);
 
-  if (!bootstrapComplete) {
+  if (!hasRenderableSnapshot) {
     return (
       <ChatThreadRouteSync
-        key={`${threadRouteKey}:bootstrap:false`}
-        bootstrapComplete={bootstrapComplete}
+        key={`${threadRouteKey}:source:${snapshotSource}`}
         environmentHasAnyThreads={environmentHasAnyThreads}
         navigate={navigate}
         routeThreadExists={routeThreadExists}
+        snapshotSource={snapshotSource}
         threadRef={threadRef}
       />
     );
@@ -86,11 +93,13 @@ export function ChatThreadRouteView() {
   if (!routeThreadExists) {
     return (
       <ChatThreadRouteSync
-        key={`${threadRouteKey}:missing:${environmentHasAnyThreads ? "any" : "empty"}`}
-        bootstrapComplete={bootstrapComplete}
+        key={`${threadRouteKey}:missing:${snapshotSource}:${
+          environmentHasAnyThreads ? "any" : "empty"
+        }`}
         environmentHasAnyThreads={environmentHasAnyThreads}
         navigate={navigate}
         routeThreadExists={routeThreadExists}
+        snapshotSource={snapshotSource}
         threadRef={threadRef}
       />
     );
@@ -99,14 +108,14 @@ export function ChatThreadRouteView() {
   return (
     <>
       <ChatThreadRouteSync
-        key={`${threadRouteKey}:exists`}
-        bootstrapComplete={bootstrapComplete}
+        key={`${threadRouteKey}:exists:${snapshotSource}`}
         environmentHasAnyThreads={environmentHasAnyThreads}
         navigate={navigate}
         routeThreadExists={routeThreadExists}
+        snapshotSource={snapshotSource}
         threadRef={threadRef}
       />
-      {serverThreadStarted && draftThread?.promotedTo ? (
+      {snapshotSource === "server" && serverThreadStarted && draftThread?.promotedTo ? (
         <PromotedDraftFinalizer key={`${threadRouteKey}:promoted`} threadRef={threadRef} />
       ) : null}
       <ChatThreadMainPanel threadRef={threadRef} />
@@ -115,19 +124,23 @@ export function ChatThreadRouteView() {
 }
 
 function ChatThreadRouteSync(props: {
-  readonly bootstrapComplete: boolean;
   readonly environmentHasAnyThreads: boolean;
   readonly navigate: ReturnType<typeof useNavigate>;
   readonly routeThreadExists: boolean;
+  readonly snapshotSource: EnvironmentSnapshotSource;
   readonly threadRef: ThreadRouteRef;
 }) {
   useMountEffect(() => {
-    if (!props.bootstrapComplete) {
+    if (props.snapshotSource === "none") {
       return;
     }
 
     if (props.routeThreadExists) {
       writeLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
+      return;
+    }
+
+    if (props.snapshotSource !== "server") {
       return;
     }
 

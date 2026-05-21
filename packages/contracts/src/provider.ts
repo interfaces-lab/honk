@@ -121,6 +121,7 @@ export const ProviderEvent = Schema.Struct({
   requestId: Schema.optional(ApprovalRequestId),
   requestKind: Schema.optional(ProviderRequestKind),
   textDelta: Schema.optional(Schema.String),
+  providerConversationId: Schema.optional(TrimmedNonEmptyString),
   payload: Schema.optional(Schema.Unknown),
 });
 export type ProviderEvent = typeof ProviderEvent.Type;

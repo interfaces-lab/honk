@@ -607,7 +607,6 @@ function shouldSuppressChildConversationNotification(
     method === "thread/closed" ||
     method === "thread/compacted" ||
     method === "thread/name/updated" ||
-    method === "thread/tokenUsage/updated" ||
     method === "turn/started" ||
     method === "turn/completed" ||
     method === "turn/plan/updated" ||
@@ -838,6 +837,12 @@ export const makeCodexSessionRuntime = (
         }
 
         yield* Ref.set(collabReceiverTurnsRef, collabReceiverTurns);
+        const providerConversationId = (() => {
+          if (!childParentTurnId || notification.method !== "thread/tokenUsage/updated") {
+            return undefined;
+          }
+          return readNotificationThreadId(notification);
+        })();
         yield* emitEvent({
           kind: "notification",
           threadId: options.threadId,
@@ -846,6 +851,7 @@ export const makeCodexSessionRuntime = (
           ...(itemId ? { itemId } : {}),
           ...(requestId ? { requestId } : {}),
           ...(requestKind ? { requestKind } : {}),
+          ...(providerConversationId ? { providerConversationId } : {}),
           ...(notification.method === "item/agentMessage/delta"
             ? { textDelta: notification.params.delta }
             : {}),

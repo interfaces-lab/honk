@@ -736,6 +736,9 @@ function mapToRuntimeEvents(
         ...runtimeEventBase(event, canonicalThreadId),
         payload: {
           usage: normalizedUsage,
+          ...(event.providerConversationId
+            ? { providerThreadId: event.providerConversationId }
+            : {}),
         },
       },
     ];

@@ -432,6 +432,25 @@ function runtimeEventToActivities(
         return [];
       }
 
+      const providerThreadId = event.payload.providerThreadId;
+      if (providerThreadId) {
+        return [
+          {
+            id: event.eventId,
+            createdAt: event.createdAt,
+            tone: "info",
+            kind: "subagent.usage.updated",
+            summary: "Subagent context updated",
+            payload: {
+              ...payload,
+              providerThreadId,
+            },
+            turnId: toTurnId(event.turnId) ?? null,
+            ...maybeSequence,
+          },
+        ];
+      }
+
       return [
         {
           id: event.eventId,

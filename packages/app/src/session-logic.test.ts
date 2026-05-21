@@ -1449,6 +1449,49 @@ describe("deriveWorkLogEntries", () => {
       "tool-task-1",
     ]);
   });
+
+  it("merges subagent usage updates onto collab subagent rows", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "subagent-start",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          data: {
+            item: {
+              receiverThreadIds: ["codex-subagent-thread-1"],
+              receiverAgents: [{ threadId: "codex-subagent-thread-1", nickname: "reviewer" }],
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-usage",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.usage.updated",
+        summary: "Subagent context updated",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          usedTokens: 4200,
+          maxTokens: 128_000,
+          usedPercentage: 3.28125,
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]).toMatchObject({
+      providerThreadId: "codex-subagent-thread-1",
+      usedTokens: 4200,
+      maxTokens: 128_000,
+      usedPercentage: 3.28125,
+    });
+  });
 });
 
 describe("deriveTimelineEntries", () => {

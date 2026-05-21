@@ -40,6 +40,9 @@ describe("appearance reduce-transparency tokens", () => {
       /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-color-chat:\s*var\(--multi-color-chat-opaque\)/,
     );
     expect(tokensCss).toMatch(
+      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-chat-surface-background:\s*var\(--multi-color-chat-opaque\)/,
+    );
+    expect(tokensCss).toMatch(
       /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-workbench-editor-surface-background:\s*var\(--multi-color-editor-opaque\)/,
     );
     expect(tokensCss).toMatch(
@@ -76,6 +79,9 @@ describe("appearance reduce-transparency tokens", () => {
     );
     expect(conversationCss).toContain(
       'body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+    );
+    expect(conversationCss).toMatch(
+      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*background:\s*var\(--multi-chat-bubble-opaque-background\)/,
     );
     expect(conversationCss).toContain(
       'body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-slash-menu-popup',

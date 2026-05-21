@@ -510,9 +510,9 @@ html.multi-reduce-transparency {
   --multi-sidebar-surface-background: var(--multi-color-sidebar-opaque);
   --multi-chat-surface-background: var(--multi-color-chat-opaque);
   --multi-composer-blur: 0px;
-  --multi-bg-secondary: color-mix(in oklch, var(--foreground) 14%, transparent);
-  --multi-bg-secondary-wash: color-mix(in srgb, var(--multi-bg-secondary) 72%, transparent);
-  --multi-bg-tertiary: color-mix(in oklch, var(--foreground) 8%, transparent);
-  --multi-bg-quaternary: color-mix(in oklch, var(--foreground) 6%, transparent);
-  --multi-bg-quinary: color-mix(in oklch, var(--foreground) 4%, transparent);
+  --multi-bg-secondary: color-mix(in oklch, var(--foreground) 14%, var(--background));
+  --multi-bg-secondary-wash: var(--multi-bg-secondary);
+  --multi-bg-tertiary: color-mix(in oklch, var(--foreground) 8%, var(--background));
+  --multi-bg-quaternary: color-mix(in oklch, var(--foreground) 6%, var(--background));
+  --multi-bg-quinary: color-mix(in oklch, var(--foreground) 4%, var(--background));
 }

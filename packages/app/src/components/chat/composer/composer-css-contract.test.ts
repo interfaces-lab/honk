@@ -7,6 +7,10 @@ const composerDir = resolve(__dirname);
 const stylesDir = resolve(composerDir, "../../../styles");
 const conversationCss = readFileSync(resolve(stylesDir, "conversation.css"), "utf8");
 const inputSource = readFileSync(resolve(composerDir, "input.tsx"), "utf8");
+const contextUsageBarSource = readFileSync(
+  resolve(composerDir, "composer-context-usage-bar.tsx"),
+  "utf8",
+);
 const promptEditorSource = readFileSync(resolve(composerDir, "prompt-editor.tsx"), "utf8");
 const queuedItemsPanelSource = readFileSync(resolve(composerDir, "queued-items-panel.tsx"), "utf8");
 const slashMenuSource = readFileSync(resolve(composerDir, "slash-menu.tsx"), "utf8");
@@ -58,12 +62,16 @@ describe("Composer queue contract", () => {
     expect(block).not.toContain("hasQueuedComposerItems");
   });
 
-  it("renders the queue as a compact badge instead of an always-expanded panel", () => {
+  it("renders the queue as a tray when expanded or running, otherwise as a compact badge", () => {
     expect(queuedItemsPanelSource).toContain("export const QueuedComposerItemsBadge");
+    expect(queuedItemsPanelSource).toContain("export const QueuedComposerItemsTray");
     expect(queuedItemsPanelSource).toContain("export const QueuedComposerEditBanner");
     expect(queuedItemsPanelSource).not.toMatch(/export const QueuedComposerItemsPanel\b/);
     expect(inputSource).toContain("QueuedComposerItemsBadge");
+    expect(inputSource).toContain("QueuedComposerItemsTray");
     expect(inputSource).toContain("QueuedComposerEditBanner");
+    expect(inputSource).toContain("showQueuedComposerTray");
+    expect(inputSource).toContain("showQueuedComposerBadge");
   });
 
   it("uses queue action strings", () => {
@@ -72,6 +80,8 @@ describe("Composer queue contract", () => {
     expect(queuedItemsPanelSource).toContain('"Remove from queue"');
     expect(queuedItemsPanelSource).toContain("Editing queued message");
     expect(queuedItemsPanelSource).toContain('"Queued"');
+    expect(queuedItemsPanelSource).toContain('data-queue-action="edit"');
+    expect(conversationCss).toContain("--multi-composer-queue-max-height: 200px");
   });
 });
 
@@ -145,6 +155,16 @@ describe("Composer surface contract", () => {
 
   it("does not hardcode composer shell blur in input.tsx", () => {
     expect(inputSource).not.toMatch(/backdrop-blur/);
+  });
+
+  it("renders context usage below the composer and hides it when not scrolled to bottom", () => {
+    expect(conversationCss).toContain("--multi-composer-context-usage-bar-max-height: 24px");
+    expect(conversationCss).toContain(
+      ":not([data-scrolled-to-bottom]) [data-composer-context-usage-bar]",
+    );
+    expect(contextUsageBarSource).toContain("data-composer-context-usage-bar");
+    expect(inputSource).toContain("ComposerContextUsageBar");
+    expect(inputSource).not.toContain("ContextWindowMeter");
   });
 
   it("moves slash menu blur to conversation.css", () => {

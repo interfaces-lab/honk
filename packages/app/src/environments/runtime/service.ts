@@ -28,6 +28,12 @@ import { providerQueryKeys } from "~/lib/provider-react-query";
 import { getPrimaryKnownEnvironment } from "../primary";
 import { createEnvironmentConnection, type EnvironmentConnection } from "./connection";
 import {
+  forgetLiveShellSnapshot,
+  readCachedShellSnapshot,
+  rememberLiveShellEvent,
+  rememberLiveShellSnapshot,
+} from "./local-shell-snapshot-cache";
+import {
   useStore,
   selectProjectByRef,
   selectProjectsAcrossEnvironments,
@@ -729,6 +735,7 @@ function applyShellEvent(event: OrchestrationShellStreamEvent, environmentId: En
 
   useStore.getState().applyShellEvent(event, environmentId);
   markAppliedProjectionEvent(environmentId, event.sequence);
+  rememberLiveShellEvent(environmentId, event);
 
   switch (event.kind) {
     case "project-upserted":
@@ -772,6 +779,7 @@ function createEnvironmentConnectionHandlers() {
       }
 
       useStore.getState().syncServerShellSnapshot(snapshot, environmentId);
+      rememberLiveShellSnapshot(environmentId, snapshot);
       markAppliedProjectionSnapshot(environmentId, snapshot);
       reconcileThreadDetailSubscriptionsForEnvironment(
         environmentId,
@@ -796,6 +804,17 @@ function createEnvironmentConnectionHandlers() {
       useTerminalStateStore.getState().applyTerminalEvent(threadRef, event);
     },
   };
+}
+
+function hydrateCachedShellSnapshot(environmentId: EnvironmentId): void {
+  const snapshot = readCachedShellSnapshot(environmentId);
+  if (!snapshot) {
+    return;
+  }
+
+  useStore.getState().syncCachedShellSnapshot(snapshot, environmentId);
+  syncProjectUiFromStore();
+  syncThreadUiFromStore();
 }
 
 function createPrimaryEnvironmentClient(
@@ -829,6 +848,7 @@ async function removeConnection(environmentId: EnvironmentId): Promise<boolean> 
 
   disposeThreadDetailSubscriptionsForEnvironment(environmentId);
   lastAppliedProjectionVersionByEnvironment.delete(environmentId);
+  forgetLiveShellSnapshot(environmentId);
   environmentConnections.delete(environmentId);
   emitEnvironmentConnectionRegistryChange();
   await connection.dispose();
@@ -946,7 +966,8 @@ export function startEnvironmentConnectionService(queryClient: QueryClient): () 
     },
   );
 
-  createPrimaryEnvironmentConnection();
+  const connection = createPrimaryEnvironmentConnection();
+  hydrateCachedShellSnapshot(connection.environmentId);
 
   activeService = {
     queryClient,

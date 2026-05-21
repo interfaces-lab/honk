@@ -1,5 +1,6 @@
 import {
   ContextMenuItemSchema,
+  DesktopActiveWorkStateSchema,
   DesktopAppBrandingSchema,
   DesktopEnvironmentBootstrapSchema,
   DesktopThemeSchema,
@@ -11,6 +12,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as DesktopBackendManager from "../../backend/DesktopBackendManager";
+import * as DesktopActiveWork from "../../app/DesktopActiveWork";
 import * as DesktopEnvironment from "../../app/DesktopEnvironment";
 import * as DesktopAppSettings from "../../settings/DesktopAppSettings";
 import * as DesktopWindow from "../../window/DesktopWindow";
@@ -79,6 +81,16 @@ export const getWindowChromeState = makeSyncIpcMethod({
         onSome: (value) => value.isFullScreen(),
       }),
     };
+  }),
+});
+
+export const setActiveWorkState = makeIpcMethod({
+  channel: IpcChannels.SET_ACTIVE_WORK_STATE_CHANNEL,
+  payload: DesktopActiveWorkStateSchema,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.setActiveWorkState")(function* (state) {
+    const activeWork = yield* DesktopActiveWork.DesktopActiveWork;
+    yield* activeWork.set(state);
   }),
 });
 

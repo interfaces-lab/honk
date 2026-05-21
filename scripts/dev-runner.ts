@@ -323,50 +323,6 @@ export function resolveModePortOffsets<R = NetService>({
     const checkPort = (checkPortAvailability ??
       defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
 
-    if (mode === "dev:desktop") {
-      const { serverPort, webPort } = portPairForOffset(startOffset);
-      if (
-        (!hasExplicitServerPort && serverPort > MAX_PORT) ||
-        (!hasExplicitDevUrl && webPort > MAX_PORT)
-      ) {
-        return yield* new DevRunnerError({
-          message: `dev:desktop port offset ${startOffset} exceeds the maximum port ${MAX_PORT}.`,
-        });
-      }
-
-      const requiredChecks: Array<Effect.Effect<string | undefined, never, R>> = [];
-
-      if (!hasExplicitServerPort) {
-        requiredChecks.push(
-          checkPort(serverPort).pipe(
-            Effect.map((available) => (available ? undefined : `backend port ${serverPort}`)),
-          ),
-        );
-      }
-
-      if (!hasExplicitDevUrl) {
-        requiredChecks.push(
-          checkPort(webPort).pipe(
-            Effect.map((available) => (available ? undefined : `web port ${webPort}`)),
-          ),
-        );
-      }
-
-      const unavailablePorts = (yield* Effect.all(requiredChecks)).filter(
-        (port): port is string => port !== undefined,
-      );
-
-      if (unavailablePorts.length > 0) {
-        const subject = unavailablePorts.join(" and ");
-        const verb = unavailablePorts.length === 1 ? "is" : "are";
-        return yield* new DevRunnerError({
-          message: `dev:desktop requires fixed dev ports, but ${subject} ${verb} already in use. Stop the existing desktop dev runner or set MULTI_PORT_OFFSET/MULTI_DEV_INSTANCE.`,
-        });
-      }
-
-      return { serverOffset: startOffset, webOffset: startOffset };
-    }
-
     if (mode === "dev:app") {
       if (hasExplicitDevUrl) {
         return { serverOffset: startOffset, webOffset: startOffset };
@@ -483,9 +439,11 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
         stderr: "inherit",
         env,
         extendEnv: false,
+        // Windows needs shell mode to resolve .cmd shims (e.g. pnpm.cmd).
+        shell: process.platform === "win32",
         // Keep turbo in the same process group so terminal signals (Ctrl+C)
-        // reach it directly. Effect defaults to detached: true, which would put
-        // turbo in a new group and require manual forwarding.
+        // reach it directly. Effect defaults to detached: true on non-Windows,
+        // which would put turbo in a new group and require manual forwarding.
         detached: false,
         forceKillAfter: "1500 millis",
       },

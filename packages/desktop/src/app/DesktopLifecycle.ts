@@ -6,10 +6,13 @@ import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
 
+import type * as Electron from "electron";
+
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopObservability from "./DesktopObservability";
 import * as ElectronApp from "../electron/ElectronApp";
 import * as ElectronTheme from "../electron/ElectronTheme";
+import * as DesktopQuitGuard from "./DesktopQuitGuard";
 import * as DesktopState from "./DesktopState";
 import * as DesktopWindow from "../window/DesktopWindow";
 
@@ -47,6 +50,7 @@ export const layerShutdown = Layer.effect(DesktopShutdown, makeShutdown);
 export type DesktopLifecycleRuntimeServices =
   | DesktopEnvironment.DesktopEnvironment
   | DesktopShutdown
+  | DesktopQuitGuard.DesktopQuitGuard
   | DesktopState.DesktopState
   | DesktopWindow.DesktopWindow
   | ElectronApp.ElectronApp
@@ -110,6 +114,37 @@ function triggerShutdown(
   );
 }
 
+const requestQuitAfterPreventingDefault = Effect.fn(
+  "desktop.lifecycle.requestQuitAfterPreventingDefault",
+)(function* (runningThreadCount: number) {
+  const quitGuard = yield* DesktopQuitGuard.DesktopQuitGuard;
+  const confirmation = yield* quitGuard.confirmPreventedQuit(runningThreadCount);
+
+  if (confirmation === "alreadyPrompting") {
+    return;
+  }
+
+  if (confirmation === "canceled") {
+    yield* logLifecycleInfo("quit canceled because threads are still running", {
+      runningThreadCount,
+    });
+    return;
+  }
+
+  const app = yield* ElectronApp.ElectronApp;
+  const state = yield* DesktopState.DesktopState;
+  yield* quitGuard.allowQuit;
+  yield* Ref.set(state.quitting, true);
+  const shutdown = yield* DesktopShutdown;
+  if (runningThreadCount > 0) {
+    yield* logLifecycleInfo("quit confirmed with running threads", { runningThreadCount });
+  } else {
+    yield* logLifecycleInfo("beforeQuit");
+  }
+  yield* shutdown.request;
+  yield* app.quit;
+});
+
 function quitFromSignal(
   signal: "SIGINT" | "SIGTERM",
   runEffect: <A, E>(effect: Effect.Effect<A, E, DesktopLifecycleRuntimeServices>) => Promise<A>,
@@ -165,15 +200,28 @@ export const layer = Layer.succeed(
       const electronApp = yield* ElectronApp.ElectronApp;
       const electronTheme = yield* ElectronTheme.ElectronTheme;
       const environment = yield* DesktopEnvironment.DesktopEnvironment;
+      const quitGuard = yield* DesktopQuitGuard.DesktopQuitGuard;
       const context = yield* Effect.context<DesktopLifecycleRuntimeServices>();
       const runEffect = Effect.runPromiseWith(context);
+      const runSync = Effect.runSyncWith(context);
       yield* electronTheme.onUpdated(() => {
         void runEffect(
           desktopWindow.syncAppearance.pipe(Effect.withSpan("desktop.lifecycle.themeUpdated")),
         );
       });
-      yield* electronApp.on("before-quit", () => {
-        triggerShutdown(runEffect, "beforeQuit");
+      yield* electronApp.on<[Electron.Event]>("before-quit", (event) => {
+        const decision = runSync(quitGuard.evaluateBeforeQuit);
+        if (decision.type === "allow") {
+          triggerShutdown(runEffect, decision.reason);
+          return;
+        }
+
+        event.preventDefault();
+        void runEffect(
+          requestQuitAfterPreventingDefault(decision.runningThreadCount).pipe(
+            Effect.withSpan("desktop.lifecycle.beforeQuit"),
+          ),
+        );
       });
       yield* electronApp.on("will-quit", () => {
         triggerShutdown(runEffect, "willQuit");

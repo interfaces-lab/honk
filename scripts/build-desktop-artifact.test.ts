@@ -13,7 +13,7 @@ import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 
 it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   it("uses the configured desktop packaging product name", () => {
-    assert.equal(resolveDesktopProductName(), "Multi (Alpha)");
+    assert.equal(resolveDesktopProductName(), "Multi");
   });
 
   it("uses production desktop packaging icons", () => {

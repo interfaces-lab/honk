@@ -937,10 +937,11 @@ export function commitEnvironmentState(
   };
 }
 
-export function applyShellSnapshot(
+function applyShellSnapshotWithSource(
   state: EnvironmentState,
   snapshot: OrchestrationShellSnapshot,
   environmentId: EnvironmentId,
+  source: "cache" | "server",
 ): EnvironmentState {
   const nextProjects = snapshot.projects.map((project) => mapProject(project, environmentId));
   const nextThreadIds = new Set(snapshot.threads.map((thread) => thread.id));
@@ -968,7 +969,8 @@ export function applyShellSnapshot(
       state.turnDiffSummaryByThreadId,
       nextThreadIds,
     ),
-    bootstrapComplete: true,
+    snapshotSource: source,
+    bootstrapComplete: source === "server",
   };
 
   for (const thread of snapshot.threads) {
@@ -976,6 +978,14 @@ export function applyShellSnapshot(
   }
 
   return nextState;
+}
+
+export function applyShellSnapshot(
+  state: EnvironmentState,
+  snapshot: OrchestrationShellSnapshot,
+  environmentId: EnvironmentId,
+): EnvironmentState {
+  return applyShellSnapshotWithSource(state, snapshot, environmentId, "server");
 }
 
 export function syncServerShellSnapshot(
@@ -987,6 +997,23 @@ export function syncServerShellSnapshot(
     state,
     environmentId,
     applyShellSnapshot(getStoredEnvironmentState(state, environmentId), snapshot, environmentId),
+  );
+}
+
+export function syncCachedShellSnapshot(
+  state: AppState,
+  snapshot: OrchestrationShellSnapshot,
+  environmentId: EnvironmentId,
+): AppState {
+  const environmentState = getStoredEnvironmentState(state, environmentId);
+  if (environmentState.snapshotSource === "server") {
+    return state;
+  }
+
+  return commitEnvironmentState(
+    state,
+    environmentId,
+    applyShellSnapshotWithSource(environmentState, snapshot, environmentId, "cache"),
   );
 }
 

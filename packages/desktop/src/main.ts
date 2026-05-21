@@ -19,6 +19,7 @@ import * as ElectronTheme from "./electron/ElectronTheme";
 import * as ElectronUpdater from "./electron/ElectronUpdater";
 import * as ElectronWindow from "./electron/ElectronWindow";
 import * as DesktopApp from "./app/DesktopApp";
+import * as DesktopActiveWork from "./app/DesktopActiveWork";
 import * as DesktopAppIdentity from "./app/DesktopAppIdentity";
 import * as DesktopApplicationMenu from "./window/DesktopApplicationMenu";
 import * as DesktopAssets from "./app/DesktopAssets";
@@ -27,6 +28,7 @@ import * as DesktopBackendManager from "./backend/DesktopBackendManager";
 import * as DesktopEnvironment from "./app/DesktopEnvironment";
 import * as DesktopLifecycle from "./app/DesktopLifecycle";
 import * as DesktopObservability from "./app/DesktopObservability";
+import * as DesktopQuitGuard from "./app/DesktopQuitGuard";
 import * as DesktopServerExposure from "./backend/DesktopServerExposure";
 import * as DesktopClientSettings from "./settings/DesktopClientSettings";
 import * as DesktopAppSettings from "./settings/DesktopAppSettings";
@@ -63,6 +65,7 @@ const electronLayer = Layer.mergeAll(
 );
 
 const desktopFoundationLayer = Layer.mergeAll(
+  DesktopActiveWork.layer,
   DesktopState.layer,
   DesktopLifecycle.layerShutdown,
   DesktopAppSettings.layer,
@@ -86,6 +89,7 @@ const desktopBackendLayer = DesktopBackendManager.layer.pipe(
 
 const desktopApplicationLayer = Layer.mergeAll(
   DesktopLifecycle.layer,
+  DesktopQuitGuard.layer,
   DesktopApplicationMenu.layer,
   DesktopShellEnvironment.layer,
 ).pipe(Layer.provideMerge(DesktopUpdates.layer), Layer.provideMerge(desktopBackendLayer));

@@ -33,6 +33,7 @@ import {
   setError,
   setThreadBranch,
   syncServerShellSnapshot,
+  syncCachedShellSnapshot,
   syncServerThreadDetail,
 } from "./thread-sync";
 
@@ -44,8 +45,11 @@ export {
   setError,
   setThreadBranch,
   syncServerShellSnapshot,
+  syncCachedShellSnapshot,
   syncServerThreadDetail,
 } from "./thread-sync";
+
+export type EnvironmentSnapshotSource = "none" | "cache" | "server";
 
 export interface EnvironmentState {
   projectIds: ProjectId[];
@@ -65,6 +69,7 @@ export interface EnvironmentState {
   turnDiffIdsByThreadId: Record<ThreadId, TurnId[]>;
   turnDiffSummaryByThreadId: Record<ThreadId, Record<TurnId, TurnDiffSummary>>;
   sidebarThreadSummaryById: Record<ThreadId, SidebarThreadSummary>;
+  snapshotSource: EnvironmentSnapshotSource;
   bootstrapComplete: boolean;
 }
 
@@ -91,6 +96,7 @@ export const initialEnvironmentState: EnvironmentState = {
   turnDiffIdsByThreadId: {},
   turnDiffSummaryByThreadId: {},
   sidebarThreadSummaryById: {},
+  snapshotSource: "none",
   bootstrapComplete: false,
 };
 
@@ -211,6 +217,13 @@ export function selectBootstrapCompleteForActiveEnvironment(state: AppState): bo
   return selectEnvironmentState(state, state.activeEnvironmentId).bootstrapComplete;
 }
 
+export function selectEnvironmentSnapshotSource(
+  state: AppState,
+  environmentId: EnvironmentId | null | undefined,
+): EnvironmentSnapshotSource {
+  return selectEnvironmentState(state, environmentId).snapshotSource;
+}
+
 export function selectProjectByRef(
   state: AppState,
   ref: ScopedProjectRef | null | undefined,
@@ -263,6 +276,10 @@ interface AppStore extends AppState {
     snapshot: OrchestrationShellSnapshot,
     environmentId: EnvironmentId,
   ) => void;
+  syncCachedShellSnapshot: (
+    snapshot: OrchestrationShellSnapshot,
+    environmentId: EnvironmentId,
+  ) => void;
   syncServerThreadDetail: (thread: OrchestrationThread, environmentId: EnvironmentId) => void;
   applyOrchestrationEvent: (event: OrchestrationEvent, environmentId: EnvironmentId) => void;
   applyOrchestrationEvents: (
@@ -284,6 +301,8 @@ export const useStore = create<AppStore>((set) => ({
     set((state) => setActiveEnvironmentId(state, environmentId)),
   syncServerShellSnapshot: (snapshot, environmentId) =>
     set((state) => syncServerShellSnapshot(state, snapshot, environmentId)),
+  syncCachedShellSnapshot: (snapshot, environmentId) =>
+    set((state) => syncCachedShellSnapshot(state, snapshot, environmentId)),
   syncServerThreadDetail: (thread, environmentId) =>
     set((state) => syncServerThreadDetail(state, thread, environmentId)),
   applyOrchestrationEvent: (event, environmentId) =>

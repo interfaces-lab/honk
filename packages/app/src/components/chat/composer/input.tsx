@@ -91,12 +91,13 @@ import {
   type ComposerInputHandle,
   type ComposerInputProps,
 } from "./input-contract";
-import { QueuedComposerEditBanner, QueuedComposerItemsBadge } from "./queued-items-panel";
-import { ContextWindowMeter } from "./context-window-meter";
 import {
-  deriveLatestContextWindowSnapshot,
-  type ContextWindowSnapshot,
-} from "../../../lib/context-window";
+  QueuedComposerEditBanner,
+  QueuedComposerItemsBadge,
+  QueuedComposerItemsTray,
+} from "./queued-items-panel";
+import { ComposerContextUsageBar } from "./composer-context-usage-bar";
+import { deriveLatestContextWindowSnapshot } from "../../../lib/context-window";
 import { formatProviderSkillDisplayName } from "./provider-skills";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
@@ -1106,7 +1107,6 @@ const ComposerFooter = memo(function ComposerFooter(props: {
   interactionMode: ProviderInteractionMode;
   isDockComposerExpanded: boolean;
   primaryActionState: {
-    activeContextWindow: ContextWindowSnapshot | null;
     pendingAction: ComposerFooterPendingAction;
     isRunning: boolean;
     showPlanFollowUpPrompt: boolean;
@@ -1199,9 +1199,6 @@ const ComposerFooter = memo(function ComposerFooter(props: {
         data-chat-input-primary-actions-compact={primaryActionsCompact ? "true" : "false"}
         className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
       >
-        {!dockSingleRow && props.primaryActionState.activeContextWindow ? (
-          <ContextWindowMeter usage={props.primaryActionState.activeContextWindow} />
-        ) : null}
         {!dockSingleRow && props.primaryActionState.isPreparingWorktree ? (
           <span className="hidden select-none text-muted-foreground/70 text-xs sm:inline">
             Preparing worktree...
@@ -2105,6 +2102,9 @@ export const ComposerInput = memo(
     ) : null;
     const showQueuedComposerItems =
       hasQueuedComposerItems && !isComposerApprovalState && pendingUserInputs.length === 0;
+    const showQueuedComposerTray =
+      showQueuedComposerItems && (isDockComposerExpanded || phase === "running");
+    const showQueuedComposerBadge = showQueuedComposerItems && !showQueuedComposerTray;
     const providerModelPicker = (
       <ProviderModelPicker
         compact={isDockComposerSingleLine}
@@ -2257,6 +2257,17 @@ export const ComposerInput = memo(
                   </button>
                 </>
               ) : null}
+              {showQueuedComposerTray ? (
+                <QueuedComposerItemsTray
+                  items={queuedComposerItems}
+                  editingItemId={editingQueuedComposerItemId}
+                  isBusy={isConnecting || isSendBusy}
+                  onBeginEdit={handleBeginEditQueuedComposerItem}
+                  onCancelEdit={handleCancelEditingQueuedComposerItem}
+                  onRemove={handleRemoveQueuedComposerItem}
+                  onSendNow={handleSendQueuedComposerItemNow}
+                />
+              ) : null}
               {isEditingQueuedComposerItem ? (
                 <QueuedComposerEditBanner onCancelEdit={handleCancelEditingQueuedComposerItem} />
               ) : null}
@@ -2346,7 +2357,7 @@ export const ComposerInput = memo(
                   inlineEdit={isInlineEditComposer}
                   isDockComposerExpanded={isDockComposerExpanded}
                   queuedComposerBadge={
-                    showQueuedComposerItems ? (
+                    showQueuedComposerBadge ? (
                       <QueuedComposerItemsBadge
                         items={queuedComposerItems}
                         editingItemId={editingQueuedComposerItemId}
@@ -2367,7 +2378,6 @@ export const ComposerInput = memo(
                   interactionMode={interactionMode}
                   runtimeMode={runtimeMode}
                   primaryActionState={{
-                    activeContextWindow: visibleContextWindow,
                     pendingAction: pendingPrimaryAction,
                     isRunning: phase === "running",
                     showPlanFollowUpPrompt:
@@ -2394,6 +2404,9 @@ export const ComposerInput = memo(
               )}
             </div>
           </div>
+          {!isInlineEditComposer && visibleContextWindow ? (
+            <ComposerContextUsageBar usage={visibleContextWindow} />
+          ) : null}
         </div>
         <ComposerCommandMenuPositioned
           open={composerMenuOpen && !isComposerApprovalState}
