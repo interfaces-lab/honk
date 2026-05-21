@@ -1,6 +1,7 @@
 import {
   type ModelCapabilities,
   ProviderDriverKind,
+  type ProviderOptionDescriptor,
   type ServerProviderModel,
 } from "@multi/contracts";
 import { createModelCapabilities, normalizeModelSlug } from "@multi/shared/model";
@@ -8,17 +9,29 @@ import { createModelCapabilities, normalizeModelSlug } from "@multi/shared/model
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({
   optionDescriptors: [],
 });
+const CURSOR_FAST_MODE_DESCRIPTOR: Extract<ProviderOptionDescriptor, { type: "boolean" }> = {
+  id: "fastMode",
+  label: "Fast Mode",
+  type: "boolean",
+};
 
 function isCursorComposerModel(provider: ProviderDriverKind, slug: string | null | undefined) {
   return provider === ProviderDriverKind.make("cursor") && slug?.startsWith("composer-") === true;
 }
 
-function getCursorComposerModelCapabilities(capabilities: ModelCapabilities): ModelCapabilities {
+function getCursorComposerModelCapabilities(
+  capabilities: ModelCapabilities,
+  slug: string | null | undefined,
+): ModelCapabilities {
   const fastModeDescriptor = capabilities.optionDescriptors?.find(
     (descriptor) => descriptor.type === "boolean" && descriptor.id === "fastMode",
   );
   return createModelCapabilities({
-    optionDescriptors: fastModeDescriptor ? [fastModeDescriptor] : [],
+    optionDescriptors: fastModeDescriptor
+      ? [fastModeDescriptor]
+      : slug?.endsWith("-fast")
+        ? []
+        : [CURSOR_FAST_MODE_DESCRIPTOR],
   });
 }
 
@@ -39,7 +52,7 @@ export function getProviderModelCapabilities(
   const capabilities =
     models.find((candidate) => candidate.slug === slug)?.capabilities ?? EMPTY_CAPABILITIES;
   if (isCursorComposerModel(provider, slug)) {
-    return getCursorComposerModelCapabilities(capabilities);
+    return getCursorComposerModelCapabilities(capabilities, slug);
   }
   return capabilities;
 }
