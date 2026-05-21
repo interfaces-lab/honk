@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, watch } from "node:fs";
+import { mkdirSync, readFileSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -29,6 +29,8 @@ const watchedDirectories = [
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;
 const childTreeGracePeriodMs = 1_200;
+const staleProcessTerminateGraceMs = 2_000;
+const staleProcessPollIntervalMs = 50;
 
 await waitForResources({
   baseDir: desktopDir,
@@ -54,6 +56,7 @@ function resolveDevUserDataDir() {
 
 const devUserDataDir = resolveDevUserDataDir();
 mkdirSync(devUserDataDir, { recursive: true });
+const devSupervisorPidPath = join(devUserDataDir, "dev-electron.pid");
 
 let shuttingDown = false;
 let restartTimer = null;
@@ -70,12 +73,146 @@ function killChildTreeByPid(pid, signal) {
   spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
 }
 
-function cleanupStaleDevApps() {
-  if (process.platform === "win32") {
+function parsePid(value) {
+  const pid = Number.parseInt(value.trim(), 10);
+  return Number.isInteger(pid) && pid > 1 ? pid : null;
+}
+
+function readSupervisorPid() {
+  try {
+    return parsePid(readFileSync(devSupervisorPidPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
+function signalProcessTree(pid, signal) {
+  if (pid === process.pid || !Number.isInteger(pid) || pid <= 1) {
     return;
   }
 
-  spawnSync("pkill", ["-f", "--", `--multi-dev-root=${desktopDir}`], { stdio: "ignore" });
+  try {
+    process.kill(pid, signal);
+  } catch (error) {
+    return;
+  }
+  killChildTreeByPid(pid, signal);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms).unref();
+  });
+}
+
+async function waitForPidsToExit(pids, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (pids.every((pid) => !isPidAlive(pid))) {
+      return;
+    }
+    await sleep(staleProcessPollIntervalMs);
+  }
+}
+
+async function stopPids(pids) {
+  const targets = [...new Set(pids)].filter((pid) => pid !== process.pid && pid > 1);
+  if (targets.length === 0) {
+    return;
+  }
+
+  for (const pid of targets) {
+    signalProcessTree(pid, "SIGTERM");
+  }
+  await waitForPidsToExit(targets, staleProcessTerminateGraceMs);
+
+  for (const pid of targets) {
+    if (isPidAlive(pid)) {
+      signalProcessTree(pid, "SIGKILL");
+    }
+  }
+}
+
+function findStaleDevProcessPids() {
+  if (process.platform === "win32") {
+    return { appPids: [], ownerPids: [] };
+  }
+
+  const result = spawnSync("ps", ["-axo", "pid=,ppid=,command="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+
+  if (result.status !== 0) {
+    return { appPids: [], ownerPids: [] };
+  }
+
+  const marker = `--multi-dev-root=${desktopDir}`;
+  const appPids = new Set();
+  const ownerPids = new Set();
+
+  for (const line of result.stdout.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+    if (!match) {
+      continue;
+    }
+
+    const command = match[3];
+    if (!command.includes(marker)) {
+      continue;
+    }
+
+    const pid = Number.parseInt(match[1], 10);
+    const ppid = Number.parseInt(match[2], 10);
+    if (pid !== process.pid && pid > 1) {
+      appPids.add(pid);
+    }
+    if (ppid !== process.pid && ppid > 1) {
+      ownerPids.add(ppid);
+    }
+  }
+
+  return {
+    appPids: [...appPids],
+    ownerPids: [...ownerPids],
+  };
+}
+
+async function cleanupStaleDevProcesses() {
+  await stopPids([readSupervisorPid()].filter((pid) => pid !== null));
+
+  const staleProcesses = findStaleDevProcessPids();
+  await stopPids(staleProcesses.ownerPids);
+
+  const remainingProcesses = findStaleDevProcessPids();
+  await stopPids(remainingProcesses.appPids);
+}
+
+function writeSupervisorPid() {
+  writeFileSync(devSupervisorPidPath, `${process.pid}\n`);
+}
+
+function removeSupervisorPid() {
+  const supervisorPid = readSupervisorPid();
+  if (supervisorPid !== process.pid) {
+    return;
+  }
+
+  try {
+    unlinkSync(devSupervisorPidPath);
+  } catch {
+    // The pid file is advisory. Shutdown should not fail if another process already removed it.
+  }
 }
 
 function startApp() {
@@ -231,8 +368,10 @@ async function shutdown(exitCode) {
 }
 
 startWatchers();
-cleanupStaleDevApps();
+await cleanupStaleDevProcesses();
+writeSupervisorPid();
 startApp();
+process.once("exit", removeSupervisorPid);
 
 process.once("SIGINT", () => {
   void shutdown(130);

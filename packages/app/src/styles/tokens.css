@@ -47,6 +47,8 @@
 :root:not(.dark) {
   color-scheme: light;
   --app-background: var(--background);
+  --multi-vibrancy-sidebar-mix: calc(32% + (100 - var(--multi-transparency, 18)) * 0.24%);
+  --multi-vibrancy-chat-mix: calc(72% + (100 - var(--multi-transparency, 18)) * 0.12%);
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.256 0.006 270);
@@ -450,11 +452,6 @@ html.dark {
  * Vibrancy surface layer — scoped to shell root; vibrancy-on mixes follow Cursor bands,
  * slider shifts within each band. Reduce transparency forces opaque semantic remaps.
  */
-:root:not(.dark) {
-  --multi-vibrancy-sidebar-mix: calc(32% + (100 - var(--multi-transparency, 18)) * 0.24%);
-  --multi-vibrancy-chat-mix: calc(72% + (100 - var(--multi-transparency, 18)) * 0.12%);
-}
-
 body[data-cursor-glass-mode="true"] [data-component="root"] {
   --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);
   --multi-vibrancy-off-chat-surface-background: var(--multi-color-chat-opaque);
@@ -505,7 +502,6 @@ html.multi-reduce-transparency {
   --multi-color-bubble: var(--multi-color-bubble-opaque);
   --multi-color-menubar: var(--multi-color-menubar-opaque);
   --multi-chat-bubble-background: var(--multi-chat-bubble-opaque-background);
-  --multi-chat-surface-background: var(--multi-color-chat-opaque);
   --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
   --multi-workbench-surface-background: var(--multi-color-surface-opaque);
   --multi-bg-elevated: var(--multi-color-elevated-opaque);

@@ -32,6 +32,7 @@
   --multi-workbench-chrome-icon-padding-x: 3px;
   --multi-workbench-action-size: 22px;
   --multi-workbench-tab-label-max-width: 200px;
+  --multi-composer-menu-collision-padding-top: 8px;
 }
 
 [data-electron] {
@@ -40,10 +41,6 @@
     var(--multi-electron-traffic-inset)
   );
   --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 26px);
-}
-
-:root {
-  --multi-composer-menu-collision-padding-top: 8px;
 }
 
 [data-shell-platform="electron"] {
@@ -382,7 +379,7 @@ body.multi-reduce-transparency[data-cursor-glass-mode="true"] .editor-panel-tab-
   line-height: var(--multi-sidebar-label-leading);
 }
 
-.agent-window-chat-header [data-slot="button"]:before {
+.agent-window-chat-header [data-slot="button"]::before {
   display: none;
 }
 

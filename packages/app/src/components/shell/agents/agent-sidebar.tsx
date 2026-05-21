@@ -4,6 +4,7 @@ import type { ScopedThreadRef } from "@multi/contracts";
 import { IconArchive1, IconChevronRightMedium, IconFolder1, IconFolderOpen, IconPin, IconUnpin } from "central-icons";
 import {
   type ComponentProps,
+  type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
   memo,
@@ -37,6 +38,17 @@ const pageStep = 8;
 const nearViewportPrefetchLimit = 12;
 const sidebarThreadPrewarmLimit = 10;
 const EMPTY_VISIBLE_THREAD_REFS: readonly ScopedThreadRef[] = [];
+
+type SidebarDropPosition = "before" | "after";
+
+type SidebarDragPayload = {
+  sectionId: string;
+  projectOrderKeys: readonly string[];
+};
+
+type SidebarDropTarget = SidebarDragPayload & {
+  position: SidebarDropPosition;
+};
 
 export interface AgentSidebarProps {
   sections: SidebarSectionModel[];
@@ -451,6 +463,12 @@ const AgentSidebarThreadItem = memo(
 function AgentSidebarSection(props: {
   section: SidebarSectionModel;
   selectedId: string | null;
+  dragPayload: SidebarDragPayload | null;
+  dropTarget: SidebarDropTarget | null;
+  onSidebarDragEnd: (event: DragEvent<HTMLElement>) => void;
+  onSidebarDragOver: (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => void;
+  onSidebarDragStart: (event: DragEvent<HTMLElement>, payload: SidebarDragPayload) => void;
+  onSidebarDrop: (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => void;
   onSelectAgent: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
   onPrefetchAgent?: (id: string) => void;
@@ -492,6 +510,13 @@ function AgentSidebarSection(props: {
     visible < section.items.length;
   const canCreateAgent = section.canCreateAgent ?? true;
   const canOpenInEditor = section.canOpenInEditor ?? true;
+  const projectOrderKeys = section.projectOrderKeys ?? [];
+  const canReorderProject = projectOrderKeys.length > 0 && section.id !== "pinned";
+  const projectDropPosition =
+    props.dropTarget?.sectionId === section.id
+      ? props.dropTarget.position
+      : null;
+  const draggingProject = props.dragPayload?.sectionId === section.id;
   const canRemoveProject =
     section.environmentId !== undefined &&
     section.projectId !== undefined &&
@@ -577,7 +602,36 @@ function AgentSidebarSection(props: {
   }, [open, section.projectStateKey, setProjectExpanded]);
 
   return (
-    <section className="flex w-full min-w-0 select-none flex-col" data-agent-sidebar-section="">
+    <section
+      className={cn(
+        "relative flex w-full min-w-0 select-none flex-col",
+        draggingProject && "opacity-45",
+      )}
+      data-agent-sidebar-section=""
+      onDragOver={(event) => {
+        if (!canReorderProject) return;
+        props.onSidebarDragOver(event, {
+          sectionId: section.id,
+          projectOrderKeys,
+        });
+      }}
+      onDrop={(event) => {
+        if (!canReorderProject) return;
+        props.onSidebarDrop(event, {
+          sectionId: section.id,
+          projectOrderKeys,
+        });
+      }}
+    >
+      {projectDropPosition ? (
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-2 z-10 h-px rounded-full bg-multi-stroke-focused",
+            projectDropPosition === "before" ? "top-0" : "bottom-0",
+          )}
+        />
+      ) : null}
       {onPrefetchAgent ? (
         <SectionPrefetchSync
           key={`${section.id}:${prefetchAgentVersion}:${prefetchItemsKey}`}
@@ -606,8 +660,18 @@ function AgentSidebarSection(props: {
             className={cn(
               "overflow-hidden group-data-[popup-open]/sidebar-section:bg-multi-bg-quaternary group-data-[popup-open]/sidebar-section:text-multi-fg-primary [@media(hover:hover)]:hover:text-multi-fg-primary",
               section.active ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
+              canReorderProject && "[-webkit-user-drag:element]",
             )}
             data-agent-sidebar-section-title=""
+            draggable={canReorderProject}
+            onDragEnd={props.onSidebarDragEnd}
+            onDragStart={(event) => {
+              if (!canReorderProject) return;
+              props.onSidebarDragStart(event, {
+                sectionId: section.id,
+                projectOrderKeys,
+              });
+            }}
           >
             <button
               id={labelId}
@@ -734,9 +798,93 @@ function SectionVisibleThreadRefsSync({
 }
 
 function AgentSidebarBody(props: AgentSidebarProps) {
+  const reorderProjects = useUiStateStore((store) => store.reorderProjects);
+  const [dragPayload, setDragPayload] = useState<SidebarDragPayload | null>(null);
+  const [dropTarget, setDropTarget] = useState<SidebarDropTarget | null>(null);
   const [visibleThreadRefsBySectionId, setVisibleThreadRefsBySectionId] = useState<
     Record<string, readonly ScopedThreadRef[]>
   >({});
+  const onSidebarDragStart = useCallback(
+    (event: DragEvent<HTMLElement>, payload: SidebarDragPayload) => {
+      event.stopPropagation();
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", payload.sectionId);
+      setDragPayload(payload);
+      setDropTarget(null);
+    },
+    [],
+  );
+  const onSidebarDragEnd = useCallback(() => {
+    setDragPayload(null);
+    setDropTarget(null);
+  }, []);
+  const onSidebarDragOver = useCallback(
+    (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => {
+      if (
+        !dragPayload ||
+        dragPayload.sectionId === target.sectionId ||
+        target.projectOrderKeys.length === 0
+      ) {
+        setDropTarget(null);
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+
+      const previousPosition =
+        dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const y = event.clientY - rect.top;
+      const position =
+        y < rect.height * 0.4
+          ? "before"
+          : y > rect.height * 0.6
+            ? "after"
+            : (previousPosition ?? (y < rect.height / 2 ? "before" : "after"));
+
+      setDropTarget((current) => {
+        if (current?.sectionId === target.sectionId && current.position === position) {
+          return current;
+        }
+        return { ...target, position };
+      });
+    },
+    [dragPayload, dropTarget],
+  );
+  const onSidebarDrop = useCallback(
+    (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => {
+      if (
+        !dragPayload ||
+        dragPayload.sectionId === target.sectionId ||
+        target.projectOrderKeys.length === 0
+      ) {
+        setDropTarget(null);
+        return;
+      }
+
+      let position =
+        dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
+      if (!position) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        position = event.clientY - rect.top > rect.height / 2 ? "after" : "before";
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      reorderProjects(
+        dragPayload.projectOrderKeys,
+        target.projectOrderKeys,
+        position === "after",
+      );
+
+      setDragPayload(null);
+      setDropTarget(null);
+    },
+    [dragPayload, dropTarget, reorderProjects],
+  );
   const onVisibleThreadRefsChange = useCallback(
     (sectionId: string, threadRefs: readonly ScopedThreadRef[]) => {
       setVisibleThreadRefsBySectionId((current) => {
@@ -787,6 +935,12 @@ function AgentSidebarBody(props: AgentSidebarProps) {
           key={section.id}
           section={section}
           selectedId={props.selectedId}
+          dragPayload={dragPayload}
+          dropTarget={dropTarget}
+          onSidebarDragEnd={onSidebarDragEnd}
+          onSidebarDragOver={onSidebarDragOver}
+          onSidebarDragStart={onSidebarDragStart}
+          onSidebarDrop={onSidebarDrop}
           onSelectAgent={props.onSelectAgent}
           onVisibleThreadRefsChange={onVisibleThreadRefsChange}
           {...(props.onNewAgent ? { onNewAgent: props.onNewAgent } : {})}

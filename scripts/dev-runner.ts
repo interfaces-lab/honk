@@ -323,6 +323,50 @@ export function resolveModePortOffsets<R = NetService>({
     const checkPort = (checkPortAvailability ??
       defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
 
+    if (mode === "dev:desktop") {
+      const { serverPort, webPort } = portPairForOffset(startOffset);
+      if (
+        (!hasExplicitServerPort && serverPort > MAX_PORT) ||
+        (!hasExplicitDevUrl && webPort > MAX_PORT)
+      ) {
+        return yield* new DevRunnerError({
+          message: `dev:desktop port offset ${startOffset} exceeds the maximum port ${MAX_PORT}.`,
+        });
+      }
+
+      const requiredChecks: Array<Effect.Effect<string | undefined, never, R>> = [];
+
+      if (!hasExplicitServerPort) {
+        requiredChecks.push(
+          checkPort(serverPort).pipe(
+            Effect.map((available) => (available ? undefined : `backend port ${serverPort}`)),
+          ),
+        );
+      }
+
+      if (!hasExplicitDevUrl) {
+        requiredChecks.push(
+          checkPort(webPort).pipe(
+            Effect.map((available) => (available ? undefined : `web port ${webPort}`)),
+          ),
+        );
+      }
+
+      const unavailablePorts = (yield* Effect.all(requiredChecks)).filter(
+        (port): port is string => port !== undefined,
+      );
+
+      if (unavailablePorts.length > 0) {
+        const subject = unavailablePorts.join(" and ");
+        const verb = unavailablePorts.length === 1 ? "is" : "are";
+        return yield* new DevRunnerError({
+          message: `dev:desktop requires fixed dev ports, but ${subject} ${verb} already in use. Stop the existing desktop dev runner or set MULTI_PORT_OFFSET/MULTI_DEV_INSTANCE.`,
+        });
+      }
+
+      return { serverOffset: startOffset, webOffset: startOffset };
+    }
+
     if (mode === "dev:app") {
       if (hasExplicitDevUrl) {
         return { serverOffset: startOffset, webOffset: startOffset };

@@ -48,7 +48,7 @@ import {
 } from "~/stores/shell-panels-store";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { writeStoredProjectCwd } from "~/lib/project-state";
-import { deriveLogicalProjectKey } from "~/stores/project-identity";
+import { deriveLogicalProjectKey, getProjectOrderKey } from "~/stores/project-identity";
 import { buildPlanImplementationPrompt } from "~/plan/proposed-plan";
 import {
   buildProjectChatSections,
@@ -354,6 +354,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   );
   const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
   const pinnedThreadKeys = useUiStateStore((store) => store.pinnedThreadKeys);
+  const projectOrder = useUiStateStore((store) => store.projectOrder);
   const {
     activeDraftThread,
     activeThread: routeActiveThread,
@@ -767,21 +768,61 @@ function ChatShellHost(props: { children?: ReactNode }) {
     const projectStateKeyByCwd = new Map(
       projects.map((project) => [project.cwd, deriveLogicalProjectKey(project)] as const),
     );
+    const projectOrderRank = new Map(projectOrder.map((projectKey, index) => [projectKey, index]));
+    const projectOrderKeysByProjectStateKey = new Map<string, string[]>();
+    for (const project of projects) {
+      const projectStateKey = deriveLogicalProjectKey(project);
+      const orderKeys = projectOrderKeysByProjectStateKey.get(projectStateKey);
+      if (orderKeys) {
+        orderKeys.push(getProjectOrderKey(project));
+      } else {
+        projectOrderKeysByProjectStateKey.set(projectStateKey, [getProjectOrderKey(project)]);
+      }
+    }
+    const projectCwds = projects
+      .map((project, index) => ({
+        cwd: project.cwd,
+        index,
+        orderIndex: projectOrderRank.get(getProjectOrderKey(project)) ?? Number.MAX_SAFE_INTEGER,
+      }))
+      .toSorted((left, right) => {
+        const byOrder = left.orderIndex - right.orderIndex;
+        if (byOrder !== 0) return byOrder;
+        return left.index - right.index;
+      })
+      .map((project) => project.cwd);
     return buildProjectChatSections(
       summaries,
       drafts,
       activeCwd,
       null,
       unreadIds,
-      projects.map((project) => project.cwd),
+      projectCwds,
       pinnedThreadKeySet,
     ).map((section) => {
       const projectStateKey = section.projectCwd
         ? projectStateKeyByCwd.get(section.projectCwd)
         : undefined;
-      return projectStateKey ? Object.assign(section, { projectStateKey }) : section;
+      const projectOrderKeys = projectStateKey
+        ? projectOrderKeysByProjectStateKey.get(projectStateKey)
+        : undefined;
+      if (!projectStateKey) {
+        return section;
+      }
+      if (!projectOrderKeys) {
+        return Object.assign(section, { projectStateKey });
+      }
+      return Object.assign(section, { projectOrderKeys, projectStateKey });
     });
-  }, [activeCwd, drafts, pinnedThreadKeySet, projects, summaries, unreadIds]);
+  }, [
+    activeCwd,
+    drafts,
+    pinnedThreadKeySet,
+    projectOrder,
+    projects,
+    summaries,
+    unreadIds,
+  ]);
 
   const create = useCallback(
     (cwd?: string) => {

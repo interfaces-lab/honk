@@ -87,6 +87,7 @@ export interface SidebarSectionModel {
   environmentId?: EnvironmentId;
   projectId?: ProjectId;
   projectCwd?: string;
+  projectOrderKeys?: readonly string[];
   projectStateKey?: string;
   sectionThreadRefs: readonly ScopedThreadRef[];
   threadRefs: readonly ScopedThreadRef[];
