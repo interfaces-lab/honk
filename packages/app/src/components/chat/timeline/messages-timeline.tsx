@@ -179,7 +179,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       rows.length > renderedRowsLengthRef.current &&
       !isAtBottomRef.current
     ) {
-      pendingScrollTopRestoreRef.current = scrollSnapshotRef.current.scrollTop;
+      pendingScrollTopRestoreRef.current =
+        scrollElementRef.current?.scrollTop ?? scrollSnapshotRef.current.scrollTop;
     }
     renderedRowsLengthRef.current = rows.length;
   }
