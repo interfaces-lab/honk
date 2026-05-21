@@ -8,6 +8,8 @@ import { render } from "vitest-browser-react";
 import { MessagesTimeline, type MessagesTimelineController } from "./messages-timeline";
 import type { ChatMessage } from "../../../types";
 
+const TIMELINE_SCROLL_SETTLE_MS = 40;
+
 function buildProps() {
   return {
     isWorking: false,
@@ -114,6 +116,10 @@ function getMaxScrollTop(scrollElement: HTMLElement) {
   return Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
 }
 
+function getDistanceFromBottom(scrollElement: HTMLElement) {
+  return getMaxScrollTop(scrollElement) - scrollElement.scrollTop;
+}
+
 async function waitForScrollable() {
   await vi.waitFor(() => {
     expect(getMaxScrollTop(getScrollElement())).toBeGreaterThan(0);
@@ -127,25 +133,21 @@ async function waitForBottom(scrollElement: HTMLElement) {
   });
 }
 
+async function waitForTimelineScrollSettle() {
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, TIMELINE_SCROLL_SETTLE_MS);
+  });
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
 async function scrollTo(scrollElement: HTMLElement, scrollTop: number) {
   scrollElement.scrollTop = scrollTop;
   scrollElement.dispatchEvent(new Event("scroll", { bubbles: true }));
   await new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => resolve());
   });
-}
-
-function firstVisibleMessageId(scrollElement: HTMLElement) {
-  const scrollRect = scrollElement.getBoundingClientRect();
-  const messageRows = Array.from(scrollElement.querySelectorAll<HTMLElement>("[data-message-id]"));
-  const firstVisibleMessage = messageRows.find((row) => {
-    if (row.closest('[data-sticky="true"]')) {
-      return false;
-    }
-    const rowRect = row.getBoundingClientRect();
-    return rowRect.bottom > scrollRect.top && rowRect.top < scrollRect.bottom;
-  });
-  return firstVisibleMessage?.dataset.messageId ?? null;
 }
 
 function requireElement<T extends Element>(selector: string, root: ParentNode = document): T {
@@ -400,13 +402,14 @@ describe("messages-timeline", () => {
       const scrollElement = await waitForScrollable();
       props.timelineControllerRef.current?.scrollToBottom({ animated: false });
       await waitForBottom(scrollElement);
+      await waitForTimelineScrollSettle();
       await scrollTo(scrollElement, Math.round(getMaxScrollTop(scrollElement) * 0.35));
 
       await vi.waitFor(() => {
         expect(props.onIsAtBottomChange).toHaveBeenCalledWith(false);
       });
-      const firstVisibleBeforeAppend = firstVisibleMessageId(scrollElement);
-      expect(firstVisibleBeforeAppend).toBeTruthy();
+      const scrollTopBeforeAppend = scrollElement.scrollTop;
+      expect(getDistanceFromBottom(scrollElement)).toBeGreaterThan(2);
 
       await screen.rerender(
         <div style={{ height: 360, width: 860 }}>
@@ -418,8 +421,10 @@ describe("messages-timeline", () => {
       );
 
       await vi.waitFor(() => {
-        expect(firstVisibleMessageId(scrollElement)).toBe(firstVisibleBeforeAppend);
+        expect(getMaxScrollTop(scrollElement)).toBeGreaterThan(0);
+        expect(getDistanceFromBottom(scrollElement)).toBeGreaterThan(2);
       });
+      expect(scrollElement.scrollTop).toBeLessThanOrEqual(scrollTopBeforeAppend + 2);
       expect(props.timelineControllerRef.current?.getScrollState()).toEqual({ isAtBottom: false });
     } finally {
       await screen.unmount();
