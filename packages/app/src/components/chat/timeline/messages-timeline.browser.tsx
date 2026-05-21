@@ -417,10 +417,9 @@ describe("messages-timeline", () => {
         </div>,
       );
 
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
+      await vi.waitFor(() => {
+        expect(firstVisibleMessageId(scrollElement)).toBe(firstVisibleBeforeAppend);
       });
-      expect(firstVisibleMessageId(scrollElement)).toBe(firstVisibleBeforeAppend);
       expect(props.timelineControllerRef.current?.getScrollState()).toEqual({ isAtBottom: false });
     } finally {
       await screen.unmount();
