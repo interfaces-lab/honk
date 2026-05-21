@@ -46,10 +46,7 @@ export function SettingsNavRail(props: { onBack: () => void }) {
           </SidebarItem>
         </div>
       </div>
-      <nav
-        className="flex min-h-0 flex-1 flex-col gap-px px-2 pb-1.5"
-        aria-label="Settings"
-      >
+      <nav className="flex min-h-0 flex-1 flex-col gap-px px-2 pb-1.5" aria-label="Settings">
         {items.map((item) => {
           const Icon = item.icon;
           return (

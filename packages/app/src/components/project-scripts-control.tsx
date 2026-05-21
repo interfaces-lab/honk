@@ -46,7 +46,14 @@ import {
 import { Input } from "@multi/ui/input";
 import { Kbd } from "@multi/ui/kbd";
 import { Label } from "@multi/ui/label";
-import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger, workbenchMenuMetaTextClassName } from "@multi/ui/menu";
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuShortcut,
+  MenuTrigger,
+  workbenchMenuMetaTextClassName,
+} from "@multi/ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
 import { Switch } from "@multi/ui/switch";
 import { Textarea } from "@multi/ui/textarea";
@@ -513,7 +520,9 @@ export default function ProjectScriptsControl({
                   onCheckedChange={(checked) => setRunOnWorktreeCreate(Boolean(checked))}
                 />
               </label>
-              {validationError && <p className="text-body text-multi-fg-red-primary">{validationError}</p>}
+              {validationError && (
+                <p className="text-body text-multi-fg-red-primary">{validationError}</p>
+              )}
             </form>
           </DialogPanel>
           <DialogFooter className="gap-1.5 px-5 py-3">

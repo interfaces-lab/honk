@@ -119,10 +119,7 @@ import {
   useComposerDraftStore,
   type DraftId as ComposerDraftId,
 } from "../../../stores/chat-drafts";
-import {
-  useComposerQueueStore,
-  type QueuedComposerItem,
-} from "../../../stores/chat-send-queue";
+import { useComposerQueueStore, type QueuedComposerItem } from "../../../stores/chat-send-queue";
 import {
   selectThreadTerminalState,
   type ThreadTerminalLaunchContext,
@@ -156,10 +153,7 @@ import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import { gitCheckoutMutationOptions } from "../../../lib/git-react-query";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
 import { ThreadErrorBanner } from "../message/error-banner";
-import {
-  cloneComposerImageForRetry,
-  resolveSendEnvMode,
-} from "../composer/send";
+import { cloneComposerImageForRetry, resolveSendEnvMode } from "../composer/send";
 import { createQueuedComposerItem } from "./chat-view-send-flow";
 import {
   compileComposerSubmitTurn,
@@ -2252,9 +2246,7 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     const standaloneSlashCommand =
-      composerImages.length === 0
-        ? parseStandaloneComposerSlashCommand(trimmed)
-        : null;
+      composerImages.length === 0 ? parseStandaloneComposerSlashCommand(trimmed) : null;
     if (standaloneSlashCommand) {
       handleInteractionModeChange(standaloneSlashCommand);
       if (clearComposerOnSubmit) {
@@ -2492,8 +2484,7 @@ export default function ChatView(props: ChatViewProps) {
       imageCount: sendContext.images.length,
     });
     const hasPlanFeedbackText = sendContext.prompt.trim().length > 0;
-    const hasOnlyBlankPlanFollowUp =
-      !currentComposerSendState.hasSendableContent;
+    const hasOnlyBlankPlanFollowUp = !currentComposerSendState.hasSendableContent;
     const planFollowUp =
       showPlanFollowUpPrompt &&
       activeProposedPlan &&

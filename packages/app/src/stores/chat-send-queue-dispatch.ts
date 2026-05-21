@@ -115,9 +115,7 @@ export async function dispatchNextQueuedComposerItemForThread(
       titleSeed: thread.title,
       runtimeMode: item.runtimeMode,
       interactionMode: prepared.interactionMode,
-      ...(prepared.sourceProposedPlan
-        ? { sourceProposedPlan: prepared.sourceProposedPlan }
-        : {}),
+      ...(prepared.sourceProposedPlan ? { sourceProposedPlan: prepared.sourceProposedPlan } : {}),
       createdAt: item.createdAt,
     });
   } catch (err) {

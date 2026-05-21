@@ -1,7 +1,14 @@
 import { StatusDot as UiStatusDot } from "@multi/ui/status-dot";
 import { scopedThreadKey, scopeProjectRef } from "@multi/client-runtime";
 import type { ScopedThreadRef } from "@multi/contracts";
-import { IconArchive1, IconChevronRightMedium, IconFolder1, IconFolderOpen, IconPin, IconUnpin } from "central-icons";
+import {
+  IconArchive1,
+  IconChevronRightMedium,
+  IconFolder1,
+  IconFolderOpen,
+  IconPin,
+  IconUnpin,
+} from "central-icons";
 import {
   type ComponentProps,
   type DragEvent,
@@ -20,10 +27,7 @@ import {
   SidebarSectionContextMenu,
   ThreadContextMenu,
 } from "~/components/shell/sidebar/thread-context-menu";
-import {
-  SidebarButton,
-  SidebarItem,
-} from "~/components/shell/shared/sidebar-button";
+import { SidebarButton, SidebarItem } from "~/components/shell/shared/sidebar-button";
 import { resolveAndPersistPreferredEditor } from "~/editor/preferences";
 import { retainThreadDetailSubscription } from "~/environments/runtime/service";
 import { useThreadActions } from "~/hooks/use-thread-actions";
@@ -117,12 +121,7 @@ function stopActionPointerDown(event: MouseEvent<HTMLButtonElement>) {
 
 function SidebarDot(props: { state: UiStatusDotState }) {
   return (
-    <UiStatusDot
-      state={props.state}
-      className="size-4 shrink-0"
-      role="presentation"
-      aria-hidden
-    />
+    <UiStatusDot state={props.state} className="size-4 shrink-0" role="presentation" aria-hidden />
   );
 }
 
@@ -138,14 +137,7 @@ function StatusDot(props: { item: SidebarChatItem }) {
   }
 
   if (props.item.state === "running") {
-    return (
-      <ChatLoaderGlyph
-        aria-hidden
-        maxExtent={16}
-        role="presentation"
-        speed={1.1}
-      />
-    );
+    return <ChatLoaderGlyph aria-hidden maxExtent={16} role="presentation" speed={1.1} />;
   }
 
   return <SidebarDot state={sidebarDotStateForItem(props.item)} />;
@@ -513,9 +505,7 @@ function AgentSidebarSection(props: {
   const projectOrderKeys = section.projectOrderKeys ?? [];
   const canReorderProject = projectOrderKeys.length > 0 && section.id !== "pinned";
   const projectDropPosition =
-    props.dropTarget?.sectionId === section.id
-      ? props.dropTarget.position
-      : null;
+    props.dropTarget?.sectionId === section.id ? props.dropTarget.position : null;
   const draggingProject = props.dragPayload?.sectionId === section.id;
   const canRemoveProject =
     section.environmentId !== undefined &&
@@ -710,9 +700,7 @@ function AgentSidebarSection(props: {
                   />
                 </span>
               </span>
-              <span className="min-w-0 flex-1 truncate text-left">
-                {section.label}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-left">{section.label}</span>
             </button>
             {props.onNewAgent && canCreateAgent ? (
               <button
@@ -865,8 +853,7 @@ function AgentSidebarBody(props: AgentSidebarProps) {
         return;
       }
 
-      let position =
-        dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
+      let position = dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
       if (!position) {
         const rect = event.currentTarget.getBoundingClientRect();
         position = event.clientY - rect.top > rect.height / 2 ? "after" : "before";
@@ -874,11 +861,7 @@ function AgentSidebarBody(props: AgentSidebarProps) {
 
       event.preventDefault();
       event.stopPropagation();
-      reorderProjects(
-        dragPayload.projectOrderKeys,
-        target.projectOrderKeys,
-        position === "after",
-      );
+      reorderProjects(dragPayload.projectOrderKeys, target.projectOrderKeys, position === "after");
 
       setDragPayload(null);
       setDropTarget(null);

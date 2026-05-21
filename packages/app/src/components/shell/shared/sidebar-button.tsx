@@ -42,7 +42,9 @@ export function SidebarButton(
 ) {
   const { variant, className, ...rest } = props;
   if (variant === "item") {
-    return <SidebarItem className={cn("group/sidebar-item relative h-auto", className)} {...rest} />;
+    return (
+      <SidebarItem className={cn("group/sidebar-item relative h-auto", className)} {...rest} />
+    );
   }
 
   return (

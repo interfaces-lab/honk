@@ -80,7 +80,8 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
   const parser = parserFactory.makeUnsafe();
   const serverQueue = yield* Queue.unbounded<RpcMessage.FromClientEncoded>();
   const clientQueue = yield* Queue.unbounded<RpcMessage.FromServerEncoded>();
-  const notificationQueue = yield* Queue.sliding<AcpIncomingNotification>(NOTIFICATION_REPLAY_LIMIT);
+  const notificationQueue =
+    yield* Queue.sliding<AcpIncomingNotification>(NOTIFICATION_REPLAY_LIMIT);
   const disconnects = yield* Queue.unbounded<number>();
   const outgoing = yield* Queue.unbounded<string | Uint8Array, Cause.Done<void>>();
   const nextRequestId = yield* Ref.make(1n);

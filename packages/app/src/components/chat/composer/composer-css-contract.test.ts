@@ -104,7 +104,9 @@ describe("Composer slash menu contract", () => {
     expect(slashMenuSource).toContain("collectProviderSkillItems");
     expect(slashMenuSource).toContain("providerStatuses: ReadonlyArray<ServerProvider>");
     expect(slashMenuSource).toContain('triggerKind === "path"');
-    expect(slashMenuSource).toContain("const shouldSearchProjectEntries = composerTriggerKind === \"path\"");
+    expect(slashMenuSource).toContain(
+      'const shouldSearchProjectEntries = composerTriggerKind === "path"',
+    );
     expect(slashMenuSource).not.toContain("projectListDirectoryQueryOptions");
     expect(slashMenuSource).not.toContain("toPathCommandItems(projectEntries)]");
   });

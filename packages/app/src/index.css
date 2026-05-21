@@ -12,8 +12,8 @@
   --animate-thinking-details-in: thinking-details-in 0.14s ease-out;
   --animate-thinking-glyph: thinking-glyph 2.8s ease-in-out infinite;
   --animate-thinking-word-in: thinking-word-in 0.22s ease-out;
-  --animate-chat-loader-diagonal-sweep: chat-loader-diagonal-sweep
-    var(--chat-loader-duration, 1.2s) ease-in-out infinite;
+  --animate-chat-loader-diagonal-sweep: chat-loader-diagonal-sweep var(--chat-loader-duration, 1.2s)
+    ease-in-out infinite;
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
   --color-success-foreground: var(--success-foreground);

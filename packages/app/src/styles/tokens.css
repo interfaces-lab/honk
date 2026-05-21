@@ -465,9 +465,7 @@ body[data-cursor-glass-mode="true"] [data-component="root"] {
     var(--multi-color-chat-opaque) var(--multi-vibrancy-chat-mix),
     transparent
   );
-  --multi-sidebar-surface-background: var(
-    --multi-vibrancy-off-sidebar-surface-background
-  );
+  --multi-sidebar-surface-background: var(--multi-vibrancy-off-sidebar-surface-background);
   --multi-chat-surface-background: var(--multi-vibrancy-off-chat-surface-background);
   --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
   --multi-color-sidebar: var(--multi-sidebar-surface-background);

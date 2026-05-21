@@ -814,15 +814,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       }
       return Object.assign(section, { projectOrderKeys, projectStateKey });
     });
-  }, [
-    activeCwd,
-    drafts,
-    pinnedThreadKeySet,
-    projectOrder,
-    projects,
-    summaries,
-    unreadIds,
-  ]);
+  }, [activeCwd, drafts, pinnedThreadKeySet, projectOrder, projects, summaries, unreadIds]);
 
   const create = useCallback(
     (cwd?: string) => {

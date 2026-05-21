@@ -1150,11 +1150,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
           : cn(
               "flex w-full items-center justify-between",
               dockExpanded ? "gap-[0.55rem]" : "gap-2",
-              props.inlineEdit
-                ? "px-3 pb-2"
-                : isThreadShell
-                  ? ""
-                  : "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+              props.inlineEdit ? "px-3 pb-2" : isThreadShell ? "" : "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
             ),
       )}
     >

@@ -413,8 +413,7 @@ describe("ProviderRuntimeIngestion", () => {
     });
     await waitForThread(
       harness.engine,
-      (thread) =>
-        thread.session?.status === "ready" && thread.session.activeTurnId === null,
+      (thread) => thread.session?.status === "ready" && thread.session.activeTurnId === null,
     );
 
     harness.emit({

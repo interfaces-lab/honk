@@ -101,7 +101,9 @@ describe("AppShell CSS root contract", () => {
     expect(shellCssSource).toContain("pointer-events: none");
     expect(shellCssSource).toContain("multi-shell-titlebar-controls");
     expect(workbenchChromeRowSource).toContain("pointer-events-none ui-tab-system");
-    expect(workbenchChromeRowSource).toContain("editor-panel-tab-bar-tab-cluster pointer-events-auto");
+    expect(workbenchChromeRowSource).toContain(
+      "editor-panel-tab-bar-tab-cluster pointer-events-auto",
+    );
     expect(appShellSource).toContain("multi-shell-titlebar-controls");
     expect(rightWorkbenchHeaderSource).toContain("editor-panel-tab-bar-spacer drag-region");
     expect(chatHeaderSource).toContain("drag-region pointer-events-auto");
@@ -135,7 +137,9 @@ describe("AppShell CSS root contract", () => {
   });
 
   it("centers titlebar sidebar toggles on the workbench chrome row band", () => {
-    expect(shellCssSource).toContain("--multi-header-height: var(--multi-header-height-user, 34px)");
+    expect(shellCssSource).toContain(
+      "--multi-header-height: var(--multi-header-height-user, 34px)",
+    );
     expect(shellCssSource).toContain("--multi-workbench-chrome-row-height: 34px");
     expect(shellCssSource).toContain("--multi-titlebar-control-height: 22px");
     expect(shellCssSource).toContain("--multi-workbench-action-size: 22px");

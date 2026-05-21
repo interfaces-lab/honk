@@ -33,10 +33,7 @@ interface ComposerQueueStoreState {
   getEditingQueueItemId: (threadKey: string) => MessageId | null;
   enqueueComposerItem: (threadKey: string, item: QueuedComposerItem) => void;
   removeQueuedComposerItem: (threadKey: string, itemId: MessageId) => void;
-  takeQueuedComposerItem: (
-    threadKey: string,
-    itemId: MessageId,
-  ) => QueuedComposerItem | null;
+  takeQueuedComposerItem: (threadKey: string, itemId: MessageId) => QueuedComposerItem | null;
   takeNextQueuedComposerItem: (threadKey: string) => QueuedComposerItem | null;
   restoreQueuedComposerItem: (threadKey: string, item: QueuedComposerItem, index: number) => void;
   beginEditingQueuedComposerItem: (threadKey: string, itemId: MessageId) => void;

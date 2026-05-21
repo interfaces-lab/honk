@@ -145,11 +145,7 @@ function DemoCaption(props: { children: ReactNode }) {
 
 function MockToggle(props: { on?: boolean; label?: string }) {
   return (
-    <span
-      className="inline-flex items-center gap-1.5"
-      role="presentation"
-      aria-hidden="true"
-    >
+    <span className="inline-flex items-center gap-1.5" role="presentation" aria-hidden="true">
       {props.label ? (
         <span className="text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-tertiary">
           {props.label}
@@ -174,7 +170,9 @@ function MockToggle(props: { on?: boolean; label?: string }) {
 
 function MockArchivedRows(props: { compact?: boolean; indent?: boolean }) {
   return (
-    <ul className={cn("space-y-px", props.indent && "border-l border-multi-stroke-quaternary pl-2")}>
+    <ul
+      className={cn("space-y-px", props.indent && "border-l border-multi-stroke-quaternary pl-2")}
+    >
       {MOCK_ARCHIVED_THREADS.map((thread) => (
         <li
           key={thread.id}
@@ -228,10 +226,7 @@ function MockSidebarChrome(props: {
   activeTab?: "agents" | "archive";
 }) {
   return (
-    <div
-      className={cn(demoFrameClass, "flex w-full max-w-[232px] flex-col")}
-      aria-hidden="true"
-    >
+    <div className={cn(demoFrameClass, "flex w-full max-w-[232px] flex-col")} aria-hidden="true">
       <div className="space-y-1.5 border-b border-multi-stroke-quaternary px-2 py-2">
         <div className="flex h-6 items-center gap-1 rounded-multi-control bg-multi-bg-quaternary/70 px-2 text-(length:--multi-text-detail) text-multi-fg-tertiary">
           <IconCollaborationPointerRight className="size-3.5 opacity-50" aria-hidden="true" />
@@ -286,7 +281,9 @@ function Demo01SettingsCurrent() {
       <div className="min-w-0 flex-1 space-y-2 bg-multi-bg-elevated p-3">
         <div className="flex items-center gap-1.5 text-multi-fg-tertiary">
           <IconFolder1 className="size-3.5" aria-hidden="true" />
-          <span className="text-(length:--multi-sidebar-label-size)">{MOCK_ARCHIVED_PROJECT.name}</span>
+          <span className="text-(length:--multi-sidebar-label-size)">
+            {MOCK_ARCHIVED_PROJECT.name}
+          </span>
         </div>
         <MockArchivedRows />
       </div>
@@ -374,7 +371,9 @@ function Demo05ProjectChevron() {
           >
             <IconFolder1 className="size-3.5 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate text-left">{MOCK_ARCHIVED_PROJECT.name}</span>
-            <span className="text-(length:--multi-text-detail) text-multi-fg-quaternary">2 archived</span>
+            <span className="text-(length:--multi-text-detail) text-multi-fg-quaternary">
+              2 archived
+            </span>
             <IconChevronDownMedium className="size-3.5" aria-hidden="true" />
           </button>
           <div className="mt-1 pl-4">
@@ -409,11 +408,7 @@ function Demo07RowSiblingSwitch() {
   return (
     <MockSidebarChrome>
       <div className="space-y-0.5 px-1">
-        <MockAgentRow
-          title="Implement sidebar rows"
-          active
-          trailing={<MockToggle on />}
-        />
+        <MockAgentRow title="Implement sidebar rows" active trailing={<MockToggle on />} />
         <MockArchivedRows compact indent />
         <MockAgentRow title="Other active agent" />
       </div>
@@ -494,7 +489,9 @@ function Demo10SecondaryRail() {
         >
           <IconArchive1 className="size-4" aria-hidden="true" />
         </button>
-        <span className="text-(length:--multi-text-detail) tabular-nums text-multi-fg-tertiary">3</span>
+        <span className="text-(length:--multi-text-detail) tabular-nums text-multi-fg-tertiary">
+          3
+        </span>
       </div>
       <div className={cn(demoFrameClass, "w-[160px] border-l-0 p-2")}>
         <MockArchivedRows compact />
@@ -512,8 +509,7 @@ function Demo11HeaderBadgePopover() {
             type="button"
             className="ml-auto flex h-5 items-center gap-1 rounded-full border border-multi-stroke-secondary bg-multi-bg-quaternary px-2 text-(length:--multi-text-detail) font-medium text-multi-fg-primary"
           >
-            <IconArchive1 className="size-3" aria-hidden="true" />
-            3
+            <IconArchive1 className="size-3" aria-hidden="true" />3
           </button>
         }
       >
@@ -597,7 +593,9 @@ function Demo14CommandPalette() {
             <span className="min-w-0 flex-1 truncate text-(length:--multi-sidebar-label-size) text-multi-fg-primary">
               {t.title}
             </span>
-            <span className="text-(length:--multi-text-detail) text-multi-fg-tertiary">Restore</span>
+            <span className="text-(length:--multi-text-detail) text-multi-fg-tertiary">
+              Restore
+            </span>
           </div>
         ))}
       </div>

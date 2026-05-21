@@ -112,7 +112,8 @@ function DialogFooter({
     <div
       className={cn(
         "flex flex-col-reverse gap-2 px-6 sm:flex-row sm:justify-end sm:rounded-b-[calc(var(--radius-2xl)-1px)]",
-        variant === "default" && "border-t border-multi-stroke-tertiary bg-multi-bg-secondary/60 py-4",
+        variant === "default" &&
+          "border-t border-multi-stroke-tertiary bg-multi-bg-secondary/60 py-4",
         variant === "bare" &&
           "in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pt-3 pt-4 pb-6",
         className,
@@ -126,7 +127,10 @@ function DialogFooter({
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
-      className={cn("font-multi text-title font-semibold leading-none text-multi-fg-primary", className)}
+      className={cn(
+        "font-multi text-title font-semibold leading-none text-multi-fg-primary",
+        className,
+      )}
       data-slot="dialog-title"
       {...props}
     />

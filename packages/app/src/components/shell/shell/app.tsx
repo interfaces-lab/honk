@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  IconSidebar,
-  IconSidebarHiddenLeftWide,
-  IconSidebarHiddenRightWide,
-} from "central-icons";
+import { IconSidebar, IconSidebarHiddenLeftWide, IconSidebarHiddenRightWide } from "central-icons";
 import { TabsPanel, TabsRoot } from "@multi/ui/tabs";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";

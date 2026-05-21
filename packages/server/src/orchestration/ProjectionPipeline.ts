@@ -1028,9 +1028,11 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         case "thread.turn-interrupt-requested": {
           const interruptedTurnId =
             event.payload.turnId ??
-            (yield* projectionThreadRepository.getById({
-              threadId: event.payload.threadId,
-            }).pipe(Effect.map((row) => (Option.isSome(row) ? row.value.latestTurnId : null))));
+            (yield* projectionThreadRepository
+              .getById({
+                threadId: event.payload.threadId,
+              })
+              .pipe(Effect.map((row) => (Option.isSome(row) ? row.value.latestTurnId : null))));
           if (interruptedTurnId === null) {
             return;
           }

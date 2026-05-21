@@ -167,10 +167,7 @@ function useMatrixGridSize(options: {
   return gridSize;
 }
 
-function useChatLoaderPhases(options: {
-  animated: boolean;
-  hoverAnimated: boolean;
-}): {
+function useChatLoaderPhases(options: { animated: boolean; hoverAnimated: boolean }): {
   onMouseEnter: MouseEventHandler<HTMLDivElement>;
   onMouseLeave: MouseEventHandler<HTMLDivElement>;
   phase: ChatLoaderPhase;
@@ -210,11 +207,14 @@ export function ChatLoader({
   ...props
 }: ChatLoaderProps) {
   const reducedMotion = usePrefersReducedMotion();
-  const { phase, onMouseEnter: onLoaderMouseEnter, onMouseLeave: onLoaderMouseLeave } =
-    useChatLoaderPhases({
-      animated: Boolean(animated && !reducedMotion),
-      hoverAnimated: Boolean(hoverAnimated && !reducedMotion),
-    });
+  const {
+    phase,
+    onMouseEnter: onLoaderMouseEnter,
+    onMouseLeave: onLoaderMouseLeave,
+  } = useChatLoaderPhases({
+    animated: Boolean(animated && !reducedMotion),
+    hoverAnimated: Boolean(hoverAnimated && !reducedMotion),
+  });
   const handleMouseEnter = useCallback<MouseEventHandler<HTMLDivElement>>(
     (event) => {
       onMouseEnter?.(event);
@@ -254,7 +254,10 @@ export function ChatLoader({
         reducedMotion={reducedMotion}
         speed={speed}
       />
-      <span className="text-body font-medium thinking-shimmer motion-reduce:animate-none" aria-hidden="true">
+      <span
+        className="text-body font-medium thinking-shimmer motion-reduce:animate-none"
+        aria-hidden="true"
+      >
         {label}
       </span>
     </div>

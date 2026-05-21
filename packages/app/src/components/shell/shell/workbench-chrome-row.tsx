@@ -74,7 +74,9 @@ export function WorkbenchChromeRow(props: {
       {props.end ? (
         <div
           className={
-            props.variant === "tool" ? workbenchChromeRowEndSlotClassName : workbenchChromeRowSlotClassName
+            props.variant === "tool"
+              ? workbenchChromeRowEndSlotClassName
+              : workbenchChromeRowSlotClassName
           }
         >
           {props.end}

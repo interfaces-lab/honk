@@ -48,8 +48,8 @@ function useContextMenuTriggerFocus() {
     const focusTarget =
       trigger.tabIndex >= 0
         ? trigger
-        : trigger.querySelector<HTMLElement>("[tabindex]:not([tabindex='-1'])") ??
-          trigger.querySelector<HTMLElement>("[tabindex]");
+        : (trigger.querySelector<HTMLElement>("[tabindex]:not([tabindex='-1'])") ??
+          trigger.querySelector<HTMLElement>("[tabindex]"));
     focusTarget?.focus({ preventScroll: true });
   }, []);
 
@@ -74,10 +74,7 @@ export function ThreadContextMenu(props: {
       />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50 outline-none" sideOffset={8} align="start">
-          <ContextMenu.Popup
-            data-slot="context-menu-popup"
-            className={cn(popupSurface, "z-50")}
-          >
+          <ContextMenu.Popup data-slot="context-menu-popup" className={cn(popupSurface, "z-50")}>
             <div className="flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1">
               <ContextMenu.Item label="Rename" onClick={props.onRename} className={itemClass}>
                 <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60">
@@ -142,10 +139,7 @@ export function SidebarSectionContextMenu(props: {
       />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50 outline-none" sideOffset={8} align="start">
-          <ContextMenu.Popup
-            data-slot="context-menu-popup"
-            className={cn(popupSurface, "z-50")}
-          >
+          <ContextMenu.Popup data-slot="context-menu-popup" className={cn(popupSurface, "z-50")}>
             <div className="flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1">
               {props.canOpenInEditor ? (
                 <ContextMenu.Item

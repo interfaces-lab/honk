@@ -115,12 +115,6 @@ describe("selectionTouchesMentionBoundary", () => {
 
   it("returns true when selection includes whitespace after a leading mention", () => {
     const prompt = "@AGENTS.md there";
-    expect(
-      selectionTouchesMentionBoundary(
-        prompt,
-        "@AGENTS.md".length,
-        prompt.length,
-      ),
-    ).toBe(true);
+    expect(selectionTouchesMentionBoundary(prompt, "@AGENTS.md".length, prompt.length)).toBe(true);
   });
 });

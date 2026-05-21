@@ -21,7 +21,14 @@ import {
   IconSquareChecklist,
   type CentralIconBaseProps,
 } from "central-icons";
-import { memo, useCallback, useMemo, type ComponentProps, type ComponentType, type RefObject } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type ComponentType,
+  type RefObject,
+} from "react";
 
 import { Popover, PopoverPopup } from "@multi/ui/popover";
 import { cn } from "~/lib/utils";
@@ -415,7 +422,8 @@ export function useComposerCommandMenu(input: {
   highlightedSearchKey: string | null;
 }) {
   const composerTriggerKind = input.composerTrigger?.kind ?? null;
-  const pathTriggerQuery = input.composerTrigger?.kind === "path" ? input.composerTrigger.query : "";
+  const pathTriggerQuery =
+    input.composerTrigger?.kind === "path" ? input.composerTrigger.query : "";
   const shouldSearchProjectEntries = composerTriggerKind === "path";
   const [debouncedPathQuery, pathQueryDebouncer] = useDebouncedValue(
     pathTriggerQuery,
@@ -782,7 +790,9 @@ export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPo
         sideOffset={8}
         className={cn(
           "z-[70] border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
-          menuKind === "mentions" ? "w-64 max-w-[min(16rem,var(--available-width))]" : "w-80 max-w-[min(20rem,var(--available-width))]",
+          menuKind === "mentions"
+            ? "w-64 max-w-[min(16rem,var(--available-width))]"
+            : "w-80 max-w-[min(20rem,var(--available-width))]",
         )}
         data-composer-command-menu-root=""
         data-menu-kind={menuKind}

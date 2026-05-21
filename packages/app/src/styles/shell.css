@@ -354,9 +354,7 @@ body.multi-reduce-transparency[data-cursor-glass-mode="true"] .editor-panel-tab-
 
 [data-electron] .agent-window[data-shell-left-intent="collapsed"] .agent-window-chat-header {
   margin-left: var(--multi-electron-traffic-inset);
-  padding-left: calc(
-    var(--multi-shell-titlebar-control-size) + var(--multi-shell-titlebar-gutter)
-  );
+  padding-left: calc(var(--multi-shell-titlebar-control-size) + var(--multi-shell-titlebar-gutter));
 }
 
 [data-electron]

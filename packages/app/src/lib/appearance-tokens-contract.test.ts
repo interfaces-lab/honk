@@ -5,10 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const tokensCss = readFileSync(resolve(__dirname, "../styles/tokens.css"), "utf8");
 const conversationCss = readFileSync(resolve(__dirname, "../styles/conversation.css"), "utf8");
-const appearanceSettingsSource = readFileSync(
-  resolve(__dirname, "appearance-settings.ts"),
-  "utf8",
-);
+const appearanceSettingsSource = readFileSync(resolve(__dirname, "appearance-settings.ts"), "utf8");
 
 describe("appearance reduce-transparency tokens", () => {
   it("defines opaque surface aliases for sidebar and chat", () => {
@@ -58,8 +55,12 @@ describe("appearance reduce-transparency tokens", () => {
   });
 
   it("toggles reduce transparency on body and html from appearance-settings", () => {
-    expect(appearanceSettingsSource).toContain('body.classList.toggle("multi-reduce-transparency", reduce)');
-    expect(appearanceSettingsSource).toContain('root.classList.toggle("multi-reduce-transparency", reduce)');
+    expect(appearanceSettingsSource).toContain(
+      'body.classList.toggle("multi-reduce-transparency", reduce)',
+    );
+    expect(appearanceSettingsSource).toContain(
+      'root.classList.toggle("multi-reduce-transparency", reduce)',
+    );
     expect(appearanceSettingsSource).toContain('body.classList.toggle("multi-os-vibrancy-on"');
     expect(appearanceSettingsSource).toContain('body.classList.toggle("multi-os-vibrancy-off"');
     expect(appearanceSettingsSource).toContain(
