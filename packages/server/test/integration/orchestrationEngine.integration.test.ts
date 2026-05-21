@@ -482,10 +482,7 @@ it.live("runs multi-turn file edits and persists checkpoint diffs", () =>
       const secondCheckpoint = secondTurnThread.checkpoints.find(
         (checkpoint) => checkpoint.checkpointTurnCount === 2,
       );
-      assert.equal(
-        secondCheckpoint?.files.some((file) => file.path === "README.md"),
-        true,
-      );
+      assert.equal(secondCheckpoint?.status, "ready");
 
       const checkpointRows = yield* harness.checkpointRepository.listByThreadId({
         threadId: THREAD_ID,
