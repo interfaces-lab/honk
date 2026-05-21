@@ -175,6 +175,15 @@ function hasGitAgentStartFailure(thread: Thread, action: GitAgentAction): boolea
   );
 }
 
+function hasGitAgentActionMessage(thread: Thread, handoff: GitAgentActionHandoff): boolean {
+  return thread.messages.some(
+    (message) =>
+      message.role === "user" &&
+      (message.id === handoff.optimisticMessage.id ||
+        resolveGitAgentActionFromPrompt(message.text) === handoff.action),
+  );
+}
+
 function resolveActiveGitAgentHandoff(input: {
   activeRun: GitAgentRun | null;
   activeThread: Thread | null;
@@ -210,7 +219,9 @@ function resolveActiveGitAgentHandoff(input: {
     latestTurnState === "error" ||
     hasGitAgentStartFailure(activeThread, input.orchestrationHandoff.action)
   ) {
-    return null;
+    return hasGitAgentActionMessage(activeThread, input.orchestrationHandoff)
+      ? null
+      : input.orchestrationHandoff;
   }
 
   return input.orchestrationHandoff;

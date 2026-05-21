@@ -339,17 +339,9 @@
  */
 html {
   --multi-chat-surface-background: var(--multi-color-chat);
-  --multi-chat-bubble-translucent-background: color-mix(
-    in srgb,
-    var(--multi-color-chat) 88%,
-    var(--multi-color-editor) 12%
-  );
+  --multi-chat-bubble-translucent-background: var(--multi-chat-surface-background);
   --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
-  --multi-chat-bubble-opaque-background: color-mix(
-    in srgb,
-    var(--multi-color-chat-opaque) 88%,
-    var(--multi-color-editor-opaque) 12%
-  );
+  --multi-chat-bubble-opaque-background: var(--multi-color-chat-opaque);
   --multi-shadow-primary: oklch(0 0 0 / 0.18);
   --multi-shadow-secondary: color-mix(in srgb, var(--multi-shadow-primary) 60%, transparent);
   --multi-shadow-tertiary: color-mix(in srgb, var(--multi-shadow-primary) 30%, transparent);
@@ -392,16 +384,8 @@ html {
     var(--multi-color-editor) 92%,
     transparent
   );
-  --multi-workbench-panel-title-background: color-mix(
-    in srgb,
-    var(--multi-color-editor) 94%,
-    var(--multi-workbench-panel-background) 6%
-  );
-  --multi-workbench-tool-island-background: color-mix(
-    in srgb,
-    var(--multi-workbench-panel-background) 58%,
-    var(--multi-color-editor) 42%
-  );
+  --multi-workbench-panel-title-background: var(--multi-chat-surface-background);
+  --multi-workbench-tool-island-background: var(--multi-chat-surface-background);
   --multi-workbench-card-background: color-mix(
     in srgb,
     var(--multi-color-sidebar) 14%,
@@ -458,16 +442,6 @@ html {
 
 html.dark {
   --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
-  --multi-chat-bubble-translucent-background: color-mix(
-    in srgb,
-    color-mix(in srgb, var(--multi-color-chat) 88%, var(--multi-color-editor) 12%) 96%,
-    #fff
-  );
-  --multi-chat-bubble-opaque-background: color-mix(
-    in srgb,
-    color-mix(in srgb, var(--multi-color-chat-opaque) 88%, var(--multi-color-editor-opaque) 12%) 96%,
-    #fff
-  );
   --multi-vibrancy-sidebar-mix: calc(56% + (100 - var(--multi-transparency, 18)) * 0.2%);
   --multi-vibrancy-chat-mix: calc(56% + (100 - var(--multi-transparency, 18)) * 0.16%);
 }
@@ -542,9 +516,9 @@ html.multi-reduce-transparency {
   --multi-sidebar-surface-background: var(--multi-color-sidebar-opaque);
   --multi-chat-surface-background: var(--multi-color-chat-opaque);
   --multi-composer-blur: 0px;
-  --multi-bg-secondary: color-mix(in oklch, var(--foreground) 14%, var(--multi-color-sidebar-opaque));
-  --multi-bg-secondary-wash: var(--multi-bg-secondary);
-  --multi-bg-tertiary: color-mix(in oklch, var(--foreground) 8%, var(--multi-color-sidebar-opaque));
-  --multi-bg-quaternary: color-mix(in oklch, var(--foreground) 6%, var(--multi-color-sidebar-opaque));
-  --multi-bg-quinary: color-mix(in oklch, var(--foreground) 4%, var(--multi-color-sidebar-opaque));
+  --multi-bg-secondary: color-mix(in oklch, var(--foreground) 14%, transparent);
+  --multi-bg-secondary-wash: color-mix(in srgb, var(--multi-bg-secondary) 72%, transparent);
+  --multi-bg-tertiary: color-mix(in oklch, var(--foreground) 8%, transparent);
+  --multi-bg-quaternary: color-mix(in oklch, var(--foreground) 6%, transparent);
+  --multi-bg-quinary: color-mix(in oklch, var(--foreground) 4%, transparent);
 }

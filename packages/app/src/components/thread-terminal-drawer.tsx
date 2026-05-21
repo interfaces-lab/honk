@@ -200,7 +200,6 @@ export function TerminalViewport({
   threadRef,
   threadId,
   terminalId,
-  terminalLabel,
   cwd,
   worktreePath,
   runtimeEnv,

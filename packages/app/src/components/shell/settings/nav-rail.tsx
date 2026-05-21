@@ -9,10 +9,7 @@ import {
 } from "central-icons";
 import type { ComponentType } from "react";
 
-import {
-  SidebarButton,
-  SidebarItem,
-} from "~/components/shell/shared/sidebar-button";
+import { SidebarItem } from "~/components/shell/shared/sidebar-button";
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
 
@@ -38,15 +35,15 @@ export function SettingsNavRail(props: { onBack: () => void }) {
     <div className="flex min-h-0 flex-1 select-none flex-col">
       <div className={cn("shrink-0", isElectron && "no-drag")}>
         <div className="flex flex-col gap-1 px-2 pt-2 pb-1.5">
-          <SidebarButton
-            variant="chrome"
+          <SidebarItem
+            type="button"
             onClick={props.onBack}
-            className="w-full text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+            className="text-multi-fg-secondary hover:text-multi-fg-primary"
             aria-label="Back to chat"
           >
-            <IconChevronLeftMedium className="size-4 shrink-0 opacity-65" />
-            <span className="min-w-0 flex-1 truncate text-left">Back</span>
-          </SidebarButton>
+            <IconChevronLeftMedium className="size-4 shrink-0 opacity-60" />
+            <span className="min-w-0 truncate text-left">Back</span>
+          </SidebarItem>
         </div>
       </div>
       <nav

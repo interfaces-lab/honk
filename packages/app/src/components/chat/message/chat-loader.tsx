@@ -1,8 +1,9 @@
 "use client";
 
 import type { CSSProperties, HTMLAttributes, MouseEventHandler, RefObject } from "react";
-import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { cn } from "~/lib/utils";
 
 const CHAT_LOADER_MAX_GRID = 5;
@@ -149,7 +150,7 @@ function useMatrixGridSize(options: {
     return CHAT_LOADER_MAX_GRID;
   });
 
-  useLayoutEffect(() => {
+  useLayoutSyncEffect(() => {
     if (fitToLineHeight && rootRef.current) {
       const extentPx = rootRef.current.getBoundingClientRect().height;
       const next = resolveGridSizeFromExtent(extentPx, cellSize);

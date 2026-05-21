@@ -888,8 +888,6 @@ export default function ChatView(props: ChatViewProps) {
   );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const openAddProject = useCommandPaletteStore((store) => store.openAddProject);
-  const openProject = useCommandPaletteStore((store) => store.openProject);
   const rawSearch = useSearch({
     strict: false,
     select: (params) => parseDiffRouteSearch(params),
@@ -1075,10 +1073,6 @@ export default function ChatView(props: ChatViewProps) {
   const activeProject = useStore(
     useMemo(() => createProjectSelectorByRef(activeProjectRef), [activeProjectRef]),
   );
-  const openAppearanceSettings = useCallback(() => {
-    void navigate({ to: "/settings/appearance" });
-  }, [navigate]);
-
   const closePullRequestDialog = useCallback(() => {
     setPullRequestDialogState(null);
   }, []);
@@ -2092,7 +2086,6 @@ export default function ChatView(props: ChatViewProps) {
       }
 
       const {
-        prompt: promptForSend,
         images: composerImages,
         selectedModel: ctxSelectedModel,
         selectedModelSelection: ctxSelectedModelSelection,

@@ -87,10 +87,7 @@ export const makeServerEnvironment = Effect.fn("makeServerEnvironment")(function
   return {
     getEnvironmentId: Effect.succeed(environmentId),
     getDescriptor: Ref.get(startupStatusRef).pipe(
-      Effect.map((startupStatus) => ({
-        ...descriptor,
-        startupStatus,
-      })),
+      Effect.map((startupStatus) => Object.assign({}, descriptor, { startupStatus })),
     ),
     markStartupReady: Ref.set(startupStatusRef, "ready"),
   } satisfies ServerEnvironmentShape;

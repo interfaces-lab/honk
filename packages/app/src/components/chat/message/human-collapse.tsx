@@ -2,7 +2,6 @@ import { memo, useCallback, useState, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 const COLLAPSED_MAX_PX = 72;
-const MASK_SOLID_PERCENT = 65;
 
 function measureOverflow(el: HTMLElement): boolean {
   return el.scrollHeight > COLLAPSED_MAX_PX + 1;
@@ -40,15 +39,10 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
   return (
     <div className="min-w-0">
       <div
-        className={cn(collapsed && "max-h-[72px] overflow-hidden")}
-        style={
-          collapsed
-            ? {
-                maskImage: `linear-gradient(to bottom, black ${MASK_SOLID_PERCENT}%, transparent 100%)`,
-                WebkitMaskImage: `linear-gradient(to bottom, black ${MASK_SOLID_PERCENT}%, transparent 100%)`,
-              }
-            : undefined
-        }
+        className={cn(
+          collapsed &&
+            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--multi-chat-bubble-background)_72%,var(--multi-chat-bubble-background)_100%)] after:content-['']",
+        )}
       >
         <div ref={measureElement}>{children}</div>
       </div>

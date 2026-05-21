@@ -58,8 +58,8 @@ export function GitDiffCard(props: {
       ref={rootRef}
       data-diff-card-id={props.file.id}
       className={cn(
-        "@container flex min-h-0 min-w-0 select-none flex-col overflow-hidden border-0 border-b border-multi-workbench-panel-border-muted bg-(--multi-git-diff-editor-background) transition-colors last:border-b-transparent",
-        props.selected && "bg-(--multi-git-diff-editor-background)",
+        "@container flex min-h-0 min-w-0 select-none flex-col overflow-hidden border-0 border-b border-multi-workbench-panel-border-muted bg-(--multi-chat-surface-background) transition-colors last:border-b-transparent",
+        props.selected && "bg-(--multi-chat-surface-background)",
       )}
     >
       {props.expanded ? (

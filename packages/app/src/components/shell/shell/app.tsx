@@ -349,7 +349,7 @@ function ShellHeaderControls(props: {
         <button
           type="button"
           onClick={() => shellPanelsActions.toggleLeft()}
-          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground active:scale-[0.96] transition-transform"
+          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
           aria-label={leftOpen ? "Collapse chats" : "Expand chats"}
         >
           {leftOpen ? (
@@ -364,7 +364,7 @@ function ShellHeaderControls(props: {
           <button
             type="button"
             onClick={() => setRightPanelOpen(!rightOpen)}
-            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-multi-hover hover:text-foreground active:scale-[0.96] transition-transform"
+            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
             aria-label={rightPanelLabel}
             aria-pressed={rightOpen}
             title={rightPanelLabel}

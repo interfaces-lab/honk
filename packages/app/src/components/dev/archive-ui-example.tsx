@@ -6,9 +6,10 @@ import {
   IconFolder1,
   IconMagnifyingGlass,
 } from "central-icons";
-import { type ReactNode, useEffect } from "react";
+import type { ReactNode } from "react";
 
 import { Text } from "@multi/ui/text";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import { cn } from "~/lib/utils";
 
 const MOCK_ARCHIVED_PROJECT = { name: "multi", path: "workgyver/Developer/multi" } as const;
@@ -18,6 +19,12 @@ const MOCK_ARCHIVED_THREADS = [
   { id: "t2", title: "Archive confirmation polish", archivedAgo: "1w ago" },
   { id: "t3", title: "Composer send queue edge cases", archivedAgo: "3w ago" },
 ] as const;
+
+const tabClass = (on: boolean) =>
+  cn(
+    "flex flex-1 items-center justify-center gap-1 rounded-multi-control py-1 text-(length:--multi-text-detail)",
+    on ? "bg-multi-bg-quaternary text-multi-fg-primary" : "text-multi-fg-tertiary",
+  );
 
 /** 20 placement demos — picker label must match `data-uidotsh-option`. */
 const ARCHIVE_PLACEMENT_DEMOS = [
@@ -220,12 +227,6 @@ function MockSidebarChrome(props: {
   headerExtra?: ReactNode;
   activeTab?: "agents" | "archive";
 }) {
-  const tabClass = (on: boolean) =>
-    cn(
-      "flex flex-1 items-center justify-center gap-1 rounded-multi-control py-1 text-(length:--multi-text-detail)",
-      on ? "bg-multi-bg-quaternary text-multi-fg-primary" : "text-multi-fg-tertiary",
-    );
-
   return (
     <div
       className={cn(demoFrameClass, "flex w-full max-w-[232px] flex-col")}
@@ -834,7 +835,7 @@ function ArchivePlacementDemoGallery() {
 }
 
 function useUiPickerScript() {
-  useEffect(() => {
+  useMountEffect(() => {
     if (document.querySelector("script[data-uidotsh-picker]")) {
       return;
     }
@@ -845,7 +846,7 @@ function useUiPickerScript() {
     return () => {
       script.remove();
     };
-  }, []);
+  });
 }
 
 function ArchiveUiExampleNotAvailable() {

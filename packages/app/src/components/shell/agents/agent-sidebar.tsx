@@ -241,6 +241,7 @@ const AgentSidebarThreadItem = memo(
     onPrefetchAgent?: (id: string) => void;
   }) {
     const { commitRename, archiveThread } = useThreadActions();
+    const { item, onSelectAgent } = props;
     const targetThreadRef = props.item.kind === "thread" ? props.item.threadRef : null;
     const markThreadUnread = useUiStateStore((store) => store.markThreadUnread);
     const setThreadPinned = useUiStateStore((store) => store.setThreadPinned);
@@ -249,8 +250,8 @@ const AgentSidebarThreadItem = memo(
     const committedRef = useRef(false);
 
     const selectThread = useCallback(() => {
-      props.onSelectAgent(props.item.id);
-    }, [props.onSelectAgent, props.item.id]);
+      onSelectAgent(item.id);
+    }, [item.id, onSelectAgent]);
 
     const focusRenameInput = useCallback((node: HTMLInputElement | null) => {
       if (!node) return;
