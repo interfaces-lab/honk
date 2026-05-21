@@ -1057,6 +1057,9 @@ describe("composerDraftStore modelSelection", () => {
   it("does not clear other provider options when setting options for a single provider", () => {
     const store = useComposerDraftStore.getState();
 
+    store.setModelSelection(threadRef, modelSelection("codex", "gpt-5.4"));
+    store.setModelSelection(threadRef, modelSelection("claudeAgent", "claude-opus-4-6"));
+
     // Set options for both providers
     store.setModelOptions(
       threadRef,
@@ -1081,6 +1084,9 @@ describe("composerDraftStore modelSelection", () => {
 
   it("preserves other provider options when switching the active model selection", () => {
     const store = useComposerDraftStore.getState();
+
+    store.setModelSelection(threadRef, modelSelection("codex", "gpt-5.4"));
+    store.setModelSelection(threadRef, modelSelection("claudeAgent", "claude-opus-4-6"));
 
     store.setModelOptions(
       threadRef,
@@ -1251,7 +1257,9 @@ describe("composerDraftStore provider-scoped option updates", () => {
         reasoningEffort: "medium",
       }),
     );
-    store.setProviderModelOptions(threadRef, "claudeAgent", toSelections({ effort: "max" }));
+    store.setProviderModelOptions(threadRef, "claudeAgent", toSelections({ effort: "max" }), {
+      model: "claude-opus-4-6",
+    });
     const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
     expect(draft?.modelSelectionByProvider["codex"]).toEqual(
       modelSelection("codex", "gpt-5.3-codex", { reasoningEffort: "medium" }),
