@@ -82,9 +82,17 @@ export type CodexTurnStartParamsWithCollaborationMode =
 const formatSchemaIssue = SchemaIssue.makeFormatterDefault();
 
 export type CodexResumeCursor = typeof CodexResumeCursorSchema.Type;
+export type CodexServiceTier = EffectCodexSchema.V2ThreadStartParams__ServiceTier;
 type CodexThreadItem =
   | EffectCodexSchema.V2ThreadReadResponse["thread"]["turns"][number]["items"][number]
   | EffectCodexSchema.V2ThreadRollbackResponse["thread"]["turns"][number]["items"][number];
+
+export function parseCodexServiceTier(
+  value: string | null | undefined,
+): CodexServiceTier | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "fast" || normalized === "flex" ? normalized : undefined;
+}
 
 export interface CodexSessionRuntimeOptions {
   readonly threadId: ThreadId;
@@ -93,7 +101,7 @@ export interface CodexSessionRuntimeOptions {
   readonly cwd: string;
   readonly runtimeMode: RuntimeMode;
   readonly model?: string;
-  readonly serviceTier?: string | null | undefined;
+  readonly serviceTier?: CodexServiceTier | null | undefined;
   readonly resumeCursor?: CodexResumeCursor;
 }
 
@@ -101,7 +109,7 @@ export interface CodexSessionRuntimeSendTurnInput {
   readonly input?: string;
   readonly attachments?: ReadonlyArray<{ readonly type: "image"; readonly url: string }>;
   readonly model?: string;
-  readonly serviceTier?: string | null | undefined;
+  readonly serviceTier?: CodexServiceTier | null | undefined;
   readonly effort?: EffectCodexSchema.V2TurnStartParams__ReasoningEffort | undefined;
   readonly interactionMode?: ProviderInteractionMode;
 }
@@ -281,14 +289,13 @@ function buildThreadStartParams(input: {
   readonly serviceTier: string | null | undefined;
 }): EffectCodexSchema.V2ThreadStartParams {
   const config = runtimeModeToThreadConfig(input.runtimeMode);
+  const serviceTier = parseCodexServiceTier(input.serviceTier);
   return {
     cwd: input.cwd,
     approvalPolicy: config.approvalPolicy,
     sandbox: config.sandbox,
     ...(input.model ? { model: input.model } : {}),
-    ...(input.serviceTier === "fast" || input.serviceTier === "flex"
-      ? { serviceTier: input.serviceTier }
-      : {}),
+    ...(serviceTier ? { serviceTier } : {}),
   };
 }
 
@@ -364,6 +371,7 @@ export function buildTurnStartParams(input: {
     ...(input.model ? { model: input.model } : {}),
     ...(input.effort ? { effort: input.effort } : {}),
   });
+  const serviceTier = parseCodexServiceTier(input.serviceTier);
 
   return decodeCodexTurnStartParamsWithCollaborationMode({
     threadId: input.threadId,
@@ -371,9 +379,7 @@ export function buildTurnStartParams(input: {
     approvalPolicy: config.approvalPolicy,
     sandboxPolicy: runtimeModeToTurnSandboxPolicy(input.runtimeMode),
     ...(input.model ? { model: input.model } : {}),
-    ...(input.serviceTier === "fast" || input.serviceTier === "flex"
-      ? { serviceTier: input.serviceTier }
-      : {}),
+    ...(serviceTier ? { serviceTier } : {}),
     ...(input.effort ? { effort: input.effort } : {}),
     ...(collaborationMode ? { collaborationMode } : {}),
   }).pipe(
@@ -436,7 +442,7 @@ export const openCodexThread = (input: {
     cwd: input.cwd,
     runtimeMode: input.runtimeMode,
     model: input.requestedModel,
-    serviceTier: input.serviceTier,
+    serviceTier: parseCodexServiceTier(input.serviceTier),
   });
 
   if (resumeThreadId === undefined) {
@@ -1225,13 +1231,14 @@ export const makeCodexSessionRuntime = (
           const normalizedModel = normalizeCodexModelSlug(
             input.model ?? (yield* Ref.get(sessionRef)).model,
           );
+          const serviceTier = parseCodexServiceTier(input.serviceTier);
           const params = yield* buildTurnStartParams({
             threadId: providerThreadId,
             runtimeMode: options.runtimeMode,
             ...(input.input ? { prompt: input.input } : {}),
             ...(input.attachments ? { attachments: input.attachments } : {}),
             ...(normalizedModel ? { model: normalizedModel } : {}),
-            ...(input.serviceTier ? { serviceTier: input.serviceTier } : {}),
+            ...(serviceTier ? { serviceTier } : {}),
             ...(input.effort ? { effort: input.effort } : {}),
             ...(input.interactionMode ? { interactionMode: input.interactionMode } : {}),
           });

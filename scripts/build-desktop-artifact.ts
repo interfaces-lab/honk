@@ -27,6 +27,7 @@ const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
 const workspaceCatalog = readWorkspaceCatalog(new URL("../pnpm-workspace.yaml", import.meta.url));
 
 interface DesktopBuildIconAssets {
+  readonly macIconIcns: string;
   readonly macIconPng: string;
   readonly linuxIconPng: string;
 }
@@ -259,66 +260,36 @@ const runCommand = Effect.fn("runCommand")(function* (command: ChildProcess.Comm
   }
 });
 
-function generateMacIconSet(
+function stageMacIcons(
+  stageResourcesDir: string,
+  sourceIcns: string,
   sourcePng: string,
-  targetIcns: string,
-  tmpRoot: string,
-  path: Path.Path,
   verbose: boolean,
 ) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
-    const iconsetDir = path.join(tmpRoot, "icon.iconset");
-    yield* fs.makeDirectory(iconsetDir, { recursive: true });
-
-    const iconSizes = [16, 32, 128, 256, 512] as const;
-    for (const size of iconSizes) {
-      yield* runCommand(
-        ChildProcess.make({
-          ...commandOutputOptions(verbose),
-        })`sips -z ${size} ${size} ${sourcePng} --out ${path.join(iconsetDir, `icon_${size}x${size}.png`)}`,
-      );
-
-      const retinaSize = size * 2;
-      yield* runCommand(
-        ChildProcess.make({
-          ...commandOutputOptions(verbose),
-        })`sips -z ${retinaSize} ${retinaSize} ${sourcePng} --out ${path.join(iconsetDir, `icon_${size}x${size}@2x.png`)}`,
-      );
-    }
-
-    yield* runCommand(
-      ChildProcess.make({
-        ...commandOutputOptions(verbose),
-      })`iconutil -c icns ${iconsetDir} -o ${targetIcns}`,
-    );
-  });
-}
-
-function stageMacIcons(stageResourcesDir: string, sourcePng: string, verbose: boolean) {
-  return Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    if (!(yield* fs.exists(sourcePng))) {
+    if (!(yield* fs.exists(sourceIcns))) {
       return yield* new BuildScriptError({
-        message: `Desktop macOS icon source is missing at ${sourcePng}`,
+        message: `Desktop macOS .icns source is missing at ${sourceIcns}`,
       });
     }
 
-    const tmpRoot = yield* fs.makeTempDirectoryScoped({
-      prefix: "multi-icon-build-",
-    });
+    if (!(yield* fs.exists(sourcePng))) {
+      return yield* new BuildScriptError({
+        message: `Desktop macOS PNG source is missing at ${sourcePng}`,
+      });
+    }
 
     const iconPngPath = path.join(stageResourcesDir, "icon.png");
     const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
 
+    yield* fs.copyFile(sourceIcns, iconIcnsPath);
     yield* runCommand(
       ChildProcess.make({
         ...commandOutputOptions(verbose),
       })`sips -z 512 512 ${sourcePng} --out ${iconPngPath}`,
     );
-
-    yield* generateMacIconSet(sourcePng, iconIcnsPath, tmpRoot, path, verbose);
   });
 }
 
@@ -426,6 +397,7 @@ function resolveGitHubPublishConfig():
 
 export function resolveDesktopBuildIconAssets(): DesktopBuildIconAssets {
   return {
+    macIconIcns: BRAND_ASSET_PATHS.productionMacIconIcns,
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
   };
@@ -498,7 +470,12 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   verbose: boolean,
 ) {
   if (platform === "mac") {
-    yield* stageMacIcons(stageResourcesDir, iconAssets.macIconPng, verbose);
+    yield* stageMacIcons(
+      stageResourcesDir,
+      iconAssets.macIconIcns,
+      iconAssets.macIconPng,
+      verbose,
+    );
     return;
   }
 
@@ -614,6 +591,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     options.platform,
     stageResourcesDir,
     {
+      macIconIcns: join(repoRoot, iconAssets.macIconIcns),
       macIconPng: join(repoRoot, iconAssets.macIconPng),
       linuxIconPng: join(repoRoot, iconAssets.linuxIconPng),
     },

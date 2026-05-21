@@ -25,7 +25,19 @@ const LAUNCHER_VERSION = 2;
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const desktopDir = resolve(currentDir, "..");
-const defaultIconPath = join(desktopDir, "resources", "icon.icns");
+const productionLauncherIconPath = join(desktopDir, "resources", "icon.icns");
+const developmentLauncherIconPath = resolve(
+  desktopDir,
+  "..",
+  "..",
+  "assets",
+  "dev",
+  "multi-development-macos-icon.icns",
+);
+const resolveLauncherIconPath = () =>
+  isDevelopment && existsSync(developmentLauncherIconPath)
+    ? developmentLauncherIconPath
+    : productionLauncherIconPath;
 
 function setPlistString(plistPath, key, value) {
   const replaceResult = spawnSync("plutil", ["-replace", key, "-string", value, plistPath], {
@@ -105,7 +117,7 @@ function buildMacLauncher(electronBinaryPath) {
   const runtimeDir = join(desktopDir, ".electron-runtime");
   const targetAppBundlePath = join(runtimeDir, `${APP_DISPLAY_NAME}.app`);
   const targetBinaryPath = join(targetAppBundlePath, "Contents", "MacOS", "Electron");
-  const iconPath = defaultIconPath;
+  const iconPath = resolveLauncherIconPath();
   const metadataPath = join(runtimeDir, "metadata.json");
 
   mkdirSync(runtimeDir, { recursive: true });
@@ -114,6 +126,7 @@ function buildMacLauncher(electronBinaryPath) {
     launcherVersion: LAUNCHER_VERSION,
     sourceAppBundlePath,
     sourceAppMtimeMs: statSync(sourceAppBundlePath).mtimeMs,
+    iconPath,
     iconMtimeMs: statSync(iconPath).mtimeMs,
   };
 

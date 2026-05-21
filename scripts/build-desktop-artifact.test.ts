@@ -18,6 +18,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it("uses production desktop packaging icons", () => {
     assert.deepStrictEqual(resolveDesktopBuildIconAssets(), {
+      macIconIcns: BRAND_ASSET_PATHS.productionMacIconIcns,
       macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
       linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
     });

@@ -924,7 +924,7 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
       onKeyDown={onPreviewKeyDown}
       data-work-group-preview=""
       data-work-preview-scrollable="false"
-      className="flex w-full min-h-0 max-w-full shrink-0 cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto scrollbar-thin [overflow-anchor:none]"
+      className="flex w-full min-h-0 max-w-full shrink-0 cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{
         height: WORK_GROUP_PREVIEW_PX,
         maxHeight: WORK_GROUP_PREVIEW_PX,

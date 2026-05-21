@@ -1,12 +1,14 @@
 export const BRAND_ASSET_PATHS = {
-  productionMacIconPng: "assets/prod/black-macos-1024.png",
-  productionLinuxIconPng: "assets/prod/black-universal-1024.png",
+  productionMacIconIcns: "assets/prod/multi-production-macos-icon.icns",
+  productionMacIconPng: "assets/prod/multi-production-desktop-icon-1024.png",
+  productionLinuxIconPng: "assets/prod/multi-production-linux-icon-1024.png",
   productionWebFaviconIco: "assets/prod/multi-black-web-favicon.ico",
   productionWebFavicon16Png: "assets/prod/multi-black-web-favicon-16x16.png",
   productionWebFavicon32Png: "assets/prod/multi-black-web-favicon-32x32.png",
   productionWebAppleTouchIconPng: "assets/prod/multi-black-web-apple-touch-180.png",
 
-  developmentDesktopIconPng: "assets/dev/blueprint-macos-1024.png",
+  developmentMacIconIcns: "assets/dev/multi-development-macos-icon.icns",
+  developmentDesktopIconPng: "assets/dev/multi-development-desktop-icon-1024.png",
   developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",
   developmentWebFavicon16Png: "assets/dev/blueprint-web-favicon-16x16.png",
   developmentWebFavicon32Png: "assets/dev/blueprint-web-favicon-32x32.png",

@@ -49,6 +49,7 @@ import {
   CodexResumeCursorSchema,
   CodexSessionRuntimeThreadIdMissingError,
   makeCodexSessionRuntime,
+  parseCodexServiceTier,
   type CodexSessionRuntimeError,
   type CodexSessionRuntimeOptions,
   type CodexSessionRuntimeShape,
@@ -1379,12 +1380,12 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
               }),
           ),
         );
-        const configuredServiceTier = getModelSelectionStringOptionValue(
-          input.modelSelection,
-          "serviceTier",
-        )
-          ?.trim()
-          .toLowerCase();
+        const configuredServiceTier = parseCodexServiceTier(
+          getModelSelectionStringOptionValue(
+            input.modelSelection,
+            "serviceTier",
+          ),
+        );
         const startServiceTier =
           configuredServiceTier ??
           (getModelSelectionBooleanOptionValue(input.modelSelection, "fastMode") === true
@@ -1398,9 +1399,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           ...(isCodexResumeCursor(input.resumeCursor) ? { resumeCursor: input.resumeCursor } : {}),
           runtimeMode: input.runtimeMode,
           ...(input.modelSelection ? { model: input.modelSelection.model } : {}),
-          ...(startServiceTier === "fast" || startServiceTier === "flex"
-            ? { serviceTier: startServiceTier }
-            : {}),
+          ...(startServiceTier ? { serviceTier: startServiceTier } : {}),
         };
         const sessionScope = yield* Scope.make("sequential");
         let sessionScopeTransferred = false;
@@ -1515,12 +1514,12 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       input.modelSelection,
       "reasoningEffort",
     );
-    const configuredServiceTier = getModelSelectionStringOptionValue(
-      input.modelSelection,
-      "serviceTier",
-    )
-      ?.trim()
-      .toLowerCase();
+    const configuredServiceTier = parseCodexServiceTier(
+      getModelSelectionStringOptionValue(
+        input.modelSelection,
+        "serviceTier",
+      ),
+    );
     const serviceTier =
       configuredServiceTier ??
       (getModelSelectionBooleanOptionValue(input.modelSelection, "fastMode") === true
@@ -1535,7 +1534,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
               effort: reasoningEffort as EffectCodexSchema.V2TurnStartParams__ReasoningEffort,
             }
           : {}),
-        ...(serviceTier === "fast" || serviceTier === "flex" ? { serviceTier } : {}),
+        ...(serviceTier ? { serviceTier } : {}),
         ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
         ...(codexAttachments.length > 0 ? { attachments: codexAttachments } : {}),
       })

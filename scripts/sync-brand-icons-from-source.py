@@ -8,8 +8,8 @@ Default source: assets/app-icon-source.png (square raster; outer cream backgroun
 
 Writes:
   - packages/desktop/resources/icon.png and icon.icns (production artwork)
-  - assets/prod/* (mac/linux/ios 1024, web PNGs + favicon ICO)
-  - assets/dev/blueprint-* with a generated cool blueprint tint
+  - assets/prod/* (named desktop 1024 PNGs, legacy mobile/web PNGs + favicon ICO)
+  - assets/dev/* (named desktop 1024 PNG, legacy blueprint web assets)
 """
 
 from __future__ import annotations
@@ -218,12 +218,17 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="multi-icon-src-") as tmp:
         tmp1024 = Path(tmp) / "master-1024.png"
+        tmp_dev_1024 = Path(tmp) / "master-dev-1024.png"
         write_png(tmp1024, master)
+        write_png(tmp_dev_1024, master_dev)
 
         write_png(desktop_res / "icon.png", master)
         write_icns_macos(tmp1024, desktop_res / "icon.icns")
 
         prod = repo / "assets" / "prod"
+        write_icns_macos(tmp1024, prod / "multi-production-macos-icon.icns")
+        write_png(prod / "multi-production-desktop-icon-1024.png", master)
+        write_png(prod / "multi-production-linux-icon-1024.png", master)
         write_png(prod / "black-macos-1024.png", master)
         write_png(prod / "black-universal-1024.png", master)
         write_png(prod / "black-ios-1024.png", master)
@@ -233,6 +238,8 @@ def main() -> int:
         write_ico(prod / "multi-black-web-favicon.ico", master)
 
         dev = repo / "assets" / "dev"
+        write_icns_macos(tmp_dev_1024, dev / "multi-development-macos-icon.icns")
+        write_png(dev / "multi-development-desktop-icon-1024.png", master_dev)
         write_png(dev / "blueprint-macos-1024.png", master_dev)
         write_png(dev / "blueprint-universal-1024.png", master_dev)
         write_png(dev / "blueprint-ios-1024.png", master_dev)
