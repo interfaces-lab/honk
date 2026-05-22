@@ -1,24 +1,40 @@
-import { memo } from "react";
+import {
+  type EnvironmentId,
+  type ProviderThreadSnapshot,
+  type ThreadId,
+} from "@multi/contracts";
+import { IconChevronRightMedium, IconClock, IconRobot } from "central-icons";
+import { memo, useEffect, useState } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
   type WorkLogEntry,
   type WorkLogSubagent,
+  type WorkLogSubagentLog,
 } from "../../../session-logic";
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
+import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
+import { cn } from "~/lib/utils";
+import { readEnvironmentApi } from "~/environment-api";
 
 type ToolCallStatus = "loading" | "completed" | "error";
 
 interface ToolCallMessageProps {
   workEntry: WorkLogEntry;
   projectRoot: string | undefined;
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  subagentDetailsEnabled?: boolean | undefined;
 }
 
 export const ToolCallMessage = memo(function ToolCallMessage({
   workEntry,
   projectRoot,
+  activeThreadId,
+  environmentId,
+  subagentDetailsEnabled = true,
 }: ToolCallMessageProps) {
   const status = resolveStatus(workEntry);
   const isLoading = status === "loading";
@@ -42,50 +58,416 @@ export const ToolCallMessage = memo(function ToolCallMessage({
         defaultExpanded={false}
         conversationDensity="minimal"
       />
-      {hasSubagents ? <SubagentStatusSurface subagents={subagents} /> : null}
+      {hasSubagents ? (
+        <SubagentStatusSurface
+          activeThreadId={activeThreadId}
+          environmentId={environmentId}
+          subagentDetailsEnabled={subagentDetailsEnabled}
+          subagents={subagents}
+        />
+      ) : null}
     </div>
   );
 });
 
-function SubagentStatusSurface({ subagents }: { subagents: ReadonlyArray<WorkLogSubagent> }) {
+function SubagentStatusSurface({
+  activeThreadId,
+  environmentId,
+  subagentDetailsEnabled,
+  subagents,
+}: {
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  subagentDetailsEnabled: boolean;
+  subagents: ReadonlyArray<WorkLogSubagent>;
+}) {
   return (
     <div className="mt-1 max-h-80 w-full overflow-x-hidden overflow-y-auto pl-5 text-detail">
       {subagents.map((subagent) => (
-        <div
+        <SubagentStatusRow
           key={subagent.providerThreadId ?? subagent.threadId ?? subagent.agentId}
-          className="group/subagent flex min-h-6 w-fit max-w-full items-center gap-1 overflow-hidden"
-          data-status={subagent.isActive ? "running" : "completed"}
-        >
-          <span
-            className="size-1.5 shrink-0 rounded-full bg-multi-icon-tertiary group-data-[status=running]/subagent:bg-multi-icon-accent-primary"
-            aria-hidden="true"
-          />
-          <div className="min-w-0">
-            <div className="inline-flex min-w-0 items-baseline gap-1">
-              <span className="min-w-0 text-detail text-multi-fg-secondary">
-                {subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent"}
-              </span>
-              {subagent.model ? (
-                <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
-                  {subagent.model}
-                </span>
-              ) : null}
-              {subagent.statusLabel || subagent.latestUpdate ? (
-                <span className="min-w-0 overflow-hidden text-detail text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
-                  {subagent.latestUpdate ?? subagent.statusLabel}
-                </span>
-              ) : null}
-              {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
-                <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
-                  {formatSubagentUsageLabel(subagent)}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
+          activeThreadId={activeThreadId}
+          environmentId={environmentId}
+          subagent={subagent}
+          subagentDetailsEnabled={subagentDetailsEnabled}
+        />
       ))}
     </div>
   );
+}
+
+type SubagentSnapshotState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "loaded"; readonly snapshot: ProviderThreadSnapshot }
+  | { readonly status: "error"; readonly message: string };
+
+function SubagentStatusRow({
+  activeThreadId,
+  environmentId,
+  subagent,
+  subagentDetailsEnabled,
+}: {
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  subagent: WorkLogSubagent;
+  subagentDetailsEnabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [snapshotState, setSnapshotState] = useState<SubagentSnapshotState>({ status: "idle" });
+  const providerThreadId = subagent.providerThreadId ?? subagent.threadId;
+  const hasProviderThread = providerThreadId.trim().length > 0;
+  const hasDetails =
+    subagentDetailsEnabled && ((subagent.logs?.length ?? 0) > 0 || hasProviderThread);
+
+  useEffect(() => {
+    if (!open || !hasDetails || !hasProviderThread || snapshotState.status !== "idle") {
+      return;
+    }
+
+    const api = readEnvironmentApi(environmentId);
+    if (!api) {
+      setSnapshotState({ status: "error", message: "Environment API unavailable." });
+      return;
+    }
+
+    let cancelled = false;
+    setSnapshotState({ status: "loading" });
+    void api.orchestration
+      .getProviderThreadSnapshot({
+        threadId: activeThreadId,
+        providerThreadId,
+        includeTurns: true,
+      })
+      .then((snapshot) => {
+        if (!cancelled) {
+          setSnapshotState({ status: "loaded", snapshot });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setSnapshotState({
+            status: "error",
+            message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeThreadId,
+    environmentId,
+    hasDetails,
+    hasProviderThread,
+    open,
+    providerThreadId,
+    snapshotState.status,
+  ]);
+
+  const row = (
+    <button
+      type="button"
+      className={cn(
+        "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
+        "border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary",
+        hasDetails &&
+          "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
+      )}
+      data-subagent-row=""
+      data-subagent-state={subagent.rawStatus ?? (subagent.isActive ? "running" : "completed")}
+      data-subagent-provider-thread-id={providerThreadId}
+      disabled={!hasDetails}
+      aria-label={hasDetails ? `Open ${subagent.title ?? "subagent"} details` : undefined}
+    >
+      <SubagentStatusIndicator subagent={subagent} />
+      <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
+        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+          {subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent"}
+        </span>
+        {subagent.model ? (
+          <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
+            {subagent.model}
+          </span>
+        ) : null}
+        {subagent.statusLabel || subagent.latestUpdate ? (
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
+            {subagent.latestUpdate ?? subagent.statusLabel}
+          </span>
+        ) : null}
+        {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
+          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+            {formatSubagentUsageLabel(subagent)}
+          </span>
+        ) : null}
+      </span>
+      {hasDetails ? (
+        <span
+          className={cn(
+            "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
+            "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
+          )}
+          data-subagent-open=""
+          aria-hidden="true"
+        >
+          <IconChevronRightMedium className="size-3" />
+        </span>
+      ) : null}
+    </button>
+  );
+
+  if (!hasDetails) {
+    return row;
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger render={row} />
+      <PopoverPopup
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        variant="workbench"
+        className="w-[min(520px,calc(100vw-32px))] p-0"
+      >
+        <SubagentDetailsPopover snapshotState={snapshotState} subagent={subagent} />
+      </PopoverPopup>
+    </Popover>
+  );
+}
+
+function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
+  const isFailed =
+    subagent.statusLabel === "Failed" ||
+    subagent.rawStatus === "errored" ||
+    subagent.rawStatus === "failed" ||
+    subagent.rawStatus === "error";
+  if (subagent.isActive) {
+    return (
+      <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-accent-primary">
+        <IconClock className="tool-call-shimmer size-3" />
+      </span>
+    );
+  }
+  if (isFailed) {
+    return (
+      <span className="size-1.5 shrink-0 rounded-full bg-multi-fg-red-primary" aria-hidden="true" />
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-tertiary">
+      <IconRobot className="size-3" />
+    </span>
+  );
+}
+
+function SubagentDetailsPopover({
+  snapshotState,
+  subagent,
+}: {
+  snapshotState: SubagentSnapshotState;
+  subagent: WorkLogSubagent;
+}) {
+  const logs = subagent.logs ?? [];
+  return (
+    <div
+      className="flex max-h-[min(420px,60vh)] min-w-0 flex-col overflow-hidden"
+      data-subagent-thread-overlay=""
+    >
+      <div className="border-b border-multi-stroke-tertiary px-3 py-2">
+        <div className="min-w-0 truncate text-detail font-medium text-multi-fg-primary">
+          {subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent"}
+        </div>
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-caption text-multi-fg-tertiary">
+          {subagent.statusLabel ? <span>{subagent.statusLabel}</span> : null}
+          {subagent.model ? <span>{subagent.model}</span> : null}
+          {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
+            <span>{formatSubagentUsageLabel(subagent)}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="min-h-0 overflow-y-auto px-2 py-1.5">
+        {logs.length > 0 ? (
+          <div className="pb-1">
+            <div className="px-1.5 pb-1 text-caption font-medium text-multi-fg-tertiary">
+              Live log
+            </div>
+            {logs.map((log) => (
+              <SubagentLogRow key={log.id} log={log} />
+            ))}
+          </div>
+        ) : null}
+        <SubagentSnapshotSection snapshotState={snapshotState} />
+      </div>
+    </div>
+  );
+}
+
+function SubagentSnapshotSection({
+  snapshotState,
+}: {
+  snapshotState: SubagentSnapshotState;
+}) {
+  if (snapshotState.status === "idle" || snapshotState.status === "loading") {
+    return (
+      <div className="px-1.5 py-1 text-detail text-multi-fg-tertiary">
+        {snapshotState.status === "loading" ? "Loading thread snapshot..." : "Thread snapshot"}
+      </div>
+    );
+  }
+
+  if (snapshotState.status === "error") {
+    return (
+      <div className="px-1.5 py-1 text-detail text-multi-fg-red-primary">
+        {snapshotState.message}
+      </div>
+    );
+  }
+
+  const turns = snapshotState.snapshot.turns;
+  return (
+    <div className="pt-1" data-subagent-thread-snapshot="">
+      <div className="px-1.5 pb-1 text-caption font-medium text-multi-fg-tertiary">
+        Thread snapshot
+      </div>
+      {turns.length === 0 ? (
+        <div className="px-1.5 py-1 text-detail text-multi-fg-tertiary">No turns found.</div>
+      ) : (
+        turns.map((turn, turnIndex) => (
+          <div key={turn.id} className="min-w-0 rounded px-1.5 py-1">
+            <div className="text-caption text-multi-fg-tertiary tabular-nums">
+              Turn {turnIndex + 1}
+            </div>
+            <div className="mt-1 flex min-w-0 flex-col gap-1">
+              {turn.items.map((item, itemIndex) => (
+                <SubagentSnapshotItem
+                  key={`${turn.id}:${snapshotItemKey(item, itemIndex)}`}
+                  item={item}
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function SubagentSnapshotItem({ item }: { item: unknown }) {
+  const label = snapshotItemLabel(item);
+  const detail = snapshotItemDetail(item);
+  return (
+    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 text-detail">
+      <span className="mt-1.5 size-1 rounded-full bg-multi-icon-tertiary" aria-hidden="true" />
+      <div className="min-w-0">
+        <div className="truncate text-multi-fg-secondary">{label}</div>
+        {detail ? (
+          <div className="mt-0.5 line-clamp-3 min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary">
+            {detail}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SubagentLogRow({ log }: { log: WorkLogSubagentLog }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 rounded px-1.5 py-1 text-detail">
+      <span className="mt-1 size-1.5 rounded-full bg-multi-icon-tertiary" aria-hidden="true" />
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="shrink-0 text-multi-fg-secondary">{log.label}</span>
+          {log.status ? (
+            <span className="shrink-0 text-caption text-multi-fg-tertiary">{log.status}</span>
+          ) : null}
+        </div>
+        {log.detail ? (
+          <div className="mt-0.5 line-clamp-3 min-w-0 overflow-hidden whitespace-pre-wrap break-words text-multi-fg-tertiary">
+            {log.detail}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function snapshotItemKey(item: unknown, fallbackIndex: number): string {
+  const record = asRecord(item);
+  const id = asTrimmedString(record?.id) ?? asTrimmedString(record?.itemId);
+  return id ?? String(fallbackIndex);
+}
+
+function snapshotItemLabel(item: unknown): string {
+  const record = asRecord(item);
+  const nested = asRecord(record?.item);
+  const type = asTrimmedString(record?.type) ?? asTrimmedString(nested?.type);
+  return type ? formatSnapshotTypeLabel(type) : "Item";
+}
+
+function snapshotItemDetail(item: unknown): string | undefined {
+  const record = asRecord(item);
+  const nested = asRecord(record?.item);
+  return (
+    firstString(record, ["text", "message", "content", "delta", "command", "prompt", "summary"]) ??
+    firstString(nested, ["text", "message", "content", "delta", "command", "prompt", "summary"]) ??
+    textFromContentArray(record?.content) ??
+    textFromContentArray(nested?.content)
+  );
+}
+
+function formatSnapshotTypeLabel(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function firstString(
+  record: Record<string, unknown> | null,
+  keys: ReadonlyArray<string>,
+): string | undefined {
+  if (!record) {
+    return undefined;
+  }
+  for (const key of keys) {
+    const value = asTrimmedString(record[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function textFromContentArray(value: unknown): string | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const text = value
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      const record = asRecord(entry);
+      return firstString(record, ["text", "content"]);
+    })
+    .filter((entry): entry is string => entry !== undefined && entry.trim().length > 0)
+    .join("\n")
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asTrimmedString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function formatSubagentUsageLabel(subagent: WorkLogSubagent): string {

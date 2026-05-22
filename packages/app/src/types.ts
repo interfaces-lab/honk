@@ -6,6 +6,7 @@ import type {
   RepositoryIdentity,
   OrchestrationSessionStatus,
   OrchestrationThreadActivity,
+  OrchestrationThreadEntry,
   ProjectScript as ContractProjectScript,
   ThreadId,
   ProjectId,
@@ -53,6 +54,8 @@ export interface ChatMessage {
   completedAt?: string | undefined;
   streaming: boolean;
 }
+
+export type ThreadTreeEntry = OrchestrationThreadEntry;
 
 export interface ProposedPlan {
   id: OrchestrationProposedPlanId;
@@ -104,6 +107,8 @@ export interface Thread {
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
+  activeEntryId?: OrchestrationThreadEntry["id"] | null;
+  entries?: ThreadTreeEntry[];
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;

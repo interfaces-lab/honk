@@ -1763,16 +1763,20 @@ export const ComposerInput = memo(
       };
     }, [readComposerSnapshot, resolveComposerTrigger]);
 
+    const clearComposerCommandMenuState = useCallback(() => {
+      setComposerTrigger(null);
+      setComposerHighlightedItemId(null);
+      setComposerHighlightedSearchKey(null);
+    }, []);
+
     const dismissComposerCommandMenu = useCallback(() => {
       const snapshot = readComposerSnapshot();
       const trigger = detectComposerTrigger(snapshot.value, snapshot.expandedCursor);
       if (trigger) {
         dismissedComposerTriggerKeyRef.current = composerTriggerDismissKey(trigger);
       }
-      setComposerTrigger(null);
-      setComposerHighlightedItemId(null);
-      setComposerHighlightedSearchKey(null);
-    }, [composerTriggerDismissKey, readComposerSnapshot]);
+      clearComposerCommandMenuState();
+    }, [clearComposerCommandMenuState, composerTriggerDismissKey, readComposerSnapshot]);
 
     const promptRefVersion = useValueIdentityVersion(promptRef);
     const resolveComposerTriggerVersion = useValueIdentityVersion(resolveComposerTrigger);
@@ -1859,7 +1863,7 @@ export const ComposerInput = memo(
             { expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd) },
           );
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
@@ -1870,7 +1874,7 @@ export const ComposerInput = memo(
               focusEditorAfterReplace: false,
             });
             if (applied) {
-              setComposerHighlightedItemId(null);
+              clearComposerCommandMenuState();
               setModelPickerOpenSearchSeed(undefined);
               setIsComposerModelPickerOpen(true);
             }
@@ -1881,7 +1885,7 @@ export const ComposerInput = memo(
             expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
           });
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
@@ -1904,7 +1908,7 @@ export const ComposerInput = memo(
               },
             ) ?? false;
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
@@ -1926,12 +1930,17 @@ export const ComposerInput = memo(
               },
             ) ?? false;
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
       },
-      [applyPromptReplacement, handleInteractionModeChange, resolveActiveComposerTrigger],
+      [
+        applyPromptReplacement,
+        clearComposerCommandMenuState,
+        handleInteractionModeChange,
+        resolveActiveComposerTrigger,
+      ],
     );
 
     const onComposerMenuItemHighlighted = useCallback(

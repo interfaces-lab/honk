@@ -89,6 +89,7 @@ import {
 import { CursorAdapter, type CursorAdapterShape } from "./CursorAdapter.service.ts";
 import { resolveCursorAcpBaseModelId } from "./CursorProvider.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 import { actionFromAcpPermissionKind, shouldPromptForAction } from "./runtime-permission-policy.ts";
 
 const PROVIDER = ProviderDriverKind.make("cursor");
@@ -1085,8 +1086,9 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         });
 
         const promptParts: Array<EffectAcpSchema.ContentBlock> = [];
-        if (input.input?.trim()) {
-          promptParts.push({ type: "text", text: input.input.trim() });
+        const promptText = formatProviderTurnInputText(input);
+        if (promptText) {
+          promptParts.push({ type: "text", text: promptText });
         }
         if (input.attachments && input.attachments.length > 0) {
           for (const attachment of input.attachments) {
@@ -1266,10 +1268,10 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         yield* Deferred.succeed(pending.answers, answers);
       });
 
-    const readThread: CursorAdapterShape["readThread"] = (threadId) =>
+    const readThread: CursorAdapterShape["readThread"] = (input) =>
       Effect.gen(function* () {
-        const ctx = yield* requireSession(threadId);
-        return { threadId, turns: ctx.turns };
+        const ctx = yield* requireSession(input.threadId);
+        return { threadId: input.threadId, turns: ctx.turns };
       });
 
     const rollbackThread: CursorAdapterShape["rollbackThread"] = (threadId, numTurns) =>

@@ -34,7 +34,12 @@ function standaloneSlashStartForCursor(text: string, cursor: number): number {
   let index = cursor - 1;
   while (index >= lineStart) {
     const before = text[index - 1] ?? "";
-    if (text[index] === "/" && (index === lineStart || isWhitespace(before) || before === "(")) {
+    if (
+      text[index] === "/" &&
+      (index === lineStart ||
+        isWhitespace(before) ||
+        (before === "(" && text[index - 2] !== "]"))
+    ) {
       return index;
     }
     index -= 1;

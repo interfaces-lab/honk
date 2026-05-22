@@ -1,4 +1,4 @@
-import { EnvironmentId, MessageId } from "@multi/contracts";
+import { EnvironmentId, MessageId, ThreadId } from "@multi/contracts";
 import { createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -86,6 +86,7 @@ beforeAll(() => {
 });
 
 const ACTIVE_THREAD_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
+const ACTIVE_THREAD_ID = ThreadId.make("thread-local");
 
 function buildProps() {
   return {
@@ -99,6 +100,7 @@ function buildProps() {
     onBeginEditUserMessage: () => {},
     onImageExpand: () => {},
     activeThreadEnvironmentId: ACTIVE_THREAD_ENVIRONMENT_ID,
+    activeThreadId: ACTIVE_THREAD_ID,
     markdownCwd: undefined,
     projectRoot: undefined,
     onIsAtBottomChange: () => {},

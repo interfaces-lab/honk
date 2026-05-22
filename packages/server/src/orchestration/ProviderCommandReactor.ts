@@ -6,6 +6,8 @@ import {
   type MessageId,
   type ModelSelection,
   type OrchestrationEvent,
+  type OrchestrationThread,
+  type ProviderConversationMessage,
   ProviderDriverKind,
   ProviderInstanceId,
   type OrchestrationSession,
@@ -186,6 +188,61 @@ function buildGeneratedWorktreeBranchName(raw: string): string {
   return `${WORKTREE_BRANCH_PREFIX}/${safeFragment}`;
 }
 
+function buildActiveEntryPath(
+  thread: OrchestrationThread,
+): NonNullable<OrchestrationThread["entries"]> {
+  const entries = thread.entries ?? [];
+  const activeEntryId = thread.activeEntryId ?? null;
+  if (activeEntryId === null || entries.length === 0) {
+    return [];
+  }
+
+  const entryById = new Map(entries.map((entry) => [entry.id, entry] as const));
+  const path: Array<NonNullable<OrchestrationThread["entries"]>[number]> = [];
+  const seen = new Set<string>();
+  let cursor: OrchestrationThread["activeEntryId"] | null = activeEntryId;
+
+  while (cursor !== null) {
+    if (seen.has(cursor)) {
+      break;
+    }
+    seen.add(cursor);
+    const entry = entryById.get(cursor);
+    if (!entry) {
+      break;
+    }
+    path.push(entry);
+    cursor = entry.parentEntryId;
+  }
+
+  return path.reverse();
+}
+
+function buildProviderConversationContext(input: {
+  readonly thread: OrchestrationThread;
+  readonly currentMessageId: MessageId;
+}): ReadonlyArray<ProviderConversationMessage> {
+  const messageById = new Map(input.thread.messages.map((message) => [message.id, message] as const));
+  return buildActiveEntryPath(input.thread).flatMap((entry) => {
+    if (entry.kind !== "message" || entry.messageId === null) {
+      return [];
+    }
+    if (entry.messageId === input.currentMessageId) {
+      return [];
+    }
+    const message = messageById.get(entry.messageId);
+    if (!message || message.text.trim().length === 0) {
+      return [];
+    }
+    return [
+      {
+        role: message.role,
+        text: message.text,
+      },
+    ];
+  });
+}
+
 const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
@@ -275,6 +332,7 @@ const make = Effect.gen(function* () {
     createdAt: string,
     options?: {
       readonly modelSelection?: ModelSelection;
+      readonly discardResumeCursor?: boolean;
     },
   ) {
     const readModel = yield* orchestrationEngine.getReadModel();
@@ -313,13 +371,17 @@ const make = Effect.gen(function* () {
         .listSessions()
         .pipe(Effect.map((sessions) => sessions.find((session) => session.threadId === threadId)));
 
-    const startProviderSession = (input?: { readonly resumeCursor?: unknown }) =>
+    const startProviderSession = (input?: {
+      readonly resumeCursor?: unknown;
+      readonly discardResumeCursor?: boolean;
+    }) =>
       providerService.startSession(threadId, {
         threadId,
         providerInstanceId: desiredModelSelection.instanceId,
         ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
         modelSelection: desiredModelSelection,
         ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
+        ...(input?.discardResumeCursor === true ? { discardResumeCursor: true } : {}),
         runtimeMode: desiredRuntimeMode,
       });
 
@@ -366,13 +428,14 @@ const make = Effect.gen(function* () {
         !providerChanged &&
         !shouldRestartForModelChange &&
         !cwdChanged &&
-        !shouldRestartForModelSelectionChange
+        !shouldRestartForModelSelectionChange &&
+        options?.discardResumeCursor !== true
       ) {
         return existingSessionThreadId;
       }
 
       const resumeCursor =
-        providerChanged || shouldRestartForModelChange
+        providerChanged || shouldRestartForModelChange || options?.discardResumeCursor === true
           ? undefined
           : (activeSession?.resumeCursor ?? undefined);
       yield* Effect.logInfo("provider command reactor restarting provider session", {
@@ -390,9 +453,10 @@ const make = Effect.gen(function* () {
         shouldRestartForModelSelectionChange,
         hasResumeCursor: resumeCursor !== undefined,
       });
-      const restartedSession = yield* startProviderSession(
-        resumeCursor !== undefined ? { resumeCursor } : undefined,
-      );
+      const restartedSession = yield* startProviderSession({
+        ...(resumeCursor !== undefined ? { resumeCursor } : {}),
+        ...(options?.discardResumeCursor === true ? { discardResumeCursor: true } : {}),
+      });
       yield* Effect.logInfo("provider command reactor restarted provider session", {
         threadId,
         previousSessionId: existingSessionThreadId,
@@ -404,7 +468,9 @@ const make = Effect.gen(function* () {
       return restartedSession.threadId;
     }
 
-    const startedSession = yield* startProviderSession(undefined);
+    const startedSession = yield* startProviderSession(
+      options?.discardResumeCursor === true ? { discardResumeCursor: true } : undefined,
+    );
     yield* bindSessionToThread(startedSession);
     return startedSession.threadId;
   });
@@ -412,6 +478,7 @@ const make = Effect.gen(function* () {
   const buildSendTurnRequestForThread = Effect.fn("buildSendTurnRequestForThread")(
     function* (input: {
       readonly threadId: ThreadId;
+      readonly messageId: MessageId;
       readonly messageText: string;
       readonly attachments?: ReadonlyArray<ChatAttachment>;
       readonly modelSelection?: ModelSelection;
@@ -425,10 +492,17 @@ const make = Effect.gen(function* () {
           input.threadId,
         );
       }
+      const conversationContext = buildProviderConversationContext({
+        thread,
+        currentMessageId: input.messageId,
+      });
       yield* ensureSessionForThread(
         input.threadId,
         input.createdAt,
-        input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {},
+        {
+          ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+          ...(conversationContext.length > 0 ? { discardResumeCursor: true } : {}),
+        },
       );
       if (input.modelSelection !== undefined) {
         threadModelSelections.set(input.threadId, input.modelSelection);
@@ -459,6 +533,7 @@ const make = Effect.gen(function* () {
       return {
         threadId: input.threadId,
         ...(normalizedInput ? { input: normalizedInput } : {}),
+        ...(conversationContext.length > 0 ? { context: conversationContext } : {}),
         ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
         ...(modelForTurn !== undefined ? { modelSelection: modelForTurn } : {}),
         ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
@@ -651,6 +726,7 @@ const make = Effect.gen(function* () {
 
     const sendTurnRequest = yield* buildSendTurnRequestForThread({
       threadId: event.payload.threadId,
+      messageId: event.payload.messageId,
       messageText: message.text,
       ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
       ...(event.payload.modelSelection !== undefined

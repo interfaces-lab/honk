@@ -16,12 +16,17 @@ import type {
   ProviderSendTurnInput,
   ProviderSession,
   ProviderSessionStartInput,
+  ProviderThreadReadInput,
+  ProviderThreadSnapshot,
+  ProviderThreadTurnSnapshot,
   ThreadId,
   ProviderTurnStartResult,
   TurnId,
 } from "@multi/contracts";
 import type { Effect } from "effect";
 import type { Stream } from "effect";
+
+export type { ProviderThreadSnapshot, ProviderThreadTurnSnapshot };
 
 export type ProviderSessionModelSwitchMode = "in-session" | "restart-session" | "unsupported";
 
@@ -30,16 +35,6 @@ export interface ProviderAdapterCapabilities {
    * Declares whether changing the model on an existing session is supported.
    */
   readonly sessionModelSwitch: ProviderSessionModelSwitchMode;
-}
-
-export interface ProviderThreadTurnSnapshot {
-  readonly id: TurnId;
-  readonly items: ReadonlyArray<unknown>;
-}
-
-export interface ProviderThreadSnapshot {
-  readonly threadId: ThreadId;
-  readonly turns: ReadonlyArray<ProviderThreadTurnSnapshot>;
 }
 
 export interface ProviderAdapterShape<TError> {
@@ -104,7 +99,9 @@ export interface ProviderAdapterShape<TError> {
   /**
    * Read a provider thread snapshot.
    */
-  readonly readThread: (threadId: ThreadId) => Effect.Effect<ProviderThreadSnapshot, TError>;
+  readonly readThread: (
+    input: ProviderThreadReadInput,
+  ) => Effect.Effect<ProviderThreadSnapshot, TError>;
 
   /**
    * Roll back a provider thread by N turns.

@@ -73,6 +73,7 @@ class FakeCodexRuntime implements CodexSessionRuntimeShape {
     (): Promise<CodexThreadSnapshot> =>
       Promise.resolve({
         threadId: "provider-thread-1",
+        providerThreadId: "provider-thread-1",
         turns: [],
       }),
   );
@@ -81,6 +82,7 @@ class FakeCodexRuntime implements CodexSessionRuntimeShape {
     (_numTurns: number): Promise<CodexThreadSnapshot> =>
       Promise.resolve({
         threadId: "provider-thread-1",
+        providerThreadId: "provider-thread-1",
         turns: [],
       }),
   );
@@ -117,7 +119,9 @@ class FakeCodexRuntime implements CodexSessionRuntimeShape {
     return Effect.promise(() => this.interruptTurnImpl(turnId));
   }
 
-  readThread = Effect.promise(() => this.readThreadImpl());
+  readThread() {
+    return Effect.promise(() => this.readThreadImpl());
+  }
 
   rollbackThread(numTurns: number) {
     return Effect.promise(() => this.rollbackThreadImpl(numTurns));

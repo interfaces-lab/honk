@@ -1,9 +1,10 @@
-import type { MessageId, ThreadId, TurnId } from "@multi/contracts";
+import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,
   ProposedPlan,
   Thread,
+  ThreadTreeEntry,
   ThreadSession,
   ThreadShell,
   ThreadTurnState,
@@ -14,7 +15,9 @@ const EMPTY_MESSAGES: ChatMessage[] = [];
 const EMPTY_ACTIVITIES: Thread["activities"] = [];
 const EMPTY_PROPOSED_PLANS: ProposedPlan[] = [];
 const EMPTY_TURN_DIFF_SUMMARIES: TurnDiffSummary[] = [];
+const EMPTY_THREAD_ENTRIES: ThreadTreeEntry[] = [];
 const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
+const EMPTY_THREAD_ENTRY_MAP: Record<ThreadEntryId, ThreadTreeEntry> = {};
 const EMPTY_ACTIVITY_MAP: Record<string, Thread["activities"][number]> = {};
 const EMPTY_PROPOSED_PLAN_MAP: Record<string, ProposedPlan> = {};
 const EMPTY_TURN_DIFF_MAP: Record<TurnId, TurnDiffSummary> = {};
@@ -25,7 +28,9 @@ const threadCache = new WeakMap<
   {
     session: ThreadSession | null;
     turnState: ThreadTurnState | undefined;
+    activeEntryId: ThreadEntryId | null;
     messages: Thread["messages"];
+    entries: ThreadTreeEntry[];
     activities: Thread["activities"];
     proposedPlans: Thread["proposedPlans"];
     turnDiffSummaries: Thread["turnDiffSummaries"];
@@ -65,6 +70,14 @@ function selectThreadMessages(state: EnvironmentState, threadId: ThreadId): Thre
     state.messageIdsByThreadId[threadId],
     state.messageByThreadId[threadId] ?? EMPTY_MESSAGE_MAP,
     EMPTY_MESSAGES,
+  );
+}
+
+function selectThreadEntries(state: EnvironmentState, threadId: ThreadId): ThreadTreeEntry[] {
+  return collectByIds(
+    state.entryIdsByThreadId?.[threadId],
+    state.entryByThreadId?.[threadId] ?? EMPTY_THREAD_ENTRY_MAP,
+    EMPTY_THREAD_ENTRIES,
   );
 }
 
@@ -109,7 +122,9 @@ export function getThreadFromEnvironmentState(
 
   const session = state.threadSessionById[threadId] ?? null;
   const turnState = state.threadTurnStateById[threadId];
+  const activeEntryId = state.activeEntryIdByThreadId?.[threadId] ?? null;
   const messages = selectThreadMessages(state, threadId);
+  const entries = selectThreadEntries(state, threadId);
   const activities = selectThreadActivities(state, threadId);
   const proposedPlans = selectThreadProposedPlans(state, threadId);
   const turnDiffSummaries = selectThreadTurnDiffSummaries(state, threadId);
@@ -119,7 +134,9 @@ export function getThreadFromEnvironmentState(
     cached &&
     cached.session === session &&
     cached.turnState === turnState &&
+    cached.activeEntryId === activeEntryId &&
     cached.messages === messages &&
+    cached.entries === entries &&
     cached.activities === activities &&
     cached.proposedPlans === proposedPlans &&
     cached.turnDiffSummaries === turnDiffSummaries
@@ -133,6 +150,8 @@ export function getThreadFromEnvironmentState(
     latestTurn: turnState?.latestTurn ?? null,
     pendingSourceProposedPlan: turnState?.pendingSourceProposedPlan,
     messages,
+    activeEntryId,
+    entries,
     activities,
     proposedPlans,
     turnDiffSummaries,
@@ -141,7 +160,9 @@ export function getThreadFromEnvironmentState(
   threadCache.set(shell, {
     session,
     turnState,
+    activeEntryId,
     messages,
+    entries,
     activities,
     proposedPlans,
     turnDiffSummaries,

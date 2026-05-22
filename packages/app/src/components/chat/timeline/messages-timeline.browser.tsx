@@ -1,6 +1,6 @@
 import "../../../index.css";
 
-import { EnvironmentId, MessageId } from "@multi/contracts";
+import { EnvironmentId, MessageId, ThreadId } from "@multi/contracts";
 import { createRef, type ComponentProps } from "react";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,7 @@ function buildProps() {
     onBeginEditUserMessage: vi.fn(),
     onImageExpand: vi.fn(),
     activeThreadEnvironmentId: EnvironmentId.make("environment-local"),
+    activeThreadId: ThreadId.make("thread-local"),
     markdownCwd: undefined,
     projectRoot: undefined,
     onIsAtBottomChange: vi.fn(),

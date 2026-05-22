@@ -2804,14 +2804,14 @@ describe("ClaudeAdapterLive", () => {
           assert.equal(String(secondCompleted.value.turnId), String(secondTurn.turnId));
         }
 
-        const threadBeforeRollback = yield* adapter.readThread(session.threadId);
+        const threadBeforeRollback = yield* adapter.readThread({ threadId: session.threadId });
         assert.equal(threadBeforeRollback.turns.length, 2);
 
         const rolledBack = yield* adapter.rollbackThread(session.threadId, 1);
         assert.equal(rolledBack.turns.length, 1);
         assert.equal(rolledBack.turns[0]?.id, firstTurn.turnId);
 
-        const threadAfterRollback = yield* adapter.readThread(session.threadId);
+        const threadAfterRollback = yield* adapter.readThread({ threadId: session.threadId });
         assert.equal(threadAfterRollback.turns.length, 1);
         assert.equal(threadAfterRollback.turns[0]?.id, firstTurn.turnId);
       }).pipe(

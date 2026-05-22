@@ -262,6 +262,7 @@ describe("ProviderCommandReactor", () => {
         Effect.succeed({
           sessionModelSwitch: input?.sessionModelSwitch ?? "in-session",
         }),
+      readThread: () => unsupportedProviderCall(),
       rollbackConversation: () => unsupportedProviderCall(),
       get streamEvents() {
         return Stream.fromPubSub(runtimeEventPubSub);

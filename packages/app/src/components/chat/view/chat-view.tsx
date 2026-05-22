@@ -11,7 +11,9 @@ import {
   type ResolvedKeybindingsConfig,
   type ServerProvider,
   type ScopedThreadRef,
+  type ThreadEntryId,
   type ThreadId,
+  type TurnId,
   type KeybindingCommand,
   OrchestrationThreadActivity,
   ProviderInteractionMode,
@@ -141,6 +143,7 @@ import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
 import { ChatHeader } from "./chat-header";
+import { ThreadTreePanel } from "./thread-tree-panel";
 import {
   PersistentThreadTerminalDrawer,
   type TerminalLaunchContext,
@@ -202,6 +205,129 @@ const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnsw
 const EMPTY_QUEUED_COMPOSER_ITEMS: QueuedComposerItem[] = [];
 const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
+
+interface ThreadBranchView {
+  entryId: ThreadEntryId | null;
+  messageIds: ReadonlySet<MessageId> | null;
+  turnIds: ReadonlySet<TurnId> | null;
+}
+
+function deriveThreadBranchView(
+  thread: Thread | null,
+  targetEntryId: ThreadEntryId | null | undefined,
+): ThreadBranchView {
+  const unfiltered: ThreadBranchView = {
+    entryId: null,
+    messageIds: null,
+    turnIds: null,
+  };
+  if (!thread) {
+    return unfiltered;
+  }
+
+  const entries = thread.entries?.filter((entry) => entry.kind !== "label") ?? [];
+  const entryId = targetEntryId ?? thread.activeEntryId ?? null;
+  if (!entryId || entries.length === 0) {
+    return unfiltered;
+  }
+
+  const entryById = new Map(entries.map((entry) => [entry.id, entry] as const));
+  const messageById = new Map(thread.messages.map((message) => [message.id, message] as const));
+  const pathEntries: Thread["entries"] = [];
+  const seen = new Set<ThreadEntryId>();
+  let cursor: ThreadEntryId | null = entryId;
+
+  while (cursor !== null && !seen.has(cursor)) {
+    seen.add(cursor);
+    const entry = entryById.get(cursor);
+    if (!entry) {
+      return unfiltered;
+    }
+    pathEntries.push(entry);
+    cursor = entry.parentEntryId;
+  }
+
+  const messageIds = new Set<MessageId>();
+  const turnIds = new Set<TurnId>();
+  for (const entry of pathEntries.reverse()) {
+    if (entry.turnId !== null) {
+      turnIds.add(entry.turnId);
+    }
+    if (entry.kind !== "message" || entry.messageId === null) {
+      continue;
+    }
+    messageIds.add(entry.messageId);
+    const message = messageById.get(entry.messageId);
+    if (message?.turnId) {
+      turnIds.add(message.turnId);
+    }
+  }
+
+  return {
+    entryId,
+    messageIds,
+    turnIds,
+  };
+}
+
+function filterMessagesToBranch(
+  messages: ChatMessage[],
+  branchView: ThreadBranchView,
+): ChatMessage[] {
+  const messageIds = branchView.messageIds;
+  if (!messageIds) {
+    return messages;
+  }
+  return messages.filter((message) => messageIds.has(message.id));
+}
+
+function filterActivitiesToBranch(
+  activities: OrchestrationThreadActivity[],
+  branchView: ThreadBranchView,
+): OrchestrationThreadActivity[] {
+  const turnIds = branchView.turnIds;
+  if (!turnIds) {
+    return activities;
+  }
+  return activities.filter((activity) => activity.turnId === null || turnIds.has(activity.turnId));
+}
+
+function containsThreadEntry(
+  thread: Thread | null,
+  entryId: ThreadEntryId | null | undefined,
+): entryId is ThreadEntryId {
+  if (!thread || !entryId || !thread.entries) {
+    return false;
+  }
+  return thread.entries.some((entry) => entry.kind !== "label" && entry.id === entryId);
+}
+
+function isThreadEntryOnPath(input: {
+  thread: Thread | null;
+  leafEntryId: ThreadEntryId | null | undefined;
+  targetEntryId: ThreadEntryId | null | undefined;
+}): boolean {
+  const { thread, leafEntryId, targetEntryId } = input;
+  if (!thread || !leafEntryId || !targetEntryId || !thread.entries) {
+    return false;
+  }
+
+  const entryById = new Map(
+    thread.entries
+      .filter((entry) => entry.kind !== "label")
+      .map((entry) => [entry.id, entry] as const),
+  );
+  const seen = new Set<ThreadEntryId>();
+  let cursor: ThreadEntryId | null = leafEntryId;
+  while (cursor !== null && !seen.has(cursor)) {
+    if (cursor === targetEntryId) {
+      return true;
+    }
+    seen.add(cursor);
+    cursor = entryById.get(cursor)?.parentEntryId ?? null;
+  }
+  return false;
+}
 
 function ProviderStatusBanner({ status }: { status: ServerProvider | null }) {
   if (!status || status.status === "ready" || status.status === "disabled") {
@@ -744,6 +870,7 @@ function ChatViewKeyboardShortcutsSync({
   createNewTerminal,
   keybindings,
   onToggleDiff,
+  onToggleTree,
   runProjectScript,
   setTerminalOpen,
   splitTerminal,
@@ -757,6 +884,7 @@ function ChatViewKeyboardShortcutsSync({
   createNewTerminal: () => void;
   keybindings: ResolvedKeybindingsConfig;
   onToggleDiff: () => void;
+  onToggleTree: () => void;
   runProjectScript: (script: ProjectScript) => void | Promise<void>;
   setTerminalOpen: (open: boolean) => void;
   splitTerminal: () => void;
@@ -818,6 +946,13 @@ function ChatViewKeyboardShortcutsSync({
         event.preventDefault();
         event.stopPropagation();
         onToggleDiff();
+        return;
+      }
+
+      if (command === "threadTree.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggleTree();
         return;
       }
 
@@ -931,6 +1066,11 @@ export default function ChatView(props: ChatViewProps) {
   const composerRef = useComposerHandleContext() ?? localComposerRef;
   const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [threadTreeOpen, setThreadTreeOpen] = useState(false);
+  const [threadTreePreviewEntryId, setThreadTreePreviewEntryId] =
+    useState<ThreadEntryId | null>(null);
+  const [threadTreeFollowAnchorEntryId, setThreadTreeFollowAnchorEntryId] =
+    useState<ThreadEntryId | null>(null);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
   const optimisticUserMessagesRef = useRef(optimisticUserMessages);
@@ -1166,16 +1306,52 @@ export default function ChatView(props: ChatViewProps) {
     selectedProviderByThreadId ?? threadProvider ?? ProviderInstanceId.make("codex");
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
+  const resolvedThreadTreePreviewEntryId = containsThreadEntry(
+    activeThread ?? null,
+    threadTreePreviewEntryId,
+  )
+    ? threadTreePreviewEntryId
+    : null;
+  const resolvedThreadTreeFollowAnchorEntryId = containsThreadEntry(
+    activeThread ?? null,
+    threadTreeFollowAnchorEntryId,
+  )
+    ? threadTreeFollowAnchorEntryId
+    : null;
+  const activeEntryId = activeThread?.activeEntryId ?? null;
+  const shouldUseFollowAnchor =
+    resolvedThreadTreeFollowAnchorEntryId !== null &&
+    !isThreadEntryOnPath({
+      thread: activeThread ?? null,
+      leafEntryId: activeEntryId,
+      targetEntryId: resolvedThreadTreeFollowAnchorEntryId,
+    });
+  const followedThreadTreeEntryId = shouldUseFollowAnchor
+    ? resolvedThreadTreeFollowAnchorEntryId
+    : activeEntryId;
+  const selectedThreadTreeEntryId = resolvedThreadTreePreviewEntryId ?? followedThreadTreeEntryId;
+  const branchViewEntryId =
+    threadTreeOpen && resolvedThreadTreePreviewEntryId
+      ? resolvedThreadTreePreviewEntryId
+      : followedThreadTreeEntryId;
+  const branchView = useMemo(
+    () => deriveThreadBranchView(activeThread ?? null, branchViewEntryId),
+    [activeThread, branchViewEntryId],
+  );
+  const visibleThreadActivities = useMemo(
+    () => filterActivitiesToBranch(threadActivities, branchView),
+    [branchView, threadActivities],
+  );
   const activeRunningTurnId =
     activeThread?.session?.orchestrationStatus === "running"
       ? (activeThread.session.activeTurnId ?? activeLatestTurn?.turnId ?? null)
       : null;
   const workLogEntries = useMemo(
     () =>
-      deriveWorkLogEntries(threadActivities, undefined, {
+      deriveWorkLogEntries(visibleThreadActivities, undefined, {
         activeRunningTurnId,
       }),
-    [activeRunningTurnId, threadActivities],
+    [activeRunningTurnId, visibleThreadActivities],
   );
   const pendingApprovals = useMemo(
     () =>
@@ -1282,7 +1458,11 @@ export default function ChatView(props: ChatViewProps) {
     activeThread?.session ?? null,
     localDispatchStartedAt,
   );
-  const serverMessages = activeThread?.messages;
+  const allServerMessages = activeThread?.messages ?? [];
+  const serverMessages = useMemo(
+    () => filterMessagesToBranch(allServerMessages, branchView),
+    [allServerMessages, branchView],
+  );
   const {
     attachmentPreviewHandoffSync,
     applyAttachmentPreviewHandoff,
@@ -1290,7 +1470,7 @@ export default function ChatView(props: ChatViewProps) {
     handoffAttachmentPreviews,
   } = useAttachmentPreviewHandoff({ serverMessages });
   const timelineMessages = useMemo(() => {
-    const serverMessagesWithPreviewHandoff = applyAttachmentPreviewHandoff(serverMessages ?? []);
+    const serverMessagesWithPreviewHandoff = applyAttachmentPreviewHandoff(serverMessages);
 
     const pendingGitAgentMessage =
       gitAgentActionHandoff?.target.environmentId === environmentId &&
@@ -1472,6 +1652,10 @@ export default function ChatView(props: ChatViewProps) {
     () => shortcutLabelForCommand(keybindings, "diff.toggle", nonTerminalShortcutLabelOptions),
     [keybindings, nonTerminalShortcutLabelOptions],
   );
+  const threadTreeShortcutLabel = useMemo(
+    () => shortcutLabelForCommand(keybindings, "threadTree.toggle", nonTerminalShortcutLabelOptions),
+    [keybindings, nonTerminalShortcutLabelOptions],
+  );
   const openGitWorkbench = useCallback(() => {
     if (!isElectron) {
       return;
@@ -1499,6 +1683,9 @@ export default function ChatView(props: ChatViewProps) {
       },
     });
   }, [diffOpen, environmentId, isServerThread, navigate, openGitWorkbench, threadId]);
+  const onToggleTree = useCallback(() => {
+    setThreadTreeOpen((open) => !open);
+  }, []);
 
   const activeTerminalGroup =
     terminalState.terminalGroups.find(
@@ -1535,6 +1722,37 @@ export default function ChatView(props: ChatViewProps) {
       });
     },
     [draftId, routeThreadRef, serverThread, setStoreThreadError],
+  );
+
+  const onActivateThreadTreeEntry = useCallback(
+    (entryId: ThreadEntryId) => {
+      setThreadTreePreviewEntryId(null);
+      setThreadTreeFollowAnchorEntryId(entryId);
+      const api = readEnvironmentApi(environmentId);
+      if (!api || !activeThreadId) {
+        return;
+      }
+      void api.orchestration
+        .dispatchCommand({
+          type: "thread.tree.navigate",
+          commandId: newCommandId(),
+          threadId: activeThreadId,
+          entryId,
+          createdAt: new Date().toISOString(),
+        })
+        .catch((error: unknown) => {
+          setThreadError(activeThreadId, error instanceof Error ? error.message : String(error));
+        });
+    },
+    [activeThreadId, environmentId, setThreadError],
+  );
+
+  const onSelectThreadTreeEntry = useCallback(
+    (entryId: ThreadEntryId) => {
+      setThreadTreeFollowAnchorEntryId(null);
+      setThreadTreePreviewEntryId(entryId === activeThread?.activeEntryId ? null : entryId);
+    },
+    [activeThread?.activeEntryId],
   );
 
   const focusComposer = useCallback(() => {
@@ -2556,6 +2774,7 @@ export default function ChatView(props: ChatViewProps) {
           createdAt: new Date().toISOString(),
         }),
       );
+      setThreadTreePreviewEntryId(null);
       clearLiveComposer();
       if (sendWhileStreamingBehavior === "stop-and-send") {
         await onInterrupt();
@@ -2563,6 +2782,7 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
+    setThreadTreePreviewEntryId(null);
     await submitComposerSendSnapshot({
       sendContext,
       runtimeMode,
@@ -3127,6 +3347,7 @@ export default function ChatView(props: ChatViewProps) {
   const splitTerminalVersion = useValueIdentityVersion(splitTerminal);
   const keybindingsVersion = useValueIdentityVersion(keybindings);
   const onToggleDiffVersion = useValueIdentityVersion(onToggleDiff);
+  const onToggleTreeVersion = useValueIdentityVersion(onToggleTree);
   const toggleTerminalVisibilityVersion = useValueIdentityVersion(toggleTerminalVisibility);
   const activeProjectScriptsVersion = useValueIdentityVersion(activeProject?.scripts ?? null);
   const chatViewLifecycleSync = (
@@ -3279,6 +3500,7 @@ export default function ChatView(props: ChatViewProps) {
           createNewTerminalVersion,
           keybindingsVersion,
           onToggleDiffVersion,
+          onToggleTreeVersion,
           runProjectScriptVersion,
           setTerminalOpenVersion,
           splitTerminalVersion,
@@ -3292,6 +3514,7 @@ export default function ChatView(props: ChatViewProps) {
         createNewTerminal={createNewTerminal}
         keybindings={keybindings}
         onToggleDiff={onToggleDiff}
+        onToggleTree={onToggleTree}
         runProjectScript={runProjectScript}
         setTerminalOpen={setTerminalOpen}
         splitTerminal={splitTerminal}
@@ -3332,12 +3555,15 @@ export default function ChatView(props: ChatViewProps) {
           terminalToggleShortcutLabel={terminalToggleShortcutLabel}
           diffToggleShortcutLabel={diffPanelShortcutLabel}
           diffOpen={diffOpen}
+          treeToggleShortcutLabel={threadTreeShortcutLabel}
+          treeOpen={threadTreeOpen}
           onRunProjectScript={runProjectScript}
           onAddProjectScript={saveProjectScript}
           onUpdateProjectScript={updateProjectScript}
           onDeleteProjectScript={deleteProjectScript}
           onToggleTerminal={toggleTerminalVisibility}
           onToggleDiff={onToggleDiff}
+          onToggleTree={onToggleTree}
         />
       </header>
 
@@ -3355,7 +3581,7 @@ export default function ChatView(props: ChatViewProps) {
           {!isHeroComposer && (
             <div className="relative flex min-h-0 flex-1 flex-col">
               <MessagesTimeline
-                key={activeThread.id}
+                key={`${activeThread.id}:${branchView.entryId ?? "linear"}`}
                 isWorking={isWorking}
                 activeTurnInProgress={isWorking || !latestTurnSettled}
                 editUserMessagesDisabled={isWorking}
@@ -3363,6 +3589,7 @@ export default function ChatView(props: ChatViewProps) {
                 bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
                 timelineControllerRef={messagesTimelineControllerRef}
                 timelineEntries={timelineEntries}
+                activeThreadId={activeThread.id}
                 activeThreadEnvironmentId={activeThread.environmentId}
                 revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
                 onImageExpand={onExpandTimelineImage}
@@ -3516,6 +3743,15 @@ export default function ChatView(props: ChatViewProps) {
           ) : null}
         </div>
         {/* end chat column */}
+        <ThreadTreePanel
+          thread={activeThread}
+          open={threadTreeOpen}
+          selectedEntryId={selectedThreadTreeEntryId}
+          shortcutLabel={threadTreeShortcutLabel}
+          onClose={() => setThreadTreeOpen(false)}
+          onSelect={onSelectThreadTreeEntry}
+          onActivate={onActivateThreadTreeEntry}
+        />
       </div>
       {/* end horizontal flex container */}
 

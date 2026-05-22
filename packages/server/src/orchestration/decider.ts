@@ -1,7 +1,9 @@
 import type {
+  MessageId,
   OrchestrationCommand,
   OrchestrationEvent,
   OrchestrationReadModel,
+  ThreadEntryId,
 } from "@multi/contracts";
 import { Effect } from "effect";
 
@@ -45,6 +47,17 @@ function withEventBase(
     correlationId: input.commandId,
     metadata: input.metadata ?? {},
   };
+}
+
+function threadEntryIdForMessageId(messageId: MessageId): ThreadEntryId {
+  return `message:${messageId}` as ThreadEntryId;
+}
+
+function threadLabelEntryId(input: {
+  readonly targetEntryId: ThreadEntryId;
+  readonly commandId: string;
+}): ThreadEntryId {
+  return `label:${input.targetEntryId}:${input.commandId}` as ThreadEntryId;
 }
 
 export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand")(function* ({
@@ -427,6 +440,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
                 updatedAt: bootstrapCreateThread.createdAt,
               },
             };
+      const userEntryId = threadEntryIdForMessageId(command.message.messageId);
       const userMessageEvent: Omit<OrchestrationEvent, "sequence"> = {
         ...withEventBase({
           aggregateKind: "thread",
@@ -438,6 +452,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.message.messageId,
+          entryId: userEntryId,
+          parentEntryId: targetThread.activeEntryId ?? null,
           role: "user",
           text: command.message.text,
           attachments: command.message.attachments,
@@ -459,6 +475,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.message.messageId,
+          userEntryId,
           ...(command.modelSelection !== undefined
             ? { modelSelection: command.modelSelection }
             : {}),
@@ -591,6 +608,81 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.tree.navigate": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const targetEntry = (thread.entries ?? []).find((entry) => entry.id === command.entryId);
+      if (!targetEntry) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread entry '${command.entryId}' was not found.`,
+        });
+      }
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.tree-navigated",
+        payload: {
+          threadId: command.threadId,
+          entryId: command.entryId,
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
+    case "thread.tree.label.set": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const targetEntry = (thread.entries ?? []).find(
+        (entry) => entry.id === command.targetEntryId,
+      );
+      if (!targetEntry) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread entry '${command.targetEntryId}' was not found.`,
+        });
+      }
+      const labelEntryId = threadLabelEntryId({
+        targetEntryId: command.targetEntryId,
+        commandId: command.commandId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.tree-label-set",
+        payload: {
+          threadId: command.threadId,
+          entry: {
+            id: labelEntryId,
+            threadId: command.threadId,
+            parentEntryId: command.targetEntryId,
+            kind: "label",
+            messageId: null,
+            turnId: null,
+            targetEntryId: command.targetEntryId,
+            label: command.label,
+            summary: null,
+            createdAt: command.createdAt,
+          },
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
     case "thread.session.set": {
       yield* requireThread({
         readModel,
@@ -630,6 +722,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.messageId,
+          entryId: threadEntryIdForMessageId(command.messageId),
+          parentEntryId: command.parentEntryId ?? null,
           role: "assistant",
           text: command.delta,
           turnId: command.turnId ?? null,
@@ -657,6 +751,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.messageId,
+          entryId: threadEntryIdForMessageId(command.messageId),
+          parentEntryId: command.parentEntryId ?? null,
           role: "assistant",
           text: "",
           turnId: command.turnId ?? null,

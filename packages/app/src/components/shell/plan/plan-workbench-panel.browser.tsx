@@ -82,6 +82,7 @@ function createProjectWriteApi(writeFile: EnvironmentApi["projects"]["writeFile"
       dispatchCommand: unexpectedEnvironmentApiCall,
       getTurnDiff: unexpectedEnvironmentApiCall,
       getFullThreadDiff: unexpectedEnvironmentApiCall,
+      getProviderThreadSnapshot: unexpectedEnvironmentApiCall,
       subscribeShell: () => () => undefined,
       subscribeThread: () => () => undefined,
     },

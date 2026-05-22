@@ -30,6 +30,7 @@ import {
   ProviderAdapterValidationError,
 } from "./Errors.ts";
 import { OpenCodeAdapter, type OpenCodeAdapterShape } from "./OpenCodeAdapter.service.ts";
+import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 import {
   buildOpenCodePermissionRules,
   OpenCodeRuntime,
@@ -1147,7 +1148,7 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
           });
         }
 
-        const text = input.input?.trim();
+        const text = formatProviderTurnInputText(input);
         const fileParts = toOpenCodeFileParts({
           attachments: input.attachments,
           resolveAttachmentPath: (attachment) =>
@@ -1317,8 +1318,8 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
         Effect.sync(() => sessions.has(threadId));
 
       const readThread: OpenCodeAdapterShape["readThread"] = Effect.fn("readThread")(
-        function* (threadId) {
-          const context = ensureSessionContext(sessions, threadId);
+        function* (input) {
+          const context = ensureSessionContext(sessions, input.threadId);
           const messages = yield* runOpenCodeSdk("session.messages", () =>
             context.client.session.messages({ sessionID: context.openCodeSessionId }),
           ).pipe(Effect.mapError(toRequestError));
@@ -1331,7 +1332,7 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
             }));
 
           return {
-            threadId,
+            threadId: input.threadId,
             turns,
           };
         },
@@ -1356,7 +1357,7 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
             }),
           ).pipe(Effect.mapError(toRequestError));
 
-          return yield* readThread(threadId);
+          return yield* readThread({ threadId });
         },
       );
 

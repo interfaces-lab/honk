@@ -4,7 +4,7 @@ import {
   type ResolvedKeybindingsConfig,
 } from "@multi/contracts";
 import { memo } from "react";
-import { IconSidebar } from "central-icons";
+import { IconBranch, IconSidebar } from "central-icons";
 import { Button } from "@multi/ui/button";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../../project-scripts-control";
 import { shellPanelsActions } from "~/stores/shell-panels-store";
@@ -22,12 +22,15 @@ interface ChatHeaderProps {
   terminalToggleShortcutLabel: string | null;
   diffToggleShortcutLabel: string | null;
   diffOpen: boolean;
+  treeToggleShortcutLabel: string | null;
+  treeOpen: boolean;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<void>;
   onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
   onDeleteProjectScript: (scriptId: string) => Promise<void>;
   onToggleTerminal: () => void;
   onToggleDiff: () => void;
+  onToggleTree: () => void;
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -39,6 +42,9 @@ export const ChatHeader = memo(function ChatHeader({
   onAddProjectScript,
   onUpdateProjectScript,
   onDeleteProjectScript,
+  treeOpen,
+  treeToggleShortcutLabel,
+  onToggleTree,
 }: ChatHeaderProps) {
   return (
     <div className="@container/header-actions pointer-events-auto flex min-w-0 flex-1 select-none items-center gap-2 text-body">
@@ -81,6 +87,18 @@ export const ChatHeader = memo(function ChatHeader({
           />
         </div>
       ) : null}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="no-drag size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden"
+        aria-label="Toggle thread tree"
+        title={treeToggleShortcutLabel ? `Thread tree (${treeToggleShortcutLabel})` : "Thread tree"}
+        aria-pressed={treeOpen}
+        onClick={onToggleTree}
+      >
+        <IconBranch className="size-4 shrink-0" />
+      </Button>
     </div>
   );
 });

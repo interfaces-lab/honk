@@ -121,7 +121,13 @@ export interface CodexThreadTurnSnapshot {
 
 export interface CodexThreadSnapshot {
   readonly threadId: string;
+  readonly providerThreadId: string;
   readonly turns: ReadonlyArray<CodexThreadTurnSnapshot>;
+}
+
+export interface CodexSessionRuntimeReadThreadInput {
+  readonly providerThreadId?: string | undefined;
+  readonly includeTurns?: boolean | undefined;
 }
 
 export interface CodexSessionRuntimeShape {
@@ -131,7 +137,9 @@ export interface CodexSessionRuntimeShape {
     input: CodexSessionRuntimeSendTurnInput,
   ) => Effect.Effect<ProviderTurnStartResult, CodexSessionRuntimeError>;
   readonly interruptTurn: (turnId?: TurnId) => Effect.Effect<void, CodexSessionRuntimeError>;
-  readonly readThread: Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
+  readonly readThread: (
+    input?: CodexSessionRuntimeReadThreadInput,
+  ) => Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
   readonly rollbackThread: (
     numTurns: number,
   ) => Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
@@ -219,6 +227,13 @@ interface PendingUserInput {
   readonly turnId: TurnId | undefined;
   readonly itemId: ProviderItemId | undefined;
   readonly answers: Deferred.Deferred<ProviderUserInputAnswers>;
+}
+
+interface CollabReceiverRoute {
+  readonly providerThreadId: string;
+  readonly parentTurnId: TurnId;
+  readonly parentItemId: ProviderItemId | undefined;
+  readonly senderProviderThreadId: string | undefined;
 }
 
 type CodexServerNotification = {
@@ -574,12 +589,16 @@ function readRouteFields(notification: CodexServerNotification): {
   }
 }
 
-function rememberCollabReceiverTurns(
-  collabReceiverTurns: Map<string, TurnId>,
+function rememberCollabReceiverRoutes(
+  collabReceiverRoutes: Map<string, CollabReceiverRoute>,
   notification: CodexServerNotification,
-  parentTurnId: TurnId | undefined,
+  route: {
+    readonly parentTurnId: TurnId | undefined;
+    readonly parentItemId: ProviderItemId | undefined;
+    readonly senderProviderThreadId: string | undefined;
+  },
 ): void {
-  if (!parentTurnId) {
+  if (!route.parentTurnId) {
     return;
   }
 
@@ -592,26 +611,14 @@ function rememberCollabReceiverTurns(
   }
 
   for (const receiverThreadId of notification.params.item.receiverThreadIds) {
-    collabReceiverTurns.set(receiverThreadId, parentTurnId);
+    collabReceiverRoutes.set(receiverThreadId, {
+      providerThreadId: receiverThreadId,
+      parentTurnId: route.parentTurnId,
+      parentItemId: route.parentItemId,
+      senderProviderThreadId:
+        notification.params.item.senderThreadId ?? route.senderProviderThreadId,
+    });
   }
-}
-
-function shouldSuppressChildConversationNotification(
-  method: CodexRpc.ServerNotificationMethod,
-): boolean {
-  return (
-    method === "thread/started" ||
-    method === "thread/status/changed" ||
-    method === "thread/archived" ||
-    method === "thread/unarchived" ||
-    method === "thread/closed" ||
-    method === "thread/compacted" ||
-    method === "thread/name/updated" ||
-    method === "turn/started" ||
-    method === "turn/completed" ||
-    method === "turn/plan/updated" ||
-    method === "item/plan/delta"
-  );
 }
 
 function toCodexUserInputAnswer(
@@ -680,6 +687,7 @@ function parseThreadSnapshot(
 ): CodexThreadSnapshot {
   return {
     threadId: response.thread.id,
+    providerThreadId: response.thread.id,
     turns: response.thread.turns.map((turn) => ({
       id: TurnId.make(turn.id),
       items: turn.items,
@@ -701,7 +709,7 @@ export const makeCodexSessionRuntime = (
     const pendingApprovalsRef = yield* Ref.make(new Map<ApprovalRequestId, PendingApproval>());
     const approvalCorrelationsRef = yield* Ref.make(new Map<string, ApprovalCorrelation>());
     const pendingUserInputsRef = yield* Ref.make(new Map<ApprovalRequestId, PendingUserInput>());
-    const collabReceiverTurnsRef = yield* Ref.make(new Map<string, TurnId>());
+    const collabReceiverRoutesRef = yield* Ref.make(new Map<string, CollabReceiverRoute>());
     const closedRef = yield* Ref.make(false);
 
     const child = yield* spawner
@@ -796,23 +804,21 @@ export const makeCodexSessionRuntime = (
       Effect.gen(function* () {
         const payload = notification.params;
         const route = readRouteFields(notification);
-        const collabReceiverTurns = yield* Ref.get(collabReceiverTurnsRef);
-        const childParentTurnId = (() => {
-          const providerConversationId = readNotificationThreadId(notification);
-          return providerConversationId
-            ? collabReceiverTurns.get(providerConversationId)
-            : undefined;
-        })();
+        const collabReceiverRoutes = yield* Ref.get(collabReceiverRoutesRef);
+        const providerConversationId = readNotificationThreadId(notification);
+        const childRoute = providerConversationId
+          ? collabReceiverRoutes.get(providerConversationId)
+          : undefined;
 
-        rememberCollabReceiverTurns(collabReceiverTurns, notification, route.turnId);
-        if (childParentTurnId && shouldSuppressChildConversationNotification(notification.method)) {
-          yield* Ref.set(collabReceiverTurnsRef, collabReceiverTurns);
-          return;
-        }
+        rememberCollabReceiverRoutes(collabReceiverRoutes, notification, {
+          parentTurnId: route.turnId,
+          parentItemId: route.itemId,
+          senderProviderThreadId: providerConversationId,
+        });
 
         let requestId: ApprovalRequestId | undefined;
         let requestKind: ProviderRequestKind | undefined;
-        let turnId = childParentTurnId ?? route.turnId;
+        let turnId = childRoute?.parentTurnId ?? route.turnId;
         let itemId = route.itemId;
 
         if (notification.method === "serverRequest/resolved") {
@@ -836,22 +842,21 @@ export const makeCodexSessionRuntime = (
           }
         }
 
-        yield* Ref.set(collabReceiverTurnsRef, collabReceiverTurns);
-        const providerConversationId = (() => {
-          if (!childParentTurnId || notification.method !== "thread/tokenUsage/updated") {
-            return undefined;
-          }
-          return readNotificationThreadId(notification);
-        })();
+        yield* Ref.set(collabReceiverRoutesRef, collabReceiverRoutes);
         yield* emitEvent({
           kind: "notification",
           threadId: options.threadId,
           method: notification.method,
           ...(turnId ? { turnId } : {}),
+          ...(route.turnId ? { providerTurnId: route.turnId } : {}),
           ...(itemId ? { itemId } : {}),
           ...(requestId ? { requestId } : {}),
           ...(requestKind ? { requestKind } : {}),
           ...(providerConversationId ? { providerConversationId } : {}),
+          ...(childRoute?.senderProviderThreadId
+            ? { parentProviderConversationId: childRoute.senderProviderThreadId }
+            : {}),
+          ...(childRoute?.parentItemId ? { parentItemId: childRoute.parentItemId } : {}),
           ...(notification.method === "item/agentMessage/delta"
             ? { textDelta: notification.params.delta }
             : {}),
@@ -1282,14 +1287,15 @@ export const makeCodexSessionRuntime = (
             turnId: effectiveTurnId,
           });
         }),
-      readThread: Effect.gen(function* () {
-        const providerThreadId = yield* readProviderThreadId;
-        const response = yield* client.request("thread/read", {
-          threadId: providerThreadId,
-          includeTurns: true,
-        });
-        return parseThreadSnapshot(response);
-      }),
+      readThread: (input) =>
+        Effect.gen(function* () {
+          const providerThreadId = input?.providerThreadId ?? (yield* readProviderThreadId);
+          const response = yield* client.request("thread/read", {
+            threadId: providerThreadId,
+            includeTurns: input?.includeTurns ?? true,
+          });
+          return parseThreadSnapshot(response);
+        }),
       rollbackThread: (numTurns) =>
         Effect.gen(function* () {
           const providerThreadId = yield* readProviderThreadId;

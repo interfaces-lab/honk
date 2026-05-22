@@ -52,6 +52,8 @@ import type {
   ClientOrchestrationCommand,
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetFullThreadDiffResult,
+  OrchestrationGetProviderThreadSnapshotInput,
+  OrchestrationGetProviderThreadSnapshotResult,
   OrchestrationGetTurnDiffInput,
   OrchestrationGetTurnDiffResult,
   OrchestrationShellStreamItem,
@@ -378,6 +380,9 @@ export interface EnvironmentApi {
     getFullThreadDiff: (
       input: OrchestrationGetFullThreadDiffInput,
     ) => Promise<OrchestrationGetFullThreadDiffResult>;
+    getProviderThreadSnapshot: (
+      input: OrchestrationGetProviderThreadSnapshotInput,
+    ) => Promise<OrchestrationGetProviderThreadSnapshotResult>;
     subscribeShell: (
       callback: (event: OrchestrationShellStreamItem) => void,
       options?: {

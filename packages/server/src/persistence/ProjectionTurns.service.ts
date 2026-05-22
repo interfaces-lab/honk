@@ -14,6 +14,7 @@ import {
   OrchestrationProposedPlanId,
   OrchestrationCheckpointFile,
   OrchestrationCheckpointStatus,
+  ThreadEntryId,
   ThreadId,
   TurnId,
 } from "@multi/contracts";
@@ -35,6 +36,7 @@ export const ProjectionTurn = Schema.Struct({
   threadId: ThreadId,
   turnId: Schema.NullOr(TurnId),
   pendingMessageId: Schema.NullOr(MessageId),
+  userEntryId: Schema.NullOr(ThreadEntryId),
   sourceProposedPlanThreadId: Schema.NullOr(ThreadId),
   sourceProposedPlanId: Schema.NullOr(OrchestrationProposedPlanId),
   assistantMessageId: Schema.NullOr(MessageId),
@@ -53,6 +55,7 @@ export const ProjectionTurnById = Schema.Struct({
   threadId: ThreadId,
   turnId: TurnId,
   pendingMessageId: Schema.NullOr(MessageId),
+  userEntryId: Schema.NullOr(ThreadEntryId),
   sourceProposedPlanThreadId: Schema.NullOr(ThreadId),
   sourceProposedPlanId: Schema.NullOr(OrchestrationProposedPlanId),
   assistantMessageId: Schema.NullOr(MessageId),
@@ -70,6 +73,7 @@ export type ProjectionTurnById = typeof ProjectionTurnById.Type;
 export const ProjectionPendingTurnStart = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
+  userEntryId: ThreadEntryId,
   sourceProposedPlanThreadId: Schema.NullOr(ThreadId),
   sourceProposedPlanId: Schema.NullOr(OrchestrationProposedPlanId),
   requestedAt: IsoDateTime,

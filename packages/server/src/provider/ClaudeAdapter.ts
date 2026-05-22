@@ -85,6 +85,7 @@ import {
 } from "./Errors.ts";
 import { ClaudeAdapter, type ClaudeAdapterShape } from "./ClaudeAdapter.service.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 import {
   actionFromCanonicalRequestType,
   isEnvFileReference,
@@ -581,7 +582,7 @@ function buildPromptText(input: ProviderSendTurnInput): string {
   const caps = getClaudeModelCapabilities(claudeModel);
 
   const promptEffort = resolvePromptInjectedEffort(caps, rawEffort);
-  return applyClaudePromptEffortPrefix(input.input?.trim() ?? "", promptEffort);
+  return applyClaudePromptEffortPrefix(formatProviderTurnInputText(input) ?? "", promptEffort);
 }
 
 function buildUserMessage(input: {
@@ -3187,8 +3188,8 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   );
 
   const readThread: ClaudeAdapterShape["readThread"] = Effect.fn("readThread")(
-    function* (threadId) {
-      const context = yield* requireSession(threadId);
+    function* (input) {
+      const context = yield* requireSession(input.threadId);
       return yield* snapshotThread(context);
     },
   );

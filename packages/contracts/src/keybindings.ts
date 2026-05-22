@@ -53,6 +53,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "terminal.new",
   "terminal.close",
   "diff.toggle",
+  "threadTree.toggle",
   "commandPalette.toggle",
   "composer.cycleInteractionMode",
   "composer.send",

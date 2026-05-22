@@ -13,7 +13,6 @@
     var(--conversation-text-leading, 18px),
     calc(var(--conversation-text-font-size, 13px) * 1.55)
   );
-  --multi-markdown-prose-max-width: 38rem;
   --multi-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
   --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 8%, transparent);
   --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 8%, transparent);
@@ -56,10 +55,6 @@
 .chat-markdown > h5:first-child,
 .chat-markdown > h6:first-child {
   margin-top: 0;
-}
-
-.chat-markdown :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr) {
-  max-width: min(100%, var(--multi-markdown-prose-max-width));
 }
 
 .chat-markdown ul ul {

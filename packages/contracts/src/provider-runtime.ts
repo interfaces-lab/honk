@@ -41,12 +41,27 @@ export type RuntimeEventRaw = typeof RuntimeEventRaw.Type;
 const ProviderRequestId = TrimmedNonEmptyStringSchema;
 export type ProviderRequestId = typeof ProviderRequestId.Type;
 
-const ProviderRefs = Schema.Struct({
+export const ProviderRefs = Schema.Struct({
+  providerThreadId: Schema.optional(TrimmedNonEmptyStringSchema),
+  parentProviderThreadId: Schema.optional(TrimmedNonEmptyStringSchema),
   providerTurnId: Schema.optional(TrimmedNonEmptyStringSchema),
   providerItemId: Schema.optional(ProviderItemId),
   providerRequestId: Schema.optional(ProviderRequestId),
 });
 export type ProviderRefs = typeof ProviderRefs.Type;
+
+export const RuntimeSubagentRef = Schema.Struct({
+  providerThreadId: TrimmedNonEmptyStringSchema,
+  parentProviderThreadId: Schema.optional(TrimmedNonEmptyStringSchema),
+  parentTurnId: Schema.optional(TurnId),
+  parentItemId: Schema.optional(ProviderItemId),
+  agentId: Schema.optional(TrimmedNonEmptyStringSchema),
+  nickname: Schema.optional(TrimmedNonEmptyStringSchema),
+  role: Schema.optional(TrimmedNonEmptyStringSchema),
+  model: Schema.optional(TrimmedNonEmptyStringSchema),
+  prompt: Schema.optional(TrimmedNonEmptyStringSchema),
+});
+export type RuntimeSubagentRef = typeof RuntimeSubagentRef.Type;
 
 const RuntimeSessionState = Schema.Literals([
   "starting",
@@ -173,6 +188,13 @@ const ProviderRuntimeEventType = Schema.Literals([
   "item.updated",
   "item.completed",
   "content.delta",
+  "subagent.thread.started",
+  "subagent.thread.state.changed",
+  "subagent.item.started",
+  "subagent.item.updated",
+  "subagent.item.completed",
+  "subagent.content.delta",
+  "subagent.usage.updated",
   "request.opened",
   "request.resolved",
   "user-input.requested",
@@ -223,6 +245,13 @@ const ItemStartedType = Schema.Literal("item.started");
 const ItemUpdatedType = Schema.Literal("item.updated");
 const ItemCompletedType = Schema.Literal("item.completed");
 const ContentDeltaType = Schema.Literal("content.delta");
+const SubagentThreadStartedType = Schema.Literal("subagent.thread.started");
+const SubagentThreadStateChangedType = Schema.Literal("subagent.thread.state.changed");
+const SubagentItemStartedType = Schema.Literal("subagent.item.started");
+const SubagentItemUpdatedType = Schema.Literal("subagent.item.updated");
+const SubagentItemCompletedType = Schema.Literal("subagent.item.completed");
+const SubagentContentDeltaType = Schema.Literal("subagent.content.delta");
+const SubagentUsageUpdatedType = Schema.Literal("subagent.usage.updated");
 const RequestOpenedType = Schema.Literal("request.opened");
 const RequestResolvedType = Schema.Literal("request.resolved");
 const UserInputRequestedType = Schema.Literal("user-input.requested");
@@ -417,6 +446,36 @@ const ContentDeltaPayload = Schema.Struct({
   summaryIndex: Schema.optional(Schema.Int),
 });
 export type ContentDeltaPayload = typeof ContentDeltaPayload.Type;
+
+const SubagentThreadStartedPayload = Schema.Struct({
+  subagent: RuntimeSubagentRef,
+});
+export type SubagentThreadStartedPayload = typeof SubagentThreadStartedPayload.Type;
+
+const SubagentThreadStateChangedPayload = Schema.Struct({
+  subagent: RuntimeSubagentRef,
+  state: RuntimeThreadState,
+  detail: Schema.optional(Schema.Unknown),
+});
+export type SubagentThreadStateChangedPayload = typeof SubagentThreadStateChangedPayload.Type;
+
+const SubagentItemLifecyclePayload = Schema.Struct({
+  subagent: RuntimeSubagentRef,
+  ...ItemLifecyclePayload.fields,
+});
+export type SubagentItemLifecyclePayload = typeof SubagentItemLifecyclePayload.Type;
+
+const SubagentContentDeltaPayload = Schema.Struct({
+  subagent: RuntimeSubagentRef,
+  ...ContentDeltaPayload.fields,
+});
+export type SubagentContentDeltaPayload = typeof SubagentContentDeltaPayload.Type;
+
+const SubagentUsageUpdatedPayload = Schema.Struct({
+  subagent: RuntimeSubagentRef,
+  usage: ThreadTokenUsageSnapshot,
+});
+export type SubagentUsageUpdatedPayload = typeof SubagentUsageUpdatedPayload.Type;
 
 const RequestOpenedPayload = Schema.Struct({
   requestType: CanonicalRequestType,
@@ -783,6 +842,62 @@ const ProviderRuntimeContentDeltaEvent = Schema.Struct({
 });
 export type ProviderRuntimeContentDeltaEvent = typeof ProviderRuntimeContentDeltaEvent.Type;
 
+const ProviderRuntimeSubagentThreadStartedEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentThreadStartedType,
+  payload: SubagentThreadStartedPayload,
+});
+export type ProviderRuntimeSubagentThreadStartedEvent =
+  typeof ProviderRuntimeSubagentThreadStartedEvent.Type;
+
+const ProviderRuntimeSubagentThreadStateChangedEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentThreadStateChangedType,
+  payload: SubagentThreadStateChangedPayload,
+});
+export type ProviderRuntimeSubagentThreadStateChangedEvent =
+  typeof ProviderRuntimeSubagentThreadStateChangedEvent.Type;
+
+const ProviderRuntimeSubagentItemStartedEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentItemStartedType,
+  payload: SubagentItemLifecyclePayload,
+});
+export type ProviderRuntimeSubagentItemStartedEvent =
+  typeof ProviderRuntimeSubagentItemStartedEvent.Type;
+
+const ProviderRuntimeSubagentItemUpdatedEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentItemUpdatedType,
+  payload: SubagentItemLifecyclePayload,
+});
+export type ProviderRuntimeSubagentItemUpdatedEvent =
+  typeof ProviderRuntimeSubagentItemUpdatedEvent.Type;
+
+const ProviderRuntimeSubagentItemCompletedEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentItemCompletedType,
+  payload: SubagentItemLifecyclePayload,
+});
+export type ProviderRuntimeSubagentItemCompletedEvent =
+  typeof ProviderRuntimeSubagentItemCompletedEvent.Type;
+
+const ProviderRuntimeSubagentContentDeltaEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentContentDeltaType,
+  payload: SubagentContentDeltaPayload,
+});
+export type ProviderRuntimeSubagentContentDeltaEvent =
+  typeof ProviderRuntimeSubagentContentDeltaEvent.Type;
+
+const ProviderRuntimeSubagentUsageUpdatedEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: SubagentUsageUpdatedType,
+  payload: SubagentUsageUpdatedPayload,
+});
+export type ProviderRuntimeSubagentUsageUpdatedEvent =
+  typeof ProviderRuntimeSubagentUsageUpdatedEvent.Type;
+
 const ProviderRuntimeRequestOpenedEvent = Schema.Struct({
   ...ProviderRuntimeEventBase.fields,
   type: RequestOpenedType,
@@ -974,6 +1089,13 @@ export const ProviderRuntimeEventV2 = Schema.Union([
   ProviderRuntimeItemUpdatedEvent,
   ProviderRuntimeItemCompletedEvent,
   ProviderRuntimeContentDeltaEvent,
+  ProviderRuntimeSubagentThreadStartedEvent,
+  ProviderRuntimeSubagentThreadStateChangedEvent,
+  ProviderRuntimeSubagentItemStartedEvent,
+  ProviderRuntimeSubagentItemUpdatedEvent,
+  ProviderRuntimeSubagentItemCompletedEvent,
+  ProviderRuntimeSubagentContentDeltaEvent,
+  ProviderRuntimeSubagentUsageUpdatedEvent,
   ProviderRuntimeRequestOpenedEvent,
   ProviderRuntimeRequestResolvedEvent,
   ProviderRuntimeUserInputRequestedEvent,

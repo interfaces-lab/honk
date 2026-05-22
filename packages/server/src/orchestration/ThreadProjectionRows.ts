@@ -18,6 +18,7 @@ import { Schema, Struct } from "effect";
 import { ProjectionCheckpoint } from "../persistence/ProjectionCheckpoints.service.ts";
 import { ProjectionState } from "../persistence/ProjectionState.service.ts";
 import { ProjectionThreadActivity } from "../persistence/ProjectionThreadActivities.service.ts";
+import { ProjectionThreadEntry } from "../persistence/ProjectionThreadEntries.service.ts";
 import { ProjectionThreadMessage } from "../persistence/ProjectionThreadMessages.service.ts";
 import { ProjectionThreadProposedPlan } from "../persistence/ProjectionThreadProposedPlans.service.ts";
 import { ProjectionThreadSession } from "../persistence/ProjectionThreadSessions.service.ts";
@@ -39,6 +40,7 @@ export const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
     modelSelection: Schema.fromJsonString(ModelSelection),
   }),
 );
+export const ProjectionThreadEntryDbRowSchema = ProjectionThreadEntry;
 export const ProjectionThreadActivityDbRowSchema = ProjectionThreadActivity.mapFields(
   Struct.assign({
     payload: Schema.fromJsonString(Schema.Unknown),
@@ -84,6 +86,7 @@ export const REQUIRED_SNAPSHOT_PROJECTORS = [
   ORCHESTRATION_PROJECTOR_NAMES.projects,
   ORCHESTRATION_PROJECTOR_NAMES.threads,
   ORCHESTRATION_PROJECTOR_NAMES.threadMessages,
+  ORCHESTRATION_PROJECTOR_NAMES.threadEntries,
   ORCHESTRATION_PROJECTOR_NAMES.threadProposedPlans,
   ORCHESTRATION_PROJECTOR_NAMES.threadActivities,
   ORCHESTRATION_PROJECTOR_NAMES.threadSessions,

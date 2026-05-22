@@ -1,4 +1,4 @@
-import { type EnvironmentId, type MessageId } from "@multi/contracts";
+import { type EnvironmentId, type MessageId, type ThreadId } from "@multi/contracts";
 import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   createContext,
@@ -47,6 +47,7 @@ type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
 export interface TimelineRowSharedState {
   markdownCwd: string | undefined;
   projectRoot: string | undefined;
+  activeThreadId: ThreadId;
   activeThreadEnvironmentId: EnvironmentId;
   isServerThread: boolean;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
@@ -95,6 +96,7 @@ interface MessagesTimelineProps {
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
+  activeThreadId: ThreadId;
   markdownCwd: string | undefined;
   projectRoot: string | undefined;
   isServerThread: boolean;
@@ -120,6 +122,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   revertTurnCountByUserMessageId,
   onImageExpand,
   activeThreadEnvironmentId,
+  activeThreadId,
   markdownCwd,
   projectRoot,
   isServerThread,
@@ -364,6 +367,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     () => ({
       markdownCwd,
       projectRoot,
+      activeThreadId,
       activeThreadEnvironmentId,
       isServerThread,
       onBeginEditUserMessage,
@@ -373,6 +377,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     [
       markdownCwd,
       projectRoot,
+      activeThreadId,
       activeThreadEnvironmentId,
       isServerThread,
       onBeginEditUserMessage,
@@ -838,7 +843,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   expanded: boolean;
   onToggleExpanded: (rowId: string) => void;
 }) {
-  const { projectRoot } = use(TimelineRowCtx);
+  const { activeThreadEnvironmentId, activeThreadId, projectRoot } = use(TimelineRowCtx);
   const summary = row.summary;
   const isRunning = row.isRunning;
   const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
@@ -904,6 +909,9 @@ const WorkGroupSection = memo(function WorkGroupSection({
               key={`work-row:${workEntry.id}`}
               workEntry={workEntry}
               projectRoot={projectRoot}
+              activeThreadId={activeThreadId}
+              environmentId={activeThreadEnvironmentId}
+              subagentDetailsEnabled
             />
           ))}
         </div>
@@ -942,6 +950,7 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
   onExpand: () => void;
   projectRoot: string | undefined;
 }) {
+  const { activeThreadEnvironmentId, activeThreadId } = use(TimelineRowCtx);
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
   const entries = row.groupedEntries;
   const lastEntryId = entries.at(-1)?.id;
@@ -1001,6 +1010,9 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
           key={`work-preview-row:${workEntry.id}`}
           workEntry={workEntry}
           projectRoot={projectRoot}
+          activeThreadId={activeThreadId}
+          environmentId={activeThreadEnvironmentId}
+          subagentDetailsEnabled={false}
         />
       ))}
     </div>

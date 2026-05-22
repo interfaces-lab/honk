@@ -39,6 +39,7 @@ import Migration0023 from "./migrations/023_ProjectionThreadShellSummary.ts";
 import Migration0024 from "./migrations/024_BackfillProjectionThreadShellSummary.ts";
 import Migration0025 from "./migrations/025_ProviderInstanceIdColumns.ts";
 import Migration0026 from "./migrations/026_NormalizeCanonicalModelSelectionJson.ts";
+import Migration0027 from "./migrations/027_ProjectionThreadEntries.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -77,6 +78,7 @@ export const migrationEntries = [
   [24, "BackfillProjectionThreadShellSummary", Migration0024],
   [25, "ProviderInstanceIdColumns", Migration0025],
   [26, "NormalizeCanonicalModelSelectionJson", Migration0026],
+  [27, "ProjectionThreadEntries", Migration0027],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>
