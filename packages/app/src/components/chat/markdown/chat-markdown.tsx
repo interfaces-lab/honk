@@ -4,21 +4,34 @@ import {
   getSharedHighlighter,
   type SupportedLanguages,
 } from "@pierre/diffs";
-import { IconCheckmark1, IconClipboard } from "central-icons";
+import {
+  IconArrowsHide,
+  IconCheckmark1,
+  IconClipboard,
+  IconCrossMediumDefault,
+  IconExpandSimple,
+  IconZoomIn,
+  IconZoomOut,
+} from "central-icons";
+import mermaid, { type MermaidConfig } from "mermaid";
 import { useDebouncedCallback } from "@tanstack/react-pacer";
 import {
   type ComponentProps,
   type MouseEvent as ReactMouseEvent,
   isValidElement,
   useCallback,
+  useEffect,
+  useId,
   memo,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
+import { Dialog, DialogPopup } from "@multi/ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor/preferences";
@@ -35,11 +48,18 @@ interface ChatMarkdownProps {
   text: string;
   cwd: string | undefined;
   isStreaming?: boolean;
+  className?: string | undefined;
 }
 
 const CODE_FENCE_LANGUAGE_REGEX = /(?:^|\s)language-([^\s]+)/;
 const CODE_FENCE_LANGUAGE_NAME_REGEX = /^[\w.+#-]+$/;
 const CODE_FENCE_LINE_REFERENCE_REGEX = /^\d+(?::\d+)*$/;
+const MARKDOWN_CODE_FENCE_BOUNDARY_REGEX = /^[ \t]{0,3}(`{3,}|~{3,})/;
+const MERMAID_BLOCK_HEADER_REGEX =
+  /^[ \t]{0,3}(?:(?:graph|flowchart)[ \t]+(?:TD|TB|LR|BT|RL)|stateDiagram(?:-v2)?)[ \t]*$/i;
+const MERMAID_ZOOM_STEP = 0.15;
+const MERMAID_MIN_ZOOM = 0.5;
+const MERMAID_MAX_ZOOM = 3;
 const MAX_HIGHLIGHT_CACHE_ENTRIES = 500;
 const MAX_HIGHLIGHT_CACHE_MEMORY_BYTES = 50 * 1024 * 1024;
 const highlightedCodeCache = new LRUCache<string>(
@@ -56,6 +76,12 @@ interface ResolvedHighlighter {
 interface HighlightedCodeState {
   cacheKey: string;
   html: string;
+}
+
+interface MermaidBlockState {
+  cacheKey: string;
+  error: string | null;
+  svg: string | null;
 }
 
 function extractFenceLanguage(className: string | undefined): string {
@@ -96,6 +122,49 @@ function inferFenceLanguageFromFilename(raw: string): string | undefined {
   }
 
   return undefined;
+}
+
+function isMermaidFenceLanguage(language: string): boolean {
+  return language === "mermaid" || language === "mmd";
+}
+
+function normalizeStandaloneMermaidBlocks(text: string): string {
+  const lines = text.split("\n");
+  const normalized: string[] = [];
+  let isInsideFence = false;
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    if (MARKDOWN_CODE_FENCE_BOUNDARY_REGEX.test(line)) {
+      isInsideFence = !isInsideFence;
+      normalized.push(line);
+      index += 1;
+      continue;
+    }
+
+    if (!isInsideFence && MERMAID_BLOCK_HEADER_REGEX.test(line)) {
+      const blockLines = [line];
+      let nextIndex = index + 1;
+      while (nextIndex < lines.length) {
+        const nextLine = lines[nextIndex] ?? "";
+        if (nextLine.trim() === "") break;
+        blockLines.push(nextLine);
+        nextIndex += 1;
+      }
+
+      if (blockLines.length > 1) {
+        normalized.push("```mermaid", ...blockLines, "```");
+        index = nextIndex;
+        continue;
+      }
+    }
+
+    normalized.push(line);
+    index += 1;
+  }
+
+  return normalized.join("\n");
 }
 
 function nodeToPlainText(node: ReactNode): string {
@@ -142,6 +211,70 @@ function getHighlighterPromise(language: string): Promise<ResolvedHighlighter> {
   return promise;
 }
 
+function getCssVariableValue(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function createMermaidConfig(themeName: DiffThemeName): MermaidConfig {
+  const isDarkTheme = themeName.includes("dark");
+  const foreground = isDarkTheme ? "#f2f2f3" : "#333337";
+  const secondary = isDarkTheme ? "#aaaab0" : "#707078";
+  const background = isDarkTheme ? "#242426" : "#ffffff";
+  const border = isDarkTheme ? "#4a4a50" : "#d9d9df";
+  const accent = isDarkTheme ? "#5fc7df" : "#067a93";
+  const fontFamily = getCssVariableValue("--multi-font-ui", "system-ui, sans-serif");
+
+  return {
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: "base",
+    themeVariables: {
+      primaryColor: background,
+      primaryTextColor: foreground,
+      primaryBorderColor: border,
+      lineColor: border,
+      secondaryColor: background,
+      tertiaryColor: background,
+      background,
+      mainBkg: background,
+      secondBkg: background,
+      tertiaryBkg: background,
+      textColor: foreground,
+      edgeLabelBackground: background,
+      nodeBorder: border,
+      clusterBkg: background,
+      clusterBorder: border,
+      titleColor: foreground,
+      darkMode: isDarkTheme,
+      fontFamily,
+      noteTextColor: foreground,
+      noteBkgColor: background,
+      noteBorderColor: border,
+      actorTextColor: foreground,
+      actorBorder: border,
+      actorBkg: background,
+      signalColor: secondary,
+      signalTextColor: foreground,
+      activationBorderColor: border,
+      activationBkgColor: background,
+      labelTextColor: foreground,
+      loopTextColor: foreground,
+      altBackground: background,
+      fillType0: accent,
+      fillType1: secondary,
+      fillType2: border,
+      fillType3: background,
+      fillType4: foreground,
+    },
+  };
+}
+
+function clampMermaidZoom(zoom: number): number {
+  return Math.min(MERMAID_MAX_ZOOM, Math.max(MERMAID_MIN_ZOOM, zoom));
+}
+
 async function getHighlightedCodeHtml(
   code: string,
   language: string,
@@ -160,6 +293,164 @@ async function getHighlightedCodeHtml(
     );
     return highlighter.codeToHtml(code, { lang: "text", theme: themeName });
   }
+}
+
+function MermaidSvgView({
+  svg,
+  fullscreen = false,
+  zoom = 1,
+}: {
+  svg: string;
+  fullscreen?: boolean | undefined;
+  zoom?: number | undefined;
+}) {
+  return (
+    <div
+      className={cn(
+        "min-w-max origin-center p-3",
+        "[&_svg]:mx-auto [&_svg]:block [&_svg]:h-auto [&_svg]:min-w-[480px]",
+        "[&_svg]:[--accent:var(--cursor-text-cyan-primary,var(--primary))] [&_svg]:[--bg:var(--vscode-editor-background)] [&_svg]:[--border:var(--cursor-stroke-primary,var(--vscode-widget-border))] [&_svg]:[--fg:var(--cursor-text-primary)] [&_svg]:[--line:var(--cursor-stroke-secondary,var(--vscode-widget-border))] [&_svg]:[--muted:var(--cursor-text-secondary)] [&_svg]:[--surface:var(--cursor-bg-tertiary,var(--vscode-editor-background))]",
+        fullscreen
+          ? "flex size-full min-h-0 min-w-0 items-center justify-center overflow-auto p-12 [&_svg]:max-w-none"
+          : "[&_svg]:max-w-full",
+      )}
+    >
+      <div
+        className="origin-center transition-transform duration-150 ease-out"
+        style={{ transform: `scale(${zoom})` }}
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    </div>
+  );
+}
+
+function MermaidIconButton({
+  children,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex size-6 min-h-6 min-w-6 flex-[0_0_24px] cursor-pointer appearance-none items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-(--cursor-text-secondary) leading-none transition-colors duration-150 ease-out hover:bg-(--vscode-list-hoverBackground) hover:text-(--cursor-text-primary) [&_svg]:size-3.5 [&_svg]:shrink-0"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffThemeName }) {
+  const reactId = useId();
+  const renderSequence = useRef(0);
+  const cacheKey = `${fnv1a32(code).toString(36)}:${themeName}`;
+  const [rendered, setRendered] = useState<MermaidBlockState | null>(null);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [fullscreenZoom, setFullscreenZoom] = useState(1);
+  const zoomIn = useCallback(
+    () => setFullscreenZoom((current) => clampMermaidZoom(current + MERMAID_ZOOM_STEP)),
+    [],
+  );
+  const zoomOut = useCallback(
+    () => setFullscreenZoom((current) => clampMermaidZoom(current - MERMAID_ZOOM_STEP)),
+    [],
+  );
+  const resetZoom = useCallback(() => setFullscreenZoom(1), []);
+
+  useEffect(() => {
+    const chart = code.trim();
+    const sequence = renderSequence.current + 1;
+    renderSequence.current = sequence;
+
+    if (!chart) {
+      setRendered({ cacheKey, error: "Mermaid diagram is empty.", svg: null });
+      return;
+    }
+
+    setRendered((current) => (current?.cacheKey === cacheKey ? current : null));
+
+    const id = `multi-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${Math.abs(
+      fnv1a32(chart),
+    ).toString(36)}`;
+    mermaid.initialize(createMermaidConfig(themeName));
+    void mermaid
+      .render(id, chart)
+      .then(({ svg }) => {
+        if (renderSequence.current !== sequence) return;
+        setRendered({ cacheKey, error: null, svg });
+      })
+      .catch((error: unknown) => {
+        if (renderSequence.current !== sequence) return;
+        const message = error instanceof Error ? error.message : "Could not render Mermaid diagram.";
+        setRendered({ cacheKey, error: message, svg: null });
+      });
+  }, [cacheKey, code, reactId, themeName]);
+
+  if (rendered?.cacheKey === cacheKey && rendered.svg) {
+    return (
+      <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
+        <div
+          className="relative w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) text-detail text-(--cursor-text-primary) leading-(--multi-leading-detail) [contain:paint]"
+          data-renderer="mermaid"
+        >
+          <div className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-[4px] bg-(--vscode-editor-background) p-1">
+            <MermaidIconButton label="Expand diagram" onClick={() => setFullscreenOpen(true)}>
+              <IconExpandSimple className="size-3.5" aria-hidden />
+            </MermaidIconButton>
+          </div>
+          <MermaidSvgView svg={rendered.svg} />
+        </div>
+        <DialogPopup
+          aria-label="Mermaid Diagram"
+          className="h-[calc(100vh-32px)] max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[calc(100vw-32px)] rounded-[8px] border-0 bg-(--vscode-editor-background) shadow-none"
+          showCloseButton={false}
+          bottomStickOnMobile={false}
+        >
+          <div className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-[4px] bg-(--vscode-editor-background) p-1">
+            <MermaidIconButton label="Zoom out" onClick={zoomOut}>
+              <IconZoomOut className="size-3.5" aria-hidden />
+            </MermaidIconButton>
+            <MermaidIconButton label="Reset zoom" onClick={resetZoom}>
+              <IconArrowsHide className="size-3.5" aria-hidden />
+            </MermaidIconButton>
+            <MermaidIconButton label="Zoom in" onClick={zoomIn}>
+              <IconZoomIn className="size-3.5" aria-hidden />
+            </MermaidIconButton>
+            <MermaidIconButton label="Close" onClick={() => setFullscreenOpen(false)}>
+              <IconCrossMediumDefault className="size-3.5" aria-hidden />
+            </MermaidIconButton>
+          </div>
+          <div className="relative size-full min-h-0 min-w-0 overflow-hidden">
+            <MermaidSvgView svg={rendered.svg} fullscreen zoom={fullscreenZoom} />
+          </div>
+        </DialogPopup>
+      </Dialog>
+    );
+  }
+
+  if (rendered?.cacheKey === cacheKey && rendered.error) {
+    return (
+      <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-primary) [contain:paint]">
+        <div className="mb-1 font-semibold text-destructive">Mermaid Syntax Error</div>
+        <div className="text-(--cursor-text-secondary)">{rendered.error}</div>
+        <pre className="mt-2 whitespace-pre-wrap">
+          <code>{code}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-secondary) [contain:paint]">
+      Rendering diagram...
+    </div>
+  );
 }
 
 function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNode }) {
@@ -540,10 +831,13 @@ function areMarkdownFileLinkPropsEqual(
   );
 }
 
-function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
+function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
-  const markdownText = useMemo(() => rewriteMarkdownFileUriLinks(text), [text]);
+  const markdownText = useMemo(
+    () => rewriteMarkdownFileUriLinks(normalizeStandaloneMermaidBlocks(text)),
+    [text],
+  );
   const markdownFileLinkMetaByHref = useMemo(() => {
     const metaByHref = new Map<
       string,
@@ -620,6 +914,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         "data-block"?: string | boolean | undefined;
       }) {
         const code = nodeToPlainText(children);
+        const language = extractFenceLanguage(className);
         if (dataBlock == null) {
           return (
             <code {...props} className={cn("chat-markdown-inline-code", className)}>
@@ -634,6 +929,10 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
               <PlainCodeBlock className={className} code={code} codeProps={props} />
             </MarkdownCodeBlock>
           );
+        }
+
+        if (isMermaidFenceLanguage(language)) {
+          return <MermaidCodeBlock code={code} themeName={diffThemeName} />;
         }
 
         return (
@@ -839,6 +1138,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         "chat-markdown w-full min-w-0 whitespace-normal",
         "text-conversation",
         "text-multi-fg-primary",
+        className,
       )}
     >
       <Streamdown

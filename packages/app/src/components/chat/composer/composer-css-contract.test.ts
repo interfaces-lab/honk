@@ -150,17 +150,17 @@ describe("Composer surface contract", () => {
   it("applies composer blur via conversation.css in translucent mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss).toContain(
-      'body[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+      'body[data-multi-glass-mode="true"] [data-multi-composer-surface]',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });
 
   it("removes composer blur under reduce transparency", () => {
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-multi-composer-surface]',
     );
     expect(conversationCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*backdrop-filter:\s*none/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*backdrop-filter:\s*none/,
     );
   });
 
@@ -181,7 +181,7 @@ describe("Composer surface contract", () => {
   it("moves slash menu blur to conversation.css", () => {
     expect(slashMenuSource).not.toMatch(/backdrop-blur/);
     expect(conversationCss).toContain(
-      'body[data-cursor-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"]',
+      'body[data-multi-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"]',
     );
   });
 

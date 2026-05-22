@@ -14,60 +14,72 @@ describe("appearance reduce-transparency tokens", () => {
     expect(tokensCss).toContain("--multi-color-surface-opaque:");
   });
 
-  it("authors Multi surface variables on body[data-cursor-glass-mode] [data-component=root]", () => {
-    expect(tokensCss).toContain('body[data-cursor-glass-mode="true"] [data-component="root"]');
+  it("authors Multi surface variables on body[data-multi-glass-mode] [data-component=root]", () => {
+    expect(tokensCss).toContain('body[data-multi-glass-mode="true"] [data-component="root"]');
     expect(tokensCss).toContain("--multi-vibrancy-on-sidebar-surface-background:");
     expect(tokensCss).toContain("--multi-vibrancy-off-sidebar-surface-background:");
+    expect(tokensCss).toContain("--multi-vibrancy-on-editor-surface-background:");
+    expect(tokensCss).toContain("--multi-vibrancy-off-editor-surface-background:");
     expect(tokensCss).toMatch(
-      /body\.multi-os-vibrancy-on\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-sidebar-surface-background:/,
+      /body\.multi-os-vibrancy-on\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-sidebar-surface-background:/,
     );
     expect(tokensCss).toMatch(
-      /body\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-sidebar-surface-background:\s*var\(\s*--multi-vibrancy-off-sidebar-surface-background\s*\)/,
+      /body\.multi-os-vibrancy-on\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-workbench-editor-surface-background:\s*var\(--multi-vibrancy-on-editor-surface-background\)/,
     );
+    expect(tokensCss).toMatch(
+      /body\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-sidebar-surface-background:\s*var\(\s*--multi-vibrancy-off-sidebar-surface-background\s*\)/,
+    );
+  });
+
+  it("keeps glass bands fixed instead of exposing a window opacity slider", () => {
+    expect(tokensCss).toContain("--multi-vibrancy-sidebar-mix: 32%;");
+    expect(tokensCss).toContain("--multi-vibrancy-chat-mix: 84%;");
+    expect(tokensCss).toContain("--multi-vibrancy-sidebar-mix: 56%;");
+    expect(tokensCss).toContain("--multi-vibrancy-chat-mix: 72%;");
+    expect(tokensCss).not.toContain("--multi-transparency");
+    expect(appearanceSettingsSource).not.toContain("STORAGE_WINDOW_TRANSPARENCY");
+    expect(appearanceSettingsSource).not.toContain("setWindowTransparency");
   });
 
   it("remaps Multi surfaces to opaque aliases when reduce transparency is enabled", () => {
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-color-sidebar:\s*var\(--multi-color-sidebar-opaque\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-color-sidebar:\s*var\(--multi-color-sidebar-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-shell-sidebar-bg:\s*var\(--multi-color-sidebar-opaque\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-shell-sidebar-bg:\s*var\(--multi-color-sidebar-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-chat-bubble-background:\s*var\(--multi-chat-bubble-opaque-background\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-chat-bubble-background:\s*var\(--multi-chat-bubble-opaque-background\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-color-chat:\s*var\(--multi-color-chat-opaque\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-color-chat:\s*var\(--multi-color-chat-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-chat-surface-background:\s*var\(--multi-color-chat-opaque\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-chat-surface-background:\s*var\(--multi-color-chat-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-workbench-editor-surface-background:\s*var\(--multi-color-editor-opaque\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-workbench-editor-surface-background:\s*var\(--multi-color-editor-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-workbench-surface-background:\s*var\(--multi-color-surface-opaque\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-workbench-surface-background:\s*var\(--multi-color-surface-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-bg-quaternary:/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-bg-quaternary:/,
     );
   });
 
-  it("keeps html.multi-reduce-transparency as migration alias", () => {
-    expect(tokensCss).toContain("html.multi-reduce-transparency");
-  });
-
-  it("toggles reduce transparency on body and html from appearance-settings", () => {
+  it("uses body as the canonical reduce-transparency state root", () => {
     expect(appearanceSettingsSource).toContain(
       'body.classList.toggle("multi-reduce-transparency", reduce)',
     );
-    expect(appearanceSettingsSource).toContain(
-      'root.classList.toggle("multi-reduce-transparency", reduce)',
+    expect(appearanceSettingsSource).not.toContain(
+      'root.classList.toggle("multi-reduce-transparency"',
     );
+    expect(tokensCss).not.toContain("html.multi-reduce-transparency");
     expect(appearanceSettingsSource).toContain('body.classList.toggle("multi-os-vibrancy-on"');
     expect(appearanceSettingsSource).toContain('body.classList.toggle("multi-os-vibrancy-off"');
     expect(appearanceSettingsSource).toContain(
-      'document.body.getAttribute("data-cursor-glass-mode") !== "true"',
+      'document.body.getAttribute("data-multi-glass-mode") !== "true"',
     );
     expect(appearanceSettingsSource).toContain("bridge.setVibrancy(wantsVibrancy)");
     expect(appearanceSettingsSource).toContain("syncVibrancy()");
@@ -75,23 +87,23 @@ describe("appearance reduce-transparency tokens", () => {
 
   it("disables shell, composer, and popup blur under reduce transparency", () => {
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-sidebar',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-sidebar',
     );
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-multi-composer-surface]',
     );
     expect(conversationCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*background:\s*var\(--multi-chat-bubble-opaque-background\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*background:\s*var\(--multi-chat-bubble-opaque-background\)/,
     );
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-slash-menu-popup',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-slash-menu-popup',
     );
   });
 
   it("applies composer blur in glass mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss).toContain(
-      'body[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+      'body[data-multi-glass-mode="true"] [data-multi-composer-surface]',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });

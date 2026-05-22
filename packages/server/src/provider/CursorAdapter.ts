@@ -16,6 +16,7 @@ import {
   type ProviderInteractionMode,
   type ProviderRuntimeEvent,
   type ProviderSession,
+  type ProviderThreadSnapshotItem,
   type ProviderUserInputAnswers,
   RuntimeRequestId,
   type RuntimeMode,
@@ -121,7 +122,7 @@ interface CursorSessionContext {
   notificationFiber: Fiber.Fiber<void, never> | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
-  readonly turns: Array<{ id: TurnId; items: Array<unknown> }>;
+  readonly turns: Array<{ id: TurnId; items: Array<ProviderThreadSnapshotItem> }>;
   readonly interruptedTurnIds: Set<TurnId>;
   lastPlanFingerprint: string | undefined;
   activeTurnId: TurnId | undefined;
@@ -159,6 +160,51 @@ function settlePendingUserInputsAsEmptyAnswers(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Predicate.isObject(value);
+}
+
+function cursorContentBlockDetail(block: EffectAcpSchema.ContentBlock): string {
+  switch (block.type) {
+    case "text":
+      return block.text;
+    case "image":
+      return block.uri ?? "Image attachment";
+    case "audio":
+      return "Audio attachment";
+    case "resource_link":
+      return block.title ?? block.name ?? block.uri;
+    case "resource":
+      return "Embedded resource";
+  }
+}
+
+function cursorPromptDetail(blocks: ReadonlyArray<EffectAcpSchema.ContentBlock>): string {
+  return blocks
+    .map((block) => cursorContentBlockDetail(block).trim())
+    .filter((detail) => detail.length > 0)
+    .join("\n\n");
+}
+
+function cursorPromptSnapshotItems(
+  prompt: ReadonlyArray<EffectAcpSchema.ContentBlock>,
+  result: EffectAcpSchema.PromptResponse,
+): Array<ProviderThreadSnapshotItem> {
+  const promptDetail = cursorPromptDetail(prompt);
+  return [
+    {
+      itemType: "user_message",
+      role: "user",
+      title: "User message",
+      ...(promptDetail.length > 0 ? { detail: promptDetail } : {}),
+      data: { prompt },
+    },
+    {
+      itemType: "unknown",
+      role: "tool",
+      title: "Prompt result",
+      detail: `Stopped: ${result.stopReason}`,
+      data: { result },
+    },
+  ];
 }
 
 function parseCursorResume(raw: unknown): { sessionId: string } | undefined {
@@ -1159,7 +1205,10 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         }
 
         const result = promptExit.value;
-        ctx.turns.push({ id: turnId, items: [{ prompt: promptParts, result }] });
+        ctx.turns.push({
+          id: turnId,
+          items: cursorPromptSnapshotItems(promptParts, result),
+        });
         ctx.session = {
           ...ctx.session,
           activeTurnId: undefined,

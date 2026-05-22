@@ -22,6 +22,7 @@ import {
   RuntimeMode,
 } from "./orchestration";
 import { ProviderDriverKind, ProviderInstanceId } from "./provider-instance";
+import { ProviderThreadSnapshotItem } from "./provider-runtime";
 
 const ProviderSessionStatus = Schema.Literals([
   "connecting",
@@ -104,7 +105,7 @@ export type ProviderThreadReadInput = typeof ProviderThreadReadInput.Type;
 export const ProviderThreadTurnSnapshot = Schema.Struct({
   id: TurnId,
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
-  items: Schema.Array(Schema.Unknown),
+  items: Schema.Array(ProviderThreadSnapshotItem),
 });
 export type ProviderThreadTurnSnapshot = typeof ProviderThreadTurnSnapshot.Type;
 

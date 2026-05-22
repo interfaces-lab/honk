@@ -2,6 +2,7 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -96,6 +97,7 @@ import {
   QueuedComposerItemsBadge,
   QueuedComposerItemsTray,
 } from "./queued-items-panel";
+import { SubagentPreviewTrayStack } from "./subagent-preview-tray";
 import { ComposerContextUsageBar } from "./composer-context-usage-bar";
 import { deriveLatestContextWindowSnapshot } from "../../../lib/context-window";
 import { formatProviderSkillDisplayName } from "./provider-skills";
@@ -149,6 +151,10 @@ Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
 
+const PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS =
+  "bg-(--cursor-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] [&_svg]:size-3.5";
+const PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS = "px-2 text-detail [&_svg]:size-3.5";
+
 const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
   compact: boolean;
@@ -174,28 +180,31 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary shadow-sm",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
       data-visible="true"
       style={{ transformOrigin: "bottom left" }}
     >
-      <div className="flex min-w-0 items-start gap-2 px-3 pt-2 pb-1">
-        <div className="min-w-0 flex-1">
-          <div className="text-detail text-multi-fg-secondary">Review Plan</div>
-          <div className="truncate text-detail font-medium text-multi-fg-primary" title={title}>
+      <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="text-caption font-medium text-multi-fg-tertiary">Review Plan</div>
+          <div
+            className="truncate text-detail font-medium text-multi-fg-primary"
+            title={title}
+          >
             {title}
           </div>
         </div>
         <button
           type="button"
-          className="flex size-5 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-secondary"
+          className="flex size-6 shrink-0 items-center justify-center rounded-multi-control bg-multi-bg-quinary text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
           aria-label="Dismiss plan"
           title="Dismiss plan"
           onClick={() => setDismissedPlanId(planKey)}
         >
-          <IconCrossSmall className="size-2.5" aria-hidden />
+          <IconCrossSmall className="size-3" aria-hidden />
         </button>
       </div>
 
@@ -207,32 +216,32 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
         </div>
       ) : null}
 
-      <div className="flex h-10 min-w-0 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-2 py-2">
+      <div className="flex min-h-9 min-w-0 items-center justify-between gap-2.5 px-2.5 py-1.5">
         {showViewPlan ? (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 min-h-6 rounded-[var(--multi-radius-control,6px)] px-2"
+            className={PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS}
             onClick={props.onViewPlan}
           >
-            <IconEyeOpen className="size-3.5" aria-hidden />
+            <IconEyeOpen aria-hidden />
             <span>View Plan</span>
           </Button>
         ) : (
-          <span className="min-w-0" aria-hidden />
+          <span className="h-6 min-w-0" aria-hidden />
         )}
         <Button
           type="button"
           variant="default"
           size="sm"
-          className="h-6 min-h-6 gap-1 rounded-[var(--multi-radius-control,6px)] px-2.5"
+          className={PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS}
           disabled={props.isBuilding || !props.onBuildPlan}
           aria-label="Build plan"
           title="Build plan"
           onClick={props.onBuildPlan}
         >
-          <IconArrowUp className="size-3.5" aria-hidden />
+          <IconArrowUp aria-hidden />
           <span>{props.isBuilding ? "Building..." : "Build"}</span>
         </Button>
       </div>
@@ -498,6 +507,34 @@ const extendReplacementRangeForTrailingSpace = (
 
 type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
+type ComposerTriggerDismissal =
+  | { kind: "path"; key: string }
+  | { kind: "slash-command"; rangeStart: number };
+
+function composerPathTriggerDismissKey(trigger: ComposerTrigger): string {
+  return `${trigger.kind}:${trigger.rangeStart}:${trigger.rangeEnd}:${trigger.query}`;
+}
+
+function composerTriggerDismissalFor(trigger: ComposerTrigger): ComposerTriggerDismissal {
+  if (trigger.kind === "slash-command") {
+    return { kind: "slash-command", rangeStart: trigger.rangeStart };
+  }
+  return { kind: "path", key: composerPathTriggerDismissKey(trigger) };
+}
+
+function isComposerTriggerDismissed(
+  trigger: ComposerTrigger,
+  dismissal: ComposerTriggerDismissal | null,
+): boolean {
+  if (!dismissal) {
+    return false;
+  }
+  if (trigger.kind === "slash-command") {
+    return dismissal.kind === "slash-command" && dismissal.rangeStart === trigger.rangeStart;
+  }
+  return dismissal.kind === "path" && dismissal.key === composerPathTriggerDismissKey(trigger);
+}
+
 const runtimeModeConfig: Record<
   RuntimeMode,
   { label: string; description: string; icon: CentralIconComponent }
@@ -622,7 +659,7 @@ function ComposerPendingInputPromptSync({
 }
 
 function ComposerDraftResetSync({
-  dismissedComposerTriggerKeyRef,
+  dismissedComposerTriggerRef,
   initialComposerTriggerSuppressionPromptRef,
   promptRef,
   setComposerCursor,
@@ -630,7 +667,7 @@ function ComposerDraftResetSync({
   setComposerTrigger,
   suppressInitialComposerTriggerDetectionRef,
 }: {
-  dismissedComposerTriggerKeyRef: RefObject<string | null>;
+  dismissedComposerTriggerRef: RefObject<ComposerTriggerDismissal | null>;
   initialComposerTriggerSuppressionPromptRef: RefObject<string>;
   promptRef: RefObject<string>;
   setComposerCursor: Dispatch<SetStateAction<number>>;
@@ -643,7 +680,7 @@ function ComposerDraftResetSync({
     setComposerCursor(collapseExpandedComposerCursor(promptRef.current, promptRef.current.length));
     suppressInitialComposerTriggerDetectionRef.current = true;
     initialComposerTriggerSuppressionPromptRef.current = promptRef.current;
-    dismissedComposerTriggerKeyRef.current = null;
+    dismissedComposerTriggerRef.current = null;
     setComposerTrigger(null);
   });
 
@@ -1031,9 +1068,12 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
       <Button
         type="submit"
         size="sm"
-        className={cn("rounded-full", props.compact ? "h-9 px-3 sm:h-8" : "h-9 px-4 sm:h-8")}
+        className={PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS}
         disabled={props.isSendBusy || props.isConnecting}
+        aria-label="Refine plan"
+        title="Refine plan"
       >
+        <IconArrowUp aria-hidden />
         {props.isConnecting || props.isSendBusy ? "Sending..." : "Refine"}
       </Button>
     );
@@ -1386,13 +1426,16 @@ export const ComposerInput = memo(
     const composerEditorHotkeyRef = useRef<HTMLDivElement>(null);
     const composerFormRef = useRef<HTMLFormElement>(null);
     const composerMenuAnchorRef = useRef<HTMLSpanElement | null>(null);
+    const composerMenuAnchorRectRef = useRef<DOMRectReadOnly | null>(null);
+    const composerMenuAnchorRafRef = useRef<number | null>(null);
     const composerSelectLockRef = useRef(false);
     const composerMenuOpenRef = useRef(false);
     const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
     const activeComposerMenuItemRef = useRef<ComposerCommandItem | null>(null);
     const suppressInitialComposerTriggerDetectionRef = useRef(true);
     const initialComposerTriggerSuppressionPromptRef = useRef(prompt);
-    const dismissedComposerTriggerKeyRef = useRef<string | null>(null);
+    const dismissedComposerTriggerRef = useRef<ComposerTriggerDismissal | null>(null);
+    const [composerMenuAnchorVersion, setComposerMenuAnchorVersion] = useState(0);
 
     const focusComposer = useCallback(() => {
       composerEditorRef.current?.focusAtEnd();
@@ -1411,11 +1454,55 @@ export const ComposerInput = memo(
       onToggleInteractionMode: toggleInteractionMode,
     });
 
-    const composerTriggerDismissKey = useCallback(
-      (trigger: ComposerTrigger) =>
-        `${trigger.kind}:${trigger.rangeStart}:${trigger.rangeEnd}:${trigger.query}`,
-      [],
+    useEffect(() => {
+      return () => {
+        if (composerMenuAnchorRafRef.current !== null) {
+          window.cancelAnimationFrame(composerMenuAnchorRafRef.current);
+        }
+      };
+    }, []);
+
+    const scheduleComposerMenuAnchorUpdate = useCallback(() => {
+      if (composerMenuAnchorRafRef.current !== null) {
+        return;
+      }
+      composerMenuAnchorRafRef.current = window.requestAnimationFrame(() => {
+        composerMenuAnchorRafRef.current = null;
+        setComposerMenuAnchorVersion((version) => version + 1);
+      });
+    }, []);
+
+    const onComposerMenuAnchorRectChange = useCallback(
+      (rect: DOMRectReadOnly) => {
+        const previous = composerMenuAnchorRectRef.current;
+        if (
+          previous &&
+          previous.left === rect.left &&
+          previous.top === rect.top &&
+          previous.width === rect.width &&
+          previous.height === rect.height
+        ) {
+          return;
+        }
+        composerMenuAnchorRectRef.current = rect;
+        if (composerMenuOpenRef.current) {
+          scheduleComposerMenuAnchorUpdate();
+        }
+      },
+      [scheduleComposerMenuAnchorUpdate],
     );
+
+    const composerMenuAnchor = useCallback(() => {
+      const rect = composerMenuAnchorRectRef.current;
+      if (!rect) {
+        return composerMenuAnchorRef.current;
+      }
+      const contextElement = composerMenuAnchorRef.current;
+      const virtualAnchor = {
+        getBoundingClientRect: () => composerMenuAnchorRectRef.current ?? rect,
+      };
+      return contextElement ? { ...virtualAnchor, contextElement } : virtualAnchor;
+    }, [composerMenuAnchorVersion]);
 
     const resolveComposerTrigger = useCallback(
       (text: string, expandedCursor: number): ComposerTrigger | null => {
@@ -1427,14 +1514,16 @@ export const ComposerInput = memo(
         }
         const nextTrigger = detectComposerTrigger(text, expandedCursor);
         if (!nextTrigger) {
-          dismissedComposerTriggerKeyRef.current = null;
+          dismissedComposerTriggerRef.current = null;
           return null;
         }
-        return composerTriggerDismissKey(nextTrigger) === dismissedComposerTriggerKeyRef.current
-          ? null
-          : nextTrigger;
+        if (isComposerTriggerDismissed(nextTrigger, dismissedComposerTriggerRef.current)) {
+          return null;
+        }
+        dismissedComposerTriggerRef.current = null;
+        return nextTrigger;
       },
-      [composerTriggerDismissKey],
+      [],
     );
 
     // ------------------------------------------------------------------
@@ -1773,10 +1862,10 @@ export const ComposerInput = memo(
       const snapshot = readComposerSnapshot();
       const trigger = detectComposerTrigger(snapshot.value, snapshot.expandedCursor);
       if (trigger) {
-        dismissedComposerTriggerKeyRef.current = composerTriggerDismissKey(trigger);
+        dismissedComposerTriggerRef.current = composerTriggerDismissalFor(trigger);
       }
       clearComposerCommandMenuState();
-    }, [clearComposerCommandMenuState, composerTriggerDismissKey, readComposerSnapshot]);
+    }, [clearComposerCommandMenuState, readComposerSnapshot]);
 
     const promptRefVersion = useValueIdentityVersion(promptRef);
     const resolveComposerTriggerVersion = useValueIdentityVersion(resolveComposerTrigger);
@@ -1821,7 +1910,7 @@ export const ComposerInput = memo(
         />
         <ComposerDraftResetSync
           key={[draftId ?? "", activeThreadId ?? "", promptRefVersion].join("\0")}
-          dismissedComposerTriggerKeyRef={dismissedComposerTriggerKeyRef}
+          dismissedComposerTriggerRef={dismissedComposerTriggerRef}
           initialComposerTriggerSuppressionPromptRef={initialComposerTriggerSuppressionPromptRef}
           promptRef={promptRef}
           setComposerCursor={setComposerCursor}
@@ -2178,6 +2267,7 @@ export const ComposerInput = memo(
               onViewPlan={onViewPlan}
             />
           ) : null}
+          <SubagentPreviewTrayStack compact={composerVariant === "compact"} />
           {promptInputHeaderContent ? (
             <div
               className={cn(
@@ -2304,6 +2394,7 @@ export const ComposerInput = memo(
                   skills={selectedProviderStatus?.skills ?? []}
                   caretAnchorRef={composerMenuAnchorRef}
                   caretTriggerExpandedOffset={composerTrigger?.rangeStart ?? null}
+                  onCaretAnchorRectChange={onComposerMenuAnchorRectChange}
                   onMeasuredMultilineChange={setIsComposerEditorMultiline}
                   onChange={onPromptChange}
                   onCommandKeyDown={onComposerCommandKey}
@@ -2409,7 +2500,8 @@ export const ComposerInput = memo(
         </div>
         <ComposerCommandMenuPositioned
           open={composerMenuOpen && !isComposerApprovalState}
-          anchorRef={composerMenuAnchorRef}
+          anchor={composerMenuAnchor}
+          anchorVersion={composerMenuAnchorVersion}
           items={composerMenuItems}
           resolvedTheme={resolvedTheme}
           isLoading={isComposerMenuLoading}

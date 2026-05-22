@@ -528,7 +528,7 @@ function CodeFontFamilySettingsRow(props: { codeFont: string }) {
   return (
     <SettingsRow
       title="Code Font Family"
-      description="Override the font for code editors and diffs."
+      description="Editor font."
       control={
         <FontFamilyInput
           label="Code Font Family"
@@ -814,7 +814,7 @@ export function AppearanceSettingsPanel() {
       <SettingsSection title="Colors">
         <SettingsRow
           title="Hue"
-          description="Accent hue for buttons, links, and focus rings (Pierre neutrals unchanged)."
+          description="Accent color."
           control={
             <SettingsSlider
               label="Accent hue"
@@ -829,7 +829,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Intensity"
-          description="Chroma strength of the accent and tinted surfaces."
+          description="Tint strength."
           control={
             <SettingsSlider
               label="Accent intensity"
@@ -842,22 +842,8 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
-          title="Glass transparency"
-          description="Control the opacity of translucent window surfaces."
-          control={
-            <SettingsSlider
-              label="Window transparency"
-              max={100}
-              min={0}
-              suffix="%"
-              value={appearance.transparency}
-              onChange={appearanceSettingsActions.setWindowTransparency}
-            />
-          }
-        />
-        <SettingsRow
           title="Reduce Transparency"
-          description="Replace translucent surfaces with opaque backgrounds."
+          description="Use solid backgrounds."
           control={
             <Switch
               checked={appearance.reduceTransparency}
@@ -880,7 +866,7 @@ export function AppearanceSettingsPanel() {
       >
         <SettingsRow
           title="UI Font Size"
-          description="Font size for the Multi user interface."
+          description="Interface text size."
           control={
             <NumberStepper
               label="UI Font Size"
@@ -893,7 +879,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Code Font Size"
-          description="Font size for code editors and diffs."
+          description="Editor text size."
           control={
             <NumberStepper
               label="Code Font Size"
@@ -906,7 +892,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="UI Font Family"
-          description="Override the Multi user interface typeface."
+          description="Interface font."
           control={
             <FontFamilyInput
               key={appearance.uiFont}
@@ -923,7 +909,7 @@ export function AppearanceSettingsPanel() {
       <SettingsSection title="Agent Window">
         <SettingsRow
           title="Font Smoothing"
-          description="Use native macOS grayscale antialiasing in the Agent Window."
+          description="Mac text smoothing."
           resetAction={
             settings.agentWindowFontSmoothingAntialiased !==
             DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased ? (
@@ -950,7 +936,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Use pointer cursors"
-          description="Use pointer cursor on interactive controls."
+          description="Pointer on controls."
           resetAction={
             settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons ? (
               <SettingResetButton

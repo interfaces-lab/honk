@@ -143,3 +143,53 @@
 .plan-tray__markdown.chat-markdown > :first-child {
   margin-top: 0;
 }
+
+.chat-markdown--plan-panel.chat-markdown {
+  color: var(--cursor-text-primary);
+  font-size: var(--multi-text-title);
+  letter-spacing: 0;
+  line-height: var(--multi-leading-title);
+  --conversation-text-font-size: var(--multi-text-title);
+  --conversation-text-leading: var(--multi-leading-title);
+  --multi-markdown-line-height: var(--multi-leading-title);
+}
+
+.chat-markdown--plan-panel.chat-markdown :where(p, ul, ol, blockquote, pre) {
+  margin-block: 0 0.85em;
+}
+
+.chat-markdown--plan-panel.chat-markdown h1 {
+  margin: 0 0 12px;
+  color: var(--cursor-text-primary);
+  font-size: var(--multi-text-heading);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--multi-leading-heading);
+}
+
+.chat-markdown--plan-panel.chat-markdown h2 {
+  display: block;
+  margin: 16px 0 8px;
+  color: var(--cursor-text-primary);
+  font-size: var(--multi-text-title);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--multi-leading-title);
+}
+
+.chat-markdown--plan-panel.chat-markdown h2::after {
+  display: none;
+  content: none;
+}
+
+.chat-markdown--plan-panel.chat-markdown h3,
+.chat-markdown--plan-panel.chat-markdown h4,
+.chat-markdown--plan-panel.chat-markdown h5,
+.chat-markdown--plan-panel.chat-markdown h6 {
+  margin: 12px 0 6px;
+  color: var(--cursor-text-primary);
+  font-size: var(--multi-text-title);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--multi-leading-title);
+}

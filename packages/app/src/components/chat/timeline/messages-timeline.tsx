@@ -1012,7 +1012,7 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
           projectRoot={projectRoot}
           activeThreadId={activeThreadId}
           environmentId={activeThreadEnvironmentId}
-          subagentDetailsEnabled={false}
+          subagentDetailsEnabled
         />
       ))}
     </div>

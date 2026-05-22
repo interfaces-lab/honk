@@ -858,6 +858,25 @@ function OpenCommandPaletteDialog() {
   if (import.meta.env.DEV) {
     actionItems.push({
       kind: "action",
+      value: "action:dev:branching-ui-prototypes",
+      searchTerms: [
+        "branching",
+        "branching ui",
+        "branching prototypes",
+        "ui prototypes",
+        "design",
+        "dev",
+      ],
+      title: "Open branching UI prototypes",
+      description: "Compare branching UI prototypes (dev)",
+      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        await navigate({ to: "/dev/branching-ui-prototypes" });
+      },
+    });
+
+    actionItems.push({
+      kind: "action",
       value: "action:dev:archive-ui-example",
       searchTerms: [
         "archive",

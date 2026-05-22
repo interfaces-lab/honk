@@ -66,15 +66,13 @@
   background: var(--multi-shell-surface-bg);
 }
 
-html.multi-reduce-transparency .multi-shell-sidebar,
-body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-sidebar {
+body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-sidebar {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background: var(--multi-color-sidebar-opaque);
 }
 
-html.multi-reduce-transparency .multi-shell-surface,
-body.multi-reduce-transparency[data-cursor-glass-mode="true"] .multi-shell-surface {
+body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-surface {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background: var(--multi-color-surface-opaque);
@@ -90,10 +88,53 @@ body {
     var(--multi-color-surface);
 }
 
-body.multi-reduce-transparency[data-cursor-glass-mode="true"],
-html.multi-reduce-transparency body {
+body.multi-reduce-transparency {
   background: var(--multi-color-chat-opaque);
   background-image: none;
+}
+
+.plan-tab-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.plan-tab-scroll.ui-scroll-area {
+  height: 100%;
+  width: 100%;
+}
+
+.composer-plan-container {
+  width: 100%;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.composer-plan-content {
+  box-sizing: border-box;
+}
+
+.composer-plan-todo-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 1px solid var(--vscode-foreground);
+  border-radius: 9999px;
+}
+
+.composer-plan-todo-indicator-pending,
+.composer-plan-todo-indicator-completed {
+  opacity: 0.4;
+}
+
+.plan-breadcrumb-controls .breadcrumbs-action-btn {
+  border: 1px solid var(--vscode-button-border, transparent);
+  white-space: nowrap;
 }
 
 /* Shell utility classes */
@@ -234,8 +275,7 @@ html.multi-reduce-transparency body {
   border-bottom-color: var(--multi-workbench-panel-border-soft);
 }
 
-html.multi-reduce-transparency .editor-panel-tab-root--simple-tabs,
-body.multi-reduce-transparency[data-cursor-glass-mode="true"] .editor-panel-tab-root--simple-tabs {
+body.multi-reduce-transparency[data-multi-glass-mode="true"] .editor-panel-tab-root--simple-tabs {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }

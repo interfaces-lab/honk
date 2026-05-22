@@ -43,6 +43,7 @@ interface HumanMessageProps {
 
 export const HumanMessage = memo(function HumanMessage({
   message,
+  revertTurnCount,
   isEditing,
   editDisabled,
   isServerThread,
@@ -116,6 +117,7 @@ export const HumanMessage = memo(function HumanMessage({
     !isGitAgentActionMessage &&
     isServerThread &&
     !editDisabled &&
+    typeof revertTurnCount === "number" &&
     typeof onBeginEditUserMessage === "function";
 
   if (isGitAgentActionMessage) {

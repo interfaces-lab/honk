@@ -73,6 +73,7 @@ export interface WorkLogSubagentLog {
   createdAt: string;
   kind: string;
   label: string;
+  itemId?: string | undefined;
   detail?: string | undefined;
   streamKind?: string | undefined;
   itemType?: string | undefined;
@@ -816,8 +817,10 @@ function deriveSubagentDetailsByProviderThreadId(
     const rawStatus = resolveSubagentRawStatus(activity, payload) ?? previous?.rawStatus;
     const statusLabel = resolveSubagentStatusLabel(rawStatus) ?? previous?.statusLabel;
     const latestUpdate =
-      log.detail ?? statusLabel ?? asTrimmedString(payload?.state) ?? previous?.latestUpdate;
-    const logs = [...(previous?.logs ?? []), log].slice(-50);
+      activity.kind === "subagent.content.delta"
+        ? (statusLabel ?? log.label ?? previous?.latestUpdate)
+        : (log.detail ?? statusLabel ?? asTrimmedString(payload?.state) ?? previous?.latestUpdate);
+    const logs = [...(previous?.logs ?? []), log].slice(-200);
     detailsByProviderThreadId.set(providerThreadId, {
       rawStatus,
       statusLabel,
@@ -837,10 +840,11 @@ function toSubagentLog(
   activity: OrchestrationThreadActivity,
   payload: Record<string, unknown> | null,
 ): WorkLogSubagentLog {
-  const delta = asTrimmedString(payload?.delta);
+  const delta = asSubagentDeltaString(payload?.delta);
   const detail = asTrimmedString(payload?.detail);
   const state = asTrimmedString(payload?.state);
   const title = asTrimmedString(payload?.title);
+  const itemId = asTrimmedString(payload?.itemId) ?? undefined;
   const itemType = asTrimmedString(payload?.itemType) ?? undefined;
   const streamKind = asTrimmedString(payload?.streamKind) ?? undefined;
   const status = asTrimmedString(payload?.status);
@@ -853,7 +857,8 @@ function toSubagentLog(
     createdAt: activity.createdAt,
     kind: activity.kind,
     label,
-    ...(delta ? { detail: delta } : detail ? { detail } : state ? { detail: state } : {}),
+    ...(itemId ? { itemId } : {}),
+    ...(delta !== null ? { detail: delta } : detail ? { detail } : state ? { detail: state } : {}),
     ...(streamKind ? { streamKind } : {}),
     ...(itemType ? { itemType } : {}),
     ...(status ? { status } : {}),
@@ -2133,6 +2138,10 @@ function asTrimmedString(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function asSubagentDeltaString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 function trimMatchingOuterQuotes(value: string): string {

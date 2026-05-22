@@ -149,6 +149,19 @@ export const CanonicalItemType = Schema.Literals([
 ]);
 export type CanonicalItemType = typeof CanonicalItemType.Type;
 
+export const ProviderThreadSnapshotItemRole = Schema.Literals(["user", "assistant", "tool"]);
+export type ProviderThreadSnapshotItemRole = typeof ProviderThreadSnapshotItemRole.Type;
+
+export const ProviderThreadSnapshotItem = Schema.Struct({
+  id: Schema.optional(TrimmedNonEmptyStringSchema),
+  itemType: CanonicalItemType,
+  role: ProviderThreadSnapshotItemRole,
+  title: Schema.optional(TrimmedNonEmptyStringSchema),
+  detail: Schema.optional(Schema.String),
+  data: Schema.optional(Schema.Unknown),
+});
+export type ProviderThreadSnapshotItem = typeof ProviderThreadSnapshotItem.Type;
+
 export const CanonicalRequestType = Schema.Literals([
   "command_execution_approval",
   "file_read_approval",

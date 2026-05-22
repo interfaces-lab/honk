@@ -9,6 +9,7 @@ import {
   IconCircleCheck,
   IconCircleInfo,
   IconClipboard,
+  IconCrossSmall,
   IconExclamationCircle,
   IconExclamationTriangle,
   IconLoader,
@@ -442,12 +443,24 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                   </div>
                   {toast.actionProps && (
                     <Toast.Action
-                      className={cn(buttonVariants({ size: "xs" }), "shrink-0")}
+                      {...toast.actionProps}
+                      className={cn(
+                        buttonVariants({ size: "xs" }),
+                        "shrink-0",
+                        toast.actionProps.className,
+                      )}
                       data-slot="toast-action"
-                    >
-                      {toast.actionProps.children}
-                    </Toast.Action>
+                    />
                   )}
+                  <button
+                    type="button"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-70 transition-colors hover:bg-muted hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
+                    aria-label="Dismiss notification"
+                    title="Dismiss notification"
+                    onClick={() => toastManager.close(toast.id)}
+                  >
+                    <IconCrossSmall className="size-3" aria-hidden />
+                  </button>
                 </Toast.Content>
               </Toast.Root>
             );

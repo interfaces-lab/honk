@@ -52,7 +52,7 @@ export function RightWorkbenchLayout(props: {
       {showRail ? (
         <div
           className={cn(
-            "multi-shell-secondary-rail relative flex min-h-0 shrink-0 overflow-hidden bg-[color-mix(in_srgb,var(--multi-bg-secondary)_82%,transparent)]",
+            "multi-shell-secondary-rail relative flex min-h-0 shrink-0 overflow-hidden bg-(--multi-workbench-panel-title-background)",
             props.railHostClassName,
           )}
           data-shell-panel="secondary"

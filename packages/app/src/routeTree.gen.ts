@@ -18,6 +18,7 @@ import { Route as SettingsArchivedRouteImport } from './routes/settings.archived
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
+import { Route as ChatDevBranchingUiPrototypesRouteImport } from './routes/_chat.dev.branching-ui-prototypes'
 import { Route as ChatDevArchiveUiExampleRouteImport } from './routes/_chat.dev.archive-ui-example'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
@@ -65,6 +66,12 @@ const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
   path: '/draft/$draftId',
   getParentRoute: () => ChatRoute,
 } as any)
+const ChatDevBranchingUiPrototypesRoute =
+  ChatDevBranchingUiPrototypesRouteImport.update({
+    id: '/dev/branching-ui-prototypes',
+    path: '/dev/branching-ui-prototypes',
+    getParentRoute: () => ChatRoute,
+  } as any)
 const ChatDevArchiveUiExampleRoute = ChatDevArchiveUiExampleRouteImport.update({
   id: '/dev/archive-ui-example',
   path: '/dev/archive-ui-example',
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/settings/models': typeof SettingsModelsRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
+  '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesByTo {
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
   '/': typeof ChatIndexRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
+  '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesById {
@@ -113,6 +122,7 @@ export interface FileRoutesById {
   '/_chat/': typeof ChatIndexRoute
   '/_chat/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/_chat/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
+  '/_chat/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/_chat/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRouteTypes {
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/settings/models'
     | '/$environmentId/$threadId'
     | '/dev/archive-ui-example'
+    | '/dev/branching-ui-prototypes'
     | '/draft/$draftId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$environmentId/$threadId'
     | '/dev/archive-ui-example'
+    | '/dev/branching-ui-prototypes'
     | '/draft/$draftId'
   id:
     | '__root__'
@@ -152,6 +164,7 @@ export interface FileRouteTypes {
     | '/_chat/'
     | '/_chat/$environmentId/$threadId'
     | '/_chat/dev/archive-ui-example'
+    | '/_chat/dev/branching-ui-prototypes'
     | '/_chat/draft/$draftId'
   fileRoutesById: FileRoutesById
 }
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatDraftDraftIdRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/_chat/dev/branching-ui-prototypes': {
+      id: '/_chat/dev/branching-ui-prototypes'
+      path: '/dev/branching-ui-prototypes'
+      fullPath: '/dev/branching-ui-prototypes'
+      preLoaderRoute: typeof ChatDevBranchingUiPrototypesRouteImport
+      parentRoute: typeof ChatRoute
+    }
     '/_chat/dev/archive-ui-example': {
       id: '/_chat/dev/archive-ui-example'
       path: '/dev/archive-ui-example'
@@ -246,6 +266,7 @@ interface ChatRouteChildren {
   ChatIndexRoute: typeof ChatIndexRoute
   ChatEnvironmentIdThreadIdRoute: typeof ChatEnvironmentIdThreadIdRoute
   ChatDevArchiveUiExampleRoute: typeof ChatDevArchiveUiExampleRoute
+  ChatDevBranchingUiPrototypesRoute: typeof ChatDevBranchingUiPrototypesRoute
   ChatDraftDraftIdRoute: typeof ChatDraftDraftIdRoute
 }
 
@@ -253,6 +274,7 @@ const ChatRouteChildren: ChatRouteChildren = {
   ChatIndexRoute: ChatIndexRoute,
   ChatEnvironmentIdThreadIdRoute: ChatEnvironmentIdThreadIdRoute,
   ChatDevArchiveUiExampleRoute: ChatDevArchiveUiExampleRoute,
+  ChatDevBranchingUiPrototypesRoute: ChatDevBranchingUiPrototypesRoute,
   ChatDraftDraftIdRoute: ChatDraftDraftIdRoute,
 }
 

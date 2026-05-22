@@ -21,30 +21,43 @@ function isWhitespace(char: string): boolean {
   return char === " " || char === "\n" || char === "\t" || char === "\r";
 }
 
+const SLASH_COMMAND_LOOKBEHIND_LIMIT = 200;
+const SLASH_COMMAND_MAX_QUERY_SEGMENTS = 120;
+const SLASH_COMMAND_MAX_SIMPLE_QUERY_LENGTH = 50;
+const SLASH_COMMAND_SPECIAL_CHARS = String.raw`,\+\*\?\$\@\|#{}\(\)\^\-\[\]\\!%'"~=<>:;`;
+const SLASH_COMMAND_QUERY_CHAR = String.raw`[^/${SLASH_COMMAND_SPECIAL_CHARS}\s]`;
+const SLASH_COMMAND_QUERY_SEPARATOR = String.raw`(?:\.[ |$]| |[${SLASH_COMMAND_SPECIAL_CHARS}/]|)`;
+const SLASH_COMMAND_QUERY_PATTERN = new RegExp(
+  String.raw`(^|\s|\()([/]((?:${SLASH_COMMAND_QUERY_CHAR}${SLASH_COMMAND_QUERY_SEPARATOR}){0,${SLASH_COMMAND_MAX_QUERY_SEGMENTS}}))$`,
+);
+const SLASH_COMMAND_SIMPLE_QUERY_PATTERN = new RegExp(
+  String.raw`(^|\s|\()([/]((?:${SLASH_COMMAND_QUERY_CHAR}){0,${SLASH_COMMAND_MAX_SIMPLE_QUERY_LENGTH}}))$`,
+);
+
+function recognizeStandaloneSlashCommand(textBeforeCursor: string): {
+  query: string;
+  rangeStart: number;
+} | null {
+  const windowStart = Math.max(0, textBeforeCursor.length - SLASH_COMMAND_LOOKBEHIND_LIMIT);
+  const textWindow = textBeforeCursor.slice(windowStart);
+  const match =
+    SLASH_COMMAND_QUERY_PATTERN.exec(textWindow) ??
+    SLASH_COMMAND_SIMPLE_QUERY_PATTERN.exec(textWindow);
+  if (!match) return null;
+
+  const lead = match[1] ?? "";
+  return {
+    query: match[3] ?? "",
+    rangeStart: windowStart + match.index + lead.length,
+  };
+}
+
 function tokenStartForCursor(text: string, cursor: number): number {
   let index = cursor - 1;
   while (index >= 0 && !isWhitespace(text[index] ?? "")) {
     index -= 1;
   }
   return index + 1;
-}
-
-function standaloneSlashStartForCursor(text: string, cursor: number): number {
-  const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
-  let index = cursor - 1;
-  while (index >= lineStart) {
-    const before = text[index - 1] ?? "";
-    if (
-      text[index] === "/" &&
-      (index === lineStart ||
-        isWhitespace(before) ||
-        (before === "(" && text[index - 2] !== "]"))
-    ) {
-      return index;
-    }
-    index -= 1;
-  }
-  return -1;
 }
 
 function expandedSkillSegmentLength(segment: { type: "skill"; name: string; path?: string }) {
@@ -220,19 +233,15 @@ export const isCollapsedCursorAdjacentToMention = isCollapsedCursorAdjacentToInl
 
 export function detectComposerTrigger(text: string, cursorInput: number): ComposerTrigger | null {
   const cursor = clampCursor(text, cursorInput);
-  const slashStart = standaloneSlashStartForCursor(text, cursor);
-  const slashPrefix = slashStart >= 0 ? text.slice(slashStart, cursor) : "";
+  const slashCommand = recognizeStandaloneSlashCommand(text.slice(0, cursor));
 
-  if (slashStart >= 0) {
-    const commandMatch = /^\/(.*)$/.exec(slashPrefix);
-    if (commandMatch) {
-      return {
-        kind: "slash-command",
-        query: commandMatch[1] ?? "",
-        rangeStart: slashStart,
-        rangeEnd: cursor,
-      };
-    }
+  if (slashCommand) {
+    return {
+      kind: "slash-command",
+      query: slashCommand.query,
+      rangeStart: slashCommand.rangeStart,
+      rangeEnd: cursor,
+    };
   }
 
   const tokenStart = tokenStartForCursor(text, cursor);

@@ -141,11 +141,7 @@ function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefi
   ) {
     return false;
   }
-  return (
-    sidebarThread.interactionMode === "plan" &&
-    isLatestTurnSettled(sidebarThread.latestTurn, sidebarThread.session) &&
-    sidebarThread.hasActionableProposedPlan
-  );
+  return false;
 }
 
 function isUnreadFromVisitBoundary(
@@ -1264,20 +1260,25 @@ function ChatWorkbenchShellHost(props: {
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
   const workbenchTabs = useMemo<WorkbenchTabMeta[]>(() => {
     const tabs: WorkbenchTabMeta[] = planTabAvailable
-      ? [{ id: "plan", label: props.plan.label, icon: IconSquareChecklist }]
+      ? [
+          {
+            id: "plan",
+            label: props.plan.label,
+            icon: IconSquareChecklist,
+          },
+        ]
       : [];
     tabs.push(
       {
         id: "git",
         label: "Changes",
         icon: IconBranch,
-        badge: git.count > 0 ? String(git.count) : null,
       },
       { id: "terminal", label: "Terminal", icon: IconConsole },
       { id: "files", label: "Files", icon: IconFileText },
     );
     return tabs;
-  }, [git.count, planTabAvailable, props.plan.label]);
+  }, [planTabAvailable, props.plan.label]);
 
   const right = useMemo<RightWorkbenchDefinition>(() => {
     const panels: RightWorkbenchDefinition["panels"] = {

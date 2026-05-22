@@ -80,7 +80,6 @@ export function WorkbenchTabBar(props: {
         {tabs.map((tab) => {
           const selected = tab.id === props.active;
           const Icon = tab.icon;
-          const countText = tab.id === "git" && props.count > 0 ? `, ${props.count} changes` : "";
           return (
             <button
               key={tab.id}
@@ -91,8 +90,8 @@ export function WorkbenchTabBar(props: {
                 selected && "bg-multi-bg-tertiary text-multi-icon-primary",
               )}
               aria-current={selected ? "page" : undefined}
-              aria-label={`${tab.label}${countText}`}
-              title={`${tab.label}${countText}`}
+              aria-label={tab.label}
+              title={tab.label}
             >
               <Icon className="size-4 shrink-0" aria-hidden />
             </button>

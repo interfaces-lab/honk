@@ -27,6 +27,7 @@ import {
   defaultInstanceIdForDriver,
   EventId,
   type ProviderApprovalDecision,
+  type ProviderThreadSnapshotItem,
   ProviderDriverKind,
   ProviderItemId,
   type ProviderRuntimeEvent,
@@ -120,7 +121,7 @@ interface ClaudeResumeState {
 interface ClaudeTurnState {
   readonly turnId: TurnId;
   readonly startedAt: string;
-  readonly items: Array<unknown>;
+  readonly items: Array<ProviderThreadSnapshotItem>;
   readonly assistantTextBlocks: Map<number, AssistantTextBlockState>;
   readonly assistantTextBlockOrder: Array<AssistantTextBlockState>;
   readonly capturedProposedPlanKeys: Set<string>;
@@ -172,7 +173,7 @@ interface ClaudeSessionContext {
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   readonly turns: Array<{
     id: TurnId;
-    items: Array<unknown>;
+    items: Array<ProviderThreadSnapshotItem>;
   }>;
   readonly inFlightTools: Map<number, ToolInFlight>;
   turnState: ClaudeTurnState | undefined;
@@ -868,6 +869,50 @@ function toolResultBlocksFromUserMessage(message: SDKMessage): Array<{
   }
 
   return blocks;
+}
+
+function claudeUserSnapshotItem(message: SDKUserMessage): ProviderThreadSnapshotItem {
+  const toolResults = toolResultBlocksFromUserMessage(message);
+  if (toolResults.length > 0) {
+    const detail = toolResults
+      .map((toolResult) => toolResult.text)
+      .filter((text) => text.length > 0)
+      .join("\n\n");
+    return {
+      ...(message.uuid ? { id: message.uuid } : {}),
+      itemType: "unknown",
+      role: "tool",
+      title: "Tool result",
+      ...(detail.length > 0 ? { detail } : {}),
+      data: message.message,
+    };
+  }
+
+  const detail = extractTextContent(message.message.content);
+  return {
+    ...(message.uuid ? { id: message.uuid } : {}),
+    itemType: "user_message",
+    role: "user",
+    title: "User message",
+    ...(detail.length > 0 ? { detail } : {}),
+    data: message.message,
+  };
+}
+
+function claudeAssistantSnapshotItem(message: SDKMessage): ProviderThreadSnapshotItem | undefined {
+  if (message.type !== "assistant") {
+    return undefined;
+  }
+
+  const detail = extractAssistantTextBlocks(message).join("");
+  return {
+    id: message.uuid,
+    itemType: "assistant_message",
+    role: "assistant",
+    title: "Assistant message",
+    ...(detail.length > 0 ? { detail } : {}),
+    data: message.message,
+  };
 }
 
 function toSessionError(
@@ -1835,7 +1880,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
 
     if (context.turnState) {
-      context.turnState.items.push(message.message);
+      context.turnState.items.push(claudeUserSnapshotItem(message));
     }
 
     for (const toolResult of toolResultBlocksFromUserMessage(message)) {
@@ -2015,7 +2060,10 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
 
     if (context.turnState) {
-      context.turnState.items.push(message.message);
+      const snapshotItem = claudeAssistantSnapshotItem(message);
+      if (snapshotItem) {
+        context.turnState.items.push(snapshotItem);
+      }
       yield* backfillAssistantTextBlocksFromSnapshot(context, message);
     }
 

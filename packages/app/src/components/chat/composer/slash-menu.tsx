@@ -27,7 +27,6 @@ import {
   useMemo,
   type ComponentProps,
   type ComponentType,
-  type RefObject,
 } from "react";
 
 import { Popover, PopoverPopup } from "@multi/ui/popover";
@@ -52,6 +51,7 @@ import {
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
 
 const PATH_QUERY_DEBOUNCE_MS = 120;
+const COMPOSER_MENU_SIDE_OFFSET = 3;
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
 type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -424,6 +424,8 @@ export function useComposerCommandMenu(input: {
   const composerTriggerKind = input.composerTrigger?.kind ?? null;
   const pathTriggerQuery =
     input.composerTrigger?.kind === "path" ? input.composerTrigger.query : "";
+  const slashTriggerQuery =
+    input.composerTrigger?.kind === "slash-command" ? input.composerTrigger.query : "";
   const shouldSearchProjectEntries = composerTriggerKind === "path";
   const [debouncedPathQuery, pathQueryDebouncer] = useDebouncedValue(
     pathTriggerQuery,
@@ -501,7 +503,13 @@ export function useComposerCommandMenu(input: {
     projectEntries,
   ]);
 
-  const composerMenuOpen = input.composerTrigger !== null;
+  const slashQueryHasMatches =
+    composerTriggerKind !== "slash-command" ||
+    slashTriggerQuery.trim().length === 0 ||
+    composerMenuItems.length > 0;
+  const composerMenuOpen =
+    input.composerTrigger !== null &&
+    (composerTriggerKind !== "slash-command" || slashQueryHasMatches);
   const composerMenuSearchKey = input.composerTrigger
     ? `${input.composerTrigger.kind}:${input.composerTrigger.query.trim().toLowerCase()}`
     : null;
@@ -532,7 +540,7 @@ export function useComposerCommandMenu(input: {
   const composerMenuKind: ComposerCommandMenuKind =
     composerTriggerKind === "slash-command" ? "slash" : "mentions";
   const composerMenuIsSearching =
-    composerTriggerKind === "slash-command" && pathTriggerQuery.trim().length > 0;
+    composerTriggerKind === "slash-command" && slashTriggerQuery.trim().length > 0;
 
   return {
     composerTriggerKind,
@@ -762,15 +770,18 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
   );
 });
 
+type ComposerCommandMenuAnchor = ComponentProps<typeof PopoverPopup>["anchor"];
+
 type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandMenu> & {
   open: boolean;
-  anchorRef: RefObject<HTMLElement | null>;
+  anchor: ComposerCommandMenuAnchor;
+  anchorVersion: number;
 };
 
 export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPositioned(
   props: ComposerCommandMenuPositionedProps,
 ) {
-  const { open, anchorRef, menuKind, ...menuProps } = props;
+  const { open, anchor, anchorVersion, menuKind, ...menuProps } = props;
   const collisionPadding = useMemo(
     () => (open ? composerMenuCollisionPadding() : { top: 8, bottom: 8, left: 8, right: 8 }),
     [open],
@@ -780,14 +791,15 @@ export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPo
   return (
     <Popover open={open}>
       <PopoverPopup
-        anchor={anchorRef}
+        key={anchorVersion}
+        anchor={anchor}
         align="start"
         collisionBoundary={collisionBoundary}
         collisionPadding={collisionPadding}
         initialFocus={false}
         instant
         side="top"
-        sideOffset={8}
+        sideOffset={COMPOSER_MENU_SIDE_OFFSET}
         className={cn(
           "z-[70] border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
           menuKind === "mentions"

@@ -25,5 +25,6 @@ export const Route = createRootRouteWithContext<{
   notFoundComponent: RootRouteNotFoundView,
   head: () => ({
     meta: [{ name: "title", content: APP_DISPLAY_NAME }],
+    scripts: import.meta.env.DEV ? [{ src: "https://ui.sh/ui-picker.js" }] : [],
   }),
 });

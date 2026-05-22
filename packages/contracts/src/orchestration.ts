@@ -17,6 +17,7 @@ import {
   TurnId,
 } from "./base-schemas";
 import { ProviderInstanceId } from "./provider-instance";
+import { ProviderThreadSnapshotItem } from "./provider-runtime";
 
 export const ORCHESTRATION_WS_METHODS = {
   dispatchCommand: "orchestration.dispatchCommand",
@@ -1221,7 +1222,7 @@ export type OrchestrationGetProviderThreadSnapshotInput =
 const OrchestrationProviderThreadTurnSnapshot = Schema.Struct({
   id: TurnId,
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
-  items: Schema.Array(Schema.Unknown),
+  items: Schema.Array(ProviderThreadSnapshotItem),
 });
 
 export const OrchestrationGetProviderThreadSnapshotResult = Schema.Struct({

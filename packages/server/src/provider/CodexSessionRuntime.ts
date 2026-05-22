@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   ApprovalRequestId,
+  type CanonicalItemType,
   EventId,
   defaultInstanceIdForDriver,
   ProviderDriverKind,
@@ -11,6 +12,7 @@ import {
   type ProviderInteractionMode,
   type ProviderRequestKind,
   type ProviderSession,
+  type ProviderThreadSnapshotItem,
   type ProviderTurnStartResult,
   type ProviderUserInputAnswers,
   RuntimeMode,
@@ -116,7 +118,7 @@ export interface CodexSessionRuntimeSendTurnInput {
 
 export interface CodexThreadTurnSnapshot {
   readonly id: TurnId;
-  readonly items: ReadonlyArray<CodexThreadItem>;
+  readonly items: ReadonlyArray<ProviderThreadSnapshotItem>;
 }
 
 export interface CodexThreadSnapshot {
@@ -234,6 +236,7 @@ interface CollabReceiverRoute {
   readonly parentTurnId: TurnId;
   readonly parentItemId: ProviderItemId | undefined;
   readonly senderProviderThreadId: string | undefined;
+  readonly sourceTool: string | undefined;
 }
 
 type CodexServerNotification = {
@@ -611,12 +614,19 @@ function rememberCollabReceiverRoutes(
   }
 
   for (const receiverThreadId of notification.params.item.receiverThreadIds) {
+    const existing = collabReceiverRoutes.get(receiverThreadId);
+    const sourceTool = notification.params.item.tool;
+    if (existing?.sourceTool === "spawnAgent" && sourceTool !== "spawnAgent") {
+      continue;
+    }
+
     collabReceiverRoutes.set(receiverThreadId, {
       providerThreadId: receiverThreadId,
       parentTurnId: route.parentTurnId,
       parentItemId: route.parentItemId,
       senderProviderThreadId:
         notification.params.item.senderThreadId ?? route.senderProviderThreadId,
+      sourceTool,
     });
   }
 }
@@ -690,9 +700,186 @@ function parseThreadSnapshot(
     providerThreadId: response.thread.id,
     turns: response.thread.turns.map((turn) => ({
       id: TurnId.make(turn.id),
-      items: turn.items,
+      items: turn.items.map(codexThreadSnapshotItem),
     })),
   };
+}
+
+function codexThreadSnapshotItem(item: CodexThreadItem): ProviderThreadSnapshotItem {
+  const itemType = codexThreadSnapshotItemType(readStringField(item, "type"));
+  const id = readStringField(item, "id");
+  const title = codexThreadSnapshotItemTitle(itemType, item);
+  const detail = codexThreadSnapshotItemDetail(item);
+  return {
+    ...(id ? { id } : {}),
+    itemType,
+    role: codexThreadSnapshotItemRole(itemType),
+    ...(title ? { title } : {}),
+    ...(detail ? { detail } : {}),
+    data: item,
+  };
+}
+
+function codexThreadSnapshotItemType(rawType: string | undefined): CanonicalItemType {
+  switch (rawType) {
+    case "userMessage":
+      return "user_message";
+    case "agentMessage":
+      return "assistant_message";
+    case "reasoning":
+      return "reasoning";
+    case "plan":
+      return "plan";
+    case "commandExecution":
+      return "command_execution";
+    case "fileChange":
+      return "file_change";
+    case "mcpToolCall":
+      return "mcp_tool_call";
+    case "dynamicToolCall":
+      return "dynamic_tool_call";
+    case "collabAgentToolCall":
+      return "collab_agent_tool_call";
+    case "webSearch":
+      return "web_search";
+    case "imageView":
+    case "imageGeneration":
+      return "image_view";
+    case "enteredReviewMode":
+      return "review_entered";
+    case "exitedReviewMode":
+      return "review_exited";
+    case "contextCompaction":
+      return "context_compaction";
+    default:
+      return "unknown";
+  }
+}
+
+function codexThreadSnapshotItemRole(
+  itemType: CanonicalItemType,
+): ProviderThreadSnapshotItem["role"] {
+  switch (itemType) {
+    case "user_message":
+      return "user";
+    case "assistant_message":
+    case "reasoning":
+    case "plan":
+      return "assistant";
+    default:
+      return "tool";
+  }
+}
+
+function codexThreadSnapshotItemTitle(
+  itemType: CanonicalItemType,
+  item: CodexThreadItem,
+): string | undefined {
+  const explicitTitle = readStringField(item, "title");
+  if (explicitTitle) {
+    return explicitTitle;
+  }
+
+  switch (itemType) {
+    case "command_execution":
+      return "Ran command";
+    case "file_change":
+      return "File change";
+    case "mcp_tool_call":
+      return readStringField(item, "tool") ?? "MCP tool call";
+    case "dynamic_tool_call":
+      return readStringField(item, "tool") ?? "Tool call";
+    case "collab_agent_tool_call":
+      return "Subagent";
+    case "web_search":
+      return "Web search";
+    case "image_view":
+      return "Image";
+    case "review_entered":
+      return "Review entered";
+    case "review_exited":
+      return "Review exited";
+    case "context_compaction":
+      return "Context compaction";
+    case "unknown":
+      return readStringField(item, "type");
+    default:
+      return undefined;
+  }
+}
+
+function codexThreadSnapshotItemDetail(item: CodexThreadItem): string | undefined {
+  const content = readUserMessageContent(item);
+  if (content) {
+    return content;
+  }
+
+  const reasoning = readStringArrayField(item, "summary") ?? readStringArrayField(item, "content");
+  if (reasoning) {
+    return reasoning.join("\n");
+  }
+
+  const candidates = [
+    readStringField(item, "text"),
+    readStringField(item, "command"),
+    readStringField(item, "aggregatedOutput"),
+    readStringField(item, "query"),
+    readStringField(item, "path"),
+    readStringField(item, "prompt"),
+    readStringField(item, "result"),
+    readStringField(item, "review"),
+  ];
+  return candidates.find((candidate) => candidate !== undefined);
+}
+
+function readUserMessageContent(item: CodexThreadItem): string | undefined {
+  const record = asRecord(item);
+  const content = record?.content;
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const text = content
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      const entryRecord = asRecord(entry);
+      return asTrimmedString(entryRecord?.text);
+    })
+    .filter((entry): entry is string => entry !== undefined)
+    .join("\n")
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function readStringArrayField(
+  item: CodexThreadItem,
+  key: string,
+): ReadonlyArray<string> | undefined {
+  const value = asRecord(item)?.[key];
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
+  return entries.length > 0 ? entries : undefined;
+}
+
+function readStringField(item: CodexThreadItem, key: string): string | undefined {
+  return asTrimmedString(asRecord(item)?.[key]);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asTrimmedString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export const makeCodexSessionRuntime = (

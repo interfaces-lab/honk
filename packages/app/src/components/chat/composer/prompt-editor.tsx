@@ -146,6 +146,7 @@ interface ComposerPromptEditorProps {
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
   caretAnchorRef?: RefObject<HTMLSpanElement | null>;
   caretTriggerExpandedOffset?: number | null;
+  onCaretAnchorRectChange?: (rect: DOMRectReadOnly) => void;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
   onChange: (
     nextValue: string,
@@ -574,18 +575,21 @@ function usePromptEditorMultilineMeasurement({
 function usePromptEditorCaretAnchor({
   editor,
   anchorElementRef,
+  onCaretAnchorRectChangeRef,
   triggerOffsetRef,
 }: {
   editor: Editor | null;
   anchorElementRef: RefObject<HTMLSpanElement | null>;
+  onCaretAnchorRectChangeRef: RefObject<ComposerPromptEditorProps["onCaretAnchorRectChange"]>;
   triggerOffsetRef: RefObject<number | null>;
 }) {
   useLayoutSyncEffect(() => {
     if (!editor) return;
     const anchor = anchorElementRef.current;
     const editorDom = editor.view.dom;
-    const container = editorDom.parentElement;
-    if (!anchor || !container) return;
+    const anchorRoot =
+      anchor?.offsetParent instanceof HTMLElement ? anchor.offsetParent : anchor?.parentElement;
+    if (!anchor || !anchorRoot) return;
 
     const place = () => {
       const triggerOffset = triggerOffsetRef.current;
@@ -594,9 +598,12 @@ function usePromptEditorCaretAnchor({
           ? textToPosition(editor.state.doc, triggerOffset, "expanded")
           : editor.state.selection.head;
       const coords = editor.view.coordsAtPos(pmPos);
-      const rect = container.getBoundingClientRect();
-      anchor.style.left = `${coords.left - rect.left}px`;
-      anchor.style.top = `${coords.top - rect.top}px`;
+      const rect = anchorRoot.getBoundingClientRect();
+      const anchorRect = new DOMRect(coords.left, coords.bottom, 1, 1);
+      anchor.style.left = `${anchorRect.left - rect.left}px`;
+      anchor.style.top = `${anchorRect.top - rect.top}px`;
+      anchor.style.bottom = "auto";
+      onCaretAnchorRectChangeRef.current?.(anchorRect);
     };
 
     place();
@@ -608,7 +615,7 @@ function usePromptEditorCaretAnchor({
     }
     const observer = new ResizeObserver(place);
     observer.observe(editorDom);
-    observer.observe(container);
+    observer.observe(anchorRoot);
     return () => {
       editor.off("transaction", place);
       observer.disconnect();
@@ -1065,6 +1072,7 @@ export const ComposerPromptEditor = forwardRef<
     hotkeyTargetRef,
     caretAnchorRef,
     caretTriggerExpandedOffset = null,
+    onCaretAnchorRectChange,
     onMeasuredMultilineChange,
     onChange,
     onCommandKeyDown,
@@ -1074,12 +1082,14 @@ export const ComposerPromptEditor = forwardRef<
 ) {
   const onChangeRef = useRef(onChange);
   const onCommandKeyDownRef = useRef(onCommandKeyDown);
+  const onCaretAnchorRectChangeRef = useRef(onCaretAnchorRectChange);
   const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
   const onPasteRef = useRef(onPaste);
   const placeholderRef = useRef(placeholder);
   const skillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
   onChangeRef.current = onChange;
   onCommandKeyDownRef.current = onCommandKeyDown;
+  onCaretAnchorRectChangeRef.current = onCaretAnchorRectChange;
   onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
   onPasteRef.current = onPaste;
   placeholderRef.current = placeholder;
@@ -1272,6 +1282,7 @@ export const ComposerPromptEditor = forwardRef<
   usePromptEditorCaretAnchor({
     editor,
     anchorElementRef: localCaretAnchorRef,
+    onCaretAnchorRectChangeRef,
     triggerOffsetRef: caretTriggerOffsetRef,
   });
 

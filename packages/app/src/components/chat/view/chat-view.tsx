@@ -139,6 +139,7 @@ import {
   workbenchTerminalThreadId,
 } from "~/components/shell/terminal/workbench-terminal";
 import { ComposerInput, type ComposerInputHandle } from "../composer/input";
+import { useSubagentPreviewStore } from "../../../stores/subagent-preview-store";
 import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
@@ -1053,6 +1054,8 @@ export default function ChatView(props: ChatViewProps) {
     (store) => store.setLogicalProjectDraftThreadId,
   );
   const gitAgentActionHandoff = useGitAgentActionHandoff();
+  const subagentPreviewOpen = useSubagentPreviewStore((state) => state.preview !== null);
+  const closeSubagentPreview = useSubagentPreviewStore((state) => state.closePreview);
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
       ? store.getDraftSessionByRef(routeThreadRef)
@@ -1416,7 +1419,6 @@ export default function ChatView(props: ChatViewProps) {
     activeWorkbenchTab === "plan" && rightWorkbenchOpen && !rightWorkbenchMuted;
   const showPlanFollowUpPrompt =
     pendingUserInputs.length === 0 &&
-    interactionMode === "plan" &&
     latestTurnSettled &&
     hasActionableProposedPlan(activeProposedPlan);
   const activePendingApproval = pendingApprovals[0] ?? null;
@@ -3534,7 +3536,7 @@ export default function ChatView(props: ChatViewProps) {
       {/* Top bar */}
       <header
         className={cn(
-          "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center px-3",
+          "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center px-(--multi-workbench-chrome-padding-inline)",
           isElectron &&
             reserveTitleBarControlInset &&
             "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
@@ -3579,46 +3581,60 @@ export default function ChatView(props: ChatViewProps) {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Messages Wrapper — hidden in hero mode */}
           {!isHeroComposer && (
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              <MessagesTimeline
-                key={`${activeThread.id}:${branchView.entryId ?? "linear"}`}
-                isWorking={isWorking}
-                activeTurnInProgress={isWorking || !latestTurnSettled}
-                editUserMessagesDisabled={isWorking}
-                activeTurnStartedAt={activeWorkStartedAt}
-                bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
-                timelineControllerRef={messagesTimelineControllerRef}
-                timelineEntries={timelineEntries}
-                activeThreadId={activeThread.id}
-                activeThreadEnvironmentId={activeThread.environmentId}
-                revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
-                onImageExpand={onExpandTimelineImage}
-                markdownCwd={gitCwd ?? undefined}
-                projectRoot={activeProjectRoot}
-                isServerThread={isServerThread}
-                editingUserMessageId={activeEditingUserMessageId}
-                onBeginEditUserMessage={onBeginEditUserMessage}
-                renderEditComposer={renderEditComposer}
-                awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
-                onIsAtBottomChange={onIsAtBottomChange}
-              />
+            <div
+              className="relative flex min-h-0 flex-1 flex-col"
+              data-subagent-conversation-shell=""
+              data-subagent-preview-open={subagentPreviewOpen ? "" : undefined}
+            >
+              <div data-subagent-conversation-mask="">
+                <MessagesTimeline
+                  key={`${activeThread.id}:${branchView.entryId ?? "linear"}`}
+                  isWorking={isWorking}
+                  activeTurnInProgress={isWorking || !latestTurnSettled}
+                  editUserMessagesDisabled={isWorking}
+                  activeTurnStartedAt={activeWorkStartedAt}
+                  bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
+                  timelineControllerRef={messagesTimelineControllerRef}
+                  timelineEntries={timelineEntries}
+                  activeThreadId={activeThread.id}
+                  activeThreadEnvironmentId={activeThread.environmentId}
+                  revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
+                  onImageExpand={onExpandTimelineImage}
+                  markdownCwd={gitCwd ?? undefined}
+                  projectRoot={activeProjectRoot}
+                  isServerThread={isServerThread}
+                  editingUserMessageId={activeEditingUserMessageId}
+                  onBeginEditUserMessage={onBeginEditUserMessage}
+                  renderEditComposer={renderEditComposer}
+                  awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
+                  onIsAtBottomChange={onIsAtBottomChange}
+                />
 
-              {showScrollToBottom && (
-                <div className="pointer-events-none absolute bottom-[calc(var(--multi-composer-compact-shell-min-height)_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
-                  <button
-                    type="button"
-                    onClick={() => scrollTimelineToBottom(true)}
-                    className="pointer-events-auto inline-flex size-7 min-h-7 min-w-7 shrink-0 cursor-(--multi-button-cursor) appearance-none items-center justify-center rounded-full border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)! p-0 text-multi-icon-secondary shadow-none transition-[background-color,border-color] duration-150 ease-out hover:border-multi-stroke-secondary hover:bg-(--multi-chat-bubble-background)! active:border-multi-stroke-secondary active:bg-(--multi-chat-bubble-background)! focus-visible:border-multi-stroke-secondary focus-visible:bg-(--multi-chat-bubble-background)!"
-                    aria-label="Scroll to bottom"
-                    title="Scroll to bottom"
-                  >
-                    <IconChevronRightMedium
-                      className="size-3 rotate-90 text-multi-icon-secondary"
-                      aria-hidden="true"
-                    />
-                  </button>
-                </div>
-              )}
+                {showScrollToBottom && (
+                  <div className="pointer-events-none absolute bottom-[calc(var(--multi-composer-compact-shell-min-height)_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => scrollTimelineToBottom(true)}
+                      className="pointer-events-auto inline-flex size-7 min-h-7 min-w-7 shrink-0 cursor-(--multi-button-cursor) appearance-none items-center justify-center rounded-full border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)! p-0 text-multi-icon-secondary shadow-none transition-[background-color,border-color] duration-150 ease-out hover:border-multi-stroke-secondary hover:bg-(--multi-chat-bubble-background)! active:border-multi-stroke-secondary active:bg-(--multi-chat-bubble-background)! focus-visible:border-multi-stroke-secondary focus-visible:bg-(--multi-chat-bubble-background)!"
+                      aria-label="Scroll to bottom"
+                      title="Scroll to bottom"
+                    >
+                      <IconChevronRightMedium
+                        className="size-3 rotate-90 text-multi-icon-secondary"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {subagentPreviewOpen ? (
+                <button
+                  type="button"
+                  data-subagent-preview-click-capture=""
+                  aria-label="Close subagent preview"
+                  onClick={closeSubagentPreview}
+                />
+              ) : null}
             </div>
           )}
 

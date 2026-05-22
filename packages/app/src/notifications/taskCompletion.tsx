@@ -1,13 +1,16 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { useMemo, useRef } from "react";
 import { toastManager } from "~/app/toast";
+import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
+import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "../stores/thread-store";
 import type { SidebarThreadSummary } from "../types";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   buildInputNeededCopy,
   buildTaskCompletionCopy,
+  shouldSuppressVisibleThreadNotification,
   type CompletedThreadCandidate,
   type ThreadAttentionCandidate,
 } from "./task-completion-candidates";
@@ -57,6 +60,44 @@ interface ThreadNotificationCopy {
   body: string;
 }
 
+const SEEN_ATTENTION_NOTIFICATION_IDS_KEY = "multi.seenAttentionNotificationIds.v1";
+const MAX_SEEN_ATTENTION_NOTIFICATION_IDS = 200;
+
+function readSeenAttentionNotificationIds(): Set<string> {
+  if (typeof window === "undefined") {
+    return new Set();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SEEN_ATTENTION_NOTIFICATION_IDS_KEY);
+    if (!raw) {
+      return new Set();
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return new Set();
+    }
+    return new Set(parsed.filter((id): id is string => typeof id === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function markAttentionNotificationSeen(requestId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const ids = [...readSeenAttentionNotificationIds(), requestId].slice(
+      -MAX_SEEN_ATTENTION_NOTIFICATION_IDS,
+    );
+    window.localStorage.setItem(SEEN_ATTENTION_NOTIFICATION_IDS_KEY, JSON.stringify(ids));
+  } catch {
+    // Notification de-duplication is best effort.
+  }
+}
+
 function focusThread(
   environmentId: EnvironmentId,
   threadId: ThreadId,
@@ -104,7 +145,6 @@ function showThreadToast(
     title,
     description: body,
     data: {
-      allowCrossThreadVisibility: true,
       threadId,
       dismissAfterVisibleMs: 8000,
     },
@@ -113,6 +153,10 @@ function showThreadToast(
       onClick: () => focusThread(environmentId, threadId, navigate),
     },
   });
+}
+
+function isPlanReviewAttentionSummary(summary: SidebarThreadSummary): boolean {
+  return summary.hasActionableProposedPlan;
 }
 
 function isRunningSummary(summary: SidebarThreadSummary | undefined): boolean {
@@ -209,7 +253,11 @@ function collectInputNeededSummaryCandidates(
       });
     }
 
-    if (summary.hasPendingUserInput && !previousSummary.hasPendingUserInput) {
+    if (
+      summary.hasPendingUserInput &&
+      !previousSummary.hasPendingUserInput &&
+      !isPlanReviewAttentionSummary(summary)
+    ) {
       candidates.push({
         kind: "user-input",
         threadId: summary.id,
@@ -228,17 +276,45 @@ function collectInputNeededSummaryCandidates(
   return candidates.toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
+function useVisibleThreadIdsFromRoute(): ReadonlySet<ThreadId> {
+  const routeTarget = useParams({
+    strict: false,
+    select: (params) => resolveThreadRouteTarget(params),
+  });
+  const activeDraftSession = useComposerDraftStore((store) =>
+    routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
+  );
+
+  return useMemo(() => {
+    if (routeTarget?.kind === "server") {
+      return new Set([routeTarget.threadRef.threadId]);
+    }
+    if (routeTarget?.kind === "draft" && activeDraftSession) {
+      return new Set([activeDraftSession.threadId]);
+    }
+    return new Set<ThreadId>();
+  }, [activeDraftSession, routeTarget]);
+}
+
 export function TaskCompletionNotifications() {
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
+  const visibleThreadIds = useVisibleThreadIdsFromRoute();
+  const visibleThreadIdsRef = useRef(visibleThreadIds);
   navigateRef.current = navigate;
+  visibleThreadIdsRef.current = visibleThreadIds;
 
   useMountEffect(() => {
     let previousThreads = selectSidebarThreadsAcrossEnvironments(useStore.getState());
 
     return useStore.subscribe((state) => {
       const threads = selectSidebarThreadsAcrossEnvironments(state);
-      emitTaskCompletionNotifications(previousThreads, threads, navigateRef.current);
+      emitTaskCompletionNotifications(
+        previousThreads,
+        threads,
+        navigateRef.current,
+        visibleThreadIdsRef.current,
+      );
       previousThreads = threads;
     });
   });
@@ -250,6 +326,7 @@ function emitTaskCompletionNotifications(
   previousThreads: readonly SidebarThreadSummary[],
   threads: readonly SidebarThreadSummary[],
   navigate: ReturnType<typeof useNavigate>,
+  visibleThreadIds: ReadonlySet<ThreadId>,
 ): void {
   const completions = collectCompletedSummaryCandidates(previousThreads, threads);
   const inputNeededCandidates = collectInputNeededSummaryCandidates(previousThreads, threads);
@@ -258,7 +335,9 @@ function emitTaskCompletionNotifications(
     return;
   }
 
-  const shouldAttemptSystemNotification = window.desktopBridge ? true : !isWindowForeground();
+  const windowForeground = isWindowForeground();
+  const shouldAttemptSystemNotification = !windowForeground;
+  const seenAttentionNotificationIds = readSeenAttentionNotificationIds();
 
   for (const completion of completions) {
     const copy = buildTaskCompletionCopy(completion);
@@ -273,6 +352,21 @@ function emitTaskCompletionNotifications(
   }
 
   for (const candidate of inputNeededCandidates) {
+    if (seenAttentionNotificationIds.has(candidate.requestId)) {
+      continue;
+    }
+
+    markAttentionNotificationSeen(candidate.requestId);
+
+    const suppressVisibleThreadNotification = shouldSuppressVisibleThreadNotification({
+      threadId: candidate.threadId,
+      visibleThreadIds,
+      windowForeground,
+    });
+    if (suppressVisibleThreadNotification) {
+      continue;
+    }
+
     const copy = buildInputNeededCopy(candidate);
     showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", navigate);
 
