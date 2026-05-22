@@ -62,6 +62,7 @@ const REASONING_EFFORT_LABELS: Record<CodexSchema.V2ModelListResponse__Reasoning
 function codexAccountAuthLabel(account: CodexSchema.V2GetAccountResponse["account"]) {
   if (!account) return undefined;
   if (account.type === "apiKey") return "OpenAI API Key";
+  if (account.type === "amazonBedrock") return "Amazon Bedrock";
 
   switch (account.planType) {
     case "free":
@@ -108,7 +109,9 @@ function mapCodexModelCapabilities(
         },
   );
   const defaultReasoning = reasoningOptions.find((option) => option.isDefault)?.id;
-  const supportsFastMode = (model.additionalSpeedTiers ?? []).includes("fast");
+  const supportsFastMode =
+    (model.serviceTiers ?? []).some((serviceTier) => serviceTier.id === "priority") ||
+    (model.additionalSpeedTiers ?? []).includes("fast");
   return createModelCapabilities({
     optionDescriptors: [
       ...(reasoningOptions.length > 0

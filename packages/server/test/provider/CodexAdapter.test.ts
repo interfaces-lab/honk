@@ -260,10 +260,29 @@ validationLayer("CodexAdapterLive validation", (it) => {
         binaryPath: "codex",
         cwd: process.cwd(),
         model: "gpt-5.3-codex",
-        serviceTier: "fast",
+        serviceTier: "priority",
         threadId: asThreadId("thread-1"),
         runtimeMode: "full-access",
       });
+    }),
+  );
+
+  it.effect("maps codex priority service tier before starting a session", () =>
+    Effect.gen(function* () {
+      validationRuntimeFactory.factory.mockClear();
+      const adapter = yield* CodexAdapter;
+
+      yield* adapter.startSession({
+        provider: "codex",
+        providerInstanceId: "codex",
+        threadId: asThreadId("thread-1"),
+        modelSelection: createModelSelection("codex", "gpt-5.3-codex", [
+          { id: "serviceTier", value: "priority" },
+        ]),
+        runtimeMode: "full-access",
+      });
+
+      assert.equal(validationRuntimeFactory.factory.mock.calls[0]?.[0].serviceTier, "priority");
     }),
   );
 });
@@ -326,8 +345,36 @@ sessionErrorLayer("CodexAdapterLive session errors", (it) => {
         input: "hello",
         model: "gpt-5.3-codex",
         effort: "high",
-        serviceTier: "fast",
+        serviceTier: "priority",
       });
+    }),
+  );
+
+  it.effect("maps codex priority service tier before sending a turn", () =>
+    Effect.gen(function* () {
+      const adapter = yield* CodexAdapter;
+      yield* adapter.startSession({
+        provider: "codex",
+        providerInstanceId: "codex",
+        threadId: asThreadId("sess-priority"),
+        runtimeMode: "full-access",
+      });
+      const runtime = sessionRuntimeFactory.lastRuntime;
+      assert.ok(runtime);
+      runtime.sendTurnImpl.mockClear();
+
+      yield* Effect.ignore(
+        adapter.sendTurn({
+          threadId: asThreadId("sess-priority"),
+          input: "hello",
+          modelSelection: createModelSelection("codex", "gpt-5.3-codex", [
+            { id: "serviceTier", value: "priority" },
+          ]),
+          attachments: [],
+        }),
+      );
+
+      assert.equal(runtime.sendTurnImpl.mock.calls[0]?.[0].serviceTier, "priority");
     }),
   );
 });
@@ -374,6 +421,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
         turnId: asTurnId("turn-1"),
         itemId: asItemId("msg_1"),
         payload: {
+          completedAtMs: Date.now(),
           threadId: "thread-1",
           turnId: "turn-1",
           item: {
@@ -417,6 +465,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
         turnId: asTurnId("turn-1"),
         itemId: asItemId("plan_1"),
         payload: {
+          completedAtMs: Date.now(),
           threadId: "thread-1",
           turnId: "turn-1",
           item: {

@@ -1430,7 +1430,7 @@ function mapToRuntimeEvents(
         type: "thread.realtime.started",
         ...runtimeEventBase(event, canonicalThreadId),
         payload: {
-          realtimeSessionId: payload.sessionId ?? undefined,
+          realtimeSessionId: payload.realtimeSessionId ?? undefined,
         },
       },
     ];
@@ -1654,7 +1654,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
         const startServiceTier =
           configuredServiceTier ??
           (getModelSelectionBooleanOptionValue(input.modelSelection, "fastMode") === true
-            ? "fast"
+            ? "priority"
             : undefined);
         const runtimeInput: CodexSessionRuntimeOptions = {
           threadId: input.threadId,
@@ -1785,7 +1785,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     const serviceTier =
       configuredServiceTier ??
       (getModelSelectionBooleanOptionValue(input.modelSelection, "fastMode") === true
-        ? "fast"
+        ? "priority"
         : undefined);
     const inputText = formatProviderTurnInputText(input);
     return yield* session.runtime

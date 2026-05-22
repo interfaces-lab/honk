@@ -82,7 +82,7 @@ export type CodexTurnStartParamsWithCollaborationMode =
 const formatSchemaIssue = SchemaIssue.makeFormatterDefault();
 
 export type CodexResumeCursor = typeof CodexResumeCursorSchema.Type;
-export type CodexServiceTier = EffectCodexSchema.V2ThreadStartParams__ServiceTier;
+export type CodexServiceTier = string;
 type CodexThreadItem =
   | EffectCodexSchema.V2ThreadReadResponse["thread"]["turns"][number]["items"][number]
   | EffectCodexSchema.V2ThreadRollbackResponse["thread"]["turns"][number]["items"][number];
@@ -91,7 +91,7 @@ export function parseCodexServiceTier(
   value: string | null | undefined,
 ): CodexServiceTier | undefined {
   const normalized = value?.trim().toLowerCase();
-  return normalized === "fast" || normalized === "flex" ? normalized : undefined;
+  return normalized === "priority" || normalized === "flex" ? normalized : undefined;
 }
 
 export interface CodexSessionRuntimeOptions {
