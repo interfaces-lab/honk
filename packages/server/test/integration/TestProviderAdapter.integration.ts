@@ -12,7 +12,7 @@ import {
   TurnId,
   ProviderDriverKind,
 } from "@multi/contracts";
-import { Effect, Queue, Stream } from "effect";
+import { Effect, Predicate, Queue, Stream } from "effect";
 
 import {
   ProviderAdapterSessionNotFoundError,
@@ -55,7 +55,7 @@ interface SessionState {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return Predicate.isObject(value);
 }
 
 function normalizeTurnState(value: unknown): "completed" | "failed" | "interrupted" | "cancelled" {

@@ -1,9 +1,8 @@
 import type { ToolLifecycleItemType } from "@multi/contracts";
+import { Predicate } from "effect";
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return Predicate.isObject(value) ? value : undefined;
 }
 
 function asTrimmedString(value: unknown): string | undefined {

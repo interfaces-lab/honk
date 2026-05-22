@@ -1,7 +1,7 @@
 "use client";
 import { IconChevronRightMedium, IconClipboard, IconStepBack } from "central-icons";
 import type { GitFilePatchResult } from "@multi/contracts";
-import { type KeyboardEvent, type MouseEvent, type MutableRefObject, useRef } from "react";
+import { type KeyboardEvent, type MouseEvent, type RefObject, useRef } from "react";
 import { toast } from "sonner";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
@@ -31,7 +31,7 @@ export function GitDiffCard(props: {
   viewed: boolean;
   onToggleViewed: () => void;
   onRevert: () => void;
-  requestPrefetchForIdRef: MutableRefObject<(id: string) => void>;
+  requestPrefetchForIdRef: RefObject<(id: string) => void>;
   diffLayoutKey: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -193,8 +193,8 @@ export function GitDiffCard(props: {
 
 function ExpandedGitDiffCardPrefetchObserver(props: {
   readonly fileId: string;
-  readonly rootRef: MutableRefObject<HTMLDivElement | null>;
-  readonly requestPrefetchForIdRef: MutableRefObject<(id: string) => void>;
+  readonly rootRef: RefObject<HTMLDivElement | null>;
+  readonly requestPrefetchForIdRef: RefObject<(id: string) => void>;
 }) {
   useMountEffect(() => {
     const el = props.rootRef.current;

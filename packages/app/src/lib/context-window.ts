@@ -1,7 +1,8 @@
 import type { OrchestrationThreadActivity, ThreadTokenUsageSnapshot } from "@multi/contracts";
+import * as Predicate from "effect/Predicate";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  return Predicate.isObject(value) ? value : null;
 }
 
 function asFiniteNumber(value: unknown): number | null {

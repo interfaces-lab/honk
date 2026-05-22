@@ -14,7 +14,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type MutableRefObject,
+  type RefObject,
   type ReactNode,
 } from "react";
 
@@ -191,7 +191,7 @@ function EnvironmentGitPanelRowsSync({
 }: {
   cwd: string | null;
   environmentId: EnvironmentId | null;
-  prevRows: MutableRefObject<DiffRow[]>;
+  prevRows: RefObject<DiffRow[]>;
   queryClient: QueryClient;
   rows: DiffRow[];
 }) {

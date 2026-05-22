@@ -1,9 +1,10 @@
 import type * as EffectAcpSchema from "effect-acp/schema";
 import type { ToolLifecycleItemType } from "@multi/contracts";
+import { Predicate } from "effect";
 import { deriveToolActivityPresentation } from "./tool-activity";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return Predicate.isObject(value);
 }
 
 export interface AcpSessionMode {

@@ -13,7 +13,6 @@ import {
 } from "central-icons";
 import {
   type Dispatch,
-  type MutableRefObject,
   type RefObject,
   type SetStateAction,
   type WheelEvent as ReactWheelEvent,
@@ -671,7 +670,7 @@ function DiffPanelWordWrapOpenSync({
   setDiffWordWrap,
 }: {
   diffOpen: boolean;
-  previousDiffOpenRef: MutableRefObject<boolean>;
+  previousDiffOpenRef: RefObject<boolean>;
   settingsDiffWordWrap: boolean;
   setDiffWordWrap: Dispatch<SetStateAction<boolean>>;
 }) {

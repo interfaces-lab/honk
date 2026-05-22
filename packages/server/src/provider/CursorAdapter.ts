@@ -31,6 +31,7 @@ import {
   FileSystem,
   Layer,
   Option,
+  Predicate,
   PubSub,
   Random,
   Scope,
@@ -156,7 +157,7 @@ function settlePendingUserInputsAsEmptyAnswers(
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return Predicate.isObject(value);
 }
 
 function parseCursorResume(raw: unknown): { sessionId: string } | undefined {

@@ -1,6 +1,8 @@
 // FILE: subagents.ts
 // Purpose: App session/worklog parsing helpers for subagent runtime payloads.
 
+import { Predicate } from "effect";
+
 interface ParsedSubagentReceiverAgent {
   providerThreadId: string;
   agentId?: string | undefined;
@@ -23,9 +25,7 @@ interface ParsedSubagentAgentState {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return Predicate.isObject(value) ? value : null;
 }
 
 function asArray(value: unknown): unknown[] | null {

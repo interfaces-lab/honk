@@ -13,7 +13,7 @@ import {
   type ChangeEvent,
   type ClipboardEvent,
   type DragEvent,
-  type MutableRefObject,
+  type RefObject,
   type ReactNode,
 } from "react";
 
@@ -78,7 +78,7 @@ export function useComposerImageAttachments(input: {
   pendingUserInputCount: number;
   composerImages: ComposerImageAttachment[];
   nonPersistedComposerImageIds: string[];
-  composerImagesRef: MutableRefObject<ComposerImageAttachment[]>;
+  composerImagesRef: RefObject<ComposerImageAttachment[]>;
   focusComposer: () => void;
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
 }) {

@@ -12,7 +12,19 @@ import * as CodexError from "./errors.ts";
 import { JsonRpcId, JsonRpcResponseEnvelope } from "./_internal/shared.ts";
 
 const WireJsonMessage = Schema.fromJsonString(Schema.Unknown);
-const isJsonRpcId = Schema.is(JsonRpcId);
+const IncomingRequestEnvelope = Schema.Struct({
+  id: JsonRpcId,
+  method: Schema.String,
+  params: Schema.optional(Schema.Unknown),
+});
+
+const IncomingNotificationEnvelope = Schema.Struct({
+  method: Schema.String,
+  params: Schema.optional(Schema.Unknown),
+});
+
+const isIncomingRequestEnvelope = Schema.is(IncomingRequestEnvelope);
+const isIncomingNotificationEnvelope = Schema.is(IncomingNotificationEnvelope);
 const isJsonRpcResponseEnvelope = Schema.is(JsonRpcResponseEnvelope);
 const encodeWireJsonMessage = Schema.encodeEffect(WireJsonMessage);
 const decodeWireJsonMessage = Schema.decodeUnknownEffect(WireJsonMessage);
@@ -71,19 +83,12 @@ export interface CodexAppServerPatchedProtocol {
   ) => Effect.Effect<void, CodexError.CodexAppServerError>;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function isIncomingRequest(value: unknown): value is CodexAppServerIncomingRequest {
-  if (!isObject(value) || typeof value.method !== "string") {
-    return false;
-  }
-  return isJsonRpcId(value.id);
+  return isIncomingRequestEnvelope(value);
 }
 
 function isIncomingNotification(value: unknown): value is CodexAppServerIncomingNotification {
-  return isObject(value) && typeof value.method === "string" && !("id" in value);
+  return isIncomingNotificationEnvelope(value) && !("id" in value);
 }
 
 function isIncomingResponse(value: unknown): value is typeof JsonRpcResponseEnvelope.Type {

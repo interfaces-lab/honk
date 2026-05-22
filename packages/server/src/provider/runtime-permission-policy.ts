@@ -1,5 +1,6 @@
 import type { CanonicalRequestType, RuntimeMode } from "@multi/contracts";
 import type { PermissionRuleset } from "@opencode-ai/sdk/v2";
+import { Predicate } from "effect";
 
 export type RuntimePermissionAction =
   | "read"
@@ -46,8 +47,8 @@ export function isEnvFileReference(value: unknown): boolean {
     return value.some(isEnvFileReference);
   }
 
-  if (value && typeof value === "object") {
-    return Object.values(value as Record<string, unknown>).some(isEnvFileReference);
+  if (Predicate.isObject(value)) {
+    return Object.values(value).some(isEnvFileReference);
   }
 
   return false;

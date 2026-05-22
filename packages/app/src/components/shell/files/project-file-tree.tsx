@@ -15,7 +15,7 @@ import type {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   forwardRef,
-  type MutableRefObject,
+  type RefObject,
   useCallback,
   useImperativeHandle,
   useMemo,
@@ -502,9 +502,9 @@ function ProjectFileTreeSelectionSync({
 }: {
   externalSelectedPath: string | null;
   filePathSet: ReadonlySet<string>;
-  lastOpenedPathRef: MutableRefObject<string | null>;
+  lastOpenedPathRef: RefObject<string | null>;
   model: ProjectTreeModel;
-  suppressSelectionOpenRef: MutableRefObject<string | null>;
+  suppressSelectionOpenRef: RefObject<string | null>;
 }) {
   useMountEffect(() => {
     if (!externalSelectedPath) {

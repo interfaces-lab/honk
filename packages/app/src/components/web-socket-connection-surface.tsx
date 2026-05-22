@@ -1,4 +1,4 @@
-import { type MutableRefObject, type ReactNode, useRef, useState } from "react";
+import { type RefObject, type ReactNode, useRef, useState } from "react";
 
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { type SlowRpcAckRequest, useSlowRpcAckRequests } from "../rpc/request-latency-state";
@@ -19,8 +19,8 @@ type WsAutoReconnectTrigger = "focus" | "online";
 type WsReconnectRunner = (showFailureToast: boolean) => void;
 type WsAutoReconnectRunner = (trigger: WsAutoReconnectTrigger) => void;
 type ToastId = ReturnType<typeof toastManager.add>;
-type ToastIdRef = MutableRefObject<ToastId | null>;
-type TimeoutIdRef = MutableRefObject<number | null>;
+type ToastIdRef = RefObject<ToastId | null>;
+type TimeoutIdRef = RefObject<number | null>;
 
 function syncBrowserOnlineStatus() {
   setBrowserOnlineStatus(navigator.onLine !== false);
@@ -294,8 +294,8 @@ function WsConnectionToastSync({
   triggerManualReconnect,
 }: {
   nowMs: number;
-  previousDisconnectedAtRef: MutableRefObject<string | null>;
-  previousUiStateRef: MutableRefObject<WsConnectionUiState>;
+  previousDisconnectedAtRef: RefObject<string | null>;
+  previousUiStateRef: RefObject<WsConnectionUiState>;
   status: WsConnectionStatus;
   toastIdRef: ToastIdRef;
   toastResetTimerRef: TimeoutIdRef;

@@ -1,5 +1,5 @@
 import { ProviderDriverKind, ProviderInstanceId, type ThreadId } from "@multi/contracts";
-import { Effect, Layer, Option, Schema } from "effect";
+import { Effect, Layer, Option, Predicate, Schema } from "effect";
 
 import type { ProviderSessionRuntime } from "../persistence/ProviderSessionRuntime.service.ts";
 import { ProviderSessionRuntimeRepository } from "../persistence/ProviderSessionRuntime.service.ts";
@@ -56,7 +56,7 @@ function decodeProviderInstanceId(
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return Predicate.isObject(value);
 }
 
 function mergeRuntimePayload(

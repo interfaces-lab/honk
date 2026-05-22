@@ -12,7 +12,7 @@ import type {
   ServerProvider,
 } from "@multi/contracts";
 import type { UnifiedSettings } from "@multi/contracts/settings";
-import type { MutableRefObject, ReactNode } from "react";
+import type { RefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
@@ -117,8 +117,8 @@ export interface ComposerInputProps {
   terminalOpen: boolean;
   gitCwd: string | null;
 
-  promptRef: MutableRefObject<string>;
-  composerImagesRef: MutableRefObject<ComposerImageAttachment[]>;
+  promptRef: RefObject<string>;
+  composerImagesRef: RefObject<ComposerImageAttachment[]>;
 
   onSend: (e?: { preventDefault: () => void }) => void;
   onInterrupt: () => void;

@@ -1,7 +1,7 @@
-import { createContext, useContext, type MutableRefObject } from "react";
+import { createContext, useContext, type RefObject } from "react";
 import type { ComposerInputHandle } from "./input";
 
-export type ComposerHandleRef = MutableRefObject<ComposerInputHandle | null>;
+export type ComposerHandleRef = RefObject<ComposerInputHandle | null>;
 
 export const ComposerHandleContext = createContext<ComposerHandleRef | null>(null);
 

@@ -20,6 +20,7 @@ import {
 } from "@multi/client-runtime";
 import * as Schema from "effect/Schema";
 import * as Equal from "effect/Equal";
+import * as Predicate from "effect/Predicate";
 import { DeepMutable } from "effect/Types";
 import { createModelSelection, normalizeModelSlug } from "@multi/shared/model";
 import { getLocalStorageItem } from "../hooks/use-local-storage";
@@ -530,7 +531,7 @@ function coerceProviderOptionSelections(
 }
 
 function normalizeModelSelection(value: unknown): NormalizedModelSelection | null {
-  const candidate = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  const candidate = Predicate.isObject(value) ? value : null;
   const instanceId = normalizeProviderInstanceId(candidate?.instanceId);
   if (instanceId === null) {
     return null;

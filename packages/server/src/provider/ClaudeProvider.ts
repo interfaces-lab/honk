@@ -9,7 +9,7 @@ import type {
   ServerProviderState,
 } from "@multi/contracts";
 import { ProviderDriverKind } from "@multi/contracts";
-import { Cache, Duration, Effect, Equal, Layer, Option, Result, Schema, Stream } from "effect";
+import { Cache, Duration, Effect, Equal, Layer, Option, Predicate, Result, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { decodeJsonResult } from "@multi/shared/schema-json";
 import {
@@ -360,9 +360,7 @@ const asNonEmptyString = (v: unknown): Option.Option<string> =>
 
 /** Lift an unknown value into `Option<Record>` if it is a plain object. */
 const asRecord = (v: unknown): Option.Option<Record<string, unknown>> =>
-  typeof v === "object" && v !== null && !globalThis.Array.isArray(v)
-    ? Option.some(v as Record<string, unknown>)
-    : Option.none();
+  Predicate.isObject(v) ? Option.some(v) : Option.none();
 
 /**
  * Walk an unknown parsed JSON value looking for a subscription/plan

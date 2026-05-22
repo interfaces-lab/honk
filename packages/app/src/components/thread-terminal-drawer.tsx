@@ -17,7 +17,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Dispatch,
-  type MutableRefObject,
   type RefObject,
   type SetStateAction,
   useCallback,
@@ -760,9 +759,9 @@ function ThreadTerminalDrawerHeightResetSync({
   lastSyncedHeightRef,
   setDrawerHeight,
 }: {
-  drawerHeightRef: MutableRefObject<number>;
+  drawerHeightRef: RefObject<number>;
   height: number;
-  lastSyncedHeightRef: MutableRefObject<number>;
+  lastSyncedHeightRef: RefObject<number>;
   setDrawerHeight: Dispatch<SetStateAction<number>>;
 }) {
   useMountEffect(() => {
@@ -809,7 +808,7 @@ function ThreadTerminalDrawerUnmountHeightSync({
   drawerHeightRef,
   syncHeight,
 }: {
-  drawerHeightRef: MutableRefObject<number>;
+  drawerHeightRef: RefObject<number>;
   syncHeight: (nextHeight: number) => void;
 }) {
   useMountEffect(() => {

@@ -1,6 +1,6 @@
 import {
   createElement,
-  type MutableRefObject,
+  type RefObject,
   type ReactNode,
   useCallback,
   useRef,
@@ -154,7 +154,7 @@ function AttachmentPreviewHandoffPromotionSync({
   serverMessages,
 }: {
   attachmentPreviewHandoffByMessageId: PreviewHandoffByMessageId;
-  attachmentPreviewPromotionInFlightByMessageIdRef: MutableRefObject<Record<string, true>>;
+  attachmentPreviewPromotionInFlightByMessageIdRef: RefObject<Record<string, true>>;
   clearAttachmentPreviewHandoff: (
     messageId: MessageId,
     previewUrls?: ReadonlyArray<string>,

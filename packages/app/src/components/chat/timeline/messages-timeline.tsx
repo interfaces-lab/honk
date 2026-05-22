@@ -3,7 +3,6 @@ import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   createContext,
   memo,
-  type MutableRefObject,
   type RefObject,
   use,
   useCallback,
@@ -171,6 +170,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const renderedRowsLengthRef = useRef(0);
   const pendingScrollTopRestoreRef = useRef<number | null>(null);
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
+  const estimatedRowSizes = useMemo(() => rows.map(getEstimatedTimelineRowSize), [rows]);
+  const initialScrollOffset = useMemo(
+    () => estimateInitialTimelineBottomOffset(estimatedRowSizes, virtualizerBottomPadding),
+    [estimatedRowSizes, virtualizerBottomPadding],
+  );
 
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
   if (renderedRowsLengthRef.current !== rows.length) {
@@ -315,12 +319,13 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimateTimelineRowSize(rows[index]),
+    estimateSize: (index) => estimatedRowSizes[index] ?? estimateTimelineRowSize(undefined),
     getItemKey: (index) => rows[index]?.id ?? index,
     rangeExtractor,
     overscan: VIRTUALIZER_OVERSCAN,
     paddingEnd: virtualizerBottomPadding,
     initialRect: DEFAULT_VIRTUALIZER_RECT,
+    initialOffset: initialScrollOffset,
     useAnimationFrameWithResizeObserver: true,
     onChange: (_instance, sync) => {
       if (!sync && isAtBottomRef.current) {
@@ -522,13 +527,13 @@ function TimelineRowsStickToBottomSync({
   rows,
   scheduleStickToBottom,
 }: {
-  initializedScrollRef: MutableRefObject<boolean>;
-  isAtBottomRef: MutableRefObject<boolean>;
+  initializedScrollRef: RefObject<boolean>;
+  isAtBottomRef: RefObject<boolean>;
   reportIsAtBottom: (isAtBottom: boolean, options?: { force?: boolean }) => void;
   rows: readonly MessagesTimelineRow[];
   scheduleStickToBottom: (options?: { animated?: boolean }) => void;
 }) {
-  useMountEffect(() => {
+  useLayoutSyncEffect(() => {
     if (rows.length === 0) {
       return;
     }
@@ -545,7 +550,7 @@ function TimelineRowsStickToBottomSync({
     }
 
     scheduleStickToBottom();
-  });
+  }, []);
 
   return null;
 }
@@ -557,7 +562,7 @@ function TimelineActiveWorkStickToBottomSync({
   scheduleStickToBottom,
 }: {
   activeTurnInProgress: boolean;
-  isAtBottomRef: MutableRefObject<boolean>;
+  isAtBottomRef: RefObject<boolean>;
   isWorking: boolean;
   scheduleStickToBottom: (options?: { animated?: boolean }) => void;
 }) {
@@ -592,6 +597,32 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
 
 const WORK_GROUP_PREVIEW_PX = 144;
 const WORK_GROUP_HEADER_PX = 28;
+const ASSISTANT_MESSAGE_MIN_PX = 156;
+const USER_MESSAGE_MIN_PX = 88;
+const MESSAGE_ROW_CHROME_PX = 40;
+const MESSAGE_TEXT_LINE_HEIGHT_PX = 21;
+const ASSISTANT_MESSAGE_CHARS_PER_LINE = 82;
+const USER_MESSAGE_CHARS_PER_LINE = 96;
+const estimatedTimelineRowSizeCache = new WeakMap<MessagesTimelineRow, number>();
+
+function getEstimatedTimelineRowSize(row: MessagesTimelineRow): number {
+  const cachedSize = estimatedTimelineRowSizeCache.get(row);
+  if (cachedSize !== undefined) {
+    return cachedSize;
+  }
+
+  const size = estimateTimelineRowSize(row);
+  estimatedTimelineRowSizeCache.set(row, size);
+  return size;
+}
+
+function estimateInitialTimelineBottomOffset(
+  rowSizes: readonly number[],
+  paddingEnd: number,
+): number {
+  const totalSize = rowSizes.reduce((total, size) => total + size, paddingEnd);
+  return Math.max(0, totalSize - DEFAULT_VIRTUALIZER_RECT.height);
+}
 
 function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
   if (!row) {
@@ -599,7 +630,7 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
   }
 
   if (row.kind === "message") {
-    return (row.message.role === "user" ? 88 : 156) + VIRTUAL_ROW_GAP_PX;
+    return estimateMessageTimelineRowSize(row);
   }
 
   if (row.kind === "proposed-plan") {
@@ -615,6 +646,41 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
   }
 
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;
+}
+
+function estimateMessageTimelineRowSize(row: Extract<MessagesTimelineRow, { kind: "message" }>) {
+  const minHeight = row.message.role === "user" ? USER_MESSAGE_MIN_PX : ASSISTANT_MESSAGE_MIN_PX;
+  const charsPerLine =
+    row.message.role === "user" ? USER_MESSAGE_CHARS_PER_LINE : ASSISTANT_MESSAGE_CHARS_PER_LINE;
+  const estimatedTextHeight =
+    estimateWrappedLineCount(row.message.text, charsPerLine) * MESSAGE_TEXT_LINE_HEIGHT_PX;
+
+  return Math.max(minHeight, MESSAGE_ROW_CHROME_PX + estimatedTextHeight) + VIRTUAL_ROW_GAP_PX;
+}
+
+function estimateWrappedLineCount(text: string | undefined, charsPerLine: number): number {
+  const value = text?.trim();
+  if (!value) {
+    return 1;
+  }
+
+  let lines = 1;
+  let currentLineLength = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) === 10) {
+      lines += 1;
+      currentLineLength = 0;
+      continue;
+    }
+
+    currentLineLength += 1;
+    if (currentLineLength >= charsPerLine) {
+      lines += 1;
+      currentLineLength = 0;
+    }
+  }
+
+  return lines;
 }
 
 function virtualRowStyle(virtualRow: VirtualItem, isSticky: boolean): CSSProperties {

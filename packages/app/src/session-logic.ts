@@ -4,7 +4,7 @@ import {
   type Hunk,
   type FileContents,
 } from "@pierre/diffs";
-import { Data, Effect, Option } from "effect";
+import { Data, Effect, Option, Predicate } from "effect";
 import {
   ApprovalRequestId,
   isToolLifecycleItemType,
@@ -1953,7 +1953,7 @@ function toLatestProposedPlanState(proposedPlan: ProposedPlan): LatestProposedPl
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  return Predicate.isObject(value) ? value : null;
 }
 
 function asTrimmedString(value: unknown): string | null {

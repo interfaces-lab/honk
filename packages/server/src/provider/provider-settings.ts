@@ -11,7 +11,7 @@ import {
   type ServerSettings,
   defaultInstanceIdForDriver,
 } from "@multi/contracts";
-import { Schema } from "effect";
+import { Predicate, Schema } from "effect";
 
 const CODEX_PROVIDER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_PROVIDER = ProviderDriverKind.make("claudeAgent");
@@ -35,7 +35,7 @@ export type ResolvedOpenCodeSettings = typeof OpenCodeSettings.Type & {
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return Predicate.isObject(value);
 }
 
 function resolveProviderInstanceConfig(input: {

@@ -2,7 +2,7 @@
 
 import { prepareFileTreeInput } from "@pierre/trees";
 import type { GitStatus, GitStatusEntry } from "@pierre/trees";
-import { type MutableRefObject, useMemo, useRef } from "react";
+import { type RefObject, useMemo, useRef } from "react";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import type { GitFileState } from "~/lib/ui-session-types";
@@ -193,11 +193,11 @@ function GitChangesTreeSelectionSync({
   selectedKey,
   suppressSelectionOpenRef,
 }: {
-  lastOpenedPathRef: MutableRefObject<string | null>;
+  lastOpenedPathRef: RefObject<string | null>;
   model: GitChangesTreeModel;
   pathSet: ReadonlySet<string>;
   selectedKey: string | null;
-  suppressSelectionOpenRef: MutableRefObject<string | null>;
+  suppressSelectionOpenRef: RefObject<string | null>;
 }) {
   useMountEffect(() => {
     if (!selectedKey) {

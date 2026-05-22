@@ -1,4 +1,4 @@
-import { Cause, Exit } from "effect";
+import { Cause, Exit, Predicate } from "effect";
 
 export type MetricAttributeValue = string;
 export type MetricAttributes = Readonly<Record<string, MetricAttributeValue>>;
@@ -6,7 +6,7 @@ export type TraceAttributes = Readonly<Record<string, unknown>>;
 export type ObservabilityOutcome = "success" | "failure" | "interrupt";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return Predicate.isObject(value);
 }
 
 function markSeen(value: object, seen: WeakSet<object>): boolean {

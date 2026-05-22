@@ -33,7 +33,7 @@ import {
   useRef,
   useState,
   type Dispatch,
-  type MutableRefObject,
+  type RefObject,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -430,7 +430,7 @@ function MarkSettledServerThreadVisitedSync({
 function OptimisticUserMessagesUnmountCleanup({
   optimisticUserMessagesRef,
 }: {
-  optimisticUserMessagesRef: MutableRefObject<ChatMessage[]>;
+  optimisticUserMessagesRef: RefObject<ChatMessage[]>;
 }) {
   useMountEffect(() => {
     return () => {
@@ -449,10 +449,10 @@ function ActiveThreadUiResetSync({
   setShowScrollToBottom,
   showScrollDebouncer,
 }: {
-  isAtBottomRef: MutableRefObject<boolean>;
+  isAtBottomRef: RefObject<boolean>;
   setPullRequestDialogState: Dispatch<SetStateAction<PullRequestDialogState | null>>;
   setShowScrollToBottom: Dispatch<SetStateAction<boolean>>;
-  showScrollDebouncer: MutableRefObject<{ cancel: () => void }>;
+  showScrollDebouncer: RefObject<{ cancel: () => void }>;
 }) {
   useMountEffect(() => {
     setPullRequestDialogState(null);
@@ -710,7 +710,7 @@ function TerminalOpenFocusSync({
   focusComposer: () => void;
   setTerminalFocusRequestId: Dispatch<SetStateAction<number>>;
   terminalOpen: boolean;
-  terminalOpenByThreadRef: MutableRefObject<Record<string, boolean>>;
+  terminalOpenByThreadRef: RefObject<Record<string, boolean>>;
 }) {
   useMountEffect(() => {
     if (!activeThreadKey) return;
