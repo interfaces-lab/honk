@@ -8,7 +8,7 @@ import {
   useState,
   type ComponentType,
   type Dispatch,
-  type MutableRefObject,
+  type RefObject,
   type MouseEvent,
   type ReactNode,
   type SetStateAction,
@@ -28,7 +28,6 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@mu
 import { Separator } from "@multi/ui/separator";
 import {
   IconArrowUp,
-  IconChecklist,
   IconChevronLeftMedium,
   IconCrossSmall,
   IconDotGrid1x3Horizontal,
@@ -86,6 +85,7 @@ import { useComposerKeyboard } from "./use-composer-keyboard";
 import { resolveShortcutCommand } from "~/keybindings";
 import { useComposerImageAttachments } from "./use-image-attachments";
 import { ComposerImageAttachmentStrip } from "./image-attachment-strip";
+import ChatMarkdown from "../markdown/chat-markdown";
 import {
   type ComposerFooterPendingAction,
   type ComposerInputHandle,
@@ -149,7 +149,96 @@ Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
 
-const PLAN_TRAY_PREVIEW_LINE_LIMIT = 6;
+const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
+  plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
+  compact: boolean;
+  gitCwd: string | undefined;
+  isBuilding: boolean;
+  planSurfaceOpen: boolean;
+  onBuildPlan: (() => void) | undefined;
+  onViewPlan: (() => void) | undefined;
+}) {
+  const planKey = String(props.plan.id);
+  const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
+  const title = useMemo(() => proposedPlanTitle(props.plan.planMarkdown) ?? "Plan", [props.plan]);
+  const previewMarkdown = useMemo(
+    () => stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim(),
+    [props.plan],
+  );
+  const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
+
+  if (dismissedPlanId === planKey) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary shadow-sm",
+        props.compact ? "mx-auto w-full" : "",
+      )}
+      data-testid="plan-tray"
+      data-visible="true"
+      style={{ transformOrigin: "bottom left" }}
+    >
+      <div className="flex min-w-0 items-start gap-2 px-3 pt-2 pb-1">
+        <div className="min-w-0 flex-1">
+          <div className="text-detail text-multi-fg-secondary">Review Plan</div>
+          <div className="truncate text-detail font-medium text-multi-fg-primary" title={title}>
+            {title}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex size-5 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-secondary"
+          aria-label="Dismiss plan"
+          title="Dismiss plan"
+          onClick={() => setDismissedPlanId(planKey)}
+        >
+          <IconCrossSmall className="size-2.5" aria-hidden />
+        </button>
+      </div>
+
+      {previewMarkdown ? (
+        <div className="plan-tray__description px-3 pb-2">
+          <div className="plan-tray__markdown">
+            <ChatMarkdown text={previewMarkdown} cwd={props.gitCwd} />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex h-10 min-w-0 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-2 py-2">
+        {showViewPlan ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 min-h-6 rounded-[var(--multi-radius-control,6px)] px-2"
+            onClick={props.onViewPlan}
+          >
+            <IconEyeOpen className="size-3.5" aria-hidden />
+            <span>View Plan</span>
+          </Button>
+        ) : (
+          <span className="min-w-0" aria-hidden />
+        )}
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          className="h-6 min-h-6 gap-1 rounded-[var(--multi-radius-control,6px)] px-2.5"
+          disabled={props.isBuilding || !props.onBuildPlan}
+          aria-label="Build plan"
+          title="Build plan"
+          onClick={props.onBuildPlan}
+        >
+          <IconArrowUp className="size-3.5" aria-hidden />
+          <span>{props.isBuilding ? "Building..." : "Build"}</span>
+        </Button>
+      </div>
+    </div>
+  );
+});
 
 type TraitsRenderInput = {
   provider: ProviderDriverKind;
@@ -162,6 +251,14 @@ type TraitsRenderInput = {
   onPromptChange: (prompt: string) => void;
   traitsScope?: ProviderTraitsScope;
 };
+
+function renderProviderTraitsMenuContent(input: TraitsRenderInput): ReactNode {
+  return renderTraitsControl(TraitsMenuContent, input);
+}
+
+function renderProviderTraitsPicker(input: TraitsRenderInput): ReactNode {
+  return renderTraitsControl(TraitsPicker, input);
+}
 
 function renderTraitsControl(
   Component: typeof TraitsMenuContent | typeof TraitsPicker,
@@ -214,119 +311,6 @@ function renderTraitsControl(
       {...(Component === TraitsMenuContent ? { traitsScope: traitsScopeForComponent } : {})}
     />
   );
-}
-
-function buildPlanTrayPreview(planMarkdown: string): string {
-  const displayedPlan = stripDisplayedPlanMarkdown(planMarkdown).trim();
-  if (!displayedPlan) {
-    return "";
-  }
-
-  const lines = displayedPlan.split(/\r?\n/);
-  const previewLines = lines.slice(0, PLAN_TRAY_PREVIEW_LINE_LIMIT);
-  if (lines.length > previewLines.length) {
-    previewLines.push("...");
-  }
-  return previewLines.join("\n");
-}
-
-const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
-  plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
-  compact: boolean;
-  isBuilding: boolean;
-  planSurfaceOpen: boolean;
-  onBuildPlan: (() => void) | undefined;
-  onViewPlan: (() => void) | undefined;
-}) {
-  const planKey = String(props.plan.id);
-  const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
-  const title = useMemo(() => proposedPlanTitle(props.plan.planMarkdown) ?? "Plan", [props.plan]);
-  const preview = useMemo(() => buildPlanTrayPreview(props.plan.planMarkdown), [props.plan]);
-  const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
-
-  if (dismissedPlanId === planKey) {
-    return null;
-  }
-
-  return (
-    <div
-      className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-2xl border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary shadow-sm",
-        props.compact ? "mx-auto w-full" : "",
-      )}
-      data-testid="plan-tray"
-      data-visible="true"
-      style={{ transformOrigin: "bottom left" }}
-    >
-      <div className="flex min-w-0 items-start gap-2 px-3 pt-2.5 pb-1.5">
-        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
-          <IconChecklist className="size-3.5" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-caption font-semibold text-multi-fg-tertiary uppercase">
-            Review Plan
-          </div>
-          <div className="truncate text-body font-medium text-multi-fg-primary" title={title}>
-            {title}
-          </div>
-        </div>
-        <button
-          type="button"
-          className="flex size-6 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-secondary"
-          aria-label="Dismiss plan"
-          title="Dismiss plan"
-          onClick={() => setDismissedPlanId(planKey)}
-        >
-          <IconCrossSmall className="size-3.5" aria-hidden />
-        </button>
-      </div>
-
-      {preview ? (
-        <div className="plan-tray__description px-3 pb-2">
-          <div className="plan-tray__description-text max-h-28 overflow-hidden whitespace-pre-wrap text-detail leading-5 text-multi-fg-tertiary">
-            {preview}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="flex min-w-0 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-2.5 py-2">
-        {showViewPlan ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="rounded-full px-2"
-            onClick={props.onViewPlan}
-          >
-            <IconEyeOpen className="size-3.5" aria-hidden />
-            <span>View Plan</span>
-          </Button>
-        ) : (
-          <span className="min-w-0" aria-hidden />
-        )}
-        <Button
-          type="button"
-          size="sm"
-          className="rounded-full border-amber-500/20 bg-amber-500/90 px-4 text-white hover:bg-amber-500 data-pressed:bg-amber-600"
-          disabled={props.isBuilding || !props.onBuildPlan}
-          aria-label="Build plan"
-          title="Build plan"
-          onClick={props.onBuildPlan}
-        >
-          <IconArrowUp className="size-3.5" aria-hidden />
-          <span>{props.isBuilding ? "Building..." : "Build"}</span>
-        </Button>
-      </div>
-    </div>
-  );
-});
-
-function renderProviderTraitsMenuContent(input: TraitsRenderInput): ReactNode {
-  return renderTraitsControl(TraitsMenuContent, input);
-}
-
-function renderProviderTraitsPicker(input: TraitsRenderInput): ReactNode {
-  return renderTraitsControl(TraitsPicker, input);
 }
 
 function getProviderInteractionModeToggle(
@@ -594,11 +578,11 @@ function ComposerPendingInputPromptSync({
 }: {
   activeQuestionId: string | null;
   customAnswer: string | undefined;
-  lastSyncedPendingInputRef: MutableRefObject<{
+  lastSyncedPendingInputRef: RefObject<{
     requestId: string | null;
     questionId: string | null;
   } | null>;
-  promptRef: MutableRefObject<string>;
+  promptRef: RefObject<string>;
   requestId: string | null;
   resolveComposerTrigger: (text: string, expandedCursor: number) => ComposerTrigger | null;
   setComposerCursor: Dispatch<SetStateAction<number>>;
@@ -646,13 +630,13 @@ function ComposerDraftResetSync({
   setComposerTrigger,
   suppressInitialComposerTriggerDetectionRef,
 }: {
-  dismissedComposerTriggerKeyRef: MutableRefObject<string | null>;
-  initialComposerTriggerSuppressionPromptRef: MutableRefObject<string>;
-  promptRef: MutableRefObject<string>;
+  dismissedComposerTriggerKeyRef: RefObject<string | null>;
+  initialComposerTriggerSuppressionPromptRef: RefObject<string>;
+  promptRef: RefObject<string>;
   setComposerCursor: Dispatch<SetStateAction<number>>;
   setComposerHighlightedItemId: Dispatch<SetStateAction<string | null>>;
   setComposerTrigger: Dispatch<SetStateAction<ComposerTrigger | null>>;
-  suppressInitialComposerTriggerDetectionRef: MutableRefObject<boolean>;
+  suppressInitialComposerTriggerDetectionRef: RefObject<boolean>;
 }) {
   useMountEffect(() => {
     setComposerHighlightedItemId(null);
@@ -677,7 +661,7 @@ function ComposerCommandMenuPointerDismissSync({
   composerFormRef,
   dismissComposerCommandMenu,
 }: {
-  composerFormRef: MutableRefObject<HTMLFormElement | null>;
+  composerFormRef: RefObject<HTMLFormElement | null>;
   dismissComposerCommandMenu: () => void;
 }) {
   useMountEffect(() => {
@@ -750,7 +734,10 @@ const OverflowControls = memo(function OverflowControls(props: {
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 shrink-0 rounded-full p-0 text-muted-foreground/70 hover:text-foreground/80"
+            className={cn(
+              COMPOSER_TOOLBAR_CONTROL_SIZE,
+              "shrink-0 rounded-full p-0 text-muted-foreground/70 hover:text-foreground/80",
+            )}
             aria-label="More composer controls"
           />
         }
@@ -910,7 +897,9 @@ const COMPOSER_ACTION_SIZE_COMPACT =
   "h-[var(--multi-composer-compact-send-size)] w-[var(--multi-composer-compact-send-size)]";
 const COMPOSER_ACTION_SIZE_EXPANDED =
   "h-[var(--multi-composer-expanded-send-size)] w-[var(--multi-composer-expanded-send-size)]";
-const COMPOSER_ACTION_ICON_COMPACT = "size-3";
+const COMPOSER_TOOLBAR_CONTROL_SIZE =
+  "h-[var(--multi-composer-toolbar-control-size)] w-[var(--multi-composer-toolbar-control-size)]";
+const COMPOSER_ACTION_ICON_COMPACT = "size-3.5";
 const COMPOSER_ACTION_ICON_EXPANDED = "size-3.5";
 const COMPOSER_SUBMIT_BASE_CLASS =
   "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-150 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30";
@@ -2173,6 +2162,7 @@ export const ComposerInput = memo(
             <PlanFollowUpTray
               plan={activeProposedPlan}
               compact={composerVariant === "compact"}
+              gitCwd={gitCwd ?? undefined}
               isBuilding={isConnecting || isSendBusy}
               planSurfaceOpen={planSurfaceOpen}
               onBuildPlan={onBuildPlan}
@@ -2183,9 +2173,11 @@ export const ComposerInput = memo(
             <div
               className={cn(
                 "select-none overflow-hidden border border-b-0 border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary",
-                composerVariant === "compact" ? "rounded-t-2xl" : "rounded-t-xl",
               )}
+              data-multi-composer-header=""
               data-multi-composer-surface=""
+              data-variant={composerVariant}
+              data-expanded={isDockComposerExpanded ? "" : undefined}
               data-visible={hasComposerHeader ? "true" : "false"}
             >
               {promptInputHeaderContent}
@@ -2197,17 +2189,12 @@ export const ComposerInput = memo(
               isInlineEditComposer
                 ? "rounded-xl border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)"
                 : "border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)",
-              !isInlineEditComposer &&
-                (hasComposerHeader
-                  ? "rounded-b-2xl rounded-t-none"
-                  : composerVariant === "compact"
-                    ? "rounded-2xl"
-                    : "rounded-xl"),
               isDragOverComposer ? "border-primary bg-accent/30 ring-2 ring-primary/60" : "",
               composerProviderState.ultrathinkActive &&
                 "animate-[ultrathink-rainbow_10s_linear_infinite] bg-[linear-gradient(120deg,oklch(0.712_0.181_22.839)_0%,oklch(0.769_0.165_70.08)_18%,oklch(0.723_0.192_149.579)_36%,oklch(0.704_0.123_182.503)_54%,oklch(0.623_0.188_259.815)_72%,oklch(0.656_0.212_354.308)_90%,oklch(0.712_0.181_22.839)_100%)] bg-[length:220%_220%]",
             )}
             data-has-header={hasComposerHeader ? "" : undefined}
+            data-layout={isInlineEditComposer ? "inline-edit" : undefined}
             data-multi-composer-surface=""
             data-has-images={composerImages.length > 0 ? "" : undefined}
             data-dragging={isDragOverComposer ? "" : undefined}
@@ -2248,7 +2235,10 @@ export const ComposerInput = memo(
                   />
                   <button
                     type="button"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-multi-bg-quaternary p-0 text-multi-icon-tertiary transition-[background-color,color] duration-150 hover:bg-multi-bg-tertiary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35"
+                    className={cn(
+                      COMPOSER_TOOLBAR_CONTROL_SIZE,
+                      "flex shrink-0 items-center justify-center rounded-full bg-multi-bg-quaternary p-0 text-multi-icon-tertiary transition-[background-color,color] duration-150 hover:bg-multi-bg-tertiary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35",
+                    )}
                     aria-label="Attach images"
                     disabled={pendingUserInputs.length > 0 || isConnecting}
                     onClick={() => composerImageInputRef.current?.click()}

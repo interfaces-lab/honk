@@ -20,11 +20,11 @@ export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmen
   }
 
   return (
-    <div className="mb-3 flex flex-wrap gap-2">
+    <div className="mb-2 flex flex-wrap gap-2 px-3 pt-2">
       {props.images.map((image) => (
         <div
           key={image.id}
-          className="relative h-16 w-16 overflow-hidden rounded-lg border border-border/80 bg-background"
+          className="relative h-14 w-14 overflow-hidden rounded-[var(--multi-radius-control,6px)] border border-border/80 bg-background"
         >
           {image.previewUrl ? (
             <button

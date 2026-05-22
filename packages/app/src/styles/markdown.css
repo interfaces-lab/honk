@@ -134,3 +134,17 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+.plan-tray__markdown.chat-markdown {
+  color: var(--multi-fg-tertiary);
+  font-size: var(--multi-text-detail);
+  line-height: var(--multi-leading-detail);
+}
+
+.plan-tray__markdown.chat-markdown :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr) {
+  margin-block: 0.25em;
+}
+
+.plan-tray__markdown.chat-markdown > :first-child {
+  margin-top: 0;
+}

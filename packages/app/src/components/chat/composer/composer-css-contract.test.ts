@@ -40,9 +40,15 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toMatch(
       /\[data-multi-composer-shell="thread"\]:not\(\[data-expanded=""\]\)\s+\[data-multi-composer-toolbar="bottom"\]\s*\{\s*display:\s*contents/,
     );
+    expect(conversationCss).toContain("--multi-composer-radius-compact");
+    expect(conversationCss).toContain("--multi-composer-radius-expanded");
+    expect(conversationCss).toMatch(
+      /\[data-multi-composer-surface\]\[data-variant="compact"\]:not\(\[data-expanded=""\]\)/,
+    );
     expect(inputSource).toContain('"data-multi-composer-shell": "thread"');
     expect(inputSource).toContain('data-multi-composer-toolbar={isThreadShell ? "bottom"');
     expect(inputSource).not.toMatch(/isDockComposerSingleLine\s*\?\s*"rounded-full"/);
+    expect(inputSource).not.toMatch(/composerVariant === "compact"\s*\?\s*"rounded-2xl"/);
   });
 
   it("removes the editor min-h-5/max-h-5 forced-height jump in compact pill mode", () => {
@@ -97,8 +103,13 @@ describe("Composer send/stop contract", () => {
   it("centralizes send/stop sizing classes so the running and idle paths cannot drift", () => {
     expect(inputSource).toContain("COMPOSER_ACTION_SIZE_COMPACT");
     expect(inputSource).toContain("COMPOSER_ACTION_SIZE_EXPANDED");
+    expect(inputSource).toContain("COMPOSER_TOOLBAR_CONTROL_SIZE");
+    expect(conversationCss).toContain("--multi-composer-compact-send-size: 24px");
+    expect(conversationCss).toContain("--multi-composer-expanded-send-size: 24px");
+    expect(conversationCss).toContain("--multi-composer-toolbar-control-size: 24px");
     expect(inputSource).toContain("--multi-composer-compact-send-size");
     expect(inputSource).toContain("--multi-composer-expanded-send-size");
+    expect(inputSource).toContain("--multi-composer-toolbar-control-size");
     expect(inputSource).toContain("COMPOSER_SUBMIT_BASE_CLASS");
     expect(inputSource).toContain("COMPOSER_STOP_BASE_CLASS");
     const primaryActionsSource = inputSource.slice(
@@ -172,5 +183,14 @@ describe("Composer surface contract", () => {
     expect(conversationCss).toContain(
       'body[data-cursor-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"]',
     );
+  });
+
+  it("renders plan tray preview with inline markdown and CSS-driven tray radius", () => {
+    expect(conversationCss).toContain("--multi-composer-plan-tray-radius: 16px");
+    expect(conversationCss).toContain(".plan-tray__markdown");
+    expect(inputSource).toContain("ChatMarkdown");
+    expect(inputSource).toContain("plan-tray__markdown");
+    expect(inputSource).not.toContain("buildPlanTrayPreview");
+    expect(inputSource).not.toContain("REVIEW PLAN");
   });
 });

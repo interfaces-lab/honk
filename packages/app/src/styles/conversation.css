@@ -15,8 +15,12 @@
   --multi-composer-new-agent-editor-max-height: min(75vh, 420px);
   --multi-composer-section-gap: 8px;
   --multi-composer-compact-shell-min-height: 44px;
-  --multi-composer-compact-send-size: 28px;
-  --multi-composer-expanded-send-size: 32px;
+  --multi-composer-compact-send-size: 24px;
+  --multi-composer-expanded-send-size: 24px;
+  --multi-composer-toolbar-control-size: 24px;
+  --multi-composer-radius-compact: var(--multi-radius-full);
+  --multi-composer-radius-expanded: 12px;
+  --multi-composer-plan-tray-radius: 16px;
   --multi-composer-toolbar-padding-x: 10px;
   --multi-composer-toolbar-padding-y: 8px;
   --multi-composer-blur: 10px;
@@ -49,6 +53,56 @@
 [data-multi-composer-shell="thread"]:not([data-expanded=""])
   [data-multi-composer-toolbar="bottom"] {
   display: contents;
+}
+
+[data-multi-composer-surface]:not([data-multi-composer-header]):not([data-layout="inline-edit"]) {
+  border-radius: var(--multi-composer-radius-expanded);
+}
+
+[data-multi-composer-surface][data-variant="compact"]:not([data-expanded=""]):not(
+    [data-multi-composer-header]
+  ):not([data-layout="inline-edit"]) {
+  border-radius: var(--multi-composer-radius-compact);
+}
+
+[data-multi-composer-surface][data-has-header]:not([data-expanded=""]) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+[data-multi-composer-surface][data-has-header][data-expanded=""] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+[data-multi-composer-header][data-variant="compact"]:not([data-expanded=""]) {
+  border-top-left-radius: var(--multi-composer-radius-compact);
+  border-top-right-radius: var(--multi-composer-radius-compact);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+[data-multi-composer-header][data-variant="compact"][data-expanded=""],
+[data-multi-composer-header][data-variant="expanded"] {
+  border-top-left-radius: var(--multi-composer-radius-expanded);
+  border-top-right-radius: var(--multi-composer-radius-expanded);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.plan-tray {
+  border-radius: var(--multi-composer-plan-tray-radius);
+}
+
+.plan-tray__description {
+  position: relative;
+}
+
+.plan-tray__markdown {
+  max-height: 7rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
 }
 
 [data-composer-context-usage-bar] {
