@@ -8,6 +8,8 @@ import {
   resolveDesktopProductName,
   resolveMockUpdateServerPort,
   resolveMockUpdateServerUrl,
+  sanitizeDesktopDistributionEnv,
+  sanitizeDesktopPackagingEnv,
 } from "./build-desktop-artifact.ts";
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 
@@ -47,6 +49,40 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       }
     }),
   );
+
+  it("strips desktop development env before distribution builds", () => {
+    const sanitized = sanitizeDesktopDistributionEnv({
+      PATH: "/bin",
+      VITE_DEV_SERVER_URL: "http://127.0.0.1:5733",
+      VITE_HTTP_URL: "http://127.0.0.1:4222",
+      MULTI_PORT: "4222",
+      MULTI_HOME: "/tmp/multi-dev",
+      EMPTY_VALUE: "",
+    });
+
+    assert.equal(sanitized.PATH, "/bin");
+    assert.equal(sanitized.VITE_DEV_SERVER_URL, undefined);
+    assert.equal(sanitized.VITE_HTTP_URL, undefined);
+    assert.equal(sanitized.MULTI_PORT, undefined);
+    assert.equal(sanitized.MULTI_HOME, undefined);
+    assert.equal(sanitized.EMPTY_VALUE, undefined);
+  });
+
+  it("strips signing secrets from unsigned packaging env", () => {
+    const sanitized = sanitizeDesktopPackagingEnv(
+      {
+        PATH: "/bin",
+        CSC_LINK: "secret",
+        APPLE_API_KEY: "secret",
+      },
+      { signed: false },
+    );
+
+    assert.equal(sanitized.PATH, "/bin");
+    assert.equal(sanitized.CSC_LINK, undefined);
+    assert.equal(sanitized.APPLE_API_KEY, undefined);
+    assert.equal(sanitized.CSC_IDENTITY_AUTO_DISCOVERY, "false");
+  });
 
   it.effect("preserves explicit false boolean flags over true env defaults", () =>
     Effect.gen(function* () {

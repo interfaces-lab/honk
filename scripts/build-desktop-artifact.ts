@@ -370,6 +370,49 @@ function resolveBunInstallTarget(
   };
 }
 
+const DESKTOP_RUNTIME_ENV_KEYS = [
+  "HOST",
+  "PORT",
+  "VITE_DEV_SERVER_URL",
+  "VITE_HTTP_URL",
+  "VITE_WS_URL",
+  "MULTI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD",
+  "MULTI_HOME",
+  "MULTI_HOST",
+  "MULTI_MODE",
+  "MULTI_NO_BROWSER",
+  "MULTI_PORT",
+] as const;
+
+export function sanitizeDesktopDistributionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized: NodeJS.ProcessEnv = { ...env };
+  for (const [key, value] of Object.entries(sanitized)) {
+    if (value === "") {
+      delete sanitized[key];
+    }
+  }
+  for (const key of DESKTOP_RUNTIME_ENV_KEYS) {
+    delete sanitized[key];
+  }
+  return sanitized;
+}
+
+export function sanitizeDesktopPackagingEnv(
+  env: NodeJS.ProcessEnv,
+  options: { readonly signed: boolean },
+): NodeJS.ProcessEnv {
+  const sanitized = sanitizeDesktopDistributionEnv(env);
+  if (!options.signed) {
+    sanitized.CSC_IDENTITY_AUTO_DISCOVERY = "false";
+    delete sanitized.CSC_LINK;
+    delete sanitized.CSC_KEY_PASSWORD;
+    delete sanitized.APPLE_API_KEY;
+    delete sanitized.APPLE_API_KEY_ID;
+    delete sanitized.APPLE_API_ISSUER;
+  }
+  return sanitized;
+}
+
 function resolveGitHubPublishConfig():
   | {
       readonly provider: "github";
@@ -553,6 +596,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     yield* runCommand(
       ChildProcess.make({
         cwd: repoRoot,
+        env: sanitizeDesktopDistributionEnv(process.env),
         ...commandOutputOptions(options.verbose),
       })`bun run build:desktop`,
     );
@@ -637,22 +681,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     })`bun install --production --os=${installTarget.os} --cpu=${installTarget.cpu}`,
   );
 
-  const buildEnv: NodeJS.ProcessEnv = {
-    ...process.env,
-  };
-  for (const [key, value] of Object.entries(buildEnv)) {
-    if (value === "") {
-      delete buildEnv[key];
-    }
-  }
-  if (!options.signed) {
-    buildEnv.CSC_IDENTITY_AUTO_DISCOVERY = "false";
-    delete buildEnv.CSC_LINK;
-    delete buildEnv.CSC_KEY_PASSWORD;
-    delete buildEnv.APPLE_API_KEY;
-    delete buildEnv.APPLE_API_KEY_ID;
-    delete buildEnv.APPLE_API_ISSUER;
-  }
+  const buildEnv = sanitizeDesktopPackagingEnv(process.env, { signed: options.signed });
 
   yield* Effect.log(
     `[desktop-artifact] Building ${options.platform}/${options.target} (arch=${options.arch}, version=${appVersion})...`,
