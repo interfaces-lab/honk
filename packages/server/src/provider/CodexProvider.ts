@@ -272,7 +272,7 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
     clientInfo: {
       name: "multi_desktop",
       title: "Multi Desktop",
-      version: "0.1.0",
+      version: "0.1.2",
     },
     capabilities: {
       experimentalApi: true,

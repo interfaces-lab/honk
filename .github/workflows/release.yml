@@ -10,6 +10,11 @@ on:
         description: "Release version (for example 1.2.3 or v1.2.3)"
         required: false
         type: string
+      force:
+        description: "Skip preflight lint, typecheck, and tests for a manual release"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -83,12 +88,15 @@ jobs:
           fi
 
       - name: Lint
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: pnpm run lint
 
       - name: Typecheck
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: pnpm run typecheck
 
       - name: Test
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: pnpm run test
 
       - id: previous_tag

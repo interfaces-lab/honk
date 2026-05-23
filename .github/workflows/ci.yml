@@ -2,9 +2,15 @@ name: CI
 
 on:
   pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CENTRAL_LICENSE_KEY: ${{ secrets.CENTRAL_LICENSE_KEY }}
