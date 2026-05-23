@@ -8,8 +8,8 @@ import {
   OrchestrationCheckpointSummary,
   OrchestrationMessage,
   OrchestrationSession,
-  ThreadEntryId,
   OrchestrationThread,
+  resolveActiveEntryIdAfterThreadMessage,
 } from "@multi/contracts";
 import { Effect, Schema } from "effect";
 
@@ -40,12 +40,6 @@ import {
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
-const MAX_THREAD_MESSAGES = 2_000;
-const MAX_THREAD_ENTRIES = 4_000;
-
-function threadEntryIdForMessageId(messageId: string): ThreadEntryId {
-  return ThreadEntryId.make(`message:${messageId}`);
-}
 
 function settledLatestTurnForRunningSession(
   latestTurn: OrchestrationLatestTurn,
@@ -362,16 +356,13 @@ export function projectEvent(
                 : entry,
             )
           : [...thread.messages, message];
-        const cappedMessages = messages.slice(-MAX_THREAD_MESSAGES);
-        const entryId = payload.entryId ?? threadEntryIdForMessageId(payload.messageId);
+        const entryId = payload.entryId;
         const threadEntries = thread.entries ?? [];
         const existingEntry = threadEntries.find((entry) => entry.id === entryId);
-        const parentEntryId =
-          existingEntry?.parentEntryId ?? payload.parentEntryId ?? thread.activeEntryId ?? null;
         const nextEntry = {
           id: entryId,
           threadId: payload.threadId,
-          parentEntryId,
+          parentEntryId: existingEntry?.parentEntryId ?? payload.parentEntryId,
           kind: "message" as const,
           messageId: payload.messageId,
           turnId: payload.turnId,
@@ -380,17 +371,20 @@ export function projectEvent(
           summary: null,
           createdAt: existingEntry?.createdAt ?? payload.createdAt,
         };
-        const entries = (
-          existingEntry
-            ? threadEntries.map((entry) => (entry.id === entryId ? nextEntry : entry))
-            : [...threadEntries, nextEntry]
-        ).slice(-MAX_THREAD_ENTRIES);
+        const entries = existingEntry
+          ? threadEntries.map((entry) => (entry.id === entryId ? nextEntry : entry))
+          : [...threadEntries, nextEntry];
 
         return {
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
-            messages: cappedMessages,
-            activeEntryId: entryId,
+            messages,
+            activeEntryId: resolveActiveEntryIdAfterThreadMessage({
+              activeEntryId: thread.activeEntryId,
+              entryId,
+              parentEntryId: payload.parentEntryId,
+              role: payload.role,
+            }),
             entries,
             updatedAt: event.occurredAt,
           }),
@@ -418,12 +412,10 @@ export function projectEvent(
           const entries = [
             ...(thread.entries ?? []).filter((entry) => entry.id !== payload.entry.id),
             payload.entry,
-          ]
-            .toSorted(
-              (left, right) =>
-                left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
-            )
-            .slice(-MAX_THREAD_ENTRIES);
+          ].toSorted(
+            (left, right) =>
+              left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+          );
 
           return {
             ...nextBase,
@@ -606,7 +598,7 @@ export function projectEvent(
             retainedTurnIds,
             turnCount: payload.turnCount,
             messageId: (message) => message.id,
-          }).slice(-MAX_THREAD_MESSAGES);
+          });
           const retainedMessageIds = new Set(messages.map((message) => message.id));
           const messageEntries = (thread.entries ?? []).filter(
             (entry) =>
@@ -623,7 +615,7 @@ export function projectEvent(
                 entry.targetEntryId !== null &&
                 retainedEntryIds.has(entry.targetEntryId),
             ),
-          ].slice(-MAX_THREAD_ENTRIES);
+          ];
           const activeEntryId =
             thread.activeEntryId !== undefined &&
             thread.activeEntryId !== null &&

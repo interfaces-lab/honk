@@ -97,8 +97,8 @@ const PROVIDER = ProviderDriverKind.make("cursor");
 const PROVIDER_INSTANCE_ID = defaultInstanceIdForDriver(PROVIDER);
 const CURSOR_RESUME_VERSION = 1 as const;
 const ACP_PLAN_MODE_ALIASES = ["plan", "architect"];
-const ACP_IMPLEMENT_MODE_ALIASES = ["code", "agent", "default", "chat", "implement"];
-const ACP_APPROVAL_MODE_ALIASES = ["ask"];
+const ACP_ASK_MODE_ALIASES = ["chat", "ask"];
+const ACP_IMPLEMENT_MODE_ALIASES = ["code", "agent", "default", "implement"];
 
 export interface CursorAdapterLiveOptions {
   readonly nativeEventLogPath?: string;
@@ -265,9 +265,18 @@ function resolveRequestedModeId(input: {
     return findModeByAliases(modeState.availableModes, ACP_PLAN_MODE_ALIASES)?.id;
   }
 
+  if (input.interactionMode === "ask") {
+    return (
+      findModeByAliases(modeState.availableModes, ACP_ASK_MODE_ALIASES)?.id ??
+      findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
+      modeState.availableModes.find((mode) => !isPlanMode(mode))?.id ??
+      modeState.currentModeId
+    );
+  }
+
   if (input.runtimeMode === "approval-required") {
     return (
-      findModeByAliases(modeState.availableModes, ACP_APPROVAL_MODE_ALIASES)?.id ??
+      findModeByAliases(modeState.availableModes, ACP_ASK_MODE_ALIASES)?.id ??
       findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
       modeState.availableModes.find((mode) => !isPlanMode(mode))?.id ??
       modeState.currentModeId
@@ -276,7 +285,6 @@ function resolveRequestedModeId(input: {
 
   return (
     findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
-    findModeByAliases(modeState.availableModes, ACP_APPROVAL_MODE_ALIASES)?.id ??
     modeState.availableModes.find((mode) => !isPlanMode(mode))?.id ??
     modeState.currentModeId
   );

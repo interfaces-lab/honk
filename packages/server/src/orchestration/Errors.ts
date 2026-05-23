@@ -90,6 +90,19 @@ export class ProviderCommandReactorThreadNotFoundError extends Schema.TaggedErro
   }
 }
 
+export class ProviderCommandReactorBranchPathError extends Schema.TaggedErrorClass<ProviderCommandReactorBranchPathError>()(
+  "ProviderCommandReactorBranchPathError",
+  {
+    operation: Schema.String,
+    threadId: Schema.String,
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Provider command reactor could not build branch context for thread '${this.threadId}' in ${this.operation}: ${this.detail}`;
+  }
+}
+
 export type OrchestrationDispatchError =
   | ProjectionRepositoryError
   | OrchestrationCommandInvariantError

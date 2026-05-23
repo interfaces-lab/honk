@@ -3,6 +3,7 @@ import "../../../styles/tokens.css";
 import "../../../styles/app.css";
 
 import { DraftId } from "../../../stores/chat-drafts";
+import { page } from "vitest/browser";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,9 +13,11 @@ import {
   setDraftThreadWithoutWorktree,
 } from "./chat-view.browser.fixtures";
 import {
+  assertComposerSlashMenuTracksCaret,
   installChatViewBrowserHarness,
   mountChatView,
   waitForComposerEditor,
+  waitForComposerMenuItem,
 } from "./chat-view.browser.harness";
 
 installChatViewBrowserHarness();
@@ -80,6 +83,29 @@ describe("ChatView hero composer CSS", () => {
         },
         { timeout: 8_000, interval: 16 },
       );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("anchors the slash-command menu to the hero composer caret", async () => {
+    setDraftThreadWithoutWorktree();
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      initialPath: `/draft/${DraftId.make(THREAD_KEY)}`,
+    });
+
+    try {
+      const editor = page.getByTestId("composer-editor");
+      await editor.fill("/");
+      await waitForComposerMenuItem("slash:model");
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
+
+      await editor.fill("/2e2e3e /");
+      await waitForComposerMenuItem("slash:model");
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
     } finally {
       await mounted.cleanup();
     }

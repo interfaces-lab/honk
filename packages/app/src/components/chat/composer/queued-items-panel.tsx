@@ -1,15 +1,9 @@
-import {
-  IconArrowUp,
-  IconChevronDownMedium,
-  IconChevronTopMedium,
-  IconPencilLine,
-  IconTrashCan,
-} from "central-icons";
+import { IconArrowUp, IconChevronDownMedium, IconPencilLine, IconTrashCan } from "central-icons";
 import type { MessageId } from "@multi/contracts";
-import { memo, useState } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@multi/ui/popover";
+import { memo, useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
+import { SidebarButton, SidebarItem } from "~/components/shell/shared/sidebar-button";
 import { cn } from "~/lib/utils";
 
 function formatQueuedComposerItemPreview(item: QueuedComposerItem): string {
@@ -26,346 +20,386 @@ function formatQueuedComposerItemPreview(item: QueuedComposerItem): string {
   return "Queued message";
 }
 
+const QUEUE_ROW_THUMBNAIL_LIMIT = 3;
+
 const QUEUE_HEADER_LABEL = "Queued";
 const QUEUE_EDIT_ACTION_LABEL = "Edit";
-const QUEUE_EDIT_ACTION_HINT = "Edit queued message";
 const QUEUE_SEND_NOW_ACTION_LABEL = "Send now";
 const QUEUE_REMOVE_ACTION_LABEL = "Remove";
-const QUEUE_REMOVE_ACTION_HINT = "Remove from queue";
-const QUEUE_TRAY_ARIA_LABEL = "Queued messages";
-const QUEUE_TRAY_EXPAND_LABEL = "Expand queue";
-const QUEUE_TRAY_COLLAPSE_LABEL = "Collapse queue";
+const QUEUE_PANEL_ARIA_LABEL = "Queued messages";
+const QUEUE_PANEL_EXPAND_LABEL = "Expand queue";
+const QUEUE_PANEL_COLLAPSE_LABEL = "Collapse queue";
 const QUEUE_EDIT_BANNER_LABEL = "Editing queued message";
+
+function formatQueuedComposerCount(count: number): string {
+  return count === 1 ? `1 ${QUEUE_HEADER_LABEL}` : `${count} ${QUEUE_HEADER_LABEL}`;
+}
+
+function isKeyboardActivation(event: KeyboardEvent<HTMLElement>): boolean {
+  return event.key === "Enter" || event.key === " ";
+}
 
 type QueuedComposerItemActionsProps = {
   items: readonly QueuedComposerItem[];
   editingItemId: MessageId | null;
   isBusy: boolean;
   onBeginEdit: (itemId: MessageId) => void;
-  onCancelEdit: () => void;
   onRemove: (itemId: MessageId) => void;
   onSendNow: (itemId: MessageId) => void;
+  onReorder: (itemId: MessageId, targetItemId: MessageId | null, insertAfter: boolean) => void;
 };
 
 const QueuedComposerItemRowActions = memo(function QueuedComposerItemRowActions(props: {
   itemId: MessageId;
-  isEditing: boolean;
   isBusy: boolean;
-  alwaysVisible?: boolean;
   onBeginEdit: (itemId: MessageId) => void;
   onRemove: (itemId: MessageId) => void;
   onSendNow: (itemId: MessageId) => void;
 }) {
   const actionButtonClass =
-    "flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,opacity] duration-100 hover:bg-background hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40";
+    "flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-fg-tertiary outline-none hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-35";
 
   return (
     <div
-      className={cn(
-        "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover/queue-row:opacity-100 group-focus-within/queue-row:opacity-100",
-        props.alwaysVisible ? "opacity-100" : "",
-        props.isEditing ? "opacity-100" : "",
-      )}
+      className="hidden shrink-0 items-center group-focus-within/sidebar-item:flex [@media(hover:hover)]:group-hover/sidebar-item:flex"
+      data-queued-composer-item-actions=""
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <button
         type="button"
         className={actionButtonClass}
         onClick={() => props.onBeginEdit(props.itemId)}
-        disabled={props.isEditing}
         aria-label={QUEUE_EDIT_ACTION_LABEL}
-        title={QUEUE_EDIT_ACTION_HINT}
+        title={QUEUE_EDIT_ACTION_LABEL}
         data-queue-action="edit"
       >
-        <IconPencilLine className="size-3.5" />
+        <IconPencilLine className="size-4 shrink-0" aria-hidden="true" />
       </button>
       <button
         type="button"
         className={actionButtonClass}
         onClick={() => props.onSendNow(props.itemId)}
-        disabled={props.isBusy || props.isEditing}
+        disabled={props.isBusy}
         aria-label={QUEUE_SEND_NOW_ACTION_LABEL}
         title={QUEUE_SEND_NOW_ACTION_LABEL}
         data-queue-action="send"
       >
-        <IconArrowUp className="size-3.5" />
+        <IconArrowUp className="size-4 shrink-0" aria-hidden="true" />
       </button>
       <button
         type="button"
         className={actionButtonClass}
         onClick={() => props.onRemove(props.itemId)}
         aria-label={QUEUE_REMOVE_ACTION_LABEL}
-        title={QUEUE_REMOVE_ACTION_HINT}
+        title={QUEUE_REMOVE_ACTION_LABEL}
         data-queue-action="remove"
       >
-        <IconTrashCan className="size-3.5" />
+        <IconTrashCan className="size-4 shrink-0" aria-hidden="true" />
       </button>
     </div>
+  );
+});
+
+const QueuedComposerItemThumbnails = memo(function QueuedComposerItemThumbnails(props: {
+  item: QueuedComposerItem;
+}) {
+  const visibleImages = props.item.sendContext.images.slice(0, QUEUE_ROW_THUMBNAIL_LIMIT);
+  if (visibleImages.length === 0) {
+    return null;
+  }
+
+  const overflowCount = props.item.sendContext.images.length - visibleImages.length;
+
+  return (
+    <span className="queue-row-thumbnails" aria-hidden="true">
+      {visibleImages.map((image) => (
+        <img
+          key={image.id}
+          src={image.previewUrl}
+          alt=""
+          className="queue-row-thumbnail rounded-sm"
+          draggable={false}
+        />
+      ))}
+      {overflowCount > 0 ? (
+        <span className="queue-row-thumbnails__overflow">+{overflowCount}</span>
+      ) : null}
+    </span>
   );
 });
 
 const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
   item: QueuedComposerItem;
   index: number;
+  itemCount: number;
   isEditing: boolean;
   isBusy: boolean;
-  variant: "tray" | "popover";
+  draggingItemId: MessageId | null;
+  dropTargetItemId: MessageId | null;
+  dropInsertAfter: boolean;
   onBeginEdit: (itemId: MessageId) => void;
   onRemove: (itemId: MessageId) => void;
   onSendNow: (itemId: MessageId) => void;
+  onDragStart: (event: DragEvent<HTMLElement>, item: QueuedComposerItem) => void;
+  onDragOver: (event: DragEvent<HTMLElement>, item: QueuedComposerItem) => void;
+  onDragEnter: (event: DragEvent<HTMLElement>) => void;
+  onDragLeave: (event: DragEvent<HTMLElement>) => void;
+  onDrop: (event: DragEvent<HTMLElement>) => void;
+  onDragEnd: () => void;
 }) {
-  const { item, index, isEditing, isBusy, variant, onBeginEdit, onRemove, onSendNow } = props;
+  const {
+    item,
+    index,
+    itemCount,
+    isEditing,
+    isBusy,
+    draggingItemId,
+    dropTargetItemId,
+    dropInsertAfter,
+    onBeginEdit,
+    onRemove,
+    onSendNow,
+    onDragStart,
+    onDragOver,
+    onDragEnter,
+    onDragLeave,
+    onDrop,
+    onDragEnd,
+  } = props;
+  const showDropBefore = dropTargetItemId === item.id && !dropInsertAfter;
+  const showDropAfter = dropTargetItemId === item.id && dropInsertAfter;
+  const isDragging = draggingItemId === item.id;
+  const isDraggable = itemCount > 1 && !isEditing;
+  const preview = formatQueuedComposerItemPreview(item);
 
-  if (variant === "tray") {
-    return (
-      <div
-        role="option"
-        aria-selected={isEditing}
+  return (
+    <div className="relative" role="listitem" data-queued-composer-item-wrapper="">
+      {showDropBefore ? (
+        <div className="queue-drop-indicator queue-drop-indicator--before" />
+      ) : null}
+      <SidebarItem
+        render={<div />}
+        draggable={isDraggable}
+        selected={isEditing}
         data-queued-composer-item={String(item.id)}
-        data-queue-row=""
+        data-queue-row="true"
         data-queue-item-id={String(item.id)}
+        data-queue-item-query={item.sendContext.prompt}
         data-editing={isEditing ? "" : undefined}
-        className={cn(
-          "group/queue-row flex min-h-8 cursor-default items-start gap-2 rounded-md py-0.5 pr-1 pl-2 transition-colors duration-100 hover:bg-muted/60",
-          isEditing &&
-            "bg-[color-mix(in_srgb,var(--multi-stroke-focused)_15%,transparent)] shadow-[inset_0_0_0_1px_var(--multi-stroke-secondary)]",
-        )}
+        data-dragging={isDragging ? "" : undefined}
+        data-queue-position={index === 0 ? "next" : undefined}
+        className="ui-tray-row queue-sortable-row group/sidebar-item h-auto data-[selected=true]:focus-within:bg-multi-bg-tertiary"
         onDoubleClick={() => {
           if (!isEditing) {
             onBeginEdit(item.id);
           }
         }}
+        onDragStart={(event) => onDragStart(event, item)}
+        onDragOver={(event) => onDragOver(event, item)}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
       >
-        <div className="min-w-0 flex-1 py-1">
-          <div className="truncate text-body text-foreground">
-            {formatQueuedComposerItemPreview(item)}
-          </div>
-          {isEditing ? (
-            <span className="mt-0.5 inline-flex rounded-sm bg-muted px-1 py-px text-caption text-muted-foreground">
-              Editing
-            </span>
-          ) : null}
-        </div>
-        <QueuedComposerItemRowActions
-          itemId={item.id}
-          isEditing={isEditing}
-          isBusy={isBusy}
-          onBeginEdit={onBeginEdit}
-          onRemove={onRemove}
-          onSendNow={onSendNow}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      data-queued-composer-item={String(item.id)}
-      className={cn(
-        "flex min-h-9 items-center gap-2 rounded-md border px-2 py-1.5",
-        isEditing
-          ? "border-multi-stroke-secondary bg-(--multi-chat-bubble-background)"
-          : "border-multi-stroke-tertiary bg-transparent",
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-body text-foreground">
-          {formatQueuedComposerItemPreview(item)}
-        </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
-          <span>#{index + 1}</span>
-          {isEditing ? <span>Editing</span> : null}
-        </div>
-      </div>
-      <QueuedComposerItemRowActions
-        itemId={item.id}
-        isEditing={isEditing}
-        isBusy={isBusy}
-        alwaysVisible
-        onBeginEdit={onBeginEdit}
-        onRemove={onRemove}
-        onSendNow={onSendNow}
-      />
+        <SidebarButton
+          variant="inset"
+          className="ui-tray-row__content disabled:opacity-100"
+          disabled={isEditing}
+          onClick={() => onBeginEdit(item.id)}
+          onKeyDown={(event) => {
+            if (!isKeyboardActivation(event)) {
+              return;
+            }
+            event.preventDefault();
+            onBeginEdit(item.id);
+          }}
+          title={preview}
+          data-queued-composer-item-preview=""
+        >
+          <QueuedComposerItemThumbnails item={item} />
+          <span
+            className={cn(
+              "ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary",
+              isEditing && "text-multi-fg-primary",
+            )}
+          >
+            {preview}
+          </span>
+        </SidebarButton>
+        {isEditing ? (
+          <span className="ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary">
+            Editing
+          </span>
+        ) : (
+          <QueuedComposerItemRowActions
+            itemId={item.id}
+            isBusy={isBusy}
+            onBeginEdit={onBeginEdit}
+            onRemove={onRemove}
+            onSendNow={onSendNow}
+          />
+        )}
+      </SidebarItem>
+      {showDropAfter ? <div className="queue-drop-indicator queue-drop-indicator--after" /> : null}
     </div>
   );
 });
 
 const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
-  props: Omit<QueuedComposerItemActionsProps, "onCancelEdit"> & {
-    className?: string;
-    variant: "tray" | "popover";
-    role?: "listbox";
-    ariaLabel?: string;
-  },
+  props: QueuedComposerItemActionsProps,
 ) {
+  const [draggingItemId, setDraggingItemId] = useState<MessageId | null>(null);
+  const [dropTargetItemId, setDropTargetItemId] = useState<MessageId | null>(null);
+  const [dropInsertAfter, setDropInsertAfter] = useState(false);
+  const resetDragState = () => {
+    setDraggingItemId(null);
+    setDropTargetItemId(null);
+    setDropInsertAfter(false);
+  };
+
+  const handleDragStart = (event: DragEvent<HTMLElement>, item: QueuedComposerItem) => {
+    setDraggingItemId(item.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", item.id);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLElement>, item: QueuedComposerItem) => {
+    event.preventDefault();
+    if (draggingItemId === null || draggingItemId === item.id) {
+      setDropTargetItemId(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setDropTargetItemId(item.id);
+    setDropInsertAfter(event.clientY >= rect.top + rect.height / 2);
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragEnter = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLElement>) => {
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
+      return;
+    }
+    setDropTargetItemId(null);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    if (draggingItemId !== null && dropTargetItemId !== null) {
+      props.onReorder(draggingItemId, dropTargetItemId, dropInsertAfter);
+    }
+    resetDragState();
+  };
+
   return (
     <div
-      className={cn("flex flex-col gap-0.5 overflow-y-auto", props.className)}
-      {...(props.role ? { role: props.role } : {})}
-      {...(props.ariaLabel ? { "aria-label": props.ariaLabel } : {})}
+      className="agent-panel-queue-items flex max-h-[var(--multi-composer-queue-panel-list-max-height)] flex-col gap-px overflow-y-auto px-2 pb-2"
+      role="list"
+      aria-label={QUEUE_PANEL_ARIA_LABEL}
+      data-queued-composer-items-list=""
+      data-queue-count={props.items.length}
     >
       {props.items.map((item, index) => (
         <QueuedComposerItemRow
           key={item.id}
           item={item}
           index={index}
+          itemCount={props.items.length}
           isEditing={props.editingItemId === item.id}
           isBusy={props.isBusy}
-          variant={props.variant}
+          draggingItemId={draggingItemId}
+          dropTargetItemId={dropTargetItemId}
+          dropInsertAfter={dropInsertAfter}
           onBeginEdit={props.onBeginEdit}
           onRemove={props.onRemove}
           onSendNow={props.onSendNow}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onDragEnd={resetDragState}
         />
       ))}
     </div>
   );
 });
 
-export const QueuedComposerItemsTray = memo(function QueuedComposerItemsTray(
-  props: QueuedComposerItemActionsProps,
+export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
+  props: QueuedComposerItemActionsProps & {
+    compact: boolean;
+    expanded: boolean;
+    onExpandedChange: (expanded: boolean) => void;
+  },
 ) {
-  const [collapsed, setCollapsed] = useState(false);
-
   if (props.items.length === 0) {
     return null;
   }
 
   const editingActive = props.editingItemId !== null;
-  const headerLabel = `${props.items.length} ${QUEUE_HEADER_LABEL}`;
+  const countLabel = formatQueuedComposerCount(props.items.length);
+  const expandLabel = props.expanded ? QUEUE_PANEL_COLLAPSE_LABEL : QUEUE_PANEL_EXPAND_LABEL;
 
   return (
     <div
-      className="border-b border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)"
-      data-queued-composer-tray=""
-      data-queue-count={props.items.length}
-      data-queue-collapsed={collapsed ? "" : undefined}
-      data-queue-editing={editingActive ? "" : undefined}
+      className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
+      data-queued-composer-panel-stack=""
     >
       <div
-        className={cn(
-          "flex items-center justify-between gap-2 px-3 py-1.5",
-          collapsed ? "pb-1.5" : "",
-        )}
+        className="ui-tray--queued font-multi text-detail text-multi-fg-primary"
+        data-queued-composer-panel=""
+        data-queue-count={props.items.length}
+        data-queue-expanded={props.expanded ? "" : undefined}
+        data-queue-editing={editingActive ? "" : undefined}
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-detail font-medium text-foreground">{headerLabel}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {editingActive ? (
-            <button
-              type="button"
-              className="rounded-multi-control px-1.5 py-0.5 text-detail text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-              onClick={props.onCancelEdit}
-            >
-              Cancel
-            </button>
-          ) : null}
+        <div
+          className="ui-tray-header--queued flex min-h-9 min-w-0 items-center justify-between gap-2 px-2.5 py-1.5"
+          data-queued-composer-panel-header=""
+        >
           <button
             type="button"
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-            aria-label={collapsed ? QUEUE_TRAY_EXPAND_LABEL : QUEUE_TRAY_COLLAPSE_LABEL}
-            title={collapsed ? QUEUE_TRAY_EXPAND_LABEL : QUEUE_TRAY_COLLAPSE_LABEL}
-            onClick={() => setCollapsed((value) => !value)}
-          >
-            {collapsed ? (
-              <IconChevronDownMedium className="size-3.5" aria-hidden="true" />
-            ) : (
-              <IconChevronTopMedium className="size-3.5" aria-hidden="true" />
-            )}
-          </button>
-        </div>
-      </div>
-      {collapsed ? null : (
-        <QueuedComposerItemsList
-          variant="tray"
-          className="max-h-[var(--multi-composer-queue-max-height)] px-2 pb-2"
-          role="listbox"
-          ariaLabel={QUEUE_TRAY_ARIA_LABEL}
-          items={props.items}
-          editingItemId={props.editingItemId}
-          isBusy={props.isBusy}
-          onBeginEdit={props.onBeginEdit}
-          onRemove={props.onRemove}
-          onSendNow={props.onSendNow}
-        />
-      )}
-    </div>
-  );
-});
-
-export const QueuedComposerItemsBadge = memo(function QueuedComposerItemsBadge(
-  props: QueuedComposerItemActionsProps & { compact?: boolean },
-) {
-  const [open, setOpen] = useState(false);
-
-  if (props.items.length === 0) {
-    return null;
-  }
-
-  const editingActive = props.editingItemId !== null;
-  const triggerLabel = `${props.items.length} ${QUEUE_HEADER_LABEL}`;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            data-queued-composer-badge=""
-            data-queue-count={props.items.length}
-            data-queue-editing={editingActive ? "" : undefined}
-            data-queue-open={open ? "" : undefined}
-            className={cn(
-              "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) px-2 text-detail font-medium text-multi-fg-secondary transition-[background-color,color,border-color] duration-150 hover:border-multi-stroke-secondary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none data-queue-editing:border-multi-stroke-secondary data-queue-editing:text-multi-fg-primary",
-              props.compact ? "px-1.5" : "",
-            )}
-            aria-label={
-              editingActive ? `${triggerLabel} (editing)` : `${triggerLabel} (open queue)`
-            }
-            title={triggerLabel}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-multi-control px-1.5 py-1 text-left text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+            aria-label={expandLabel}
+            title={expandLabel}
+            onClick={() => props.onExpandedChange(!props.expanded)}
+            data-queued-composer-panel-toggle=""
           >
             <IconChevronDownMedium
               className={cn(
-                "size-3 shrink-0 transition-transform duration-150",
-                open ? "rotate-180" : "",
+                "size-3.5 shrink-0 transition-transform duration-100",
+                props.expanded ? "" : "-rotate-90",
               )}
               aria-hidden="true"
             />
-            <span className="tabular-nums">{props.items.length}</span>
-            {props.compact ? null : <span>{QUEUE_HEADER_LABEL}</span>}
+            <span className="queue-tray__header-leading">
+              <span className="queue-tray__header-count min-w-0 truncate font-medium">
+                {countLabel}
+              </span>
+            </span>
           </button>
-        }
-      />
-      <PopoverContent align="start" sideOffset={8} className="w-[min(360px,calc(100vw-32px))] p-2">
-        <div className="flex items-center justify-between gap-2 px-1 pb-1.5">
-          <span className="text-detail font-medium text-foreground">{triggerLabel}</span>
-          {editingActive ? (
-            <button
-              type="button"
-              className="rounded-multi-control px-1.5 py-0.5 text-detail text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-              onClick={props.onCancelEdit}
-            >
-              Cancel
-            </button>
-          ) : null}
         </div>
-        <QueuedComposerItemsList
-          variant="popover"
-          className="max-h-60"
-          items={props.items}
-          editingItemId={props.editingItemId}
-          isBusy={props.isBusy}
-          onBeginEdit={(id) => {
-            props.onBeginEdit(id);
-            setOpen(false);
-          }}
-          onRemove={props.onRemove}
-          onSendNow={(id) => {
-            props.onSendNow(id);
-            setOpen(false);
-          }}
-        />
-      </PopoverContent>
-    </Popover>
+        {props.expanded ? (
+          <QueuedComposerItemsList
+            items={props.items}
+            editingItemId={props.editingItemId}
+            isBusy={props.isBusy}
+            onBeginEdit={props.onBeginEdit}
+            onRemove={props.onRemove}
+            onSendNow={props.onSendNow}
+            onReorder={props.onReorder}
+          />
+        ) : null}
+      </div>
+    </div>
   );
 });
 
@@ -374,7 +408,7 @@ export const QueuedComposerEditBanner = memo(function QueuedComposerEditBanner(p
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-[color-mix(in_srgb,var(--multi-chat-bubble-background)_80%,var(--multi-stroke-focused)_20%)] px-3 py-1.5 text-detail text-foreground"
+      className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-[color-mix(in_srgb,var(--multi-chat-bubble-background)_88%,var(--multi-stroke-tertiary)_12%)] px-3 py-1.5 text-detail text-foreground"
       data-queued-composer-edit-banner=""
     >
       <span className="opacity-90">{QUEUE_EDIT_BANNER_LABEL}</span>

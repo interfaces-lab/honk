@@ -8,12 +8,16 @@ import {
   type OrchestrationEvent,
   type OrchestrationThread,
   type ProviderConversationMessage,
+  type ProviderInteractionMode,
   ProviderDriverKind,
   ProviderInstanceId,
   type OrchestrationSession,
+  formatThreadEntryPathIssue,
+  resolveThreadEntryPath,
   ThreadId,
   type ProviderSession,
   type RuntimeMode,
+  type ThreadEntryId,
   type TurnId,
 } from "@multi/contracts";
 import { isTemporaryWorktreeBranch, WORKTREE_BRANCH_PREFIX } from "@multi/shared/git";
@@ -54,7 +58,10 @@ import {
   coerceThreadProjectCwd,
 } from "../project/AccessibleProjectCwd.ts";
 import { expandHomePath } from "../os-jank.ts";
-import { ProviderCommandReactorThreadNotFoundError } from "./Errors.ts";
+import {
+  ProviderCommandReactorBranchPathError,
+  ProviderCommandReactorThreadNotFoundError,
+} from "./Errors.ts";
 
 type ProviderIntentEvent = Extract<
   OrchestrationEvent,
@@ -188,59 +195,77 @@ function buildGeneratedWorktreeBranchName(raw: string): string {
   return `${WORKTREE_BRANCH_PREFIX}/${safeFragment}`;
 }
 
-function buildActiveEntryPath(
+function buildThreadEntryPath(
   thread: OrchestrationThread,
-): NonNullable<OrchestrationThread["entries"]> {
+  leafEntryId: ThreadEntryId,
+):
+  | {
+      readonly ok: true;
+      readonly entries: NonNullable<OrchestrationThread["entries"]>;
+    }
+  | {
+      readonly ok: false;
+      readonly detail: string;
+    } {
   const entries = thread.entries ?? [];
-  const activeEntryId = thread.activeEntryId ?? null;
-  if (activeEntryId === null || entries.length === 0) {
-    return [];
+  const path = resolveThreadEntryPath({
+    entries,
+    entryId: leafEntryId,
+  });
+  if (!path.ok) {
+    return {
+      ok: false,
+      detail: formatThreadEntryPathIssue(path),
+    };
   }
 
-  const entryById = new Map(entries.map((entry) => [entry.id, entry] as const));
-  const path: Array<NonNullable<OrchestrationThread["entries"]>[number]> = [];
-  const seen = new Set<string>();
-  let cursor: OrchestrationThread["activeEntryId"] | null = activeEntryId;
-
-  while (cursor !== null) {
-    if (seen.has(cursor)) {
-      break;
-    }
-    seen.add(cursor);
-    const entry = entryById.get(cursor);
-    if (!entry) {
-      break;
-    }
-    path.push(entry);
-    cursor = entry.parentEntryId;
-  }
-
-  return path.reverse();
+  return {
+    ok: true,
+    entries: [...path.entries],
+  };
 }
 
 function buildProviderConversationContext(input: {
   readonly thread: OrchestrationThread;
   readonly currentMessageId: MessageId;
-}): ReadonlyArray<ProviderConversationMessage> {
-  const messageById = new Map(input.thread.messages.map((message) => [message.id, message] as const));
-  return buildActiveEntryPath(input.thread).flatMap((entry) => {
-    if (entry.kind !== "message" || entry.messageId === null) {
-      return [];
+  readonly userEntryId: ThreadEntryId;
+}):
+  | {
+      readonly ok: true;
+      readonly messages: ReadonlyArray<ProviderConversationMessage>;
     }
-    if (entry.messageId === input.currentMessageId) {
-      return [];
-    }
-    const message = messageById.get(entry.messageId);
-    if (!message || message.text.trim().length === 0) {
-      return [];
-    }
-    return [
-      {
-        role: message.role,
-        text: message.text,
-      },
-    ];
-  });
+  | {
+      readonly ok: false;
+      readonly detail: string;
+    } {
+  const messageById = new Map(
+    input.thread.messages.map((message) => [message.id, message] as const),
+  );
+  const path = buildThreadEntryPath(input.thread, input.userEntryId);
+  if (!path.ok) {
+    return path;
+  }
+  return {
+    ok: true,
+    messages: path.entries.flatMap((entry) => {
+      if (entry.kind !== "message" || entry.messageId === null) {
+        return [];
+      }
+      if (entry.messageId === input.currentMessageId) {
+        return [];
+      }
+      const message = messageById.get(entry.messageId);
+      if (!message || message.text.trim().length === 0) {
+        return [];
+      }
+      return [
+        {
+          role: message.role,
+          text: message.text,
+        },
+      ];
+    }),
+  };
 }
 
 const make = Effect.gen(function* () {
@@ -479,10 +504,11 @@ const make = Effect.gen(function* () {
     function* (input: {
       readonly threadId: ThreadId;
       readonly messageId: MessageId;
+      readonly userEntryId: ThreadEntryId;
       readonly messageText: string;
       readonly attachments?: ReadonlyArray<ChatAttachment>;
       readonly modelSelection?: ModelSelection;
-      readonly interactionMode?: "default" | "plan";
+      readonly interactionMode?: ProviderInteractionMode;
       readonly createdAt: string;
     }) {
       const thread = yield* resolveThread(input.threadId);
@@ -495,15 +521,19 @@ const make = Effect.gen(function* () {
       const conversationContext = buildProviderConversationContext({
         thread,
         currentMessageId: input.messageId,
+        userEntryId: input.userEntryId,
       });
-      yield* ensureSessionForThread(
-        input.threadId,
-        input.createdAt,
-        {
-          ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
-          ...(conversationContext.length > 0 ? { discardResumeCursor: true } : {}),
-        },
-      );
+      if (!conversationContext.ok) {
+        return yield* new ProviderCommandReactorBranchPathError({
+          operation: "ProviderCommandReactor.buildSendTurnRequestForThread",
+          threadId: input.threadId,
+          detail: conversationContext.detail,
+        });
+      }
+      yield* ensureSessionForThread(input.threadId, input.createdAt, {
+        ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+        discardResumeCursor: true,
+      });
       if (input.modelSelection !== undefined) {
         threadModelSelections.set(input.threadId, input.modelSelection);
       }
@@ -533,7 +563,9 @@ const make = Effect.gen(function* () {
       return {
         threadId: input.threadId,
         ...(normalizedInput ? { input: normalizedInput } : {}),
-        ...(conversationContext.length > 0 ? { context: conversationContext } : {}),
+        ...(conversationContext.messages.length > 0
+          ? { context: conversationContext.messages }
+          : {}),
         ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
         ...(modelForTurn !== undefined ? { modelSelection: modelForTurn } : {}),
         ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
@@ -727,6 +759,7 @@ const make = Effect.gen(function* () {
     const sendTurnRequest = yield* buildSendTurnRequestForThread({
       threadId: event.payload.threadId,
       messageId: event.payload.messageId,
+      userEntryId: event.payload.userEntryId,
       messageText: message.text,
       ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
       ...(event.payload.modelSelection !== undefined

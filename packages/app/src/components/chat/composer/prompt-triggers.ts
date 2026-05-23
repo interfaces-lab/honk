@@ -1,7 +1,7 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
 
 export type ComposerTriggerKind = "path" | "slash-command";
-export type ComposerSlashCommand = "model" | "plan" | "default";
+export type ComposerSlashCommand = "model" | "ask" | "plan" | "default";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -46,8 +46,13 @@ function recognizeStandaloneSlashCommand(textBeforeCursor: string): {
   if (!match) return null;
 
   const lead = match[1] ?? "";
+  const query = match[3] ?? "";
+  const firstQueryToken = query.trimStart().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+  if (/\s/.test(query) && firstQueryToken !== "model") {
+    return null;
+  }
   return {
-    query: match[3] ?? "",
+    query,
     rangeStart: windowStart + match.index + lead.length,
   };
 }
@@ -261,13 +266,32 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 export function parseStandaloneComposerSlashCommand(
   text: string,
 ): Exclude<ComposerSlashCommand, "model"> | null {
-  const match = /^\/(plan|default)\s*$/i.exec(text.trim());
+  const match = /^\/(ask|plan|default|build)\s*$/i.exec(text.trim());
   if (!match) {
     return null;
   }
   const command = match[1]?.toLowerCase();
-  if (command === "plan") return "plan";
+  if (command === "ask" || command === "plan") return command;
   return "default";
+}
+
+export function isUnresolvedStandaloneComposerSlashCommand(
+  text: string,
+  options?: { hasComposerCommand?: boolean | undefined },
+): boolean {
+  if (options?.hasComposerCommand) {
+    return false;
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) {
+    return false;
+  }
+  if (parseStandaloneComposerSlashCommand(trimmed)) {
+    return false;
+  }
+  const trigger = detectComposerTrigger(trimmed, trimmed.length);
+  return trigger?.kind === "slash-command" && trigger.rangeStart === 0;
 }
 
 export function replaceTextRange(

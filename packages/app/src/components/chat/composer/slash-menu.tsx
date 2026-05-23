@@ -16,6 +16,7 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import {
   IconBuildingBlocks,
   IconBox2,
+  IconBubbleQuestion,
   IconRobot,
   IconSettingsSliderHor,
   IconSquareChecklist,
@@ -51,7 +52,7 @@ import {
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
 
 const PATH_QUERY_DEBOUNCE_MS = 120;
-const COMPOSER_MENU_SIDE_OFFSET = 3;
+const COMPOSER_MENU_SIDE_OFFSET = 4;
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
 type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -412,6 +413,7 @@ function resolveComposerMenuActiveItemId(input: {
 }
 
 export function useComposerCommandMenu(input: {
+  allowModeSlashCommands?: boolean | undefined;
   composerTrigger: ComposerTrigger | null;
   environmentId: EnvironmentId;
   gitCwd: string | null;
@@ -453,7 +455,9 @@ export function useComposerCommandMenu(input: {
       return [];
     }
 
-    const builtInSlashCommandItems = [
+    const builtInSlashCommandItems: Array<
+      Extract<ComposerCommandItem, { type: "slash-command" }>
+    > = [
       {
         id: "slash:model",
         type: "slash-command",
@@ -461,21 +465,32 @@ export function useComposerCommandMenu(input: {
         label: "/model",
         description: "Switch response model for this thread",
       },
-      {
-        id: "slash:plan",
-        type: "slash-command",
-        command: "plan",
-        label: "/plan",
-        description: "Switch this thread into plan mode",
-      },
-      {
-        id: "slash:default",
-        type: "slash-command",
-        command: "default",
-        label: "/default",
-        description: "Switch this thread back to normal build mode",
-      },
-    ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
+    ];
+    if (input.allowModeSlashCommands !== false) {
+      builtInSlashCommandItems.push(
+        {
+          id: "slash:ask",
+          type: "slash-command",
+          command: "ask",
+          label: "/ask",
+          description: "Ask questions without making changes",
+        },
+        {
+          id: "slash:plan",
+          type: "slash-command",
+          command: "plan",
+          label: "/plan",
+          description: "Switch this thread into plan mode",
+        },
+        {
+          id: "slash:default",
+          type: "slash-command",
+          command: "default",
+          label: "/build",
+          description: "Switch this thread back to Build mode",
+        },
+      );
+    }
     const providerSlashCommandItems = (input.selectedProviderStatus?.slashCommands ?? []).map(
       (command) => ({
         id: `provider-slash-command:${input.selectedProvider}:${command.name}`,
@@ -496,6 +511,7 @@ export function useComposerCommandMenu(input: {
     const matchingSlashItems = query ? searchSlashCommandItems(slashItems, query) : slashItems;
     return matchingSlashItems;
   }, [
+    input.allowModeSlashCommands,
     input.composerTrigger,
     input.providerStatuses,
     input.selectedProvider,
@@ -559,12 +575,14 @@ export function useComposerCommandMenu(input: {
 
 function getSlashCommandIcon(command: ComposerSlashCommand): CentralIconComponent {
   if (command === "model") return IconBox2;
+  if (command === "ask") return IconBubbleQuestion;
   if (command === "plan") return IconSquareChecklist;
   return IconRobot;
 }
 
 function getSlashCommandTertiaryText(command: ComposerSlashCommand): string {
   if (command === "model") return "Select Model";
+  if (command === "ask") return "Ask Mode";
   if (command === "plan") return "Plan Mode";
   return "Build Mode";
 }
@@ -788,6 +806,8 @@ export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPo
   );
   const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
 
+  // The anchor is a function that returns the hidden caret span. Remount when
+  // its version changes so Base UI resolves the updated DOM caret position.
   return (
     <Popover open={open}>
       <PopoverPopup

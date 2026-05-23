@@ -9,8 +9,12 @@ import { MessagesTimeline, type MessagesTimelineController } from "./messages-ti
 import type { ChatMessage } from "../../../types";
 
 const TIMELINE_SCROLL_SETTLE_MS = 40;
+let nextTimelineInstanceId = 0;
 
 function buildProps() {
+  const activeThreadId = ThreadId.make(`thread-local-${nextTimelineInstanceId}`);
+  nextTimelineInstanceId += 1;
+
   return {
     isWorking: false,
     activeTurnInProgress: false,
@@ -22,7 +26,8 @@ function buildProps() {
     onBeginEditUserMessage: vi.fn(),
     onImageExpand: vi.fn(),
     activeThreadEnvironmentId: EnvironmentId.make("environment-local"),
-    activeThreadId: ThreadId.make("thread-local"),
+    activeThreadId,
+    timelineCacheKey: `${activeThreadId}:linear`,
     markdownCwd: undefined,
     projectRoot: undefined,
     onIsAtBottomChange: vi.fn(),
@@ -83,6 +88,19 @@ function buildConversationEntries(pairCount: number, startIndex = 0): TimelineEn
     );
   }
   return entries;
+}
+
+function buildRevertTurnCountByUserMessageId(timelineEntries: readonly TimelineEntry[]) {
+  const revertTurnCountByUserMessageId = new Map<MessageId, number>();
+  let turnCount = 0;
+  for (const entry of timelineEntries) {
+    if (entry.kind !== "message" || entry.message.role !== "user") {
+      continue;
+    }
+    revertTurnCountByUserMessageId.set(entry.message.id, turnCount);
+    turnCount += 1;
+  }
+  return revertTurnCountByUserMessageId;
 }
 
 function buildRunningWorkEntries(count: number): TimelineEntry[] {
@@ -271,7 +289,7 @@ describe("messages-timeline", () => {
     }
   });
 
-  it("caps the running work preview height and auto-scrolls the tool tail", async () => {
+  it("caps the running work preview to the recent tool tail", async () => {
     const props = buildProps();
     const screen = await renderTimeline(props, buildRunningWorkEntries(12));
 
@@ -282,8 +300,11 @@ describe("messages-timeline", () => {
 
       const preview = requireElement<HTMLElement>("[data-work-group-preview]");
       expect(preview.clientHeight).toBeLessThanOrEqual(145);
-      expect(preview.scrollHeight).toBeGreaterThan(preview.clientHeight);
-      expect(preview.getAttribute("data-work-preview-scrollable")).toBe("true");
+      expect(preview.scrollHeight).toBeLessThanOrEqual(preview.clientHeight + 1);
+      expect(preview.getAttribute("data-work-preview-scrollable")).toBe("false");
+      expect(preview.querySelectorAll("[data-tool-call-line]")).toHaveLength(6);
+      expect(preview.textContent).not.toContain("src/file-0.ts");
+      expect(preview.textContent).toContain("src/file-11.ts");
     } finally {
       await screen.unmount();
     }
@@ -434,7 +455,9 @@ describe("messages-timeline", () => {
 
   it("keeps the sticky user row unique and editable while scrolling", async () => {
     const props = buildProps();
-    const screen = await renderTimeline(props, buildConversationEntries(20));
+    const timelineEntries = buildConversationEntries(20);
+    props.revertTurnCountByUserMessageId = buildRevertTurnCountByUserMessageId(timelineEntries);
+    const screen = await renderTimeline(props, timelineEntries);
 
     try {
       const scrollElement = await waitForScrollable();

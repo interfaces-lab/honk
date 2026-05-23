@@ -17,14 +17,14 @@ import mermaid, { type MermaidConfig } from "mermaid";
 import { useDebouncedCallback } from "@tanstack/react-pacer";
 import {
   type ComponentProps,
+  type Dispatch,
   type MouseEvent as ReactMouseEvent,
   isValidElement,
   useCallback,
-  useEffect,
   useId,
   memo,
   useMemo,
-  useRef,
+  type SetStateAction,
   useState,
   type ReactNode,
 } from "react";
@@ -348,7 +348,6 @@ function MermaidIconButton({
 
 function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffThemeName }) {
   const reactId = useId();
-  const renderSequence = useRef(0);
   const cacheKey = `${fnv1a32(code).toString(36)}:${themeName}`;
   const [rendered, setRendered] = useState<MermaidBlockState | null>(null);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
@@ -362,35 +361,6 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
     [],
   );
   const resetZoom = useCallback(() => setFullscreenZoom(1), []);
-
-  useEffect(() => {
-    const chart = code.trim();
-    const sequence = renderSequence.current + 1;
-    renderSequence.current = sequence;
-
-    if (!chart) {
-      setRendered({ cacheKey, error: "Mermaid diagram is empty.", svg: null });
-      return;
-    }
-
-    setRendered((current) => (current?.cacheKey === cacheKey ? current : null));
-
-    const id = `multi-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${Math.abs(
-      fnv1a32(chart),
-    ).toString(36)}`;
-    mermaid.initialize(createMermaidConfig(themeName));
-    void mermaid
-      .render(id, chart)
-      .then(({ svg }) => {
-        if (renderSequence.current !== sequence) return;
-        setRendered({ cacheKey, error: null, svg });
-      })
-      .catch((error: unknown) => {
-        if (renderSequence.current !== sequence) return;
-        const message = error instanceof Error ? error.message : "Could not render Mermaid diagram.";
-        setRendered({ cacheKey, error: message, svg: null });
-      });
-  }, [cacheKey, code, reactId, themeName]);
 
   if (rendered?.cacheKey === cacheKey && rendered.svg) {
     return (
@@ -434,23 +404,87 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
     );
   }
 
+  const renderSync = (
+    <MermaidRenderSync
+      key={cacheKey}
+      cacheKey={cacheKey}
+      chart={code.trim()}
+      reactId={reactId}
+      setRendered={setRendered}
+      themeName={themeName}
+    />
+  );
+
   if (rendered?.cacheKey === cacheKey && rendered.error) {
     return (
-      <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-primary) [contain:paint]">
-        <div className="mb-1 font-semibold text-destructive">Mermaid Syntax Error</div>
-        <div className="text-(--cursor-text-secondary)">{rendered.error}</div>
-        <pre className="mt-2 whitespace-pre-wrap">
-          <code>{code}</code>
-        </pre>
-      </div>
+      <>
+        {renderSync}
+        <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-primary) [contain:paint]">
+          <div className="mb-1 font-semibold text-destructive">Mermaid Syntax Error</div>
+          <div className="text-(--cursor-text-secondary)">{rendered.error}</div>
+          <pre className="mt-2 whitespace-pre-wrap">
+            <code>{code}</code>
+          </pre>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-secondary) [contain:paint]">
-      Rendering diagram...
-    </div>
+    <>
+      {renderSync}
+      <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-secondary) [contain:paint]">
+        Rendering diagram...
+      </div>
+    </>
   );
+}
+
+function MermaidRenderSync({
+  cacheKey,
+  chart,
+  reactId,
+  setRendered,
+  themeName,
+}: {
+  cacheKey: string;
+  chart: string;
+  reactId: string;
+  setRendered: Dispatch<SetStateAction<MermaidBlockState | null>>;
+  themeName: DiffThemeName;
+}) {
+  useMountEffect(() => {
+    if (!chart) {
+      setRendered({ cacheKey, error: "Mermaid diagram is empty.", svg: null });
+      return;
+    }
+
+    let isCurrent = true;
+    setRendered((current) => (current?.cacheKey === cacheKey ? current : null));
+
+    const id = `multi-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${Math.abs(
+      fnv1a32(chart),
+    ).toString(36)}`;
+    mermaid.initialize(createMermaidConfig(themeName));
+    void mermaid
+      .render(id, chart)
+      .then(({ svg }) => {
+        if (!isCurrent) return;
+        setRendered({ cacheKey, error: null, svg });
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return;
+        const message =
+          error instanceof Error ? error.message : "Could not render Mermaid diagram.";
+        setRendered({ cacheKey, error: message, svg: null });
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  });
+
+  return null;
 }
 
 function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNode }) {

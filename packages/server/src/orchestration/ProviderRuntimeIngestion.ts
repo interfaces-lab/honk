@@ -8,6 +8,7 @@ import {
   type OrchestrationProposedPlanId,
   CheckpointRef,
   isToolLifecycleItemType,
+  type ThreadEntryId,
   ThreadId,
   type ThreadTokenUsageSnapshot,
   TurnId,
@@ -64,6 +65,11 @@ type RuntimeIngestionInput =
     };
 
 const processDomainEvent = (_event: TurnStartRequestedDomainEvent) => Effect.void;
+
+type AssistantTreeParent = {
+  readonly turnId: TurnId;
+  readonly parentEntryId: ThreadEntryId;
+};
 
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
   return value === undefined ? undefined : TurnId.make(String(value));
@@ -840,6 +846,37 @@ const make = Effect.fn("make")(function* () {
     return Option.isSome(turn) ? (turn.value.userEntryId ?? undefined) : undefined;
   });
 
+  const resolveAssistantTreeParent = Effect.fn("resolveAssistantTreeParent")(function* (input: {
+    readonly event: ProviderRuntimeEvent;
+    readonly threadId: ThreadId;
+    readonly turnId: TurnId | undefined;
+  }) {
+    if (input.turnId === undefined) {
+      yield* Effect.logWarning("provider runtime event omitted turn id for assistant message", {
+        eventId: input.event.eventId,
+        eventType: input.event.type,
+        threadId: input.threadId,
+      });
+      return undefined;
+    }
+
+    const parentEntryId = yield* getUserEntryIdForTurn(input.threadId, input.turnId);
+    if (parentEntryId === undefined) {
+      yield* Effect.logWarning("provider runtime event could not resolve assistant parent entry", {
+        eventId: input.event.eventId,
+        eventType: input.event.type,
+        threadId: input.threadId,
+        turnId: input.turnId,
+      });
+      return undefined;
+    }
+
+    return {
+      turnId: input.turnId,
+      parentEntryId,
+    };
+  });
+
   const appendBufferedAssistantText = (messageId: MessageId, delta: string) =>
     Cache.getOption(bufferedAssistantTextByMessageId, messageId).pipe(
       Effect.flatMap(
@@ -916,7 +953,15 @@ const make = Effect.fn("make")(function* () {
         : (input.fallbackText?.trim().length ?? 0) > 0
           ? input.fallbackText!
           : "";
-    const parentEntryId = yield* getUserEntryIdForTurn(input.threadId, input.turnId);
+    const treeParent = yield* resolveAssistantTreeParent({
+      event: input.event,
+      threadId: input.threadId,
+      turnId: input.turnId,
+    });
+    if (treeParent === undefined) {
+      yield* clearAssistantMessageState(input.messageId);
+      return;
+    }
 
     if (text.length > 0) {
       yield* orchestrationEngine.dispatch({
@@ -925,8 +970,8 @@ const make = Effect.fn("make")(function* () {
         threadId: input.threadId,
         messageId: input.messageId,
         delta: text,
-        ...(input.turnId ? { turnId: input.turnId } : {}),
-        ...(parentEntryId ? { parentEntryId } : {}),
+        turnId: treeParent.turnId,
+        parentEntryId: treeParent.parentEntryId,
         createdAt: input.createdAt,
       });
     }
@@ -936,8 +981,8 @@ const make = Effect.fn("make")(function* () {
       commandId: providerCommandId(input.event, input.commandTag),
       threadId: input.threadId,
       messageId: input.messageId,
-      ...(input.turnId ? { turnId: input.turnId } : {}),
-      ...(parentEntryId ? { parentEntryId } : {}),
+      turnId: treeParent.turnId,
+      parentEntryId: treeParent.parentEntryId,
       createdAt: input.createdAt,
     });
     yield* clearAssistantMessageState(input.messageId);
@@ -1057,7 +1102,7 @@ const make = Effect.fn("make")(function* () {
   const getSourceProposedPlanReferenceForPendingTurnStart = Effect.fn(
     "getSourceProposedPlanReferenceForPendingTurnStart",
   )(function* (threadId: ThreadId) {
-    const pendingTurnStart = yield* projectionTurnRepository.getPendingTurnStartByThreadId({
+    const pendingTurnStart = yield* projectionTurnRepository.getNextPendingTurnStartByThreadId({
       threadId,
     });
     if (Option.isNone(pendingTurnStart)) {
@@ -1291,10 +1336,15 @@ const make = Effect.fn("make")(function* () {
         `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
       );
       const turnId = toTurnId(event.turnId);
-      const parentEntryId = yield* getUserEntryIdForTurn(thread.id, turnId);
-      if (turnId) {
-        yield* rememberAssistantMessageId(thread.id, turnId, assistantMessageId);
+      const treeParent = yield* resolveAssistantTreeParent({
+        event,
+        threadId: thread.id,
+        turnId,
+      });
+      if (treeParent === undefined) {
+        return;
       }
+      yield* rememberAssistantMessageId(thread.id, treeParent.turnId, assistantMessageId);
 
       const assistantDeliveryMode: AssistantDeliveryMode = yield* Effect.map(
         serverSettingsService.getSettings,
@@ -1309,8 +1359,8 @@ const make = Effect.fn("make")(function* () {
             threadId: thread.id,
             messageId: assistantMessageId,
             delta: spillChunk,
-            ...(turnId ? { turnId } : {}),
-            ...(parentEntryId ? { parentEntryId } : {}),
+            turnId: treeParent.turnId,
+            parentEntryId: treeParent.parentEntryId,
             createdAt: now,
           });
         }
@@ -1321,8 +1371,8 @@ const make = Effect.fn("make")(function* () {
           threadId: thread.id,
           messageId: assistantMessageId,
           delta: assistantDelta,
-          ...(turnId ? { turnId } : {}),
-          ...(parentEntryId ? { parentEntryId } : {}),
+          turnId: treeParent.turnId,
+          parentEntryId: treeParent.parentEntryId,
           createdAt: now,
         });
       }

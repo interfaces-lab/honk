@@ -15,6 +15,12 @@ export function getProjectOrderKey(project: Pick<Project, "environmentId" | "cwd
   return derivePhysicalProjectKey(project);
 }
 
+export function deriveSidebarProjectStateKey(
+  project: Pick<Project, "environmentId" | "cwd">,
+): string {
+  return derivePhysicalProjectKey(project);
+}
+
 export function deriveLogicalProjectKey(
   project: Pick<Project, "environmentId" | "id" | "cwd" | "repositoryIdentity">,
 ): string {

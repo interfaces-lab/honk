@@ -55,6 +55,7 @@ export type ComposerSubmitContext = {
   selectedProviderModels: ReadonlyArray<ServerProvider["models"][number]>;
   selectedPromptEffort: string | null;
   selectedModelSelection: ModelSelection;
+  hasUnresolvedSlashCommand?: boolean | undefined;
 };
 
 export type ComposerSubmitState = {

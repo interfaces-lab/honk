@@ -802,7 +802,11 @@ function deriveSubagentDetailsByProviderThreadId(
   const detailsByProviderThreadId = new Map<string, DerivedSubagentDetails>();
 
   for (const activity of activities) {
-    if (!isSubagentRuntimeActivity(activity) || activity.kind === "subagent.usage.updated") {
+    if (
+      !isSubagentRuntimeActivity(activity) ||
+      activity.kind === "subagent.usage.updated" ||
+      activity.kind === "subagent.content.delta"
+    ) {
       continue;
     }
 
@@ -816,10 +820,7 @@ function deriveSubagentDetailsByProviderThreadId(
     const log = toSubagentLog(activity, payload);
     const rawStatus = resolveSubagentRawStatus(activity, payload) ?? previous?.rawStatus;
     const statusLabel = resolveSubagentStatusLabel(rawStatus) ?? previous?.statusLabel;
-    const latestUpdate =
-      activity.kind === "subagent.content.delta"
-        ? (statusLabel ?? log.label ?? previous?.latestUpdate)
-        : (log.detail ?? statusLabel ?? asTrimmedString(payload?.state) ?? previous?.latestUpdate);
+    const latestUpdate = resolveSubagentLatestUpdate(activity, log, previous?.latestUpdate);
     const logs = [...(previous?.logs ?? []), log].slice(-200);
     detailsByProviderThreadId.set(providerThreadId, {
       rawStatus,
@@ -834,6 +835,52 @@ function deriveSubagentDetailsByProviderThreadId(
   }
 
   return detailsByProviderThreadId;
+}
+
+function resolveSubagentLatestUpdate(
+  activity: OrchestrationThreadActivity,
+  log: WorkLogSubagentLog,
+  previous: string | undefined,
+): string | undefined {
+  if (
+    activity.kind === "subagent.thread.started" ||
+    activity.kind === "subagent.thread.state.changed" ||
+    activity.kind === "subagent.content.delta"
+  ) {
+    return previous;
+  }
+
+  if (isSubagentProviderSnapshotItemType(log.itemType)) {
+    return previous;
+  }
+
+  return log.detail ?? previous;
+}
+
+export function isSubagentProviderSnapshotItemType(itemType: string | undefined): boolean {
+  if (!itemType) {
+    return false;
+  }
+  if (isToolLifecycleItemType(itemType)) {
+    return true;
+  }
+
+  switch (itemType) {
+    case "assistant_message":
+    case "user_message":
+    case "reasoning":
+    case "reasoning_summary":
+    case "agent_reasoning":
+    case "plan":
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+    case "unknown":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function toSubagentLog(

@@ -120,11 +120,30 @@ Do not ask "should I proceed?" in the final output. The user can easily switch o
 Only produce at most one \`<proposed_plan>\` block per turn, and only when you are presenting a complete spec.
 </collaboration_mode>`;
 
+export const CODEX_ASK_MODE_DEVELOPER_INSTRUCTIONS = `<collaboration_mode># Collaboration Mode: Ask
+
+You are now in Ask mode. Any previous instructions for other modes (for example, Plan mode) are no longer active.
+
+Ask mode is for answering questions and explaining the codebase without making changes.
+
+## Mode Rules
+
+- Answer the user's question directly.
+- You may inspect files, search the repository, and run non-mutating commands when needed to answer accurately.
+- Do not edit files, apply patches, run formatters, create commits, or otherwise mutate the workspace.
+- Do not implement requested changes. If the user asks for implementation, explain what would need to change and note that Build mode is the execution mode.
+- Do not produce a \`<proposed_plan>\` block.
+
+## request_user_input availability
+
+The \`request_user_input\` tool is unavailable in Ask mode. If you call it while in Ask mode, it will return an error.
+</collaboration_mode>`;
+
 export const CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS = `<collaboration_mode># Collaboration Mode: Default
 
-You are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.
+You are now in Default mode. Any previous instructions for other modes (e.g. Ask mode or Plan mode) are no longer active.
 
-Your active mode changes only when new developer instructions with a different \`<collaboration_mode>...</collaboration_mode>\` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.
+Your active mode changes only when new developer instructions with a different \`<collaboration_mode>...</collaboration_mode>\` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default, Ask, and Plan.
 
 ## request_user_input availability
 

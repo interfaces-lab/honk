@@ -57,7 +57,7 @@ export const RuntimeMode = Schema.Literals([
 ]);
 export type RuntimeMode = typeof RuntimeMode.Type;
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
-export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);
+export const ProviderInteractionMode = Schema.Literals(["default", "ask", "plan"]);
 export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
 export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";
 export const ProviderRequestKind = Schema.Literals([
@@ -169,11 +169,7 @@ export const OrchestrationMessage = Schema.Struct({
 });
 export type OrchestrationMessage = typeof OrchestrationMessage.Type;
 
-export const OrchestrationThreadEntryKind = Schema.Literals([
-  "message",
-  "branch-summary",
-  "label",
-]);
+export const OrchestrationThreadEntryKind = Schema.Literals(["message", "branch-summary", "label"]);
 export type OrchestrationThreadEntryKind = typeof OrchestrationThreadEntryKind.Type;
 
 export const OrchestrationThreadEntry = Schema.Struct({
@@ -547,6 +543,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
   ),
+  parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
   createdAt: IsoDateTime,
@@ -566,8 +563,23 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
+  parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
+  createdAt: IsoDateTime,
+});
+
+const ThreadTurnRegenerateCommand = Schema.Struct({
+  type: Schema.Literal("thread.turn.regenerate"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  entryId: ThreadEntryId,
+  modelSelection: Schema.optional(ModelSelection),
+  titleSeed: Schema.optional(TrimmedNonEmptyString),
+  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  interactionMode: ProviderInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  ),
   createdAt: IsoDateTime,
 });
 
@@ -641,6 +653,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   ThreadTurnStartCommand,
+  ThreadTurnRegenerateCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
@@ -664,6 +677,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   ClientThreadTurnStartCommand,
+  ThreadTurnRegenerateCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
@@ -688,8 +702,8 @@ const ThreadMessageAssistantDeltaCommand = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
   delta: Schema.String,
-  turnId: Schema.optional(TurnId),
-  parentEntryId: Schema.optional(ThreadEntryId),
+  turnId: TurnId,
+  parentEntryId: ThreadEntryId,
   createdAt: IsoDateTime,
 });
 
@@ -698,8 +712,8 @@ const ThreadMessageAssistantCompleteCommand = Schema.Struct({
   commandId: CommandId,
   threadId: ThreadId,
   messageId: MessageId,
-  turnId: Schema.optional(TurnId),
-  parentEntryId: Schema.optional(ThreadEntryId),
+  turnId: TurnId,
+  parentEntryId: ThreadEntryId,
   createdAt: IsoDateTime,
 });
 
@@ -873,8 +887,8 @@ export const ThreadInteractionModeSetPayload = Schema.Struct({
 export const ThreadMessageSentPayload = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
-  entryId: Schema.optionalKey(ThreadEntryId),
-  parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
+  entryId: ThreadEntryId,
+  parentEntryId: Schema.NullOr(ThreadEntryId),
   role: OrchestrationMessageRole,
   text: Schema.String,
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
@@ -887,7 +901,7 @@ export const ThreadMessageSentPayload = Schema.Struct({
 export const ThreadTurnStartRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
-  userEntryId: Schema.optionalKey(ThreadEntryId),
+  userEntryId: ThreadEntryId,
   modelSelection: Schema.optional(ModelSelection),
   titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),

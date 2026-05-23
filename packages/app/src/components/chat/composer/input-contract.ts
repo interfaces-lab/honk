@@ -6,7 +6,6 @@ import type {
   ProviderApprovalDecision,
   ProviderInteractionMode,
   ResolvedKeybindingsConfig,
-  RuntimeMode,
   ScopedThreadRef,
   ThreadId,
   ServerProvider,
@@ -78,6 +77,7 @@ export interface ComposerInputProps {
   submitDisabled?: boolean | undefined;
   queuedComposerItems?: QueuedComposerItem[] | undefined;
   editingQueuedComposerItemId?: MessageId | null | undefined;
+  queuedComposerItemsExpanded?: boolean | undefined;
 
   activePendingApproval?: PendingApproval | null | undefined;
   pendingApprovals?: PendingApproval[] | undefined;
@@ -102,7 +102,6 @@ export interface ComposerInputProps {
   activeProposedPlan?: Thread["proposedPlans"][number] | null | undefined;
   planSurfaceOpen?: boolean | undefined;
 
-  runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
 
   providerStatuses: ReadonlyArray<ServerProvider>;
@@ -151,8 +150,11 @@ export interface ComposerInputProps {
   onCancelEditingQueuedComposerItem?: (() => void) | undefined;
   onRemoveQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
   onSendQueuedComposerItemNow?: ((itemId: MessageId) => void) | undefined;
+  onReorderQueuedComposerItem?:
+    | ((itemId: MessageId, targetItemId: MessageId | null, insertAfter: boolean) => void)
+    | undefined;
+  onQueuedComposerItemsExpandedChange?: ((expanded: boolean) => void) | undefined;
   toggleInteractionMode: () => void;
-  handleRuntimeModeChange: (mode: RuntimeMode) => void;
   handleInteractionModeChange: (mode: ProviderInteractionMode) => void;
 
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;

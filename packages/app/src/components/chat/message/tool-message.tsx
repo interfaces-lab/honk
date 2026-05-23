@@ -1,6 +1,6 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
 import { IconChevronRightMedium, IconClock, IconRobot } from "central-icons";
-import { memo, useEffect, type KeyboardEvent, type MouseEvent } from "react";
+import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
@@ -11,8 +11,10 @@ import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 import { cn } from "~/lib/utils";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   subagentPreviewKey,
+  subagentPreviewUpdateSignature,
   useSubagentPreviewStore,
 } from "../../../stores/subagent-preview-store";
 
@@ -141,13 +143,7 @@ function SubagentStatusRow({
   const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
   const statusText = subagent.latestUpdate ?? subagent.statusLabel;
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
-
-  useEffect(() => {
-    if (!isPreviewOpen) {
-      return;
-    }
-    updatePreviewSubagent(subagent);
-  }, [isPreviewOpen, subagent, updatePreviewSubagent]);
+  const previewUpdateSignature = isPreviewOpen ? subagentPreviewUpdateSignature(subagent) : "";
 
   const handleOpenPreview = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -166,70 +162,95 @@ function SubagentStatusRow({
     event.stopPropagation();
   };
 
+  const previewUpdateSync = isPreviewOpen ? (
+    <SubagentPreviewUpdateSync
+      key={previewUpdateSignature}
+      subagent={subagent}
+      updatePreviewSubagent={updatePreviewSubagent}
+    />
+  ) : null;
+
   return (
-    <button
-      type="button"
-      className={cn(
-        "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
-        "border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary",
-        hasDetails &&
-          "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
-        isPreviewOpen && hasDetails && "text-multi-fg-primary",
-      )}
-      data-subagent-row=""
-      data-subagent-state={rowState}
-      data-subagent-provider-thread-id={hasProviderThread ? providerThreadId : undefined}
-      disabled={!hasDetails}
-      aria-label={hasDetails ? `Open ${title} details` : undefined}
-      aria-pressed={hasDetails ? isPreviewOpen : undefined}
-      onClick={handleOpenPreview}
-      onKeyDown={handleKeyDown}
-    >
-      <SubagentStatusIndicator subagent={subagent} />
-      <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
-        <span
-          data-subagent-name=""
-          className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-        >
-          {title}
-        </span>
-        {subagent.model ? (
-          <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
-            {subagent.model}
-          </span>
-        ) : null}
-        {statusText ? (
+    <>
+      {previewUpdateSync}
+      <button
+        type="button"
+        className={cn(
+          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
+          "border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary",
+          hasDetails &&
+            "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
+          isPreviewOpen && hasDetails && "text-multi-fg-primary",
+        )}
+        data-subagent-row=""
+        data-subagent-state={rowState}
+        data-subagent-provider-thread-id={hasProviderThread ? providerThreadId : undefined}
+        disabled={!hasDetails}
+        aria-label={hasDetails ? `Open ${title} details` : undefined}
+        aria-pressed={hasDetails ? isPreviewOpen : undefined}
+        onClick={handleOpenPreview}
+        onKeyDown={handleKeyDown}
+      >
+        <SubagentStatusIndicator subagent={subagent} />
+        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
           <span
-            data-subagent-task=""
-            className={cn(
-              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
-              subagent.isActive && "tool-call-shimmer",
-            )}
+            data-subagent-name=""
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
           >
-            {statusText}
+            {title}
           </span>
-        ) : null}
-        {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
-          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
-            {formatSubagentUsageLabel(subagent)}
-          </span>
-        ) : null}
-      </span>
-      {hasDetails ? (
-        <span
-          className={cn(
-            "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
-            "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
-            isPreviewOpen && "opacity-100",
-          )}
-          data-subagent-open=""
-          aria-hidden="true"
-        >
-          <IconChevronRightMedium className="size-3" />
+          {subagent.model ? (
+            <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
+              {subagent.model}
+            </span>
+          ) : null}
+          {statusText ? (
+            <span
+              data-subagent-task=""
+              className={cn(
+                "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
+                subagent.isActive && "tool-call-shimmer",
+              )}
+            >
+              {statusText}
+            </span>
+          ) : null}
+          {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
+            <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+              {formatSubagentUsageLabel(subagent)}
+            </span>
+          ) : null}
         </span>
-      ) : null}
-    </button>
+        {hasDetails ? (
+          <span
+            className={cn(
+              "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
+              "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
+              isPreviewOpen && "opacity-100",
+            )}
+            data-subagent-open=""
+            aria-hidden="true"
+          >
+            <IconChevronRightMedium className="size-3" />
+          </span>
+        ) : null}
+      </button>
+    </>
   );
+}
+
+function SubagentPreviewUpdateSync({
+  subagent,
+  updatePreviewSubagent,
+}: {
+  subagent: WorkLogSubagent;
+  updatePreviewSubagent: (subagent: WorkLogSubagent) => void;
+}) {
+  useMountEffect(() => {
+    updatePreviewSubagent(subagent);
+  });
+
+  return null;
 }
 
 function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {

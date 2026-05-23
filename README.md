@@ -6,6 +6,8 @@ Multi is a **desktop app** built around a local server. Agent runs, approvals, a
 
 Built-in providers: **Codex**, **Claude**, **OpenCode**, and **Cursor**.
 
+Multi defaults to **full access** so agents can run commands, edit files, and iterate without approval prompts. If you want a supervised workflow, set the default agent access in Settings.
+
 ## Install
 
 Download the desktop app for your platform from [GitHub Releases](https://github.com/interfaces-lab/multi/releases).
@@ -21,7 +23,7 @@ Enable at least one provider in Settings before starting a thread:
 
 ## Runtime modes
 
-Each thread uses a **runtime mode** that maps provider permission prompts into one policy. Choose it in the composer before you send.
+Each agent turn uses a **runtime mode** that maps provider permission prompts into one policy. Full access is the default; change the default in Settings -> Agents.
 
 | Mode                  | Behavior                                                               |
 | --------------------- | ---------------------------------------------------------------------- |

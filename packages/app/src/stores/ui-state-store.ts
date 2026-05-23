@@ -28,7 +28,7 @@ export interface UiState extends UiProjectState, UiThreadState {}
 export interface SyncProjectInput {
   /** Physical project key (environment + cwd). Used for manual sort order. */
   key: string;
-  /** Logical group key. Used for expand/collapse state. */
+  /** Sidebar section state key. Used for expand/collapse state. */
   logicalKey: string;
   cwd: string;
 }

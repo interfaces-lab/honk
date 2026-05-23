@@ -101,6 +101,7 @@ function buildProps() {
     onImageExpand: () => {},
     activeThreadEnvironmentId: ACTIVE_THREAD_ENVIRONMENT_ID,
     activeThreadId: ACTIVE_THREAD_ID,
+    timelineCacheKey: `${ACTIVE_THREAD_ID}:linear`,
     markdownCwd: undefined,
     projectRoot: undefined,
     onIsAtBottomChange: () => {},

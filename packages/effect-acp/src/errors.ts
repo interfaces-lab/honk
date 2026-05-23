@@ -2,6 +2,15 @@ import * as Schema from "effect/Schema";
 
 import * as AcpSchema from "./_generated/schema.gen.ts";
 
+function readErrorDataDetail(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null) {
+    return undefined;
+  }
+  const record = data as Record<string, unknown>;
+  const detail = record.details ?? record.message;
+  return typeof detail === "string" && detail.trim().length > 0 ? detail.trim() : undefined;
+}
+
 export class AcpSpawnError extends Schema.TaggedErrorClass<AcpSpawnError>()("AcpSpawnError", {
   command: Schema.optional(Schema.String),
   cause: Schema.Defect,
@@ -53,7 +62,11 @@ export class AcpRequestError extends Schema.TaggedErrorClass<AcpRequestError>()(
   data: Schema.optional(Schema.Unknown),
 }) {
   override get message() {
-    return this.errorMessage;
+    const detail = readErrorDataDetail(this.data);
+    if (!detail || detail === this.errorMessage) {
+      return this.errorMessage;
+    }
+    return `${this.errorMessage}: ${detail}`;
   }
 
   static fromProtocolError(error: AcpSchema.Error) {

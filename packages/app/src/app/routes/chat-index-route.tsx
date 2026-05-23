@@ -9,8 +9,9 @@ import {
 import { newDraftId, newThreadId } from "~/lib/utils";
 import { readLastChatRouteTarget } from "~/app/routes/chat-route-persistence";
 import { buildDraftThreadRouteParams } from "~/app/routes/thread-route-targets";
-import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
+import { DEFAULT_INTERACTION_MODE } from "~/types";
 import { useMountEffect } from "~/hooks/use-mount-effect";
+import { useSettings } from "~/hooks/use-settings";
 
 export function ChatIndexRouteView() {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ function ChatIndexRouteSync(props: {
     (store) => store.setProjectlessDraftThreadId,
   );
   const applyStickyState = useComposerDraftStore((store) => store.applyStickyState);
+  const defaultRuntimeMode = useSettings((settings) => settings.defaultRuntimeMode);
 
   useMountEffect(() => {
     const lastChatRouteTarget = readLastChatRouteTarget();
@@ -78,7 +80,7 @@ function ChatIndexRouteSync(props: {
       setProjectlessDraftThreadId(props.activeEnvironmentId, draftId, {
         threadId: newThreadId(),
         createdAt: new Date().toISOString(),
-        runtimeMode: DEFAULT_RUNTIME_MODE,
+        runtimeMode: defaultRuntimeMode,
         interactionMode: DEFAULT_INTERACTION_MODE,
       });
       applyStickyState(draftId);

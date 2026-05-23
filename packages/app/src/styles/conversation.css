@@ -25,6 +25,14 @@
   --multi-composer-toolbar-padding-y: 8px;
   --multi-composer-blur: 10px;
   --multi-composer-queue-max-height: 200px;
+  --multi-composer-queue-panel-radius: var(--multi-composer-radius-expanded);
+  --multi-composer-queue-panel-list-max-height: 200px;
+  --multi-composer-queue-panel-shadow:
+    0 1px 1px color-mix(in srgb, var(--multi-shadow-primary) 10%, transparent),
+    0 8px 22px -18px color-mix(in srgb, var(--multi-shadow-primary) 55%, transparent);
+  --multi-composer-queue-panel-blur: var(--multi-composer-blur, 10px);
+  --multi-composer-queue-panel-background: var(--multi-chat-bubble-background);
+  --multi-composer-queue-panel-opaque-background: var(--multi-chat-bubble-opaque-background);
   --multi-composer-context-usage-bar-max-height: 24px;
   --multi-composer-subagent-preview-max-height: min(70dvh, calc(100dvh - 12rem));
   --multi-composer-subagent-preview-min-height: 160px;
@@ -124,6 +132,124 @@
   overflow: hidden;
   -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
+}
+
+[data-queued-composer-panel-stack] {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+}
+
+[data-queued-composer-panel] {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--multi-composer-queue-panel-radius);
+  background-color: var(--multi-composer-queue-panel-background);
+  box-shadow: var(--multi-composer-queue-panel-shadow);
+  pointer-events: auto;
+  transform-origin: bottom center;
+}
+
+[data-queued-composer-panel]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--cursor-stroke-tertiary);
+  pointer-events: none;
+}
+
+[data-queued-composer-panel] [data-queue-row="true"][data-editing] {
+  background-color: var(--multi-bg-tertiary);
+}
+
+[data-queued-composer-panel] .queue-sortable-row {
+  position: relative;
+  touch-action: none;
+  transition: opacity 0.12s ease;
+}
+
+[data-queued-composer-panel] .queue-sortable-row:hover,
+[data-queued-composer-panel] .queue-sortable-row:focus-within,
+[data-queued-composer-panel] .queue-sortable-row[data-keyboard-focused] {
+  background-color: var(--multi-bg-quaternary);
+}
+
+[data-queued-composer-panel] .queue-sortable-row[data-editing]:hover,
+[data-queued-composer-panel] .queue-sortable-row[data-editing]:focus-within {
+  background-color: var(--multi-bg-tertiary);
+}
+
+[data-queued-composer-panel] .queue-sortable-row[data-dragging] {
+  cursor: grabbing;
+  opacity: 0.35;
+}
+
+[data-queued-composer-panel] .agent-panel-queue-items:focus-visible {
+  outline: none;
+}
+
+[data-queued-composer-panel] .queue-row-thumbnail {
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+}
+
+[data-queued-composer-panel] .queue-row-thumbnails {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+[data-queued-composer-panel] .queue-row-thumbnails__overflow {
+  padding-left: 1px;
+  color: var(--cursor-text-tertiary);
+  font-size: 9px;
+}
+
+[data-queued-composer-panel] .queue-sortable-row .ui-tray-row__content {
+  overflow: hidden;
+}
+
+[data-queued-composer-panel] .queue-drop-indicator {
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  z-index: 2;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--cursor-stroke-focused);
+  pointer-events: none;
+}
+
+[data-queued-composer-panel] .queue-drop-indicator--before {
+  top: 0;
+}
+
+[data-queued-composer-panel] .queue-drop-indicator--after {
+  bottom: 0;
+}
+
+[data-queued-composer-panel] .queue-tray__header-count {
+  min-width: 0;
+}
+
+body[data-multi-glass-mode="true"] [data-queued-composer-panel] {
+  backdrop-filter: blur(var(--multi-composer-queue-panel-blur));
+  -webkit-backdrop-filter: blur(var(--multi-composer-queue-panel-blur));
+}
+
+body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-queued-composer-panel] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background-color: var(--multi-composer-queue-panel-opaque-background);
+}
+
+body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-queued-composer-panel]::after {
+  box-shadow: inset 0 0 0 1px var(--cursor-stroke-tertiary);
 }
 
 [data-composer-context-usage-bar] {

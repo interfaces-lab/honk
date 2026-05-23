@@ -1,42 +1,85 @@
-import { type ProviderThreadSnapshot, type ProviderThreadSnapshotItem } from "@multi/contracts";
+import {
+  type ProviderThreadSnapshot,
+  type ProviderThreadSnapshotItem,
+  type ThreadId,
+} from "@multi/contracts";
 import { IconCrossSmall } from "central-icons";
-import { memo, useEffect, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import ChatMarkdown from "../markdown/chat-markdown";
+import { ChatMessageBubble } from "../message/message-surface";
 import { ExpandableToolMetadataLine, ToolCallLine } from "../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import { readEnvironmentApi } from "~/environment-api";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import { type WorkLogSubagentLog } from "../../../session-logic";
 import {
+  isSubagentPreviewLogVisible,
   subagentPreviewKey,
   useSubagentPreviewStore,
   type SubagentPreviewSelection,
 } from "../../../stores/subagent-preview-store";
 
+const EMPTY_SUBAGENT_LOGS: ReadonlyArray<WorkLogSubagentLog> = [];
+
 export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(props: {
+  activeThreadId: ThreadId | null;
   compact: boolean;
 }) {
   const preview = useSubagentPreviewStore((state) => state.preview);
   const closePreview = useSubagentPreviewStore((state) => state.closePreview);
+  const previewKey = preview?.key ?? null;
+  const previewActiveThreadId = preview?.activeThreadId ?? null;
+  const belongsToActiveThread =
+    props.activeThreadId !== null && previewActiveThreadId === props.activeThreadId;
+  const activeThreadSync = (
+    <SubagentPreviewActiveThreadSync
+      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}`}
+      belongsToActiveThread={belongsToActiveThread}
+      closePreview={closePreview}
+      previewKey={previewKey}
+    />
+  );
 
-  if (!preview) {
-    return null;
+  if (!preview || !belongsToActiveThread) {
+    return activeThreadSync;
   }
 
   return (
-    <div
-      className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
-      data-subagent-followup-tray-stack=""
-    >
+    <>
+      {activeThreadSync}
       <div
-        className={cn("font-multi text-conversation", props.compact ? "w-full" : "")}
-        data-subagent-followup-tray=""
-        data-subagent-preview-open=""
+        className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
+        data-subagent-followup-tray-stack=""
       >
-        <SubagentPreviewTray selection={preview} onClose={closePreview} />
+        <div
+          className={cn("font-multi text-conversation", props.compact ? "w-full" : "")}
+          data-subagent-followup-tray=""
+          data-subagent-preview-open=""
+        >
+          <SubagentPreviewTray selection={preview} onClose={closePreview} />
+        </div>
       </div>
-    </div>
+    </>
   );
 });
+
+function SubagentPreviewActiveThreadSync({
+  belongsToActiveThread,
+  closePreview,
+  previewKey,
+}: {
+  belongsToActiveThread: boolean;
+  closePreview: () => void;
+  previewKey: string | null;
+}) {
+  useMountEffect(() => {
+    if (previewKey !== null && !belongsToActiveThread) {
+      closePreview();
+    }
+  });
+
+  return null;
+}
 
 const SubagentPreviewTray = memo(function SubagentPreviewTray(props: {
   selection: SubagentPreviewSelection;
@@ -72,10 +115,21 @@ const SubagentPreviewTray = memo(function SubagentPreviewTray(props: {
           <IconCrossSmall className="size-3.5" aria-hidden="true" />
         </button>
       </div>
-      <SubagentPreviewBody selection={selection} />
+      <SubagentPreviewBody key={subagentPreviewBodyKey(selection)} selection={selection} />
     </div>
   );
 });
+
+function subagentPreviewBodyKey(selection: SubagentPreviewSelection): string {
+  const subagent = selection.subagent;
+  return [
+    selection.activeThreadId,
+    selection.environmentId,
+    subagentPreviewKey(subagent),
+    subagent.providerThreadId?.trim() ?? "",
+    subagent.isActive === true ? "1" : "0",
+  ].join("\u001f");
+}
 
 type SubagentSnapshotState =
   | { readonly status: "idle" }
@@ -87,20 +141,20 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   selection: SubagentPreviewSelection;
 }) {
   const { activeThreadId, environmentId, projectRoot, subagent } = props.selection;
-  const previewKey = subagentPreviewKey(subagent);
   const isActive = subagent.isActive === true;
   const [snapshotState, setSnapshotState] = useState<SubagentSnapshotState>({ status: "idle" });
-  const logs = aggregateSubagentLogs(subagent.logs ?? []);
   const providerThreadId = subagent.providerThreadId?.trim();
   const canReadTranscript = (providerThreadId?.length ?? 0) > 0;
-  const runningLogs = filterVisibleSubagentLogs(logs, canReadTranscript);
+  const hasCanonicalTranscript =
+    snapshotState.status === "loaded" && snapshotHasItems(snapshotState.snapshot);
+  const logs = subagent.logs ?? EMPTY_SUBAGENT_LOGS;
+  const runningLogs = useMemo(
+    () => deriveVisibleSubagentLogs(logs, hasCanonicalTranscript),
+    [hasCanonicalTranscript, logs],
+  );
   const streamingLogId = runningLogs.at(-1)?.id;
 
-  useEffect(() => {
-    setSnapshotState({ status: "idle" });
-  }, [isActive, previewKey, providerThreadId]);
-
-  useEffect(() => {
+  useMountEffect(() => {
     if (!canReadTranscript || !providerThreadId) {
       return;
     }
@@ -112,31 +166,52 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
     }
 
     let cancelled = false;
-    setSnapshotState({ status: "loading" });
-    void api.orchestration
-      .getProviderThreadSnapshot({
-        threadId: activeThreadId,
-        providerThreadId,
-        includeTurns: true,
-      })
-      .then((snapshot) => {
-        if (!cancelled) {
+    let refreshTimeoutId: number | undefined;
+
+    const readSnapshot = (showLoading: boolean) => {
+      if (showLoading) {
+        setSnapshotState((current) =>
+          current.status === "loaded" ? current : { status: "loading" },
+        );
+      }
+
+      void api.orchestration
+        .getProviderThreadSnapshot({
+          threadId: activeThreadId,
+          providerThreadId,
+          includeTurns: true,
+        })
+        .then((snapshot) => {
+          if (cancelled) {
+            return;
+          }
           setSnapshotState({ status: "loaded", snapshot });
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
+        })
+        .catch((error: unknown) => {
+          if (cancelled) {
+            return;
+          }
           setSnapshotState({
             status: "error",
             message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
           });
-        }
-      });
+        })
+        .finally(() => {
+          if (!cancelled && isActive) {
+            refreshTimeoutId = window.setTimeout(() => readSnapshot(false), 2500);
+          }
+        });
+    };
+
+    readSnapshot(true);
 
     return () => {
       cancelled = true;
+      if (refreshTimeoutId !== undefined) {
+        window.clearTimeout(refreshTimeoutId);
+      }
     };
-  }, [activeThreadId, canReadTranscript, environmentId, isActive, previewKey, providerThreadId]);
+  });
 
   return (
     <div
@@ -172,7 +247,7 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   );
 });
 
-function SubagentSnapshotSection({
+const SubagentSnapshotSection = memo(function SubagentSnapshotSection({
   isStreaming,
   projectRoot,
   snapshotState,
@@ -221,9 +296,9 @@ function SubagentSnapshotSection({
       ))}
     </div>
   );
-}
+});
 
-function SubagentSnapshotItem({
+const SubagentSnapshotItem = memo(function SubagentSnapshotItem({
   isStreaming,
   item,
   projectRoot,
@@ -244,9 +319,10 @@ function SubagentSnapshotItem({
 
   if (item.role === "user" && detail) {
     return (
-      <div className="min-w-0 select-text whitespace-pre-wrap break-words text-conversation text-multi-fg-primary">
-        {detail}
-      </div>
+      <ChatMessageBubble
+        role="user"
+        body={<SubagentUserMessageBody detail={detail} title={item.title} />}
+      />
     );
   }
 
@@ -261,7 +337,24 @@ function SubagentSnapshotItem({
       loading={isStreaming}
     />
   );
-}
+});
+
+const SubagentUserMessageBody = memo(function SubagentUserMessageBody({
+  detail,
+  title,
+}: {
+  detail: string;
+  title: string | undefined;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      {title ? (
+        <div className="select-none text-caption font-medium text-multi-fg-tertiary">{title}</div>
+      ) : null}
+      <div className="min-w-0 whitespace-pre-wrap break-words wrap-anywhere">{detail}</div>
+    </div>
+  );
+});
 
 const SubagentActivityLine = memo(function SubagentActivityLine({
   action,
@@ -293,6 +386,10 @@ function shouldExpandSubagentActivityDetail(detail: string): boolean {
   return detail.includes("\n") || detail.length > 160;
 }
 
+function snapshotHasItems(snapshot: ProviderThreadSnapshot): boolean {
+  return snapshot.turns.some((turn) => turn.items.length > 0);
+}
+
 function formatSnapshotTypeLabel(value: string): string {
   return value
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -302,87 +399,16 @@ function formatSnapshotTypeLabel(value: string): string {
     .join(" ");
 }
 
-function aggregateSubagentLogs(
+function deriveVisibleSubagentLogs(
   logs: ReadonlyArray<WorkLogSubagentLog>,
+  hasCanonicalTranscript: boolean,
 ): ReadonlyArray<WorkLogSubagentLog> {
-  const aggregated: WorkLogSubagentLog[] = [];
+  const visibleLogs: WorkLogSubagentLog[] = [];
   for (const log of logs) {
-    const previousIndex = aggregated.length - 1;
-    const previous = previousIndex >= 0 ? aggregated[previousIndex] : undefined;
-    if (previous && shouldMergeSubagentLog(previous, log)) {
-      aggregated[previousIndex] = {
-        ...previous,
-        id: `${previous.id}:${log.id}`,
-        createdAt: log.createdAt,
-        detail: mergeStreamText(previous.detail, log.detail),
-        status: log.status ?? previous.status,
-      };
+    if (!isSubagentPreviewLogVisible(log, hasCanonicalTranscript)) {
       continue;
     }
-    aggregated.push(log);
+    visibleLogs.push(log);
   }
-  return aggregated.slice(-80);
-}
-
-function filterVisibleSubagentLogs(
-  logs: ReadonlyArray<WorkLogSubagentLog>,
-  hasProviderTranscript: boolean,
-): ReadonlyArray<WorkLogSubagentLog> {
-  return logs.filter((log) => {
-    if (log.kind === "subagent.content.delta") {
-      return false;
-    }
-    if (!hasProviderTranscript) {
-      return true;
-    }
-    if (log.kind === "subagent.thread.state.changed") {
-      return false;
-    }
-    return !isTranscriptItemLog(log);
-  });
-}
-
-function isTranscriptItemLog(log: WorkLogSubagentLog): boolean {
-  switch (log.itemType) {
-    case "assistant_message":
-    case "user_message":
-    case "reasoning":
-    case "reasoning_summary":
-    case "agent_reasoning":
-      return true;
-    default:
-      return false;
-  }
-}
-
-function shouldMergeSubagentLog(previous: WorkLogSubagentLog, next: WorkLogSubagentLog): boolean {
-  if (previous.kind !== "subagent.content.delta" || next.kind !== "subagent.content.delta") {
-    return false;
-  }
-  if (previous.streamKind !== next.streamKind) {
-    return false;
-  }
-  if (previous.itemId || next.itemId) {
-    return previous.itemId === next.itemId;
-  }
-  return previous.label === next.label;
-}
-
-function mergeStreamText(
-  previous: string | undefined,
-  next: string | undefined,
-): string | undefined {
-  if (!previous) {
-    return next;
-  }
-  if (!next || next === previous) {
-    return previous;
-  }
-  if (next.startsWith(previous)) {
-    return next;
-  }
-  if (previous.endsWith(next)) {
-    return previous;
-  }
-  return `${previous}${next}`;
+  return visibleLogs.slice(-80);
 }

@@ -13,6 +13,7 @@ export * from "./server";
 export * from "./settings";
 export * from "./git";
 export * from "./orchestration";
+export * from "./thread-tree";
 export * from "./editor";
 export * from "./project";
 export * from "./filesystem";

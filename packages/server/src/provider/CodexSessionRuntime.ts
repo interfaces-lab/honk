@@ -31,6 +31,7 @@ import * as EffectCodexSchema from "effect-codex-app-server/schema";
 import { buildCodexInitializeParams } from "./CodexProvider.ts";
 import { buildCodexAppServerEnv } from "./codex-app-server-env.ts";
 import {
+  CODEX_ASK_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS,
 } from "./CodexDeveloperInstructions.ts";
@@ -346,15 +347,20 @@ function buildCodexCollaborationMode(input: {
     return undefined;
   }
   const model = normalizeCodexModelSlug(input.model) ?? CODEX_FALLBACK_MODEL;
+  const mode: EffectCodexSchema.V2TurnStartParams__ModeKind =
+    input.interactionMode === "plan" ? "plan" : "default";
+  const developerInstructions =
+    input.interactionMode === "plan"
+      ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
+      : input.interactionMode === "ask"
+        ? CODEX_ASK_MODE_DEVELOPER_INSTRUCTIONS
+        : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS;
   return {
-    mode: input.interactionMode,
+    mode,
     settings: {
       model,
       reasoning_effort: input.effort ?? "medium",
-      developer_instructions:
-        input.interactionMode === "plan"
-          ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
-          : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
+      developer_instructions: developerInstructions,
     },
   };
 }
@@ -694,21 +700,25 @@ function updateSession(
 
 function parseThreadSnapshot(
   response: EffectCodexSchema.V2ThreadReadResponse | EffectCodexSchema.V2ThreadRollbackResponse,
+  options: { readonly userMessageTitle?: string | undefined } = {},
 ): CodexThreadSnapshot {
   return {
     threadId: response.thread.id,
     providerThreadId: response.thread.id,
     turns: response.thread.turns.map((turn) => ({
       id: TurnId.make(turn.id),
-      items: turn.items.map(codexThreadSnapshotItem),
+      items: turn.items.map((item) => codexThreadSnapshotItem(item, options)),
     })),
   };
 }
 
-function codexThreadSnapshotItem(item: CodexThreadItem): ProviderThreadSnapshotItem {
+function codexThreadSnapshotItem(
+  item: CodexThreadItem,
+  options: { readonly userMessageTitle?: string | undefined },
+): ProviderThreadSnapshotItem {
   const itemType = codexThreadSnapshotItemType(readStringField(item, "type"));
   const id = readStringField(item, "id");
-  const title = codexThreadSnapshotItemTitle(itemType, item);
+  const title = codexThreadSnapshotItemTitle(itemType, item, options);
   const detail = codexThreadSnapshotItemDetail(item);
   return {
     ...(id ? { id } : {}),
@@ -774,6 +784,7 @@ function codexThreadSnapshotItemRole(
 function codexThreadSnapshotItemTitle(
   itemType: CanonicalItemType,
   item: CodexThreadItem,
+  options: { readonly userMessageTitle?: string | undefined },
 ): string | undefined {
   const explicitTitle = readStringField(item, "title");
   if (explicitTitle) {
@@ -781,6 +792,14 @@ function codexThreadSnapshotItemTitle(
   }
 
   switch (itemType) {
+    case "user_message":
+      return options.userMessageTitle ?? "User message";
+    case "assistant_message":
+      return "Assistant message";
+    case "reasoning":
+      return "Reasoning";
+    case "plan":
+      return "Plan";
     case "command_execution":
       return "Ran command";
     case "file_change":
@@ -1481,7 +1500,9 @@ export const makeCodexSessionRuntime = (
             threadId: providerThreadId,
             includeTurns: input?.includeTurns ?? true,
           });
-          return parseThreadSnapshot(response);
+          return parseThreadSnapshot(response, {
+            userMessageTitle: input?.providerThreadId ? "Instruction" : "User message",
+          });
         }),
       rollbackThread: (numTurns) =>
         Effect.gen(function* () {

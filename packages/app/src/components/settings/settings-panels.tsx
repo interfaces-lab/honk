@@ -14,6 +14,7 @@ import {
   defaultInstanceIdForDriver,
   type ProviderInstanceConfig,
   type ProviderInstanceId,
+  type RuntimeMode,
   type ScopedThreadRef,
   ProviderDriverKind,
 } from "@multi/contracts";
@@ -115,6 +116,16 @@ const AGENT_WINDOW_USAGE_SUMMARY_DISPLAY_LABELS: Record<AgentWindowUsageSummaryD
   always: "Always",
   never: "Never",
 };
+
+const RUNTIME_MODE_LABELS: Record<RuntimeMode, string> = {
+  "full-access": "Full access",
+  "auto-accept-edits": "Auto-accept edits",
+  "approval-required": "Supervised",
+};
+
+function isRuntimeMode(value: string | null | undefined): value is RuntimeMode {
+  return value === "full-access" || value === "auto-accept-edits" || value === "approval-required";
+}
 
 type ProviderSettingsDescriptor = {
   provider: typeof ProviderDriverKind.Type;
@@ -321,6 +332,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.enableAssistantStreaming !== DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming
         ? ["Assistant output"]
         : []),
+      ...(settings.defaultRuntimeMode !== DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode
+        ? ["Agent access"]
+        : []),
       ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
         ? ["New thread mode"]
         : []),
@@ -360,6 +374,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.confirmThreadDelete,
       settings.cursorPointerOnButtons,
       settings.addProjectBaseDirectory,
+      settings.defaultRuntimeMode,
       settings.defaultThreadEnvMode,
       settings.diffWordWrap,
       settings.enableAssistantStreaming,
@@ -1020,6 +1035,52 @@ export function AgentsSettingsPanel() {
                 updateSettings({ enableAssistantStreaming: Boolean(checked) })
               }
             />
+          }
+        />
+        <SettingsRow
+          title="Agent access"
+          description="Default tool and command access for agent turns."
+          resetAction={
+            settings.defaultRuntimeMode !== DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode ? (
+              <SettingResetButton
+                label="agent access"
+                onClick={() =>
+                  updateSettings({
+                    defaultRuntimeMode: DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.defaultRuntimeMode}
+              onValueChange={(value) => {
+                if (isRuntimeMode(value)) {
+                  updateSettings({ defaultRuntimeMode: value });
+                }
+              }}
+            >
+              <SelectTrigger
+                size="xs"
+                variant="outline"
+                className="w-full sm:w-42"
+                aria-label="Agent access"
+              >
+                <SelectValue>{RUNTIME_MODE_LABELS[settings.defaultRuntimeMode]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="full-access">
+                  {RUNTIME_MODE_LABELS["full-access"]}
+                </SelectItem>
+                <SelectItem hideIndicator value="auto-accept-edits">
+                  {RUNTIME_MODE_LABELS["auto-accept-edits"]}
+                </SelectItem>
+                <SelectItem hideIndicator value="approval-required">
+                  {RUNTIME_MODE_LABELS["approval-required"]}
+                </SelectItem>
+              </SelectPopup>
+            </Select>
           }
         />
         <SettingsRow

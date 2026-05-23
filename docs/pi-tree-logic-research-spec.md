@@ -141,11 +141,7 @@ export type ThreadEntryId = typeof ThreadEntryId.Type;
 Add flat tree entries to `packages/contracts/src/orchestration.ts`.
 
 ```ts
-export const OrchestrationThreadEntryKind = Schema.Literals([
-  "message",
-  "branch-summary",
-  "label",
-]);
+export const OrchestrationThreadEntryKind = Schema.Literals(["message", "branch-summary", "label"]);
 export type OrchestrationThreadEntryKind = typeof OrchestrationThreadEntryKind.Type;
 
 export const OrchestrationThreadEntry = Schema.Struct({
@@ -341,7 +337,11 @@ export function getPathToRoot(input: {
 export function buildThreadTree(entries: ReadonlyArray<ThreadTreeEntry>): ThreadTreeNode[] {
   const labelsByTarget = new Map<string, { label: string; timestamp: string }>();
   for (const entry of entries) {
-    if (entry.kind !== "label" || entry.targetEntryId === undefined || entry.targetEntryId === null) {
+    if (
+      entry.kind !== "label" ||
+      entry.targetEntryId === undefined ||
+      entry.targetEntryId === null
+    ) {
       continue;
     }
     const key = entry.targetEntryId;
@@ -361,7 +361,9 @@ export function buildThreadTree(entries: ReadonlyArray<ThreadTreeEntry>): Thread
     const resolvedLabel = labelsByTarget.get(entry.id);
     nodes.set(entry.id, {
       entry,
-      ...(resolvedLabel ? { label: resolvedLabel.label, labelTimestamp: resolvedLabel.timestamp } : {}),
+      ...(resolvedLabel
+        ? { label: resolvedLabel.label, labelTimestamp: resolvedLabel.timestamp }
+        : {}),
       children: [],
     });
   }
@@ -713,6 +715,42 @@ Do this only after provider behavior is decided. The storage and UI pieces can s
 6. Update app store/types/thread sync.
 7. Add React whole-tree panel UI.
 8. Add provider context reconstruction or explicitly ship UI-only tree behavior.
+
+## Implemented Low-Level Direction
+
+This branch should keep the normalized projection format. Do not switch to Pi JSONL, a JSON tree blob, or parent columns on `projection_thread_messages`. The implementation should treat `orchestration_events` as durable facts and `projection_thread_entries` plus `projection_threads.active_entry_id` as read-model storage.
+
+The hardening pass should add a shared contracts-level tree invariant module instead of one-off call-site logic. That module owns navigable-entry filtering, root-to-leaf path validation, path issue formatting, and active-cursor update rules. Server projections, app sync, and UI branch filtering should all use the same helper so missing parents, label rows, and cycles fail closed the same way.
+
+Command/event invariants should be strict:
+
+- `thread.turn.start` accepts an optional `parentEntryId`, validates that parent path, creates a user entry under it, and emits `thread.turn-start-requested.userEntryId`.
+- `thread.turn.regenerate` targets an existing user message entry, moves the active cursor to that user entry, and starts a new provider turn from the existing prompt instead of mutating old history.
+- `thread.message.assistant.delta` and `thread.message.assistant.complete` require `turnId` and `parentEntryId`; assistant entries attach under the originating user entry, never under mutable `activeEntryId`.
+- `thread.message-sent` requires `entryId` and `parentEntryId`; projections must not infer topology from message order.
+- `thread.tree.navigate` and `thread.tree.label.set` validate a navigable target path and reject label/non-navigable rows.
+
+Provider orchestration should reconstruct context from the stable user-entry path recorded on the pending turn. If that path is invalid, fail the provider command rather than sending a stale linear session. Starting a provider turn from reconstructed tree context should discard the old provider resume cursor even when the selected path has zero prior messages, because root-level edit/regenerate branches otherwise reuse stale linear provider history. Streaming ingestion should resolve the user entry from turn projection before dispatching assistant deltas/completion, and should drop/log output that cannot be anchored.
+
+Pending turn starts should append and be consumed in dispatch order, not stored as one replace-by-thread row. Assistant parentage depends on `userEntryId`; a later pending request must not overwrite the entry anchor for an earlier provider turn that has not emitted `turn.started` yet.
+
+Projection and app sync should not cap messages or entries independently. A capped message list with uncapped entries breaks tree integrity. If a future cap is required, it must be coherent and render placeholders for missing message rows.
+
+The whole-tree UI should make branch state explicit instead of hiding it inside the timeline:
+
+- The right panel shows selected node, active path, sibling branches, child branches, and the whole tree.
+- Selecting a node previews that branch in the chat timeline, with a visible branch-preview banner.
+- Activating an assistant/summary node continues from that point.
+- Regenerating a user node dispatches `thread.turn.regenerate`.
+- Editing a user node sends a sibling branch under the original parent when tree metadata exists, preserving the old branch; checkpoint revert remains only as a fallback for legacy messages without entries.
+- Panel surfaces should use workbench panel background/title variables and `central-icons`.
+
+Still out of scope for this pass:
+
+- Branch summaries.
+- Search/filter/fold keybindings in the tree panel.
+- Sidebar branch counters.
+- Provider adapter-specific fork/session restart behavior beyond sending reconstructed context where supported.
 
 ## What Else Matters
 

@@ -20,7 +20,11 @@ import type {
   ThreadId,
   TurnId,
 } from "@multi/contracts";
-import { isProviderDriverKind, ProviderDriverKind } from "@multi/contracts";
+import {
+  isProviderDriverKind,
+  ProviderDriverKind,
+  resolveActiveEntryIdAfterThreadMessage,
+} from "@multi/contracts";
 import { normalizeModelSlug } from "@multi/shared/model";
 import type {
   ChatMessage,
@@ -44,8 +48,6 @@ import {
   type EnvironmentState,
 } from "./thread-store";
 
-const MAX_THREAD_MESSAGES = 2_000;
-const MAX_THREAD_ENTRIES = 4_000;
 const MAX_THREAD_CHECKPOINTS = 500;
 const MAX_THREAD_PROPOSED_PLANS = 200;
 const MAX_THREAD_ACTIVITIES = 500;
@@ -105,12 +107,10 @@ function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage)
   };
 }
 
-function mapThreadEntry(entry: NonNullable<OrchestrationThread["entries"]>[number]): ThreadTreeEntry {
+function mapThreadEntry(
+  entry: NonNullable<OrchestrationThread["entries"]>[number],
+): ThreadTreeEntry {
   return { ...entry };
-}
-
-function threadEntryIdForMessageId(messageId: MessageId): ThreadEntryId {
-  return `message:${messageId}` as ThreadEntryId;
 }
 
 function mapProposedPlan(proposedPlan: OrchestrationProposedPlan): ProposedPlan {
@@ -394,9 +394,10 @@ function buildEntrySlice(thread: Thread): {
   const entries = thread.entries ?? [];
   return {
     ids: entries.map((entry) => entry.id),
-    byId: Object.fromEntries(
-      entries.map((entry) => [entry.id, entry] as const),
-    ) as Record<ThreadEntryId, ThreadTreeEntry>,
+    byId: Object.fromEntries(entries.map((entry) => [entry.id, entry] as const)) as Record<
+      ThreadEntryId,
+      ThreadTreeEntry
+    >,
   };
 }
 
@@ -1378,7 +1379,6 @@ export function applyThreadDetailEvent(
                   },
             )
           : [...thread.messages, message];
-        const cappedMessages = messages.slice(-MAX_THREAD_MESSAGES);
         const turnDiffSummaries =
           event.payload.role === "assistant" && event.payload.turnId !== null
             ? rebindTurnDiffSummariesForAssistantMessage(
@@ -1387,15 +1387,13 @@ export function applyThreadDetailEvent(
                 event.payload.messageId,
               )
             : thread.turnDiffSummaries;
-        const entryId = event.payload.entryId ?? threadEntryIdForMessageId(event.payload.messageId);
+        const entryId = event.payload.entryId;
         const threadEntries = thread.entries ?? [];
         const existingEntry = threadEntries.find((entry) => entry.id === entryId);
-        const parentEntryId =
-          existingEntry?.parentEntryId ?? event.payload.parentEntryId ?? thread.activeEntryId ?? null;
         const nextEntry: ThreadTreeEntry = {
           id: entryId,
           threadId: event.payload.threadId,
-          parentEntryId,
+          parentEntryId: existingEntry?.parentEntryId ?? event.payload.parentEntryId,
           kind: "message",
           messageId: event.payload.messageId,
           turnId: event.payload.turnId,
@@ -1404,11 +1402,9 @@ export function applyThreadDetailEvent(
           summary: null,
           createdAt: existingEntry?.createdAt ?? event.payload.createdAt,
         };
-        const entries = (
-          existingEntry
-            ? threadEntries.map((entry) => (entry.id === entryId ? nextEntry : entry))
-            : [...threadEntries, nextEntry]
-        ).slice(-MAX_THREAD_ENTRIES);
+        const entries = existingEntry
+          ? threadEntries.map((entry) => (entry.id === entryId ? nextEntry : entry))
+          : [...threadEntries, nextEntry];
         const latestTurn: Thread["latestTurn"] =
           event.payload.role === "assistant" &&
           event.payload.turnId !== null &&
@@ -1442,8 +1438,13 @@ export function applyThreadDetailEvent(
             : thread.latestTurn;
         return {
           ...thread,
-          messages: cappedMessages,
-          activeEntryId: entryId,
+          messages,
+          activeEntryId: resolveActiveEntryIdAfterThreadMessage({
+            activeEntryId: thread.activeEntryId,
+            entryId,
+            parentEntryId: event.payload.parentEntryId,
+            role: event.payload.role,
+          }),
           entries,
           turnDiffSummaries,
           latestTurn,
@@ -1462,12 +1463,10 @@ export function applyThreadDetailEvent(
       return updateThreadState(state, event.payload.threadId, (thread) => {
         const entry = mapThreadEntry(event.payload.entry);
         const threadEntries = thread.entries ?? [];
-        const entries = [...threadEntries.filter((item) => item.id !== entry.id), entry]
-          .toSorted(
-            (left, right) =>
-              left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
-          )
-          .slice(-MAX_THREAD_ENTRIES);
+        const entries = [...threadEntries.filter((item) => item.id !== entry.id), entry].toSorted(
+          (left, right) =>
+            left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+        );
         return {
           ...thread,
           entries,

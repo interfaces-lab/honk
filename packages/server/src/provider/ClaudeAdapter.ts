@@ -95,6 +95,7 @@ import {
 
 const PROVIDER = ProviderDriverKind.make("claudeAgent");
 const PROVIDER_INSTANCE_ID = defaultInstanceIdForDriver(PROVIDER);
+const CLAUDE_ASK_MODE_PROMPT_PREFIX = `You are in Ask mode for this turn. Answer the user's question and explain relevant code without making changes. You may inspect files, search the repository, and run non-mutating commands if needed. Do not edit files, apply patches, run formatters, create commits, or implement changes. If the user asks for implementation, explain what would need to change and note that Build mode is the execution mode.`;
 type ClaudeTextStreamKind = Extract<RuntimeContentStreamKind, "assistant_text" | "reasoning_text">;
 type ClaudeToolResultStreamKind = Extract<
   RuntimeContentStreamKind,
@@ -583,7 +584,10 @@ function buildPromptText(input: ProviderSendTurnInput): string {
   const caps = getClaudeModelCapabilities(claudeModel);
 
   const promptEffort = resolvePromptInjectedEffort(caps, rawEffort);
-  return applyClaudePromptEffortPrefix(formatProviderTurnInputText(input) ?? "", promptEffort);
+  const text = formatProviderTurnInputText(input) ?? "";
+  const modeText =
+    input.interactionMode === "ask" ? `${CLAUDE_ASK_MODE_PROMPT_PREFIX}\n\n${text}` : text;
+  return applyClaudePromptEffortPrefix(modeText, promptEffort);
 }
 
 function buildUserMessage(input: {
@@ -3160,14 +3164,15 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
     // Apply interaction mode by switching the SDK's permission mode.
     // "plan" maps directly to the SDK's "plan" permission mode;
-    // "default" restores the session's original permission mode.
+    // "default" and "ask" restore the session's original permission mode.
+    // Ask mode behavior is prompt-injected in buildPromptText().
     // When interactionMode is absent we leave the current mode unchanged.
     if (input.interactionMode === "plan") {
       yield* Effect.tryPromise({
         try: () => context.query.setPermissionMode("plan"),
         catch: (cause) => toRequestError(input.threadId, "turn/setPermissionMode", cause),
       });
-    } else if (input.interactionMode === "default") {
+    } else if (input.interactionMode === "default" || input.interactionMode === "ask") {
       yield* Effect.tryPromise({
         try: () => context.query.setPermissionMode(context.basePermissionMode ?? "default"),
         catch: (cause) => toRequestError(input.threadId, "turn/setPermissionMode", cause),

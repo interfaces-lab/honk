@@ -1,8 +1,9 @@
 import { IconArrowRight, IconChevronDownSmall } from "central-icons";
 import { AnimatePresence, motion } from "motion/react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
 
 import { Text } from "@multi/ui/text";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import { cn } from "~/lib/utils";
 
 /**
@@ -327,14 +328,15 @@ function ChatView(props: {
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const entryRefs = useRef<Map<string, HTMLElement>>(new Map());
-
-  useEffect(() => {
-    const node = entryRefs.current.get(props.activeEntryId);
-    node?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [props.activeEntryId, props.messages]);
+  const scrollSyncKey = `${props.activeEntryId}:${props.messages.map((entry) => entry.id).join("|")}`;
 
   return (
     <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8">
+      <ChatActiveEntryScrollSync
+        key={scrollSyncKey}
+        activeEntryId={props.activeEntryId}
+        entryRefs={entryRefs}
+      />
       <ul className="mx-auto flex max-w-2xl flex-col gap-4">
         {props.messages.map((entry) => {
           const isActive = entry.id === props.activeEntryId;
@@ -356,7 +358,9 @@ function ChatView(props: {
               <div className="mb-1 flex items-center gap-2 text-(length:--multi-text-detail) text-multi-fg-tertiary">
                 <span>{isUser ? "You" : "Assistant"}</span>
                 {entry.label ? (
-                  <span className="rounded-full bg-multi-bg-quinary px-1.5 py-px">{entry.label}</span>
+                  <span className="rounded-full bg-multi-bg-quinary px-1.5 py-px">
+                    {entry.label}
+                  </span>
                 ) : null}
               </div>
               {entry.text}
@@ -366,6 +370,21 @@ function ChatView(props: {
       </ul>
     </div>
   );
+}
+
+function ChatActiveEntryScrollSync({
+  activeEntryId,
+  entryRefs,
+}: {
+  activeEntryId: string;
+  entryRefs: RefObject<Map<string, HTMLElement>>;
+}) {
+  useMountEffect(() => {
+    const node = entryRefs.current.get(activeEntryId);
+    node?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  return null;
 }
 
 function PreviewBanner(props: { state: ConversationNavState }) {
@@ -424,10 +443,7 @@ function ComposerHint() {
 
 // --- bubble minimap ---------------------------------------------------------
 
-function BubbleChip(props: {
-  segment: MinimapSegment;
-  minimap: MinimapProps;
-}) {
+function BubbleChip(props: { segment: MinimapSegment; minimap: MinimapProps }) {
   const tone = segmentTone(props.segment, props.minimap);
   const branchId = props.segment.branchId;
   const isUser = props.segment.entry.role === "user";
@@ -460,7 +476,10 @@ function BubbleChip(props: {
           tone === "hover" && "bg-foreground/80 text-background",
           tone === "inactive" &&
             "bg-multi-bg-quaternary text-multi-fg-secondary hover:bg-multi-bg-tertiary",
-          props.segment.kind === "fork" && !props.segment.isActivePath && tone === "inactive" && "opacity-70",
+          props.segment.kind === "fork" &&
+            !props.segment.isActivePath &&
+            tone === "inactive" &&
+            "opacity-70",
         )}
         animate={{ scale: tone === "focused" || tone === "hover" ? 1.02 : 1 }}
         transition={{ type: "spring", stiffness: 480, damping: 32 }}
@@ -489,7 +508,8 @@ function BubbleChip(props: {
         tone === "focused" && "bg-primary/15 text-multi-fg-primary ring-1 ring-primary/30",
         tone === "active" && "bg-primary/10 text-multi-fg-secondary",
         tone === "hover" && "bg-primary/12 text-multi-fg-primary",
-        tone === "inactive" && "bg-multi-bg-quinary/80 text-multi-fg-quaternary hover:text-multi-fg-tertiary",
+        tone === "inactive" &&
+          "bg-multi-bg-quinary/80 text-multi-fg-quaternary hover:text-multi-fg-tertiary",
       )}
     >
       {summarize(props.segment.entry.text, 32)}
@@ -510,7 +530,12 @@ function BubbleMinimap(props: { segments: readonly MinimapSegment[]; minimap: Mi
                   aria-hidden="true"
                 />
               ) : null}
-              <div className={cn("flex w-full", segment.entry.role === "user" ? "justify-end" : "justify-start pl-1")}>
+              <div
+                className={cn(
+                  "flex w-full",
+                  segment.entry.role === "user" ? "justify-end" : "justify-start pl-1",
+                )}
+              >
                 <BubbleChip segment={segment} minimap={props.minimap} />
               </div>
             </div>

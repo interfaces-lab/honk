@@ -1,9 +1,15 @@
 import type {
-  MessageId,
   OrchestrationCommand,
   OrchestrationEvent,
   OrchestrationReadModel,
+  OrchestrationThread,
+  OrchestrationThreadEntry,
   ThreadEntryId,
+} from "@multi/contracts";
+import {
+  formatThreadEntryPathIssue,
+  resolveThreadEntryPath,
+  threadEntryIdForMessageId,
 } from "@multi/contracts";
 import { Effect } from "effect";
 
@@ -49,15 +55,159 @@ function withEventBase(
   };
 }
 
-function threadEntryIdForMessageId(messageId: MessageId): ThreadEntryId {
-  return `message:${messageId}` as ThreadEntryId;
-}
-
 function threadLabelEntryId(input: {
   readonly targetEntryId: ThreadEntryId;
   readonly commandId: string;
 }): ThreadEntryId {
   return `label:${input.targetEntryId}:${input.commandId}` as ThreadEntryId;
+}
+
+function requireNavigableThreadEntryPath(input: {
+  readonly commandType: OrchestrationCommand["type"];
+  readonly thread: Pick<OrchestrationThread, "entries">;
+  readonly entryId: ThreadEntryId;
+}): Effect.Effect<readonly OrchestrationThreadEntry[], OrchestrationCommandInvariantError> {
+  const path = resolveThreadEntryPath({
+    entries: input.thread.entries ?? [],
+    entryId: input.entryId,
+  });
+  if (path.ok) {
+    return Effect.succeed(path.entries);
+  }
+  return Effect.fail(
+    new OrchestrationCommandInvariantError({
+      commandType: input.commandType,
+      detail: formatThreadEntryPathIssue(path),
+    }),
+  );
+}
+
+function requireThreadTreeActionIdle(input: {
+  readonly commandType: OrchestrationCommand["type"];
+  readonly thread: Pick<OrchestrationThread, "activities" | "session">;
+}): Effect.Effect<void, OrchestrationCommandInvariantError> {
+  const status = input.thread.session?.status ?? null;
+  if (status === "starting" || status === "running") {
+    return Effect.fail(
+      new OrchestrationCommandInvariantError({
+        commandType: input.commandType,
+        detail: "Cannot change the thread tree while a turn is running.",
+      }),
+    );
+  }
+  if (hasPendingApprovalOrUserInput(input.thread.activities)) {
+    return Effect.fail(
+      new OrchestrationCommandInvariantError({
+        commandType: input.commandType,
+        detail: "Cannot change the thread tree while approval or user input is pending.",
+      }),
+    );
+  }
+  return Effect.void;
+}
+
+function activityRequestId(activity: OrchestrationThread["activities"][number]): string | null {
+  const payload =
+    activity.payload && typeof activity.payload === "object"
+      ? (activity.payload as Record<string, unknown>)
+      : null;
+  return typeof payload?.requestId === "string" ? payload.requestId : null;
+}
+
+function hasPendingApprovalOrUserInput(
+  activities: ReadonlyArray<OrchestrationThread["activities"][number]>,
+): boolean {
+  const pendingApprovalRequestIds = new Set<string>();
+  const pendingUserInputRequestIds = new Set<string>();
+  const ordered = [...activities].toSorted(
+    (left, right) =>
+      left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+  );
+
+  for (const activity of ordered) {
+    const requestId = activityRequestId(activity);
+    if (requestId === null) {
+      continue;
+    }
+    switch (activity.kind) {
+      case "approval.requested":
+        pendingApprovalRequestIds.add(requestId);
+        break;
+      case "approval.resolved":
+      case "provider.approval.respond.failed":
+        pendingApprovalRequestIds.delete(requestId);
+        break;
+      case "user-input.requested":
+        pendingUserInputRequestIds.add(requestId);
+        break;
+      case "user-input.resolved":
+      case "provider.user-input.respond.failed":
+        pendingUserInputRequestIds.delete(requestId);
+        break;
+    }
+  }
+
+  return pendingApprovalRequestIds.size > 0 || pendingUserInputRequestIds.size > 0;
+}
+
+const lastPathEntry = (
+  path: readonly OrchestrationThreadEntry[],
+): OrchestrationThreadEntry | undefined => path[path.length - 1];
+
+function requireUserMessageThreadEntry(input: {
+  readonly commandType: OrchestrationCommand["type"];
+  readonly thread: Pick<OrchestrationThread, "entries" | "messages">;
+  readonly entryId: ThreadEntryId;
+}): Effect.Effect<OrchestrationThreadEntry, OrchestrationCommandInvariantError> {
+  return Effect.gen(function* () {
+    const path = yield* requireNavigableThreadEntryPath({
+      commandType: input.commandType,
+      thread: input.thread,
+      entryId: input.entryId,
+    });
+    const entry = lastPathEntry(path);
+    if (!entry || entry.kind !== "message" || entry.messageId === null) {
+      return yield* new OrchestrationCommandInvariantError({
+        commandType: input.commandType,
+        detail: `Thread entry '${input.entryId}' is not a user message entry.`,
+      });
+    }
+
+    const message = input.thread.messages.find((candidate) => candidate.id === entry.messageId);
+    if (!message || message.role !== "user") {
+      return yield* new OrchestrationCommandInvariantError({
+        commandType: input.commandType,
+        detail: `Thread entry '${input.entryId}' is not backed by a user message.`,
+      });
+    }
+
+    return entry;
+  });
+}
+
+function requireStableAssistantEntryParent(input: {
+  readonly commandType: OrchestrationCommand["type"];
+  readonly thread: Pick<OrchestrationThread, "entries" | "messages">;
+  readonly assistantEntryId: ThreadEntryId;
+  readonly parentEntryId: ThreadEntryId;
+}): Effect.Effect<void, OrchestrationCommandInvariantError> {
+  return Effect.gen(function* () {
+    yield* requireUserMessageThreadEntry({
+      commandType: input.commandType,
+      thread: input.thread,
+      entryId: input.parentEntryId,
+    });
+
+    const existingEntry = (input.thread.entries ?? []).find(
+      (entry) => entry.id === input.assistantEntryId,
+    );
+    if (existingEntry && existingEntry.parentEntryId !== input.parentEntryId) {
+      return yield* new OrchestrationCommandInvariantError({
+        commandType: input.commandType,
+        detail: `Assistant entry '${input.assistantEntryId}' already belongs to parent '${existingEntry.parentEntryId}'.`,
+      });
+    }
+  });
 }
 
 export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand")(function* ({
@@ -416,6 +566,18 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           detail: `Proposed plan '${sourceProposedPlan?.planId}' belongs to thread '${sourceThread.id}' in a different project.`,
         });
       }
+      yield* requireThreadTreeActionIdle({ commandType: command.type, thread: targetThread });
+      const parentEntryId =
+        command.parentEntryId !== undefined
+          ? command.parentEntryId
+          : (targetThread.activeEntryId ?? null);
+      if (parentEntryId !== null) {
+        yield* requireNavigableThreadEntryPath({
+          commandType: command.type,
+          thread: targetThread,
+          entryId: parentEntryId,
+        });
+      }
       const threadCreatedEvent: Omit<OrchestrationEvent, "sequence"> | null =
         bootstrapCreateThread === undefined
           ? null
@@ -453,7 +615,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           threadId: command.threadId,
           messageId: command.message.messageId,
           entryId: userEntryId,
-          parentEntryId: targetThread.activeEntryId ?? null,
+          parentEntryId,
           role: "user",
           text: command.message.text,
           attachments: command.message.attachments,
@@ -489,6 +651,65 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       return threadCreatedEvent
         ? [threadCreatedEvent, userMessageEvent, turnStartRequestedEvent]
         : [userMessageEvent, turnStartRequestedEvent];
+    }
+
+    case "thread.turn.regenerate": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      yield* requireThreadTreeActionIdle({ commandType: command.type, thread });
+      const userEntry = yield* requireUserMessageThreadEntry({
+        commandType: command.type,
+        thread,
+        entryId: command.entryId,
+      });
+      const messageId = userEntry.messageId;
+      if (messageId === null) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread entry '${command.entryId}' is not backed by a message.`,
+        });
+      }
+
+      const treeNavigatedEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.tree-navigated",
+        payload: {
+          threadId: command.threadId,
+          entryId: command.entryId,
+          updatedAt: command.createdAt,
+        },
+      };
+      const turnStartRequestedEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        causationEventId: treeNavigatedEvent.eventId,
+        type: "thread.turn-start-requested",
+        payload: {
+          threadId: command.threadId,
+          messageId,
+          userEntryId: command.entryId,
+          ...(command.modelSelection !== undefined
+            ? { modelSelection: command.modelSelection }
+            : {}),
+          ...(command.titleSeed !== undefined ? { titleSeed: command.titleSeed } : {}),
+          runtimeMode: thread.runtimeMode,
+          interactionMode: thread.interactionMode,
+          createdAt: command.createdAt,
+        },
+      };
+      return [treeNavigatedEvent, turnStartRequestedEvent];
     }
 
     case "thread.turn.interrupt": {
@@ -614,13 +835,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
-      const targetEntry = (thread.entries ?? []).find((entry) => entry.id === command.entryId);
-      if (!targetEntry) {
-        return yield* new OrchestrationCommandInvariantError({
-          commandType: command.type,
-          detail: `Thread entry '${command.entryId}' was not found.`,
-        });
-      }
+      yield* requireThreadTreeActionIdle({ commandType: command.type, thread });
+      yield* requireNavigableThreadEntryPath({
+        commandType: command.type,
+        thread,
+        entryId: command.entryId,
+      });
       return {
         ...withEventBase({
           aggregateKind: "thread",
@@ -643,15 +863,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
-      const targetEntry = (thread.entries ?? []).find(
-        (entry) => entry.id === command.targetEntryId,
-      );
-      if (!targetEntry) {
-        return yield* new OrchestrationCommandInvariantError({
-          commandType: command.type,
-          detail: `Thread entry '${command.targetEntryId}' was not found.`,
-        });
-      }
+      yield* requireNavigableThreadEntryPath({
+        commandType: command.type,
+        thread,
+        entryId: command.targetEntryId,
+      });
       const labelEntryId = threadLabelEntryId({
         targetEntryId: command.targetEntryId,
         commandId: command.commandId,
@@ -706,10 +922,17 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.message.assistant.delta": {
-      yield* requireThread({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
+      });
+      const assistantEntryId = threadEntryIdForMessageId(command.messageId);
+      yield* requireStableAssistantEntryParent({
+        commandType: command.type,
+        thread,
+        assistantEntryId,
+        parentEntryId: command.parentEntryId,
       });
       return {
         ...withEventBase({
@@ -722,11 +945,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.messageId,
-          entryId: threadEntryIdForMessageId(command.messageId),
-          parentEntryId: command.parentEntryId ?? null,
+          entryId: assistantEntryId,
+          parentEntryId: command.parentEntryId,
           role: "assistant",
           text: command.delta,
-          turnId: command.turnId ?? null,
+          turnId: command.turnId,
           streaming: true,
           createdAt: command.createdAt,
           updatedAt: command.createdAt,
@@ -735,10 +958,17 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.message.assistant.complete": {
-      yield* requireThread({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
+      });
+      const assistantEntryId = threadEntryIdForMessageId(command.messageId);
+      yield* requireStableAssistantEntryParent({
+        commandType: command.type,
+        thread,
+        assistantEntryId,
+        parentEntryId: command.parentEntryId,
       });
       return {
         ...withEventBase({
@@ -751,11 +981,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.messageId,
-          entryId: threadEntryIdForMessageId(command.messageId),
-          parentEntryId: command.parentEntryId ?? null,
+          entryId: assistantEntryId,
+          parentEntryId: command.parentEntryId,
           role: "assistant",
           text: "",
-          turnId: command.turnId ?? null,
+          turnId: command.turnId,
           streaming: false,
           createdAt: command.createdAt,
           updatedAt: command.createdAt,

@@ -893,6 +893,26 @@ function OpenCommandPaletteDialog() {
         await navigate({ to: "/dev/archive-ui-example" });
       },
     });
+
+    actionItems.push({
+      kind: "action",
+      value: "action:dev:queued-message-demo",
+      searchTerms: [
+        "queue",
+        "queued message",
+        "queued follow up",
+        "follow up",
+        "composer",
+        "chat",
+        "dev",
+      ],
+      title: "Open queued message demo",
+      description: "Exercise queued follow-up panel states (dev)",
+      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        await navigate({ to: "/dev/queued-message-demo" });
+      },
+    });
   }
 
   const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
