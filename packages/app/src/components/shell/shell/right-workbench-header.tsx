@@ -19,7 +19,9 @@ export interface WorkbenchTabMeta {
 
 function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
   const Icon = props.tab.icon;
-  const badgeText = props.tab.badge && props.tab.badge !== "0" ? `, ${props.tab.badge}` : "";
+  const badge = props.tab.badge && props.tab.badge !== "0" ? props.tab.badge : null;
+  const badgeText = badge ? `, ${badge}` : "";
+  const showBadgeCount = badge ? /^\d+$/.test(badge) : false;
   return (
     <TabsTab
       value={props.tab.id}
@@ -37,8 +39,21 @@ function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
       aria-label={`${props.tab.label}${badgeText}`}
       title={`${props.tab.label}${badgeText}`}
     >
-      <span className="ui-tab-system-tab__content flex size-full min-w-0 flex-none items-center justify-center">
+      <span className="ui-tab-system-tab__content relative flex size-full min-w-0 flex-none items-center justify-center">
         <Icon className="ui-tab-system-tab__icon size-4 shrink-0" aria-hidden />
+        {badge ? (
+          <span
+            aria-hidden
+            className={cn(
+              "absolute rounded-full bg-warning text-warning-foreground shadow-[0_0_0_1px_var(--multi-bg-primary)]",
+              showBadgeCount
+                ? "-top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center px-0.5 text-[9px] leading-none font-semibold tabular-nums"
+                : "top-0.5 right-0.5 size-2",
+            )}
+          >
+            {showBadgeCount ? badge : null}
+          </span>
+        ) : null}
       </span>
     </TabsTab>
   );

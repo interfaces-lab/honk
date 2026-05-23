@@ -13,6 +13,7 @@ import {
   ProjectId,
   ProviderInteractionMode,
   RuntimeMode,
+  ThreadEntryId,
   ThreadId,
   TurnId,
 } from "@multi/contracts";
@@ -31,6 +32,7 @@ export const ProjectionThread = Schema.Struct({
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
   latestTurnId: Schema.NullOr(TurnId),
+  activeEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   archivedAt: Schema.NullOr(IsoDateTime),

@@ -6,6 +6,7 @@ import {
   detectComposerTrigger,
   expandCollapsedComposerCursor,
   isCollapsedCursorAdjacentToInlineToken,
+  isUnresolvedStandaloneComposerSlashCommand,
   parseStandaloneComposerSlashCommand,
   replaceTextRange,
 } from "./prompt-triggers";
@@ -93,6 +94,13 @@ describe("detectComposerTrigger", () => {
       rangeStart: "Try ".length,
       rangeEnd: text.length,
     });
+  });
+
+  it("stops slash command detection when non-model text becomes ordinary message text", () => {
+    expect(detectComposerTrigger("/some other text", "/some other text".length)).toBeNull();
+    expect(
+      detectComposerTrigger("Try /plan with caveats", "Try /plan with caveats".length),
+    ).toBeNull();
   });
 
   it("detects standalone slash after an opening parenthesis", () => {
@@ -184,6 +192,22 @@ describe("replaceTextRange", () => {
       text: "hello ",
       cursor: 6,
     });
+  });
+});
+
+describe("isUnresolvedStandaloneComposerSlashCommand", () => {
+  it("flags bare or invalid slash prompts before send/queue", () => {
+    expect(isUnresolvedStandaloneComposerSlashCommand("/")).toBe(true);
+    expect(isUnresolvedStandaloneComposerSlashCommand("/review")).toBe(true);
+    expect(isUnresolvedStandaloneComposerSlashCommand("/plan")).toBe(false);
+    expect(
+      isUnresolvedStandaloneComposerSlashCommand("/review", { hasComposerCommand: true }),
+    ).toBe(false);
+  });
+
+  it("allows slash-prefixed ordinary message text once it is no longer a trigger", () => {
+    expect(isUnresolvedStandaloneComposerSlashCommand("/some other text")).toBe(false);
+    expect(isUnresolvedStandaloneComposerSlashCommand("/plan explain this")).toBe(false);
   });
 });
 

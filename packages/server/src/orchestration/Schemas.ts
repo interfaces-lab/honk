@@ -20,6 +20,8 @@ import {
   ThreadApprovalResponseRequestedPayload as ContractsThreadApprovalResponseRequestedPayloadSchema,
   ThreadCheckpointRevertRequestedPayload as ContractsThreadCheckpointRevertRequestedPayloadSchema,
   ThreadSessionStopRequestedPayload as ContractsThreadSessionStopRequestedPayloadSchema,
+  ThreadTreeNavigatedPayload as ContractsThreadTreeNavigatedPayloadSchema,
+  ThreadTreeLabelSetPayload as ContractsThreadTreeLabelSetPayloadSchema,
 } from "@multi/contracts";
 
 // Server-internal alias surface, backed by contract schemas as the source of truth.
@@ -50,3 +52,5 @@ export const ThreadApprovalResponseRequestedPayload =
 export const ThreadCheckpointRevertRequestedPayload =
   ContractsThreadCheckpointRevertRequestedPayloadSchema;
 export const ThreadSessionStopRequestedPayload = ContractsThreadSessionStopRequestedPayloadSchema;
+export const ThreadTreeNavigatedPayload = ContractsThreadTreeNavigatedPayloadSchema;
+export const ThreadTreeLabelSetPayload = ContractsThreadTreeLabelSetPayloadSchema;

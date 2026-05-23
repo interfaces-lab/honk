@@ -1,5 +1,5 @@
 import { scopedProjectKey, scopeProjectRef } from "@multi/client-runtime";
-import { DEFAULT_RUNTIME_MODE, type ScopedProjectRef } from "@multi/contracts";
+import type { ScopedProjectRef } from "@multi/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -16,6 +16,7 @@ import { selectProjectsAcrossEnvironments, useStore } from "../stores/thread-sto
 import { createThreadSelectorByRef } from "../stores/thread-selectors";
 import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
 import { useUiStateStore } from "../stores/ui-state-store";
+import { useSettings } from "./use-settings";
 
 function orderItemsByPreferredIds<TItem, TId>(input: {
   items: readonly TItem[];
@@ -48,6 +49,7 @@ function orderItemsByPreferredIds<TItem, TId>(input: {
 function useNewThreadState() {
   const projects = useStore(useShallow((store) => selectProjectsAcrossEnvironments(store)));
   const router = useRouter();
+  const defaultRuntimeMode = useSettings((settings) => settings.defaultRuntimeMode);
   const getCurrentRouteTarget = useCallback(() => {
     const currentRouteParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
     return resolveThreadRouteTarget(currentRouteParams);
@@ -151,7 +153,7 @@ function useNewThreadState() {
           branch: options?.branch ?? null,
           worktreePath: options?.worktreePath ?? null,
           envMode: options?.envMode ?? "local",
-          runtimeMode: DEFAULT_RUNTIME_MODE,
+          runtimeMode: defaultRuntimeMode,
         });
         applyStickyState(draftId);
 
@@ -161,7 +163,7 @@ function useNewThreadState() {
         });
       })();
     },
-    [getCurrentRouteTarget, router, projects],
+    [defaultRuntimeMode, getCurrentRouteTarget, router, projects],
   );
 }
 

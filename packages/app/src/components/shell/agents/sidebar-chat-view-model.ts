@@ -27,6 +27,13 @@ export interface SidebarDraftSummary {
   updatedAt: string;
 }
 
+export interface SidebarProjectSummary {
+  id: ProjectId;
+  environmentId: EnvironmentId;
+  title: string;
+  cwd: string;
+}
+
 export interface SidebarThreadSummary {
   id: ThreadId;
   environmentId: EnvironmentId;
@@ -209,12 +216,13 @@ export function buildProjectChatSections(
   unreadIds?: ReadonlySet<string>,
   projectCwds: readonly string[] = [],
   pinnedThreadKeys?: ReadonlySet<string>,
+  retainedProjects: readonly SidebarProjectSummary[] = [],
 ): SidebarSectionModel[] {
   const list: SidebarChatItem[] = [
     ...threadSummaries.map((sum) => buildThreadChat(sum, unreadIds, pinnedThreadKeys)),
     ...drafts.map(buildDraftChat),
   ];
-  if (list.length === 0) return [];
+  if (list.length === 0 && retainedProjects.length === 0) return [];
 
   const pinnedItems = list.filter(isPinnedThreadItem).toSorted(compareUpdatedAtDesc);
   const projectItems = list.filter((item) => !isPinnedThreadItem(item));
@@ -228,16 +236,54 @@ export function buildProjectChatSections(
   }
 
   const projectCwdRank = new Map<string, number>();
+  const projectsByCwd = new Map<string, SidebarProjectSummary[]>();
+  const projectKeysWithItems = new Set<string>();
+  for (const item of list) {
+    if (item.projectId === null) {
+      continue;
+    }
+    projectKeysWithItems.add(
+      scopedProjectKey(scopeProjectRef(item.environmentId, item.projectId)),
+    );
+  }
+
   for (const projectCwd of projectCwds) {
-    if (!projectCwd || projectCwdRank.has(projectCwd)) {
+    if (!projectCwd) {
+      continue;
+    }
+    if (projectCwdRank.has(projectCwd)) {
       continue;
     }
     projectCwdRank.set(projectCwd, projectCwdRank.size);
   }
 
+  for (const project of retainedProjects) {
+    const projectsAtCwd = projectsByCwd.get(project.cwd) ?? [];
+    projectsAtCwd.push(project);
+    projectsByCwd.set(project.cwd, projectsAtCwd);
+
+    const projectKey = scopedProjectKey(scopeProjectRef(project.environmentId, project.id));
+    if (!projectKeysWithItems.has(projectKey) && !by.has(project.cwd)) {
+      by.set(project.cwd, []);
+    }
+  }
+
   const groups = [...by.entries()].map(([dir, items], index) => {
     const sorted = items.toSorted(compareUpdatedAtDesc);
-    return { dir, label: shortProjectPathLabel(dir, home), sorted, index };
+    const retainedProjectCandidates = projectsByCwd.get(dir) ?? [];
+    const retainedProjectCandidate =
+      retainedProjectCandidates.length === 1 ? (retainedProjectCandidates[0] ?? null) : null;
+    const retainedProject =
+      sorted.length === 0 && retainedProjectCandidate
+        ? {
+            environmentId: retainedProjectCandidate.environmentId,
+            projectId: retainedProjectCandidate.id,
+            projectCwd: dir,
+          }
+        : null;
+    const retainedProjectTitle = sorted.length === 0 ? retainedProjectCandidate?.title : undefined;
+    const label = retainedProjectTitle ?? shortProjectPathLabel(dir, home);
+    return { dir, label, retainedProject, sorted, index };
   });
 
   groups.sort((left, right) => {
@@ -290,7 +336,9 @@ export function buildProjectChatSections(
       }),
     );
     const rootProject =
-      rootProjectsByKey.size === 1 ? ([...rootProjectsByKey.values()][0] ?? null) : null;
+      rootProjectsByKey.size === 1
+        ? ([...rootProjectsByKey.values()][0] ?? null)
+        : (group.retainedProject ?? null);
     const rootProjectKey = rootProject
       ? scopedProjectKey(scopeProjectRef(rootProject.environmentId, rootProject.projectId))
       : null;

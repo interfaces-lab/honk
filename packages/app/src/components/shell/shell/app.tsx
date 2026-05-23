@@ -423,14 +423,14 @@ export function AppShell(props: {
   );
 
   useMountEffect(() => {
-    const previousValue = document.body.getAttribute("data-cursor-glass-mode");
-    document.body.setAttribute("data-cursor-glass-mode", "true");
+    const previousValue = document.body.getAttribute("data-multi-glass-mode");
+    document.body.setAttribute("data-multi-glass-mode", "true");
     syncAppearanceVibrancy();
     return () => {
       if (previousValue === null) {
-        document.body.removeAttribute("data-cursor-glass-mode");
+        document.body.removeAttribute("data-multi-glass-mode");
       } else {
-        document.body.setAttribute("data-cursor-glass-mode", previousValue);
+        document.body.setAttribute("data-multi-glass-mode", previousValue);
       }
       syncAppearanceVibrancy();
     };

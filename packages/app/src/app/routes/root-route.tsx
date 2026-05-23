@@ -38,8 +38,8 @@ import {
 import { updatePrimaryEnvironmentDescriptor } from "~/environments/primary";
 import { DevDevtoolsPanel } from "~/dev/devtools-panel";
 import {
-  deriveLogicalProjectKey,
   derivePhysicalProjectKeyFromPath,
+  deriveSidebarProjectStateKey,
 } from "~/stores/project-identity";
 import { useSettings } from "~/hooks/use-settings";
 
@@ -48,7 +48,20 @@ type ServerEnvironmentDescriptor = NonNullable<ReturnType<typeof useServerEnviro
 type SetActiveEnvironmentId = (environmentId: ServerEnvironmentDescriptor["environmentId"]) => void;
 
 export function RootRouteView() {
-  const { authGateState } = routeApi.useRouteContext();
+  const { authGateState, devStandalone } = routeApi.useRouteContext();
+
+  if (devStandalone) {
+    return (
+      <ToastProvider>
+        <RootMountPerformanceMark />
+        <BrowserChromeThemeSync key="dev-standalone" />
+        <AnchoredToastProvider>
+          <Outlet />
+          <DevDevtoolsPanel />
+        </AnchoredToastProvider>
+      </ToastProvider>
+    );
+  }
 
   if (authGateState.status !== "authenticated") {
     return (
@@ -125,7 +138,7 @@ function CursorPreferenceDomSync(props: { readonly cursorPointerOnButtons: boole
     const root = document.documentElement;
     root.style.setProperty(
       "--multi-button-cursor",
-      props.cursorPointerOnButtons ? "pointer" : "auto",
+      props.cursorPointerOnButtons ? "pointer" : "default",
     );
     root.toggleAttribute("data-no-button-pointer", !props.cursorPointerOnButtons);
   });
@@ -289,7 +302,7 @@ function EventRouter() {
       );
       const bootstrapProject = selectProjectByRef(useStore.getState(), bootstrapProjectRef);
       const bootstrapProjectKey =
-        (bootstrapProject ? deriveLogicalProjectKey(bootstrapProject) : null) ??
+        (bootstrapProject ? deriveSidebarProjectStateKey(bootstrapProject) : null) ??
         (serverConfig?.cwd
           ? derivePhysicalProjectKeyFromPath(payload.environment.environmentId, serverConfig.cwd)
           : scopedProjectKey(bootstrapProjectRef));

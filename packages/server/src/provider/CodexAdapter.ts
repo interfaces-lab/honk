@@ -12,8 +12,10 @@ import {
   type CanonicalRequestType,
   ProviderDriverKind,
   type ProviderEvent,
+  type ProviderRefs,
   type ProviderRuntimeEvent,
   type ProviderRequestKind,
+  type RuntimeSubagentRef,
   type ThreadTokenUsageSnapshot,
   type ProviderUserInputAnswers,
   RuntimeItemId,
@@ -55,6 +57,7 @@ import {
   type CodexSessionRuntimeShape,
 } from "./CodexSessionRuntime.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 
 const PROVIDER = ProviderDriverKind.make("codex");
 const isCodexAppServerProcessExitedError = Schema.is(CodexErrors.CodexAppServerProcessExitedError);
@@ -415,11 +418,31 @@ function providerRefsFromEvent(
   event: ProviderEvent,
 ): ProviderRuntimeEvent["providerRefs"] | undefined {
   const refs: Record<string, string> = {};
-  if (event.turnId) refs.providerTurnId = event.turnId;
+  if (event.providerConversationId) refs.providerThreadId = event.providerConversationId;
+  if (event.parentProviderConversationId) {
+    refs.parentProviderThreadId = event.parentProviderConversationId;
+  }
+  const providerTurnId = event.providerTurnId ?? event.turnId;
+  if (providerTurnId) refs.providerTurnId = providerTurnId;
   if (event.itemId) refs.providerItemId = event.itemId;
   if (event.requestId) refs.providerRequestId = event.requestId;
 
-  return Object.keys(refs).length > 0 ? (refs as ProviderRuntimeEvent["providerRefs"]) : undefined;
+  return Object.keys(refs).length > 0 ? (refs as ProviderRefs) : undefined;
+}
+
+function subagentRefFromEvent(event: ProviderEvent): RuntimeSubagentRef | undefined {
+  const providerThreadId = trimText(event.providerConversationId);
+  const parentProviderThreadId = trimText(event.parentProviderConversationId);
+  if (!providerThreadId || !parentProviderThreadId) {
+    return undefined;
+  }
+
+  return {
+    providerThreadId,
+    parentProviderThreadId,
+    ...(event.turnId ? { parentTurnId: event.turnId } : {}),
+    ...(event.parentItemId ? { parentItemId: event.parentItemId } : {}),
+  };
 }
 
 function runtimeEventBase(
@@ -483,10 +506,252 @@ function mapItemLifecycle(
   };
 }
 
+function mapSubagentItemLifecycle(
+  event: ProviderEvent,
+  canonicalThreadId: ThreadId,
+  subagent: RuntimeSubagentRef,
+  lifecycle: "subagent.item.started" | "subagent.item.updated" | "subagent.item.completed",
+): ProviderRuntimeEvent | undefined {
+  const payload =
+    readPayload(EffectCodexSchema.V2ItemStartedNotification, event.payload) ??
+    readPayload(EffectCodexSchema.V2ItemCompletedNotification, event.payload);
+  const item = payload?.item;
+  if (!item) {
+    return undefined;
+  }
+
+  const itemType = toCanonicalItemType(item.type);
+  if (itemType === "unknown" && lifecycle !== "subagent.item.updated") {
+    return undefined;
+  }
+
+  const detail = itemDetail(item);
+  const status =
+    lifecycle === "subagent.item.started"
+      ? "inProgress"
+      : lifecycle === "subagent.item.completed"
+        ? "completed"
+        : undefined;
+
+  return {
+    ...runtimeEventBase(event, canonicalThreadId),
+    type: lifecycle,
+    payload: {
+      subagent,
+      itemType,
+      ...(status ? { status } : {}),
+      ...(itemTitle(itemType) ? { title: itemTitle(itemType) } : {}),
+      ...(detail ? { detail } : {}),
+      ...(event.payload !== undefined ? { data: event.payload } : {}),
+    },
+  };
+}
+
+function mapSubagentRuntimeEvents(
+  event: ProviderEvent,
+  canonicalThreadId: ThreadId,
+  subagent: RuntimeSubagentRef,
+): ReadonlyArray<ProviderRuntimeEvent> {
+  if (event.method === "thread/started") {
+    return [
+      {
+        ...runtimeEventBase(event, canonicalThreadId),
+        type: "subagent.thread.started",
+        payload: { subagent },
+      },
+    ];
+  }
+
+  if (
+    event.method === "thread/status/changed" ||
+    event.method === "thread/archived" ||
+    event.method === "thread/unarchived" ||
+    event.method === "thread/closed" ||
+    event.method === "thread/compacted" ||
+    event.method === "turn/started" ||
+    event.method === "turn/completed"
+  ) {
+    const statusPayload =
+      event.method === "thread/status/changed"
+        ? readPayload(EffectCodexSchema.V2ThreadStatusChangedNotification, event.payload)
+        : undefined;
+    const turnCompletedPayload =
+      event.method === "turn/completed"
+        ? readPayload(EffectCodexSchema.V2TurnCompletedNotification, event.payload)
+        : undefined;
+    return [
+      {
+        ...runtimeEventBase(event, canonicalThreadId),
+        type: "subagent.thread.state.changed",
+        payload: {
+          subagent,
+          state:
+            event.method === "thread/archived"
+              ? "archived"
+              : event.method === "thread/closed"
+                ? "closed"
+                : event.method === "thread/compacted"
+                  ? "compacted"
+                  : event.method === "turn/completed"
+                    ? turnCompletedPayload?.turn.status === "failed"
+                      ? "error"
+                      : "idle"
+                    : statusPayload
+                      ? toThreadState(statusPayload.status)
+                      : "active",
+          ...(event.payload !== undefined ? { detail: event.payload } : {}),
+        },
+      },
+    ];
+  }
+
+  if (event.method === "thread/tokenUsage/updated") {
+    const payload = readPayload(
+      EffectCodexSchema.V2ThreadTokenUsageUpdatedNotification,
+      event.payload,
+    );
+    const normalizedUsage = payload ? normalizeCodexTokenUsage(payload.tokenUsage) : undefined;
+    if (!normalizedUsage) {
+      return [];
+    }
+    return [
+      {
+        ...runtimeEventBase(event, canonicalThreadId),
+        type: "subagent.usage.updated",
+        payload: {
+          subagent,
+          usage: normalizedUsage,
+        },
+      },
+    ];
+  }
+
+  if (event.method === "item/started") {
+    const started = mapSubagentItemLifecycle(
+      event,
+      canonicalThreadId,
+      subagent,
+      "subagent.item.started",
+    );
+    return started ? [started] : [];
+  }
+
+  if (event.method === "item/completed") {
+    const completed = mapSubagentItemLifecycle(
+      event,
+      canonicalThreadId,
+      subagent,
+      "subagent.item.completed",
+    );
+    return completed ? [completed] : [];
+  }
+
+  if (
+    event.method === "item/reasoning/summaryPartAdded" ||
+    event.method === "item/commandExecution/terminalInteraction"
+  ) {
+    return [
+      {
+        ...runtimeEventBase(event, canonicalThreadId),
+        type: "subagent.item.updated",
+        payload: {
+          subagent,
+          itemType:
+            event.method === "item/reasoning/summaryPartAdded" ? "reasoning" : "command_execution",
+          ...(event.payload !== undefined ? { data: event.payload } : {}),
+        },
+      },
+    ];
+  }
+
+  if (event.method === "item/plan/delta") {
+    const payload = readPayload(EffectCodexSchema.V2PlanDeltaNotification, event.payload);
+    const delta = event.textDelta ?? payload?.delta;
+    if (!delta || delta.length === 0) {
+      return [];
+    }
+    const summaryIndex =
+      payload && "summaryIndex" in payload && typeof payload.summaryIndex === "number"
+        ? payload.summaryIndex
+        : undefined;
+    const contentIndex =
+      payload && "contentIndex" in payload && typeof payload.contentIndex === "number"
+        ? payload.contentIndex
+        : undefined;
+    return [
+      {
+        ...runtimeEventBase(event, canonicalThreadId),
+        type: "subagent.content.delta",
+        payload: {
+          subagent,
+          streamKind: "plan_text",
+          delta,
+          ...(summaryIndex !== undefined ? { summaryIndex } : {}),
+          ...(contentIndex !== undefined ? { contentIndex } : {}),
+        },
+      },
+    ];
+  }
+
+  if (
+    event.method === "item/agentMessage/delta" ||
+    event.method === "item/commandExecution/outputDelta" ||
+    event.method === "item/fileChange/outputDelta" ||
+    event.method === "item/reasoning/summaryTextDelta" ||
+    event.method === "item/reasoning/textDelta"
+  ) {
+    const payload =
+      event.method === "item/agentMessage/delta"
+        ? readPayload(EffectCodexSchema.V2AgentMessageDeltaNotification, event.payload)
+        : event.method === "item/commandExecution/outputDelta"
+          ? readPayload(EffectCodexSchema.V2CommandExecutionOutputDeltaNotification, event.payload)
+          : event.method === "item/fileChange/outputDelta"
+            ? readPayload(EffectCodexSchema.V2FileChangeOutputDeltaNotification, event.payload)
+            : event.method === "item/reasoning/summaryTextDelta"
+              ? readPayload(EffectCodexSchema.V2ReasoningSummaryTextDeltaNotification, event.payload)
+              : readPayload(EffectCodexSchema.V2ReasoningTextDeltaNotification, event.payload);
+    const delta = event.textDelta ?? payload?.delta;
+    if (!delta || delta.length === 0) {
+      return [];
+    }
+    const summaryIndex =
+      payload && "summaryIndex" in payload && typeof payload.summaryIndex === "number"
+        ? payload.summaryIndex
+        : undefined;
+    const contentIndex =
+      payload && "contentIndex" in payload && typeof payload.contentIndex === "number"
+        ? payload.contentIndex
+        : undefined;
+    return [
+      {
+        ...runtimeEventBase(event, canonicalThreadId),
+        type: "subagent.content.delta",
+        payload: {
+          subagent,
+          streamKind: contentStreamKindFromMethod(event.method),
+          delta,
+          ...(summaryIndex !== undefined ? { summaryIndex } : {}),
+          ...(contentIndex !== undefined ? { contentIndex } : {}),
+        },
+      },
+    ];
+  }
+
+  return [];
+}
+
 function mapToRuntimeEvents(
   event: ProviderEvent,
   canonicalThreadId: ThreadId,
 ): ReadonlyArray<ProviderRuntimeEvent> {
+  const subagent = subagentRefFromEvent(event);
+  if (subagent) {
+    const subagentEvents = mapSubagentRuntimeEvents(event, canonicalThreadId, subagent);
+    if (subagentEvents.length > 0) {
+      return subagentEvents;
+    }
+  }
+
   if (event.kind === "error") {
     if (!event.message) {
       return [];
@@ -736,7 +1001,7 @@ function mapToRuntimeEvents(
         ...runtimeEventBase(event, canonicalThreadId),
         payload: {
           usage: normalizedUsage,
-          ...(event.providerConversationId
+          ...(event.parentProviderConversationId && event.providerConversationId
             ? { providerThreadId: event.providerConversationId }
             : {}),
         },
@@ -1165,7 +1430,7 @@ function mapToRuntimeEvents(
         type: "thread.realtime.started",
         ...runtimeEventBase(event, canonicalThreadId),
         payload: {
-          realtimeSessionId: payload.sessionId ?? undefined,
+          realtimeSessionId: payload.realtimeSessionId ?? undefined,
         },
       },
     ];
@@ -1389,7 +1654,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
         const startServiceTier =
           configuredServiceTier ??
           (getModelSelectionBooleanOptionValue(input.modelSelection, "fastMode") === true
-            ? "fast"
+            ? "priority"
             : undefined);
         const runtimeInput: CodexSessionRuntimeOptions = {
           threadId: input.threadId,
@@ -1520,11 +1785,12 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     const serviceTier =
       configuredServiceTier ??
       (getModelSelectionBooleanOptionValue(input.modelSelection, "fastMode") === true
-        ? "fast"
+        ? "priority"
         : undefined);
+    const inputText = formatProviderTurnInputText(input);
     return yield* session.runtime
       .sendTurn({
-        ...(input.input !== undefined ? { input: input.input } : {}),
+        ...(inputText !== undefined ? { input: inputText } : {}),
         ...(input.modelSelection ? { model: input.modelSelection.model } : {}),
         ...(reasoningEffort
           ? {
@@ -1559,16 +1825,22 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       ),
     );
 
-  const readThread: CodexAdapterShape["readThread"] = (threadId) =>
-    requireSession(threadId).pipe(
-      Effect.flatMap((session) => session.runtime.readThread),
+  const readThread: CodexAdapterShape["readThread"] = (input) =>
+    requireSession(input.threadId).pipe(
+      Effect.flatMap((session) =>
+        session.runtime.readThread({
+          ...(input.providerThreadId ? { providerThreadId: input.providerThreadId } : {}),
+          ...(input.includeTurns !== undefined ? { includeTurns: input.includeTurns } : {}),
+        }),
+      ),
       Effect.mapError((cause) =>
         cause._tag === "ProviderAdapterSessionNotFoundError"
           ? cause
-          : mapCodexRuntimeError(threadId, "thread/read", cause),
+          : mapCodexRuntimeError(input.threadId, "thread/read", cause),
       ),
       Effect.map((snapshot) => ({
-        threadId,
+        threadId: input.threadId,
+        providerThreadId: snapshot.providerThreadId,
         turns: snapshot.turns,
       })),
     );

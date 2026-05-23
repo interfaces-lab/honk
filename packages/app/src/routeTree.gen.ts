@@ -17,7 +17,9 @@ import { Route as SettingsGeneralRouteImport } from './routes/settings.general'
 import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
+import { Route as DevQueuedMessageDemoRouteImport } from './routes/dev.queued-message-demo'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
+import { Route as ChatDevBranchingUiPrototypesRouteImport } from './routes/_chat.dev.branching-ui-prototypes'
 import { Route as ChatDevArchiveUiExampleRouteImport } from './routes/_chat.dev.archive-ui-example'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
@@ -60,11 +62,22 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => SettingsRoute,
 } as any)
+const DevQueuedMessageDemoRoute = DevQueuedMessageDemoRouteImport.update({
+  id: '/dev/queued-message-demo',
+  path: '/dev/queued-message-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
   id: '/draft/$draftId',
   path: '/draft/$draftId',
   getParentRoute: () => ChatRoute,
 } as any)
+const ChatDevBranchingUiPrototypesRoute =
+  ChatDevBranchingUiPrototypesRouteImport.update({
+    id: '/dev/branching-ui-prototypes',
+    path: '/dev/branching-ui-prototypes',
+    getParentRoute: () => ChatRoute,
+  } as any)
 const ChatDevArchiveUiExampleRoute = ChatDevArchiveUiExampleRouteImport.update({
   id: '/dev/archive-ui-example',
   path: '/dev/archive-ui-example',
@@ -80,6 +93,7 @@ const ChatEnvironmentIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -87,10 +101,12 @@ export interface FileRoutesByFullPath {
   '/settings/models': typeof SettingsModelsRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
+  '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteWithChildren
+  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -99,12 +115,14 @@ export interface FileRoutesByTo {
   '/': typeof ChatIndexRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
+  '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
+  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -113,6 +131,7 @@ export interface FileRoutesById {
   '/_chat/': typeof ChatIndexRoute
   '/_chat/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/_chat/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
+  '/_chat/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/_chat/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +139,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
+    | '/dev/queued-message-demo'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -127,10 +147,12 @@ export interface FileRouteTypes {
     | '/settings/models'
     | '/$environmentId/$threadId'
     | '/dev/archive-ui-example'
+    | '/dev/branching-ui-prototypes'
     | '/draft/$draftId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/settings'
+    | '/dev/queued-message-demo'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -139,11 +161,13 @@ export interface FileRouteTypes {
     | '/'
     | '/$environmentId/$threadId'
     | '/dev/archive-ui-example'
+    | '/dev/branching-ui-prototypes'
     | '/draft/$draftId'
   id:
     | '__root__'
     | '/_chat'
     | '/settings'
+    | '/dev/queued-message-demo'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -152,12 +176,14 @@ export interface FileRouteTypes {
     | '/_chat/'
     | '/_chat/$environmentId/$threadId'
     | '/_chat/dev/archive-ui-example'
+    | '/_chat/dev/branching-ui-prototypes'
     | '/_chat/draft/$draftId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
+  DevQueuedMessageDemoRoute: typeof DevQueuedMessageDemoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -218,11 +244,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAgentsRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/dev/queued-message-demo': {
+      id: '/dev/queued-message-demo'
+      path: '/dev/queued-message-demo'
+      fullPath: '/dev/queued-message-demo'
+      preLoaderRoute: typeof DevQueuedMessageDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_chat/draft/$draftId': {
       id: '/_chat/draft/$draftId'
       path: '/draft/$draftId'
       fullPath: '/draft/$draftId'
       preLoaderRoute: typeof ChatDraftDraftIdRouteImport
+      parentRoute: typeof ChatRoute
+    }
+    '/_chat/dev/branching-ui-prototypes': {
+      id: '/_chat/dev/branching-ui-prototypes'
+      path: '/dev/branching-ui-prototypes'
+      fullPath: '/dev/branching-ui-prototypes'
+      preLoaderRoute: typeof ChatDevBranchingUiPrototypesRouteImport
       parentRoute: typeof ChatRoute
     }
     '/_chat/dev/archive-ui-example': {
@@ -246,6 +286,7 @@ interface ChatRouteChildren {
   ChatIndexRoute: typeof ChatIndexRoute
   ChatEnvironmentIdThreadIdRoute: typeof ChatEnvironmentIdThreadIdRoute
   ChatDevArchiveUiExampleRoute: typeof ChatDevArchiveUiExampleRoute
+  ChatDevBranchingUiPrototypesRoute: typeof ChatDevBranchingUiPrototypesRoute
   ChatDraftDraftIdRoute: typeof ChatDraftDraftIdRoute
 }
 
@@ -253,6 +294,7 @@ const ChatRouteChildren: ChatRouteChildren = {
   ChatIndexRoute: ChatIndexRoute,
   ChatEnvironmentIdThreadIdRoute: ChatEnvironmentIdThreadIdRoute,
   ChatDevArchiveUiExampleRoute: ChatDevArchiveUiExampleRoute,
+  ChatDevBranchingUiPrototypesRoute: ChatDevBranchingUiPrototypesRoute,
   ChatDraftDraftIdRoute: ChatDraftDraftIdRoute,
 }
 
@@ -281,6 +323,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
+  DevQueuedMessageDemoRoute: DevQueuedMessageDemoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

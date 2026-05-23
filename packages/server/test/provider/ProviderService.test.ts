@@ -200,7 +200,7 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = "codex") {
 
   const readThread = vi.fn(
     (
-      threadId: ThreadId,
+      input: { readonly threadId: ThreadId },
     ): Effect.Effect<
       {
         threadId: ThreadId;
@@ -209,7 +209,7 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = "codex") {
       ProviderAdapterError
     > =>
       Effect.succeed({
-        threadId,
+        threadId: input.threadId,
         turns: [{ id: asTurnId("turn-1"), items: [] }],
       }),
   );

@@ -1,7 +1,7 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
 
 export type ComposerTriggerKind = "path" | "slash-command";
-export type ComposerSlashCommand = "model" | "plan" | "default";
+export type ComposerSlashCommand = "model" | "ask" | "plan" | "default";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -21,25 +21,48 @@ function isWhitespace(char: string): boolean {
   return char === " " || char === "\n" || char === "\t" || char === "\r";
 }
 
+const SLASH_COMMAND_LOOKBEHIND_LIMIT = 200;
+const SLASH_COMMAND_MAX_QUERY_SEGMENTS = 120;
+const SLASH_COMMAND_MAX_SIMPLE_QUERY_LENGTH = 50;
+const SLASH_COMMAND_SPECIAL_CHARS = String.raw`,\+\*\?\$\@\|#{}\(\)\^\-\[\]\\!%'"~=<>:;`;
+const SLASH_COMMAND_QUERY_CHAR = String.raw`[^/${SLASH_COMMAND_SPECIAL_CHARS}\s]`;
+const SLASH_COMMAND_QUERY_SEPARATOR = String.raw`(?:\.[ |$]| |[${SLASH_COMMAND_SPECIAL_CHARS}/]|)`;
+const SLASH_COMMAND_QUERY_PATTERN = new RegExp(
+  String.raw`(^|\s|\()([/]((?:${SLASH_COMMAND_QUERY_CHAR}${SLASH_COMMAND_QUERY_SEPARATOR}){0,${SLASH_COMMAND_MAX_QUERY_SEGMENTS}}))$`,
+);
+const SLASH_COMMAND_SIMPLE_QUERY_PATTERN = new RegExp(
+  String.raw`(^|\s|\()([/]((?:${SLASH_COMMAND_QUERY_CHAR}){0,${SLASH_COMMAND_MAX_SIMPLE_QUERY_LENGTH}}))$`,
+);
+
+function recognizeStandaloneSlashCommand(textBeforeCursor: string): {
+  query: string;
+  rangeStart: number;
+} | null {
+  const windowStart = Math.max(0, textBeforeCursor.length - SLASH_COMMAND_LOOKBEHIND_LIMIT);
+  const textWindow = textBeforeCursor.slice(windowStart);
+  const match =
+    SLASH_COMMAND_QUERY_PATTERN.exec(textWindow) ??
+    SLASH_COMMAND_SIMPLE_QUERY_PATTERN.exec(textWindow);
+  if (!match) return null;
+
+  const lead = match[1] ?? "";
+  const query = match[3] ?? "";
+  const firstQueryToken = query.trimStart().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+  if (/\s/.test(query) && firstQueryToken !== "model") {
+    return null;
+  }
+  return {
+    query,
+    rangeStart: windowStart + match.index + lead.length,
+  };
+}
+
 function tokenStartForCursor(text: string, cursor: number): number {
   let index = cursor - 1;
   while (index >= 0 && !isWhitespace(text[index] ?? "")) {
     index -= 1;
   }
   return index + 1;
-}
-
-function standaloneSlashStartForCursor(text: string, cursor: number): number {
-  const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
-  let index = cursor - 1;
-  while (index >= lineStart) {
-    const before = text[index - 1] ?? "";
-    if (text[index] === "/" && (index === lineStart || isWhitespace(before) || before === "(")) {
-      return index;
-    }
-    index -= 1;
-  }
-  return -1;
 }
 
 function expandedSkillSegmentLength(segment: { type: "skill"; name: string; path?: string }) {
@@ -215,19 +238,15 @@ export const isCollapsedCursorAdjacentToMention = isCollapsedCursorAdjacentToInl
 
 export function detectComposerTrigger(text: string, cursorInput: number): ComposerTrigger | null {
   const cursor = clampCursor(text, cursorInput);
-  const slashStart = standaloneSlashStartForCursor(text, cursor);
-  const slashPrefix = slashStart >= 0 ? text.slice(slashStart, cursor) : "";
+  const slashCommand = recognizeStandaloneSlashCommand(text.slice(0, cursor));
 
-  if (slashStart >= 0) {
-    const commandMatch = /^\/(.*)$/.exec(slashPrefix);
-    if (commandMatch) {
-      return {
-        kind: "slash-command",
-        query: commandMatch[1] ?? "",
-        rangeStart: slashStart,
-        rangeEnd: cursor,
-      };
-    }
+  if (slashCommand) {
+    return {
+      kind: "slash-command",
+      query: slashCommand.query,
+      rangeStart: slashCommand.rangeStart,
+      rangeEnd: cursor,
+    };
   }
 
   const tokenStart = tokenStartForCursor(text, cursor);
@@ -247,13 +266,32 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 export function parseStandaloneComposerSlashCommand(
   text: string,
 ): Exclude<ComposerSlashCommand, "model"> | null {
-  const match = /^\/(plan|default)\s*$/i.exec(text.trim());
+  const match = /^\/(ask|plan|default|build)\s*$/i.exec(text.trim());
   if (!match) {
     return null;
   }
   const command = match[1]?.toLowerCase();
-  if (command === "plan") return "plan";
+  if (command === "ask" || command === "plan") return command;
   return "default";
+}
+
+export function isUnresolvedStandaloneComposerSlashCommand(
+  text: string,
+  options?: { hasComposerCommand?: boolean | undefined },
+): boolean {
+  if (options?.hasComposerCommand) {
+    return false;
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) {
+    return false;
+  }
+  if (parseStandaloneComposerSlashCommand(trimmed)) {
+    return false;
+  }
+  const trigger = detectComposerTrigger(trimmed, trimmed.length);
+  return trigger?.kind === "slash-command" && trigger.rangeStart === 0;
 }
 
 export function replaceTextRange(

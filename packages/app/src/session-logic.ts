@@ -64,6 +64,20 @@ export interface WorkLogSubagent {
   usedTokens?: number | undefined;
   maxTokens?: number | undefined;
   usedPercentage?: number | undefined;
+  logs?: ReadonlyArray<WorkLogSubagentLog> | undefined;
+  hasDetails?: boolean | undefined;
+}
+
+export interface WorkLogSubagentLog {
+  id: string;
+  createdAt: string;
+  kind: string;
+  label: string;
+  itemId?: string | undefined;
+  detail?: string | undefined;
+  streamKind?: string | undefined;
+  itemType?: string | undefined;
+  status?: string | undefined;
 }
 
 export interface WorkLogSubagentAction {
@@ -709,11 +723,12 @@ export function deriveWorkLogEntries(
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
   const subagentUsageByProviderThreadId = deriveSubagentUsageByProviderThreadId(ordered);
+  const subagentDetailsByProviderThreadId = deriveSubagentDetailsByProviderThreadId(ordered);
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
     .filter((activity) => activity.kind !== "account.rate-limits.updated")
     .filter((activity) => activity.kind !== "context-window.updated")
-    .filter((activity) => activity.kind !== "subagent.usage.updated")
+    .filter((activity) => !isSubagentRuntimeActivity(activity))
     .filter((activity) => activity.summary !== "Checkpoint captured")
     .filter((activity) => !isPlanBoundaryToolActivity(activity))
     .map((activity) => toDerivedWorkLogEntry(activity, completedAtByTaskKey));
@@ -758,12 +773,198 @@ export function deriveWorkLogEntries(
       workEntry.subagents && workEntry.subagents.length > 0
         ? {
             ...workEntry,
-            subagents: applySubagentUsage(workEntry.subagents, subagentUsageByProviderThreadId),
+            subagents: applySubagentDetails(
+              applySubagentUsage(workEntry.subagents, subagentUsageByProviderThreadId),
+              subagentDetailsByProviderThreadId,
+            ),
           }
         : workEntry,
     );
   }
   return workLogEntries;
+}
+
+interface DerivedSubagentDetails {
+  readonly rawStatus?: string | undefined;
+  readonly statusLabel?: string | undefined;
+  readonly latestUpdate?: string | undefined;
+  readonly isActive?: boolean | undefined;
+  readonly logs: ReadonlyArray<WorkLogSubagentLog>;
+}
+
+function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boolean {
+  return activity.kind.startsWith("subagent.");
+}
+
+function deriveSubagentDetailsByProviderThreadId(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): Map<string, DerivedSubagentDetails> {
+  const detailsByProviderThreadId = new Map<string, DerivedSubagentDetails>();
+
+  for (const activity of activities) {
+    if (
+      !isSubagentRuntimeActivity(activity) ||
+      activity.kind === "subagent.usage.updated" ||
+      activity.kind === "subagent.content.delta"
+    ) {
+      continue;
+    }
+
+    const payload = asRecord(activity.payload);
+    const providerThreadId = asTrimmedString(payload?.providerThreadId);
+    if (!providerThreadId) {
+      continue;
+    }
+
+    const previous = detailsByProviderThreadId.get(providerThreadId);
+    const log = toSubagentLog(activity, payload);
+    const rawStatus = resolveSubagentRawStatus(activity, payload) ?? previous?.rawStatus;
+    const statusLabel = resolveSubagentStatusLabel(rawStatus) ?? previous?.statusLabel;
+    const latestUpdate = resolveSubagentLatestUpdate(activity, log, previous?.latestUpdate);
+    const logs = [...(previous?.logs ?? []), log].slice(-200);
+    detailsByProviderThreadId.set(providerThreadId, {
+      rawStatus,
+      statusLabel,
+      latestUpdate,
+      isActive:
+        rawStatus !== undefined || statusLabel !== undefined
+          ? isActiveSubagentStatus(rawStatus, statusLabel)
+          : previous?.isActive,
+      logs,
+    });
+  }
+
+  return detailsByProviderThreadId;
+}
+
+function resolveSubagentLatestUpdate(
+  activity: OrchestrationThreadActivity,
+  log: WorkLogSubagentLog,
+  previous: string | undefined,
+): string | undefined {
+  if (
+    activity.kind === "subagent.thread.started" ||
+    activity.kind === "subagent.thread.state.changed" ||
+    activity.kind === "subagent.content.delta"
+  ) {
+    return previous;
+  }
+
+  if (isSubagentProviderSnapshotItemType(log.itemType)) {
+    return previous;
+  }
+
+  return log.detail ?? previous;
+}
+
+export function isSubagentProviderSnapshotItemType(itemType: string | undefined): boolean {
+  if (!itemType) {
+    return false;
+  }
+  if (isToolLifecycleItemType(itemType)) {
+    return true;
+  }
+
+  switch (itemType) {
+    case "assistant_message":
+    case "user_message":
+    case "reasoning":
+    case "reasoning_summary":
+    case "agent_reasoning":
+    case "plan":
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+    case "unknown":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function toSubagentLog(
+  activity: OrchestrationThreadActivity,
+  payload: Record<string, unknown> | null,
+): WorkLogSubagentLog {
+  const delta = asSubagentDeltaString(payload?.delta);
+  const detail = asTrimmedString(payload?.detail);
+  const state = asTrimmedString(payload?.state);
+  const title = asTrimmedString(payload?.title);
+  const itemId = asTrimmedString(payload?.itemId) ?? undefined;
+  const itemType = asTrimmedString(payload?.itemType) ?? undefined;
+  const streamKind = asTrimmedString(payload?.streamKind) ?? undefined;
+  const status = asTrimmedString(payload?.status);
+  const label =
+    activity.kind === "subagent.content.delta"
+      ? labelForSubagentStream(streamKind)
+      : title ?? labelForSubagentActivityKind(activity.kind, itemType);
+  return {
+    id: activity.id,
+    createdAt: activity.createdAt,
+    kind: activity.kind,
+    label,
+    ...(itemId ? { itemId } : {}),
+    ...(delta !== null ? { detail: delta } : detail ? { detail } : state ? { detail: state } : {}),
+    ...(streamKind ? { streamKind } : {}),
+    ...(itemType ? { itemType } : {}),
+    ...(status ? { status } : {}),
+  };
+}
+
+function labelForSubagentStream(streamKind: string | undefined): string {
+  switch (streamKind) {
+    case "command_output":
+      return "Command output";
+    case "file_change_output":
+      return "File change";
+    case "reasoning_text":
+    case "reasoning_summary_text":
+      return "Reasoning";
+    case "plan_text":
+      return "Plan";
+    case "assistant_text":
+    default:
+      return "Output";
+  }
+}
+
+function labelForSubagentActivityKind(kind: string, itemType: string | undefined): string {
+  switch (kind) {
+    case "subagent.thread.started":
+      return "Thread started";
+    case "subagent.thread.state.changed":
+      return "State changed";
+    case "subagent.item.started":
+      return itemType ? `${formatItemTypeLabel(itemType)} started` : "Tool started";
+    case "subagent.item.completed":
+      return itemType ? `${formatItemTypeLabel(itemType)} completed` : "Tool completed";
+    case "subagent.item.updated":
+      return itemType ? `${formatItemTypeLabel(itemType)} updated` : "Tool updated";
+    default:
+      return "Subagent update";
+  }
+}
+
+function formatItemTypeLabel(value: string): string {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function resolveSubagentRawStatus(
+  activity: OrchestrationThreadActivity,
+  payload: Record<string, unknown> | null,
+): string | undefined {
+  if (activity.kind === "subagent.thread.started") {
+    return "running";
+  }
+  if (activity.kind === "subagent.thread.state.changed") {
+    return asTrimmedString(payload?.state) ?? undefined;
+  }
+  return asTrimmedString(payload?.status) ?? undefined;
 }
 
 function deriveSubagentUsageByProviderThreadId(
@@ -811,6 +1012,28 @@ function applySubagentUsage(
     const key = subagent.providerThreadId ?? subagent.threadId;
     const usage = key ? usageByProviderThreadId.get(key) : undefined;
     return usage ? { ...subagent, ...usage } : subagent;
+  });
+}
+
+function applySubagentDetails(
+  subagents: ReadonlyArray<WorkLogSubagent>,
+  detailsByProviderThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
+): WorkLogSubagent[] {
+  return subagents.map((subagent) => {
+    const key = subagent.providerThreadId ?? subagent.threadId;
+    const details = key ? detailsByProviderThreadId.get(key) : undefined;
+    if (!details) {
+      return subagent;
+    }
+    return {
+      ...subagent,
+      ...(details.rawStatus ? { rawStatus: details.rawStatus } : {}),
+      ...(details.statusLabel ? { statusLabel: details.statusLabel } : {}),
+      ...(details.latestUpdate ? { latestUpdate: details.latestUpdate } : {}),
+      ...(details.isActive !== undefined ? { isActive: details.isActive } : {}),
+      logs: details.logs,
+      hasDetails: details.logs.length > 0,
+    };
   });
 }
 
@@ -1964,6 +2187,10 @@ function asTrimmedString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function asSubagentDeltaString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 function trimMatchingOuterQuotes(value: string): string {
   const trimmed = value.trim();
   if (
@@ -2330,7 +2557,7 @@ function extractWorkLogSubagents(
         state.role ?? existing?.role,
       ),
       statusLabel,
-      isActive: statusLabel !== "Completed" && statusLabel !== "Failed",
+      isActive: isActiveSubagentStatus(state.status, statusLabel),
     });
   }
 
@@ -2380,18 +2607,43 @@ function resolveSubagentTitle(
 
 function resolveSubagentStatusLabel(status: string | undefined): string | undefined {
   switch (status) {
+    case "pendingInit":
+    case "pending_init":
+    case "starting":
+      return "Starting";
+    case "running":
+    case "active":
+    case "inProgress":
+    case "in_progress":
+      return "Running";
+    case "interrupted":
+      return "Interrupted";
     case "completed":
     case "success":
+    case "idle":
       return "Completed";
+    case "errored":
     case "failed":
     case "error":
       return "Failed";
-    case "running":
-    case "in_progress":
-      return "Running";
+    case "shutdown":
+    case "stopped":
+    case "closed":
+      return "Stopped";
+    case "notFound":
+    case "not_found":
+      return "Missing";
     default:
       return status;
   }
+}
+
+function isActiveSubagentStatus(
+  rawStatus: string | undefined,
+  statusLabel: string | undefined,
+): boolean {
+  const label = statusLabel ?? resolveSubagentStatusLabel(rawStatus);
+  return label === "Starting" || label === "Running";
 }
 
 function extractWorkLogRequestKind(

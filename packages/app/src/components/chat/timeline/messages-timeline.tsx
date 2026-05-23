@@ -1,4 +1,4 @@
-import { type EnvironmentId, type MessageId } from "@multi/contracts";
+import { type EnvironmentId, type MessageId, type ThreadId } from "@multi/contracts";
 import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   createContext,
@@ -19,6 +19,7 @@ import {
   useVirtualizer,
   type Range,
   type VirtualItem,
+  type Virtualizer,
 } from "@tanstack/react-virtual";
 import { IconChevronRightMedium } from "central-icons";
 import { Spinner } from "@multi/ui/spinner";
@@ -47,6 +48,7 @@ type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
 export interface TimelineRowSharedState {
   markdownCwd: string | undefined;
   projectRoot: string | undefined;
+  activeThreadId: ThreadId;
   activeThreadEnvironmentId: EnvironmentId;
   isServerThread: boolean;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
@@ -59,7 +61,17 @@ export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
 const DEFAULT_VIRTUALIZER_RECT = { width: 0, height: 720 };
 const VIRTUAL_ROW_GAP_PX = 12;
 const VIRTUALIZER_OVERSCAN = 8;
-const keepScrollOffsetOnMeasuredRowResize = () => false;
+const WORK_GROUP_PREVIEW_MAX_ENTRIES = 6;
+const MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS = 16;
+
+interface TimelineVirtualizerSnapshot {
+  measuredItems: VirtualItem[];
+  scrollOffset: number;
+  isAtBottom: boolean;
+  firstRowId: string | undefined;
+}
+
+const timelineVirtualizerSnapshots = new Map<string, TimelineVirtualizerSnapshot>();
 
 function useValueIdentityVersion<TValue>(value: TValue): number {
   const valueRef = useRef(value);
@@ -95,6 +107,8 @@ interface MessagesTimelineProps {
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
+  activeThreadId: ThreadId;
+  timelineCacheKey: string;
   markdownCwd: string | undefined;
   projectRoot: string | undefined;
   isServerThread: boolean;
@@ -120,6 +134,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   revertTurnCountByUserMessageId,
   onImageExpand,
   activeThreadEnvironmentId,
+  activeThreadId,
+  timelineCacheKey,
   markdownCwd,
   projectRoot,
   isServerThread,
@@ -169,13 +185,26 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const scrollSnapshotRef = useRef({ rowsLength: 0, scrollTop: 0 });
   const renderedRowsLengthRef = useRef(0);
   const pendingScrollTopRestoreRef = useRef<number | null>(null);
+  const rowsRef = useRef(rows);
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
+  const cachedVirtualizerSnapshot = useMemo(
+    () => timelineVirtualizerSnapshots.get(timelineCacheKey) ?? null,
+    [timelineCacheKey],
+  );
+  const initialMeasurementsCache = useMemo(
+    () => filterReusableTimelineMeasurements(cachedVirtualizerSnapshot, rows),
+    [cachedVirtualizerSnapshot, rows],
+  );
   const estimatedRowSizes = useMemo(() => rows.map(getEstimatedTimelineRowSize), [rows]);
   const initialScrollOffset = useMemo(
-    () => estimateInitialTimelineBottomOffset(estimatedRowSizes, virtualizerBottomPadding),
-    [estimatedRowSizes, virtualizerBottomPadding],
+    () =>
+      shouldRestoreTimelineScrollOffset(cachedVirtualizerSnapshot, rows)
+        ? cachedVirtualizerSnapshot.scrollOffset
+        : estimateInitialTimelineBottomOffset(estimatedRowSizes, virtualizerBottomPadding),
+    [cachedVirtualizerSnapshot, estimatedRowSizes, rows, virtualizerBottomPadding],
   );
 
+  rowsRef.current = rows;
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
   if (renderedRowsLengthRef.current !== rows.length) {
     if (
@@ -326,6 +355,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     paddingEnd: virtualizerBottomPadding,
     initialRect: DEFAULT_VIRTUALIZER_RECT,
     initialOffset: initialScrollOffset,
+    initialMeasurementsCache,
     useAnimationFrameWithResizeObserver: true,
     onChange: (_instance, sync) => {
       if (!sync && isAtBottomRef.current) {
@@ -333,7 +363,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       }
     },
   });
-  rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = keepScrollOffsetOnMeasuredRowResize;
 
   useLayoutSyncEffect(() => {
     const scrollElement = scrollElementRef.current;
@@ -360,10 +389,24 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     };
   }, [rows.length]);
 
+  useLayoutSyncEffect(
+    () => () => {
+      rememberTimelineVirtualizerSnapshot({
+        cacheKey: timelineCacheKey,
+        isAtBottom: isAtBottomRef.current,
+        rows: rowsRef.current,
+        scrollElement: scrollElementRef.current,
+        virtualizer: rowVirtualizer,
+      });
+    },
+    [rowVirtualizer, timelineCacheKey],
+  );
+
   const sharedState = useMemo<TimelineRowSharedState>(
     () => ({
       markdownCwd,
       projectRoot,
+      activeThreadId,
       activeThreadEnvironmentId,
       isServerThread,
       onBeginEditUserMessage,
@@ -373,6 +416,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     [
       markdownCwd,
       projectRoot,
+      activeThreadId,
       activeThreadEnvironmentId,
       isServerThread,
       onBeginEditUserMessage,
@@ -596,6 +640,7 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
 }
 
 const WORK_GROUP_PREVIEW_PX = 144;
+const WORK_GROUP_PREVIEW_ENTRY_PX = 28;
 const WORK_GROUP_HEADER_PX = 28;
 const ASSISTANT_MESSAGE_MIN_PX = 156;
 const USER_MESSAGE_MIN_PX = 88;
@@ -604,6 +649,70 @@ const MESSAGE_TEXT_LINE_HEIGHT_PX = 21;
 const ASSISTANT_MESSAGE_CHARS_PER_LINE = 82;
 const USER_MESSAGE_CHARS_PER_LINE = 96;
 const estimatedTimelineRowSizeCache = new WeakMap<MessagesTimelineRow, number>();
+
+function filterReusableTimelineMeasurements(
+  snapshot: TimelineVirtualizerSnapshot | null,
+  rows: readonly MessagesTimelineRow[],
+): VirtualItem[] {
+  if (!snapshot || snapshot.measuredItems.length === 0 || rows.length === 0) {
+    return [];
+  }
+
+  const rowIds = new Set(rows.map((row) => row.id));
+  return snapshot.measuredItems.filter(
+    (item) => typeof item.key === "string" && rowIds.has(item.key),
+  );
+}
+
+function shouldRestoreTimelineScrollOffset(
+  snapshot: TimelineVirtualizerSnapshot | null,
+  rows: readonly MessagesTimelineRow[],
+): snapshot is TimelineVirtualizerSnapshot {
+  return (
+    snapshot !== null &&
+    !snapshot.isAtBottom &&
+    snapshot.scrollOffset > 0 &&
+    Number.isFinite(snapshot.scrollOffset) &&
+    snapshot.firstRowId === rows[0]?.id
+  );
+}
+
+function rememberTimelineVirtualizerSnapshot(input: {
+  cacheKey: string;
+  virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>;
+  scrollElement: HTMLDivElement | null;
+  rows: readonly MessagesTimelineRow[];
+  isAtBottom: boolean;
+}): void {
+  if (input.rows.length === 0) {
+    return;
+  }
+
+  const scrollOffset = Math.max(
+    0,
+    input.scrollElement?.scrollTop ?? input.virtualizer.scrollOffset ?? 0,
+  );
+  const measuredItems = input.virtualizer.takeSnapshot();
+  if (measuredItems.length === 0 && scrollOffset === 0 && input.isAtBottom) {
+    return;
+  }
+
+  timelineVirtualizerSnapshots.delete(input.cacheKey);
+  timelineVirtualizerSnapshots.set(input.cacheKey, {
+    measuredItems,
+    scrollOffset,
+    isAtBottom: input.isAtBottom,
+    firstRowId: input.rows[0]?.id,
+  });
+
+  while (timelineVirtualizerSnapshots.size > MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS) {
+    const oldestCacheKey = timelineVirtualizerSnapshots.keys().next().value;
+    if (oldestCacheKey === undefined) {
+      return;
+    }
+    timelineVirtualizerSnapshots.delete(oldestCacheKey);
+  }
+}
 
 function getEstimatedTimelineRowSize(row: MessagesTimelineRow): number {
   const cachedSize = estimatedTimelineRowSizeCache.get(row);
@@ -642,7 +751,12 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
   }
 
   if (row.isRunning) {
-    return WORK_GROUP_HEADER_PX + WORK_GROUP_PREVIEW_PX + VIRTUAL_ROW_GAP_PX;
+    const previewCount = Math.min(row.groupedEntries.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
+    const previewHeight = Math.min(
+      WORK_GROUP_PREVIEW_PX,
+      previewCount * WORK_GROUP_PREVIEW_ENTRY_PX,
+    );
+    return WORK_GROUP_HEADER_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
   }
 
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;
@@ -838,7 +952,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   expanded: boolean;
   onToggleExpanded: (rowId: string) => void;
 }) {
-  const { projectRoot } = use(TimelineRowCtx);
+  const { activeThreadEnvironmentId, activeThreadId, projectRoot } = use(TimelineRowCtx);
   const summary = row.summary;
   const isRunning = row.isRunning;
   const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
@@ -904,6 +1018,9 @@ const WorkGroupSection = memo(function WorkGroupSection({
               key={`work-row:${workEntry.id}`}
               workEntry={workEntry}
               projectRoot={projectRoot}
+              activeThreadId={activeThreadId}
+              environmentId={activeThreadEnvironmentId}
+              subagentDetailsEnabled
             />
           ))}
         </div>
@@ -942,17 +1059,19 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
   onExpand: () => void;
   projectRoot: string | undefined;
 }) {
+  const { activeThreadEnvironmentId, activeThreadId } = use(TimelineRowCtx);
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
   const entries = row.groupedEntries;
+  const previewEntries = entries.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
   const lastEntryId = entries.at(-1)?.id;
-  const entryCount = entries.length;
+  const previewEntryCount = previewEntries.length;
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
     if (!host) return;
     host.scrollTop = host.scrollHeight;
     updatePreviewScrollable(host);
-  }, [entryCount, lastEntryId, row.isRunning]);
+  }, [lastEntryId, previewEntryCount, row.isRunning]);
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
@@ -990,17 +1109,19 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
       onKeyDown={onPreviewKeyDown}
       data-work-group-preview=""
       data-work-preview-scrollable="false"
-      className="flex w-full min-h-0 max-w-full shrink-0 cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{
-        height: WORK_GROUP_PREVIEW_PX,
         maxHeight: WORK_GROUP_PREVIEW_PX,
       }}
     >
-      {entries.map((workEntry) => (
+      {previewEntries.map((workEntry) => (
         <ToolCallMessage
           key={`work-preview-row:${workEntry.id}`}
           workEntry={workEntry}
           projectRoot={projectRoot}
+          activeThreadId={activeThreadId}
+          environmentId={activeThreadEnvironmentId}
+          subagentDetailsEnabled
         />
       ))}
     </div>

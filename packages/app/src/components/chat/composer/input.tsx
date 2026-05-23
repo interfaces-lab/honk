@@ -2,6 +2,7 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -14,30 +15,18 @@ import {
   type SetStateAction,
 } from "react";
 import { Button } from "@multi/ui/button";
-import {
-  Menu,
-  MenuGroup,
-  MenuGroupLabel,
-  MenuPopup,
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuSeparator as MenuDivider,
-  MenuTrigger,
-} from "@multi/ui/menu";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
+import { Menu, MenuPopup, MenuSeparator as MenuDivider, MenuTrigger } from "@multi/ui/menu";
 import { Separator } from "@multi/ui/separator";
 import {
   IconArrowUp,
+  IconBubbleQuestion,
   IconChevronLeftMedium,
   IconCrossSmall,
   IconDotGrid1x3Horizontal,
   IconEyeOpen,
-  IconLock,
-  IconPencilLine,
   IconPlusSmall,
-  IconRobot,
   IconStop,
-  IconUnlocked,
+  IconTodos,
   type CentralIconBaseProps,
 } from "central-icons";
 import {
@@ -47,7 +36,6 @@ import {
   type ProviderDriverKind,
   type ProviderInteractionMode,
   type ProviderOptionSelection,
-  type RuntimeMode,
   type ScopedThreadRef,
   type ServerProvider,
   type ServerProviderModel,
@@ -59,6 +47,7 @@ import {
   collapseExpandedComposerCursor,
   detectComposerTrigger,
   expandCollapsedComposerCursor,
+  isUnresolvedStandaloneComposerSlashCommand,
   replaceTextRange,
 } from "./prompt-triggers";
 import { deriveComposerSendState } from "../composer-submit";
@@ -82,7 +71,7 @@ import { cn } from "~/lib/utils";
 import { cva } from "class-variance-authority";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import { useComposerKeyboard } from "./use-composer-keyboard";
-import { resolveShortcutCommand } from "~/keybindings";
+import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
 import { useComposerImageAttachments } from "./use-image-attachments";
 import { ComposerImageAttachmentStrip } from "./image-attachment-strip";
 import ChatMarkdown from "../markdown/chat-markdown";
@@ -91,11 +80,8 @@ import {
   type ComposerInputHandle,
   type ComposerInputProps,
 } from "./input-contract";
-import {
-  QueuedComposerEditBanner,
-  QueuedComposerItemsBadge,
-  QueuedComposerItemsTray,
-} from "./queued-items-panel";
+import { QueuedComposerEditBanner, QueuedComposerItemsPanel } from "./queued-items-panel";
+import { SubagentPreviewTrayStack } from "./subagent-preview-tray";
 import { ComposerContextUsageBar } from "./composer-context-usage-bar";
 import { deriveLatestContextWindowSnapshot } from "../../../lib/context-window";
 import { formatProviderSkillDisplayName } from "./provider-skills";
@@ -149,6 +135,78 @@ Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
 
+const PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS =
+  "bg-(--cursor-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] [&_svg]:size-3.5";
+const PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS = "px-2 text-detail [&_svg]:size-3.5";
+
+type ActiveComposerInteractionMode = Exclude<ProviderInteractionMode, "default">;
+
+const interactionModeChipClass = cva(
+  "h-[var(--multi-composer-toolbar-control-size)] shrink-0 justify-between gap-1 overflow-hidden rounded-multi-control border pr-1 pl-1.5 text-detail font-medium [&_svg]:shrink-0",
+  {
+    variants: {
+      mode: {
+        ask: "w-[4.75rem] border-transparent bg-(--composer-mode-chat-background) text-(--composer-mode-chat-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-chat-background)_78%,var(--vscode-list-hoverBackground))]",
+        plan: "w-[5.25rem] border-(--composer-mode-plan-border) bg-(--composer-mode-plan-background) text-(--composer-mode-plan-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-plan-background)_82%,var(--vscode-list-hoverBackground))] [&_svg]:text-(--composer-mode-plan-icon)",
+      },
+    },
+  },
+);
+
+function getInteractionModeChipConfig(mode: ActiveComposerInteractionMode): {
+  readonly label: string;
+  readonly title: string;
+  readonly Icon: ComponentType<CentralIconBaseProps>;
+} {
+  switch (mode) {
+    case "ask":
+      return {
+        label: "Ask",
+        title: "Ask mode - click to return to Build",
+        Icon: IconBubbleQuestion,
+      };
+    case "plan":
+      return {
+        label: "Plan",
+        title: "Plan mode - click to return to Build",
+        Icon: IconTodos,
+      };
+  }
+}
+
+const ComposerInteractionModeChip = memo(function ComposerInteractionModeChip(props: {
+  mode: ActiveComposerInteractionMode;
+  shortcutLabel: string | null;
+  onClear: () => void;
+}) {
+  const chip = getInteractionModeChipConfig(props.mode);
+  const ChipIcon = chip.Icon;
+
+  return (
+    <Button
+      variant="ghost"
+      className={interactionModeChipClass({ mode: props.mode })}
+      data-composer-interaction-mode-chip=""
+      data-mode={props.mode}
+      size="sm"
+      type="button"
+      onClick={props.onClear}
+      title={`${chip.title}${props.shortcutLabel ? ` (${props.shortcutLabel})` : ""}`}
+    >
+      <span className="inline-flex size-4 shrink-0 items-center justify-center">
+        <ChipIcon className="size-3.5" aria-hidden />
+      </span>
+      <span className="min-w-0 truncate">{chip.label}</span>
+      <span
+        className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-current opacity-60 hover:opacity-100"
+        aria-hidden="true"
+      >
+        <IconCrossSmall className="size-2.5" />
+      </span>
+    </Button>
+  );
+});
+
 const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
   compact: boolean;
@@ -174,28 +232,28 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary shadow-sm",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
       data-visible="true"
       style={{ transformOrigin: "bottom left" }}
     >
-      <div className="flex min-w-0 items-start gap-2 px-3 pt-2 pb-1">
-        <div className="min-w-0 flex-1">
-          <div className="text-detail text-multi-fg-secondary">Review Plan</div>
+      <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="text-caption font-medium text-multi-fg-tertiary">Review Plan</div>
           <div className="truncate text-detail font-medium text-multi-fg-primary" title={title}>
             {title}
           </div>
         </div>
         <button
           type="button"
-          className="flex size-5 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-secondary"
+          className="flex size-6 shrink-0 items-center justify-center rounded-multi-control bg-multi-bg-quinary text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
           aria-label="Dismiss plan"
           title="Dismiss plan"
           onClick={() => setDismissedPlanId(planKey)}
         >
-          <IconCrossSmall className="size-2.5" aria-hidden />
+          <IconCrossSmall className="size-3" aria-hidden />
         </button>
       </div>
 
@@ -207,32 +265,32 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
         </div>
       ) : null}
 
-      <div className="flex h-10 min-w-0 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-2 py-2">
+      <div className="flex min-h-9 min-w-0 items-center justify-between gap-2.5 px-2.5 py-1.5">
         {showViewPlan ? (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 min-h-6 rounded-[var(--multi-radius-control,6px)] px-2"
+            className={PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS}
             onClick={props.onViewPlan}
           >
-            <IconEyeOpen className="size-3.5" aria-hidden />
+            <IconEyeOpen aria-hidden />
             <span>View Plan</span>
           </Button>
         ) : (
-          <span className="min-w-0" aria-hidden />
+          <span className="h-6 min-w-0" aria-hidden />
         )}
         <Button
           type="button"
           variant="default"
           size="sm"
-          className="h-6 min-h-6 gap-1 rounded-[var(--multi-radius-control,6px)] px-2.5"
+          className={PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS}
           disabled={props.isBuilding || !props.onBuildPlan}
           aria-label="Build plan"
           title="Build plan"
           onClick={props.onBuildPlan}
         >
-          <IconArrowUp className="size-3.5" aria-hidden />
+          <IconArrowUp aria-hidden />
           <span>{props.isBuilding ? "Building..." : "Build"}</span>
         </Button>
       </div>
@@ -445,7 +503,13 @@ const EMPTY_RESPONDING_REQUEST_IDS: NonNullable<ComposerInputProps["respondingRe
 Object.freeze(EMPTY_RESPONDING_REQUEST_IDS);
 
 const ignoreQueuedComposerItem = (_itemId: MessageId): void => undefined;
+const ignoreQueuedComposerItemReorder = (
+  _itemId: MessageId,
+  _targetItemId: MessageId | null,
+  _insertAfter: boolean,
+): void => undefined;
 const ignoreQueuedComposerEditCancel = (): void => undefined;
+const ignoreQueuedComposerExpandedChange = (_expanded: boolean): void => undefined;
 function useValueIdentityVersion<TValue>(value: TValue): number {
   const valueRef = useRef(value);
   const versionRef = useRef(0);
@@ -496,30 +560,52 @@ const extendReplacementRangeForTrailingSpace = (
   return text[rangeEnd] === " " ? rangeEnd + 1 : rangeEnd;
 };
 
-type CentralIconComponent = ComponentType<CentralIconBaseProps>;
+type ComposerTriggerDismissal =
+  | { kind: "path"; key: string }
+  | { kind: "slash-command"; query: string; rangeStart: number };
 
-const runtimeModeConfig: Record<
-  RuntimeMode,
-  { label: string; description: string; icon: CentralIconComponent }
-> = {
-  "approval-required": {
-    label: "Supervised",
-    description: "Ask before commands and file changes.",
-    icon: IconLock,
-  },
-  "auto-accept-edits": {
-    label: "Auto-accept edits",
-    description: "Allow reads and search, ask before edits and commands.",
-    icon: IconPencilLine,
-  },
-  "full-access": {
-    label: "Full access",
-    description: "Allow commands and edits without prompts.",
-    icon: IconUnlocked,
-  },
-};
+function composerPathTriggerDismissKey(trigger: ComposerTrigger): string {
+  return `${trigger.kind}:${trigger.rangeStart}:${trigger.rangeEnd}:${trigger.query}`;
+}
 
-const runtimeModeOptions = Object.keys(runtimeModeConfig) as RuntimeMode[];
+function composerTriggerDismissalFor(trigger: ComposerTrigger): ComposerTriggerDismissal {
+  if (trigger.kind === "slash-command") {
+    return { kind: "slash-command", query: trigger.query, rangeStart: trigger.rangeStart };
+  }
+  return { kind: "path", key: composerPathTriggerDismissKey(trigger) };
+}
+
+function isComposerTriggerDismissed(
+  trigger: ComposerTrigger,
+  dismissal: ComposerTriggerDismissal | null,
+): boolean {
+  if (!dismissal) {
+    return false;
+  }
+  if (trigger.kind === "slash-command") {
+    return (
+      dismissal.kind === "slash-command" &&
+      dismissal.rangeStart === trigger.rangeStart &&
+      trigger.query.startsWith(dismissal.query)
+    );
+  }
+  return dismissal.kind === "path" && dismissal.key === composerPathTriggerDismissKey(trigger);
+}
+
+function mapComposerTriggerDismissalThroughPromptChange(
+  dismissal: ComposerTriggerDismissal | null,
+  previousPrompt: string,
+  nextPrompt: string,
+): ComposerTriggerDismissal | null {
+  if (!dismissal || dismissal.kind !== "slash-command") {
+    return dismissal;
+  }
+
+  if (previousPrompt[dismissal.rangeStart] !== "/" || nextPrompt[dismissal.rangeStart] !== "/") {
+    return null;
+  }
+  return dismissal;
+}
 
 function ComposerPromptCursorClampSync({
   prompt,
@@ -622,7 +708,7 @@ function ComposerPendingInputPromptSync({
 }
 
 function ComposerDraftResetSync({
-  dismissedComposerTriggerKeyRef,
+  dismissedComposerTriggerRef,
   initialComposerTriggerSuppressionPromptRef,
   promptRef,
   setComposerCursor,
@@ -630,7 +716,7 @@ function ComposerDraftResetSync({
   setComposerTrigger,
   suppressInitialComposerTriggerDetectionRef,
 }: {
-  dismissedComposerTriggerKeyRef: RefObject<string | null>;
+  dismissedComposerTriggerRef: RefObject<ComposerTriggerDismissal | null>;
   initialComposerTriggerSuppressionPromptRef: RefObject<string>;
   promptRef: RefObject<string>;
   setComposerCursor: Dispatch<SetStateAction<number>>;
@@ -643,35 +729,36 @@ function ComposerDraftResetSync({
     setComposerCursor(collapseExpandedComposerCursor(promptRef.current, promptRef.current.length));
     suppressInitialComposerTriggerDetectionRef.current = true;
     initialComposerTriggerSuppressionPromptRef.current = promptRef.current;
-    dismissedComposerTriggerKeyRef.current = null;
+    dismissedComposerTriggerRef.current = null;
     setComposerTrigger(null);
   });
 
   return null;
 }
 
+function closestPointerTargetElement(target: Node): Element | null {
+  return target instanceof Element ? target : target.parentElement;
+}
+
 function isComposerCommandMenuPointerTarget(target: Node): boolean {
-  if (!(target instanceof Element)) {
-    return false;
-  }
-  return target.closest("[data-composer-command-menu-root]") !== null;
+  return closestPointerTargetElement(target)?.closest("[data-composer-command-menu-root]") != null;
+}
+
+function isPromptEditorPointerTarget(target: Node): boolean {
+  return closestPointerTargetElement(target)?.closest("[data-prompt-editor-input]") != null;
 }
 
 function ComposerCommandMenuPointerDismissSync({
-  composerFormRef,
   dismissComposerCommandMenu,
 }: {
-  composerFormRef: RefObject<HTMLFormElement | null>;
   dismissComposerCommandMenu: () => void;
 }) {
   useMountEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
-      const form = composerFormRef.current;
-      if (!form) return;
       const target = event.target;
       if (target instanceof Node) {
-        if (form.contains(target)) return;
         if (isComposerCommandMenuPointerTarget(target)) return;
+        if (isPromptEditorPointerTarget(target)) return;
       }
       dismissComposerCommandMenu();
     };
@@ -686,14 +773,7 @@ function ComposerCommandMenuPointerDismissSync({
 }
 
 function parseInteractionMode(value: string | null | undefined): ProviderInteractionMode | null {
-  if (value === "default" || value === "plan") return value;
-  return null;
-}
-
-function parseRuntimeMode(value: string | null | undefined): RuntimeMode | null {
-  if (value === "approval-required" || value === "auto-accept-edits" || value === "full-access") {
-    return value;
-  }
+  if (value === "default" || value === "ask" || value === "plan") return value;
   return null;
 }
 
@@ -716,16 +796,10 @@ function formatPendingPrimaryActionLabel(input: {
 }
 
 const OverflowControls = memo(function OverflowControls(props: {
-  interactionMode: ProviderInteractionMode;
-  runtimeMode: RuntimeMode;
-  showInteractionModeToggle: boolean;
   traitsFastMenuContent?: ReactNode | null | undefined;
   traitsRestMenuContent?: ReactNode | null | undefined;
-  onInteractionModeChange: (mode: ProviderInteractionMode) => void;
-  onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
-  const [optimisticInteractionMode, setOptimisticInteractionMode] = useState(props.interactionMode);
-  const [optimisticRuntimeMode, setOptimisticRuntimeMode] = useState(props.runtimeMode);
+  const hasBothTraitGroups = Boolean(props.traitsFastMenuContent && props.traitsRestMenuContent);
 
   return (
     <Menu>
@@ -748,148 +822,12 @@ const OverflowControls = memo(function OverflowControls(props: {
         {props.traitsFastMenuContent ? (
           <>
             {props.traitsFastMenuContent}
-            <MenuDivider variant="workbench" />
+            {hasBothTraitGroups ? <MenuDivider variant="workbench" /> : null}
           </>
         ) : null}
-        {props.showInteractionModeToggle ? (
-          <>
-            <MenuGroup>
-              <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
-              <MenuRadioGroup
-                value={optimisticInteractionMode}
-                onValueChange={(value) => {
-                  const nextMode = parseInteractionMode(value);
-                  if (!nextMode || nextMode === optimisticInteractionMode) return;
-                  setOptimisticInteractionMode(nextMode);
-                  props.onInteractionModeChange(nextMode);
-                }}
-              >
-                <MenuRadioItem variant="workbench" value="default">
-                  Chat
-                </MenuRadioItem>
-                <MenuRadioItem variant="workbench" value="plan">
-                  Plan
-                </MenuRadioItem>
-              </MenuRadioGroup>
-            </MenuGroup>
-            <MenuDivider variant="workbench" />
-          </>
-        ) : null}
-        <MenuGroup>
-          <MenuGroupLabel variant="workbench">Access</MenuGroupLabel>
-          <MenuRadioGroup
-            value={optimisticRuntimeMode}
-            onValueChange={(value) => {
-              const nextMode = parseRuntimeMode(value);
-              if (!nextMode || nextMode === optimisticRuntimeMode) return;
-              setOptimisticRuntimeMode(nextMode);
-              props.onRuntimeModeChange(nextMode);
-            }}
-          >
-            <MenuRadioItem variant="workbench" value="approval-required">
-              Supervised
-            </MenuRadioItem>
-            <MenuRadioItem variant="workbench" value="auto-accept-edits">
-              Auto-accept edits
-            </MenuRadioItem>
-            <MenuRadioItem variant="workbench" value="full-access">
-              Full access
-            </MenuRadioItem>
-          </MenuRadioGroup>
-        </MenuGroup>
-        {props.traitsRestMenuContent ? (
-          <>
-            <MenuDivider variant="workbench" />
-            {props.traitsRestMenuContent}
-          </>
-        ) : null}
+        {props.traitsRestMenuContent ? <>{props.traitsRestMenuContent}</> : null}
       </MenuPopup>
     </Menu>
-  );
-});
-
-const ModeAccessControls = memo(function ModeAccessControls(props: {
-  showInteractionModeToggle: boolean;
-  interactionMode: ProviderInteractionMode;
-  runtimeMode: RuntimeMode;
-  onToggleInteractionMode: () => void;
-  onRuntimeModeChange: (mode: RuntimeMode) => void;
-}) {
-  const runtimeModeOption = runtimeModeConfig[props.runtimeMode];
-  const RuntimeModeIcon = runtimeModeOption.icon;
-
-  return (
-    <>
-      <Separator orientation="vertical" className="mx-0.5 hidden h-4 sm:block" />
-
-      {props.showInteractionModeToggle ? (
-        <>
-          <Button
-            variant="ghost"
-            className={cn(
-              "h-7 shrink-0 rounded-full border px-2.5 text-muted-foreground/70 hover:text-foreground/80",
-              props.interactionMode === "plan"
-                ? "border-primary/25 bg-primary/10 text-primary"
-                : "border-transparent bg-multi-bg-quaternary text-multi-fg-primary",
-            )}
-            data-mode={props.interactionMode === "plan" ? "plan" : "chat"}
-            size="sm"
-            type="button"
-            onClick={props.onToggleInteractionMode}
-            title={
-              props.interactionMode === "plan"
-                ? "Plan mode - click to return to normal build mode"
-                : "Default mode - click to enter plan mode"
-            }
-          >
-            <IconRobot />
-            <span className="sr-only sm:not-sr-only">
-              {props.interactionMode === "plan" ? "Plan" : "Build"}
-            </span>
-          </Button>
-
-          <Separator orientation="vertical" className="mx-0.5 hidden h-4 sm:block" />
-        </>
-      ) : null}
-
-      <Select
-        value={props.runtimeMode}
-        onValueChange={(value) => {
-          const nextMode = parseRuntimeMode(value);
-          if (nextMode) props.onRuntimeModeChange(nextMode);
-        }}
-      >
-        <SelectTrigger
-          variant="ghost"
-          size="sm"
-          className="h-7 rounded-full font-medium"
-          aria-label="Runtime mode"
-          title={runtimeModeOption.description}
-        >
-          <RuntimeModeIcon className="size-4" />
-          <SelectValue>{runtimeModeOption.label}</SelectValue>
-        </SelectTrigger>
-        <SelectPopup alignItemWithTrigger={false}>
-          {runtimeModeOptions.map((mode) => {
-            const option = runtimeModeConfig[mode];
-            const OptionIcon = option.icon;
-            return (
-              <SelectItem key={mode} value={mode} className="min-w-64 py-2">
-                <div className="grid min-w-0 gap-0.5">
-                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                    <OptionIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    {option.label}
-                  </span>
-                  <span className="text-muted-foreground text-xs leading-4">
-                    {option.description}
-                  </span>
-                </div>
-              </SelectItem>
-            );
-          })}
-        </SelectPopup>
-      </Select>
-    </>
   );
 });
 
@@ -989,8 +927,8 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
       (props.sendWhileStreamingBehavior === "queue"
         ? "Queue message"
         : props.sendWhileStreamingBehavior === "stop-and-send"
-          ? "Stop and send message"
-          : "Send message");
+          ? "Stop and send"
+          : "Send immediately");
     const stopButton = (
       <button
         type="button"
@@ -1031,9 +969,12 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
       <Button
         type="submit"
         size="sm"
-        className={cn("rounded-full", props.compact ? "h-9 px-3 sm:h-8" : "h-9 px-4 sm:h-8")}
+        className={PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS}
         disabled={props.isSendBusy || props.isConnecting}
+        aria-label="Refine plan"
+        title="Refine plan"
       >
+        <IconArrowUp aria-hidden />
         {props.isConnecting || props.isSendBusy ? "Sending..." : "Refine"}
       </Button>
     );
@@ -1092,8 +1033,6 @@ const ComposerFooter = memo(function ComposerFooter(props: {
   compactControlsMenu: ReactNode;
   composerVariant: "compact" | "expanded";
   inlineEdit: boolean;
-  queuedComposerBadge?: ReactNode;
-  interactionMode: ProviderInteractionMode;
   isDockComposerExpanded: boolean;
   primaryActionState: {
     pendingAction: ComposerFooterPendingAction;
@@ -1110,13 +1049,9 @@ const ComposerFooter = memo(function ComposerFooter(props: {
   providerModelPicker: ReactNode;
   providerTraitsPicker: ReactNode;
   secondaryAction?: ReactNode | undefined;
-  runtimeMode: RuntimeMode;
-  showInteractionModeToggle: boolean;
   onAdvancePendingQuestion: () => void;
   onInterrupt: () => void;
   onPreviousPendingQuestion: () => void;
-  onRuntimeModeChange: (mode: RuntimeMode) => void;
-  onToggleInteractionMode: () => void;
 }) {
   const dockSingleRow = props.composerVariant === "compact" && !props.isDockComposerExpanded;
   const dockExpanded = props.composerVariant === "compact" && props.isDockComposerExpanded;
@@ -1126,6 +1061,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
     props.primaryActionState.pendingAction !== null;
 
   const isThreadShell = !props.inlineEdit && props.composerVariant === "compact";
+  const hasSecondaryToolbarControls = Boolean(props.providerTraitsPicker);
 
   return (
     <div
@@ -1162,9 +1098,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
           {props.compactControlsMenu}
         </span>
 
-        {props.queuedComposerBadge}
-
-        {!dockSingleRow ? (
+        {!dockSingleRow && hasSecondaryToolbarControls ? (
           <span className="hidden min-w-0 shrink-0 items-center gap-1 sm:inline-flex">
             {props.providerTraitsPicker ? (
               <>
@@ -1172,13 +1106,6 @@ const ComposerFooter = memo(function ComposerFooter(props: {
                 {props.providerTraitsPicker}
               </>
             ) : null}
-            <ModeAccessControls
-              showInteractionModeToggle={props.showInteractionModeToggle}
-              interactionMode={props.interactionMode}
-              runtimeMode={props.runtimeMode}
-              onToggleInteractionMode={props.onToggleInteractionMode}
-              onRuntimeModeChange={props.onRuntimeModeChange}
-            />
           </span>
         ) : null}
       </div>
@@ -1244,6 +1171,7 @@ export const ComposerInput = memo(
       submitDisabled = false,
       queuedComposerItems = EMPTY_QUEUED_COMPOSER_ITEMS,
       editingQueuedComposerItemId = null,
+      queuedComposerItemsExpanded = true,
       activePendingApproval = null,
       pendingApprovals = EMPTY_PENDING_APPROVALS,
       pendingUserInputs = EMPTY_PENDING_USER_INPUTS,
@@ -1256,7 +1184,6 @@ export const ComposerInput = memo(
       showPlanFollowUpPrompt = false,
       activeProposedPlan = null,
       planSurfaceOpen = false,
-      runtimeMode,
       interactionMode,
       providerStatuses,
       activeProjectDefaultModelSelection,
@@ -1284,8 +1211,9 @@ export const ComposerInput = memo(
       onCancelEditingQueuedComposerItem,
       onRemoveQueuedComposerItem,
       onSendQueuedComposerItemNow,
+      onReorderQueuedComposerItem,
+      onQueuedComposerItemsExpandedChange,
       toggleInteractionMode,
-      handleRuntimeModeChange,
       handleInteractionModeChange,
       setThreadError,
       onExpandImage,
@@ -1296,6 +1224,10 @@ export const ComposerInput = memo(
       onCancelEditingQueuedComposerItem ?? ignoreQueuedComposerEditCancel;
     const handleRemoveQueuedComposerItem = onRemoveQueuedComposerItem ?? ignoreQueuedComposerItem;
     const handleSendQueuedComposerItemNow = onSendQueuedComposerItemNow ?? ignoreQueuedComposerItem;
+    const handleReorderQueuedComposerItem =
+      onReorderQueuedComposerItem ?? ignoreQueuedComposerItemReorder;
+    const handleQueuedComposerItemsExpandedChange =
+      onQueuedComposerItemsExpandedChange ?? ignoreQueuedComposerExpandedChange;
     const handleRespondToApproval: NonNullable<ComposerInputProps["onRespondToApproval"]> =
       onRespondToApproval ?? missingPendingHandlers.respondToApproval;
     const handleSelectActivePendingUserInputOption: NonNullable<
@@ -1316,9 +1248,11 @@ export const ComposerInput = memo(
     > =
       onChangeActivePendingUserInputCustomAnswer ??
       missingPendingHandlers.changeActivePendingUserInputCustomAnswer;
+    const isEditingQueuedComposerItem = editingQueuedComposerItemId !== null;
     const isInlineEditComposer = layout === "inline-edit";
     const isNewAgentComposer = layout === "new-agent";
     const composerVariant = variant;
+    const showModeControls = !isInlineEditComposer && !isEditingQueuedComposerItem;
     const modelPickerPlacement =
       modelPickerPlacementProp ?? (composerVariant === "compact" ? "top-start" : "bottom-start");
 
@@ -1386,13 +1320,16 @@ export const ComposerInput = memo(
     const composerEditorHotkeyRef = useRef<HTMLDivElement>(null);
     const composerFormRef = useRef<HTMLFormElement>(null);
     const composerMenuAnchorRef = useRef<HTMLSpanElement | null>(null);
+    const composerMenuAnchorRectRef = useRef<DOMRectReadOnly | null>(null);
+    const composerMenuAnchorRafRef = useRef<number | null>(null);
     const composerSelectLockRef = useRef(false);
     const composerMenuOpenRef = useRef(false);
     const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
     const activeComposerMenuItemRef = useRef<ComposerCommandItem | null>(null);
     const suppressInitialComposerTriggerDetectionRef = useRef(true);
     const initialComposerTriggerSuppressionPromptRef = useRef(prompt);
-    const dismissedComposerTriggerKeyRef = useRef<string | null>(null);
+    const dismissedComposerTriggerRef = useRef<ComposerTriggerDismissal | null>(null);
+    const [composerMenuAnchorVersion, setComposerMenuAnchorVersion] = useState(0);
 
     const focusComposer = useCallback(() => {
       composerEditorRef.current?.focusAtEnd();
@@ -1405,36 +1342,91 @@ export const ComposerInput = memo(
     }, []);
 
     useComposerKeyboard({
+      enabled: showModeControls,
       keybindings,
       terminalOpen,
       targetRef: composerEditorHotkeyRef,
       onToggleInteractionMode: toggleInteractionMode,
     });
-
-    const composerTriggerDismissKey = useCallback(
-      (trigger: ComposerTrigger) =>
-        `${trigger.kind}:${trigger.rangeStart}:${trigger.rangeEnd}:${trigger.query}`,
-      [],
+    const interactionModeShortcutLabel = useMemo(
+      () =>
+        shortcutLabelForCommand(keybindings, "composer.cycleInteractionMode", {
+          context: { terminalFocus: false, terminalOpen },
+        }),
+      [keybindings, terminalOpen],
     );
+
+    useEffect(() => {
+      return () => {
+        if (composerMenuAnchorRafRef.current !== null) {
+          window.cancelAnimationFrame(composerMenuAnchorRafRef.current);
+        }
+      };
+    }, []);
+
+    const scheduleComposerMenuAnchorUpdate = useCallback(() => {
+      if (composerMenuAnchorRafRef.current !== null) {
+        return;
+      }
+      composerMenuAnchorRafRef.current = window.requestAnimationFrame(() => {
+        composerMenuAnchorRafRef.current = null;
+        setComposerMenuAnchorVersion((version) => version + 1);
+      });
+    }, []);
+
+    const onComposerMenuAnchorRectChange = useCallback(
+      (rect: DOMRectReadOnly) => {
+        const previous = composerMenuAnchorRectRef.current;
+        if (
+          previous &&
+          previous.left === rect.left &&
+          previous.top === rect.top &&
+          previous.width === rect.width &&
+          previous.height === rect.height
+        ) {
+          return;
+        }
+        composerMenuAnchorRectRef.current = rect;
+        if (composerMenuOpenRef.current) {
+          scheduleComposerMenuAnchorUpdate();
+        }
+      },
+      [scheduleComposerMenuAnchorUpdate],
+    );
+
+    // Cursor anchors slash menus to a real 1x1 caret element. Keep this as the
+    // Popover reference; cached virtual rects drift when hero/queued layouts move.
+    const composerMenuAnchor = useCallback(
+      () => composerMenuAnchorRef.current,
+      [composerMenuAnchorVersion],
+    );
+    // Replacement uses rangeStart/rangeEnd, but placement follows the visible
+    // caret like Cursor's default slashMenuAnchor="cursor".
+    const composerCaretTriggerOffset = composerTrigger?.rangeEnd ?? null;
 
     const resolveComposerTrigger = useCallback(
       (text: string, expandedCursor: number): ComposerTrigger | null => {
         if (suppressInitialComposerTriggerDetectionRef.current) {
           if (text === initialComposerTriggerSuppressionPromptRef.current) {
-            return null;
+            const shouldAllowBareSlashTrigger = /(?:^|\s|\()\/$/.test(text);
+            if (!shouldAllowBareSlashTrigger) {
+              return null;
+            }
           }
           suppressInitialComposerTriggerDetectionRef.current = false;
         }
         const nextTrigger = detectComposerTrigger(text, expandedCursor);
         if (!nextTrigger) {
-          dismissedComposerTriggerKeyRef.current = null;
+          dismissedComposerTriggerRef.current = null;
           return null;
         }
-        return composerTriggerDismissKey(nextTrigger) === dismissedComposerTriggerKeyRef.current
-          ? null
-          : nextTrigger;
+        if (isComposerTriggerDismissed(nextTrigger, dismissedComposerTriggerRef.current)) {
+          return null;
+        }
+        dismissedComposerTriggerRef.current = null;
+        return nextTrigger;
       },
-      [composerTriggerDismissKey],
+      [],
     );
 
     // ------------------------------------------------------------------
@@ -1465,6 +1457,7 @@ export const ComposerInput = memo(
       composerMenuKind,
       composerMenuIsSearching,
     } = useComposerCommandMenu({
+      allowModeSlashCommands: showModeControls,
       composerTrigger,
       environmentId,
       gitCwd,
@@ -1478,6 +1471,31 @@ export const ComposerInput = memo(
     composerMenuOpenRef.current = composerMenuOpen;
     composerMenuItemsRef.current = composerMenuItems;
     activeComposerMenuItemRef.current = activeComposerMenuItem;
+
+    useEffect(() => {
+      if (composerMenuOpen) {
+        scheduleComposerMenuAnchorUpdate();
+      }
+    }, [composerMenuOpen, scheduleComposerMenuAnchorUpdate]);
+
+    useEffect(() => {
+      if (!composerMenuOpen || typeof MutationObserver === "undefined") {
+        return;
+      }
+      const anchor = composerMenuAnchorRef.current;
+      if (!anchor) {
+        return;
+      }
+
+      // Cursor observes the fake caret's style attribute and refreshes Floating
+      // UI when it moves. Keep that contract here: the anchor element is stable,
+      // but its left/top style changes as the editor caret and layout move.
+      const observer = new MutationObserver(scheduleComposerMenuAnchorUpdate);
+      observer.observe(anchor, { attributeFilter: ["style"] });
+      return () => {
+        observer.disconnect();
+      };
+    }, [composerMenuOpen, scheduleComposerMenuAnchorUpdate]);
 
     const handleComposerContainerClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
       if (composerMenuOpenRef.current) return;
@@ -1519,8 +1537,9 @@ export const ComposerInput = memo(
     const isComposerApprovalState = activePendingApproval !== null;
     const activePendingUserInput = pendingUserInputs[0] ?? null;
     const hasQueuedComposerItems = queuedComposerItems.length > 0;
-    const isEditingQueuedComposerItem = editingQueuedComposerItemId !== null;
-    const canSubmitQueuedComposerItem = hasQueuedComposerItems && !isEditingQueuedComposerItem;
+    const queuedComposerActionsBusy = isConnecting || isSendBusy || phase === "running";
+    const canSubmitQueuedComposerItem =
+      hasQueuedComposerItems && !isEditingQueuedComposerItem && !queuedComposerActionsBusy;
     const hasComposerHeader = isComposerApprovalState || pendingUserInputs.length > 0;
 
     const promptHasExplicitLineBreak = prompt.includes("\n");
@@ -1583,6 +1602,11 @@ export const ComposerInput = memo(
         const next = replaceTextRange(promptRef.current, rangeStart, rangeEnd, replacement);
         const nextCursor = collapseExpandedComposerCursor(next.text, next.cursor);
         const nextExpandedCursor = expandCollapsedComposerCursor(next.text, nextCursor);
+        dismissedComposerTriggerRef.current = mapComposerTriggerDismissalThroughPromptChange(
+          dismissedComposerTriggerRef.current,
+          promptRef.current,
+          next.text,
+        );
         promptRef.current = next.text;
         const activePendingQuestion = activePendingProgress?.activeQuestion;
         if (activePendingQuestion && activePendingUserInput) {
@@ -1624,6 +1648,11 @@ export const ComposerInput = memo(
           scheduleComposerFocus();
           return;
         }
+        dismissedComposerTriggerRef.current = mapComposerTriggerDismissalThroughPromptChange(
+          dismissedComposerTriggerRef.current,
+          promptRef.current,
+          nextPrompt,
+        );
         promptRef.current = nextPrompt;
         setComposerDraftPrompt(composerDraftTarget, nextPrompt);
         const nextCursor = collapseExpandedComposerCursor(nextPrompt, nextPrompt.length);
@@ -1704,6 +1733,11 @@ export const ComposerInput = memo(
         expandedCursor: number,
         cursorAdjacentToMention: boolean,
       ) => {
+        dismissedComposerTriggerRef.current = mapComposerTriggerDismissalThroughPromptChange(
+          dismissedComposerTriggerRef.current,
+          promptRef.current,
+          nextPrompt,
+        );
         if (activePendingProgress?.activeQuestion && pendingUserInputs.length > 0) {
           promptRef.current = nextPrompt;
           setComposerCursor(nextCursor);
@@ -1717,6 +1751,11 @@ export const ComposerInput = memo(
             expandedCursor,
             cursorAdjacentToMention,
           );
+          if (nextPrompt.includes("\n")) {
+            setIsComposerEditorMultiline(true);
+          } else if (nextPrompt.trim().length === 0) {
+            setIsComposerEditorMultiline(false);
+          }
           return;
         }
         promptRef.current = nextPrompt;
@@ -1725,6 +1764,11 @@ export const ComposerInput = memo(
         setComposerTrigger(
           cursorAdjacentToMention ? null : resolveComposerTrigger(nextPrompt, expandedCursor),
         );
+        if (nextPrompt.includes("\n")) {
+          setIsComposerEditorMultiline(true);
+        } else if (nextPrompt.trim().length === 0) {
+          setIsComposerEditorMultiline(false);
+        }
       },
       [
         activePendingProgress?.activeQuestion,
@@ -1763,16 +1807,20 @@ export const ComposerInput = memo(
       };
     }, [readComposerSnapshot, resolveComposerTrigger]);
 
+    const clearComposerCommandMenuState = useCallback(() => {
+      setComposerTrigger(null);
+      setComposerHighlightedItemId(null);
+      setComposerHighlightedSearchKey(null);
+    }, []);
+
     const dismissComposerCommandMenu = useCallback(() => {
       const snapshot = readComposerSnapshot();
       const trigger = detectComposerTrigger(snapshot.value, snapshot.expandedCursor);
       if (trigger) {
-        dismissedComposerTriggerKeyRef.current = composerTriggerDismissKey(trigger);
+        dismissedComposerTriggerRef.current = composerTriggerDismissalFor(trigger);
       }
-      setComposerTrigger(null);
-      setComposerHighlightedItemId(null);
-      setComposerHighlightedSearchKey(null);
-    }, [composerTriggerDismissKey, readComposerSnapshot]);
+      clearComposerCommandMenuState();
+    }, [clearComposerCommandMenuState, readComposerSnapshot]);
 
     const promptRefVersion = useValueIdentityVersion(promptRef);
     const resolveComposerTriggerVersion = useValueIdentityVersion(resolveComposerTrigger);
@@ -1817,7 +1865,7 @@ export const ComposerInput = memo(
         />
         <ComposerDraftResetSync
           key={[draftId ?? "", activeThreadId ?? "", promptRefVersion].join("\0")}
-          dismissedComposerTriggerKeyRef={dismissedComposerTriggerKeyRef}
+          dismissedComposerTriggerRef={dismissedComposerTriggerRef}
           initialComposerTriggerSuppressionPromptRef={initialComposerTriggerSuppressionPromptRef}
           promptRef={promptRef}
           setComposerCursor={setComposerCursor}
@@ -1828,7 +1876,6 @@ export const ComposerInput = memo(
         {composerMenuOpen ? (
           <ComposerCommandMenuPointerDismissSync
             key={dismissComposerCommandMenuVersion}
-            composerFormRef={composerFormRef}
             dismissComposerCommandMenu={dismissComposerCommandMenu}
           />
         ) : null}
@@ -1859,7 +1906,7 @@ export const ComposerInput = memo(
             { expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd) },
           );
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
@@ -1870,18 +1917,20 @@ export const ComposerInput = memo(
               focusEditorAfterReplace: false,
             });
             if (applied) {
-              setComposerHighlightedItemId(null);
+              clearComposerCommandMenuState();
               setModelPickerOpenSearchSeed(undefined);
               setIsComposerModelPickerOpen(true);
             }
             return;
           }
-          void handleInteractionModeChange(item.command === "plan" ? "plan" : "default");
+          const nextMode = parseInteractionMode(item.command);
+          if (!nextMode) return;
+          void handleInteractionModeChange(nextMode);
           const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
             expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
           });
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
@@ -1904,7 +1953,7 @@ export const ComposerInput = memo(
               },
             ) ?? false;
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
@@ -1926,12 +1975,17 @@ export const ComposerInput = memo(
               },
             ) ?? false;
           if (applied) {
-            setComposerHighlightedItemId(null);
+            clearComposerCommandMenuState();
           }
           return;
         }
       },
-      [applyPromptReplacement, handleInteractionModeChange, resolveActiveComposerTrigger],
+      [
+        applyPromptReplacement,
+        clearComposerCommandMenuState,
+        handleInteractionModeChange,
+        resolveActiveComposerTrigger,
+      ],
     );
 
     const onComposerMenuItemHighlighted = useCallback(
@@ -1967,12 +2021,14 @@ export const ComposerInput = memo(
       event: KeyboardEvent,
     ) => {
       if (key === "Escape") {
+        if (!composerMenuOpenRef.current) {
+          return false;
+        }
         dismissComposerCommandMenu();
         return true;
       }
 
-      const { trigger } = resolveActiveComposerTrigger();
-      const menuIsActive = composerMenuOpenRef.current || trigger !== null;
+      const menuIsActive = composerMenuOpenRef.current;
       if (menuIsActive) {
         const currentItems = composerMenuItemsRef.current;
         const selectedItem = activeComposerMenuItemRef.current ?? currentItems[0];
@@ -1998,6 +2054,10 @@ export const ComposerInput = memo(
       }
       if (command === "composer.interrupt") {
         void onInterrupt();
+        return true;
+      }
+      if (command === "composer.cycleInteractionMode") {
+        toggleInteractionMode();
         return true;
       }
       return false;
@@ -2050,14 +2110,18 @@ export const ComposerInput = memo(
         },
         getSendContext: () => {
           const submitData = composerEditorRef.current?.getSubmitData();
+          const promptForSend = submitData?.text ?? promptRef.current;
           return {
-            prompt: submitData?.text ?? promptRef.current,
+            prompt: promptForSend,
             images: composerImagesRef.current,
             selectedPromptEffort,
             selectedModelSelection,
             selectedProvider,
             selectedModel: instanceCoherentSelectedModel,
             selectedProviderModels,
+            hasUnresolvedSlashCommand: isUnresolvedStandaloneComposerSlashCommand(promptForSend, {
+              hasComposerCommand: (submitData?.commands.length ?? 0) > 0,
+            }),
           };
         },
       }),
@@ -2091,9 +2155,21 @@ export const ComposerInput = memo(
     ) : null;
     const showQueuedComposerItems =
       hasQueuedComposerItems && !isComposerApprovalState && pendingUserInputs.length === 0;
-    const showQueuedComposerTray =
-      showQueuedComposerItems && (isDockComposerExpanded || phase === "running");
-    const showQueuedComposerBadge = showQueuedComposerItems && !showQueuedComposerTray;
+    const showQueuedComposerPanel = showQueuedComposerItems && !isInlineEditComposer;
+    const activeComposerInteractionMode: ActiveComposerInteractionMode | null =
+      showModeControls &&
+      composerProviderControls.showInteractionModeToggle &&
+      interactionMode !== "default"
+        ? interactionMode
+        : null;
+    const composerInteractionModeChip =
+      activeComposerInteractionMode === null ? null : (
+        <ComposerInteractionModeChip
+          mode={activeComposerInteractionMode}
+          shortcutLabel={interactionModeShortcutLabel}
+          onClear={() => handleInteractionModeChange("default")}
+        />
+      );
     const providerModelPicker = (
       <ProviderModelPicker
         compact={isDockComposerSingleLine}
@@ -2123,18 +2199,13 @@ export const ComposerInput = memo(
         onSelectionChange={onProviderModelSelect}
       />
     );
-    const compactControlsMenu = (
-      <OverflowControls
-        key={`${interactionMode}:${runtimeMode}`}
-        interactionMode={interactionMode}
-        runtimeMode={runtimeMode}
-        showInteractionModeToggle={composerProviderControls.showInteractionModeToggle}
-        traitsFastMenuContent={dockTraitsMenuFastSlot}
-        traitsRestMenuContent={dockTraitsMenuRestSlot}
-        onInteractionModeChange={handleInteractionModeChange}
-        onRuntimeModeChange={handleRuntimeModeChange}
-      />
-    );
+    const compactControlsMenu =
+      dockTraitsMenuFastSlot || dockTraitsMenuRestSlot ? (
+        <OverflowControls
+          traitsFastMenuContent={dockTraitsMenuFastSlot}
+          traitsRestMenuContent={dockTraitsMenuRestSlot}
+        />
+      ) : null;
 
     // Render
     // ------------------------------------------------------------------
@@ -2169,6 +2240,24 @@ export const ComposerInput = memo(
               onViewPlan={onViewPlan}
             />
           ) : null}
+          <SubagentPreviewTrayStack
+            activeThreadId={activeThreadId}
+            compact={composerVariant === "compact"}
+          />
+          {showQueuedComposerPanel ? (
+            <QueuedComposerItemsPanel
+              items={queuedComposerItems}
+              editingItemId={editingQueuedComposerItemId}
+              isBusy={queuedComposerActionsBusy}
+              compact={composerVariant === "compact"}
+              expanded={queuedComposerItemsExpanded}
+              onExpandedChange={handleQueuedComposerItemsExpandedChange}
+              onBeginEdit={handleBeginEditQueuedComposerItem}
+              onRemove={handleRemoveQueuedComposerItem}
+              onSendNow={handleSendQueuedComposerItemNow}
+              onReorder={handleReorderQueuedComposerItem}
+            />
+          ) : null}
           {promptInputHeaderContent ? (
             <div
               className={cn(
@@ -2185,7 +2274,7 @@ export const ComposerInput = memo(
           ) : null}
           <div
             className={cn(
-              "group relative w-full max-w-full min-w-0 cursor-text overflow-hidden border shadow-sm transition-[border-color,background-color,border-radius] duration-200 hover:border-multi-stroke-secondary focus-within:border-multi-stroke-secondary",
+              "group relative w-full max-w-full min-w-0 cursor-text overflow-hidden border shadow-sm transition-[border-color,background-color] duration-200 hover:border-multi-stroke-secondary focus-within:border-multi-stroke-secondary",
               isInlineEditComposer
                 ? "rounded-xl border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)"
                 : "border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)",
@@ -2247,19 +2336,19 @@ export const ComposerInput = memo(
                   </button>
                 </>
               ) : null}
-              {showQueuedComposerTray ? (
-                <QueuedComposerItemsTray
-                  items={queuedComposerItems}
-                  editingItemId={editingQueuedComposerItemId}
-                  isBusy={isConnecting || isSendBusy}
-                  onBeginEdit={handleBeginEditQueuedComposerItem}
-                  onCancelEdit={handleCancelEditingQueuedComposerItem}
-                  onRemove={handleRemoveQueuedComposerItem}
-                  onSendNow={handleSendQueuedComposerItemNow}
-                />
-              ) : null}
               {isEditingQueuedComposerItem ? (
                 <QueuedComposerEditBanner onCancelEdit={handleCancelEditingQueuedComposerItem} />
+              ) : null}
+              {composerInteractionModeChip ? (
+                <div
+                  className={cn(
+                    "min-w-0 shrink-0",
+                    isDockComposerSingleLine ? "contents" : "flex px-3 pt-2",
+                    composerShellMode === "new-agent" && "px-0 pt-0",
+                  )}
+                >
+                  {composerInteractionModeChip}
+                </div>
               ) : null}
               <div
                 className={cn(
@@ -2294,7 +2383,8 @@ export const ComposerInput = memo(
                   cursor={composerCursor}
                   skills={selectedProviderStatus?.skills ?? []}
                   caretAnchorRef={composerMenuAnchorRef}
-                  caretTriggerExpandedOffset={composerTrigger?.rangeStart ?? null}
+                  caretTriggerExpandedOffset={composerCaretTriggerOffset}
+                  onCaretAnchorRectChange={onComposerMenuAnchorRectChange}
                   onMeasuredMultilineChange={setIsComposerEditorMultiline}
                   onChange={onPromptChange}
                   onCommandKeyDown={onComposerCommandKey}
@@ -2313,11 +2403,13 @@ export const ComposerInput = memo(
                             ? "Editing queued message..."
                             : isInlineEditComposer
                               ? "Edit message"
-                              : phase === "disconnected"
-                                ? "Ask for follow-up changes or attach images"
-                                : composerVariant === "compact"
-                                  ? "Send follow-up"
-                                  : "Ask anything, @tag files/folders, or use / to show available commands"
+                              : interactionMode === "ask"
+                                ? "Ask questions without making changes..."
+                                : phase === "disconnected"
+                                  ? "Ask for follow-up changes or attach images"
+                                  : composerVariant === "compact"
+                                    ? "Send follow-up"
+                                    : "Ask anything, @tag files/folders, or use / to show available commands"
                   }
                   disabled={isConnecting || isComposerApprovalState}
                 />
@@ -2346,34 +2438,18 @@ export const ComposerInput = memo(
                   composerVariant={composerVariant}
                   inlineEdit={isInlineEditComposer}
                   isDockComposerExpanded={isDockComposerExpanded}
-                  queuedComposerBadge={
-                    showQueuedComposerBadge ? (
-                      <QueuedComposerItemsBadge
-                        items={queuedComposerItems}
-                        editingItemId={editingQueuedComposerItemId}
-                        isBusy={isConnecting || isSendBusy}
-                        compact={isDockComposerSingleLine}
-                        onBeginEdit={handleBeginEditQueuedComposerItem}
-                        onCancelEdit={handleCancelEditingQueuedComposerItem}
-                        onRemove={handleRemoveQueuedComposerItem}
-                        onSendNow={handleSendQueuedComposerItemNow}
-                      />
-                    ) : null
-                  }
                   providerModelPicker={providerModelPicker}
                   compactControlsMenu={compactControlsMenu}
                   providerTraitsPicker={providerTraitsPicker}
                   secondaryAction={footerSecondaryAction}
-                  showInteractionModeToggle={composerProviderControls.showInteractionModeToggle}
-                  interactionMode={interactionMode}
-                  runtimeMode={runtimeMode}
                   primaryActionState={{
                     pendingAction: pendingPrimaryAction,
                     isRunning: phase === "running",
                     showPlanFollowUpPrompt:
                       pendingUserInputs.length === 0 &&
                       showPlanFollowUpPrompt &&
-                      prompt.trim().length > 0,
+                      prompt.trim().length > 0 &&
+                      !isEditingQueuedComposerItem,
                     isSendBusy,
                     isConnecting,
                     isPreparingWorktree,
@@ -2385,8 +2461,6 @@ export const ComposerInput = memo(
                       ? "Save queued message"
                       : undefined,
                   }}
-                  onToggleInteractionMode={toggleInteractionMode}
-                  onRuntimeModeChange={handleRuntimeModeChange}
                   onAdvancePendingQuestion={handleAdvanceActivePendingUserInput}
                   onPreviousPendingQuestion={handlePreviousActivePendingUserInputQuestion}
                   onInterrupt={handleInterruptPrimaryAction}
@@ -2400,7 +2474,8 @@ export const ComposerInput = memo(
         </div>
         <ComposerCommandMenuPositioned
           open={composerMenuOpen && !isComposerApprovalState}
-          anchorRef={composerMenuAnchorRef}
+          anchor={composerMenuAnchor}
+          anchorVersion={composerMenuAnchorVersion}
           items={composerMenuItems}
           resolvedTheme={resolvedTheme}
           isLoading={isComposerMenuLoading}

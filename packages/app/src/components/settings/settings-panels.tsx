@@ -14,6 +14,7 @@ import {
   defaultInstanceIdForDriver,
   type ProviderInstanceConfig,
   type ProviderInstanceId,
+  type RuntimeMode,
   type ScopedThreadRef,
   ProviderDriverKind,
 } from "@multi/contracts";
@@ -115,6 +116,16 @@ const AGENT_WINDOW_USAGE_SUMMARY_DISPLAY_LABELS: Record<AgentWindowUsageSummaryD
   always: "Always",
   never: "Never",
 };
+
+const RUNTIME_MODE_LABELS: Record<RuntimeMode, string> = {
+  "full-access": "Full access",
+  "auto-accept-edits": "Auto-accept edits",
+  "approval-required": "Supervised",
+};
+
+function isRuntimeMode(value: string | null | undefined): value is RuntimeMode {
+  return value === "full-access" || value === "auto-accept-edits" || value === "approval-required";
+}
 
 type ProviderSettingsDescriptor = {
   provider: typeof ProviderDriverKind.Type;
@@ -321,6 +332,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.enableAssistantStreaming !== DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming
         ? ["Assistant output"]
         : []),
+      ...(settings.defaultRuntimeMode !== DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode
+        ? ["Agent access"]
+        : []),
       ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
         ? ["New thread mode"]
         : []),
@@ -360,6 +374,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.confirmThreadDelete,
       settings.cursorPointerOnButtons,
       settings.addProjectBaseDirectory,
+      settings.defaultRuntimeMode,
       settings.defaultThreadEnvMode,
       settings.diffWordWrap,
       settings.enableAssistantStreaming,
@@ -528,7 +543,7 @@ function CodeFontFamilySettingsRow(props: { codeFont: string }) {
   return (
     <SettingsRow
       title="Code Font Family"
-      description="Override the font for code editors and diffs."
+      description="Editor font."
       control={
         <FontFamilyInput
           label="Code Font Family"
@@ -814,7 +829,7 @@ export function AppearanceSettingsPanel() {
       <SettingsSection title="Colors">
         <SettingsRow
           title="Hue"
-          description="Accent hue for buttons, links, and focus rings (Pierre neutrals unchanged)."
+          description="Accent color."
           control={
             <SettingsSlider
               label="Accent hue"
@@ -829,7 +844,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Intensity"
-          description="Chroma strength of the accent and tinted surfaces."
+          description="Tint strength."
           control={
             <SettingsSlider
               label="Accent intensity"
@@ -842,22 +857,8 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
-          title="Glass transparency"
-          description="Control the opacity of translucent window surfaces."
-          control={
-            <SettingsSlider
-              label="Window transparency"
-              max={100}
-              min={0}
-              suffix="%"
-              value={appearance.transparency}
-              onChange={appearanceSettingsActions.setWindowTransparency}
-            />
-          }
-        />
-        <SettingsRow
           title="Reduce Transparency"
-          description="Replace translucent surfaces with opaque backgrounds."
+          description="Use solid backgrounds."
           control={
             <Switch
               checked={appearance.reduceTransparency}
@@ -880,7 +881,7 @@ export function AppearanceSettingsPanel() {
       >
         <SettingsRow
           title="UI Font Size"
-          description="Font size for the Multi user interface."
+          description="Interface text size."
           control={
             <NumberStepper
               label="UI Font Size"
@@ -893,7 +894,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Code Font Size"
-          description="Font size for code editors and diffs."
+          description="Editor text size."
           control={
             <NumberStepper
               label="Code Font Size"
@@ -906,7 +907,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="UI Font Family"
-          description="Override the Multi user interface typeface."
+          description="Interface font."
           control={
             <FontFamilyInput
               key={appearance.uiFont}
@@ -923,7 +924,7 @@ export function AppearanceSettingsPanel() {
       <SettingsSection title="Agent Window">
         <SettingsRow
           title="Font Smoothing"
-          description="Use native macOS grayscale antialiasing in the Agent Window."
+          description="Mac text smoothing."
           resetAction={
             settings.agentWindowFontSmoothingAntialiased !==
             DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased ? (
@@ -950,7 +951,7 @@ export function AppearanceSettingsPanel() {
         />
         <SettingsRow
           title="Use pointer cursors"
-          description="Use pointer cursor on interactive controls."
+          description="Pointer on controls."
           resetAction={
             settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons ? (
               <SettingResetButton
@@ -1034,6 +1035,52 @@ export function AgentsSettingsPanel() {
                 updateSettings({ enableAssistantStreaming: Boolean(checked) })
               }
             />
+          }
+        />
+        <SettingsRow
+          title="Agent access"
+          description="Default tool and command access for agent turns."
+          resetAction={
+            settings.defaultRuntimeMode !== DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode ? (
+              <SettingResetButton
+                label="agent access"
+                onClick={() =>
+                  updateSettings({
+                    defaultRuntimeMode: DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.defaultRuntimeMode}
+              onValueChange={(value) => {
+                if (isRuntimeMode(value)) {
+                  updateSettings({ defaultRuntimeMode: value });
+                }
+              }}
+            >
+              <SelectTrigger
+                size="xs"
+                variant="outline"
+                className="w-full sm:w-42"
+                aria-label="Agent access"
+              >
+                <SelectValue>{RUNTIME_MODE_LABELS[settings.defaultRuntimeMode]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="full-access">
+                  {RUNTIME_MODE_LABELS["full-access"]}
+                </SelectItem>
+                <SelectItem hideIndicator value="auto-accept-edits">
+                  {RUNTIME_MODE_LABELS["auto-accept-edits"]}
+                </SelectItem>
+                <SelectItem hideIndicator value="approval-required">
+                  {RUNTIME_MODE_LABELS["approval-required"]}
+                </SelectItem>
+              </SelectPopup>
+            </Select>
           }
         />
         <SettingsRow

@@ -16,6 +16,7 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import {
   IconBuildingBlocks,
   IconBox2,
+  IconBubbleQuestion,
   IconRobot,
   IconSettingsSliderHor,
   IconSquareChecklist,
@@ -27,7 +28,6 @@ import {
   useMemo,
   type ComponentProps,
   type ComponentType,
-  type RefObject,
 } from "react";
 
 import { Popover, PopoverPopup } from "@multi/ui/popover";
@@ -52,6 +52,7 @@ import {
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
 
 const PATH_QUERY_DEBOUNCE_MS = 120;
+const COMPOSER_MENU_SIDE_OFFSET = 4;
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
 type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -412,6 +413,7 @@ function resolveComposerMenuActiveItemId(input: {
 }
 
 export function useComposerCommandMenu(input: {
+  allowModeSlashCommands?: boolean | undefined;
   composerTrigger: ComposerTrigger | null;
   environmentId: EnvironmentId;
   gitCwd: string | null;
@@ -424,6 +426,8 @@ export function useComposerCommandMenu(input: {
   const composerTriggerKind = input.composerTrigger?.kind ?? null;
   const pathTriggerQuery =
     input.composerTrigger?.kind === "path" ? input.composerTrigger.query : "";
+  const slashTriggerQuery =
+    input.composerTrigger?.kind === "slash-command" ? input.composerTrigger.query : "";
   const shouldSearchProjectEntries = composerTriggerKind === "path";
   const [debouncedPathQuery, pathQueryDebouncer] = useDebouncedValue(
     pathTriggerQuery,
@@ -451,7 +455,9 @@ export function useComposerCommandMenu(input: {
       return [];
     }
 
-    const builtInSlashCommandItems = [
+    const builtInSlashCommandItems: Array<
+      Extract<ComposerCommandItem, { type: "slash-command" }>
+    > = [
       {
         id: "slash:model",
         type: "slash-command",
@@ -459,21 +465,32 @@ export function useComposerCommandMenu(input: {
         label: "/model",
         description: "Switch response model for this thread",
       },
-      {
-        id: "slash:plan",
-        type: "slash-command",
-        command: "plan",
-        label: "/plan",
-        description: "Switch this thread into plan mode",
-      },
-      {
-        id: "slash:default",
-        type: "slash-command",
-        command: "default",
-        label: "/default",
-        description: "Switch this thread back to normal build mode",
-      },
-    ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
+    ];
+    if (input.allowModeSlashCommands !== false) {
+      builtInSlashCommandItems.push(
+        {
+          id: "slash:ask",
+          type: "slash-command",
+          command: "ask",
+          label: "/ask",
+          description: "Ask questions without making changes",
+        },
+        {
+          id: "slash:plan",
+          type: "slash-command",
+          command: "plan",
+          label: "/plan",
+          description: "Switch this thread into plan mode",
+        },
+        {
+          id: "slash:default",
+          type: "slash-command",
+          command: "default",
+          label: "/build",
+          description: "Switch this thread back to Build mode",
+        },
+      );
+    }
     const providerSlashCommandItems = (input.selectedProviderStatus?.slashCommands ?? []).map(
       (command) => ({
         id: `provider-slash-command:${input.selectedProvider}:${command.name}`,
@@ -494,6 +511,7 @@ export function useComposerCommandMenu(input: {
     const matchingSlashItems = query ? searchSlashCommandItems(slashItems, query) : slashItems;
     return matchingSlashItems;
   }, [
+    input.allowModeSlashCommands,
     input.composerTrigger,
     input.providerStatuses,
     input.selectedProvider,
@@ -501,7 +519,13 @@ export function useComposerCommandMenu(input: {
     projectEntries,
   ]);
 
-  const composerMenuOpen = input.composerTrigger !== null;
+  const slashQueryHasMatches =
+    composerTriggerKind !== "slash-command" ||
+    slashTriggerQuery.trim().length === 0 ||
+    composerMenuItems.length > 0;
+  const composerMenuOpen =
+    input.composerTrigger !== null &&
+    (composerTriggerKind !== "slash-command" || slashQueryHasMatches);
   const composerMenuSearchKey = input.composerTrigger
     ? `${input.composerTrigger.kind}:${input.composerTrigger.query.trim().toLowerCase()}`
     : null;
@@ -532,7 +556,7 @@ export function useComposerCommandMenu(input: {
   const composerMenuKind: ComposerCommandMenuKind =
     composerTriggerKind === "slash-command" ? "slash" : "mentions";
   const composerMenuIsSearching =
-    composerTriggerKind === "slash-command" && pathTriggerQuery.trim().length > 0;
+    composerTriggerKind === "slash-command" && slashTriggerQuery.trim().length > 0;
 
   return {
     composerTriggerKind,
@@ -551,12 +575,14 @@ export function useComposerCommandMenu(input: {
 
 function getSlashCommandIcon(command: ComposerSlashCommand): CentralIconComponent {
   if (command === "model") return IconBox2;
+  if (command === "ask") return IconBubbleQuestion;
   if (command === "plan") return IconSquareChecklist;
   return IconRobot;
 }
 
 function getSlashCommandTertiaryText(command: ComposerSlashCommand): string {
   if (command === "model") return "Select Model";
+  if (command === "ask") return "Ask Mode";
   if (command === "plan") return "Plan Mode";
   return "Build Mode";
 }
@@ -762,32 +788,38 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
   );
 });
 
+type ComposerCommandMenuAnchor = ComponentProps<typeof PopoverPopup>["anchor"];
+
 type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandMenu> & {
   open: boolean;
-  anchorRef: RefObject<HTMLElement | null>;
+  anchor: ComposerCommandMenuAnchor;
+  anchorVersion: number;
 };
 
 export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPositioned(
   props: ComposerCommandMenuPositionedProps,
 ) {
-  const { open, anchorRef, menuKind, ...menuProps } = props;
+  const { open, anchor, anchorVersion, menuKind, ...menuProps } = props;
   const collisionPadding = useMemo(
     () => (open ? composerMenuCollisionPadding() : { top: 8, bottom: 8, left: 8, right: 8 }),
     [open],
   );
   const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
 
+  // The anchor is a function that returns the hidden caret span. Remount when
+  // its version changes so Base UI resolves the updated DOM caret position.
   return (
     <Popover open={open}>
       <PopoverPopup
-        anchor={anchorRef}
+        key={anchorVersion}
+        anchor={anchor}
         align="start"
         collisionBoundary={collisionBoundary}
         collisionPadding={collisionPadding}
         initialFocus={false}
         instant
         side="top"
-        sideOffset={8}
+        sideOffset={COMPOSER_MENU_SIDE_OFFSET}
         className={cn(
           "z-[70] border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
           menuKind === "mentions"

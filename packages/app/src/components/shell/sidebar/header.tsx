@@ -1,4 +1,4 @@
-import { IconCollaborationPointerRight, IconPlusLarge } from "central-icons";
+import { IconCollaborationPointerRight, IconFolderAddRight } from "central-icons";
 
 import { SidebarButton } from "~/components/shell/shared/sidebar-button";
 
@@ -23,11 +23,11 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
             variant="chrome"
             onClick={props.onAddProject}
             className="w-full flex-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
-            aria-label="Open project"
+            aria-label="Open workspace"
             data-testid="sidebar-add-project-trigger"
           >
-            <IconPlusLarge className="size-4 shrink-0 opacity-65" />
-            <span className="min-w-0 flex-1 truncate">Open Project</span>
+            <IconFolderAddRight className="size-4 shrink-0 opacity-65" />
+            <span className="min-w-0 flex-1 truncate">Open Workspace</span>
           </SidebarButton>
         </div>
       ) : null}

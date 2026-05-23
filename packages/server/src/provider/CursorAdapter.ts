@@ -16,6 +16,7 @@ import {
   type ProviderInteractionMode,
   type ProviderRuntimeEvent,
   type ProviderSession,
+  type ProviderThreadSnapshotItem,
   type ProviderUserInputAnswers,
   RuntimeRequestId,
   type RuntimeMode,
@@ -89,14 +90,15 @@ import {
 import { CursorAdapter, type CursorAdapterShape } from "./CursorAdapter.service.ts";
 import { resolveCursorAcpBaseModelId } from "./CursorProvider.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 import { actionFromAcpPermissionKind, shouldPromptForAction } from "./runtime-permission-policy.ts";
 
 const PROVIDER = ProviderDriverKind.make("cursor");
 const PROVIDER_INSTANCE_ID = defaultInstanceIdForDriver(PROVIDER);
 const CURSOR_RESUME_VERSION = 1 as const;
 const ACP_PLAN_MODE_ALIASES = ["plan", "architect"];
-const ACP_IMPLEMENT_MODE_ALIASES = ["code", "agent", "default", "chat", "implement"];
-const ACP_APPROVAL_MODE_ALIASES = ["ask"];
+const ACP_ASK_MODE_ALIASES = ["chat", "ask"];
+const ACP_IMPLEMENT_MODE_ALIASES = ["code", "agent", "default", "implement"];
 
 export interface CursorAdapterLiveOptions {
   readonly nativeEventLogPath?: string;
@@ -120,7 +122,7 @@ interface CursorSessionContext {
   notificationFiber: Fiber.Fiber<void, never> | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
-  readonly turns: Array<{ id: TurnId; items: Array<unknown> }>;
+  readonly turns: Array<{ id: TurnId; items: Array<ProviderThreadSnapshotItem> }>;
   readonly interruptedTurnIds: Set<TurnId>;
   lastPlanFingerprint: string | undefined;
   activeTurnId: TurnId | undefined;
@@ -158,6 +160,51 @@ function settlePendingUserInputsAsEmptyAnswers(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Predicate.isObject(value);
+}
+
+function cursorContentBlockDetail(block: EffectAcpSchema.ContentBlock): string {
+  switch (block.type) {
+    case "text":
+      return block.text;
+    case "image":
+      return block.uri ?? "Image attachment";
+    case "audio":
+      return "Audio attachment";
+    case "resource_link":
+      return block.title ?? block.name ?? block.uri;
+    case "resource":
+      return "Embedded resource";
+  }
+}
+
+function cursorPromptDetail(blocks: ReadonlyArray<EffectAcpSchema.ContentBlock>): string {
+  return blocks
+    .map((block) => cursorContentBlockDetail(block).trim())
+    .filter((detail) => detail.length > 0)
+    .join("\n\n");
+}
+
+function cursorPromptSnapshotItems(
+  prompt: ReadonlyArray<EffectAcpSchema.ContentBlock>,
+  result: EffectAcpSchema.PromptResponse,
+): Array<ProviderThreadSnapshotItem> {
+  const promptDetail = cursorPromptDetail(prompt);
+  return [
+    {
+      itemType: "user_message",
+      role: "user",
+      title: "User message",
+      ...(promptDetail.length > 0 ? { detail: promptDetail } : {}),
+      data: { prompt },
+    },
+    {
+      itemType: "unknown",
+      role: "tool",
+      title: "Prompt result",
+      detail: `Stopped: ${result.stopReason}`,
+      data: { result },
+    },
+  ];
 }
 
 function parseCursorResume(raw: unknown): { sessionId: string } | undefined {
@@ -218,9 +265,18 @@ function resolveRequestedModeId(input: {
     return findModeByAliases(modeState.availableModes, ACP_PLAN_MODE_ALIASES)?.id;
   }
 
+  if (input.interactionMode === "ask") {
+    return (
+      findModeByAliases(modeState.availableModes, ACP_ASK_MODE_ALIASES)?.id ??
+      findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
+      modeState.availableModes.find((mode) => !isPlanMode(mode))?.id ??
+      modeState.currentModeId
+    );
+  }
+
   if (input.runtimeMode === "approval-required") {
     return (
-      findModeByAliases(modeState.availableModes, ACP_APPROVAL_MODE_ALIASES)?.id ??
+      findModeByAliases(modeState.availableModes, ACP_ASK_MODE_ALIASES)?.id ??
       findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
       modeState.availableModes.find((mode) => !isPlanMode(mode))?.id ??
       modeState.currentModeId
@@ -229,7 +285,6 @@ function resolveRequestedModeId(input: {
 
   return (
     findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
-    findModeByAliases(modeState.availableModes, ACP_APPROVAL_MODE_ALIASES)?.id ??
     modeState.availableModes.find((mode) => !isPlanMode(mode))?.id ??
     modeState.currentModeId
   );
@@ -1085,8 +1140,9 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         });
 
         const promptParts: Array<EffectAcpSchema.ContentBlock> = [];
-        if (input.input?.trim()) {
-          promptParts.push({ type: "text", text: input.input.trim() });
+        const promptText = formatProviderTurnInputText(input);
+        if (promptText) {
+          promptParts.push({ type: "text", text: promptText });
         }
         if (input.attachments && input.attachments.length > 0) {
           for (const attachment of input.attachments) {
@@ -1157,7 +1213,10 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         }
 
         const result = promptExit.value;
-        ctx.turns.push({ id: turnId, items: [{ prompt: promptParts, result }] });
+        ctx.turns.push({
+          id: turnId,
+          items: cursorPromptSnapshotItems(promptParts, result),
+        });
         ctx.session = {
           ...ctx.session,
           activeTurnId: undefined,
@@ -1266,10 +1325,10 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         yield* Deferred.succeed(pending.answers, answers);
       });
 
-    const readThread: CursorAdapterShape["readThread"] = (threadId) =>
+    const readThread: CursorAdapterShape["readThread"] = (input) =>
       Effect.gen(function* () {
-        const ctx = yield* requireSession(threadId);
-        return { threadId, turns: ctx.turns };
+        const ctx = yield* requireSession(input.threadId);
+        return { threadId: input.threadId, turns: ctx.turns };
       });
 
     const rollbackThread: CursorAdapterShape["rollbackThread"] = (threadId, numTurns) =>

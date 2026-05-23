@@ -6,6 +6,7 @@ import {
   EventId,
   MessageId,
   ProjectId,
+  ThreadEntryId,
   ThreadId,
   TurnId,
   type OrchestrationEvent,
@@ -667,6 +668,8 @@ describe("incremental orchestration updates", () => {
       makeEvent("thread.message-sent", {
         threadId: thread1.id,
         messageId: MessageId.make("message-1"),
+        entryId: ThreadEntryId.make("entry-message-1"),
+        parentEntryId: null,
         role: "assistant",
         text: " world",
         turnId: TurnId.make("turn-1"),
@@ -732,6 +735,8 @@ describe("incremental orchestration updates", () => {
           {
             threadId: thread.id,
             messageId: MessageId.make("assistant-1"),
+            entryId: ThreadEntryId.make("entry-assistant-1"),
+            parentEntryId: null,
             role: "assistant",
             text: "done",
             turnId: TurnId.make("turn-1"),
@@ -814,6 +819,8 @@ describe("incremental orchestration updates", () => {
       makeEvent("thread.message-sent", {
         threadId: ThreadId.make("thread-1"),
         messageId: MessageId.make("assistant-real"),
+        entryId: ThreadEntryId.make("entry-assistant-real"),
+        parentEntryId: null,
         role: "assistant",
         text: "final answer",
         turnId,

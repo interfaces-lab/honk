@@ -14,6 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
 import { useComposerDraftStore } from "../../../stores/chat-drafts";
+import { useComposerQueueStore } from "../../../stores/chat-send-queue";
 import { __resetEnvironmentApiOverridesForTests } from "../../../environment-api";
 import { __resetClientSettingsPersistenceForTests } from "../../../hooks/use-settings";
 import { isMacPlatform } from "../../../lib/utils";
@@ -286,6 +287,45 @@ export async function waitForElement<T extends Element>(
     throw new Error(errorMessage);
   }
   return element;
+}
+export function assertComposerSlashMenuTracksCaret(options?: { maxGapPx?: number }): void {
+  const menuRoot = document.querySelector<HTMLElement>("[data-composer-command-menu-root]");
+  const anchor = document.querySelector<HTMLElement>("[data-composer-menu-anchor]");
+  const form = anchor?.closest<HTMLElement>('[data-chat-input-form="true"]') ?? null;
+  const surface = anchor?.closest<HTMLElement>("[data-multi-composer-surface]") ?? null;
+
+  expect(menuRoot, "expected slash menu root").not.toBeNull();
+  expect(anchor, "expected live composer caret anchor").not.toBeNull();
+  expect(form, "expected composer form").not.toBeNull();
+  expect(surface, "expected composer surface around caret anchor").not.toBeNull();
+  if (!menuRoot || !anchor || !form || !surface) {
+    return;
+  }
+
+  const menuRect = menuRoot.getBoundingClientRect();
+  const anchorRect = anchor.getBoundingClientRect();
+  const formRect = form.getBoundingClientRect();
+  const surfaceRect = surface.getBoundingClientRect();
+  const maxGapPx = options?.maxGapPx ?? 12;
+  const hitTarget = document.elementFromPoint(
+    menuRect.left + menuRect.width / 2,
+    menuRect.top + menuRect.height / 2,
+  );
+
+  expect(anchorRect.width).toBeLessThanOrEqual(2);
+  expect(anchorRect.height).toBeLessThanOrEqual(2);
+  expect(anchorRect.top).toBeGreaterThanOrEqual(formRect.top - 1);
+  expect(anchorRect.top).toBeLessThanOrEqual(formRect.bottom + 1);
+  expect(anchorRect.left).toBeGreaterThanOrEqual(surfaceRect.left - 1);
+  expect(anchorRect.left).toBeLessThanOrEqual(surfaceRect.right + 1);
+  expect(menuRect.width).toBeGreaterThan(0);
+  expect(menuRect.height).toBeGreaterThan(0);
+  expect(menuRect.top).toBeGreaterThanOrEqual(8);
+  expect(menuRect.height).toBeLessThanOrEqual(window.innerHeight - 16);
+  expect(menuRect.bottom).toBeLessThanOrEqual(anchorRect.top + 1);
+  expect(anchorRect.top - menuRect.bottom).toBeLessThanOrEqual(maxGapPx);
+  expect(Math.abs(menuRect.left - anchorRect.left)).toBeLessThanOrEqual(8);
+  expect(hitTarget instanceof Element && menuRoot.contains(hitTarget)).toBe(true);
 }
 export async function waitForURL(
   router: ReturnType<typeof getRouter>,
@@ -843,6 +883,11 @@ export function installChatViewBrowserHarness(): void {
       logicalProjectDraftThreadKeyByLogicalProjectKey: {},
       stickyModelSelectionByProvider: {},
       stickyActiveProvider: null,
+    });
+    useComposerQueueStore.setState({
+      queueItemsByThreadKey: {},
+      editingQueueItemIdByThreadKey: {},
+      queueExpandedByThreadKey: {},
     });
     useCommandPaletteStore.setState({
       open: false,

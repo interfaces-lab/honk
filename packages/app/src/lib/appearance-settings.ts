@@ -1,7 +1,6 @@
 import { isElectron } from "../env";
 
 export const STORAGE_REDUCE_TRANSPARENCY = "multi:reduce-transparency";
-export const STORAGE_WINDOW_TRANSPARENCY = "multi:window-transparency";
 export const STORAGE_TINT_HUE = "multi:accent-hue";
 export const STORAGE_TINT_SATURATION = "multi:accent-saturation";
 export const STORAGE_UI_FONT_SIZE = "multi:ui-font-size";
@@ -14,7 +13,6 @@ export const APPEARANCE_SETTINGS_CHANGED = "appearance-settings-changed" as cons
 let listeners: Array<() => void> = [];
 const keys = new Set([
   STORAGE_REDUCE_TRANSPARENCY,
-  STORAGE_WINDOW_TRANSPARENCY,
   STORAGE_TINT_HUE,
   STORAGE_TINT_SATURATION,
   STORAGE_UI_FONT_SIZE,
@@ -59,13 +57,13 @@ function emitAppearanceSettingsChanged() {
 function wantsOsVibrancy() {
   if (localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1") return false;
   if (!isElectron) return false;
-  if (document.body.getAttribute("data-cursor-glass-mode") !== "true") return false;
+  if (document.body.getAttribute("data-multi-glass-mode") !== "true") return false;
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
 function syncVibrancy() {
   const wantsVibrancy = wantsOsVibrancy();
-  const glassMode = document.body.getAttribute("data-cursor-glass-mode") === "true";
+  const glassMode = document.body.getAttribute("data-multi-glass-mode") === "true";
   document.body.classList.toggle("multi-os-vibrancy-on", glassMode && wantsVibrancy);
   document.body.classList.toggle("multi-os-vibrancy-off", glassMode && !wantsVibrancy);
 
@@ -83,15 +81,7 @@ function applyChromeRoot() {
   const body = document.body;
 
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
-  const transparency = parseIntStored(
-    localStorage.getItem(STORAGE_WINDOW_TRANSPARENCY),
-    18,
-    0,
-    100,
-  );
-  root.classList.toggle("multi-reduce-transparency", reduce);
   body.classList.toggle("multi-reduce-transparency", reduce);
-  root.style.setProperty("--multi-transparency", String(transparency));
 
   const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);
@@ -130,7 +120,6 @@ function applyAppearanceSettings() {
 }
 
 export function resetAppearanceSettings() {
-  localStorage.removeItem(STORAGE_WINDOW_TRANSPARENCY);
   localStorage.removeItem(STORAGE_TINT_HUE);
   localStorage.removeItem(STORAGE_TINT_SATURATION);
   localStorage.removeItem(STORAGE_REDUCE_TRANSPARENCY);
@@ -143,11 +132,6 @@ export function resetAppearanceSettings() {
 
 export function setReduceTransparency(on: boolean) {
   localStorage.setItem(STORAGE_REDUCE_TRANSPARENCY, on ? "1" : "0");
-  applyAppearanceSettings();
-}
-
-export function setWindowTransparency(value: number) {
-  localStorage.setItem(STORAGE_WINDOW_TRANSPARENCY, String(Math.min(100, Math.max(0, value))));
   applyAppearanceSettings();
 }
 
@@ -191,7 +175,6 @@ export function setCodeFontFamily(css: string) {
 
 export type AppearanceSnapshot = {
   readonly reduceTransparency: boolean;
-  readonly transparency: number;
   readonly hue: number;
   readonly saturation: number;
   readonly uiFontSize: number;
@@ -203,7 +186,6 @@ export type AppearanceSnapshot = {
 function buildSnapshot(): AppearanceSnapshot {
   return {
     reduceTransparency: localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1",
-    transparency: parseIntStored(localStorage.getItem(STORAGE_WINDOW_TRANSPARENCY), 18, 0, 100),
     hue: parseIntStored(localStorage.getItem(STORAGE_TINT_HUE), 247, 0, 360),
     saturation: readTintSaturation(),
     uiFontSize: parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16),
@@ -220,7 +202,6 @@ export function readAppearanceSnapshot() {
   if (
     cached &&
     cached.reduceTransparency === next.reduceTransparency &&
-    cached.transparency === next.transparency &&
     cached.hue === next.hue &&
     cached.saturation === next.saturation &&
     cached.uiFontSize === next.uiFontSize &&

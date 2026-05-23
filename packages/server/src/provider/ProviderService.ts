@@ -15,6 +15,7 @@ import {
   ThreadId,
   defaultInstanceIdForDriver,
   ProviderInterruptTurnInput,
+  ProviderThreadReadInput,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
   ProviderSendTurnInput,
@@ -64,6 +65,7 @@ const decodeProviderInterruptTurnInput = Schema.decodeUnknownEffect(ProviderInte
 const decodeProviderRollbackConversationInput = Schema.decodeUnknownEffect(
   ProviderRollbackConversationInput,
 );
+const decodeProviderThreadReadInput = Schema.decodeUnknownEffect(ProviderThreadReadInput);
 const decodeProviderRespondToRequestInput = Schema.decodeUnknownEffect(
   ProviderRespondToRequestInput,
 );
@@ -466,10 +468,12 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       return yield* Effect.gen(function* () {
         const persistedBinding = Option.getOrUndefined(yield* directory.getBinding(threadId));
         const effectiveResumeCursor =
-          input.resumeCursor ??
-          (persistedBinding?.providerInstanceId === input.providerInstanceId
-            ? persistedBinding.resumeCursor
-            : undefined);
+          input.discardResumeCursor === true
+            ? undefined
+            : (input.resumeCursor ??
+              (persistedBinding?.providerInstanceId === input.providerInstanceId
+                ? persistedBinding.resumeCursor
+                : undefined));
         const rawEffectiveCwd =
           input.cwd ??
           (persistedBinding?.providerInstanceId === input.providerInstanceId
@@ -484,6 +488,8 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
           "provider.resume_cursor.source":
             input.resumeCursor !== undefined
               ? "request"
+              : input.discardResumeCursor === true
+                ? "discarded"
               : effectiveResumeCursor !== undefined &&
                   persistedBinding?.providerInstanceId === input.providerInstanceId
                 ? "persisted"
@@ -854,6 +860,40 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       .getByInstance(defaultInstanceIdForDriver(provider))
       .pipe(Effect.map((adapter) => adapter.capabilities));
 
+  const readThread: ProviderServiceShape["readThread"] = Effect.fn("readThread")(
+    function* (rawInput) {
+      const input = yield* decodeInputOrValidationError({
+        operation: "ProviderService.readThread",
+        decode: decodeProviderThreadReadInput,
+        payload: rawInput,
+      });
+      let metricProvider = "unknown";
+      return yield* Effect.gen(function* () {
+        const routed = yield* resolveRoutableSession({
+          threadId: input.threadId,
+          operation: "ProviderService.readThread",
+          allowRecovery: true,
+        });
+        metricProvider = routed.adapter.provider;
+        yield* Effect.annotateCurrentSpan({
+          "provider.operation": "read-thread",
+          "provider.kind": routed.adapter.provider,
+          "provider.thread_id": input.threadId,
+          ...(input.providerThreadId ? { "provider.native_thread_id": input.providerThreadId } : {}),
+        });
+        return yield* routed.adapter.readThread(input);
+      }).pipe(
+        withMetrics({
+          counter: providerTurnsTotal,
+          outcomeAttributes: () =>
+            providerMetricAttributes(metricProvider, {
+              operation: "read-thread",
+            }),
+        }),
+      );
+    },
+  );
+
   const rollbackConversation: ProviderServiceShape["rollbackConversation"] = Effect.fn(
     "rollbackConversation",
   )(function* (rawInput) {
@@ -956,6 +996,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     stopSession,
     listSessions,
     getCapabilities,
+    readThread,
     rollbackConversation,
     // Each access creates a fresh PubSub subscription so that multiple
     // consumers (ProviderRuntimeIngestion, CheckpointReactor, etc.) each

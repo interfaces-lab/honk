@@ -444,10 +444,6 @@ function countLabel(count: number, noun: string): string {
 }
 
 function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {
-  if (a.isRunning || b.isRunning) {
-    return false;
-  }
-
   return (
     a.createdAt === b.createdAt &&
     a.durationStart === b.durationStart &&

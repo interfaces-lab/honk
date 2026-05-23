@@ -12,13 +12,11 @@ import {
   setTintSaturation,
   setUiFontFamily,
   setUiFontSize,
-  setWindowTransparency,
   subscribeAppearanceSettings,
 } from "../lib/appearance-settings";
 
 export const DEFAULT_APPEARANCE_SNAPSHOT: AppearanceSnapshot = {
   reduceTransparency: false,
-  transparency: 18,
   hue: 247,
   saturation: 33,
   uiFontSize: 13,
@@ -48,7 +46,6 @@ export function useAppearanceSettingsSnapshot(): AppearanceSnapshot {
   return useAppearanceStore(
     useShallow((state) => ({
       reduceTransparency: state.reduceTransparency,
-      transparency: state.transparency,
       hue: state.hue,
       saturation: state.saturation,
       uiFontSize: state.uiFontSize,
@@ -68,5 +65,4 @@ export const appearanceSettingsActions = {
   setTintSaturation,
   setUiFontFamily,
   setUiFontSize,
-  setWindowTransparency,
 } as const;

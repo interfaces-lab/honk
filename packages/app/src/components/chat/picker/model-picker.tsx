@@ -154,13 +154,14 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                 props.compact
                   ? showInstanceBadge
                     ? "size-4"
-                    : "size-3.5"
+                    : "h-lh w-3.5"
                   : showInstanceBadge
                     ? "size-5"
-                    : "size-4",
+                    : "h-lh w-4",
               )}
               iconClassName={cn(
-                props.compact ? "size-3.5" : "size-4",
+                props.compact ? "w-3.5" : "w-4",
+                "block h-lh",
                 props.activeProviderIconClassName,
               )}
               badgeClassName="right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 text-[7px]"
@@ -204,7 +205,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
           </Tooltip>
           <IconChevronRightMedium
             aria-hidden="true"
-            className="ui-model-picker__trigger-chevron size-3 shrink-0 rotate-90 opacity-60"
+            className="ui-model-picker__trigger-chevron block h-lh w-3 shrink-0 rotate-90 opacity-60"
           />
         </span>
       </PopoverTrigger>

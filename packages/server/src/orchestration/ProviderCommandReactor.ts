@@ -6,12 +6,18 @@ import {
   type MessageId,
   type ModelSelection,
   type OrchestrationEvent,
+  type OrchestrationThread,
+  type ProviderConversationMessage,
+  type ProviderInteractionMode,
   ProviderDriverKind,
   ProviderInstanceId,
   type OrchestrationSession,
+  formatThreadEntryPathIssue,
+  resolveThreadEntryPath,
   ThreadId,
   type ProviderSession,
   type RuntimeMode,
+  type ThreadEntryId,
   type TurnId,
 } from "@multi/contracts";
 import { isTemporaryWorktreeBranch, WORKTREE_BRANCH_PREFIX } from "@multi/shared/git";
@@ -52,7 +58,10 @@ import {
   coerceThreadProjectCwd,
 } from "../project/AccessibleProjectCwd.ts";
 import { expandHomePath } from "../os-jank.ts";
-import { ProviderCommandReactorThreadNotFoundError } from "./Errors.ts";
+import {
+  ProviderCommandReactorBranchPathError,
+  ProviderCommandReactorThreadNotFoundError,
+} from "./Errors.ts";
 
 type ProviderIntentEvent = Extract<
   OrchestrationEvent,
@@ -186,6 +195,79 @@ function buildGeneratedWorktreeBranchName(raw: string): string {
   return `${WORKTREE_BRANCH_PREFIX}/${safeFragment}`;
 }
 
+function buildThreadEntryPath(
+  thread: OrchestrationThread,
+  leafEntryId: ThreadEntryId,
+):
+  | {
+      readonly ok: true;
+      readonly entries: NonNullable<OrchestrationThread["entries"]>;
+    }
+  | {
+      readonly ok: false;
+      readonly detail: string;
+    } {
+  const entries = thread.entries ?? [];
+  const path = resolveThreadEntryPath({
+    entries,
+    entryId: leafEntryId,
+  });
+  if (!path.ok) {
+    return {
+      ok: false,
+      detail: formatThreadEntryPathIssue(path),
+    };
+  }
+
+  return {
+    ok: true,
+    entries: [...path.entries],
+  };
+}
+
+function buildProviderConversationContext(input: {
+  readonly thread: OrchestrationThread;
+  readonly currentMessageId: MessageId;
+  readonly userEntryId: ThreadEntryId;
+}):
+  | {
+      readonly ok: true;
+      readonly messages: ReadonlyArray<ProviderConversationMessage>;
+    }
+  | {
+      readonly ok: false;
+      readonly detail: string;
+    } {
+  const messageById = new Map(
+    input.thread.messages.map((message) => [message.id, message] as const),
+  );
+  const path = buildThreadEntryPath(input.thread, input.userEntryId);
+  if (!path.ok) {
+    return path;
+  }
+  return {
+    ok: true,
+    messages: path.entries.flatMap((entry) => {
+      if (entry.kind !== "message" || entry.messageId === null) {
+        return [];
+      }
+      if (entry.messageId === input.currentMessageId) {
+        return [];
+      }
+      const message = messageById.get(entry.messageId);
+      if (!message || message.text.trim().length === 0) {
+        return [];
+      }
+      return [
+        {
+          role: message.role,
+          text: message.text,
+        },
+      ];
+    }),
+  };
+}
+
 const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
@@ -275,6 +357,7 @@ const make = Effect.gen(function* () {
     createdAt: string,
     options?: {
       readonly modelSelection?: ModelSelection;
+      readonly discardResumeCursor?: boolean;
     },
   ) {
     const readModel = yield* orchestrationEngine.getReadModel();
@@ -313,13 +396,17 @@ const make = Effect.gen(function* () {
         .listSessions()
         .pipe(Effect.map((sessions) => sessions.find((session) => session.threadId === threadId)));
 
-    const startProviderSession = (input?: { readonly resumeCursor?: unknown }) =>
+    const startProviderSession = (input?: {
+      readonly resumeCursor?: unknown;
+      readonly discardResumeCursor?: boolean;
+    }) =>
       providerService.startSession(threadId, {
         threadId,
         providerInstanceId: desiredModelSelection.instanceId,
         ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
         modelSelection: desiredModelSelection,
         ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
+        ...(input?.discardResumeCursor === true ? { discardResumeCursor: true } : {}),
         runtimeMode: desiredRuntimeMode,
       });
 
@@ -366,13 +453,14 @@ const make = Effect.gen(function* () {
         !providerChanged &&
         !shouldRestartForModelChange &&
         !cwdChanged &&
-        !shouldRestartForModelSelectionChange
+        !shouldRestartForModelSelectionChange &&
+        options?.discardResumeCursor !== true
       ) {
         return existingSessionThreadId;
       }
 
       const resumeCursor =
-        providerChanged || shouldRestartForModelChange
+        providerChanged || shouldRestartForModelChange || options?.discardResumeCursor === true
           ? undefined
           : (activeSession?.resumeCursor ?? undefined);
       yield* Effect.logInfo("provider command reactor restarting provider session", {
@@ -390,9 +478,10 @@ const make = Effect.gen(function* () {
         shouldRestartForModelSelectionChange,
         hasResumeCursor: resumeCursor !== undefined,
       });
-      const restartedSession = yield* startProviderSession(
-        resumeCursor !== undefined ? { resumeCursor } : undefined,
-      );
+      const restartedSession = yield* startProviderSession({
+        ...(resumeCursor !== undefined ? { resumeCursor } : {}),
+        ...(options?.discardResumeCursor === true ? { discardResumeCursor: true } : {}),
+      });
       yield* Effect.logInfo("provider command reactor restarted provider session", {
         threadId,
         previousSessionId: existingSessionThreadId,
@@ -404,7 +493,9 @@ const make = Effect.gen(function* () {
       return restartedSession.threadId;
     }
 
-    const startedSession = yield* startProviderSession(undefined);
+    const startedSession = yield* startProviderSession(
+      options?.discardResumeCursor === true ? { discardResumeCursor: true } : undefined,
+    );
     yield* bindSessionToThread(startedSession);
     return startedSession.threadId;
   });
@@ -412,10 +503,12 @@ const make = Effect.gen(function* () {
   const buildSendTurnRequestForThread = Effect.fn("buildSendTurnRequestForThread")(
     function* (input: {
       readonly threadId: ThreadId;
+      readonly messageId: MessageId;
+      readonly userEntryId: ThreadEntryId;
       readonly messageText: string;
       readonly attachments?: ReadonlyArray<ChatAttachment>;
       readonly modelSelection?: ModelSelection;
-      readonly interactionMode?: "default" | "plan";
+      readonly interactionMode?: ProviderInteractionMode;
       readonly createdAt: string;
     }) {
       const thread = yield* resolveThread(input.threadId);
@@ -425,11 +518,22 @@ const make = Effect.gen(function* () {
           input.threadId,
         );
       }
-      yield* ensureSessionForThread(
-        input.threadId,
-        input.createdAt,
-        input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {},
-      );
+      const conversationContext = buildProviderConversationContext({
+        thread,
+        currentMessageId: input.messageId,
+        userEntryId: input.userEntryId,
+      });
+      if (!conversationContext.ok) {
+        return yield* new ProviderCommandReactorBranchPathError({
+          operation: "ProviderCommandReactor.buildSendTurnRequestForThread",
+          threadId: input.threadId,
+          detail: conversationContext.detail,
+        });
+      }
+      yield* ensureSessionForThread(input.threadId, input.createdAt, {
+        ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+        discardResumeCursor: true,
+      });
       if (input.modelSelection !== undefined) {
         threadModelSelections.set(input.threadId, input.modelSelection);
       }
@@ -459,6 +563,9 @@ const make = Effect.gen(function* () {
       return {
         threadId: input.threadId,
         ...(normalizedInput ? { input: normalizedInput } : {}),
+        ...(conversationContext.messages.length > 0
+          ? { context: conversationContext.messages }
+          : {}),
         ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
         ...(modelForTurn !== undefined ? { modelSelection: modelForTurn } : {}),
         ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
@@ -651,6 +758,8 @@ const make = Effect.gen(function* () {
 
     const sendTurnRequest = yield* buildSendTurnRequestForThread({
       threadId: event.payload.threadId,
+      messageId: event.payload.messageId,
+      userEntryId: event.payload.userEntryId,
       messageText: message.text,
       ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
       ...(event.payload.modelSelection !== undefined

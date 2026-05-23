@@ -6,20 +6,27 @@ import {
   DEFAULT_TERMINAL_ID,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
+  type OrchestrationProposedPlanId,
   type ServerConfig,
   type ThreadId,
   WS_METHODS,
+  ProviderDriverKind,
   ProviderInstanceId,
 } from "@multi/contracts";
 import { page } from "vitest/browser";
 import { describe, expect, it, vi } from "vitest";
 
 import { useComposerDraftStore, DraftId } from "../../../stores/chat-drafts";
+import {
+  type QueuedComposerPlanFollowUp,
+  useComposerQueueStore,
+} from "../../../stores/chat-send-queue";
 import { useTerminalStateStore } from "../../../terminal-state-store";
 import { useUiStateStore } from "../../../stores/ui-state-store";
 import { useShellPanelsStore } from "~/stores/shell-panels-store";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../../../types";
 import { workbenchTerminalThreadId } from "~/components/shell/terminal/workbench-terminal";
+import { createQueuedComposerItem } from "./chat-view-send-flow";
 
 import {
   COMPACT_FOOTER_VIEWPORT,
@@ -43,6 +50,7 @@ import {
   createSnapshotForTargetUser,
   createSnapshotWithLongProposedPlan,
   createSnapshotWithPendingUserInput,
+  createSnapshotWithPlanFollowUpPrompt,
   createSnapshotWithSecondaryProject,
   draftIdFromPath,
   draftThreadIdFor,
@@ -53,6 +61,7 @@ import {
 } from "./chat-view.browser.fixtures";
 import {
   dispatchChatNewShortcut,
+  assertComposerSlashMenuTracksCaret,
   expectComposerActionsContained,
   findButtonByText,
   findComposerProviderModelPicker,
@@ -171,6 +180,36 @@ async function openSidebarThreadContextMenu(title = THREAD_TITLE): Promise<void>
   await waitForElement(
     () => document.querySelector<HTMLElement>('[data-slot="context-menu-popup"]'),
     "Unable to find sidebar thread context menu.",
+  );
+}
+
+function enqueueTestQueuedComposerItem(options: {
+  itemId: MessageId;
+  prompt: string;
+  planFollowUp?: QueuedComposerPlanFollowUp | null;
+}): void {
+  useComposerQueueStore.getState().enqueueComposerItem(
+    THREAD_KEY,
+    createQueuedComposerItem({
+      threadKey: THREAD_KEY,
+      itemId: options.itemId,
+      createdAt: NOW_ISO,
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: DEFAULT_INTERACTION_MODE,
+      planFollowUp: options.planFollowUp ?? null,
+      sendContext: {
+        prompt: options.prompt,
+        images: [],
+        selectedProvider: ProviderDriverKind.make("codex"),
+        selectedModel: "gpt-5",
+        selectedProviderModels: [],
+        selectedPromptEffort: null,
+        selectedModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5",
+        },
+      },
+    }),
   );
 }
 
@@ -3152,44 +3191,12 @@ describe("ChatView timeline estimator parity (full app)", () => {
       const composerEditor = page.getByTestId("composer-editor");
       await composerEditor.fill("/");
       const menuItem = await waitForComposerMenuItem("slash:model");
-      const composerForm = await waitForElement(
-        () => document.querySelector<HTMLElement>('[data-chat-input-form="true"]'),
-        "Unable to find composer form.",
-      );
-      const assertMenuAligned = () => {
-        const menuRoot = document.querySelector<HTMLElement>("[data-composer-command-menu-root]");
-        const menuRect = (menuRoot ?? menuItem).getBoundingClientRect();
-        const composerRect = composerForm.getBoundingClientRect();
-        const anchor = document.querySelector<HTMLElement>("[data-composer-menu-anchor]");
-        const anchorRect = anchor?.getBoundingClientRect();
-        const hitTarget = document.elementFromPoint(
-          menuRect.left + menuRect.width / 2,
-          menuRect.top + menuRect.height / 2,
-        );
-        const viewportPaddingTop = 8;
-
-        expect(menuRoot, "expected portaled composer command menu root").not.toBeNull();
-        expect(menuRect.width).toBeGreaterThan(0);
-        expect(menuRect.height).toBeGreaterThan(0);
-        expect(menuRect.top).toBeGreaterThanOrEqual(viewportPaddingTop);
-        expect(menuRect.height).toBeLessThanOrEqual(window.innerHeight - viewportPaddingTop * 2);
-        if (anchorRect) {
-          expect(anchorRect.width).toBeLessThanOrEqual(2);
-          expect(anchorRect.height).toBeLessThanOrEqual(2);
-          expect(Math.abs(menuRect.left - anchorRect.left)).toBeLessThanOrEqual(8);
-          expect(menuRect.bottom).toBeLessThanOrEqual(anchorRect.top + 1);
-        } else {
-          expect(menuRect.left).toBeGreaterThanOrEqual(composerRect.left - 2);
-          expect(menuRect.bottom).toBeLessThanOrEqual(composerRect.bottom);
-        }
-        expect(hitTarget instanceof Element && menuRoot?.contains(hitTarget)).toBe(true);
-      };
-
-      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+      expect(menuItem).not.toBeNull();
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
       await composerEditor.fill("/pl");
-      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
       await composerEditor.fill("ask /");
-      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
 
       const composerEditorElement = await waitForComposerEditor();
       composerEditorElement.focus();
@@ -3212,7 +3219,249 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
       await composerEditor.fill("ask again /");
       await waitForComposerMenuItem("slash:model");
-      await vi.waitFor(assertMenuAligned, { timeout: 8_000, interval: 16 });
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
+
+      enqueueTestQueuedComposerItem({
+        itemId: "msg-queued-slash-menu-anchor" as MessageId,
+        prompt: "Queued message that shifts the composer upward.",
+      });
+      await waitForElement(
+        () => document.querySelector<HTMLElement>("[data-queued-composer-panel]"),
+        "Unable to find queued composer panel.",
+      );
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
+
+      await composerEditor.fill("queued /");
+      await waitForComposerMenuItem("slash:model");
+      await vi.waitFor(assertComposerSlashMenuTracksCaret, { timeout: 8_000, interval: 16 });
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("edits and saves a queued composer item in the production composer flow", async () => {
+    const firstQueuedItemId = "msg-queued-edit-first" as MessageId;
+    const secondQueuedItemId = "msg-queued-edit-second" as MessageId;
+    const queuedPlanFollowUp = {
+      planId: "plan-queued-edit" as OrchestrationProposedPlanId,
+      planThreadId: THREAD_ID,
+      planMarkdown: "# Queued edit plan\n\n- Preserve queued metadata.",
+    } satisfies QueuedComposerPlanFollowUp;
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-queued-edit-target" as MessageId,
+        targetText: "queued edit thread",
+      }),
+    });
+
+    try {
+      await waitForComposerEditor();
+      enqueueTestQueuedComposerItem({
+        itemId: firstQueuedItemId,
+        prompt: "First queued draft",
+        planFollowUp: queuedPlanFollowUp,
+      });
+      enqueueTestQueuedComposerItem({
+        itemId: secondQueuedItemId,
+        prompt: "Second queued draft",
+      });
+
+      await waitForElement(
+        () => document.querySelector<HTMLElement>("[data-queued-composer-panel]"),
+        "Unable to find queued composer panel.",
+      );
+      const firstRowSelector = `[data-queue-item-id="${firstQueuedItemId}"]`;
+      const firstPreview = await waitForElement(
+        () =>
+          document.querySelector<HTMLButtonElement>(
+            `${firstRowSelector} [data-queued-composer-item-preview]`,
+          ),
+        "Unable to find first queued item preview.",
+      );
+      const measureFirstRow = () => {
+        const row = document.querySelector<HTMLElement>(firstRowSelector);
+        const label = document.querySelector<HTMLElement>(
+          `${firstRowSelector} .ui-tray-row__label`,
+        );
+        const actions = document.querySelector<HTMLElement>(
+          `${firstRowSelector} [data-queued-composer-item-actions]`,
+        );
+        const firstAction = actions?.querySelector<HTMLElement>("button") ?? null;
+        expect(row, "expected first queued item row").not.toBeNull();
+        expect(label, "expected first queued item label").not.toBeNull();
+        expect(actions, "expected first queued item actions").not.toBeNull();
+        if (!row || !label || !actions) {
+          return null;
+        }
+        return {
+          rowHeight: row.getBoundingClientRect().height,
+          rowWidth: row.getBoundingClientRect().width,
+          labelWidth: label.getBoundingClientRect().width,
+          actionsDisplay: getComputedStyle(actions).display,
+          firstActionWidth: firstAction?.getBoundingClientRect().width ?? 0,
+        };
+      };
+      let defaultLayout: {
+        rowHeight: number;
+        rowWidth: number;
+        labelWidth: number;
+        actionsDisplay: string;
+        firstActionWidth: number;
+      } | null = null;
+      await vi.waitFor(
+        () => {
+          defaultLayout = measureFirstRow();
+          expect(defaultLayout).not.toBeNull();
+          expect(defaultLayout?.actionsDisplay).toBe("none");
+          expect(defaultLayout?.labelWidth ?? 0).toBeGreaterThan(
+            (defaultLayout?.rowWidth ?? 0) - 40,
+          );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+      firstPreview.focus();
+      await vi.waitFor(
+        () => {
+          const focusedLayout = measureFirstRow();
+          expect(focusedLayout).not.toBeNull();
+          expect(focusedLayout?.actionsDisplay).toBe("flex");
+          expect(focusedLayout?.firstActionWidth).toBe(20);
+          expect(focusedLayout?.rowHeight).toBe(defaultLayout?.rowHeight);
+          expect(focusedLayout?.labelWidth ?? 0).toBeLessThan(defaultLayout?.labelWidth ?? 0);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const editAction = await waitForElement(
+        () =>
+          document.querySelector<HTMLButtonElement>(
+            `${firstRowSelector} [data-queue-action="edit"]`,
+          ),
+        "Unable to find first queued item edit action.",
+      );
+      editAction.click();
+
+      await waitForElement(
+        () => document.querySelector<HTMLElement>("[data-queued-composer-edit-banner]"),
+        "Unable to find queued edit banner.",
+      );
+      await waitForComposerText("First queued draft");
+
+      await page.getByTestId("composer-editor").fill("First queued draft updated");
+      await page.getByRole("button", { name: "Save queued message" }).click();
+
+      await vi.waitFor(
+        () => {
+          const state = useComposerQueueStore.getState();
+          const items = state.queueItemsByThreadKey[THREAD_KEY] ?? [];
+          expect(items.map((item) => item.id)).toEqual([firstQueuedItemId, secondQueuedItemId]);
+          expect(items[0]?.sendContext.prompt).toBe("First queued draft updated");
+          expect(items[0]?.planFollowUp).toEqual(queuedPlanFollowUp);
+          expect(items[0]?.runtimeMode).toBe(DEFAULT_RUNTIME_MODE);
+          expect(items[0]?.interactionMode).toBe(DEFAULT_INTERACTION_MODE);
+          expect(items[1]?.sendContext.prompt).toBe("Second queued draft");
+          expect(items[1]?.planFollowUp).toBeNull();
+          expect(state.editingQueueItemIdByThreadKey[THREAD_KEY] ?? null).toBeNull();
+          expect(document.querySelector("[data-queued-composer-edit-banner]")).toBeNull();
+          expect(document.querySelector(`${firstRowSelector}`)?.textContent).toContain(
+            "First queued draft updated",
+          );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("does not attach the active plan follow-up to a normal queued edit", async () => {
+    const queuedItemId = "msg-queued-edit-normal-active-plan" as MessageId;
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotWithPlanFollowUpPrompt(),
+    });
+
+    try {
+      await waitForComposerEditor();
+      enqueueTestQueuedComposerItem({
+        itemId: queuedItemId,
+        prompt: "Normal queued draft",
+        planFollowUp: null,
+      });
+
+      await waitForElement(
+        () => document.querySelector<HTMLElement>("[data-queued-composer-panel]"),
+        "Unable to find queued composer panel.",
+      );
+      const rowSelector = `[data-queue-item-id="${queuedItemId}"]`;
+      const preview = await waitForElement(
+        () =>
+          document.querySelector<HTMLButtonElement>(
+            `${rowSelector} [data-queued-composer-item-preview]`,
+          ),
+        "Unable to find normal queued item preview.",
+      );
+      preview.click();
+      await waitForComposerText("Normal queued draft");
+
+      await page.getByTestId("composer-editor").fill("Normal queued draft updated");
+      await page.getByRole("button", { name: "Save queued message" }).click();
+
+      await vi.waitFor(
+        () => {
+          const state = useComposerQueueStore.getState();
+          const items = state.queueItemsByThreadKey[THREAD_KEY] ?? [];
+          expect(items[0]?.id).toBe(queuedItemId);
+          expect(items[0]?.sendContext.prompt).toBe("Normal queued draft updated");
+          expect(items[0]?.planFollowUp).toBeNull();
+          expect(state.editingQueueItemIdByThreadKey[THREAD_KEY] ?? null).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("does not keep a closed slash-command trigger armed after Escape", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-command-menu-target" as MessageId,
+        targetText: "command menu thread",
+      }),
+    });
+
+    try {
+      await waitForComposerEditor();
+      const composerEditor = page.getByTestId("composer-editor");
+      await composerEditor.fill("/some other text");
+      await vi.waitFor(
+        () => {
+          expect(document.querySelector("[data-composer-command-menu-root]")).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const composerEditorElement = await waitForComposerEditor();
+      composerEditorElement.focus();
+      const escapeEvent = new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      });
+      composerEditorElement.dispatchEvent(escapeEvent);
+      expect(escapeEvent.defaultPrevented).toBe(false);
+
+      await pressComposerKey("x");
+      await waitForComposerText("/some other textx");
+      await vi.waitFor(
+        () => {
+          expect(document.querySelector("[data-composer-command-menu-root]")).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
     } finally {
       await mounted.cleanup();
     }

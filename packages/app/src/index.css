@@ -266,14 +266,14 @@
     --multi-button-cursor: pointer;
     background-color: var(--app-background);
   }
-  html[data-electron]:has(body[data-cursor-glass-mode="true"]:not(.multi-reduce-transparency)) {
+  html[data-electron]:has(body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency)) {
     background-color: transparent;
   }
   body {
     @apply text-foreground relative;
     background-color: var(--app-background);
   }
-  html[data-electron] body[data-cursor-glass-mode="true"]:not(.multi-reduce-transparency) {
+  html[data-electron] body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) {
     background-color: transparent;
     background-image: none;
   }

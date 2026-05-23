@@ -26,6 +26,7 @@
 
 ## Commands
 
+- Do not upgrade Bun past `1.3.14`; this repository pins `bun` and `@types/bun` there because it is the latest Bun tag that still uses the Zig binary.
 - For code changes, prefer `pnpm run typecheck` as the verifier. Get full output.
 - Do not use tests as the verifier unless the task is creating, modifying, or debugging tests.
 - If you create or modify a test, run that specific test from its package root and iterate until it passes.

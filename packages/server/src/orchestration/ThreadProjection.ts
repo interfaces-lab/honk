@@ -8,6 +8,7 @@ import {
   type OrchestrationSession,
   type OrchestrationThread,
   type OrchestrationThreadActivity,
+  type OrchestrationThreadEntry,
   type OrchestrationThreadShell,
 } from "@multi/contracts";
 import { Effect, Layer, Option, Schema } from "effect";
@@ -38,6 +39,7 @@ import {
   ProjectionStateDbRowSchema,
   ProjectionThreadActivityDbRowSchema,
   ProjectionThreadDbRowSchema,
+  ProjectionThreadEntryDbRowSchema,
   ProjectionThreadIdLookupRowSchema,
   ProjectionThreadMessageDbRowSchema,
   ProjectionThreadProposedPlanDbRowSchema,
@@ -104,6 +106,7 @@ const makeThreadProjection = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
+          active_entry_id AS "activeEntryId",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
@@ -134,6 +137,27 @@ const makeThreadProjection = Effect.gen(function* () {
           updated_at AS "updatedAt"
         FROM projection_thread_messages
         ORDER BY thread_id ASC, created_at ASC, message_id ASC
+      `,
+  });
+
+  const listThreadEntryRows = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ProjectionThreadEntryDbRowSchema,
+    execute: () =>
+      sql`
+        SELECT
+          entry_id AS "entryId",
+          thread_id AS "threadId",
+          parent_entry_id AS "parentEntryId",
+          kind,
+          message_id AS "messageId",
+          turn_id AS "turnId",
+          target_entry_id AS "targetEntryId",
+          label,
+          summary,
+          created_at AS "createdAt"
+        FROM projection_thread_entries
+        ORDER BY thread_id ASC, created_at ASC, entry_id ASC
       `,
   });
 
@@ -358,6 +382,7 @@ const makeThreadProjection = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
+          active_entry_id AS "activeEntryId",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
@@ -391,6 +416,28 @@ const makeThreadProjection = Effect.gen(function* () {
         FROM projection_thread_messages
         WHERE thread_id = ${threadId}
         ORDER BY created_at ASC, message_id ASC
+      `,
+  });
+
+  const listThreadEntryRowsByThread = SqlSchema.findAll({
+    Request: ThreadIdLookupInput,
+    Result: ProjectionThreadEntryDbRowSchema,
+    execute: ({ threadId }) =>
+      sql`
+        SELECT
+          entry_id AS "entryId",
+          thread_id AS "threadId",
+          parent_entry_id AS "parentEntryId",
+          kind,
+          message_id AS "messageId",
+          turn_id AS "turnId",
+          target_entry_id AS "targetEntryId",
+          label,
+          summary,
+          created_at AS "createdAt"
+        FROM projection_thread_entries
+        WHERE thread_id = ${threadId}
+        ORDER BY created_at ASC, entry_id ASC
       `,
   });
 
@@ -532,6 +579,14 @@ const makeThreadProjection = Effect.gen(function* () {
               ),
             ),
           ),
+          listThreadEntryRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ThreadProjection.getSnapshot:listThreadEntries:query",
+                "ThreadProjection.getSnapshot:listThreadEntries:decodeRows",
+              ),
+            ),
+          ),
           listThreadProposedPlanRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -588,6 +643,7 @@ const makeThreadProjection = Effect.gen(function* () {
             projectRows,
             threadRows,
             messageRows,
+            entryRows,
             proposedPlanRows,
             activityRows,
             sessionRows,
@@ -597,6 +653,7 @@ const makeThreadProjection = Effect.gen(function* () {
           ]) =>
             Effect.gen(function* () {
               const messagesByThread = new Map<string, Array<OrchestrationMessage>>();
+              const entriesByThread = new Map<string, Array<OrchestrationThreadEntry>>();
               const proposedPlansByThread = new Map<string, Array<OrchestrationProposedPlan>>();
               const activitiesByThread = new Map<string, Array<OrchestrationThreadActivity>>();
               const checkpointsByThread = new Map<string, Array<OrchestrationCheckpointSummary>>();
@@ -629,6 +686,24 @@ const makeThreadProjection = Effect.gen(function* () {
                   updatedAt: row.updatedAt,
                 });
                 messagesByThread.set(row.threadId, threadMessages);
+              }
+
+              for (const row of entryRows) {
+                updatedAt = maxIso(updatedAt, row.createdAt);
+                const threadEntries = entriesByThread.get(row.threadId) ?? [];
+                threadEntries.push({
+                  id: row.entryId,
+                  threadId: row.threadId,
+                  parentEntryId: row.parentEntryId,
+                  kind: row.kind,
+                  messageId: row.messageId,
+                  turnId: row.turnId,
+                  targetEntryId: row.targetEntryId,
+                  label: row.label,
+                  summary: row.summary,
+                  createdAt: row.createdAt,
+                });
+                entriesByThread.set(row.threadId, threadEntries);
               }
 
               for (const row of proposedPlanRows) {
@@ -764,6 +839,8 @@ const makeThreadProjection = Effect.gen(function* () {
                 archivedAt: row.archivedAt,
                 deletedAt: row.deletedAt,
                 messages: messagesByThread.get(row.threadId) ?? [],
+                activeEntryId: row.activeEntryId ?? null,
+                entries: entriesByThread.get(row.threadId) ?? [],
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                 activities: activitiesByThread.get(row.threadId) ?? [],
                 checkpoints: checkpointsByThread.get(row.threadId) ?? [],
@@ -1112,6 +1189,7 @@ const makeThreadProjection = Effect.gen(function* () {
       const [
         threadRow,
         messageRows,
+        entryRows,
         proposedPlanRows,
         activityRows,
         checkpointRows,
@@ -1131,6 +1209,14 @@ const makeThreadProjection = Effect.gen(function* () {
             toPersistenceSqlOrDecodeError(
               "ThreadProjection.getThreadDetailById:listMessages:query",
               "ThreadProjection.getThreadDetailById:listMessages:decodeRows",
+            ),
+          ),
+        ),
+        listThreadEntryRowsByThread({ threadId }).pipe(
+          Effect.mapError(
+            toPersistenceSqlOrDecodeError(
+              "ThreadProjection.getThreadDetailById:listEntries:query",
+              "ThreadProjection.getThreadDetailById:listEntries:decodeRows",
             ),
           ),
         ),
@@ -1209,6 +1295,19 @@ const makeThreadProjection = Effect.gen(function* () {
           }
           return message;
         }),
+        activeEntryId: threadRow.value.activeEntryId ?? null,
+        entries: entryRows.map((row) => ({
+          id: row.entryId,
+          threadId: row.threadId,
+          parentEntryId: row.parentEntryId,
+          kind: row.kind,
+          messageId: row.messageId,
+          turnId: row.turnId,
+          targetEntryId: row.targetEntryId,
+          label: row.label,
+          summary: row.summary,
+          createdAt: row.createdAt,
+        })),
         proposedPlans: proposedPlanRows.map((row) => ({
           id: row.planId,
           turnId: row.turnId,

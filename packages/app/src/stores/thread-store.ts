@@ -2,6 +2,7 @@ import type {
   EnvironmentId,
   MessageId,
   OrchestrationThreadActivity,
+  ThreadEntryId,
   OrchestrationEvent,
   OrchestrationShellSnapshot,
   OrchestrationShellStreamEvent,
@@ -19,6 +20,7 @@ import type {
   ProposedPlan,
   SidebarThreadSummary,
   Thread,
+  ThreadTreeEntry,
   ThreadSession,
   ThreadShell,
   ThreadTurnState,
@@ -62,6 +64,9 @@ export interface EnvironmentState {
   threadTurnStateById: Record<ThreadId, ThreadTurnState>;
   messageIdsByThreadId: Record<ThreadId, MessageId[]>;
   messageByThreadId: Record<ThreadId, Record<MessageId, ChatMessage>>;
+  activeEntryIdByThreadId?: Record<ThreadId, ThreadEntryId | null>;
+  entryIdsByThreadId?: Record<ThreadId, ThreadEntryId[]>;
+  entryByThreadId?: Record<ThreadId, Record<ThreadEntryId, ThreadTreeEntry>>;
   activityIdsByThreadId: Record<ThreadId, string[]>;
   activityByThreadId: Record<ThreadId, Record<string, OrchestrationThreadActivity>>;
   proposedPlanIdsByThreadId: Record<ThreadId, string[]>;
@@ -89,6 +94,9 @@ export const initialEnvironmentState: EnvironmentState = {
   threadTurnStateById: {},
   messageIdsByThreadId: {},
   messageByThreadId: {},
+  activeEntryIdByThreadId: {},
+  entryIdsByThreadId: {},
+  entryByThreadId: {},
   activityIdsByThreadId: {},
   activityByThreadId: {},
   proposedPlanIdsByThreadId: {},

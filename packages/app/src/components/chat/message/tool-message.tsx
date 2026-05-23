@@ -1,4 +1,6 @@
-import { memo } from "react";
+import { type EnvironmentId, type ThreadId } from "@multi/contracts";
+import { IconChevronRightMedium, IconClock, IconRobot } from "central-icons";
+import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
@@ -8,17 +10,30 @@ import {
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
+import { cn } from "~/lib/utils";
+import { useMountEffect } from "~/hooks/use-mount-effect";
+import {
+  subagentPreviewKey,
+  subagentPreviewUpdateSignature,
+  useSubagentPreviewStore,
+} from "../../../stores/subagent-preview-store";
 
 type ToolCallStatus = "loading" | "completed" | "error";
 
 interface ToolCallMessageProps {
   workEntry: WorkLogEntry;
   projectRoot: string | undefined;
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  subagentDetailsEnabled?: boolean | undefined;
 }
 
 export const ToolCallMessage = memo(function ToolCallMessage({
   workEntry,
   projectRoot,
+  activeThreadId,
+  environmentId,
+  subagentDetailsEnabled = true,
 }: ToolCallMessageProps) {
   const status = resolveStatus(workEntry);
   const isLoading = status === "loading";
@@ -30,6 +45,16 @@ export const ToolCallMessage = memo(function ToolCallMessage({
 
   const toolCall = toToolCall(workEntry, projectRoot);
   const hasSubagents = subagents.length > 0;
+  const subagentStatusSurface = hasSubagents ? (
+    <SubagentStatusSurface
+      activeThreadId={activeThreadId}
+      environmentId={environmentId}
+      projectRoot={projectRoot}
+      subagentDetailsEnabled={subagentDetailsEnabled}
+      subagents={subagents}
+    />
+  ) : null;
+  const renderSubagentsInToolBody = hasSubagents && toolCall.tool.case === "taskToolCall";
 
   return (
     <div className="w-full min-w-0 max-w-full">
@@ -39,52 +64,217 @@ export const ToolCallMessage = memo(function ToolCallMessage({
         loading={isLoading}
         startedAtMs={Date.parse(workEntry.createdAt)}
         hasError={status === "error"}
-        defaultExpanded={false}
+        subagentConversation={renderSubagentsInToolBody ? subagentStatusSurface : undefined}
+        defaultExpanded={renderSubagentsInToolBody}
         conversationDensity="minimal"
       />
-      {hasSubagents ? <SubagentStatusSurface subagents={subagents} /> : null}
+      {hasSubagents && !renderSubagentsInToolBody ? subagentStatusSurface : null}
     </div>
   );
 });
 
-function SubagentStatusSurface({ subagents }: { subagents: ReadonlyArray<WorkLogSubagent> }) {
+function SubagentStatusSurface({
+  activeThreadId,
+  environmentId,
+  projectRoot,
+  subagentDetailsEnabled,
+  subagents,
+}: {
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  projectRoot: string | undefined;
+  subagentDetailsEnabled: boolean;
+  subagents: ReadonlyArray<WorkLogSubagent>;
+}) {
+  const openPreviewKey = useSubagentPreviewStore((state) => state.preview?.key ?? null);
+  const hasOpenPreview = subagents.some(
+    (subagent) => subagentPreviewKey(subagent) === openPreviewKey,
+  );
+
   return (
-    <div className="mt-1 max-h-80 w-full overflow-x-hidden overflow-y-auto pl-5 text-detail">
-      {subagents.map((subagent) => (
-        <div
-          key={subagent.providerThreadId ?? subagent.threadId ?? subagent.agentId}
-          className="group/subagent flex min-h-6 w-fit max-w-full items-center gap-1 overflow-hidden"
-          data-status={subagent.isActive ? "running" : "completed"}
-        >
-          <span
-            className="size-1.5 shrink-0 rounded-full bg-multi-icon-tertiary group-data-[status=running]/subagent:bg-multi-icon-accent-primary"
-            aria-hidden="true"
+    <div
+      data-subagent-status-container=""
+      data-subagent-open={hasOpenPreview ? "" : undefined}
+      className="mt-1 w-full min-w-0 max-w-[85%] text-[14px]/5"
+    >
+      <div
+        data-subagent-status-stack=""
+        className="flex w-full min-w-0 flex-col items-start pt-0.5"
+      >
+        {subagents.map((subagent) => (
+          <SubagentStatusRow
+            key={subagentPreviewKey(subagent)}
+            activeThreadId={activeThreadId}
+            environmentId={environmentId}
+            isPreviewOpen={openPreviewKey === subagentPreviewKey(subagent)}
+            projectRoot={projectRoot}
+            subagent={subagent}
+            subagentDetailsEnabled={subagentDetailsEnabled}
           />
-          <div className="min-w-0">
-            <div className="inline-flex min-w-0 items-baseline gap-1">
-              <span className="min-w-0 text-detail text-multi-fg-secondary">
-                {subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent"}
-              </span>
-              {subagent.model ? (
-                <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
-                  {subagent.model}
-                </span>
-              ) : null}
-              {subagent.statusLabel || subagent.latestUpdate ? (
-                <span className="min-w-0 overflow-hidden text-detail text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
-                  {subagent.latestUpdate ?? subagent.statusLabel}
-                </span>
-              ) : null}
-              {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
-                <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
-                  {formatSubagentUsageLabel(subagent)}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
+  );
+}
+
+function SubagentStatusRow({
+  activeThreadId,
+  environmentId,
+  isPreviewOpen,
+  projectRoot,
+  subagent,
+  subagentDetailsEnabled,
+}: {
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  isPreviewOpen: boolean;
+  projectRoot: string | undefined;
+  subagent: WorkLogSubagent;
+  subagentDetailsEnabled: boolean;
+}) {
+  const openPreview = useSubagentPreviewStore((state) => state.openPreview);
+  const updatePreviewSubagent = useSubagentPreviewStore((state) => state.updatePreviewSubagent);
+  const key = subagentPreviewKey(subagent);
+  const providerThreadId = subagent.providerThreadId?.trim() ?? "";
+  const hasProviderThread = providerThreadId.length > 0;
+  const hasDetails =
+    subagentDetailsEnabled &&
+    ((subagent.logs?.length ?? 0) > 0 || subagent.hasDetails === true || hasProviderThread);
+  const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
+  const statusText = subagent.latestUpdate ?? subagent.statusLabel;
+  const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
+  const previewUpdateSignature = isPreviewOpen ? subagentPreviewUpdateSignature(subagent) : "";
+
+  const handleOpenPreview = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (!hasDetails) {
+      return;
+    }
+    openPreview({
+      key,
+      activeThreadId,
+      environmentId,
+      projectRoot,
+      subagent,
+    });
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+  };
+
+  const previewUpdateSync = isPreviewOpen ? (
+    <SubagentPreviewUpdateSync
+      key={previewUpdateSignature}
+      subagent={subagent}
+      updatePreviewSubagent={updatePreviewSubagent}
+    />
+  ) : null;
+
+  return (
+    <>
+      {previewUpdateSync}
+      <button
+        type="button"
+        className={cn(
+          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
+          "border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary",
+          hasDetails &&
+            "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
+          isPreviewOpen && hasDetails && "text-multi-fg-primary",
+        )}
+        data-subagent-row=""
+        data-subagent-state={rowState}
+        data-subagent-provider-thread-id={hasProviderThread ? providerThreadId : undefined}
+        disabled={!hasDetails}
+        aria-label={hasDetails ? `Open ${title} details` : undefined}
+        aria-pressed={hasDetails ? isPreviewOpen : undefined}
+        onClick={handleOpenPreview}
+        onKeyDown={handleKeyDown}
+      >
+        <SubagentStatusIndicator subagent={subagent} />
+        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
+          <span
+            data-subagent-name=""
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+          >
+            {title}
+          </span>
+          {subagent.model ? (
+            <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
+              {subagent.model}
+            </span>
+          ) : null}
+          {statusText ? (
+            <span
+              data-subagent-task=""
+              className={cn(
+                "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
+                subagent.isActive && "tool-call-shimmer",
+              )}
+            >
+              {statusText}
+            </span>
+          ) : null}
+          {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
+            <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+              {formatSubagentUsageLabel(subagent)}
+            </span>
+          ) : null}
+        </span>
+        {hasDetails ? (
+          <span
+            className={cn(
+              "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
+              "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
+              isPreviewOpen && "opacity-100",
+            )}
+            data-subagent-open=""
+            aria-hidden="true"
+          >
+            <IconChevronRightMedium className="size-3" />
+          </span>
+        ) : null}
+      </button>
+    </>
+  );
+}
+
+function SubagentPreviewUpdateSync({
+  subagent,
+  updatePreviewSubagent,
+}: {
+  subagent: WorkLogSubagent;
+  updatePreviewSubagent: (subagent: WorkLogSubagent) => void;
+}) {
+  useMountEffect(() => {
+    updatePreviewSubagent(subagent);
+  });
+
+  return null;
+}
+
+function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
+  const isFailed =
+    subagent.statusLabel === "Failed" ||
+    subagent.rawStatus === "errored" ||
+    subagent.rawStatus === "failed" ||
+    subagent.rawStatus === "error";
+  if (subagent.isActive) {
+    return (
+      <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-accent-primary">
+        <IconClock className="tool-call-shimmer size-3" />
+      </span>
+    );
+  }
+  if (isFailed) {
+    return (
+      <span className="size-1.5 shrink-0 rounded-full bg-multi-fg-red-primary" aria-hidden="true" />
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-tertiary">
+      <IconRobot className="size-3" />
+    </span>
   );
 }
 

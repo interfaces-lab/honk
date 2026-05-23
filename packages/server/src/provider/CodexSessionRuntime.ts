@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   ApprovalRequestId,
+  type CanonicalItemType,
   EventId,
   defaultInstanceIdForDriver,
   ProviderDriverKind,
@@ -11,6 +12,7 @@ import {
   type ProviderInteractionMode,
   type ProviderRequestKind,
   type ProviderSession,
+  type ProviderThreadSnapshotItem,
   type ProviderTurnStartResult,
   type ProviderUserInputAnswers,
   RuntimeMode,
@@ -29,6 +31,7 @@ import * as EffectCodexSchema from "effect-codex-app-server/schema";
 import { buildCodexInitializeParams } from "./CodexProvider.ts";
 import { buildCodexAppServerEnv } from "./codex-app-server-env.ts";
 import {
+  CODEX_ASK_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS,
 } from "./CodexDeveloperInstructions.ts";
@@ -82,7 +85,7 @@ export type CodexTurnStartParamsWithCollaborationMode =
 const formatSchemaIssue = SchemaIssue.makeFormatterDefault();
 
 export type CodexResumeCursor = typeof CodexResumeCursorSchema.Type;
-export type CodexServiceTier = EffectCodexSchema.V2ThreadStartParams__ServiceTier;
+export type CodexServiceTier = string;
 type CodexThreadItem =
   | EffectCodexSchema.V2ThreadReadResponse["thread"]["turns"][number]["items"][number]
   | EffectCodexSchema.V2ThreadRollbackResponse["thread"]["turns"][number]["items"][number];
@@ -91,7 +94,7 @@ export function parseCodexServiceTier(
   value: string | null | undefined,
 ): CodexServiceTier | undefined {
   const normalized = value?.trim().toLowerCase();
-  return normalized === "fast" || normalized === "flex" ? normalized : undefined;
+  return normalized === "priority" || normalized === "flex" ? normalized : undefined;
 }
 
 export interface CodexSessionRuntimeOptions {
@@ -116,12 +119,18 @@ export interface CodexSessionRuntimeSendTurnInput {
 
 export interface CodexThreadTurnSnapshot {
   readonly id: TurnId;
-  readonly items: ReadonlyArray<CodexThreadItem>;
+  readonly items: ReadonlyArray<ProviderThreadSnapshotItem>;
 }
 
 export interface CodexThreadSnapshot {
   readonly threadId: string;
+  readonly providerThreadId: string;
   readonly turns: ReadonlyArray<CodexThreadTurnSnapshot>;
+}
+
+export interface CodexSessionRuntimeReadThreadInput {
+  readonly providerThreadId?: string | undefined;
+  readonly includeTurns?: boolean | undefined;
 }
 
 export interface CodexSessionRuntimeShape {
@@ -131,7 +140,9 @@ export interface CodexSessionRuntimeShape {
     input: CodexSessionRuntimeSendTurnInput,
   ) => Effect.Effect<ProviderTurnStartResult, CodexSessionRuntimeError>;
   readonly interruptTurn: (turnId?: TurnId) => Effect.Effect<void, CodexSessionRuntimeError>;
-  readonly readThread: Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
+  readonly readThread: (
+    input?: CodexSessionRuntimeReadThreadInput,
+  ) => Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
   readonly rollbackThread: (
     numTurns: number,
   ) => Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError>;
@@ -219,6 +230,14 @@ interface PendingUserInput {
   readonly turnId: TurnId | undefined;
   readonly itemId: ProviderItemId | undefined;
   readonly answers: Deferred.Deferred<ProviderUserInputAnswers>;
+}
+
+interface CollabReceiverRoute {
+  readonly providerThreadId: string;
+  readonly parentTurnId: TurnId;
+  readonly parentItemId: ProviderItemId | undefined;
+  readonly senderProviderThreadId: string | undefined;
+  readonly sourceTool: string | undefined;
 }
 
 type CodexServerNotification = {
@@ -328,15 +347,20 @@ function buildCodexCollaborationMode(input: {
     return undefined;
   }
   const model = normalizeCodexModelSlug(input.model) ?? CODEX_FALLBACK_MODEL;
+  const mode: EffectCodexSchema.V2TurnStartParams__ModeKind =
+    input.interactionMode === "plan" ? "plan" : "default";
+  const developerInstructions =
+    input.interactionMode === "plan"
+      ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
+      : input.interactionMode === "ask"
+        ? CODEX_ASK_MODE_DEVELOPER_INSTRUCTIONS
+        : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS;
   return {
-    mode: input.interactionMode,
+    mode,
     settings: {
       model,
       reasoning_effort: input.effort ?? "medium",
-      developer_instructions:
-        input.interactionMode === "plan"
-          ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
-          : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
+      developer_instructions: developerInstructions,
     },
   };
 }
@@ -574,12 +598,16 @@ function readRouteFields(notification: CodexServerNotification): {
   }
 }
 
-function rememberCollabReceiverTurns(
-  collabReceiverTurns: Map<string, TurnId>,
+function rememberCollabReceiverRoutes(
+  collabReceiverRoutes: Map<string, CollabReceiverRoute>,
   notification: CodexServerNotification,
-  parentTurnId: TurnId | undefined,
+  route: {
+    readonly parentTurnId: TurnId | undefined;
+    readonly parentItemId: ProviderItemId | undefined;
+    readonly senderProviderThreadId: string | undefined;
+  },
 ): void {
-  if (!parentTurnId) {
+  if (!route.parentTurnId) {
     return;
   }
 
@@ -592,26 +620,21 @@ function rememberCollabReceiverTurns(
   }
 
   for (const receiverThreadId of notification.params.item.receiverThreadIds) {
-    collabReceiverTurns.set(receiverThreadId, parentTurnId);
-  }
-}
+    const existing = collabReceiverRoutes.get(receiverThreadId);
+    const sourceTool = notification.params.item.tool;
+    if (existing?.sourceTool === "spawnAgent" && sourceTool !== "spawnAgent") {
+      continue;
+    }
 
-function shouldSuppressChildConversationNotification(
-  method: CodexRpc.ServerNotificationMethod,
-): boolean {
-  return (
-    method === "thread/started" ||
-    method === "thread/status/changed" ||
-    method === "thread/archived" ||
-    method === "thread/unarchived" ||
-    method === "thread/closed" ||
-    method === "thread/compacted" ||
-    method === "thread/name/updated" ||
-    method === "turn/started" ||
-    method === "turn/completed" ||
-    method === "turn/plan/updated" ||
-    method === "item/plan/delta"
-  );
+    collabReceiverRoutes.set(receiverThreadId, {
+      providerThreadId: receiverThreadId,
+      parentTurnId: route.parentTurnId,
+      parentItemId: route.parentItemId,
+      senderProviderThreadId:
+        notification.params.item.senderThreadId ?? route.senderProviderThreadId,
+      sourceTool,
+    });
+  }
 }
 
 function toCodexUserInputAnswer(
@@ -677,14 +700,205 @@ function updateSession(
 
 function parseThreadSnapshot(
   response: EffectCodexSchema.V2ThreadReadResponse | EffectCodexSchema.V2ThreadRollbackResponse,
+  options: { readonly userMessageTitle?: string | undefined } = {},
 ): CodexThreadSnapshot {
   return {
     threadId: response.thread.id,
+    providerThreadId: response.thread.id,
     turns: response.thread.turns.map((turn) => ({
       id: TurnId.make(turn.id),
-      items: turn.items,
+      items: turn.items.map((item) => codexThreadSnapshotItem(item, options)),
     })),
   };
+}
+
+function codexThreadSnapshotItem(
+  item: CodexThreadItem,
+  options: { readonly userMessageTitle?: string | undefined },
+): ProviderThreadSnapshotItem {
+  const itemType = codexThreadSnapshotItemType(readStringField(item, "type"));
+  const id = readStringField(item, "id");
+  const title = codexThreadSnapshotItemTitle(itemType, item, options);
+  const detail = codexThreadSnapshotItemDetail(item);
+  return {
+    ...(id ? { id } : {}),
+    itemType,
+    role: codexThreadSnapshotItemRole(itemType),
+    ...(title ? { title } : {}),
+    ...(detail ? { detail } : {}),
+    data: item,
+  };
+}
+
+function codexThreadSnapshotItemType(rawType: string | undefined): CanonicalItemType {
+  switch (rawType) {
+    case "userMessage":
+      return "user_message";
+    case "agentMessage":
+      return "assistant_message";
+    case "reasoning":
+      return "reasoning";
+    case "plan":
+      return "plan";
+    case "commandExecution":
+      return "command_execution";
+    case "fileChange":
+      return "file_change";
+    case "mcpToolCall":
+      return "mcp_tool_call";
+    case "dynamicToolCall":
+      return "dynamic_tool_call";
+    case "collabAgentToolCall":
+      return "collab_agent_tool_call";
+    case "webSearch":
+      return "web_search";
+    case "imageView":
+    case "imageGeneration":
+      return "image_view";
+    case "enteredReviewMode":
+      return "review_entered";
+    case "exitedReviewMode":
+      return "review_exited";
+    case "contextCompaction":
+      return "context_compaction";
+    default:
+      return "unknown";
+  }
+}
+
+function codexThreadSnapshotItemRole(
+  itemType: CanonicalItemType,
+): ProviderThreadSnapshotItem["role"] {
+  switch (itemType) {
+    case "user_message":
+      return "user";
+    case "assistant_message":
+    case "reasoning":
+    case "plan":
+      return "assistant";
+    default:
+      return "tool";
+  }
+}
+
+function codexThreadSnapshotItemTitle(
+  itemType: CanonicalItemType,
+  item: CodexThreadItem,
+  options: { readonly userMessageTitle?: string | undefined },
+): string | undefined {
+  const explicitTitle = readStringField(item, "title");
+  if (explicitTitle) {
+    return explicitTitle;
+  }
+
+  switch (itemType) {
+    case "user_message":
+      return options.userMessageTitle ?? "User message";
+    case "assistant_message":
+      return "Assistant message";
+    case "reasoning":
+      return "Reasoning";
+    case "plan":
+      return "Plan";
+    case "command_execution":
+      return "Ran command";
+    case "file_change":
+      return "File change";
+    case "mcp_tool_call":
+      return readStringField(item, "tool") ?? "MCP tool call";
+    case "dynamic_tool_call":
+      return readStringField(item, "tool") ?? "Tool call";
+    case "collab_agent_tool_call":
+      return "Subagent";
+    case "web_search":
+      return "Web search";
+    case "image_view":
+      return "Image";
+    case "review_entered":
+      return "Review entered";
+    case "review_exited":
+      return "Review exited";
+    case "context_compaction":
+      return "Context compaction";
+    case "unknown":
+      return readStringField(item, "type");
+    default:
+      return undefined;
+  }
+}
+
+function codexThreadSnapshotItemDetail(item: CodexThreadItem): string | undefined {
+  const content = readUserMessageContent(item);
+  if (content) {
+    return content;
+  }
+
+  const reasoning = readStringArrayField(item, "summary") ?? readStringArrayField(item, "content");
+  if (reasoning) {
+    return reasoning.join("\n");
+  }
+
+  const candidates = [
+    readStringField(item, "text"),
+    readStringField(item, "command"),
+    readStringField(item, "aggregatedOutput"),
+    readStringField(item, "query"),
+    readStringField(item, "path"),
+    readStringField(item, "prompt"),
+    readStringField(item, "result"),
+    readStringField(item, "review"),
+  ];
+  return candidates.find((candidate) => candidate !== undefined);
+}
+
+function readUserMessageContent(item: CodexThreadItem): string | undefined {
+  const record = asRecord(item);
+  const content = record?.content;
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const text = content
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      const entryRecord = asRecord(entry);
+      return asTrimmedString(entryRecord?.text);
+    })
+    .filter((entry): entry is string => entry !== undefined)
+    .join("\n")
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function readStringArrayField(
+  item: CodexThreadItem,
+  key: string,
+): ReadonlyArray<string> | undefined {
+  const value = asRecord(item)?.[key];
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
+  return entries.length > 0 ? entries : undefined;
+}
+
+function readStringField(item: CodexThreadItem, key: string): string | undefined {
+  return asTrimmedString(asRecord(item)?.[key]);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asTrimmedString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export const makeCodexSessionRuntime = (
@@ -701,7 +915,7 @@ export const makeCodexSessionRuntime = (
     const pendingApprovalsRef = yield* Ref.make(new Map<ApprovalRequestId, PendingApproval>());
     const approvalCorrelationsRef = yield* Ref.make(new Map<string, ApprovalCorrelation>());
     const pendingUserInputsRef = yield* Ref.make(new Map<ApprovalRequestId, PendingUserInput>());
-    const collabReceiverTurnsRef = yield* Ref.make(new Map<string, TurnId>());
+    const collabReceiverRoutesRef = yield* Ref.make(new Map<string, CollabReceiverRoute>());
     const closedRef = yield* Ref.make(false);
 
     const child = yield* spawner
@@ -796,23 +1010,21 @@ export const makeCodexSessionRuntime = (
       Effect.gen(function* () {
         const payload = notification.params;
         const route = readRouteFields(notification);
-        const collabReceiverTurns = yield* Ref.get(collabReceiverTurnsRef);
-        const childParentTurnId = (() => {
-          const providerConversationId = readNotificationThreadId(notification);
-          return providerConversationId
-            ? collabReceiverTurns.get(providerConversationId)
-            : undefined;
-        })();
+        const collabReceiverRoutes = yield* Ref.get(collabReceiverRoutesRef);
+        const providerConversationId = readNotificationThreadId(notification);
+        const childRoute = providerConversationId
+          ? collabReceiverRoutes.get(providerConversationId)
+          : undefined;
 
-        rememberCollabReceiverTurns(collabReceiverTurns, notification, route.turnId);
-        if (childParentTurnId && shouldSuppressChildConversationNotification(notification.method)) {
-          yield* Ref.set(collabReceiverTurnsRef, collabReceiverTurns);
-          return;
-        }
+        rememberCollabReceiverRoutes(collabReceiverRoutes, notification, {
+          parentTurnId: route.turnId,
+          parentItemId: route.itemId,
+          senderProviderThreadId: providerConversationId,
+        });
 
         let requestId: ApprovalRequestId | undefined;
         let requestKind: ProviderRequestKind | undefined;
-        let turnId = childParentTurnId ?? route.turnId;
+        let turnId = childRoute?.parentTurnId ?? route.turnId;
         let itemId = route.itemId;
 
         if (notification.method === "serverRequest/resolved") {
@@ -836,22 +1048,21 @@ export const makeCodexSessionRuntime = (
           }
         }
 
-        yield* Ref.set(collabReceiverTurnsRef, collabReceiverTurns);
-        const providerConversationId = (() => {
-          if (!childParentTurnId || notification.method !== "thread/tokenUsage/updated") {
-            return undefined;
-          }
-          return readNotificationThreadId(notification);
-        })();
+        yield* Ref.set(collabReceiverRoutesRef, collabReceiverRoutes);
         yield* emitEvent({
           kind: "notification",
           threadId: options.threadId,
           method: notification.method,
           ...(turnId ? { turnId } : {}),
+          ...(route.turnId ? { providerTurnId: route.turnId } : {}),
           ...(itemId ? { itemId } : {}),
           ...(requestId ? { requestId } : {}),
           ...(requestKind ? { requestKind } : {}),
           ...(providerConversationId ? { providerConversationId } : {}),
+          ...(childRoute?.senderProviderThreadId
+            ? { parentProviderConversationId: childRoute.senderProviderThreadId }
+            : {}),
+          ...(childRoute?.parentItemId ? { parentItemId: childRoute.parentItemId } : {}),
           ...(notification.method === "item/agentMessage/delta"
             ? { textDelta: notification.params.delta }
             : {}),
@@ -1282,14 +1493,17 @@ export const makeCodexSessionRuntime = (
             turnId: effectiveTurnId,
           });
         }),
-      readThread: Effect.gen(function* () {
-        const providerThreadId = yield* readProviderThreadId;
-        const response = yield* client.request("thread/read", {
-          threadId: providerThreadId,
-          includeTurns: true,
-        });
-        return parseThreadSnapshot(response);
-      }),
+      readThread: (input) =>
+        Effect.gen(function* () {
+          const providerThreadId = input?.providerThreadId ?? (yield* readProviderThreadId);
+          const response = yield* client.request("thread/read", {
+            threadId: providerThreadId,
+            includeTurns: input?.includeTurns ?? true,
+          });
+          return parseThreadSnapshot(response, {
+            userMessageTitle: input?.providerThreadId ? "Instruction" : "User message",
+          });
+        }),
       rollbackThread: (numTurns) =>
         Effect.gen(function* () {
           const providerThreadId = yield* readProviderThreadId;

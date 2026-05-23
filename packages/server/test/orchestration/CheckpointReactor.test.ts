@@ -99,6 +99,7 @@ function createProviderServiceHarness(
     stopSession: () => unsupportedProviderCall(),
     listSessions,
     getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+    readThread: () => unsupportedProviderCall(),
     rollbackConversation,
     get streamEvents() {
       return Stream.fromPubSub(runtimeEventPubSub);

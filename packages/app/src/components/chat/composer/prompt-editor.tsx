@@ -27,6 +27,7 @@ import {
   type ReactElement,
   type RefObject,
 } from "react";
+import { flushSync } from "react-dom";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import {
@@ -146,6 +147,7 @@ interface ComposerPromptEditorProps {
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
   caretAnchorRef?: RefObject<HTMLSpanElement | null>;
   caretTriggerExpandedOffset?: number | null;
+  onCaretAnchorRectChange?: (rect: DOMRectReadOnly) => void;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
   onChange: (
     nextValue: string,
@@ -461,29 +463,62 @@ function snapshotsEqual(
 
 const COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD = 24;
 
-function emitMeasuredMultiline(
-  editor: Editor,
-  callback: ((multiline: boolean) => void) | undefined,
-): void {
-  if (!callback) return;
+function measureComposerEditorMultiline(editor: Editor): boolean {
   const dom = editor.view.dom;
   const value = promptTextFromDoc(editor.state.doc);
   if (value.includes("\n")) {
-    callback(true);
-    return;
+    return true;
   }
   if (value.trim().length === 0) {
-    callback(false);
-    return;
+    return false;
   }
 
-  callback(dom.scrollHeight > COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD);
+  return dom.scrollHeight > COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD;
+}
+
+function emitMeasuredMultiline(
+  editor: Editor,
+  callback: ((multiline: boolean) => void) | undefined,
+  measuredMultilineRef: RefObject<boolean>,
+): void {
+  if (!callback) return;
+  const nextMultiline = measureComposerEditorMultiline(editor);
+  if (nextMultiline === measuredMultilineRef.current) {
+    return;
+  }
+  measuredMultilineRef.current = nextMultiline;
+  if (nextMultiline) {
+    flushSync(() => {
+      callback(true);
+    });
+    return;
+  }
+  callback(false);
+}
+
+function notifyComposerEditorMultiline(
+  callback: ((multiline: boolean) => void) | undefined,
+  measuredMultilineRef: RefObject<boolean>,
+  nextMultiline: boolean,
+): void {
+  if (!callback || nextMultiline === measuredMultilineRef.current) {
+    return;
+  }
+  measuredMultilineRef.current = nextMultiline;
+  if (nextMultiline) {
+    flushSync(() => {
+      callback(true);
+    });
+    return;
+  }
+  callback(false);
 }
 
 function usePromptEditorControlledStateSync({
   cursor,
   editor,
   isApplyingControlledUpdateRef,
+  measuredMultilineRef,
   onMeasuredMultilineChangeRef,
   skillsSignature,
   skillsSignatureRef,
@@ -494,6 +529,7 @@ function usePromptEditorControlledStateSync({
   cursor: number;
   editor: Editor | null;
   isApplyingControlledUpdateRef: RefObject<boolean>;
+  measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
   skillsSignature: string;
   skillsSignatureRef: RefObject<string>;
@@ -536,28 +572,30 @@ function usePromptEditorControlledStateSync({
     if (shouldRewriteEditorState || isFocused) {
       setSelectionAtCollapsedOffset(editor, normalizedCursor);
     }
+    emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
     queueMicrotask(() => {
       isApplyingControlledUpdateRef.current = false;
-      emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current);
     });
-  }, [cursor, editor, skillsSignature, value]);
+  }, [cursor, editor, measuredMultilineRef, skillsSignature, value]);
 }
 
 function usePromptEditorMultilineMeasurement({
   editor,
+  measuredMultilineRef,
   onMeasuredMultilineChangeRef,
 }: {
   editor: Editor | null;
+  measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
 }) {
   useLayoutSyncEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom;
-    emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current);
+    emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
     if (typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver(() => {
-      emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current);
+      emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
     });
     observer.observe(dom);
     return () => {
@@ -566,54 +604,88 @@ function usePromptEditorMultilineMeasurement({
   }, [editor]);
 }
 
-// Mirrors Cursor's caret-tracked menu anchor: a 1x1 span whose position is
-// rewritten from `coordsAtPos` so the slash/mention popover follows the caret
-// instead of the editor wrapper. The wrapper's bounding box jumps when the
-// composer transitions between pill (single-line, padded shell) and multiline
-// (block, no-padding shell) layouts, which is what made the menu drift.
+// Mirrors Cursor's caret-tracked menu anchor: a real 1x1 span whose position is
+// rewritten from `coordsAtPos`. Keep the DOM span as the menu reference; cached
+// virtual rects drift when hero/queued composer layouts move after measurement.
 function usePromptEditorCaretAnchor({
   editor,
   anchorElementRef,
+  onCaretAnchorRectChangeRef,
+  triggerOffset,
   triggerOffsetRef,
 }: {
   editor: Editor | null;
   anchorElementRef: RefObject<HTMLSpanElement | null>;
+  onCaretAnchorRectChangeRef: RefObject<ComposerPromptEditorProps["onCaretAnchorRectChange"]>;
+  triggerOffset: number | null;
   triggerOffsetRef: RefObject<number | null>;
 }) {
+  // Trigger state is committed after the editor transaction that detected it, so
+  // the offset must be an effect dependency instead of relying on transactions.
   useLayoutSyncEffect(() => {
     if (!editor) return;
     const anchor = anchorElementRef.current;
     const editorDom = editor.view.dom;
-    const container = editorDom.parentElement;
-    if (!anchor || !container) return;
+    const anchorRoot =
+      anchor?.offsetParent instanceof HTMLElement ? anchor.offsetParent : anchor?.parentElement;
+    if (!anchor || !anchorRoot) return;
 
+    let frame: number | null = null;
     const place = () => {
       const triggerOffset = triggerOffsetRef.current;
       const pmPos =
         typeof triggerOffset === "number"
           ? textToPosition(editor.state.doc, triggerOffset, "expanded")
           : editor.state.selection.head;
-      const coords = editor.view.coordsAtPos(pmPos);
-      const rect = container.getBoundingClientRect();
-      anchor.style.left = `${coords.left - rect.left}px`;
-      anchor.style.top = `${coords.top - rect.top}px`;
+      let coords: ReturnType<typeof editor.view.coordsAtPos>;
+      try {
+        coords = editor.view.coordsAtPos(pmPos);
+      } catch {
+        coords = editor.view.coordsAtPos(editor.state.selection.head);
+      }
+      // Base UI's side="top" offset is measured from the reference rect's top
+      // edge. The hidden span therefore exposes the caret line's lower edge as
+      // its top edge; using coords.top puts the menu a full line too high.
+      const anchorY = coords.bottom;
+      const rect = anchorRoot.getBoundingClientRect();
+      const anchorRect = new DOMRect(coords.left, anchorY, 1, 1);
+      anchor.style.left = `${anchorRect.left - rect.left}px`;
+      anchor.style.top = `${anchorRect.top - rect.top}px`;
+      anchor.style.bottom = "auto";
+      onCaretAnchorRectChangeRef.current?.(anchorRect);
+    };
+    const schedulePlace = () => {
+      place();
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        place();
+      });
     };
 
-    place();
-    editor.on("transaction", place);
+    schedulePlace();
+    editor.on("transaction", schedulePlace);
     if (typeof ResizeObserver === "undefined") {
       return () => {
-        editor.off("transaction", place);
+        editor.off("transaction", schedulePlace);
+        if (frame !== null) {
+          window.cancelAnimationFrame(frame);
+        }
       };
     }
-    const observer = new ResizeObserver(place);
+    const observer = new ResizeObserver(schedulePlace);
     observer.observe(editorDom);
-    observer.observe(container);
+    observer.observe(anchorRoot);
     return () => {
-      editor.off("transaction", place);
+      editor.off("transaction", schedulePlace);
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
       observer.disconnect();
     };
-  }, [editor]);
+  }, [editor, triggerOffset]);
 }
 
 function selectionContainsComposerAtom(editor: Editor, from: number, to: number): boolean {
@@ -1065,6 +1137,7 @@ export const ComposerPromptEditor = forwardRef<
     hotkeyTargetRef,
     caretAnchorRef,
     caretTriggerExpandedOffset = null,
+    onCaretAnchorRectChange,
     onMeasuredMultilineChange,
     onChange,
     onCommandKeyDown,
@@ -1074,12 +1147,14 @@ export const ComposerPromptEditor = forwardRef<
 ) {
   const onChangeRef = useRef(onChange);
   const onCommandKeyDownRef = useRef(onCommandKeyDown);
+  const onCaretAnchorRectChangeRef = useRef(onCaretAnchorRectChange);
   const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
   const onPasteRef = useRef(onPaste);
   const placeholderRef = useRef(placeholder);
   const skillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
   onChangeRef.current = onChange;
   onCommandKeyDownRef.current = onCommandKeyDown;
+  onCaretAnchorRectChangeRef.current = onCaretAnchorRectChange;
   onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
   onPasteRef.current = onPaste;
   placeholderRef.current = placeholder;
@@ -1099,6 +1174,7 @@ export const ComposerPromptEditor = forwardRef<
   extensionsRef.current ??= createComposerExtensions(placeholderRef);
   const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
   const isApplyingControlledUpdateRef = useRef(false);
+  const measuredMultilineRef = useRef(false);
   const skillMetadataRef = useRef(skillMetadata);
   skillMetadataRef.current = skillMetadata;
   const initialDocRef = useRef(promptToTiptapDoc(value, skillMetadataRef.current));
@@ -1141,6 +1217,16 @@ export const ComposerPromptEditor = forwardRef<
             onPasteRef.current(
               event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0],
             );
+            if (!event.defaultPrevented) {
+              const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+              if (pastedText.includes("\n")) {
+                notifyComposerEditorMultiline(
+                  onMeasuredMultilineChangeRef.current,
+                  measuredMultilineRef,
+                  true,
+                );
+              }
+            }
             return event.defaultPrevented;
           },
         },
@@ -1183,7 +1269,7 @@ export const ComposerPromptEditor = forwardRef<
       nextSnapshot.expandedCursor,
       cursorAdjacentToMention,
     );
-    emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current);
+    emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
   };
 
   keyDownHandlerRef.current = (event: KeyboardEvent) => {
@@ -1256,6 +1342,7 @@ export const ComposerPromptEditor = forwardRef<
     cursor,
     editor,
     isApplyingControlledUpdateRef,
+    measuredMultilineRef,
     onMeasuredMultilineChangeRef,
     skillsSignature,
     skillsSignatureRef,
@@ -1266,12 +1353,15 @@ export const ComposerPromptEditor = forwardRef<
 
   usePromptEditorMultilineMeasurement({
     editor,
+    measuredMultilineRef,
     onMeasuredMultilineChangeRef,
   });
 
   usePromptEditorCaretAnchor({
     editor,
     anchorElementRef: localCaretAnchorRef,
+    onCaretAnchorRectChangeRef,
+    triggerOffset: caretTriggerExpandedOffset,
     triggerOffsetRef: caretTriggerOffsetRef,
   });
 

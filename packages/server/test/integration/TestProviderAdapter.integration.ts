@@ -7,6 +7,7 @@ import {
   ProviderRuntimeEvent,
   RuntimeSessionId,
   ProviderSession,
+  type ProviderThreadSnapshotItem,
   ProviderTurnStartResult,
   ThreadId,
   TurnId,
@@ -339,14 +340,28 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
           yield* response.mutateProject({ cwd: state.session.cwd!, turnCount });
         }
 
-        const userItem = {
-          type: "userMessage",
-          content: [{ type: "text", text: input.input }],
-        } as const;
+        const userItem: ProviderThreadSnapshotItem = {
+          itemType: "user_message",
+          role: "user",
+          title: "User message",
+          detail: input.input,
+          data: {
+            content: [{ type: "text", text: input.input }],
+          },
+        };
         const assistantText = assistantDeltas.join("");
-        const nextItems: Array<unknown> =
+        const nextItems: Array<ProviderThreadSnapshotItem> =
           assistantText.length > 0
-            ? [userItem, { type: "agentMessage", text: assistantText }]
+            ? [
+                userItem,
+                {
+                  itemType: "assistant_message",
+                  role: "assistant",
+                  title: "Assistant message",
+                  detail: assistantText,
+                  data: { text: assistantText },
+                },
+              ]
             : [userItem];
 
         const nextTurn: ProviderThreadTurnSnapshot = {
@@ -430,10 +445,10 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
     const hasSession: ProviderAdapterShape<ProviderAdapterError>["hasSession"] = (threadId) =>
       Effect.succeed(sessions.has(threadId));
 
-    const readThread: ProviderAdapterShape<ProviderAdapterError>["readThread"] = (threadId) => {
-      const state = sessions.get(threadId);
+    const readThread: ProviderAdapterShape<ProviderAdapterError>["readThread"] = (input) => {
+      const state = sessions.get(input.threadId);
       if (!state) {
-        return missingSessionEffect(provider, threadId);
+        return missingSessionEffect(provider, input.threadId);
       }
       return Effect.succeed(state.snapshot);
     };

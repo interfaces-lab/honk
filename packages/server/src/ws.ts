@@ -47,6 +47,7 @@ import {
   observeRpcStreamEffect,
 } from "./observability/RpcInstrumentation";
 import { ProviderRegistry } from "./provider/ProviderRegistry.service";
+import { ProviderService } from "./provider/ProviderService.service";
 import { ServerLifecycleEvents } from "./server-lifecycle-events";
 import { ServerRuntimeStartup } from "./server-runtime-startup";
 import { ServerSettingsService } from "./server-settings";
@@ -80,6 +81,8 @@ function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
       | "thread.activity-appended"
       | "thread.turn-diff-completed"
       | "thread.reverted"
+      | "thread.tree-navigated"
+      | "thread.tree-label-set"
       | "thread.session-set";
   }
 > {
@@ -89,6 +92,8 @@ function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
     event.type === "thread.activity-appended" ||
     event.type === "thread.turn-diff-completed" ||
     event.type === "thread.reverted" ||
+    event.type === "thread.tree-navigated" ||
+    event.type === "thread.tree-label-set" ||
     event.type === "thread.session-set"
   );
 }
@@ -638,6 +643,33 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                     message: "Failed to load full thread diff",
                     cause,
                   }),
+              ),
+            ),
+            { "rpc.aggregate": "orchestration" },
+          ),
+        [ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot]: (input) =>
+          observeRpcEffect(
+            ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot,
+            Effect.serviceOption(ProviderService).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () =>
+                    Effect.fail(
+                      new OrchestrationGetSnapshotError({
+                        message: "Provider thread snapshots are unavailable in this environment",
+                      }),
+                    ),
+                  onSome: (providerService) =>
+                    providerService.readThread(input).pipe(
+                      Effect.mapError(
+                        (cause) =>
+                          new OrchestrationGetSnapshotError({
+                            message: "Failed to load provider thread snapshot",
+                            cause,
+                          }),
+                      ),
+                    ),
+                }),
               ),
             ),
             { "rpc.aggregate": "orchestration" },

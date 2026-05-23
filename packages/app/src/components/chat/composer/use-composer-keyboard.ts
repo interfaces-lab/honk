@@ -31,6 +31,7 @@ function keybindingShortcutToHotkey(shortcut: KeybindingShortcut): Parameters<ty
 }
 
 export function useComposerKeyboard(input: {
+  enabled?: boolean | undefined;
   keybindings: ResolvedKeybindingsConfig;
   terminalOpen: boolean;
   targetRef: RefObject<HTMLDivElement | null>;
@@ -50,7 +51,7 @@ export function useComposerKeyboard(input: {
     },
     {
       conflictBehavior: "allow",
-      enabled: cycleInteractionModeHotkey !== null,
+      enabled: input.enabled !== false && cycleInteractionModeHotkey !== null,
       ignoreInputs: false,
       target: input.targetRef,
     },

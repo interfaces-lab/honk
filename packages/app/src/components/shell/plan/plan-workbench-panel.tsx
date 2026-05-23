@@ -38,30 +38,24 @@ import {
   stripDisplayedPlanMarkdown,
 } from "~/plan/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
-import { formatTimestamp } from "~/lib/timestamp-format";
-import { WorkbenchChromeRow } from "../shell/workbench-chrome-row";
 import { workbenchIconButtonVariants, WorkbenchTextButton } from "../shell/workbench-icon-button";
 
 function stepStatusIcon(status: ActivePlanState["steps"][number]["status"]): React.ReactNode {
   if (status === "completed") {
     return (
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
-        <IconCheckmark1 className="size-3" aria-hidden />
+      <span className="composer-plan-todo-indicator composer-plan-todo-indicator-completed border-success text-success">
+        <IconCheckmark1 className="size-2" aria-hidden />
       </span>
     );
   }
   if (status === "inProgress") {
     return (
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-400">
-        <IconLoader className="size-3 animate-spin" aria-hidden />
+      <span className="composer-plan-todo-indicator border-primary text-primary">
+        <IconLoader className="size-2 animate-spin" aria-hidden />
       </span>
     );
   }
-  return (
-    <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-multi-stroke-tertiary bg-multi-bg-quinary">
-      <span className="size-1.5 rounded-full bg-multi-fg-quaternary" />
-    </span>
-  );
+  return <span className="composer-plan-todo-indicator composer-plan-todo-indicator-pending" />;
 }
 
 export interface PlanWorkbenchPanelProps {
@@ -82,7 +76,6 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
   environmentId,
   label,
   markdownCwd,
-  timestampFormat,
   canImplementPlan = false,
   isImplementingPlan = false,
   onImplementPlan,
@@ -90,111 +83,108 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
   const planMarkdown = activeProposedPlan?.planMarkdown ?? null;
   const displayedPlanMarkdown = planMarkdown ? stripDisplayedPlanMarkdown(planMarkdown) : null;
   const planTitle = planMarkdown ? proposedPlanTitle(planMarkdown) : null;
-  const timestamp = activePlan?.createdAt ?? activeProposedPlan?.updatedAt ?? null;
+  const title = planTitle ?? label;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <WorkbenchChromeRow
-        variant="panel"
-        gap="relaxed"
-        trailing={
-          planMarkdown ? (
-            <div className="flex shrink-0 items-center gap-(--multi-workbench-chrome-action-gap)">
-              <PlanActions
-                key={activeProposedPlan?.id ?? planMarkdown}
-                environmentId={environmentId}
-                markdownCwd={markdownCwd}
-                planMarkdown={planMarkdown}
-              />
-              {onImplementPlan ? (
-                <WorkbenchTextButton
-                  onClick={onImplementPlan}
-                  title="Build plan"
-                  tone="primary"
-                  disabled={!canImplementPlan || isImplementingPlan}
-                >
-                  {isImplementingPlan ? (
-                    <IconLoader className="size-4 shrink-0 animate-spin" aria-hidden />
-                  ) : (
-                    <IconArrowUp className="size-4 shrink-0" aria-hidden />
-                  )}
-                  <span>{isImplementingPlan ? "Building" : "Build"}</span>
-                </WorkbenchTextButton>
-              ) : null}
-            </div>
-          ) : null
-        }
-      >
-        <span className="inline-flex h-(--multi-workbench-action-size) shrink-0 items-center rounded-multi-control bg-multi-bg-tertiary px-1.5 text-caption font-semibold text-multi-fg-secondary uppercase">
-          {label}
-        </span>
-        {timestamp ? (
-          <span className="min-w-0 truncate text-detail text-multi-fg-tertiary">
-            {formatTimestamp(timestamp, timestampFormat)}
+    <div className="plan-tab-content min-h-0 min-w-0 flex-1 text-title">
+      <div className="plan-tab-header no-drag flex h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) shrink-0 items-center justify-between gap-2 border-b border-(--cursor-stroke-tertiary) px-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <IconFileText className="size-4 shrink-0 text-(--cursor-text-secondary)" aria-hidden />
+          <span className="min-w-0 truncate text-detail font-medium text-(--cursor-text-primary)">
+            {title}
           </span>
-        ) : null}
-      </WorkbenchChromeRow>
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
-        {activePlan ? (
-          <section className="grid gap-3">
-            {activePlan.explanation ? (
-              <p className="text-body text-multi-fg-secondary">{activePlan.explanation}</p>
-            ) : null}
-            <div className="grid gap-1.5">
-              <h2 className="text-caption font-semibold tracking-wide text-multi-fg-tertiary uppercase">
-                Tasks
-              </h2>
-              <div className="grid gap-1">
-                {activePlan.steps.map((step) => (
-                  <div
-                    key={step.step}
-                    className={cn(
-                      "flex min-w-0 items-start gap-2.5 rounded-multi-control px-2.5 py-2 transition-colors duration-150 ease-out",
-                      step.status === "inProgress" && "bg-blue-500/5",
-                      step.status === "completed" && "bg-emerald-500/5",
-                    )}
-                  >
-                    <div className="mt-0.5 shrink-0">{stepStatusIcon(step.status)}</div>
-                    <p
-                      className={cn(
-                        "min-w-0 text-body",
-                        step.status === "completed"
-                          ? "text-multi-fg-tertiary line-through decoration-multi-fg-quaternary"
-                          : step.status === "inProgress"
-                            ? "text-multi-fg-primary"
-                            : "text-multi-fg-secondary",
-                      )}
-                    >
-                      {step.step}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        ) : null}
+        </div>
 
         {planMarkdown ? (
-          <section className="grid gap-3 border-t border-multi-stroke-tertiary pt-4 first:border-t-0 first:pt-0">
-            <h2 className="text-caption font-semibold tracking-wide text-multi-fg-tertiary uppercase">
-              {planTitle ?? "Proposed Plan"}
-            </h2>
-            <div className="min-w-0 text-body text-multi-fg-primary">
-              <ChatMarkdown
-                text={displayedPlanMarkdown ?? ""}
-                cwd={markdownCwd}
-                isStreaming={false}
-              />
-            </div>
-          </section>
-        ) : null}
-
-        {!activePlan && !planMarkdown ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8 text-center">
-            <p className="text-body text-multi-fg-tertiary">No plan data available.</p>
+          <div className="plan-breadcrumb-controls breadcrumbs-extra-actions flex shrink-0 items-center gap-(--multi-workbench-chrome-action-gap)">
+            <PlanActions
+              key={activeProposedPlan?.id ?? planMarkdown}
+              environmentId={environmentId}
+              markdownCwd={markdownCwd}
+              planMarkdown={planMarkdown}
+            />
+            {onImplementPlan ? (
+              <WorkbenchTextButton
+                onClick={onImplementPlan}
+                title="Build plan"
+                tone="primary"
+                disabled={!canImplementPlan || isImplementingPlan}
+                className="breadcrumbs-action-btn plan-build-button bg-(--cursor-bg-yellow-primary) text-title leading-(--multi-leading-title) text-(--vscode-editor-background) shadow-none hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] disabled:bg-multi-bg-tertiary disabled:text-multi-fg-quaternary/45 [&_svg]:text-(--vscode-editor-background)"
+              >
+                {isImplementingPlan ? (
+                  <IconLoader className="size-4 shrink-0 animate-spin" aria-hidden />
+                ) : (
+                  <IconArrowUp className="size-4 shrink-0" aria-hidden />
+                )}
+                <span>{isImplementingPlan ? "Building" : "Build"}</span>
+              </WorkbenchTextButton>
+            ) : null}
           </div>
         ) : null}
+      </div>
+
+      <div className="plan-tab-editor-region min-h-0 flex-1">
+        <div className="plan-tab-scroll ui-scroll-area min-h-0 flex-1 overflow-y-auto">
+          <div className="composer-plan-container">
+            <div className="composer-plan-content mx-auto flex w-full max-w-[840px] flex-col px-3 py-3">
+              {planMarkdown ? (
+                <div className="composer-plan-markdown-container mb-4 px-1.5">
+                  <ChatMarkdown
+                    text={displayedPlanMarkdown ?? ""}
+                    cwd={markdownCwd}
+                    isStreaming={false}
+                    className="chat-markdown--plan-panel"
+                  />
+                </div>
+              ) : null}
+
+              {activePlan ? (
+                <section className="composer-plan-todos mt-2 border-t border-(--vscode-widget-border) pt-3">
+                  {activePlan.explanation ? (
+                    <p className="mb-3 px-1.5 text-title leading-(--multi-leading-title) text-(--cursor-text-secondary)">
+                      {activePlan.explanation}
+                    </p>
+                  ) : null}
+                  <div className="composer-plan-section-header mb-3 flex items-center gap-2 px-1.5">
+                    <h2 className="composer-plan-section-title m-0 text-title leading-(--multi-leading-title) font-semibold text-(--cursor-text-primary)">
+                      Tasks
+                    </h2>
+                    <span className="composer-plan-section-count text-detail leading-(--multi-leading-detail) text-(--cursor-text-secondary) opacity-70">
+                      {activePlan.steps.length}
+                    </span>
+                  </div>
+                  <div className="grid gap-2 px-1.5">
+                    {activePlan.steps.map((step) => (
+                      <div key={step.step} className="flex min-w-0 items-start gap-2">
+                        <div className="mt-0.5 shrink-0">{stepStatusIcon(step.status)}</div>
+                        <p
+                          className={cn(
+                            "m-0 min-w-0 text-title leading-(--multi-leading-title)",
+                            step.status === "completed"
+                              ? "text-(--cursor-text-tertiary) line-through decoration-multi-fg-quaternary"
+                              : step.status === "inProgress"
+                                ? "text-(--cursor-text-primary)"
+                                : "text-(--cursor-text-secondary)",
+                          )}
+                        >
+                          {step.step}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {!activePlan && !planMarkdown ? (
+                <div className="composer-plan-empty-state flex min-h-0 flex-1 items-center justify-center px-4 py-10 text-center">
+                  <p className="text-title leading-(--multi-leading-title) text-(--cursor-text-tertiary)">
+                    No plan data available.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

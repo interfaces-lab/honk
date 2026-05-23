@@ -519,7 +519,7 @@ interface ToolCallLineProps {
   linkable?: boolean | undefined;
 }
 
-const ToolCallLine = memo(function ToolCallLine({
+export const ToolCallLine = memo(function ToolCallLine({
   action,
   details,
   loading = false,
@@ -580,7 +580,7 @@ function ToolCallLineDetails({
   );
 }
 
-const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
+export const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
   icon: Icon,
   action,
   details,

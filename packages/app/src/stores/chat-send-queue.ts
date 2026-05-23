@@ -28,14 +28,23 @@ export interface QueuedComposerItem {
 interface ComposerQueueStoreState {
   queueItemsByThreadKey: Record<string, QueuedComposerItem[]>;
   editingQueueItemIdByThreadKey: Record<string, MessageId | null>;
+  queueExpandedByThreadKey: Record<string, boolean>;
   getQueueItems: (threadKey: string) => QueuedComposerItem[];
   getQueueItem: (threadKey: string, itemId: MessageId) => QueuedComposerItem | null;
   getEditingQueueItemId: (threadKey: string) => MessageId | null;
+  getQueueExpanded: (threadKey: string) => boolean;
+  setQueueExpanded: (threadKey: string, expanded: boolean) => void;
   enqueueComposerItem: (threadKey: string, item: QueuedComposerItem) => void;
   removeQueuedComposerItem: (threadKey: string, itemId: MessageId) => void;
   takeQueuedComposerItem: (threadKey: string, itemId: MessageId) => QueuedComposerItem | null;
   takeNextQueuedComposerItem: (threadKey: string) => QueuedComposerItem | null;
   restoreQueuedComposerItem: (threadKey: string, item: QueuedComposerItem, index: number) => void;
+  reorderQueuedComposerItem: (
+    threadKey: string,
+    itemId: MessageId,
+    targetItemId: MessageId | null,
+    insertAfter: boolean,
+  ) => void;
   beginEditingQueuedComposerItem: (threadKey: string, itemId: MessageId) => void;
   cancelEditingQueuedComposerItem: (threadKey: string) => void;
   replaceEditingQueuedComposerItem: (threadKey: string, item: QueuedComposerItem) => void;
@@ -100,6 +109,7 @@ function withoutThreadEdit(
 export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get) => ({
   queueItemsByThreadKey: {},
   editingQueueItemIdByThreadKey: {},
+  queueExpandedByThreadKey: {},
   getQueueItems: (threadKey) => {
     const normalizedThreadKey = normalizeThreadKey(threadKey);
     return normalizedThreadKey
@@ -118,6 +128,29 @@ export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get
     return normalizedThreadKey
       ? (get().editingQueueItemIdByThreadKey[normalizedThreadKey] ?? null)
       : null;
+  },
+  getQueueExpanded: (threadKey) => {
+    const normalizedThreadKey = normalizeThreadKey(threadKey);
+    return normalizedThreadKey
+      ? (get().queueExpandedByThreadKey[normalizedThreadKey] ?? true)
+      : true;
+  },
+  setQueueExpanded: (threadKey, expanded) => {
+    const normalizedThreadKey = normalizeThreadKey(threadKey);
+    if (!normalizedThreadKey) {
+      return;
+    }
+    set((state) => {
+      if ((state.queueExpandedByThreadKey[normalizedThreadKey] ?? true) === expanded) {
+        return state;
+      }
+      return {
+        queueExpandedByThreadKey: {
+          ...state.queueExpandedByThreadKey,
+          [normalizedThreadKey]: expanded,
+        },
+      };
+    });
   },
   enqueueComposerItem: (threadKey, item) => {
     const normalizedThreadKey = normalizeThreadKey(threadKey);
@@ -217,6 +250,39 @@ export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get
       const nextItem = { ...item, threadKey: normalizedThreadKey };
       const nextItems = [...existingItems];
       nextItems.splice(Math.max(0, Math.min(index, nextItems.length)), 0, nextItem);
+      return {
+        queueItemsByThreadKey: {
+          ...state.queueItemsByThreadKey,
+          [normalizedThreadKey]: nextItems,
+        },
+      };
+    });
+  },
+  reorderQueuedComposerItem: (threadKey, itemId, targetItemId, insertAfter) => {
+    const normalizedThreadKey = normalizeThreadKey(threadKey);
+    if (!normalizedThreadKey || itemId === targetItemId) {
+      return;
+    }
+    set((state) => {
+      const existingItems = state.queueItemsByThreadKey[normalizedThreadKey] ?? EMPTY_QUEUE_ITEMS;
+      const movingItem = existingItems.find((entry) => entry.id === itemId);
+      if (!movingItem) {
+        return state;
+      }
+      const remainingItems = existingItems.filter((entry) => entry.id !== itemId);
+      let insertionIndex = insertAfter ? remainingItems.length : 0;
+      if (targetItemId !== null) {
+        const targetIndex = remainingItems.findIndex((entry) => entry.id === targetItemId);
+        if (targetIndex === -1) {
+          return state;
+        }
+        insertionIndex = targetIndex + (insertAfter ? 1 : 0);
+      }
+      const nextItems = [...remainingItems];
+      nextItems.splice(Math.max(0, Math.min(insertionIndex, nextItems.length)), 0, movingItem);
+      if (nextItems.every((entry, index) => entry.id === existingItems[index]?.id)) {
+        return state;
+      }
       return {
         queueItemsByThreadKey: {
           ...state.queueItemsByThreadKey,

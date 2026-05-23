@@ -8,16 +8,28 @@ import {
   resolveInitialServerAuthGateState,
 } from "~/environments/primary";
 
+function isStandaloneDevRoute(pathname: string): boolean {
+  return import.meta.env.DEV && pathname === "/dev/queued-message-demo";
+}
+
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
+    if (isStandaloneDevRoute(location.pathname)) {
+      return {
+        authGateState: { status: "authenticated" } as const,
+        devStandalone: true,
+      };
+    }
+
     const [, authGateState] = await Promise.all([
       ensurePrimaryEnvironmentReady(),
       resolveInitialServerAuthGateState(),
     ]);
     return {
       authGateState,
+      devStandalone: false,
     };
   },
   component: RootRouteView,
@@ -25,5 +37,6 @@ export const Route = createRootRouteWithContext<{
   notFoundComponent: RootRouteNotFoundView,
   head: () => ({
     meta: [{ name: "title", content: APP_DISPLAY_NAME }],
+    scripts: import.meta.env.DEV ? [{ src: "https://ui.sh/ui-picker.js" }] : [],
   }),
 });

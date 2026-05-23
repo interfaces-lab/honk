@@ -8,12 +8,14 @@ import {
   type OrchestrationProposedPlanId,
   CheckpointRef,
   isToolLifecycleItemType,
+  type ThreadEntryId,
   ThreadId,
   type ThreadTokenUsageSnapshot,
   TurnId,
   type OrchestrationThreadActivity,
   type ProviderRuntimeEvent,
   type ProviderRequestKind,
+  type RuntimeSubagentRef,
 } from "@multi/contracts";
 import { Cache, Cause, Duration, Effect, Layer, Option, Stream } from "effect";
 import { makeDrainableWorker } from "@multi/shared/DrainableWorker";
@@ -63,6 +65,11 @@ type RuntimeIngestionInput =
     };
 
 const processDomainEvent = (_event: TurnStartRequestedDomainEvent) => Effect.void;
+
+type AssistantTreeParent = {
+  readonly turnId: TurnId;
+  readonly parentEntryId: ThreadEntryId;
+};
 
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
   return value === undefined ? undefined : TurnId.make(String(value));
@@ -117,6 +124,22 @@ function buildContextWindowActivityPayload(
     return undefined;
   }
   return event.payload.usage;
+}
+
+function buildSubagentIdentityPayload(subagent: RuntimeSubagentRef): Record<string, unknown> {
+  return {
+    providerThreadId: subagent.providerThreadId,
+    ...(subagent.parentProviderThreadId
+      ? { parentProviderThreadId: subagent.parentProviderThreadId }
+      : {}),
+    ...(subagent.parentTurnId ? { parentTurnId: subagent.parentTurnId } : {}),
+    ...(subagent.parentItemId ? { parentItemId: subagent.parentItemId } : {}),
+    ...(subagent.agentId ? { agentId: subagent.agentId } : {}),
+    ...(subagent.nickname ? { nickname: subagent.nickname } : {}),
+    ...(subagent.role ? { role: subagent.role } : {}),
+    ...(subagent.model ? { model: subagent.model } : {}),
+    ...(subagent.prompt ? { prompt: subagent.prompt } : {}),
+  };
 }
 
 function normalizeRuntimeTurnState(
@@ -465,6 +488,120 @@ function runtimeEventToActivities(
       ];
     }
 
+    case "subagent.thread.started": {
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "subagent.thread.started",
+          summary: "Subagent thread started",
+          payload: buildSubagentIdentityPayload(event.payload.subagent),
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
+    case "subagent.thread.state.changed": {
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: event.payload.state === "error" ? "error" : "info",
+          kind: "subagent.thread.state.changed",
+          summary:
+            event.payload.state === "error"
+              ? "Subagent failed"
+              : event.payload.state === "idle"
+                ? "Subagent idle"
+                : "Subagent state changed",
+          payload: {
+            ...buildSubagentIdentityPayload(event.payload.subagent),
+            state: event.payload.state,
+            ...(event.payload.detail !== undefined ? { detail: event.payload.detail } : {}),
+          },
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
+    case "subagent.item.started":
+    case "subagent.item.updated":
+    case "subagent.item.completed": {
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: event.payload.status === "failed" ? "error" : "tool",
+          kind: event.type,
+          summary:
+            event.payload.title ??
+            (event.type === "subagent.item.completed"
+              ? "Subagent tool completed"
+              : event.type === "subagent.item.started"
+                ? "Subagent tool started"
+                : "Subagent tool updated"),
+          payload: {
+            ...buildSubagentIdentityPayload(event.payload.subagent),
+            itemType: event.payload.itemType,
+            ...(event.itemId ? { itemId: event.itemId } : {}),
+            ...(event.payload.status ? { status: event.payload.status } : {}),
+            ...(event.payload.title ? { title: event.payload.title } : {}),
+            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
+            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
+          },
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
+    case "subagent.content.delta": {
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "tool",
+          kind: "subagent.content.delta",
+          summary: "Subagent output",
+          payload: {
+            ...buildSubagentIdentityPayload(event.payload.subagent),
+            streamKind: event.payload.streamKind,
+            delta: truncateDetail(event.payload.delta, 2_000),
+            ...(event.itemId ? { itemId: event.itemId } : {}),
+            ...(event.payload.contentIndex !== undefined
+              ? { contentIndex: event.payload.contentIndex }
+              : {}),
+            ...(event.payload.summaryIndex !== undefined
+              ? { summaryIndex: event.payload.summaryIndex }
+              : {}),
+          },
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
+    case "subagent.usage.updated": {
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "subagent.usage.updated",
+          summary: "Subagent context updated",
+          payload: {
+            ...event.payload.usage,
+            ...buildSubagentIdentityPayload(event.payload.subagent),
+          },
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
     case "files.persisted": {
       if (event.payload.files.length === 0) {
         return [];
@@ -698,6 +835,48 @@ const make = Effect.fn("make")(function* () {
   const clearAssistantMessageIdsForTurn = (threadId: ThreadId, turnId: TurnId) =>
     Cache.invalidate(turnMessageIdsByTurnKey, providerTurnKey(threadId, turnId));
 
+  const getUserEntryIdForTurn = Effect.fn("getUserEntryIdForTurn")(function* (
+    threadId: ThreadId,
+    turnId: TurnId | undefined,
+  ) {
+    if (turnId === undefined) {
+      return undefined;
+    }
+    const turn = yield* projectionTurnRepository.getByTurnId({ threadId, turnId });
+    return Option.isSome(turn) ? (turn.value.userEntryId ?? undefined) : undefined;
+  });
+
+  const resolveAssistantTreeParent = Effect.fn("resolveAssistantTreeParent")(function* (input: {
+    readonly event: ProviderRuntimeEvent;
+    readonly threadId: ThreadId;
+    readonly turnId: TurnId | undefined;
+  }) {
+    if (input.turnId === undefined) {
+      yield* Effect.logWarning("provider runtime event omitted turn id for assistant message", {
+        eventId: input.event.eventId,
+        eventType: input.event.type,
+        threadId: input.threadId,
+      });
+      return undefined;
+    }
+
+    const parentEntryId = yield* getUserEntryIdForTurn(input.threadId, input.turnId);
+    if (parentEntryId === undefined) {
+      yield* Effect.logWarning("provider runtime event could not resolve assistant parent entry", {
+        eventId: input.event.eventId,
+        eventType: input.event.type,
+        threadId: input.threadId,
+        turnId: input.turnId,
+      });
+      return undefined;
+    }
+
+    return {
+      turnId: input.turnId,
+      parentEntryId,
+    };
+  });
+
   const appendBufferedAssistantText = (messageId: MessageId, delta: string) =>
     Cache.getOption(bufferedAssistantTextByMessageId, messageId).pipe(
       Effect.flatMap(
@@ -774,6 +953,15 @@ const make = Effect.fn("make")(function* () {
         : (input.fallbackText?.trim().length ?? 0) > 0
           ? input.fallbackText!
           : "";
+    const treeParent = yield* resolveAssistantTreeParent({
+      event: input.event,
+      threadId: input.threadId,
+      turnId: input.turnId,
+    });
+    if (treeParent === undefined) {
+      yield* clearAssistantMessageState(input.messageId);
+      return;
+    }
 
     if (text.length > 0) {
       yield* orchestrationEngine.dispatch({
@@ -782,7 +970,8 @@ const make = Effect.fn("make")(function* () {
         threadId: input.threadId,
         messageId: input.messageId,
         delta: text,
-        ...(input.turnId ? { turnId: input.turnId } : {}),
+        turnId: treeParent.turnId,
+        parentEntryId: treeParent.parentEntryId,
         createdAt: input.createdAt,
       });
     }
@@ -792,7 +981,8 @@ const make = Effect.fn("make")(function* () {
       commandId: providerCommandId(input.event, input.commandTag),
       threadId: input.threadId,
       messageId: input.messageId,
-      ...(input.turnId ? { turnId: input.turnId } : {}),
+      turnId: treeParent.turnId,
+      parentEntryId: treeParent.parentEntryId,
       createdAt: input.createdAt,
     });
     yield* clearAssistantMessageState(input.messageId);
@@ -912,7 +1102,7 @@ const make = Effect.fn("make")(function* () {
   const getSourceProposedPlanReferenceForPendingTurnStart = Effect.fn(
     "getSourceProposedPlanReferenceForPendingTurnStart",
   )(function* (threadId: ThreadId) {
-    const pendingTurnStart = yield* projectionTurnRepository.getPendingTurnStartByThreadId({
+    const pendingTurnStart = yield* projectionTurnRepository.getNextPendingTurnStartByThreadId({
       threadId,
     });
     if (Option.isNone(pendingTurnStart)) {
@@ -1146,9 +1336,15 @@ const make = Effect.fn("make")(function* () {
         `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
       );
       const turnId = toTurnId(event.turnId);
-      if (turnId) {
-        yield* rememberAssistantMessageId(thread.id, turnId, assistantMessageId);
+      const treeParent = yield* resolveAssistantTreeParent({
+        event,
+        threadId: thread.id,
+        turnId,
+      });
+      if (treeParent === undefined) {
+        return;
       }
+      yield* rememberAssistantMessageId(thread.id, treeParent.turnId, assistantMessageId);
 
       const assistantDeliveryMode: AssistantDeliveryMode = yield* Effect.map(
         serverSettingsService.getSettings,
@@ -1163,7 +1359,8 @@ const make = Effect.fn("make")(function* () {
             threadId: thread.id,
             messageId: assistantMessageId,
             delta: spillChunk,
-            ...(turnId ? { turnId } : {}),
+            turnId: treeParent.turnId,
+            parentEntryId: treeParent.parentEntryId,
             createdAt: now,
           });
         }
@@ -1174,7 +1371,8 @@ const make = Effect.fn("make")(function* () {
           threadId: thread.id,
           messageId: assistantMessageId,
           delta: assistantDelta,
-          ...(turnId ? { turnId } : {}),
+          turnId: treeParent.turnId,
+          parentEntryId: treeParent.parentEntryId,
           createdAt: now,
         });
       }

@@ -45,7 +45,7 @@ import { useTerminalStateStore } from "~/terminal-state-store";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { WsTransport } from "../../rpc/ws-transport";
 import { createWsRpcClient, type WsRpcClient } from "../../rpc/ws-rpc-client";
-import { deriveLogicalProjectKey, getProjectOrderKey } from "~/stores/project-identity";
+import { deriveSidebarProjectStateKey, getProjectOrderKey } from "~/stores/project-identity";
 import { dispatchNextQueuedComposerItemForThread } from "~/stores/chat-send-queue-dispatch";
 
 type EnvironmentServiceState = {
@@ -509,7 +509,7 @@ function syncProjectUiFromStore() {
   useUiStateStore.getState().syncProjects(
     projects.map((project) => ({
       key: getProjectOrderKey(project),
-      logicalKey: deriveLogicalProjectKey(project),
+      logicalKey: deriveSidebarProjectStateKey(project),
       cwd: project.cwd,
     })),
   );
@@ -671,7 +671,7 @@ function applyRecoveredEventBatch(
     useUiStateStore.getState().syncProjects(
       projects.map((project) => ({
         key: getProjectOrderKey(project),
-        logicalKey: deriveLogicalProjectKey(project),
+        logicalKey: deriveSidebarProjectStateKey(project),
         cwd: project.cwd,
       })),
     );

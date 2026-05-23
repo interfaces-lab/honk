@@ -18,6 +18,7 @@ import {
   ORCHESTRATION_WS_METHODS,
   ProjectId,
   ResolvedKeybindingRule,
+  ThreadEntryId,
   ThreadId,
   WS_METHODS,
   WsRpcGroup,
@@ -2528,6 +2529,8 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         payload: {
           threadId,
           messageId: MessageId.make("message-racy"),
+          entryId: ThreadEntryId.make("entry-racy"),
+          parentEntryId: null,
           role: "user",
           text: "hello from the live stream",
           attachments: [],

@@ -1,4 +1,4 @@
-import type { MessageId, ModelSelection } from "@multi/contracts";
+import type { MessageId, ModelSelection, RuntimeMode } from "@multi/contracts";
 import { memo, useCallback, useRef } from "react";
 
 import {
@@ -15,9 +15,12 @@ import {
   type ComposerInputProps,
 } from "../composer/input";
 
+const ignoreToggleInteractionMode = () => {};
+const ignoreInteractionModeChange = (_mode: ComposerInputProps["interactionMode"]) => {};
+
 export type InlineEditSubmitInput = {
   sendContext: ComposerSubmitContext;
-  runtimeMode: ComposerInputProps["runtimeMode"];
+  runtimeMode: RuntimeMode;
   interactionMode: ComposerInputProps["interactionMode"];
 };
 
@@ -36,7 +39,6 @@ type InlineMessageEditComposerProps = Pick<
   | "isConnecting"
   | "isSendBusy"
   | "isPreparingWorktree"
-  | "runtimeMode"
   | "interactionMode"
   | "providerStatuses"
   | "activeProjectDefaultModelSelection"
@@ -52,6 +54,7 @@ type InlineMessageEditComposerProps = Pick<
   | "onExpandImage"
 > & {
   composerDraftTarget: ComposerDraftId;
+  runtimeMode: RuntimeMode;
   message: ChatMessage;
   onCancelEditUserMessage: (messageId: MessageId) => void;
   onSubmitEditUserMessage: (messageId: MessageId, input: InlineEditSubmitInput) => Promise<boolean>;
@@ -76,11 +79,6 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
   const setStickyComposerModelSelection = useComposerDraftStore(
     (store) => store.setStickyModelSelection,
   );
-  const setComposerDraftRuntimeMode = useComposerDraftStore((store) => store.setRuntimeMode);
-  const setComposerDraftInteractionMode = useComposerDraftStore(
-    (store) => store.setInteractionMode,
-  );
-  const inlineRuntimeMode = editDraft.runtimeMode ?? runtimeMode;
   const inlineInteractionMode = editDraft.interactionMode ?? interactionMode;
   const submitState = deriveComposerSendState({
     prompt: editDraft.prompt,
@@ -114,33 +112,6 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
     ],
   );
 
-  const handleRuntimeModeChange = useCallback(
-    (mode: ComposerInputProps["runtimeMode"]) => {
-      if (mode === inlineRuntimeMode) return;
-      setComposerDraftRuntimeMode(composerDraftTarget, mode);
-      scheduleComposerFocus();
-    },
-    [composerDraftTarget, inlineRuntimeMode, scheduleComposerFocus, setComposerDraftRuntimeMode],
-  );
-
-  const handleInteractionModeChange = useCallback(
-    (mode: ComposerInputProps["interactionMode"]) => {
-      if (mode === inlineInteractionMode) return;
-      setComposerDraftInteractionMode(composerDraftTarget, mode);
-      scheduleComposerFocus();
-    },
-    [
-      composerDraftTarget,
-      inlineInteractionMode,
-      scheduleComposerFocus,
-      setComposerDraftInteractionMode,
-    ],
-  );
-
-  const toggleInteractionMode = useCallback(() => {
-    handleInteractionModeChange(inlineInteractionMode === "plan" ? "default" : "plan");
-  }, [handleInteractionModeChange, inlineInteractionMode]);
-
   const handleCancel = useCallback(() => {
     onCancelEditUserMessage(message.id);
   }, [message.id, onCancelEditUserMessage]);
@@ -157,11 +128,11 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
       }
       void onSubmitEditUserMessage(message.id, {
         sendContext,
-        runtimeMode: inlineRuntimeMode,
+        runtimeMode,
         interactionMode: inlineInteractionMode,
       });
     },
-    [inlineInteractionMode, inlineRuntimeMode, message.id, onSubmitEditUserMessage, submitDisabled],
+    [inlineInteractionMode, message.id, onSubmitEditUserMessage, runtimeMode, submitDisabled],
   );
 
   const cancelButton = (
@@ -183,7 +154,6 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
         layout="inline-edit"
         modelPickerPlacement="bottom-start"
         composerDraftTarget={composerDraftTarget}
-        runtimeMode={inlineRuntimeMode}
         interactionMode={inlineInteractionMode}
         providerStatuses={providerStatuses}
         settings={settings}
@@ -192,9 +162,8 @@ export const InlineMessageEditComposer = memo(function InlineMessageEditComposer
         footerSecondaryAction={cancelButton}
         onSend={handleSend}
         onProviderModelSelect={handleProviderModelSelect}
-        toggleInteractionMode={toggleInteractionMode}
-        handleRuntimeModeChange={handleRuntimeModeChange}
-        handleInteractionModeChange={handleInteractionModeChange}
+        toggleInteractionMode={ignoreToggleInteractionMode}
+        handleInteractionModeChange={ignoreInteractionModeChange}
         submitDisabled={submitDisabled}
       />
     </div>

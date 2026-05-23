@@ -21,6 +21,8 @@ import type {
   ProviderSession,
   ProviderSessionStartInput,
   ProviderStopSessionInput,
+  ProviderThreadReadInput,
+  ProviderThreadSnapshot,
   ThreadId,
   ProviderTurnStartResult,
 } from "@multi/contracts";
@@ -90,6 +92,13 @@ export interface ProviderServiceShape {
   readonly getCapabilities: (
     provider: ProviderDriverKind,
   ) => Effect.Effect<ProviderAdapterCapabilities, ProviderServiceError>;
+
+  /**
+   * Read a provider-backed thread snapshot, optionally targeting a child provider thread id.
+   */
+  readonly readThread: (
+    input: ProviderThreadReadInput,
+  ) => Effect.Effect<ProviderThreadSnapshot, ProviderServiceError>;
 
   /**
    * Roll back provider conversation state by a number of turns.

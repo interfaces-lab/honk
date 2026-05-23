@@ -68,26 +68,30 @@ describe("Composer queue contract", () => {
     expect(block).not.toContain("hasQueuedComposerItems");
   });
 
-  it("renders the queue as a tray when expanded or running, otherwise as a compact badge", () => {
-    expect(queuedItemsPanelSource).toContain("export const QueuedComposerItemsBadge");
-    expect(queuedItemsPanelSource).toContain("export const QueuedComposerItemsTray");
+  it("renders the queue as a persistent Cursor-style panel instead of a footer badge", () => {
+    expect(queuedItemsPanelSource).toContain("export const QueuedComposerItemsPanel");
     expect(queuedItemsPanelSource).toContain("export const QueuedComposerEditBanner");
-    expect(queuedItemsPanelSource).not.toMatch(/export const QueuedComposerItemsPanel\b/);
-    expect(inputSource).toContain("QueuedComposerItemsBadge");
-    expect(inputSource).toContain("QueuedComposerItemsTray");
+    expect(queuedItemsPanelSource).not.toContain("export const QueuedComposerItemsBadge");
+    expect(queuedItemsPanelSource).not.toContain("export const QueuedComposerItemsTray");
+    expect(inputSource).toContain("QueuedComposerItemsPanel");
     expect(inputSource).toContain("QueuedComposerEditBanner");
-    expect(inputSource).toContain("showQueuedComposerTray");
-    expect(inputSource).toContain("showQueuedComposerBadge");
+    expect(inputSource).toContain("showQueuedComposerPanel");
+    expect(inputSource).not.toContain("showQueuedComposerTray");
+    expect(inputSource).not.toContain("showQueuedComposerBadge");
   });
 
   it("uses queue action strings", () => {
-    expect(queuedItemsPanelSource).toContain('"Edit queued message"');
+    expect(queuedItemsPanelSource).toContain('"Edit"');
     expect(queuedItemsPanelSource).toContain('"Send now"');
-    expect(queuedItemsPanelSource).toContain('"Remove from queue"');
+    expect(queuedItemsPanelSource).toContain('"Remove"');
     expect(queuedItemsPanelSource).toContain("Editing queued message");
     expect(queuedItemsPanelSource).toContain('"Queued"');
     expect(queuedItemsPanelSource).toContain('data-queue-action="edit"');
-    expect(conversationCss).toContain("--multi-composer-queue-max-height: 200px");
+    expect(queuedItemsPanelSource).toContain('data-queue-row="true"');
+    expect(queuedItemsPanelSource).toContain('"Expand queue"');
+    expect(queuedItemsPanelSource).toContain('"Collapse queue"');
+    expect(conversationCss).toContain("--multi-composer-queue-panel-list-max-height: 200px");
+    expect(conversationCss).toContain("[data-queued-composer-panel]");
   });
 });
 
@@ -138,7 +142,13 @@ describe("Composer slash menu contract", () => {
     expect(promptEditorSource).toContain("editor.view.coordsAtPos");
     expect(inputSource).not.toContain('data-composer-menu-anchor=""');
     expect(inputSource).toContain("caretAnchorRef={composerMenuAnchorRef}");
-    expect(inputSource).toContain("caretTriggerExpandedOffset={composerTrigger?.rangeStart");
+    expect(inputSource).toContain("const composerCaretTriggerOffset = composerTrigger?.rangeEnd");
+    expect(inputSource).toContain("caretTriggerExpandedOffset={composerCaretTriggerOffset}");
+    expect(inputSource).toContain("composerMenuAnchorRef.current");
+    expect(inputSource).toContain("new MutationObserver(scheduleComposerMenuAnchorUpdate)");
+    expect(inputSource).toContain("anchorVersion={composerMenuAnchorVersion}");
+    expect(promptEditorSource).toContain("const anchorY = coords.bottom");
+    expect(slashMenuSource).toContain("key={anchorVersion}");
   });
 });
 
@@ -150,17 +160,17 @@ describe("Composer surface contract", () => {
   it("applies composer blur via conversation.css in translucent mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss).toContain(
-      'body[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+      'body[data-multi-glass-mode="true"] [data-multi-composer-surface]',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });
 
   it("removes composer blur under reduce transparency", () => {
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-cursor-glass-mode="true"] [data-multi-composer-surface]',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-multi-composer-surface]',
     );
     expect(conversationCss).toMatch(
-      /body\.multi-reduce-transparency\[data-cursor-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*backdrop-filter:\s*none/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*backdrop-filter:\s*none/,
     );
   });
 
@@ -181,12 +191,14 @@ describe("Composer surface contract", () => {
   it("moves slash menu blur to conversation.css", () => {
     expect(slashMenuSource).not.toMatch(/backdrop-blur/);
     expect(conversationCss).toContain(
-      'body[data-cursor-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"]',
+      'body[data-multi-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"]',
     );
   });
 
   it("renders plan tray preview with inline markdown and CSS-driven tray radius", () => {
-    expect(conversationCss).toContain("--multi-composer-plan-tray-radius: 16px");
+    expect(conversationCss).toContain(
+      "--multi-composer-plan-tray-radius: var(--multi-composer-radius-expanded)",
+    );
     expect(conversationCss).toContain(".plan-tray__markdown");
     expect(inputSource).toContain("ChatMarkdown");
     expect(inputSource).toContain("plan-tray__markdown");

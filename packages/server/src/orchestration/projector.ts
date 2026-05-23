@@ -9,6 +9,7 @@ import {
   OrchestrationMessage,
   OrchestrationSession,
   OrchestrationThread,
+  resolveActiveEntryIdAfterThreadMessage,
 } from "@multi/contracts";
 import { Effect, Schema } from "effect";
 
@@ -33,11 +34,12 @@ import {
   ThreadUnarchivedPayload,
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
+  ThreadTreeLabelSetPayload,
+  ThreadTreeNavigatedPayload,
   ThreadTurnDiffCompletedPayload,
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
-const MAX_THREAD_MESSAGES = 2_000;
 
 function settledLatestTurnForRunningSession(
   latestTurn: OrchestrationLatestTurn,
@@ -212,6 +214,8 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
+            activeEntryId: null,
+            entries: [],
             activities: [],
             checkpoints: [],
             session: null,
@@ -352,16 +356,76 @@ export function projectEvent(
                 : entry,
             )
           : [...thread.messages, message];
-        const cappedMessages = messages.slice(-MAX_THREAD_MESSAGES);
+        const entryId = payload.entryId;
+        const threadEntries = thread.entries ?? [];
+        const existingEntry = threadEntries.find((entry) => entry.id === entryId);
+        const nextEntry = {
+          id: entryId,
+          threadId: payload.threadId,
+          parentEntryId: existingEntry?.parentEntryId ?? payload.parentEntryId,
+          kind: "message" as const,
+          messageId: payload.messageId,
+          turnId: payload.turnId,
+          targetEntryId: null,
+          label: null,
+          summary: null,
+          createdAt: existingEntry?.createdAt ?? payload.createdAt,
+        };
+        const entries = existingEntry
+          ? threadEntries.map((entry) => (entry.id === entryId ? nextEntry : entry))
+          : [...threadEntries, nextEntry];
 
         return {
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
-            messages: cappedMessages,
+            messages,
+            activeEntryId: resolveActiveEntryIdAfterThreadMessage({
+              activeEntryId: thread.activeEntryId,
+              entryId,
+              parentEntryId: payload.parentEntryId,
+              role: payload.role,
+            }),
+            entries,
             updatedAt: event.occurredAt,
           }),
         };
       });
+
+    case "thread.tree-navigated":
+      return decodeForEvent(ThreadTreeNavigatedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            activeEntryId: payload.entryId,
+            updatedAt: payload.updatedAt,
+          }),
+        })),
+      );
+
+    case "thread.tree-label-set":
+      return decodeForEvent(ThreadTreeLabelSetPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => {
+          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
+          if (!thread) {
+            return nextBase;
+          }
+          const entries = [
+            ...(thread.entries ?? []).filter((entry) => entry.id !== payload.entry.id),
+            payload.entry,
+          ].toSorted(
+            (left, right) =>
+              left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+          );
+
+          return {
+            ...nextBase,
+            threads: updateThread(nextBase.threads, payload.threadId, {
+              entries,
+              updatedAt: payload.updatedAt,
+            }),
+          };
+        }),
+      );
 
     case "thread.session-set":
       return Effect.gen(function* () {
@@ -534,7 +598,30 @@ export function projectEvent(
             retainedTurnIds,
             turnCount: payload.turnCount,
             messageId: (message) => message.id,
-          }).slice(-MAX_THREAD_MESSAGES);
+          });
+          const retainedMessageIds = new Set(messages.map((message) => message.id));
+          const messageEntries = (thread.entries ?? []).filter(
+            (entry) =>
+              entry.kind === "message" &&
+              entry.messageId !== null &&
+              retainedMessageIds.has(entry.messageId),
+          );
+          const retainedEntryIds = new Set(messageEntries.map((entry) => entry.id));
+          const entries = [
+            ...messageEntries,
+            ...(thread.entries ?? []).filter(
+              (entry) =>
+                entry.kind === "label" &&
+                entry.targetEntryId !== null &&
+                retainedEntryIds.has(entry.targetEntryId),
+            ),
+          ];
+          const activeEntryId =
+            thread.activeEntryId !== undefined &&
+            thread.activeEntryId !== null &&
+            retainedEntryIds.has(thread.activeEntryId)
+              ? thread.activeEntryId
+              : (messageEntries.at(-1)?.id ?? null);
           const proposedPlans = retainTurnFactsAfterCheckpointRevert(
             thread.proposedPlans,
             retainedTurnIds,
@@ -562,6 +649,8 @@ export function projectEvent(
             threads: updateThread(nextBase.threads, payload.threadId, {
               checkpoints,
               messages,
+              activeEntryId,
+              entries,
               proposedPlans,
               activities,
               latestTurn,

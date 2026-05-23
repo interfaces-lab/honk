@@ -33,7 +33,10 @@ import {
 } from "./provider-snapshot.ts";
 import { makeManagedServerProvider } from "./make-managed-server-provider.ts";
 import { CursorProvider } from "./CursorProvider.service.ts";
-import { AcpSessionRuntime } from "./acp/AcpSessionRuntime.ts";
+import {
+  AcpSessionRuntime,
+  type AcpSessionRuntimeOptions,
+} from "./acp/AcpSessionRuntime.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { resolveCursorSettings } from "./provider-settings.ts";
 
@@ -415,7 +418,10 @@ export function buildCursorDiscoveredModelsFromConfigOptions(
   );
 }
 
-const makeCursorAcpProbeRuntime = (cursorSettings: CursorSettings) =>
+const makeCursorAcpProbeRuntime = (
+  cursorSettings: CursorSettings,
+  requestLogger?: AcpSessionRuntimeOptions["requestLogger"],
+) =>
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const acpContext = yield* Layer.build(
@@ -432,6 +438,7 @@ const makeCursorAcpProbeRuntime = (cursorSettings: CursorSettings) =>
         clientInfo: { name: "multi-provider-probe", version: "0.0.0" },
         authMethodId: "cursor_login",
         clientCapabilities: CURSOR_PARAMETERIZED_MODEL_PICKER_CAPABILITIES,
+        ...(requestLogger ? { requestLogger } : {}),
       }).pipe(Layer.provide(Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner))),
     );
     return yield* Effect.service(AcpSessionRuntime).pipe(Effect.provide(acpContext));
@@ -440,7 +447,12 @@ const makeCursorAcpProbeRuntime = (cursorSettings: CursorSettings) =>
 const withCursorAcpProbeRuntime = <A, E, R>(
   cursorSettings: CursorSettings,
   useRuntime: (acp: AcpSessionRuntime["Service"]) => Effect.Effect<A, E, R>,
-) => makeCursorAcpProbeRuntime(cursorSettings).pipe(Effect.flatMap(useRuntime), Effect.scoped);
+  requestLogger?: AcpSessionRuntimeOptions["requestLogger"],
+) =>
+  makeCursorAcpProbeRuntime(cursorSettings, requestLogger).pipe(
+    Effect.flatMap(useRuntime),
+    Effect.scoped,
+  );
 
 function normalizeCursorConfigOptionToken(value: string | null | undefined): string {
   return (
@@ -568,11 +580,19 @@ export function resolveCursorAcpConfigUpdates(
   return updates;
 }
 
-export const discoverCursorModelsViaAcp = (cursorSettings: CursorSettings) =>
-  withCursorAcpProbeRuntime(cursorSettings, (acp) =>
-    Effect.map(acp.start(), (started) =>
-      buildCursorDiscoveredModelsFromConfigOptions(started.sessionSetupResult.configOptions ?? []),
-    ),
+export const discoverCursorModelsViaAcp = (
+  cursorSettings: CursorSettings,
+  requestLogger?: AcpSessionRuntimeOptions["requestLogger"],
+) =>
+  withCursorAcpProbeRuntime(
+    cursorSettings,
+    (acp) =>
+      Effect.map(acp.start(), (started) =>
+        buildCursorDiscoveredModelsFromConfigOptions(
+          started.sessionSetupResult.configOptions ?? [],
+        ),
+      ),
+    requestLogger,
   );
 
 export const discoverCursorModelCapabilitiesViaAcp = (
@@ -715,6 +735,26 @@ export interface CursorAboutResult {
   readonly status: Exclude<ServerProviderState, "disabled">;
   readonly auth: ServerProviderAuth;
   readonly message?: string;
+}
+
+function cursorAcpAuthenticationFailure(
+  parsed: CursorAboutResult,
+  detail: string,
+): CursorAboutResult {
+  return {
+    version: parsed.version,
+    status: "error",
+    auth: { status: "unauthenticated" },
+    message: `Cursor Agent ACP authentication failed. Run \`agent login\` and try again. ${detail}`,
+  };
+}
+
+function formatCursorAcpFailureDetail(cause: Cause.Cause<unknown>): string {
+  const error = Cause.squash(cause);
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
+  }
+  return Cause.pretty(cause);
 }
 
 function joinProviderMessages(...messages: ReadonlyArray<string | undefined>): string | undefined {
@@ -1172,16 +1212,32 @@ export const checkCursorProviderStatus = Effect.fn("checkCursorProviderStatus")(
     let discoveredModels = Option.none<ReadonlyArray<ServerProviderModel>>();
     let discoveryWarning: string | undefined;
     if (parsed.auth.status !== "unauthenticated") {
+      let failedDiscoveryMethod: string | undefined;
       const discoveryExit = yield* Effect.exit(
-        discoverCursorModelsViaAcp(cursorSettings).pipe(
+        discoverCursorModelsViaAcp(cursorSettings, (event) =>
+          event.status === "failed"
+            ? Effect.sync(() => {
+                failedDiscoveryMethod = event.method;
+              })
+            : Effect.void,
+        ).pipe(
           Effect.timeoutOption(CURSOR_ACP_MODEL_DISCOVERY_TIMEOUT_MS),
         ),
       );
       if (Exit.isFailure(discoveryExit)) {
+        const detail = formatCursorAcpFailureDetail(discoveryExit.cause);
         yield* Effect.logWarning("Cursor ACP model discovery failed", {
           cause: Cause.pretty(discoveryExit.cause),
         });
-        discoveryWarning = "Cursor ACP model discovery failed. Check server logs for details.";
+        if (failedDiscoveryMethod === "authenticate") {
+          return buildCursorProviderSnapshot({
+            checkedAt,
+            cursorSettings,
+            parsed: cursorAcpAuthenticationFailure(parsed, detail),
+            discoveredModels: [],
+          });
+        }
+        discoveryWarning = `Cursor ACP model discovery failed: ${detail}`;
       } else if (Option.isNone(discoveryExit.value)) {
         discoveryWarning = `Cursor ACP model discovery timed out after ${CURSOR_ACP_MODEL_DISCOVERY_TIMEOUT_MS}ms.`;
       } else if (discoveryExit.value.value.length === 0) {

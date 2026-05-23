@@ -48,11 +48,12 @@ import {
 } from "~/stores/shell-panels-store";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { writeStoredProjectCwd } from "~/lib/project-state";
-import { deriveLogicalProjectKey, getProjectOrderKey } from "~/stores/project-identity";
+import { deriveSidebarProjectStateKey, getProjectOrderKey } from "~/stores/project-identity";
 import { buildPlanImplementationPrompt } from "~/plan/proposed-plan";
 import {
   buildProjectChatSections,
   type SidebarDraftSummary,
+  type SidebarProjectSummary,
   type SidebarThreadSummary as SidebarSectionThreadSummary,
 } from "./shell/agents/sidebar-chat-view-model";
 import { cn, newCommandId, newMessageId, newThreadId } from "~/lib/utils";
@@ -73,7 +74,6 @@ import {
 import { createThreadSelectorAcrossEnvironments } from "~/stores/thread-selectors";
 import {
   DEFAULT_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
   type Project,
   type SidebarThreadSummary as StoreSidebarThreadSummary,
   type Thread,
@@ -141,11 +141,7 @@ function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefi
   ) {
     return false;
   }
-  return (
-    sidebarThread.interactionMode === "plan" &&
-    isLatestTurnSettled(sidebarThread.latestTurn, sidebarThread.session) &&
-    sidebarThread.hasActionableProposedPlan
-  );
+  return false;
 }
 
 function isUnreadFromVisitBoundary(
@@ -545,8 +541,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       )?.interactionMode ?? null
     );
   });
-  const runtimeMode =
-    activeThread?.runtimeMode ?? activeDraftThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE;
+  const runtimeMode = settings.defaultRuntimeMode;
   const interactionMode =
     composerDraftInteractionMode ??
     activeThread?.interactionMode ??
@@ -748,10 +743,8 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const implementPlanInCurrentThread = useCallback(() => {
     void startPlanImplementation();
   }, [startPlanImplementation]);
-  const planAvailable =
-    interactionMode === "plan" || activePlan !== null || activeProposedPlan !== null;
-  const planLabel: PlanWorkbenchLabel =
-    activeProposedPlan || interactionMode === "plan" ? "Plan" : "Tasks";
+  const planAvailable = activePlan !== null || activeProposedPlan !== null;
+  const planLabel: PlanWorkbenchLabel = activeProposedPlan ? "Plan" : "Tasks";
   const planWorkbench: PlanWorkbenchState = {
     available: planAvailable,
     activePlan,
@@ -766,12 +759,21 @@ function ChatShellHost(props: { children?: ReactNode }) {
   };
   const sections = useMemo(() => {
     const projectStateKeyByCwd = new Map(
-      projects.map((project) => [project.cwd, deriveLogicalProjectKey(project)] as const),
+      projects.map((project) => [project.cwd, deriveSidebarProjectStateKey(project)] as const),
+    );
+    const projectStateKeyByProjectKey = new Map(
+      projects.map(
+        (project) =>
+          [
+            scopedProjectKey(scopeProjectRef(project.environmentId, project.id)),
+            deriveSidebarProjectStateKey(project),
+          ] as const,
+      ),
     );
     const projectOrderRank = new Map(projectOrder.map((projectKey, index) => [projectKey, index]));
     const projectOrderKeysByProjectStateKey = new Map<string, string[]>();
     for (const project of projects) {
-      const projectStateKey = deriveLogicalProjectKey(project);
+      const projectStateKey = deriveSidebarProjectStateKey(project);
       const orderKeys = projectOrderKeysByProjectStateKey.get(projectStateKey);
       if (orderKeys) {
         orderKeys.push(getProjectOrderKey(project));
@@ -779,8 +781,11 @@ function ChatShellHost(props: { children?: ReactNode }) {
         projectOrderKeysByProjectStateKey.set(projectStateKey, [getProjectOrderKey(project)]);
       }
     }
-    const projectCwds = projects
+    const orderedSidebarProjects: SidebarProjectSummary[] = projects
       .map((project, index) => ({
+        id: project.id,
+        environmentId: project.environmentId,
+        title: project.name,
         cwd: project.cwd,
         index,
         orderIndex: projectOrderRank.get(getProjectOrderKey(project)) ?? Number.MAX_SAFE_INTEGER,
@@ -790,7 +795,25 @@ function ChatShellHost(props: { children?: ReactNode }) {
         if (byOrder !== 0) return byOrder;
         return left.index - right.index;
       })
-      .map((project) => project.cwd);
+      .map(({ id, environmentId, title, cwd }) => ({
+        id,
+        environmentId,
+        title,
+        cwd,
+      }));
+    const projectCwds = orderedSidebarProjects.map((project) => project.cwd);
+    const projectKeysWithThreads = new Set(
+      sidebarThreads.flatMap((thread) =>
+        thread.projectId === null
+          ? []
+          : [scopedProjectKey(scopeProjectRef(thread.environmentId, thread.projectId))],
+      ),
+    );
+    const retainedSidebarProjects = orderedSidebarProjects.filter((project) =>
+      projectKeysWithThreads.has(
+        scopedProjectKey(scopeProjectRef(project.environmentId, project.id)),
+      ),
+    );
     return buildProjectChatSections(
       summaries,
       drafts,
@@ -799,10 +822,15 @@ function ChatShellHost(props: { children?: ReactNode }) {
       unreadIds,
       projectCwds,
       pinnedThreadKeySet,
+      retainedSidebarProjects,
     ).map((section) => {
-      const projectStateKey = section.projectCwd
-        ? projectStateKeyByCwd.get(section.projectCwd)
-        : undefined;
+      const sectionProjectKey =
+        section.environmentId && section.projectId
+          ? scopedProjectKey(scopeProjectRef(section.environmentId, section.projectId))
+          : null;
+      const projectStateKey =
+        (sectionProjectKey ? projectStateKeyByProjectKey.get(sectionProjectKey) : undefined) ??
+        (section.projectCwd ? projectStateKeyByCwd.get(section.projectCwd) : undefined);
       const projectOrderKeys = projectStateKey
         ? projectOrderKeysByProjectStateKey.get(projectStateKey)
         : undefined;
@@ -814,7 +842,16 @@ function ChatShellHost(props: { children?: ReactNode }) {
       }
       return Object.assign(section, { projectOrderKeys, projectStateKey });
     });
-  }, [activeCwd, drafts, pinnedThreadKeySet, projectOrder, projects, summaries, unreadIds]);
+  }, [
+    activeCwd,
+    drafts,
+    pinnedThreadKeySet,
+    projectOrder,
+    projects,
+    sidebarThreads,
+    summaries,
+    unreadIds,
+  ]);
 
   const create = useCallback(
     (cwd?: string) => {
@@ -993,8 +1030,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       const title = actionDetails.label;
       const prompt = actionDetails.prompt;
       const messageId = newMessageId();
-      const runtimeMode =
-        currentServerThread?.runtimeMode ?? currentDraftThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE;
+      const runtimeMode = settings.defaultRuntimeMode;
       const interactionMode =
         currentServerThread?.interactionMode ??
         currentDraftThread?.interactionMode ??
@@ -1264,20 +1300,25 @@ function ChatWorkbenchShellHost(props: {
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
   const workbenchTabs = useMemo<WorkbenchTabMeta[]>(() => {
     const tabs: WorkbenchTabMeta[] = planTabAvailable
-      ? [{ id: "plan", label: props.plan.label, icon: IconSquareChecklist }]
+      ? [
+          {
+            id: "plan",
+            label: props.plan.label,
+            icon: IconSquareChecklist,
+          },
+        ]
       : [];
     tabs.push(
       {
         id: "git",
         label: "Changes",
         icon: IconBranch,
-        badge: git.count > 0 ? String(git.count) : null,
       },
       { id: "terminal", label: "Terminal", icon: IconConsole },
       { id: "files", label: "Files", icon: IconFileText },
     );
     return tabs;
-  }, [git.count, planTabAvailable, props.plan.label]);
+  }, [planTabAvailable, props.plan.label]);
 
   const right = useMemo<RightWorkbenchDefinition>(() => {
     const panels: RightWorkbenchDefinition["panels"] = {

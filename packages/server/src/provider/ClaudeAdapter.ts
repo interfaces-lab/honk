@@ -27,6 +27,7 @@ import {
   defaultInstanceIdForDriver,
   EventId,
   type ProviderApprovalDecision,
+  type ProviderThreadSnapshotItem,
   ProviderDriverKind,
   ProviderItemId,
   type ProviderRuntimeEvent,
@@ -85,6 +86,7 @@ import {
 } from "./Errors.ts";
 import { ClaudeAdapter, type ClaudeAdapterShape } from "./ClaudeAdapter.service.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 import {
   actionFromCanonicalRequestType,
   isEnvFileReference,
@@ -93,6 +95,7 @@ import {
 
 const PROVIDER = ProviderDriverKind.make("claudeAgent");
 const PROVIDER_INSTANCE_ID = defaultInstanceIdForDriver(PROVIDER);
+const CLAUDE_ASK_MODE_PROMPT_PREFIX = `You are in Ask mode for this turn. Answer the user's question and explain relevant code without making changes. You may inspect files, search the repository, and run non-mutating commands if needed. Do not edit files, apply patches, run formatters, create commits, or implement changes. If the user asks for implementation, explain what would need to change and note that Build mode is the execution mode.`;
 type ClaudeTextStreamKind = Extract<RuntimeContentStreamKind, "assistant_text" | "reasoning_text">;
 type ClaudeToolResultStreamKind = Extract<
   RuntimeContentStreamKind,
@@ -119,7 +122,7 @@ interface ClaudeResumeState {
 interface ClaudeTurnState {
   readonly turnId: TurnId;
   readonly startedAt: string;
-  readonly items: Array<unknown>;
+  readonly items: Array<ProviderThreadSnapshotItem>;
   readonly assistantTextBlocks: Map<number, AssistantTextBlockState>;
   readonly assistantTextBlockOrder: Array<AssistantTextBlockState>;
   readonly capturedProposedPlanKeys: Set<string>;
@@ -171,7 +174,7 @@ interface ClaudeSessionContext {
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   readonly turns: Array<{
     id: TurnId;
-    items: Array<unknown>;
+    items: Array<ProviderThreadSnapshotItem>;
   }>;
   readonly inFlightTools: Map<number, ToolInFlight>;
   turnState: ClaudeTurnState | undefined;
@@ -581,7 +584,10 @@ function buildPromptText(input: ProviderSendTurnInput): string {
   const caps = getClaudeModelCapabilities(claudeModel);
 
   const promptEffort = resolvePromptInjectedEffort(caps, rawEffort);
-  return applyClaudePromptEffortPrefix(input.input?.trim() ?? "", promptEffort);
+  const text = formatProviderTurnInputText(input) ?? "";
+  const modeText =
+    input.interactionMode === "ask" ? `${CLAUDE_ASK_MODE_PROMPT_PREFIX}\n\n${text}` : text;
+  return applyClaudePromptEffortPrefix(modeText, promptEffort);
 }
 
 function buildUserMessage(input: {
@@ -867,6 +873,50 @@ function toolResultBlocksFromUserMessage(message: SDKMessage): Array<{
   }
 
   return blocks;
+}
+
+function claudeUserSnapshotItem(message: SDKUserMessage): ProviderThreadSnapshotItem {
+  const toolResults = toolResultBlocksFromUserMessage(message);
+  if (toolResults.length > 0) {
+    const detail = toolResults
+      .map((toolResult) => toolResult.text)
+      .filter((text) => text.length > 0)
+      .join("\n\n");
+    return {
+      ...(message.uuid ? { id: message.uuid } : {}),
+      itemType: "unknown",
+      role: "tool",
+      title: "Tool result",
+      ...(detail.length > 0 ? { detail } : {}),
+      data: message.message,
+    };
+  }
+
+  const detail = extractTextContent(message.message.content);
+  return {
+    ...(message.uuid ? { id: message.uuid } : {}),
+    itemType: "user_message",
+    role: "user",
+    title: "User message",
+    ...(detail.length > 0 ? { detail } : {}),
+    data: message.message,
+  };
+}
+
+function claudeAssistantSnapshotItem(message: SDKMessage): ProviderThreadSnapshotItem | undefined {
+  if (message.type !== "assistant") {
+    return undefined;
+  }
+
+  const detail = extractAssistantTextBlocks(message).join("");
+  return {
+    id: message.uuid,
+    itemType: "assistant_message",
+    role: "assistant",
+    title: "Assistant message",
+    ...(detail.length > 0 ? { detail } : {}),
+    data: message.message,
+  };
 }
 
 function toSessionError(
@@ -1834,7 +1884,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
 
     if (context.turnState) {
-      context.turnState.items.push(message.message);
+      context.turnState.items.push(claudeUserSnapshotItem(message));
     }
 
     for (const toolResult of toolResultBlocksFromUserMessage(message)) {
@@ -2014,7 +2064,10 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     }
 
     if (context.turnState) {
-      context.turnState.items.push(message.message);
+      const snapshotItem = claudeAssistantSnapshotItem(message);
+      if (snapshotItem) {
+        context.turnState.items.push(snapshotItem);
+      }
       yield* backfillAssistantTextBlocksFromSnapshot(context, message);
     }
 
@@ -3111,14 +3164,15 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
     // Apply interaction mode by switching the SDK's permission mode.
     // "plan" maps directly to the SDK's "plan" permission mode;
-    // "default" restores the session's original permission mode.
+    // "default" and "ask" restore the session's original permission mode.
+    // Ask mode behavior is prompt-injected in buildPromptText().
     // When interactionMode is absent we leave the current mode unchanged.
     if (input.interactionMode === "plan") {
       yield* Effect.tryPromise({
         try: () => context.query.setPermissionMode("plan"),
         catch: (cause) => toRequestError(input.threadId, "turn/setPermissionMode", cause),
       });
-    } else if (input.interactionMode === "default") {
+    } else if (input.interactionMode === "default" || input.interactionMode === "ask") {
       yield* Effect.tryPromise({
         try: () => context.query.setPermissionMode(context.basePermissionMode ?? "default"),
         catch: (cause) => toRequestError(input.threadId, "turn/setPermissionMode", cause),
@@ -3187,8 +3241,8 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   );
 
   const readThread: ClaudeAdapterShape["readThread"] = Effect.fn("readThread")(
-    function* (threadId) {
-      const context = yield* requireSession(threadId);
+    function* (input) {
+      const context = yield* requireSession(input.threadId);
       return yield* snapshotThread(context);
     },
   );
