@@ -308,8 +308,8 @@ export const OrchestrationThread = Schema.Struct({
   archivedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
-  activeEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
-  entries: Schema.optionalKey(Schema.Array(OrchestrationThreadEntry)),
+  activeEntryId: Schema.NullOr(ThreadEntryId),
+  entries: Schema.Array(OrchestrationThreadEntry),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),

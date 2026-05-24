@@ -41,7 +41,7 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
       <div
         className={cn(
           collapsed &&
-            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--multi-chat-bubble-background)_72%,var(--multi-chat-bubble-background)_100%)] after:content-['']",
+            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--multi-message-bubble-background)_72%,var(--multi-message-bubble-background)_100%)] after:content-['']",
         )}
       >
         <div ref={measureElement}>{children}</div>

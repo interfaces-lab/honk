@@ -186,7 +186,7 @@ describe("deriveMessagesTimelineRows", () => {
       ],
       isWorking: false,
       activeTurnStartedAt: null,
-      revertTurnCountByUserMessageId: new Map(),
+      editableUserMessageIds: new Set(),
     });
 
     const assistantRows = rows.filter(
@@ -197,7 +197,7 @@ describe("deriveMessagesTimelineRows", () => {
     expect(assistantRows).toHaveLength(2);
   });
 
-  it("projects user revert counts onto the affected rows", () => {
+  it("projects edit availability onto user rows", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
         {
@@ -213,24 +213,10 @@ describe("deriveMessagesTimelineRows", () => {
             streaming: false,
           },
         },
-        {
-          id: "assistant-entry",
-          kind: "message",
-          createdAt: "2026-01-01T00:00:20Z",
-          message: {
-            id: "assistant-1" as never,
-            role: "assistant",
-            text: "Done",
-            turnId: "turn-1" as never,
-            createdAt: "2026-01-01T00:00:20Z",
-            completedAt: "2026-01-01T00:00:30Z",
-            streaming: false,
-          },
-        },
       ],
       isWorking: false,
       activeTurnStartedAt: null,
-      revertTurnCountByUserMessageId: new Map([["user-1" as never, 1]]),
+      editableUserMessageIds: new Set(["user-1" as never]),
     });
 
     const userRow = rows.find(
@@ -238,7 +224,7 @@ describe("deriveMessagesTimelineRows", () => {
         row.kind === "message" && row.message.role === "user",
     );
 
-    expect(userRow?.revertTurnCount).toBe(1);
+    expect(userRow?.editAvailable).toBe(true);
   });
 });
 
@@ -278,7 +264,7 @@ describe("computeStableMessagesTimelineRows", () => {
       ],
       isWorking: false,
       activeTurnStartedAt: null,
-      revertTurnCountByUserMessageId: new Map(),
+      editableUserMessageIds: new Set(),
     });
 
     const initial = computeStableMessagesTimelineRows(rows, {
@@ -327,7 +313,7 @@ describe("computeStableMessagesTimelineRows", () => {
       ],
       isWorking: false,
       activeTurnStartedAt: null,
-      revertTurnCountByUserMessageId: new Map(),
+      editableUserMessageIds: new Set(),
     });
 
     const initial = computeStableMessagesTimelineRows(firstRows, {

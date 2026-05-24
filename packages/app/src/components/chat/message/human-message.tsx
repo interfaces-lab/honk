@@ -32,7 +32,7 @@ const TERMINAL_CONTEXT_HEADER_PATTERN = /^(.*?)\s+line(?:s)?\s+(\d+)(?:-(\d+))?$
 
 interface HumanMessageProps {
   message: ChatMessage;
-  revertTurnCount: number | undefined;
+  editAvailable: boolean;
   isEditing: boolean;
   editDisabled: boolean;
   isServerThread: boolean;
@@ -43,7 +43,7 @@ interface HumanMessageProps {
 
 export const HumanMessage = memo(function HumanMessage({
   message,
-  revertTurnCount,
+  editAvailable,
   isEditing,
   editDisabled,
   isServerThread,
@@ -64,7 +64,7 @@ export const HumanMessage = memo(function HumanMessage({
         {userImages.map((image) => (
           <div
             key={image.id}
-            className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-chat-bubble-background)"
+            className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-message-bubble-background)"
           >
             {image.previewUrl ? (
               <button
@@ -117,7 +117,7 @@ export const HumanMessage = memo(function HumanMessage({
     !isGitAgentActionMessage &&
     isServerThread &&
     !editDisabled &&
-    typeof revertTurnCount === "number" &&
+    editAvailable &&
     typeof onBeginEditUserMessage === "function";
 
   if (isGitAgentActionMessage) {

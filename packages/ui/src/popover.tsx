@@ -72,6 +72,7 @@ function PopoverPopup({
         data-slot="popover-positioner"
         side={side}
         sideOffset={sideOffset}
+        {...(instant ? ({ "data-instant": "" } as const) : {})}
       >
         <PopoverPrimitive.Popup
           className={cn(

@@ -6,6 +6,7 @@ import {
   resolveBuildOptions,
   resolveDesktopBuildIconAssets,
   resolveDesktopProductName,
+  resolveDesktopRuntimeDependencies,
   resolveMockUpdateServerPort,
   resolveMockUpdateServerUrl,
   sanitizeDesktopDistributionEnv,
@@ -20,10 +21,29 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it("uses production desktop packaging icons", () => {
     assert.deepStrictEqual(resolveDesktopBuildIconAssets(), {
-      macIconIcns: BRAND_ASSET_PATHS.productionMacIconIcns,
       macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
       linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
     });
+  });
+
+  it("excludes Electron and workspace packages from staged desktop runtime deps", () => {
+    assert.deepStrictEqual(
+      resolveDesktopRuntimeDependencies(
+        {
+          "@effect/platform-node": "catalog:",
+          "@multi/contracts": "workspace:*",
+          electron: "40.6.0",
+          "electron-updater": "^6.8.3",
+        },
+        {
+          "@effect/platform-node": "^4.0.0",
+        },
+      ),
+      {
+        "@effect/platform-node": "^4.0.0",
+        "electron-updater": "^6.8.3",
+      },
+    );
   });
 
   it("falls back to the default mock update port when the configured port is blank", () => {
@@ -55,6 +75,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       PATH: "/bin",
       VITE_DEV_SERVER_URL: "http://127.0.0.1:5733",
       VITE_HTTP_URL: "http://127.0.0.1:4222",
+      MULTI_DESKTOP_WS_URL: "ws://127.0.0.1:4222",
+      MULTI_LOG_WS_EVENTS: "1",
       MULTI_PORT: "4222",
       MULTI_HOME: "/tmp/multi-dev",
       EMPTY_VALUE: "",
@@ -63,6 +85,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.equal(sanitized.PATH, "/bin");
     assert.equal(sanitized.VITE_DEV_SERVER_URL, undefined);
     assert.equal(sanitized.VITE_HTTP_URL, undefined);
+    assert.equal(sanitized.MULTI_DESKTOP_WS_URL, undefined);
+    assert.equal(sanitized.MULTI_LOG_WS_EVENTS, undefined);
     assert.equal(sanitized.MULTI_PORT, undefined);
     assert.equal(sanitized.MULTI_HOME, undefined);
     assert.equal(sanitized.EMPTY_VALUE, undefined);

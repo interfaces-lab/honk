@@ -95,7 +95,7 @@ function buildProps() {
     editUserMessagesDisabled: false,
     activeTurnStartedAt: null,
     timelineControllerRef: createRef<MessagesTimelineController | null>(),
-    revertTurnCountByUserMessageId: new Map(),
+    editableUserMessageIds: new Set<MessageId>(),
     isServerThread: true,
     onBeginEditUserMessage: () => {},
     onImageExpand: () => {},
@@ -142,6 +142,33 @@ describe("messages-timeline", () => {
     expect(markup).toContain("Terminal 1 lines 1-5");
     expect(markup).toContain('viewBox="0 0 24 24"');
     expect(markup).toContain("yoo what&#x27;s ");
+  }, 20_000);
+
+  it("renders edit affordance for user messages with session entries", async () => {
+    const { MessagesTimeline } = await import("./messages-timeline");
+    const messageId = MessageId.make("message-entry-edit");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        editableUserMessageIds={new Set([messageId])}
+        timelineEntries={[
+          {
+            id: "entry-1",
+            kind: "message",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            message: {
+              id: messageId,
+              role: "user",
+              text: "Entry-backed edit target",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              streaming: false,
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Edit message"');
   }, 20_000);
 
   it("renders context compaction entries in the normal work log", async () => {

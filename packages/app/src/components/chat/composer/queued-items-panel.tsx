@@ -408,7 +408,7 @@ export const QueuedComposerEditBanner = memo(function QueuedComposerEditBanner(p
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-[color-mix(in_srgb,var(--multi-chat-bubble-background)_88%,var(--multi-stroke-tertiary)_12%)] px-3 py-1.5 text-detail text-foreground"
+      className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-(--multi-composer-queue-edit-banner-background) px-3 py-1.5 text-detail text-foreground"
       data-queued-composer-edit-banner=""
     >
       <span className="opacity-90">{QUEUE_EDIT_BANNER_LABEL}</span>

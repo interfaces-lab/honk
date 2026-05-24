@@ -68,7 +68,7 @@ function requireNavigableThreadEntryPath(input: {
   readonly entryId: ThreadEntryId;
 }): Effect.Effect<readonly OrchestrationThreadEntry[], OrchestrationCommandInvariantError> {
   const path = resolveThreadEntryPath({
-    entries: input.thread.entries ?? [],
+    entries: input.thread.entries,
     entryId: input.entryId,
   });
   if (path.ok) {
@@ -198,7 +198,7 @@ function requireStableAssistantEntryParent(input: {
       entryId: input.parentEntryId,
     });
 
-    const existingEntry = (input.thread.entries ?? []).find(
+    const existingEntry = input.thread.entries.find(
       (entry) => entry.id === input.assistantEntryId,
     );
     if (existingEntry && existingEntry.parentEntryId !== input.parentEntryId) {
@@ -537,6 +537,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
               archivedAt: null,
               deletedAt: null,
               messages: [],
+              activeEntryId: null,
+              entries: [],
               proposedPlans: [],
               activities: [],
               checkpoints: [],
@@ -568,9 +570,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       }
       yield* requireThreadTreeActionIdle({ commandType: command.type, thread: targetThread });
       const parentEntryId =
-        command.parentEntryId !== undefined
-          ? command.parentEntryId
-          : (targetThread.activeEntryId ?? null);
+        command.parentEntryId !== undefined ? command.parentEntryId : targetThread.activeEntryId;
       if (parentEntryId !== null) {
         yield* requireNavigableThreadEntryPath({
           commandType: command.type,

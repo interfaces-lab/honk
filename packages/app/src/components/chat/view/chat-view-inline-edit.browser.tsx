@@ -2,6 +2,7 @@
 // geometry must match the rendered message bubble.
 import "../../../index.css";
 import "../../../styles/tokens.css";
+import "../../../styles/app.css";
 
 import { type MessageId } from "@multi/contracts";
 import { describe, expect, it, vi } from "vitest";

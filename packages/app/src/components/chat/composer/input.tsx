@@ -64,6 +64,10 @@ import {
   ComposerCommandMenuPositioned,
   useComposerCommandMenu,
 } from "./slash-menu";
+import {
+  composerMenuPopoverAnchorFromElement,
+  type ComposerMenuPopoverAnchor,
+} from "./composer-menu-anchor";
 import { ComposerPendingApprovalActions } from "./pending-approval-actions";
 import { ComposerPendingApprovalPanel } from "./pending-approval-panel";
 import { ComposerPendingUserInputPanel } from "./pending-user-input-panel";
@@ -98,33 +102,29 @@ import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-p
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
 
 const composerEditorClass = cva(
-  "block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-conversation text-foreground outline-hidden",
+  "block w-full min-w-0 overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-multi-fg-secondary outline-hidden",
   {
     variants: {
       mode: {
         "new-agent":
-          "min-h-[var(--multi-composer-new-agent-editor-min-height)] max-h-[var(--multi-composer-new-agent-editor-max-height)] px-3 py-2 [&>p]:leading-[1.5]",
-        "thread-multiline":
-          "min-h-[var(--multi-composer-editor-min-height)] max-h-[var(--multi-composer-editor-max-height)] [&>p]:leading-[1.5]",
-        "thread-pill": "min-h-0 max-h-none overflow-hidden pl-1 [&>p]:leading-[1.5]",
+          "min-h-[var(--multi-composer-new-agent-editor-min-height)] max-h-[var(--multi-composer-new-agent-editor-max-height)] px-3 py-2",
+        "thread-multiline": "min-w-0 px-3 pt-2",
+        "thread-pill": "flex-1 pl-1",
         "inline-edit": "min-h-5 max-h-60 px-3 py-2",
       },
     },
   },
 );
 
-const composerShellClass = cva(
-  "relative min-w-0 rounded-[inherit] overflow-visible transition-[background-color,box-shadow] duration-200",
-  {
-    variants: {
-      mode: {
-        "new-agent": "flex flex-col gap-[var(--multi-composer-section-gap)] px-2.5 pt-2 pb-1.5",
-        thread: "",
-        "inline-edit": "flex flex-col",
-      },
+const composerShellClass = cva("relative z-[1] min-w-0 rounded-[inherit]", {
+  variants: {
+    mode: {
+      "new-agent": "flex flex-col gap-[var(--multi-composer-section-gap)] px-2.5 pt-2 pb-1.5",
+      thread: "",
+      "inline-edit": "flex flex-col",
     },
   },
-);
+});
 
 type ComposerEditorMode = "new-agent" | "thread-multiline" | "thread-pill" | "inline-edit";
 type ComposerShellMode = "new-agent" | "thread" | "inline-edit";
@@ -1320,8 +1320,9 @@ export const ComposerInput = memo(
     const composerEditorHotkeyRef = useRef<HTMLDivElement>(null);
     const composerFormRef = useRef<HTMLFormElement>(null);
     const composerMenuAnchorRef = useRef<HTMLSpanElement | null>(null);
-    const composerMenuAnchorRectRef = useRef<DOMRectReadOnly | null>(null);
-    const composerMenuAnchorRafRef = useRef<number | null>(null);
+    const composerMenuPopoverAnchorRef = useRef<ComposerMenuPopoverAnchor>(
+      composerMenuPopoverAnchorFromElement(() => composerMenuAnchorRef.current),
+    );
     const composerSelectLockRef = useRef(false);
     const composerMenuOpenRef = useRef(false);
     const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
@@ -1329,7 +1330,6 @@ export const ComposerInput = memo(
     const suppressInitialComposerTriggerDetectionRef = useRef(true);
     const initialComposerTriggerSuppressionPromptRef = useRef(prompt);
     const dismissedComposerTriggerRef = useRef<ComposerTriggerDismissal | null>(null);
-    const [composerMenuAnchorVersion, setComposerMenuAnchorVersion] = useState(0);
 
     const focusComposer = useCallback(() => {
       composerEditorRef.current?.focusAtEnd();
@@ -1355,54 +1355,6 @@ export const ComposerInput = memo(
         }),
       [keybindings, terminalOpen],
     );
-
-    useEffect(() => {
-      return () => {
-        if (composerMenuAnchorRafRef.current !== null) {
-          window.cancelAnimationFrame(composerMenuAnchorRafRef.current);
-        }
-      };
-    }, []);
-
-    const scheduleComposerMenuAnchorUpdate = useCallback(() => {
-      if (composerMenuAnchorRafRef.current !== null) {
-        return;
-      }
-      composerMenuAnchorRafRef.current = window.requestAnimationFrame(() => {
-        composerMenuAnchorRafRef.current = null;
-        setComposerMenuAnchorVersion((version) => version + 1);
-      });
-    }, []);
-
-    const onComposerMenuAnchorRectChange = useCallback(
-      (rect: DOMRectReadOnly) => {
-        const previous = composerMenuAnchorRectRef.current;
-        if (
-          previous &&
-          previous.left === rect.left &&
-          previous.top === rect.top &&
-          previous.width === rect.width &&
-          previous.height === rect.height
-        ) {
-          return;
-        }
-        composerMenuAnchorRectRef.current = rect;
-        if (composerMenuOpenRef.current) {
-          scheduleComposerMenuAnchorUpdate();
-        }
-      },
-      [scheduleComposerMenuAnchorUpdate],
-    );
-
-    // Cursor anchors slash menus to a real 1x1 caret element. Keep this as the
-    // Popover reference; cached virtual rects drift when hero/queued layouts move.
-    const composerMenuAnchor = useCallback(
-      () => composerMenuAnchorRef.current,
-      [composerMenuAnchorVersion],
-    );
-    // Replacement uses rangeStart/rangeEnd, but placement follows the visible
-    // caret like Cursor's default slashMenuAnchor="cursor".
-    const composerCaretTriggerOffset = composerTrigger?.rangeEnd ?? null;
 
     const resolveComposerTrigger = useCallback(
       (text: string, expandedCursor: number): ComposerTrigger | null => {
@@ -1472,11 +1424,7 @@ export const ComposerInput = memo(
     composerMenuItemsRef.current = composerMenuItems;
     activeComposerMenuItemRef.current = activeComposerMenuItem;
 
-    useEffect(() => {
-      if (composerMenuOpen) {
-        scheduleComposerMenuAnchorUpdate();
-      }
-    }, [composerMenuOpen, scheduleComposerMenuAnchorUpdate]);
+    const [composerMenuAnchorRevision, setComposerMenuAnchorRevision] = useState(0);
 
     useEffect(() => {
       if (!composerMenuOpen || typeof MutationObserver === "undefined") {
@@ -1488,14 +1436,24 @@ export const ComposerInput = memo(
       }
 
       // Cursor observes the fake caret's style attribute and refreshes Floating
-      // UI when it moves. Keep that contract here: the anchor element is stable,
-      // but its left/top style changes as the editor caret and layout move.
-      const observer = new MutationObserver(scheduleComposerMenuAnchorUpdate);
+      // UI when it moves. The anchor reads live DOM rects; this revision bump
+      // repositions the popover without caching stale coordinates in React.
+      const observer = new MutationObserver(() => {
+        setComposerMenuAnchorRevision((value) => value + 1);
+      });
       observer.observe(anchor, { attributeFilter: ["style"] });
       return () => {
         observer.disconnect();
       };
-    }, [composerMenuOpen, scheduleComposerMenuAnchorUpdate]);
+    }, [composerMenuOpen]);
+
+    useEffect(() => {
+      if (!composerMenuOpen) {
+        return;
+      }
+      // Reposition when async mention/slash results change popup height.
+      setComposerMenuAnchorRevision((value) => value + 1);
+    }, [composerMenuOpen, composerMenuItems.length]);
 
     const handleComposerContainerClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
       if (composerMenuOpenRef.current) return;
@@ -1566,6 +1524,7 @@ export const ComposerInput = memo(
       : isNewAgentComposer
         ? "new-agent"
         : "thread";
+
     const showPlanTray =
       !isInlineEditComposer &&
       !isComposerApprovalState &&
@@ -2031,12 +1990,15 @@ export const ComposerInput = memo(
       const menuIsActive = composerMenuOpenRef.current;
       if (menuIsActive) {
         const currentItems = composerMenuItemsRef.current;
+        if (currentItems.length === 0) {
+          return false;
+        }
         const selectedItem = activeComposerMenuItemRef.current ?? currentItems[0];
-        if (key === "ArrowDown" && currentItems.length > 0) {
+        if (key === "ArrowDown") {
           nudgeComposerMenuHighlight("ArrowDown");
           return true;
         }
-        if (key === "ArrowUp" && currentItems.length > 0) {
+        if (key === "ArrowUp") {
           nudgeComposerMenuHighlight("ArrowUp");
           return true;
         }
@@ -2261,7 +2223,7 @@ export const ComposerInput = memo(
           {promptInputHeaderContent ? (
             <div
               className={cn(
-                "select-none overflow-hidden border border-b-0 border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) text-multi-fg-primary",
+                "select-none overflow-hidden border border-b-0 border-multi-stroke-tertiary text-multi-fg-primary",
               )}
               data-multi-composer-header=""
               data-multi-composer-surface=""
@@ -2274,11 +2236,9 @@ export const ComposerInput = memo(
           ) : null}
           <div
             className={cn(
-              "group relative w-full max-w-full min-w-0 cursor-text overflow-hidden border shadow-sm transition-[border-color,background-color] duration-200 hover:border-multi-stroke-secondary focus-within:border-multi-stroke-secondary",
-              isInlineEditComposer
-                ? "rounded-xl border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)"
-                : "border-multi-stroke-tertiary bg-(--multi-chat-bubble-background)",
-              isDragOverComposer ? "border-primary bg-accent/30 ring-2 ring-primary/60" : "",
+              "group relative w-full max-w-full min-w-0 overflow-hidden",
+              isInlineEditComposer && "rounded-xl",
+              isDragOverComposer && "bg-accent/30 ring-2 ring-primary/60",
               composerProviderState.ultrathinkActive &&
                 "animate-[ultrathink-rainbow_10s_linear_infinite] bg-[linear-gradient(120deg,oklch(0.712_0.181_22.839)_0%,oklch(0.769_0.165_70.08)_18%,oklch(0.723_0.192_149.579)_36%,oklch(0.704_0.123_182.503)_54%,oklch(0.623_0.188_259.815)_72%,oklch(0.656_0.212_354.308)_90%,oklch(0.712_0.181_22.839)_100%)] bg-[length:220%_220%]",
             )}
@@ -2292,7 +2252,6 @@ export const ComposerInput = memo(
             data-plus-menu-placement="bottom-start"
             data-slash-menu-placement="top-start"
             data-variant={composerVariant}
-            onClick={handleComposerContainerClick}
             onDragEnter={onComposerDragEnter}
             onDragOver={onComposerDragOver}
             onDragLeave={onComposerDragLeave}
@@ -2352,13 +2311,13 @@ export const ComposerInput = memo(
               ) : null}
               <div
                 className={cn(
-                  "relative min-w-0 select-text",
+                  "relative min-w-0 cursor-text select-text",
                   composerEditorMode === "inline-edit" && "min-h-5",
-                  composerEditorMode === "thread-pill" &&
-                    "flex min-h-0 min-w-0 flex-1 items-center",
+                  composerEditorMode === "thread-pill" && "min-w-0 flex-1",
                   composerEditorMode === "thread-multiline" && "min-h-5 min-w-0 px-3 pt-2",
                   composerEditorMode === "new-agent" && "flex min-h-0 min-w-0 flex-1 flex-col",
                 )}
+                onClick={handleComposerContainerClick}
               >
                 {!isComposerApprovalState &&
                   pendingUserInputs.length === 0 &&
@@ -2383,8 +2342,7 @@ export const ComposerInput = memo(
                   cursor={composerCursor}
                   skills={selectedProviderStatus?.skills ?? []}
                   caretAnchorRef={composerMenuAnchorRef}
-                  caretTriggerExpandedOffset={composerCaretTriggerOffset}
-                  onCaretAnchorRectChange={onComposerMenuAnchorRectChange}
+                  commandMenuOpen={composerMenuOpen && !isComposerApprovalState}
                   onMeasuredMultilineChange={setIsComposerEditorMultiline}
                   onChange={onPromptChange}
                   onCommandKeyDown={onComposerCommandKey}
@@ -2474,8 +2432,8 @@ export const ComposerInput = memo(
         </div>
         <ComposerCommandMenuPositioned
           open={composerMenuOpen && !isComposerApprovalState}
-          anchor={composerMenuAnchor}
-          anchorVersion={composerMenuAnchorVersion}
+          anchor={composerMenuPopoverAnchorRef.current}
+          anchorRevision={composerMenuAnchorRevision}
           items={composerMenuItems}
           resolvedTheme={resolvedTheme}
           isLoading={isComposerMenuLoading}

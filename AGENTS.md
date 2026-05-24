@@ -46,3 +46,24 @@
 
 - Published versions for `usemulti`, `@multi/app`, `@multi/desktop`, and `@multi/contracts` stay in sync via `scripts/update-release-package-versions.ts`.
 - Release automation lives in `.github/workflows/release.yml`.
+
+## Composer command menu (`/` and `@`)
+
+Both menus share `ComposerCommandMenuPositioned` in `packages/app/src/components/chat/composer/slash-menu.tsx`. Read that file before changing placement or sizing.
+
+**Anchor (caret tracking)**
+
+- The 1×1 span lives in `prompt-editor.tsx` (`data-composer-menu-anchor`), positioned from `coordsAtPos(selection.from)` with `coords.top` for `side="top"`.
+- `input.tsx` passes a live virtual anchor via `composerMenuPopoverAnchorFromElement(() => composerMenuAnchorRef.current)` — do not cache anchor rects in React state.
+- Bump `composerMenuAnchorRevision` when the anchor span's `style` changes (MutationObserver) or when async menu results change item count.
+
+**Popover placement**
+
+- Use `side="top"`, `align="start"`, `positionMethod="fixed"`, `instant`, and `COMPOSER_MENU_COLLISION_AVOIDANCE` (`shift` + `fallbackAxisSide: "none"`). Do not use default Base UI popover collision (`fallbackAxisSide: "end"`) — tall menus flip to a side axis and land off-screen.
+- Do not remount the popover on anchor updates (`key={anchorRevision}` causes jitter). Parent re-renders from `anchorRevision` are enough.
+
+**Width and height must be symmetric**
+
+- Popup width: fixed rem cap **and** `max-w-[min(Nrem,var(--available-width))]` on the popover shell.
+- Popup height: fixed `max-h-[342px]` on the popover shell (matches Cursor). Base UI auto-resize measures with `--available-height: max-content`, which invalidates `min(20rem, var(--available-height))` on inner lists — without a shell max-height, tall `@` results balloon the positioner and collision-shift the menu off-screen.
+- Scrolling belongs on `CommandList` (`max-h-[min(20rem,var(--available-height))]`), not the popover viewport (`overflow-visible` is intentional).

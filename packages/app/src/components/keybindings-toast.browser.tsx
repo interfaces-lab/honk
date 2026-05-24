@@ -171,6 +171,8 @@ function createMinimalSnapshot(): OrchestrationReadModel {
             updatedAt: NOW_ISO,
           },
         ],
+        activeEntryId: null,
+        entries: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],

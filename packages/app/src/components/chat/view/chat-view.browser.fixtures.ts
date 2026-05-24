@@ -5,10 +5,12 @@ import {
   OrchestrationSessionStatus,
   ProviderDriverKind,
   ProviderInstanceId,
+  threadEntryIdForMessageId,
   type MessageId,
   type OrchestrationReadModel,
   type ProjectId,
   type ServerConfig,
+  type ThreadEntryId,
   type ServerLifecycleWelcomePayload,
   type ThreadId,
   type TurnId,
@@ -162,8 +164,12 @@ export function createSnapshotForTargetUser(options: {
   sessionStatus?: OrchestrationSessionStatus;
 }): OrchestrationReadModel {
   const messages: Array<OrchestrationReadModel["threads"][number]["messages"][number]> = [];
+  const entries: Array<OrchestrationReadModel["threads"][number]["entries"][number]> = [];
+  let parentEntryId: ThreadEntryId | null = null;
+  let targetActiveEntryId: ThreadEntryId | null = null;
+  const targetIndex = 3;
   for (let index = 0; index < 22; index += 1) {
-    const isTarget = index === 3;
+    const isTarget = index === targetIndex;
     const userId = `msg-user-${index}` as MessageId;
     const assistantId = `msg-assistant-${index}` as MessageId;
     const attachments =
@@ -177,21 +183,52 @@ export function createSnapshotForTargetUser(options: {
             previewUrl: `/attachments/attachment-${attachmentIndex + 1}`,
           }))
         : undefined;
-    messages.push(
-      createUserMessage({
-        id: isTarget ? options.targetMessageId : userId,
-        text: isTarget ? options.targetText : `filler user message ${index}`,
-        offsetSeconds: messages.length * 3,
-        ...(attachments ? { attachments } : {}),
-      }),
-    );
-    messages.push(
-      createAssistantMessage({
-        id: assistantId,
-        text: `assistant filler ${index}`,
-        offsetSeconds: messages.length * 3,
-      }),
-    );
+    const messageId = isTarget ? options.targetMessageId : userId;
+    const userMessage = createUserMessage({
+      id: messageId,
+      text: isTarget ? options.targetText : `filler user message ${index}`,
+      offsetSeconds: messages.length * 3,
+      ...(attachments ? { attachments } : {}),
+    });
+    const userEntryId = threadEntryIdForMessageId(messageId);
+    messages.push(userMessage);
+    entries.push({
+      id: userEntryId,
+      threadId: THREAD_ID,
+      parentEntryId,
+      kind: "message",
+      messageId,
+      turnId: userMessage.turnId,
+      targetEntryId: null,
+      label: null,
+      summary: null,
+      createdAt: userMessage.createdAt,
+    });
+    parentEntryId = userEntryId;
+
+    const assistantMessage = createAssistantMessage({
+      id: assistantId,
+      text: `assistant filler ${index}`,
+      offsetSeconds: messages.length * 3,
+    });
+    const assistantEntryId = threadEntryIdForMessageId(assistantId);
+    messages.push(assistantMessage);
+    entries.push({
+      id: assistantEntryId,
+      threadId: THREAD_ID,
+      parentEntryId,
+      kind: "message",
+      messageId: assistantId,
+      turnId: assistantMessage.turnId,
+      targetEntryId: null,
+      label: null,
+      summary: null,
+      createdAt: assistantMessage.createdAt,
+    });
+    parentEntryId = assistantEntryId;
+    if (isTarget) {
+      targetActiveEntryId = assistantEntryId;
+    }
   }
   return {
     snapshotSequence: 1,
@@ -229,6 +266,8 @@ export function createSnapshotForTargetUser(options: {
         archivedAt: null,
         deletedAt: null,
         messages,
+        activeEntryId: targetActiveEntryId ?? parentEntryId,
+        entries,
         activities: [],
         proposedPlans: [],
         checkpoints: [],
@@ -292,6 +331,8 @@ export function addThreadToSnapshot(
         archivedAt: null,
         deletedAt: null,
         messages: [],
+        activeEntryId: null,
+        entries: [],
         activities: [],
         proposedPlans: [],
         checkpoints: [],
@@ -528,6 +569,8 @@ export function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(31),
           deletedAt: null,
           messages: [],
+          activeEntryId: null,
+          entries: [],
           activities: [],
           proposedPlans: [],
           checkpoints: [],
@@ -560,6 +603,8 @@ export function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(25),
           deletedAt: null,
           messages: [],
+          activeEntryId: null,
+          entries: [],
           activities: [],
           proposedPlans: [],
           checkpoints: [],

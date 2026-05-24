@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
 
 import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../packages/desktop/package.json" with { type: "json" };
@@ -27,7 +26,6 @@ const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
 const workspaceCatalog = readWorkspaceCatalog(new URL("../pnpm-workspace.yaml", import.meta.url));
 
 interface DesktopBuildIconAssets {
-  readonly macIconIcns: string;
   readonly macIconPng: string;
   readonly linuxIconPng: string;
 }
@@ -260,36 +258,66 @@ const runCommand = Effect.fn("runCommand")(function* (command: ChildProcess.Comm
   }
 });
 
-function stageMacIcons(
-  stageResourcesDir: string,
-  sourceIcns: string,
+function generateMacIconSet(
   sourcePng: string,
+  targetIcns: string,
+  tmpRoot: string,
+  path: Path.Path,
   verbose: boolean,
 ) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    if (!(yield* fs.exists(sourceIcns))) {
-      return yield* new BuildScriptError({
-        message: `Desktop macOS .icns source is missing at ${sourceIcns}`,
-      });
+    const iconsetDir = path.join(tmpRoot, "icon.iconset");
+    yield* fs.makeDirectory(iconsetDir, { recursive: true });
+
+    const iconSizes = [16, 32, 128, 256, 512] as const;
+    for (const size of iconSizes) {
+      yield* runCommand(
+        ChildProcess.make({
+          ...commandOutputOptions(verbose),
+        })`sips -z ${size} ${size} ${sourcePng} --out ${path.join(iconsetDir, `icon_${size}x${size}.png`)}`,
+      );
+
+      const retinaSize = size * 2;
+      yield* runCommand(
+        ChildProcess.make({
+          ...commandOutputOptions(verbose),
+        })`sips -z ${retinaSize} ${retinaSize} ${sourcePng} --out ${path.join(iconsetDir, `icon_${size}x${size}@2x.png`)}`,
+      );
     }
 
+    yield* runCommand(
+      ChildProcess.make({
+        ...commandOutputOptions(verbose),
+      })`iconutil -c icns ${iconsetDir} -o ${targetIcns}`,
+    );
+  });
+}
+
+function stageMacIcons(stageResourcesDir: string, sourcePng: string, verbose: boolean) {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
     if (!(yield* fs.exists(sourcePng))) {
       return yield* new BuildScriptError({
         message: `Desktop macOS PNG source is missing at ${sourcePng}`,
       });
     }
 
+    const tmpRoot = yield* fs.makeTempDirectoryScoped({
+      prefix: "multi-icon-build-",
+    });
+
     const iconPngPath = path.join(stageResourcesDir, "icon.png");
     const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
 
-    yield* fs.copyFile(sourceIcns, iconIcnsPath);
     yield* runCommand(
       ChildProcess.make({
         ...commandOutputOptions(verbose),
       })`sips -z 512 512 ${sourcePng} --out ${iconPngPath}`,
     );
+
+    yield* generateMacIconSet(sourcePng, iconIcnsPath, tmpRoot, path, verbose);
   });
 }
 
@@ -345,7 +373,7 @@ function validateBundledClientAssets(clientDir: string) {
   });
 }
 
-function resolveDesktopRuntimeDependencies(
+export function resolveDesktopRuntimeDependencies(
   dependencies: Record<string, string> | undefined,
   catalog: Record<string, string>,
 ): Record<string, string> {
@@ -354,7 +382,10 @@ function resolveDesktopRuntimeDependencies(
   }
 
   const runtimeDependencies = Object.fromEntries(
-    Object.entries(dependencies).filter(([dependencyName]) => dependencyName !== "electron"),
+    Object.entries(dependencies).filter(
+      ([dependencyName, dependencySpec]) =>
+        dependencyName !== "electron" && !dependencySpec.startsWith("workspace:"),
+    ),
   );
 
   return resolveCatalogDependencies(runtimeDependencies, catalog, "packages/desktop");
@@ -377,11 +408,16 @@ const DESKTOP_RUNTIME_ENV_KEYS = [
   "VITE_HTTP_URL",
   "VITE_WS_URL",
   "MULTI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD",
+  "MULTI_AUTH_TOKEN",
+  "MULTI_DESKTOP_WS_URL",
+  "MULTI_DEV_INSTANCE",
   "MULTI_HOME",
   "MULTI_HOST",
+  "MULTI_LOG_WS_EVENTS",
   "MULTI_MODE",
   "MULTI_NO_BROWSER",
   "MULTI_PORT",
+  "MULTI_PORT_OFFSET",
 ] as const;
 
 export function sanitizeDesktopDistributionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -440,7 +476,6 @@ function resolveGitHubPublishConfig():
 
 export function resolveDesktopBuildIconAssets(): DesktopBuildIconAssets {
   return {
-    macIconIcns: BRAND_ASSET_PATHS.productionMacIconIcns,
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
   };
@@ -513,7 +548,7 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   verbose: boolean,
 ) {
   if (platform === "mac") {
-    yield* stageMacIcons(stageResourcesDir, iconAssets.macIconIcns, iconAssets.macIconPng, verbose);
+    yield* stageMacIcons(stageResourcesDir, iconAssets.macIconPng, verbose);
     return;
   }
 
@@ -594,25 +629,27 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   if (!options.skipBuild) {
     yield* Effect.log("[desktop-artifact] Building desktop/server/web artifacts...");
     yield* runCommand(
-      ChildProcess.make({
+      ChildProcess.make("pnpm", ["run", "build:desktop"], {
         cwd: repoRoot,
         env: sanitizeDesktopDistributionEnv(process.env),
         ...commandOutputOptions(options.verbose),
-      })`bun run build:desktop`,
+        // Windows needs shell mode to resolve .cmd shims (e.g. pnpm.cmd).
+        shell: process.platform === "win32",
+      }),
     );
   }
 
   for (const [label, dir] of Object.entries(distDirs)) {
     if (!(yield* fs.exists(dir))) {
       return yield* new BuildScriptError({
-        message: `Missing ${label} at ${dir}. Run 'bun run build:desktop' first.`,
+        message: `Missing ${label} at ${dir}. Run 'pnpm run build:desktop' first.`,
       });
     }
   }
 
   if (!(yield* fs.exists(bundledClientEntry))) {
     return yield* new BuildScriptError({
-      message: `Missing bundled server client at ${bundledClientEntry}. Run 'bun run build:desktop' first.`,
+      message: `Missing bundled server client at ${bundledClientEntry}. Run 'pnpm run build:desktop' first.`,
     });
   }
 
@@ -630,9 +667,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     options.platform,
     stageResourcesDir,
     {
-      macIconIcns: join(repoRoot, iconAssets.macIconIcns),
-      macIconPng: join(repoRoot, iconAssets.macIconPng),
-      linuxIconPng: join(repoRoot, iconAssets.linuxIconPng),
+      macIconPng: path.join(repoRoot, iconAssets.macIconPng),
+      linuxIconPng: path.join(repoRoot, iconAssets.linuxIconPng),
     },
     options.verbose,
   );
@@ -749,7 +785,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   ),
   skipBuild: Flag.boolean("skip-build").pipe(
     Flag.withDescription(
-      "Skip `bun run build:desktop` and use existing dist artifacts (env: MULTI_DESKTOP_SKIP_BUILD).",
+      "Skip `pnpm run build:desktop` and use existing dist artifacts (env: MULTI_DESKTOP_SKIP_BUILD).",
     ),
     Flag.optional,
   ),

@@ -169,9 +169,6 @@
   --multi-color-active: oklch(
     0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) / 0.8
   );
-  --multi-chat-bubble-border: color-mix(in oklch, var(--foreground) 9%, transparent);
-  --multi-chat-bubble-shadow:
-    0 1px 1px oklch(0 0 0 / 0.035), 0 12px 30px -24px oklch(0.256 0.006 270 / 0.38);
 
   --multi-hue-green: var(--multi-diff-addition);
   --multi-hue-red: var(--multi-diff-deletion);
@@ -301,8 +298,6 @@
   --multi-color-active: oklch(
     0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) / 0.6
   );
-  --multi-chat-bubble-border: color-mix(in oklch, var(--foreground) 13%, transparent);
-  --multi-chat-bubble-shadow: 0 1px 1px oklch(0 0 0 / 0.22), 0 14px 34px -24px oklch(0 0 0 / 0.72);
 
   --multi-hue-green: var(--multi-diff-addition);
   --multi-hue-red: var(--multi-diff-deletion);
@@ -341,9 +336,10 @@
  */
 html {
   --multi-chat-surface-background: var(--multi-color-chat);
-  --multi-chat-bubble-translucent-background: var(--multi-chat-surface-background);
+  --multi-chat-bubble-translucent-background: var(--multi-color-bubble);
   --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
-  --multi-chat-bubble-opaque-background: var(--multi-color-chat-opaque);
+  --multi-chat-bubble-opaque-background: var(--multi-color-bubble-opaque);
+  --multi-chat-bubble-glass-opaque-background: var(--card);
   --multi-shadow-primary: oklch(0 0 0 / 0.18);
   --multi-shadow-secondary: color-mix(in srgb, var(--multi-shadow-primary) 60%, transparent);
   --multi-shadow-tertiary: color-mix(in srgb, var(--multi-shadow-primary) 30%, transparent);
@@ -470,6 +466,28 @@ html {
   --multi-radius-full: 9999px;
 }
 
+[data-component="root"] {
+  --multi-chat-bubble-glass-background: var(--multi-chat-bubble-glass-opaque-background);
+  --multi-composer-surface-background: var(--multi-chat-bubble-glass-background);
+  --multi-composer-surface-opaque-background: var(--multi-chat-bubble-glass-opaque-background);
+  --multi-message-bubble-background: var(--multi-composer-surface-background);
+  --multi-composer-queue-edit-banner-background: color-mix(
+    in srgb,
+    var(--multi-composer-surface-background) 88%,
+    var(--multi-stroke-tertiary) 12%
+  );
+  --multi-composer-queue-row-editing-background: color-mix(
+    in srgb,
+    var(--multi-stroke-tertiary) 15%,
+    transparent
+  );
+  --multi-composer-popup-surface-background: color-mix(
+    in srgb,
+    var(--multi-composer-surface-opaque-background) 96%,
+    transparent
+  );
+}
+
 html.dark {
   --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
   --multi-vibrancy-sidebar-mix: 56%;
@@ -519,6 +537,16 @@ body.multi-os-vibrancy-on[data-multi-glass-mode="true"] [data-component="root"] 
   --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
 }
 
+@supports (color: color-mix(in lab, red, red)) {
+  html.dark [data-component="root"] {
+    --multi-chat-bubble-glass-background: color-mix(
+      in srgb,
+      var(--multi-chat-bubble-glass-opaque-background) 96%,
+      #fff
+    );
+  }
+}
+
 body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="root"] {
   --multi-sidebar-opacity: 100%;
   --multi-chat-opacity: 100%;
@@ -535,6 +563,7 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="ro
   --multi-color-bubble: var(--multi-color-bubble-opaque);
   --multi-color-menubar: var(--multi-color-menubar-opaque);
   --multi-chat-bubble-background: var(--multi-chat-bubble-opaque-background);
+  --multi-chat-bubble-glass-background: var(--multi-chat-bubble-glass-opaque-background);
   --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
   --multi-workbench-surface-background: var(--multi-color-surface-opaque);
   --multi-bg-elevated: var(--multi-color-elevated-opaque);

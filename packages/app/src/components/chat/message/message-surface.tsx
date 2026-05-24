@@ -56,8 +56,8 @@ const assistantMessageSurfaceVariants = cva("box-border flex w-full justify-star
 
 const humanMessageBubbleVariants = cva(
   cn(
-    "group/message-bubble box-border w-full min-w-0 max-w-full",
-    "rounded-xl border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) px-3 py-2 shadow-xs",
+    "group/message-bubble relative isolate box-border w-full min-w-0 max-w-full overflow-hidden",
+    "rounded-xl px-2.5 py-2",
   ),
   {
     variants: {
@@ -183,6 +183,8 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
           humanMessageBubbleVariants({ editable: props.editable }),
           readonlyAction && "cursor-default",
         )}
+        data-message-bubble-surface=""
+        data-editable={props.editable ? "true" : undefined}
         {...editableProps}
       >
         {props.media ? (

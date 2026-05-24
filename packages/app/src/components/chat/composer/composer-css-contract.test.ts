@@ -21,8 +21,11 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toContain(
       "--multi-composer-new-agent-editor-max-height: min(75vh, 420px)",
     );
-    expect(conversationCss).toContain("--multi-composer-editor-min-height: 36px");
+    expect(conversationCss).toContain("--multi-composer-editor-font-size:");
+    expect(conversationCss).toContain("--multi-composer-editor-line-height:");
+    expect(conversationCss).toContain("--multi-composer-editor-min-height:");
     expect(conversationCss).toContain("--multi-composer-editor-max-height: 200px");
+    expect(conversationCss).toContain("--multi-composer-editor-max-height-pill: 72px");
   });
 
   it("wires geometry through input.tsx cva instead of composer-height buckets", () => {
@@ -52,8 +55,10 @@ describe("Composer CSS contract", () => {
   });
 
   it("removes the editor min-h-5/max-h-5 forced-height jump in compact pill mode", () => {
-    expect(inputSource).toContain('"thread-pill": "min-h-0 max-h-none');
+    expect(inputSource).toContain('"thread-pill": "flex-1 pl-1"');
     expect(inputSource).not.toMatch(/"thread-pill":\s*"min-h-5\s+max-h-5/);
+    expect(conversationCss).toContain('[data-prompt-editor-input="true"]');
+    expect(conversationCss).toContain("--multi-composer-editor-line-height:");
   });
 });
 
@@ -140,37 +145,61 @@ describe("Composer slash menu contract", () => {
     expect(promptEditorSource).toContain('data-composer-menu-anchor=""');
     expect(promptEditorSource).toContain("usePromptEditorCaretAnchor");
     expect(promptEditorSource).toContain("editor.view.coordsAtPos");
+    expect(promptEditorSource).toContain("selection.from");
+    expect(promptEditorSource).toContain("coords.top - anchorRootRect.top");
+    expect(promptEditorSource).not.toContain("coords.bottom - anchorRootRect.top");
+    expect(promptEditorSource).toContain("commandMenuOpen");
     expect(inputSource).not.toContain('data-composer-menu-anchor=""');
     expect(inputSource).toContain("caretAnchorRef={composerMenuAnchorRef}");
-    expect(inputSource).toContain("const composerCaretTriggerOffset = composerTrigger?.rangeEnd");
-    expect(inputSource).toContain("caretTriggerExpandedOffset={composerCaretTriggerOffset}");
+    expect(inputSource).toContain("commandMenuOpen={composerMenuOpen");
     expect(inputSource).toContain("composerMenuAnchorRef.current");
-    expect(inputSource).toContain("new MutationObserver(scheduleComposerMenuAnchorUpdate)");
-    expect(inputSource).toContain("anchorVersion={composerMenuAnchorVersion}");
-    expect(promptEditorSource).toContain("const anchorY = coords.bottom");
-    expect(slashMenuSource).toContain("key={anchorVersion}");
+    expect(inputSource).toContain("new MutationObserver");
+    expect(inputSource).toContain("composerMenuPopoverAnchorFromElement");
+    expect(inputSource).toContain("composerMenuAnchorRevision");
+    expect(slashMenuSource).not.toContain("key={anchorVersion}");
+    expect(slashMenuSource).not.toContain("key={anchorRevision}");
+    expect(slashMenuSource).toContain("ComposerMenuPopoverAnchor");
+    expect(slashMenuSource).toContain("anchorRevision");
+  });
+
+  it("positions the slash/mention menu with symmetric shell caps and dropdown collision", () => {
+    expect(slashMenuSource).toContain("COMPOSER_MENU_COLLISION_AVOIDANCE");
+    expect(slashMenuSource).toContain('fallbackAxisSide: "none"');
+    expect(slashMenuSource).toContain('side: "shift"');
+    expect(slashMenuSource).toContain('positionMethod="fixed"');
+    expect(slashMenuSource).toContain('side="top"');
+    expect(slashMenuSource).toContain("instant");
+    expect(slashMenuSource).toContain("max-h-[342px]");
+    expect(slashMenuSource).toContain("w-64 max-w-[min(16rem,var(--available-width))]");
+    expect(slashMenuSource).toContain("w-80 max-w-[min(20rem,var(--available-width))]");
+    expect(slashMenuSource).toContain("max-h-[min(20rem,var(--available-height))]");
+    expect(slashMenuSource).toContain("*:data-[slot=popover-viewport]:overflow-visible");
   });
 });
 
 describe("Composer surface contract", () => {
   it("tags the composer card for surface targeting", () => {
     expect(inputSource).toContain("data-multi-composer-surface");
+    expect(inputSource).not.toContain("bg-(--multi-chat-bubble-glass-background)");
+    expect(inputSource).not.toContain("bg-(--multi-composer-surface-background)");
+    expect(conversationCss).toContain("background-color: var(--multi-composer-surface-background)");
+    expect(conversationCss).toContain("[data-multi-composer-header]");
   });
 
   it("applies composer blur via conversation.css in translucent mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss).toContain(
-      'body[data-multi-glass-mode="true"] [data-multi-composer-surface]',
+      'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });
 
   it("removes composer blur under reduce transparency", () => {
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-multi-composer-surface]',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"]',
     );
     expect(conversationCss).toMatch(
-      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*backdrop-filter:\s*none/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\][\s\S]*\[data-multi-composer-surface\]:not\(\[data-multi-composer-header\]\)[\s\S]*backdrop-filter:\s*none/,
     );
   });
 
@@ -186,6 +215,19 @@ describe("Composer surface contract", () => {
     expect(contextUsageBarSource).toContain("data-composer-context-usage-bar");
     expect(inputSource).toContain("ComposerContextUsageBar");
     expect(inputSource).not.toContain("ContextWindowMeter");
+  });
+
+  it("defines prompt chip tokens in conversation.css", () => {
+    expect(conversationCss).toContain("--multi-composer-mention-text:");
+    expect(conversationCss).toContain("--multi-composer-command-text:");
+    expect(conversationCss).toContain("--multi-composer-chip-max-width:");
+  });
+
+  it("styles prompt chips via cva in prompt-editor.tsx", () => {
+    expect(promptEditorSource).toContain("composerPromptChipVariants");
+    expect(promptEditorSource).toContain('kind: "mention"');
+    expect(promptEditorSource).toContain('kind: "command"');
+    expect(promptEditorSource).not.toContain("border-multi-stroke-tertiary bg-multi-bg-quaternary");
   });
 
   it("moves slash menu blur to conversation.css", () => {

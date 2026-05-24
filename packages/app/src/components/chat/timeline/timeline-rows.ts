@@ -34,7 +34,7 @@ export interface MessageTimelineRow {
   createdAt: string;
   message: ChatMessage;
   durationStart: string;
-  revertTurnCount?: number | undefined;
+  editAvailable: boolean;
 }
 
 export interface ProposedPlanTimelineRow {
@@ -86,7 +86,7 @@ export function deriveMessagesTimelineRows(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
   activeTurnStartedAt: string | null;
-  revertTurnCountByUserMessageId: ReadonlyMap<MessageId, number>;
+  editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
 }): MessagesTimelineRow[] {
   const baseRows: BaseMessagesTimelineRow[] = [];
@@ -143,10 +143,9 @@ export function deriveMessagesTimelineRows(input: {
       message: timelineEntry.message,
       durationStart:
         durationStartByMessageId.get(timelineEntry.message.id) ?? timelineEntry.message.createdAt,
-      revertTurnCount:
-        timelineEntry.message.role === "user"
-          ? input.revertTurnCountByUserMessageId.get(timelineEntry.message.id)
-          : undefined,
+      editAvailable:
+        timelineEntry.message.role === "user" &&
+        input.editableUserMessageIds.has(timelineEntry.message.id),
     });
   }
 
@@ -200,7 +199,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return (
         a.message === bm.message &&
         a.durationStart === bm.durationStart &&
-        a.revertTurnCount === bm.revertTurnCount
+        a.editAvailable === bm.editAvailable
       );
     }
   }

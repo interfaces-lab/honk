@@ -357,7 +357,7 @@ export function projectEvent(
             )
           : [...thread.messages, message];
         const entryId = payload.entryId;
-        const threadEntries = thread.entries ?? [];
+        const threadEntries = thread.entries;
         const existingEntry = threadEntries.find((entry) => entry.id === entryId);
         const nextEntry = {
           id: entryId,
@@ -410,7 +410,7 @@ export function projectEvent(
             return nextBase;
           }
           const entries = [
-            ...(thread.entries ?? []).filter((entry) => entry.id !== payload.entry.id),
+            ...thread.entries.filter((entry) => entry.id !== payload.entry.id),
             payload.entry,
           ].toSorted(
             (left, right) =>
@@ -600,7 +600,7 @@ export function projectEvent(
             messageId: (message) => message.id,
           });
           const retainedMessageIds = new Set(messages.map((message) => message.id));
-          const messageEntries = (thread.entries ?? []).filter(
+          const messageEntries = thread.entries.filter(
             (entry) =>
               entry.kind === "message" &&
               entry.messageId !== null &&
@@ -609,7 +609,7 @@ export function projectEvent(
           const retainedEntryIds = new Set(messageEntries.map((entry) => entry.id));
           const entries = [
             ...messageEntries,
-            ...(thread.entries ?? []).filter(
+            ...thread.entries.filter(
               (entry) =>
                 entry.kind === "label" &&
                 entry.targetEntryId !== null &&
@@ -617,9 +617,7 @@ export function projectEvent(
             ),
           ];
           const activeEntryId =
-            thread.activeEntryId !== undefined &&
-            thread.activeEntryId !== null &&
-            retainedEntryIds.has(thread.activeEntryId)
+            thread.activeEntryId !== null && retainedEntryIds.has(thread.activeEntryId)
               ? thread.activeEntryId
               : (messageEntries.at(-1)?.id ?? null);
           const proposedPlans = retainTurnFactsAfterCheckpointRevert(

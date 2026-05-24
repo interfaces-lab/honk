@@ -90,10 +90,10 @@ describe("appearance reduce-transparency tokens", () => {
       'body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-sidebar',
     );
     expect(conversationCss).toContain(
-      'body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-multi-composer-surface]',
+      'body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-multi-composer-header]',
     );
     expect(conversationCss).toMatch(
-      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-multi-composer-surface\][\s\S]*background:\s*var\(--multi-chat-bubble-opaque-background\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\][\s\S]*\[data-multi-composer-surface\]:not\(\[data-multi-composer-header\]\)[\s\S]*background-color:\s*var\(--multi-composer-surface-opaque-background\)/,
     );
     expect(conversationCss).toContain(
       'body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-slash-menu-popup',
@@ -103,7 +103,7 @@ describe("appearance reduce-transparency tokens", () => {
   it("applies composer blur in glass mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss).toContain(
-      'body[data-multi-glass-mode="true"] [data-multi-composer-surface]',
+      'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });

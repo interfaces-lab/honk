@@ -107,8 +107,8 @@ export interface Thread {
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
-  activeEntryId?: OrchestrationThreadEntry["id"] | null;
-  entries?: ThreadTreeEntry[];
+  activeEntryId: OrchestrationThreadEntry["id"] | null;
+  entries: ThreadTreeEntry[];
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;

@@ -57,7 +57,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.branch},
           ${row.worktreePath},
           ${row.latestTurnId},
-          ${row.activeEntryId ?? null},
+          ${row.activeEntryId},
           ${row.createdAt},
           ${row.updatedAt},
           ${row.archivedAt},

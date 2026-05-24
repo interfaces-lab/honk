@@ -117,19 +117,18 @@ export function formatThreadEntryPathIssue(issue: ThreadEntryPathIssue): string 
 }
 
 export function resolveActiveEntryIdAfterThreadMessage(input: {
-  readonly activeEntryId: ThreadEntryId | null | undefined;
+  readonly activeEntryId: ThreadEntryId | null;
   readonly entryId: ThreadEntryId;
   readonly parentEntryId: ThreadEntryId | null;
   readonly role: OrchestrationMessageRole;
 }): ThreadEntryId | null {
-  const activeEntryId = input.activeEntryId ?? null;
   if (input.role === "user") {
     return input.entryId;
   }
   if (input.role !== "assistant") {
-    return activeEntryId;
+    return input.activeEntryId;
   }
-  return activeEntryId === input.parentEntryId || activeEntryId === input.entryId
+  return input.activeEntryId === input.parentEntryId || input.activeEntryId === input.entryId
     ? input.entryId
-    : activeEntryId;
+    : input.activeEntryId;
 }

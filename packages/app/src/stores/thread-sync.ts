@@ -107,9 +107,7 @@ function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage)
   };
 }
 
-function mapThreadEntry(
-  entry: NonNullable<OrchestrationThread["entries"]>[number],
-): ThreadTreeEntry {
+function mapThreadEntry(entry: OrchestrationThread["entries"][number]): ThreadTreeEntry {
   return { ...entry };
 }
 
@@ -170,8 +168,8 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     interactionMode: thread.interactionMode,
     session: thread.session ? mapSession(thread.session) : null,
     messages: thread.messages.map((message) => mapMessage(environmentId, message)),
-    activeEntryId: thread.activeEntryId ?? null,
-    entries: (thread.entries ?? []).map(mapThreadEntry),
+    activeEntryId: thread.activeEntryId,
+    entries: thread.entries.map(mapThreadEntry),
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
     error: sanitizeThreadErrorMessage(thread.session?.lastError),
     createdAt: thread.createdAt,
@@ -391,7 +389,7 @@ function buildEntrySlice(thread: Thread): {
   ids: ThreadEntryId[];
   byId: Record<ThreadEntryId, ThreadTreeEntry>;
 } {
-  const entries = thread.entries ?? [];
+  const entries = thread.entries;
   return {
     ids: entries.map((entry) => entry.id),
     byId: Object.fromEntries(entries.map((entry) => [entry.id, entry] as const)) as Record<
@@ -581,7 +579,7 @@ function writeThreadState(
     };
   }
 
-  const nextActiveEntryId = nextThread.activeEntryId ?? null;
+  const nextActiveEntryId = nextThread.activeEntryId;
   if ((previousThread?.activeEntryId ?? null) !== nextActiveEntryId) {
     nextState = {
       ...nextState,
@@ -1388,7 +1386,7 @@ export function applyThreadDetailEvent(
               )
             : thread.turnDiffSummaries;
         const entryId = event.payload.entryId;
-        const threadEntries = thread.entries ?? [];
+        const threadEntries = thread.entries;
         const existingEntry = threadEntries.find((entry) => entry.id === entryId);
         const nextEntry: ThreadTreeEntry = {
           id: entryId,
@@ -1462,7 +1460,7 @@ export function applyThreadDetailEvent(
     case "thread.tree-label-set":
       return updateThreadState(state, event.payload.threadId, (thread) => {
         const entry = mapThreadEntry(event.payload.entry);
-        const threadEntries = thread.entries ?? [];
+        const threadEntries = thread.entries;
         const entries = [...threadEntries.filter((item) => item.id !== entry.id), entry].toSorted(
           (left, right) =>
             left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),

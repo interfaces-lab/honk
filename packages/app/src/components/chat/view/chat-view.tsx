@@ -91,10 +91,8 @@ import {
   type SessionPhase,
   type Thread,
   type ThreadTreeEntry,
-  type TurnDiffSummary,
 } from "../../../types";
 import { useTheme } from "../../../hooks/use-theme";
-import { useTurnDiffSummaries } from "../../../hooks/use-turn-diff-summaries";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
 import { buildTemporaryWorktreeBranchName } from "@multi/shared/git";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../../../keybindings";
@@ -237,7 +235,7 @@ function deriveThreadBranchView(
     return unfiltered;
   }
 
-  const entries = thread.entries ?? [];
+  const entries = thread.entries;
   const entryId = targetEntryId ?? thread.activeEntryId ?? null;
   if (!entryId || entries.length === 0) {
     return unfiltered;
@@ -321,7 +319,7 @@ function containsThreadEntry(
   thread: Thread | null,
   entryId: ThreadEntryId | null | undefined,
 ): entryId is ThreadEntryId {
-  if (!thread || !entryId || !thread.entries) {
+  if (!thread || !entryId) {
     return false;
   }
   return resolveThreadEntryPath({ entries: thread.entries, entryId }).ok;
@@ -331,7 +329,7 @@ function findThreadMessageEntry(
   thread: Thread | null,
   messageId: MessageId | null | undefined,
 ): ThreadTreeEntry | null {
-  if (!thread || !messageId || !thread.entries) {
+  if (!thread || !messageId) {
     return null;
   }
   return (
@@ -601,20 +599,6 @@ function ActiveThreadUiResetSync({
     isAtBottomRef.current = true;
     showScrollDebouncer.current.cancel();
     setShowScrollToBottom(false);
-  });
-
-  return null;
-}
-
-function BooleanResetSync({
-  setValue,
-  value,
-}: {
-  setValue: Dispatch<SetStateAction<boolean>>;
-  value: boolean;
-}) {
-  useMountEffect(() => {
-    setValue(value);
   });
 
   return null;
@@ -1079,8 +1063,33 @@ export default function ChatView(props: ChatViewProps) {
   const [localDraftErrorsByDraftId, setLocalDraftErrorsByDraftId] = useState<
     Record<string, string | null>
   >({});
+  const setThreadError = useCallback(
+    (targetThreadId: ThreadId | null, error: string | null) => {
+      if (!targetThreadId) return;
+      const nextError = sanitizeThreadErrorMessage(error);
+      const isCurrentServerThread = shouldWriteThreadErrorToCurrentServerThread({
+        serverThread,
+        routeThreadRef,
+        targetThreadId,
+      });
+      if (isCurrentServerThread) {
+        setStoreThreadError(targetThreadId, nextError);
+        return;
+      }
+      const localDraftErrorKey = draftId ?? targetThreadId;
+      setLocalDraftErrorsByDraftId((existing) => {
+        if ((existing[localDraftErrorKey] ?? null) === nextError) {
+          return existing;
+        }
+        return {
+          ...existing,
+          [localDraftErrorKey]: nextError,
+        };
+      });
+    },
+    [draftId, routeThreadRef, serverThread, setStoreThreadError],
+  );
   const [isConnecting, _setIsConnecting] = useState(false);
-  const [isRevertingCheckpoint, setIsRevertingCheckpoint] = useState(false);
   const [respondingRequestIds, setRespondingRequestIds] = useState<ApprovalRequestId[]>([]);
   const [respondingUserInputRequestIds, setRespondingUserInputRequestIds] = useState<
     ApprovalRequestId[]
@@ -1411,7 +1420,7 @@ export default function ChatView(props: ChatViewProps) {
     activePendingUserInput: activePendingUserInput?.requestId ?? null,
     threadError: activeThread?.error,
   });
-  const isWorking = phase === "running" || isSendBusy || isConnecting || isRevertingCheckpoint;
+  const isWorking = phase === "running" || isSendBusy || isConnecting;
   const queuedComposerItems = useComposerQueueStore(
     (store) => store.queueItemsByThreadKey[routeThreadKey] ?? EMPTY_QUEUED_COMPOSER_ITEMS,
   );
@@ -1483,59 +1492,38 @@ export default function ChatView(props: ChatViewProps) {
     serverMessages,
     threadId,
   ]);
+  const timelineEntries = useMemo(
+    () => deriveTimelineEntries(timelineMessages, EMPTY_TIMELINE_PROPOSED_PLANS, workLogEntries),
+    [timelineMessages, workLogEntries],
+  );
+  const editableUserMessageIds = useMemo(() => {
+    if (!activeThread || activeThread.entries.length === 0) {
+      return new Set<MessageId>();
+    }
+
+    const userMessageIds = new Set(
+      activeThread.messages.flatMap((message) => (message.role === "user" ? [message.id] : [])),
+    );
+    const editableIds = new Set<MessageId>();
+    for (const entry of activeThread.entries) {
+      if (
+        entry.kind === "message" &&
+        entry.messageId !== null &&
+        userMessageIds.has(entry.messageId)
+      ) {
+        editableIds.add(entry.messageId);
+      }
+    }
+    return editableIds;
+  }, [activeThread]);
   const activeEditingUserMessageId =
     editingUserMessageId &&
+    editableUserMessageIds.has(editingUserMessageId) &&
     timelineMessages.some(
       (message) => message.id === editingUserMessageId && message.role === "user",
     )
       ? editingUserMessageId
       : null;
-  const timelineEntries = useMemo(
-    () => deriveTimelineEntries(timelineMessages, EMPTY_TIMELINE_PROPOSED_PLANS, workLogEntries),
-    [timelineMessages, workLogEntries],
-  );
-  const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
-    useTurnDiffSummaries(activeThread);
-  const turnDiffSummaryByAssistantMessageId = useMemo(() => {
-    const byMessageId = new Map<MessageId, TurnDiffSummary>();
-    for (const summary of turnDiffSummaries) {
-      if (!summary.assistantMessageId) continue;
-      byMessageId.set(summary.assistantMessageId, summary);
-    }
-    return byMessageId;
-  }, [turnDiffSummaries]);
-  const revertTurnCountByUserMessageId = useMemo(() => {
-    const byUserMessageId = new Map<MessageId, number>();
-    for (let index = 0; index < timelineEntries.length; index += 1) {
-      const entry = timelineEntries[index];
-      if (!entry || entry.kind !== "message" || entry.message.role !== "user") {
-        continue;
-      }
-
-      for (let nextIndex = index + 1; nextIndex < timelineEntries.length; nextIndex += 1) {
-        const nextEntry = timelineEntries[nextIndex];
-        if (!nextEntry || nextEntry.kind !== "message") {
-          continue;
-        }
-        if (nextEntry.message.role === "user") {
-          break;
-        }
-        const summary = turnDiffSummaryByAssistantMessageId.get(nextEntry.message.id);
-        if (!summary) {
-          continue;
-        }
-        const turnCount =
-          summary.checkpointTurnCount ?? inferredCheckpointTurnCountByTurnId[summary.turnId];
-        if (typeof turnCount !== "number") {
-          break;
-        }
-        byUserMessageId.set(entry.message.id, Math.max(0, turnCount - 1));
-        break;
-      }
-    }
-
-    return byUserMessageId;
-  }, [inferredCheckpointTurnCountByTurnId, timelineEntries, turnDiffSummaryByAssistantMessageId]);
 
   const onBeginEditUserMessage = useCallback(
     (messageId: MessageId) => {
@@ -1545,7 +1533,11 @@ export default function ChatView(props: ChatViewProps) {
       const msg = activeThread.messages.find(
         (entry) => entry.id === messageId && entry.role === "user",
       );
-      if (!msg) {
+      if (!msg || !findThreadMessageEntry(activeThread, messageId)) {
+        setThreadError(
+          activeThread.id,
+          "Cannot edit this message because it is missing a thread entry.",
+        );
         return;
       }
 
@@ -1559,6 +1551,7 @@ export default function ChatView(props: ChatViewProps) {
       editComposerDraftTarget,
       isServerThread,
       setComposerDraftPrompt,
+      setThreadError,
     ],
   );
 
@@ -1675,33 +1668,6 @@ export default function ChatView(props: ChatViewProps) {
     null;
   const hasReachedSplitLimit =
     (activeTerminalGroup?.terminalIds.length ?? 0) >= MAX_TERMINALS_PER_GROUP;
-  const setThreadError = useCallback(
-    (targetThreadId: ThreadId | null, error: string | null) => {
-      if (!targetThreadId) return;
-      const nextError = sanitizeThreadErrorMessage(error);
-      const isCurrentServerThread = shouldWriteThreadErrorToCurrentServerThread({
-        serverThread,
-        routeThreadRef,
-        targetThreadId,
-      });
-      if (isCurrentServerThread) {
-        setStoreThreadError(targetThreadId, nextError);
-        return;
-      }
-      const localDraftErrorKey = draftId ?? targetThreadId;
-      setLocalDraftErrorsByDraftId((existing) => {
-        if ((existing[localDraftErrorKey] ?? null) === nextError) {
-          return existing;
-        }
-        return {
-          ...existing,
-          [localDraftErrorKey]: nextError,
-        };
-      });
-    },
-    [draftId, routeThreadRef, serverThread, setStoreThreadError],
-  );
-
   const focusComposer = useCallback(() => {
     composerRef.current?.focusAtEnd();
   }, [composerRef]);
@@ -2162,51 +2128,6 @@ export default function ChatView(props: ChatViewProps) {
     });
   }, []);
 
-  const revertThreadToTurnCountSilent = useCallback(
-    async (turnCount: number): Promise<boolean> => {
-      const api = readEnvironmentApi(environmentId);
-      if (!api || !activeThread || isRevertingCheckpoint) {
-        return false;
-      }
-      if (phase === "running" || isSendBusy || isConnecting) {
-        setThreadError(
-          activeThread.id,
-          "Interrupt the current turn before editing earlier messages.",
-        );
-        return false;
-      }
-      setIsRevertingCheckpoint(true);
-      setThreadError(activeThread.id, null);
-      try {
-        await api.orchestration.dispatchCommand({
-          type: "thread.checkpoint.revert",
-          commandId: newCommandId(),
-          threadId: activeThread.id,
-          turnCount,
-          createdAt: new Date().toISOString(),
-        });
-        return true;
-      } catch (err) {
-        setThreadError(
-          activeThread.id,
-          err instanceof Error ? err.message : "Failed to revert thread state.",
-        );
-        return false;
-      } finally {
-        setIsRevertingCheckpoint(false);
-      }
-    },
-    [
-      activeThread,
-      environmentId,
-      isConnecting,
-      isRevertingCheckpoint,
-      isSendBusy,
-      phase,
-      setThreadError,
-    ],
-  );
-
   const onSubmitEditUserMessage = useCallback(
     async (messageId: MessageId, input: InlineEditSubmitInput): Promise<boolean> => {
       const api = readEnvironmentApi(environmentId);
@@ -2233,19 +2154,16 @@ export default function ChatView(props: ChatViewProps) {
         (message) => message.id === messageId && message.role === "user",
       );
       const originalEntry = findThreadMessageEntry(activeThread, messageId);
-      const branchEditParentEntryId = originalEntry?.parentEntryId ?? null;
-      const branchEditAvailable = originalEntry !== null;
+      const parentEntryId = originalEntry?.parentEntryId ?? null;
       const unchanged =
         originalMessage?.text === compiledTurn.trimmedPrompt && composerImages.length === 0;
       if (!hasSendableContent || !originalMessage || unchanged) {
         return false;
       }
-
-      const revertTurn = revertTurnCountByUserMessageId.get(messageId);
-      if (!branchEditAvailable && typeof revertTurn !== "number") {
+      if (!originalEntry) {
         setThreadError(
           activeThread.id,
-          "Cannot edit this message because no checkpoint is available.",
+          "Cannot edit this message because it is missing a thread entry.",
         );
         return false;
       }
@@ -2261,16 +2179,6 @@ export default function ChatView(props: ChatViewProps) {
 
       sendInFlightRef.current = true;
       try {
-        if (!branchEditAvailable) {
-          if (typeof revertTurn !== "number") {
-            return false;
-          }
-          const reverted = await revertThreadToTurnCountSilent(revertTurn);
-          if (!reverted) {
-            return false;
-          }
-        }
-
         beginLocalDispatch({ preparingWorktree: false });
         isAtBottomRef.current = true;
         showScrollDebouncer.current.cancel();
@@ -2314,7 +2222,7 @@ export default function ChatView(props: ChatViewProps) {
           titleSeed: activeThread.title,
           runtimeMode: input.runtimeMode,
           interactionMode: input.interactionMode,
-          ...(branchEditAvailable ? { parentEntryId: branchEditParentEntryId } : {}),
+          parentEntryId,
           createdAt: messageCreatedAt,
         });
         turnStartSucceeded = true;
@@ -2355,8 +2263,6 @@ export default function ChatView(props: ChatViewProps) {
       isServerThread,
       persistThreadSettingsForNextTurn,
       resetLocalDispatch,
-      revertThreadToTurnCountSilent,
-      revertTurnCountByUserMessageId,
       setThreadError,
       timelineMessages,
     ],
@@ -3339,11 +3245,6 @@ export default function ChatView(props: ChatViewProps) {
         setShowScrollToBottom={setShowScrollToBottom}
         showScrollDebouncer={showScrollDebouncer}
       />
-      <BooleanResetSync
-        key={`revert:${activeThread?.id ?? ""}`}
-        setValue={setIsRevertingCheckpoint}
-        value={false}
-      />
       <ActiveThreadComposerFocusSync
         key={[activeThread?.id ?? "", focusComposerVersion, terminalState.terminalOpen].join("\0")}
         activeThreadId={activeThread?.id ?? null}
@@ -3547,7 +3448,7 @@ export default function ChatView(props: ChatViewProps) {
                   activeThreadId={activeThread.id}
                   timelineCacheKey={activeTimelineCacheKey}
                   activeThreadEnvironmentId={activeThread.environmentId}
-                  revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
+                  editableUserMessageIds={editableUserMessageIds}
                   onImageExpand={onExpandTimelineImage}
                   markdownCwd={gitCwd ?? undefined}
                   projectRoot={activeProjectRoot}

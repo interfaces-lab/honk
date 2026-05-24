@@ -104,7 +104,7 @@ interface MessagesTimelineProps {
   bottomClearancePx?: number | undefined;
   timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
   timelineEntries: ReturnType<typeof deriveTimelineEntries>;
-  revertTurnCountByUserMessageId: Map<MessageId, number>;
+  editableUserMessageIds: ReadonlySet<MessageId>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
   activeThreadId: ThreadId;
@@ -131,7 +131,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   bottomClearancePx = 0,
   timelineControllerRef,
   timelineEntries,
-  revertTurnCountByUserMessageId,
+  editableUserMessageIds,
   onImageExpand,
   activeThreadEnvironmentId,
   activeThreadId,
@@ -151,10 +151,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         timelineEntries,
         isWorking,
         activeTurnStartedAt,
-        revertTurnCountByUserMessageId,
+        editableUserMessageIds,
         projectRoot,
       }),
-    [timelineEntries, isWorking, activeTurnStartedAt, revertTurnCountByUserMessageId, projectRoot],
+    [timelineEntries, isWorking, activeTurnStartedAt, editableUserMessageIds, projectRoot],
   );
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
@@ -927,7 +927,7 @@ const HumanTimelineRow = memo(function HumanTimelineRow({
     <div className="box-border flex w-full min-w-0 px-0">
       <HumanMessage
         message={row.message}
-        revertTurnCount={row.revertTurnCount}
+        editAvailable={row.editAvailable}
         isEditing={isEditingUserMessage}
         editDisabled={editUserMessagesDisabled}
         isServerThread={ctx.isServerThread}

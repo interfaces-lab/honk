@@ -21,7 +21,7 @@ function buildProps() {
     editUserMessagesDisabled: false,
     activeTurnStartedAt: null,
     timelineControllerRef: createRef<MessagesTimelineController | null>(),
-    revertTurnCountByUserMessageId: new Map(),
+    editableUserMessageIds: new Set<MessageId>(),
     isServerThread: true,
     onBeginEditUserMessage: vi.fn(),
     onImageExpand: vi.fn(),
@@ -90,17 +90,12 @@ function buildConversationEntries(pairCount: number, startIndex = 0): TimelineEn
   return entries;
 }
 
-function buildRevertTurnCountByUserMessageId(timelineEntries: readonly TimelineEntry[]) {
-  const revertTurnCountByUserMessageId = new Map<MessageId, number>();
-  let turnCount = 0;
-  for (const entry of timelineEntries) {
-    if (entry.kind !== "message" || entry.message.role !== "user") {
-      continue;
-    }
-    revertTurnCountByUserMessageId.set(entry.message.id, turnCount);
-    turnCount += 1;
-  }
-  return revertTurnCountByUserMessageId;
+function buildEditableUserMessageIds(timelineEntries: readonly TimelineEntry[]) {
+  return new Set(
+    timelineEntries.flatMap((entry) =>
+      entry.kind === "message" && entry.message.role === "user" ? [entry.message.id] : [],
+    ),
+  );
 }
 
 function buildRunningWorkEntries(count: number): TimelineEntry[] {
@@ -456,7 +451,7 @@ describe("messages-timeline", () => {
   it("keeps the sticky user row unique and editable while scrolling", async () => {
     const props = buildProps();
     const timelineEntries = buildConversationEntries(20);
-    props.revertTurnCountByUserMessageId = buildRevertTurnCountByUserMessageId(timelineEntries);
+    props.editableUserMessageIds = buildEditableUserMessageIds(timelineEntries);
     const screen = await renderTimeline(props, timelineEntries);
 
     try {

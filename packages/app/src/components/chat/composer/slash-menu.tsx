@@ -39,6 +39,7 @@ import {
   type ComposerTriggerKind,
 } from "./prompt-triggers";
 import { basenameOfPath } from "../shared/vscode-entry-icons";
+import type { ComposerMenuPopoverAnchor } from "./composer-menu-anchor";
 import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
 import { formatProviderSkillDisplayName } from "./provider-skills";
 import {
@@ -51,8 +52,28 @@ import {
 } from "@multi/ui/command";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
 
+/**
+ * Composer command menu (`/` slash commands and `@` mentions).
+ *
+ * Both menus render through `ComposerCommandMenuPositioned`. See AGENTS.md
+ * "Composer command menu" for the full contract. In short:
+ *
+ * - Anchor: live DOM rect from `prompt-editor.tsx` caret span via
+ *   `composerMenuPopoverAnchorFromElement` in `input.tsx`.
+ * - Placement: `side="top"`, `positionMethod="fixed"`, dropdown collision
+ *   (`shift`, `fallbackAxisSide: "none"`), no popover remount on caret moves.
+ * - Sizing: popup shell needs fixed width AND height caps (`w-*` + `max-w-*`,
+ *   `max-h-[342px]`). Inner `CommandList` scrolls; do not rely on
+ *   `min(20rem, var(--available-height))` alone during Base UI measurement.
+ */
 const PATH_QUERY_DEBOUNCE_MS = 120;
 const COMPOSER_MENU_SIDE_OFFSET = 4;
+/** Match Base UI dropdown menus: shift within viewport, never flip to a side axis. */
+const COMPOSER_MENU_COLLISION_AVOIDANCE = {
+  side: "shift",
+  align: "shift",
+  fallbackAxisSide: "none",
+} as const;
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
 type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -665,7 +686,7 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
       }}
     >
       <div
-        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-multi-stroke-secondary bg-[color-mix(in_srgb,var(--multi-chat-bubble-opaque-background)_96%,transparent)] font-multi text-body text-multi-fg-primary shadow-multi-popup motion-reduce:animate-none motion-reduce:transition-none"
+        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-multi-stroke-secondary bg-(--multi-composer-popup-surface-background) font-multi text-body text-multi-fg-primary shadow-multi-popup motion-reduce:animate-none motion-reduce:transition-none"
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >
@@ -788,40 +809,46 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
   );
 });
 
-type ComposerCommandMenuAnchor = ComponentProps<typeof PopoverPopup>["anchor"];
-
 type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandMenu> & {
   open: boolean;
-  anchor: ComposerCommandMenuAnchor;
-  anchorVersion: number;
+  anchor: ComposerMenuPopoverAnchor;
+  anchorRevision: number;
 };
 
 export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPositioned(
   props: ComposerCommandMenuPositionedProps,
 ) {
-  const { open, anchor, anchorVersion, menuKind, ...menuProps } = props;
+  const { open, anchor, menuKind, ...menuProps } = props;
+  const menuOpen = open;
   const collisionPadding = useMemo(
     () => (open ? composerMenuCollisionPadding() : { top: 8, bottom: 8, left: 8, right: 8 }),
     [open],
   );
   const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
 
-  // The anchor is a function that returns the hidden caret span. Remount when
-  // its version changes so Base UI resolves the updated DOM caret position.
+  // Floating UI reads the live DOM anchor rect; anchorRevision repositions after
+  // Cursor-style MutationObserver updates on the hidden caret span.
   return (
-    <Popover open={open}>
+    <Popover open={menuOpen}>
       <PopoverPopup
-        key={anchorVersion}
         anchor={anchor}
         align="start"
+        collisionAvoidance={COMPOSER_MENU_COLLISION_AVOIDANCE}
         collisionBoundary={collisionBoundary}
         collisionPadding={collisionPadding}
         initialFocus={false}
         instant
+        positionMethod="fixed"
         side="top"
         sideOffset={COMPOSER_MENU_SIDE_OFFSET}
         className={cn(
           "z-[70] border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
+          // Cap height to match width pattern. Base UI's auto-resize measures
+          // the popup with `--available-height: max-content`, which breaks
+          // `min(20rem, var(--available-height))` and lets the popup grow to
+          // its natural height; the positioner then gets sized past the
+          // viewport and collision-shifts the popup off-screen.
+          "max-h-[342px]",
           menuKind === "mentions"
             ? "w-64 max-w-[min(16rem,var(--available-width))]"
             : "w-80 max-w-[min(20rem,var(--available-width))]",

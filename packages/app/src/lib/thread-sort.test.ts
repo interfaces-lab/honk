@@ -18,6 +18,8 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     interactionMode: "default",
     session: null,
     messages: [],
+    activeEntryId: null,
+    entries: [],
     proposedPlans: [],
     error: null,
     createdAt: "2026-03-09T10:00:00.000Z",

@@ -27,7 +27,6 @@ import {
   type ReactElement,
   type RefObject,
 } from "react";
-import { flushSync } from "react-dom";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import {
@@ -49,6 +48,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { formatProviderSkillDisplayName } from "./provider-skills";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
+import { cva } from "class-variance-authority";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 const SURROUND_SYMBOLS: [string, string][] = [
@@ -146,8 +146,7 @@ interface ComposerPromptEditorProps {
   className?: string | undefined;
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
   caretAnchorRef?: RefObject<HTMLSpanElement | null>;
-  caretTriggerExpandedOffset?: number | null;
-  onCaretAnchorRectChange?: (rect: DOMRectReadOnly) => void;
+  commandMenuOpen?: boolean;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
   onChange: (
     nextValue: string,
@@ -487,13 +486,7 @@ function emitMeasuredMultiline(
     return;
   }
   measuredMultilineRef.current = nextMultiline;
-  if (nextMultiline) {
-    flushSync(() => {
-      callback(true);
-    });
-    return;
-  }
-  callback(false);
+  callback(nextMultiline);
 }
 
 function notifyComposerEditorMultiline(
@@ -505,13 +498,7 @@ function notifyComposerEditorMultiline(
     return;
   }
   measuredMultilineRef.current = nextMultiline;
-  if (nextMultiline) {
-    flushSync(() => {
-      callback(true);
-    });
-    return;
-  }
-  callback(false);
+  callback(nextMultiline);
 }
 
 function usePromptEditorControlledStateSync({
@@ -569,7 +556,7 @@ function usePromptEditorControlledStateSync({
     if (shouldRewriteEditorState) {
       editor.commands.setContent(nextDoc, { emitUpdate: false });
     }
-    if (shouldRewriteEditorState || isFocused) {
+    if (shouldRewriteEditorState || previousSnapshot.cursor !== normalizedCursor) {
       setSelectionAtCollapsedOffset(editor, normalizedCursor);
     }
     emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
@@ -605,25 +592,19 @@ function usePromptEditorMultilineMeasurement({
 }
 
 // Mirrors Cursor's caret-tracked menu anchor: a real 1x1 span whose position is
-// rewritten from `coordsAtPos`. Keep the DOM span as the menu reference; cached
-// virtual rects drift when hero/queued composer layouts move after measurement.
+// rewritten from `coordsAtPos(selection.from)`. Floating UI reads the live DOM
+// rect via MutationObserver-driven updates, not React state per keystroke.
 function usePromptEditorCaretAnchor({
+  commandMenuOpen,
   editor,
   anchorElementRef,
-  onCaretAnchorRectChangeRef,
-  triggerOffset,
-  triggerOffsetRef,
 }: {
+  commandMenuOpen: boolean;
   editor: Editor | null;
   anchorElementRef: RefObject<HTMLSpanElement | null>;
-  onCaretAnchorRectChangeRef: RefObject<ComposerPromptEditorProps["onCaretAnchorRectChange"]>;
-  triggerOffset: number | null;
-  triggerOffsetRef: RefObject<number | null>;
 }) {
-  // Trigger state is committed after the editor transaction that detected it, so
-  // the offset must be an effect dependency instead of relying on transactions.
   useLayoutSyncEffect(() => {
-    if (!editor) return;
+    if (!editor || !commandMenuOpen) return;
     const anchor = anchorElementRef.current;
     const editorDom = editor.view.dom;
     const anchorRoot =
@@ -632,27 +613,21 @@ function usePromptEditorCaretAnchor({
 
     let frame: number | null = null;
     const place = () => {
-      const triggerOffset = triggerOffsetRef.current;
-      const pmPos =
-        typeof triggerOffset === "number"
-          ? textToPosition(editor.state.doc, triggerOffset, "expanded")
-          : editor.state.selection.head;
+      const pmPos = Math.min(
+        Math.max(editor.state.selection.from, 1),
+        editor.state.doc.content.size,
+      );
       let coords: ReturnType<typeof editor.view.coordsAtPos>;
       try {
         coords = editor.view.coordsAtPos(pmPos);
       } catch {
         coords = editor.view.coordsAtPos(editor.state.selection.head);
       }
-      // Base UI's side="top" offset is measured from the reference rect's top
-      // edge. The hidden span therefore exposes the caret line's lower edge as
-      // its top edge; using coords.top puts the menu a full line too high.
-      const anchorY = coords.bottom;
-      const rect = anchorRoot.getBoundingClientRect();
-      const anchorRect = new DOMRect(coords.left, anchorY, 1, 1);
-      anchor.style.left = `${anchorRect.left - rect.left}px`;
-      anchor.style.top = `${anchorRect.top - rect.top}px`;
+      // Cursor top-start placement uses coords.top for side="top".
+      const anchorRootRect = anchorRoot.getBoundingClientRect();
+      anchor.style.left = `${coords.left - anchorRootRect.left}px`;
+      anchor.style.top = `${coords.top - anchorRootRect.top}px`;
       anchor.style.bottom = "auto";
-      onCaretAnchorRectChangeRef.current?.(anchorRect);
     };
     const schedulePlace = () => {
       place();
@@ -685,7 +660,7 @@ function usePromptEditorCaretAnchor({
       }
       observer.disconnect();
     };
-  }, [editor, triggerOffset]);
+  }, [anchorElementRef, commandMenuOpen, editor]);
 }
 
 function selectionContainsComposerAtom(editor: Editor, from: number, to: number): boolean {
@@ -766,6 +741,26 @@ function applySurroundInput(
   return true;
 }
 
+const composerPromptChipVariants = cva(
+  cn(
+    "inline-flex min-w-0 max-w-(--multi-composer-chip-max-width) select-none items-center gap-0.5",
+    "bg-transparent px-0 py-0 font-multi font-normal align-middle",
+    "-mt-[3px] -ml-px text-(length:--multi-composer-chip-font-size) leading-(--multi-composer-chip-line-height)",
+  ),
+  {
+    variants: {
+      kind: {
+        mention: "text-(--multi-composer-mention-text)",
+        command: "rounded-[2px] text-(--multi-composer-command-text)",
+        skill: "rounded-[2px] text-(--multi-composer-command-text)",
+        "inline-token": "text-(--multi-composer-mention-text)",
+      },
+    },
+  },
+);
+
+const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
+
 function ComposerMentionNodeView(props: NodeViewProps): ReactElement {
   const path = stringAttr(props.node.attrs.path);
   const label = nullableStringAttr(props.node.attrs.label) ?? basenameOfPath(path);
@@ -774,7 +769,7 @@ function ComposerMentionNodeView(props: NodeViewProps): ReactElement {
   const theme = resolvedThemeFromDocument();
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
+      className={composerPromptChipVariants({ kind: "mention" })}
       contentEditable={false}
       data-read-only-mention=""
       data-type="mentionNode"
@@ -783,13 +778,13 @@ function ComposerMentionNodeView(props: NodeViewProps): ReactElement {
       <img
         alt=""
         aria-hidden="true"
-        className="size-3.5 shrink-0 opacity-85"
+        className={cn(composerPromptChipIconClass, "opacity-90")}
         loading="lazy"
         src={getVscodeIconUrlForEntry(path, inferEntryKindFromPath(path), theme)}
       />
-      <span className="truncate select-none text-body">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
       {lineStart !== null && lineEnd !== null ? (
-        <span className="text-multi-fg-tertiary">
+        <span className="shrink-0 text-(length:--multi-composer-chip-line-range-font-size) text-(--multi-composer-mention-line-range-text)">
           {lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`}
         </span>
       ) : null}
@@ -814,12 +809,12 @@ function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
   const label = name ? `/${name}` : "/";
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
+      className={composerPromptChipVariants({ kind: "command" })}
       contentEditable={false}
       data-type="commandNode"
       spellCheck={false}
     >
-      <button type="button" tabIndex={-1} className="truncate text-left">
+      <button type="button" tabIndex={-1} className="truncate text-left hover:underline">
         {label}
       </button>
     </span>
@@ -852,15 +847,15 @@ function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
   const description = nullableStringAttr(props.node.attrs.skillDescription);
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
+      className={composerPromptChipVariants({ kind: "skill" })}
       contentEditable={false}
       data-composer-skill-chip="true"
       spellCheck={false}
     >
-      <span aria-hidden="true" className="size-3.5 shrink-0 opacity-85">
-        <SkillIcon className="size-3.5" />
+      <span aria-hidden="true" className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}>
+        <SkillIcon className="size-(--multi-composer-chip-icon-size)" />
       </span>
-      <span className="truncate select-none text-body">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 
@@ -888,12 +883,12 @@ function ComposerInlineTokenNodeView(props: NodeViewProps): ReactElement {
   const sourceUri = nullableStringAttr(props.node.attrs.sourceUri);
   const chip = (
     <span
-      className="inline-flex max-w-full select-none items-center gap-1 rounded-sm border border-multi-stroke-tertiary bg-multi-bg-quaternary px-1.5 py-px font-multi text-body font-medium text-multi-fg-primary align-middle"
+      className={composerPromptChipVariants({ kind: "inline-token" })}
       contentEditable={false}
       data-composer-inline-token-chip="true"
       spellCheck={false}
     >
-      <span className="truncate select-none text-body">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 
@@ -1136,8 +1131,7 @@ export const ComposerPromptEditor = forwardRef<
     className,
     hotkeyTargetRef,
     caretAnchorRef,
-    caretTriggerExpandedOffset = null,
-    onCaretAnchorRectChange,
+    commandMenuOpen = false,
     onMeasuredMultilineChange,
     onChange,
     onCommandKeyDown,
@@ -1147,20 +1141,18 @@ export const ComposerPromptEditor = forwardRef<
 ) {
   const onChangeRef = useRef(onChange);
   const onCommandKeyDownRef = useRef(onCommandKeyDown);
-  const onCaretAnchorRectChangeRef = useRef(onCaretAnchorRectChange);
   const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
   const onPasteRef = useRef(onPaste);
   const placeholderRef = useRef(placeholder);
+  const commandMenuOpenRef = useRef(commandMenuOpen);
   const skillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
   onChangeRef.current = onChange;
   onCommandKeyDownRef.current = onCommandKeyDown;
-  onCaretAnchorRectChangeRef.current = onCaretAnchorRectChange;
   onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
   onPasteRef.current = onPaste;
   placeholderRef.current = placeholder;
+  commandMenuOpenRef.current = commandMenuOpen;
   const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
-  const caretTriggerOffsetRef = useRef<number | null>(caretTriggerExpandedOffset);
-  caretTriggerOffsetRef.current = caretTriggerExpandedOffset;
   const setCaretAnchor = useCallback(
     (element: HTMLSpanElement | null) => {
       localCaretAnchorRef.current = element;
@@ -1192,7 +1184,7 @@ export const ComposerPromptEditor = forwardRef<
   const beforeInputHandlerRef = useRef<(event: InputEvent) => boolean>(() => false);
 
   const editorClassName = cn(
-    "block w-full whitespace-pre-wrap break-words text-foreground outline-hidden [&>p]:m-0 [&>p.is-editor-empty:first-child::before]:float-left [&>p.is-editor-empty:first-child::before]:h-0 [&>p.is-editor-empty:first-child::before]:max-w-full [&>p.is-editor-empty:first-child::before]:overflow-hidden [&>p.is-editor-empty:first-child::before]:text-ellipsis [&>p.is-editor-empty:first-child::before]:whitespace-nowrap [&>p.is-editor-empty:first-child::before]:text-[13px] [&>p.is-editor-empty:first-child::before]:font-normal [&>p.is-editor-empty:first-child::before]:leading-[1.5] [&>p.is-editor-empty:first-child::before]:text-multi-fg-quaternary [&>p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
+    "block w-full whitespace-pre-wrap break-words outline-hidden [&>p]:m-0 [&>p.is-editor-empty:first-child::before]:float-left [&>p.is-editor-empty:first-child::before]:h-0 [&>p.is-editor-empty:first-child::before]:max-w-full [&>p.is-editor-empty:first-child::before]:overflow-hidden [&>p.is-editor-empty:first-child::before]:text-ellipsis [&>p.is-editor-empty:first-child::before]:whitespace-nowrap [&>p.is-editor-empty:first-child::before]:font-normal [&>p.is-editor-empty:first-child::before]:text-multi-fg-quaternary [&>p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
     className,
   );
 
@@ -1274,13 +1266,13 @@ export const ComposerPromptEditor = forwardRef<
 
   keyDownHandlerRef.current = (event: KeyboardEvent) => {
     if (!editor) return false;
-    if (
+    const menuOpen = commandMenuOpenRef.current;
+    const isAlwaysMenuKey = event.key === "Escape" || event.key === "Enter";
+    const isMenuNavigationKey =
       event.key === "ArrowDown" ||
       event.key === "ArrowUp" ||
-      event.key === "Escape" ||
-      event.key === "Enter" ||
-      event.key === "Tab"
-    ) {
+      (event.key === "Tab" && !event.shiftKey);
+    if (isAlwaysMenuKey || (menuOpen && isMenuNavigationKey)) {
       const handled = onCommandKeyDownRef.current?.(event.key, event) ?? false;
       if (handled) {
         event.preventDefault();
@@ -1358,11 +1350,9 @@ export const ComposerPromptEditor = forwardRef<
   });
 
   usePromptEditorCaretAnchor({
+    commandMenuOpen,
     editor,
     anchorElementRef: localCaretAnchorRef,
-    onCaretAnchorRectChangeRef,
-    triggerOffset: caretTriggerExpandedOffset,
-    triggerOffsetRef: caretTriggerOffsetRef,
   });
 
   const focusAt = useCallback(

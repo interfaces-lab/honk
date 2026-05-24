@@ -201,13 +201,13 @@ function buildThreadEntryPath(
 ):
   | {
       readonly ok: true;
-      readonly entries: NonNullable<OrchestrationThread["entries"]>;
+      readonly entries: OrchestrationThread["entries"];
     }
   | {
       readonly ok: false;
       readonly detail: string;
     } {
-  const entries = thread.entries ?? [];
+  const entries = thread.entries;
   const path = resolveThreadEntryPath({
     entries,
     entryId: leafEntryId,

@@ -146,7 +146,7 @@ function buildTree(index: TreeIndex): TreeNode[] {
 
 function activePathSet(
   entries: readonly ThreadTreeEntry[],
-  activeEntryId: ThreadEntryId | null | undefined,
+  activeEntryId: ThreadEntryId | null,
 ): Set<ThreadEntryId> {
   const entryIds = new Set<ThreadEntryId>();
   for (const entry of activePathEntries(entries, activeEntryId)) {
@@ -157,7 +157,7 @@ function activePathSet(
 
 function activePathEntries(
   entries: readonly ThreadTreeEntry[],
-  activeEntryId: ThreadEntryId | null | undefined,
+  activeEntryId: ThreadEntryId | null,
 ): ThreadTreeEntry[] {
   if (!activeEntryId) {
     return [];
@@ -192,7 +192,7 @@ export const ThreadTreePanel = memo(function ThreadTreePanel({
   disableRegenerate = false,
   disableEdit = false,
 }: ThreadTreePanelProps) {
-  const entries = thread.entries ?? [];
+  const entries = thread.entries;
   const index = useMemo(() => buildTreeIndex(entries), [entries]);
   const rows = useMemo(() => flattenTree(buildTree(index)), [index]);
   const pathEntryIds = useMemo(

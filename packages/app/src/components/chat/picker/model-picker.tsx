@@ -211,10 +211,10 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
       </PopoverTrigger>
       <PopoverPopup
         align={popoverPlacement.align}
-        instant
         initialFocus={false}
         side={popoverPlacement.side}
-        className="z-[70] border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:p-0"
+        data-chat-model-picker-popup=""
+        className="z-[70] border-0 bg-transparent p-0 shadow-none before:hidden transition-none data-starting-style:scale-100 data-starting-style:opacity-100 data-ending-style:scale-100 data-ending-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:p-0"
       >
         <ModelPickerContent
           activeInstanceId={activeInstanceId}

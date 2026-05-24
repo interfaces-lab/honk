@@ -1,6 +1,5 @@
 import type { EnvironmentId, GitBranch } from "@multi/contracts";
 import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@multi/shared/git";
-import { Menu as BaseMenu } from "@base-ui/react/menu";
 import { Button } from "@multi/ui/button";
 import { Input } from "@multi/ui/input";
 import {
@@ -8,9 +7,7 @@ import {
   MenuItem,
   MenuPopup,
   MenuTrigger,
-  workbenchMenuItemClassName,
   workbenchMenuLabelClassName,
-  workbenchMenuPopupClassName,
 } from "@multi/ui/menu";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
@@ -288,7 +285,7 @@ export function BranchToolbar(props: BranchToolbarProps) {
         </MenuPopup>
       </Menu>
 
-      <BaseMenu.Root
+      <Menu
         open={branchOpen}
         onOpenChange={(open) => {
           setBranchOpen(open);
@@ -297,7 +294,7 @@ export function BranchToolbar(props: BranchToolbarProps) {
           }
         }}
       >
-        <BaseMenu.Trigger
+        <MenuTrigger
           render={
             <Button
               size="sm"
@@ -318,93 +315,89 @@ export function BranchToolbar(props: BranchToolbarProps) {
             )}
             aria-hidden
           />
-        </BaseMenu.Trigger>
-        <BaseMenu.Portal>
-          <BaseMenu.Positioner align="start" className="z-[70] outline-none" side="bottom" sideOffset={4}>
-            <BaseMenu.Popup
-              className={cn(workbenchMenuPopupClassName, "w-72 overflow-hidden p-0")}
-              data-slot="menu-popup"
-            >
-              <div className="flex max-h-[min(24rem,var(--available-height))] min-h-0 flex-col">
-                <div className="border-multi-stroke-tertiary shrink-0 border-b p-1.5">
-                  <Input
-                    ref={focusBranchInput}
-                    placeholder="Search branches..."
-                    size="sm"
-                    value={branchQuery}
-                    onChange={(event) => setBranchQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      stopMenuSearchBubbling(event);
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        setBranchOpen(false);
-                      }
-                    }}
-                  />
-                </div>
-                <div className="min-h-0 overflow-y-auto p-1">
-                  {showPullRequestItem && parsedPullRequestReference ? (
-                    <BaseMenu.Item
-                      className={workbenchMenuItemClassName}
-                      onClick={() => {
-                        setBranchOpen(false);
-                        props.onCheckoutPullRequest(parsedPullRequestReference);
-                      }}
+        </MenuTrigger>
+        <MenuPopup
+          align="start"
+          side="bottom"
+          variant="workbench"
+          className="w-72 overflow-hidden p-0 [&>div]:flex [&>div]:max-h-[min(24rem,var(--available-height))] [&>div]:min-h-0 [&>div]:flex-col [&>div]:overflow-hidden [&>div]:p-0"
+        >
+          <div className="border-multi-stroke-tertiary shrink-0 border-b p-1.5">
+            <Input
+              ref={focusBranchInput}
+              placeholder="Search branches..."
+              size="sm"
+              value={branchQuery}
+              onChange={(event) => setBranchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                stopMenuSearchBubbling(event);
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setBranchOpen(false);
+                }
+              }}
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-1">
+            {showPullRequestItem && parsedPullRequestReference ? (
+              <MenuItem
+                variant="workbench"
+                onClick={() => {
+                  setBranchOpen(false);
+                  props.onCheckoutPullRequest(parsedPullRequestReference);
+                }}
+              >
+                <span>Checkout Pull Request</span>
+              </MenuItem>
+            ) : null}
+            {branchMenuSections.map((section) => (
+              <div key={section.title}>
+                <div className={workbenchMenuLabelClassName}>{section.title}</div>
+                {section.branches.map((branch) => {
+                  const branchHasLocalChanges = props.hasLocalChanges && branch.current;
+                  return (
+                    <MenuItem
+                      key={branchSelectionKey(branch)}
+                      variant="workbench"
+                      className={cn(
+                        branch.name === selectedBranch &&
+                          "bg-multi-bg-tertiary text-multi-fg-primary",
+                      )}
+                      onClick={() => selectBranch(branch)}
                     >
-                      <span>Checkout Pull Request</span>
-                    </BaseMenu.Item>
-                  ) : null}
-                  {branchMenuSections.map((section) => (
-                    <div key={section.title}>
-                      <div className={workbenchMenuLabelClassName}>{section.title}</div>
-                      {section.branches.map((branch) => {
-                        const branchHasLocalChanges = props.hasLocalChanges && branch.current;
-                        return (
-                          <BaseMenu.Item
-                            key={branchSelectionKey(branch)}
-                            className={cn(
-                              workbenchMenuItemClassName,
-                              branch.name === selectedBranch &&
-                                "bg-multi-bg-tertiary text-multi-fg-primary",
-                            )}
-                            onClick={() => selectBranch(branch)}
-                          >
-                            <BranchIconWithState hasLocalChanges={branchHasLocalChanges} />
-                            <span className="min-w-0 flex-1 truncate text-left">{branch.name}</span>
-                            {branchHasLocalChanges ? (
-                              <span className="shrink-0 text-[11px] text-multi-fg-tertiary">
-                                with changes
-                              </span>
-                            ) : null}
-                            {branch.name === selectedBranch ? (
-                              <IconCheckmark1Small
-                                className="size-3.5 shrink-0 text-multi-fg-primary"
-                                aria-hidden
-                              />
-                            ) : null}
-                          </BaseMenu.Item>
-                        );
-                      })}
-                    </div>
-                  ))}
-                  {branchesQuery.isFetching && branchMenuSections.length === 0 ? (
-                    <div className="px-2 py-4 text-center font-multi text-[12px] leading-4 text-multi-fg-tertiary">
-                      Loading branches...
-                    </div>
-                  ) : null}
-                  {branchMenuSections.length === 0 &&
-                  !showPullRequestItem &&
-                  !branchesQuery.isFetching ? (
-                    <div className="px-2 py-4 text-center font-multi text-[12px] leading-4 text-multi-fg-tertiary">
-                      No branches found
-                    </div>
-                  ) : null}
-                </div>
+                      <BranchIconWithState hasLocalChanges={branchHasLocalChanges} />
+                      <span className="min-w-0 flex-1 truncate text-left">{branch.name}</span>
+                      {branchHasLocalChanges ? (
+                        <span className="shrink-0 text-[11px] text-multi-fg-tertiary">
+                          with changes
+                        </span>
+                      ) : null}
+                      {branch.name === selectedBranch ? (
+                        <IconCheckmark1Small
+                          className="size-3.5 shrink-0 text-multi-fg-primary"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </MenuItem>
+                  );
+                })}
               </div>
-            </BaseMenu.Popup>
-          </BaseMenu.Positioner>
-        </BaseMenu.Portal>
-      </BaseMenu.Root>
+            ))}
+            {branchesQuery.isFetching && branchMenuSections.length === 0 ? (
+              <div className="px-2 py-4 text-center font-multi text-[12px] leading-4 text-multi-fg-tertiary">
+                Loading branches...
+              </div>
+            ) : null}
+            {branchMenuSections.length === 0 &&
+            !showPullRequestItem &&
+            !branchesQuery.isFetching ? (
+              <div className="px-2 py-4 text-center font-multi text-[12px] leading-4 text-multi-fg-tertiary">
+                No branches found
+              </div>
+            ) : null}
+          </div>
+        </MenuPopup>
+      </Menu>
     </div>
   );
 }

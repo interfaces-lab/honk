@@ -18,6 +18,9 @@ import {
   QueuedComposerEditBanner,
   QueuedComposerItemsPanel,
 } from "~/components/chat/composer/queued-items-panel";
+import { ChatMessageBubble, MessageMeta } from "~/components/chat/message/message-surface";
+import { useMountEffect } from "~/hooks/use-mount-effect";
+import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { cn } from "~/lib/utils";
 import type { QueuedComposerItem } from "~/stores/chat-send-queue";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
@@ -254,28 +257,61 @@ function DemoModeButtonGroup<
   );
 }
 
-function DemoTranscriptBubble(props: { entry: DemoTranscriptEntry }) {
+function DemoTranscriptEntry(props: { entry: DemoTranscriptEntry }) {
   const modeLabel = formatModePair(props.entry);
+
+  if (props.entry.role === "user") {
+    return (
+      <ChatMessageBubble
+        role="user"
+        body={
+          <>
+            {props.entry.text}
+            <MessageMeta>{modeLabel}</MessageMeta>
+          </>
+        }
+      />
+    );
+  }
+
+  if (props.entry.role === "assistant") {
+    return (
+      <div className="box-border flex w-full min-w-0 pt-(--chat-timeline-assistant-top-inset)">
+        <ChatMessageBubble
+          role="assistant"
+          body={
+            <>
+              {props.entry.text}
+              <MessageMeta>{modeLabel}</MessageMeta>
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        "max-w-[78%] rounded-xl border border-multi-stroke-tertiary px-3 py-2 text-body leading-relaxed",
-        props.entry.role === "user"
-          ? "ml-auto bg-multi-bg-elevated text-multi-fg-primary"
-          : props.entry.role === "assistant"
-            ? "mr-auto bg-transparent text-multi-fg-secondary"
-            : props.entry.role === "steer"
-              ? "ml-auto border-(--cursor-stroke-green-primary) bg-(--composer-mode-chat-background) text-(--composer-mode-chat-text)"
-              : "mx-auto max-w-[88%] border-dashed bg-multi-bg-quinary text-multi-fg-tertiary",
-      )}
-    >
-      <div>{props.entry.text}</div>
-      <div className="mt-1 text-caption text-multi-fg-tertiary">{modeLabel}</div>
-    </div>
+    <p className="m-0 px-1 text-center text-caption text-multi-fg-tertiary/55">
+      {props.entry.role === "steer" ? "Steered" : "Queued"}: {props.entry.text} ({modeLabel})
+    </p>
   );
 }
 
 export function QueuedMessageDemoPage() {
+  useMountEffect(() => {
+    const previousGlassMode = document.body.getAttribute("data-multi-glass-mode");
+    document.body.setAttribute("data-multi-glass-mode", "true");
+    syncAppearanceVibrancy();
+    return () => {
+      if (previousGlassMode === null) {
+        document.body.removeAttribute("data-multi-glass-mode");
+      } else {
+        document.body.setAttribute("data-multi-glass-mode", previousGlassMode);
+      }
+      syncAppearanceVibrancy();
+    };
+  });
+
   const nextDebugIdRef = useRef(4);
   const [items, setItems] = useState<QueuedComposerItem[]>(() => createInitialQueueItems());
   const [transcriptEntries, setTranscriptEntries] = useState<DemoTranscriptEntry[]>(() =>
@@ -298,7 +334,11 @@ export function QueuedMessageDemoPage() {
   );
   const [debugResponseIndex, setDebugResponseIndex] = useState(0);
 
-  const showQueue = items.length > 0 && !pendingApproval && !pendingUserInput && !inlineEdit;
+  const showQueue =
+    items.length > 0 && !pendingApproval && !pendingUserInput && !inlineEdit;
+  const composerVariant = compact ? "compact" : "expanded";
+  const composerExpanded =
+    !compact || draftPrompt.includes("\n") || draftPrompt.length > 96;
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingItemId) ?? null,
     [editingItemId, items],
@@ -491,7 +531,10 @@ export function QueuedMessageDemoPage() {
     : "Send message";
 
   return (
-    <div className="flex h-full min-h-svh flex-1 flex-col bg-multi-editor">
+    <div
+      className="flex h-full min-h-svh flex-1 flex-col bg-(--multi-chat-surface-background,var(--multi-color-chat))"
+      data-component="root"
+    >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="border-b border-multi-stroke-tertiary px-4 py-3">
           <div className="mx-auto flex w-full max-w-agent-chat flex-wrap items-center gap-2">
@@ -560,85 +603,111 @@ export function QueuedMessageDemoPage() {
             />
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-          <div className="mx-auto flex w-full max-w-agent-chat flex-col gap-4">
-            {transcriptEntries.map((entry) => (
-              <DemoTranscriptBubble key={entry.id} entry={entry} />
-            ))}
-          </div>
-        </div>
-        <div className="shrink-0 px-4 pb-4">
-          <div className="mx-auto flex w-full max-w-agent-chat flex-col gap-2">
-            {showQueue ? (
-              <QueuedComposerItemsPanel
-                items={items}
-                editingItemId={editingItemId}
-                isBusy={busy}
-                compact={compact}
-                expanded={expanded}
-                onExpandedChange={setExpanded}
-                onBeginEdit={beginEditingQueuedItem}
-                onRemove={removeQueuedItem}
-                onSendNow={(itemId) => {
-                  const item = items.find((candidate) => candidate.id === itemId);
-                  if (item) {
-                    captureQueuedItem(item);
-                  }
-                  removeQueuedItem(itemId);
-                }}
-                onReorder={(itemId, targetItemId, insertAfter) =>
-                  setItems((existing) => reorderItems(existing, itemId, targetItemId, insertAfter))
-                }
-              />
-            ) : (
-              <div className="rounded-lg border border-dashed border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-detail text-multi-fg-tertiary">
-                Queue panel hidden by the active composer state toggle.
-              </div>
-            )}
-            <div
-              className={cn(
-                "overflow-hidden border border-multi-stroke-tertiary bg-(--multi-chat-bubble-background) shadow-sm",
-                inlineEdit ? "rounded-xl" : "rounded-[var(--multi-composer-radius-expanded)]",
-              )}
-              data-multi-composer-surface=""
-            >
-              {editingItem ? (
-                <QueuedComposerEditBanner onCancelEdit={cancelEditingQueuedItem} />
-              ) : null}
-              <div className="px-3 py-2">
-                <Textarea
-                  unstyled
-                  value={draftPrompt}
-                  onChange={(event) => setDraftPrompt(event.currentTarget.value)}
-                  aria-label="Debug message"
-                  className="w-full"
-                />
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-3 py-2">
-                <div className="text-detail text-multi-fg-tertiary">
-                  {busy
-                    ? `Running · ${formatSendWhileRunningBehaviorLabel(sendWhileRunningBehavior)}`
-                    : "Ready"}{" "}
-                  · {formatModePair({ runtimeMode, interactionMode })}
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <div className="absolute inset-0 overflow-y-auto px-4 pt-(--chat-timeline-padding-block-start) pb-36">
+            <div className="mx-auto flex w-full max-w-agent-chat flex-col">
+              {transcriptEntries.map((entry) => (
+                <div key={entry.id} className="pb-(--chat-timeline-row-gap)">
+                  <DemoTranscriptEntry entry={entry} />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => captureDraft("queue")}
-                    disabled={draftPrompt.trim().length === 0 || editingItem !== null}
+              ))}
+            </div>
+          </div>
+          <div className="pointer-events-auto absolute inset-x-0 bottom-0 isolate z-30 px-4 pb-4 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:-ml-[50vw] before:w-screen before:bg-(--multi-chat-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:-ml-[50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-chat-surface-background),transparent)]">
+            <div className="relative z-1 mx-auto flex w-full max-w-agent-chat flex-col gap-2">
+              {showQueue ? (
+                <QueuedComposerItemsPanel
+                  items={items}
+                  editingItemId={editingItemId}
+                  isBusy={busy}
+                  compact={compact}
+                  expanded={expanded}
+                  onExpandedChange={setExpanded}
+                  onBeginEdit={beginEditingQueuedItem}
+                  onRemove={removeQueuedItem}
+                  onSendNow={(itemId) => {
+                    const item = items.find((candidate) => candidate.id === itemId);
+                    if (item) {
+                      captureQueuedItem(item);
+                    }
+                    removeQueuedItem(itemId);
+                  }}
+                  onReorder={(itemId, targetItemId, insertAfter) =>
+                    setItems((existing) =>
+                      reorderItems(existing, itemId, targetItemId, insertAfter),
+                    )
+                  }
+                />
+              ) : null}
+              <div
+                className={cn(
+                  "group relative w-full max-w-full min-w-0 cursor-text overflow-hidden",
+                  inlineEdit && "rounded-xl",
+                )}
+                data-has-header={editingItem ? "" : undefined}
+                data-layout={inlineEdit ? "inline-edit" : undefined}
+                data-multi-composer-surface=""
+                data-expanded={composerExpanded ? "" : undefined}
+                data-variant={composerVariant}
+              >
+                {editingItem ? (
+                  <QueuedComposerEditBanner onCancelEdit={cancelEditingQueuedItem} />
+                ) : null}
+                <div
+                  className={cn(
+                    "relative z-[1] min-w-0 rounded-[inherit]",
+                    inlineEdit ? "flex flex-col" : "",
+                  )}
+                  data-multi-composer-shell={inlineEdit ? undefined : "thread"}
+                  {...(composerExpanded && !inlineEdit ? { "data-expanded": "" } : {})}
+                >
+                  <div
+                    className={cn(
+                      "block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-conversation text-foreground outline-hidden",
+                      compact && !composerExpanded
+                        ? "min-h-[var(--multi-composer-editor-min-height)] max-h-none pl-1 [&>p]:leading-[1.5]"
+                        : "min-h-[var(--multi-composer-editor-min-height)] max-h-[var(--multi-composer-editor-max-height)] [&>p]:leading-[1.5]",
+                    )}
                   >
-                    Queue
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => captureDraft("primary")}
-                    disabled={draftPrompt.trim().length === 0}
+                    <Textarea
+                      unstyled
+                      value={draftPrompt}
+                      onChange={(event) => setDraftPrompt(event.currentTarget.value)}
+                      aria-label="Debug message"
+                      className="w-full"
+                    />
+                  </div>
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                    data-chat-input-footer="true"
+                    data-multi-composer-toolbar="bottom"
                   >
-                    {editingItem ? "Save queued message" : primaryDraftActionLabel}
-                  </Button>
+                    <div className="text-detail text-multi-fg-tertiary">
+                      {busy
+                        ? `Running · ${formatSendWhileRunningBehaviorLabel(sendWhileRunningBehavior)}`
+                        : "Ready"}{" "}
+                      · {formatModePair({ runtimeMode, interactionMode })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => captureDraft("queue")}
+                        disabled={draftPrompt.trim().length === 0 || editingItem !== null}
+                      >
+                        Queue
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => captureDraft("primary")}
+                        disabled={draftPrompt.trim().length === 0}
+                      >
+                        {editingItem ? "Save queued message" : primaryDraftActionLabel}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

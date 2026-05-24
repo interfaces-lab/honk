@@ -171,10 +171,7 @@ function ModelPickerOpenSync(props: {
     if (props.openSearchSeed !== undefined) {
       props.setSearchQuery(props.openSearchSeed);
     }
-    const frame = window.requestAnimationFrame(() => {
-      props.focusSearchInput();
-    });
-    return () => window.cancelAnimationFrame(frame);
+    props.focusSearchInput();
   });
 
   return null;
@@ -478,7 +475,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   );
 
   return (
-    <div className="relative flex max-h-64 min-h-0 w-72 max-w-full min-w-64 flex-col overflow-hidden rounded-lg border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup">
+    <div className="ui-model-picker-panel relative flex max-h-64 min-h-0 w-72 max-w-full min-w-64 flex-col overflow-hidden rounded-lg border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup">
       {props.popoverOpen ? (
         <ModelPickerOpenSync
           key="open"

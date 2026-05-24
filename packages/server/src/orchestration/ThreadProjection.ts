@@ -839,7 +839,7 @@ const makeThreadProjection = Effect.gen(function* () {
                 archivedAt: row.archivedAt,
                 deletedAt: row.deletedAt,
                 messages: messagesByThread.get(row.threadId) ?? [],
-                activeEntryId: row.activeEntryId ?? null,
+                activeEntryId: row.activeEntryId,
                 entries: entriesByThread.get(row.threadId) ?? [],
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                 activities: activitiesByThread.get(row.threadId) ?? [],
@@ -1295,7 +1295,7 @@ const makeThreadProjection = Effect.gen(function* () {
           }
           return message;
         }),
-        activeEntryId: threadRow.value.activeEntryId ?? null,
+        activeEntryId: threadRow.value.activeEntryId,
         entries: entryRows.map((row) => ({
           id: row.entryId,
           threadId: row.threadId,
