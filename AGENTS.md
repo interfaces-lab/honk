@@ -61,9 +61,3 @@ Both menus share `ComposerCommandMenuPositioned` in `packages/app/src/components
 
 - Use `side="top"`, `align="start"`, `positionMethod="fixed"`, `instant`, and `COMPOSER_MENU_COLLISION_AVOIDANCE` (`shift` + `fallbackAxisSide: "none"`). Do not use default Base UI popover collision (`fallbackAxisSide: "end"`) — tall menus flip to a side axis and land off-screen.
 - Do not remount the popover on anchor updates (`key={anchorRevision}` causes jitter). Parent re-renders from `anchorRevision` are enough.
-
-**Width and height must be symmetric**
-
-- Popup width: fixed rem cap **and** `max-w-[min(Nrem,var(--available-width))]` on the popover shell.
-- Popup height: fixed `max-h-[342px]` on the popover shell (matches Cursor). Base UI auto-resize measures with `--available-height: max-content`, which invalidates `min(20rem, var(--available-height))` on inner lists — without a shell max-height, tall `@` results balloon the positioner and collision-shift the menu off-screen.
-- Scrolling belongs on `CommandList` (`max-h-[min(20rem,var(--available-height))]`), not the popover viewport (`overflow-visible` is intentional).
