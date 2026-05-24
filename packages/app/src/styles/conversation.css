@@ -80,7 +80,7 @@
   min-height: var(--multi-composer-compact-shell-min-height);
 }
 
-[data-multi-composer-shell] [data-prompt-editor-input="true"] {
+[data-multi-composer-shell="thread"] [data-prompt-editor-input="true"] {
   font-size: var(--multi-composer-editor-font-size);
   line-height: var(--multi-composer-editor-line-height);
   min-height: var(--multi-composer-editor-min-height);
@@ -95,17 +95,27 @@
   max-height: var(--multi-composer-editor-max-height-pill);
 }
 
-[data-multi-composer-shell] [data-prompt-editor-input="true"] p {
+[data-prompt-editor-root] .ProseMirror p {
   margin: 0;
   line-height: var(--multi-composer-editor-line-height);
   white-space: pre-wrap;
 }
 
-[data-multi-composer-shell]
-  [data-prompt-editor-input="true"]
-  > p.is-editor-empty:first-child::before {
-  font-size: var(--multi-composer-editor-font-size);
-  line-height: var(--multi-composer-editor-line-height);
+[data-prompt-editor-root] .ProseMirror p.is-editor-empty:first-child {
+  position: relative;
+}
+
+[data-prompt-editor-root] .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  color: var(--multi-fg-quaternary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 [data-multi-composer-shell="thread"][data-expanded=""] {

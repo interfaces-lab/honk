@@ -1113,6 +1113,7 @@ function createComposerExtensions(placeholderRef: { current: string }) {
     }),
     Placeholder.configure({
       placeholder: () => placeholderRef.current,
+      showOnlyWhenEditable: false,
     }),
     ComposerCommandExtension,
     ComposerMentionExtension,
@@ -1147,6 +1148,7 @@ export const ComposerPromptEditor = forwardRef<
   const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
   const onPasteRef = useRef(onPaste);
   const placeholderRef = useRef(placeholder);
+  const decoratedPlaceholderRef = useRef(placeholder);
   const commandMenuOpenRef = useRef(commandMenuOpen);
   const skillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
   onChangeRef.current = onChange;
@@ -1186,11 +1188,6 @@ export const ComposerPromptEditor = forwardRef<
   const keyDownHandlerRef = useRef<(event: KeyboardEvent) => boolean>(() => false);
   const beforeInputHandlerRef = useRef<(event: InputEvent) => boolean>(() => false);
 
-  const editorClassName = cn(
-    "block w-full whitespace-pre-wrap break-words outline-hidden [&>p]:m-0 [&>p.is-editor-empty:first-child::before]:float-left [&>p.is-editor-empty:first-child::before]:h-0 [&>p.is-editor-empty:first-child::before]:max-w-full [&>p.is-editor-empty:first-child::before]:overflow-hidden [&>p.is-editor-empty:first-child::before]:text-ellipsis [&>p.is-editor-empty:first-child::before]:whitespace-nowrap [&>p.is-editor-empty:first-child::before]:font-normal [&>p.is-editor-empty:first-child::before]:text-multi-fg-quaternary [&>p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
-    className,
-  );
-
   const editor = useEditor(
     {
       extensions: extensionsRef.current,
@@ -1200,7 +1197,7 @@ export const ComposerPromptEditor = forwardRef<
       shouldRerenderOnTransaction: false,
       editorProps: {
         attributes: {
-          class: editorClassName,
+          class: cn("block w-full whitespace-pre-wrap break-words outline-hidden", className),
           "data-testid": "composer-editor",
           "data-prompt-editor-input": "true",
           tabindex: "-1",
@@ -1235,6 +1232,12 @@ export const ComposerPromptEditor = forwardRef<
     },
     [],
   );
+
+  useLayoutSyncEffect(() => {
+    if (!editor || decoratedPlaceholderRef.current === placeholder) return;
+    decoratedPlaceholderRef.current = placeholder;
+    editor.view.dispatch(editor.state.tr);
+  }, [editor, placeholder]);
 
   const readSnapshot = useCallback((): ComposerPromptEditorSnapshot => {
     if (!editor) {
@@ -1483,7 +1486,7 @@ export const ComposerPromptEditor = forwardRef<
   );
 
   return (
-    <div ref={hotkeyTargetRef} className="relative w-full min-w-0">
+    <div ref={hotkeyTargetRef} className="relative w-full min-w-0" data-prompt-editor-root="true">
       {editor ? (
         <PromptEditorEditableSync key={String(disabled)} disabled={disabled} editor={editor} />
       ) : null}

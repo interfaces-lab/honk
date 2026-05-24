@@ -48,7 +48,7 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toMatch(
       /\[data-multi-composer-surface\]\[data-variant="compact"\]:not\(\[data-expanded=""\]/,
     );
-    expect(inputSource).toContain('"data-multi-composer-shell": "thread"');
+    expect(inputSource).toContain("data-multi-composer-shell={composerShellMode}");
     expect(inputSource).toContain('data-multi-composer-toolbar={isThreadShell ? "bottom"');
     expect(inputSource).not.toMatch(/isDockComposerSingleLine\s*\?\s*"rounded-full"/);
     expect(inputSource).not.toMatch(/composerVariant === "compact"\s*\?\s*"rounded-2xl"/);
@@ -59,6 +59,18 @@ describe("Composer CSS contract", () => {
     expect(inputSource).not.toMatch(/"thread-pill":\s*"min-h-5\s+max-h-5/);
     expect(conversationCss).toContain('[data-prompt-editor-input="true"]');
     expect(conversationCss).toContain("--multi-composer-editor-line-height:");
+  });
+
+  it("renders Tiptap placeholders from stable composer CSS", () => {
+    expect(promptEditorSource).toContain("Placeholder.configure");
+    expect(promptEditorSource).toContain("showOnlyWhenEditable: false");
+    expect(promptEditorSource).not.toContain("content-[attr(data-placeholder)]");
+    expect(conversationCss).toContain(".ProseMirror p.is-editor-empty:first-child::before");
+    expect(conversationCss).toContain("content: attr(data-placeholder)");
+    expect(conversationCss).toContain("position: absolute");
+    expect(conversationCss).toContain("color: var(--multi-fg-quaternary)");
+    expect(promptEditorSource).toContain('data-prompt-editor-root="true"');
+    expect(promptEditorSource).toContain("editor.view.dispatch(editor.state.tr)");
   });
 });
 

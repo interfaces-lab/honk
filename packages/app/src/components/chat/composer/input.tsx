@@ -2289,12 +2289,8 @@ export const ComposerInput = memo(
                 composerProviderState.ultrathinkActive &&
                   "shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset]",
               )}
-              {...(composerShellMode === "thread"
-                ? {
-                    "data-multi-composer-shell": "thread",
-                    ...(isDockComposerExpanded ? { "data-expanded": "" } : {}),
-                  }
-                : {})}
+              data-multi-composer-shell={composerShellMode}
+              {...(isDockComposerExpanded ? { "data-expanded": "" } : {})}
             >
               {isDockComposerSingleLine && !isComposerApprovalState ? (
                 <>

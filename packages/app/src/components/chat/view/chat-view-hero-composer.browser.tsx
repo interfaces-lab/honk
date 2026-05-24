@@ -23,6 +23,39 @@ import {
 installChatViewBrowserHarness();
 
 describe("ChatView hero composer CSS", () => {
+  it("shows the new-agent editor placeholder", async () => {
+    setDraftThreadWithoutWorktree();
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      initialPath: `/draft/${DraftId.make(THREAD_KEY)}`,
+    });
+
+    try {
+      const editor = await waitForComposerEditor();
+      const root = editor.closest<HTMLElement>("[data-prompt-editor-root]");
+      const shell = editor.closest<HTMLElement>("[data-multi-composer-shell]");
+      expect(root).not.toBeNull();
+      expect(shell?.dataset.multiComposerShell).toBe("new-agent");
+
+      await vi.waitFor(
+        () => {
+          const paragraph = editor.querySelector("p.is-editor-empty:first-child");
+          expect(paragraph?.getAttribute("data-placeholder")).toBe(
+            "Ask for follow-up changes or attach images",
+          );
+          expect(getComputedStyle(paragraph as Element, "::before").content).toContain(
+            "Ask for follow-up",
+          );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("applies new-agent editor min-height from conversation.css vars", async () => {
     setDraftThreadWithoutWorktree();
 
