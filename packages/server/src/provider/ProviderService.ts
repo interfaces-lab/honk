@@ -490,10 +490,10 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
               ? "request"
               : input.discardResumeCursor === true
                 ? "discarded"
-              : effectiveResumeCursor !== undefined &&
-                  persistedBinding?.providerInstanceId === input.providerInstanceId
-                ? "persisted"
-                : "none",
+                : effectiveResumeCursor !== undefined &&
+                    persistedBinding?.providerInstanceId === input.providerInstanceId
+                  ? "persisted"
+                  : "none",
           "provider.resume_cursor.present": effectiveResumeCursor !== undefined,
           "provider.cwd.source":
             input.cwd !== undefined
@@ -879,7 +879,9 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
           "provider.operation": "read-thread",
           "provider.kind": routed.adapter.provider,
           "provider.thread_id": input.threadId,
-          ...(input.providerThreadId ? { "provider.native_thread_id": input.providerThreadId } : {}),
+          ...(input.providerThreadId
+            ? { "provider.native_thread_id": input.providerThreadId }
+            : {}),
         });
         return yield* routed.adapter.readThread(input);
       }).pipe(

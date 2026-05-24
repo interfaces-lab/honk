@@ -1927,7 +1927,10 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
             .filter((entry) => entry.info.role === "assistant")
             .map((entry) => ({
               id: TurnId.make(entry.info.id),
-              items: [openCodeMessageSnapshotItem(entry.info), ...entry.parts.map(openCodePartSnapshotItem)],
+              items: [
+                openCodeMessageSnapshotItem(entry.info),
+                ...entry.parts.map(openCodePartSnapshotItem),
+              ],
             }));
 
           return {

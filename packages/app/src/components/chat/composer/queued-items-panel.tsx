@@ -6,6 +6,10 @@ import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import { SidebarButton, SidebarItem } from "~/components/shell/shared/sidebar-button";
 import { cn } from "~/lib/utils";
 
+function handleQueuedItemDragEnter(event: DragEvent<HTMLElement>) {
+  event.preventDefault();
+}
+
 function formatQueuedComposerItemPreview(item: QueuedComposerItem): string {
   const prompt = item.sendContext.prompt.trim().replace(/\s+/g, " ");
   if (prompt.length > 0) {
@@ -280,9 +284,7 @@ const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
     event.dataTransfer.dropEffect = "move";
   };
 
-  const handleDragEnter = (event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-  };
+  const handleDragEnter = handleQueuedItemDragEnter;
 
   const handleDragLeave = (event: DragEvent<HTMLElement>) => {
     const relatedTarget = event.relatedTarget;

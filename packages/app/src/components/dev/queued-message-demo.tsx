@@ -334,11 +334,9 @@ export function QueuedMessageDemoPage() {
   );
   const [debugResponseIndex, setDebugResponseIndex] = useState(0);
 
-  const showQueue =
-    items.length > 0 && !pendingApproval && !pendingUserInput && !inlineEdit;
+  const showQueue = items.length > 0 && !pendingApproval && !pendingUserInput && !inlineEdit;
   const composerVariant = compact ? "compact" : "expanded";
-  const composerExpanded =
-    !compact || draftPrompt.includes("\n") || draftPrompt.length > 96;
+  const composerExpanded = !compact || draftPrompt.includes("\n") || draftPrompt.length > 96;
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingItemId) ?? null,
     [editingItemId, items],

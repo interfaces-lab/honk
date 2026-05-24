@@ -82,8 +82,7 @@
   word-break: break-word;
 }
 
-[data-multi-composer-shell="thread"]:not([data-expanded=""])
-  [data-prompt-editor-input="true"] {
+[data-multi-composer-shell="thread"]:not([data-expanded=""]) [data-prompt-editor-input="true"] {
   max-height: var(--multi-composer-editor-max-height-pill);
 }
 
@@ -93,7 +92,9 @@
   white-space: pre-wrap;
 }
 
-[data-multi-composer-shell] [data-prompt-editor-input="true"] > p.is-editor-empty:first-child::before {
+[data-multi-composer-shell]
+  [data-prompt-editor-input="true"]
+  > p.is-editor-empty:first-child::before {
   font-size: var(--multi-composer-editor-font-size);
   line-height: var(--multi-composer-editor-line-height);
 }
@@ -117,13 +118,11 @@
   display: contents;
 }
 
-[data-multi-composer-surface]:not([data-multi-composer-header]):not([data-layout="inline-edit"]) {
+[data-multi-composer-surface]:not([data-multi-composer-header], [data-layout="inline-edit"]) {
   border-radius: var(--multi-composer-radius-expanded);
 }
 
-[data-multi-composer-surface][data-variant="compact"]:not([data-expanded=""]):not(
-    [data-multi-composer-header]
-  ):not([data-layout="inline-edit"]) {
+[data-multi-composer-surface][data-variant="compact"]:not([data-expanded=""], [data-multi-composer-header], [data-layout="inline-edit"]) {
   border-radius: var(--multi-composer-radius-compact);
 }
 
@@ -168,11 +167,17 @@
   pointer-events: none;
 }
 
-:is([data-message-bubble-surface], [data-multi-composer-surface]:not([data-multi-composer-header])) {
+:is(
+  [data-message-bubble-surface],
+  [data-multi-composer-surface]:not([data-multi-composer-header])
+) {
   box-shadow: var(--multi-shadow-card);
 }
 
-:is([data-message-bubble-surface], [data-multi-composer-surface]:not([data-multi-composer-header]))::after {
+:is(
+  [data-message-bubble-surface],
+  [data-multi-composer-surface]:not([data-multi-composer-header])
+)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -187,20 +192,27 @@
   box-shadow: inset 0 0 0 1px var(--multi-stroke-secondary);
 }
 
-body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface]) {
+body[data-multi-glass-mode="true"]
+  :is([data-message-bubble-surface], [data-multi-composer-surface]) {
   backdrop-filter: blur(var(--multi-composer-blur, 10px));
   -webkit-backdrop-filter: blur(var(--multi-composer-blur, 10px));
 }
 
 body.multi-reduce-transparency[data-multi-glass-mode="true"]
-  :is([data-message-bubble-surface], [data-multi-composer-surface]:not([data-multi-composer-header])) {
+  :is(
+    [data-message-bubble-surface],
+    [data-multi-composer-surface]:not([data-multi-composer-header])
+  ) {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   background-color: var(--multi-composer-surface-opaque-background);
 }
 
 body.multi-reduce-transparency[data-multi-glass-mode="true"]
-  :is([data-message-bubble-surface], [data-multi-composer-surface]:not([data-multi-composer-header]))::after {
+  :is(
+    [data-message-bubble-surface],
+    [data-multi-composer-surface]:not([data-multi-composer-header])
+  )::after {
   box-shadow: inset 0 0 0 1px var(--multi-stroke-tertiary);
 }
 

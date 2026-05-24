@@ -3240,12 +3240,10 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     },
   );
 
-  const readThread: ClaudeAdapterShape["readThread"] = Effect.fn("readThread")(
-    function* (input) {
-      const context = yield* requireSession(input.threadId);
-      return yield* snapshotThread(context);
-    },
-  );
+  const readThread: ClaudeAdapterShape["readThread"] = Effect.fn("readThread")(function* (input) {
+    const context = yield* requireSession(input.threadId);
+    return yield* snapshotThread(context);
+  });
 
   const rollbackThread: ClaudeAdapterShape["rollbackThread"] = Effect.fn("rollbackThread")(
     function* (threadId, numTurns) {

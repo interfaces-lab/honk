@@ -531,22 +531,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId)),
       ) ?? null)
     : null;
-  const composerDraftInteractionMode = useComposerDraftStore((store) => {
-    if (!routeTarget) {
-      return null;
-    }
-    return (
-      store.getComposerDraft(
-        routeTarget.kind === "server" ? routeTarget.threadRef : routeTarget.draftId,
-      )?.interactionMode ?? null
-    );
-  });
   const runtimeMode = settings.defaultRuntimeMode;
-  const interactionMode =
-    composerDraftInteractionMode ??
-    activeThread?.interactionMode ??
-    activeDraftThread?.interactionMode ??
-    DEFAULT_INTERACTION_MODE;
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
   const sourceProposedPlanThreadId =

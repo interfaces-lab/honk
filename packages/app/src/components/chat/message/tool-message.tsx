@@ -20,6 +20,10 @@ import {
 
 type ToolCallStatus = "loading" | "completed" | "error";
 
+function stopSubagentStatusRowKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+  event.stopPropagation();
+}
+
 interface ToolCallMessageProps {
   workEntry: WorkLogEntry;
   projectRoot: string | undefined;
@@ -158,9 +162,7 @@ function SubagentStatusRow({
       subagent,
     });
   };
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-  };
+  const handleKeyDown = stopSubagentStatusRowKeyDown;
 
   const previewUpdateSync = isPreviewOpen ? (
     <SubagentPreviewUpdateSync

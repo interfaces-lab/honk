@@ -2,7 +2,6 @@ import {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -736,6 +735,49 @@ function ComposerDraftResetSync({
   return null;
 }
 
+function ComposerMenuAnchorObserverSync({
+  composerMenuAnchorRef,
+  setComposerMenuAnchorRevision,
+}: {
+  composerMenuAnchorRef: RefObject<HTMLSpanElement | null>;
+  setComposerMenuAnchorRevision: Dispatch<SetStateAction<number>>;
+}) {
+  useMountEffect(() => {
+    if (typeof MutationObserver === "undefined") {
+      return;
+    }
+    const anchor = composerMenuAnchorRef.current;
+    if (!anchor) {
+      return;
+    }
+
+    // Cursor observes the fake caret's style attribute and refreshes Floating
+    // UI when it moves. The anchor reads live DOM rects; this revision bump
+    // repositions the popover without caching stale coordinates in React.
+    const observer = new MutationObserver(() => {
+      setComposerMenuAnchorRevision((value) => value + 1);
+    });
+    observer.observe(anchor, { attributeFilter: ["style"] });
+    return () => {
+      observer.disconnect();
+    };
+  });
+
+  return null;
+}
+
+function ComposerMenuAnchorRevisionSync({
+  setComposerMenuAnchorRevision,
+}: {
+  setComposerMenuAnchorRevision: Dispatch<SetStateAction<number>>;
+}) {
+  useMountEffect(() => {
+    setComposerMenuAnchorRevision((value) => value + 1);
+  });
+
+  return null;
+}
+
 function closestPointerTargetElement(target: Node): Element | null {
   return target instanceof Element ? target : target.parentElement;
 }
@@ -1426,35 +1468,6 @@ export const ComposerInput = memo(
 
     const [composerMenuAnchorRevision, setComposerMenuAnchorRevision] = useState(0);
 
-    useEffect(() => {
-      if (!composerMenuOpen || typeof MutationObserver === "undefined") {
-        return;
-      }
-      const anchor = composerMenuAnchorRef.current;
-      if (!anchor) {
-        return;
-      }
-
-      // Cursor observes the fake caret's style attribute and refreshes Floating
-      // UI when it moves. The anchor reads live DOM rects; this revision bump
-      // repositions the popover without caching stale coordinates in React.
-      const observer = new MutationObserver(() => {
-        setComposerMenuAnchorRevision((value) => value + 1);
-      });
-      observer.observe(anchor, { attributeFilter: ["style"] });
-      return () => {
-        observer.disconnect();
-      };
-    }, [composerMenuOpen]);
-
-    useEffect(() => {
-      if (!composerMenuOpen) {
-        return;
-      }
-      // Reposition when async mention/slash results change popup height.
-      setComposerMenuAnchorRevision((value) => value + 1);
-    }, [composerMenuOpen, composerMenuItems.length]);
-
     const handleComposerContainerClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
       if (composerMenuOpenRef.current) return;
       const target = event.target;
@@ -1836,6 +1849,19 @@ export const ComposerInput = memo(
           <ComposerCommandMenuPointerDismissSync
             key={dismissComposerCommandMenuVersion}
             dismissComposerCommandMenu={dismissComposerCommandMenu}
+          />
+        ) : null}
+        {composerMenuOpen ? (
+          <ComposerMenuAnchorObserverSync
+            key="anchor-observer"
+            composerMenuAnchorRef={composerMenuAnchorRef}
+            setComposerMenuAnchorRevision={setComposerMenuAnchorRevision}
+          />
+        ) : null}
+        {composerMenuOpen ? (
+          <ComposerMenuAnchorRevisionSync
+            key={String(composerMenuItems.length)}
+            setComposerMenuAnchorRevision={setComposerMenuAnchorRevision}
           />
         ) : null}
         {composerImageAttachmentPersistenceSync}

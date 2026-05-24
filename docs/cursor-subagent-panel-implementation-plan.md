@@ -15,13 +15,13 @@ This is a **UI wiring issue**, not a provider/adapter gap for Codex.
 
 What exists today:
 
-| Piece | Status |
-| --- | --- |
-| Codex `subagent.*` normalization | Working |
-| `WorkLogSubagent` + status rows in timeline | Partial — rows render under Task tool |
-| `packages/app/src/stores/subagent-preview-store.ts` | Created, **not consumed** |
-| Composer followup tray stack | **Not implemented** |
-| Click → open preview | Opens inline `CollapsiblePanel` in timeline (wrong layer) |
+| Piece                                               | Status                                                    |
+| --------------------------------------------------- | --------------------------------------------------------- |
+| Codex `subagent.*` normalization                    | Working                                                   |
+| `WorkLogSubagent` + status rows in timeline         | Partial — rows render under Task tool                     |
+| `packages/app/src/stores/subagent-preview-store.ts` | Created, **not consumed**                                 |
+| Composer followup tray stack                        | **Not implemented**                                       |
+| Click → open preview                                | Opens inline `CollapsiblePanel` in timeline (wrong layer) |
 
 What Cursor actually does on subagent click:
 
@@ -170,50 +170,50 @@ The Cursor bundle is minified. Use byte offsets instead of line numbers.
 
 ### Exact JS Tokens
 
-| Exact token | Bundle offset | Meaning for Multi |
-| --- | ---: | --- |
-| `Start multitasking` | `38118423` | Client-level multitask entrypoint text. |
-| `Build in Parallel` | `4328967`, `38110644` | Plan/build action that routes to parallel work. |
-| `subagentInfo` | `15287955` | First-class subagent request metadata. |
-| `agentTranscriptsFolder` | `7327391` | Request/environment path for transcripts. |
-| `taskThreadIdByComposerId` | `61757733` | Explicit child task to thread mapping. |
-| `subagentStatusesByComposerId` | `61765849` | Derived status map by child composer id. |
-| `createdFromBackgroundAgent` | `18496993` | Local chat can be linked to cloud/background agent origin. |
-| `openAgentById` | `29759961` | Open/select local agent command path. |
-| `ensureLoadableCloudSubagent` | `26388138` | Hydrate cloud subagent before opening. |
-| `glass.openCloudAgentById` | `61284201` | Command used to open a cloud/background agent by id. |
-| `composer.openBackgroundComposerAsChat` | `37685005` | Opens a background composer as chat. |
-| `agent-panel-meta-agent-chat-shell ui-imsg-thread` | `61838132` | Main Agent Panel chat shell tag. |
-| `composer-async-subagent-task-notification` | `37900393` | Async subagent notification card. |
-| `agent-panel-meta-agent-chat__status-open-button` | `61801500` | Hover/focus open affordance in status rows. |
-| `agent-panel-followup-header-tray-stack` | bundle | Stacked tray layers above composer input. |
-| `agent-panel-followup-header-non-stacked-tray` | bundle | Single followup tray slot. |
-| `ui-prompt-input-header-tray` | bundle | Tray visibility / trigger wrapper on prompt header. |
-| `agent-panel-subagent-preview-tray-container` | bundle | Nested subagent conversation preview panel. |
+| Exact token                                        |         Bundle offset | Meaning for Multi                                          |
+| -------------------------------------------------- | --------------------: | ---------------------------------------------------------- |
+| `Start multitasking`                               |            `38118423` | Client-level multitask entrypoint text.                    |
+| `Build in Parallel`                                | `4328967`, `38110644` | Plan/build action that routes to parallel work.            |
+| `subagentInfo`                                     |            `15287955` | First-class subagent request metadata.                     |
+| `agentTranscriptsFolder`                           |             `7327391` | Request/environment path for transcripts.                  |
+| `taskThreadIdByComposerId`                         |            `61757733` | Explicit child task to thread mapping.                     |
+| `subagentStatusesByComposerId`                     |            `61765849` | Derived status map by child composer id.                   |
+| `createdFromBackgroundAgent`                       |            `18496993` | Local chat can be linked to cloud/background agent origin. |
+| `openAgentById`                                    |            `29759961` | Open/select local agent command path.                      |
+| `ensureLoadableCloudSubagent`                      |            `26388138` | Hydrate cloud subagent before opening.                     |
+| `glass.openCloudAgentById`                         |            `61284201` | Command used to open a cloud/background agent by id.       |
+| `composer.openBackgroundComposerAsChat`            |            `37685005` | Opens a background composer as chat.                       |
+| `agent-panel-meta-agent-chat-shell ui-imsg-thread` |            `61838132` | Main Agent Panel chat shell tag.                           |
+| `composer-async-subagent-task-notification`        |            `37900393` | Async subagent notification card.                          |
+| `agent-panel-meta-agent-chat__status-open-button`  |            `61801500` | Hover/focus open affordance in status rows.                |
+| `agent-panel-followup-header-tray-stack`           |                bundle | Stacked tray layers above composer input.                  |
+| `agent-panel-followup-header-non-stacked-tray`     |                bundle | Single followup tray slot.                                 |
+| `ui-prompt-input-header-tray`                      |                bundle | Tray visibility / trigger wrapper on prompt header.        |
+| `agent-panel-subagent-preview-tray-container`      |                bundle | Nested subagent conversation preview panel.                |
 
 ### Exact CSS Selectors
 
-| Cursor selector/tag | CSS offset | Styling behavior to reproduce in Multi |
-| --- | ---: | --- |
-| `.agent-panel` | `1716975` | Agent panel root, positioned container. |
-| `.agent-panel-conversation-shell` | `1721731` | Full-height flex column chat shell. |
-| `.agent-sidebar` | `988566` | Dense navigation/control rail. |
-| `.composer-async-subagent-task-notification` | `711955` | Compact async subagent card body. |
-| `.composer-async-subagent-response-card` | `712535` | Bordered result card with hover open hint. |
-| `.composer-async-subagent-response-card__open-hint` | `712535` | Hidden until hover/focus. |
-| `.composer-async-subagent-task-notification__cloud-actions` | `712535` | Wrapped action pill row. |
-| `.meta-async-task-card` | `783077` | Wrapper for task/subagent card. |
-| `.meta-async-nested-subagent-action-button--view-plan` | `783077` | High-attention view-plan action style. |
-| `.ui-subagent-status-indicator__dot--error` | `783168` | Muted error indicator override. |
-| `.ui-meta-agent-status-row` | `1798377` | Animated status row with name and task text. |
-| `.ui-meta-agent-status-row__name` | `1798377` | Name text changes color on row hover/focus. |
-| `.ui-meta-agent-status-row__task` | `1798377` | Task text color/shimmer state. |
-| `.agent-panel-meta-agent-chat__status-trigger` | `1798377` | Clickable status row trigger. |
-| `.agent-panel-meta-agent-chat__status-container` | `1798377` | Inline status row container. |
-| `.agent-panel-meta-agent-chat__status-open-button` | `1799867` | Hover/focus only open button. |
-| `.agent-panel-meta-agent-chat__thread-overlay` | `1808155` | Legacy/alternate nested thread surface. Do not use as the primary click target. |
-| `.agent-panel-followup-header-tray-stack` | bundle | Stacked backdrop layers for composer followup trays. |
-| `.agent-panel-subagent-preview-tray-container` | bundle | Nested subagent transcript panel above composer. |
+| Cursor selector/tag                                         | CSS offset | Styling behavior to reproduce in Multi                                          |
+| ----------------------------------------------------------- | ---------: | ------------------------------------------------------------------------------- |
+| `.agent-panel`                                              |  `1716975` | Agent panel root, positioned container.                                         |
+| `.agent-panel-conversation-shell`                           |  `1721731` | Full-height flex column chat shell.                                             |
+| `.agent-sidebar`                                            |   `988566` | Dense navigation/control rail.                                                  |
+| `.composer-async-subagent-task-notification`                |   `711955` | Compact async subagent card body.                                               |
+| `.composer-async-subagent-response-card`                    |   `712535` | Bordered result card with hover open hint.                                      |
+| `.composer-async-subagent-response-card__open-hint`         |   `712535` | Hidden until hover/focus.                                                       |
+| `.composer-async-subagent-task-notification__cloud-actions` |   `712535` | Wrapped action pill row.                                                        |
+| `.meta-async-task-card`                                     |   `783077` | Wrapper for task/subagent card.                                                 |
+| `.meta-async-nested-subagent-action-button--view-plan`      |   `783077` | High-attention view-plan action style.                                          |
+| `.ui-subagent-status-indicator__dot--error`                 |   `783168` | Muted error indicator override.                                                 |
+| `.ui-meta-agent-status-row`                                 |  `1798377` | Animated status row with name and task text.                                    |
+| `.ui-meta-agent-status-row__name`                           |  `1798377` | Name text changes color on row hover/focus.                                     |
+| `.ui-meta-agent-status-row__task`                           |  `1798377` | Task text color/shimmer state.                                                  |
+| `.agent-panel-meta-agent-chat__status-trigger`              |  `1798377` | Clickable status row trigger.                                                   |
+| `.agent-panel-meta-agent-chat__status-container`            |  `1798377` | Inline status row container.                                                    |
+| `.agent-panel-meta-agent-chat__status-open-button`          |  `1799867` | Hover/focus only open button.                                                   |
+| `.agent-panel-meta-agent-chat__thread-overlay`              |  `1808155` | Legacy/alternate nested thread surface. Do not use as the primary click target. |
+| `.agent-panel-followup-header-tray-stack`                   |     bundle | Stacked backdrop layers for composer followup trays.                            |
+| `.agent-panel-subagent-preview-tray-container`              |     bundle | Nested subagent transcript panel above composer.                                |
 
 Cursor styling pattern to apply, not copy:
 
@@ -398,8 +398,7 @@ collabReceiverRoutes.set(receiverThreadId, {
   providerThreadId: receiverThreadId,
   parentTurnId: route.parentTurnId,
   parentItemId: route.parentItemId,
-  senderProviderThreadId:
-    notification.params.item.senderThreadId ?? route.senderProviderThreadId,
+  senderProviderThreadId: notification.params.item.senderThreadId ?? route.senderProviderThreadId,
 });
 ```
 
@@ -449,12 +448,12 @@ The shared UI should be provider-agnostic, but details must be capability-gated.
 
 ### Adapter Capability Matrix
 
-| Adapter | Source shape | Multi UI today | Cursor-style details rule |
-| --- | --- | --- | --- |
-| Codex | App-server child provider thread ids plus `thread/read` | Compact `data-subagent-row` status rows in timeline | Supported when `providerThreadId` exists. Click opens composer preview tray (not yet wired). |
-| Claude | SDK task lifecycle summaries: `task_started`, `task_progress`, `task_notification` | Normal `Subagent task` tool/task progress rows | Do not show nested transcript UI until the SDK gives a readable child transcript or durable child thread id. |
-| Cursor | ACP `session/update` chunks, tool calls, plan, usage | Generic ACP tool rows and plan updates | Do not show Cursor private subagent UI from ACP. ACP does not expose child thread identity. |
-| OpenCode | Current adapter emits generic tool lifecycle; upstream task tool has child `sessionId` metadata | Normal `TaskToolCall` row for task/agent tools | Can support the shared subagent UI after mapping task `metadata.sessionId` to `RuntimeSubagentRef` and reading child session messages. |
+| Adapter  | Source shape                                                                                    | Multi UI today                                      | Cursor-style details rule                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex    | App-server child provider thread ids plus `thread/read`                                         | Compact `data-subagent-row` status rows in timeline | Supported when `providerThreadId` exists. Click opens composer preview tray (not yet wired).                                           |
+| Claude   | SDK task lifecycle summaries: `task_started`, `task_progress`, `task_notification`              | Normal `Subagent task` tool/task progress rows      | Do not show nested transcript UI until the SDK gives a readable child transcript or durable child thread id.                           |
+| Cursor   | ACP `session/update` chunks, tool calls, plan, usage                                            | Generic ACP tool rows and plan updates              | Do not show Cursor private subagent UI from ACP. ACP does not expose child thread identity.                                            |
+| OpenCode | Current adapter emits generic tool lifecycle; upstream task tool has child `sessionId` metadata | Normal `TaskToolCall` row for task/agent tools      | Can support the shared subagent UI after mapping task `metadata.sessionId` to `RuntimeSubagentRef` and reading child session messages. |
 
 ### Codex UI
 
@@ -496,9 +495,9 @@ UI to apply:
 Styling stays in Tailwind:
 
 ```tsx
-"group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden"
-"border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary"
-"cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary"
+"group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden";
+"border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary";
+"cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary";
 ```
 
 Source: `packages/app/src/components/chat/message/tool-message.tsx:170`.
@@ -595,7 +594,7 @@ Source: `packages/server/src/provider/acp/AcpCoreRuntimeEvents.ts:51`.
 Cursor `readThread` only returns the active ACP session turns:
 
 ```ts
-const ctx = yield* requireSession(input.threadId);
+const ctx = yield * requireSession(input.threadId);
 return { threadId: input.threadId, turns: ctx.turns };
 ```
 
@@ -615,11 +614,7 @@ Cursor's own app has private workbench tags such as `.ui-meta-agent-status-row` 
 Multi's current OpenCode adapter recognizes task/agent tools as collaboration tools:
 
 ```ts
-if (
-  normalized.includes("task") ||
-  normalized.includes("agent") ||
-  normalized.includes("subtask")
-) {
+if (normalized.includes("task") || normalized.includes("agent") || normalized.includes("subtask")) {
   return "collab_agent_tool_call";
 }
 ```
@@ -629,12 +624,11 @@ Source: `packages/server/src/provider/OpenCodeAdapter.ts:172`.
 But current OpenCode runtime mapping emits generic item lifecycle only:
 
 ```ts
-type:
-  part.state.status === "pending"
-    ? "item.started"
-    : part.state.status === "completed" || part.state.status === "error"
-      ? "item.completed"
-      : "item.updated";
+type: part.state.status === "pending"
+  ? "item.started"
+  : part.state.status === "completed" || part.state.status === "error"
+    ? "item.completed"
+    : "item.updated";
 ```
 
 Source: `packages/server/src/provider/OpenCodeAdapter.ts:717`.
@@ -780,16 +774,16 @@ Changes:
 1. Detect OpenCode task tool metadata:
 
 ```ts
-metadata.sessionId ?? metadata.sessionID
+metadata.sessionId ?? metadata.sessionID;
 ```
 
 2. Map that child session id into:
 
 ```ts
-RuntimeSubagentRef.providerThreadId
-RuntimeSubagentRef.parentProviderThreadId
-RuntimeSubagentRef.parentTurnId
-RuntimeSubagentRef.parentItemId
+RuntimeSubagentRef.providerThreadId;
+RuntimeSubagentRef.parentProviderThreadId;
+RuntimeSubagentRef.parentTurnId;
+RuntimeSubagentRef.parentItemId;
 ```
 
 3. Emit normalized events:
@@ -850,15 +844,15 @@ Use Multi-native Tailwind and `cva`. Do not copy Cursor CSS. Use Base UI `Collap
 
 #### Component Map
 
-| Cursor tag | Multi component | Notes |
-| --- | --- | --- |
-| `.ui-meta-agent-status-row` | `SubagentStatusRow` | Inline timeline row with indicator, name, task/status. Click sets preview store. |
-| `.agent-panel-meta-agent-chat__status-open-button` | chevron on status row | Hidden until row hover/focus or preview is open. |
-| `.agent-panel-followup-header-tray-stack` | `SubagentPreviewTrayStack` | Rendered above composer shell in `ComposerInput`. |
-| `.agent-panel-subagent-preview-tray-container` | `SubagentPreviewTrayContainer` | Bounded nested conversation with header chrome. |
-| `.composer-async-subagent-task-notification` | `SubagentTaskCard` | Optional later: quote, status, result, actions in timeline. |
-| `.composer-async-subagent-response-card` | `SubagentResponseCard` | Optional later: bordered result preview in timeline. |
-| `.agent-panel-meta-agent-chat__thread-overlay` | — | **Do not implement.** Wrong layer; superseded by composer tray. |
+| Cursor tag                                         | Multi component                | Notes                                                                            |
+| -------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------- |
+| `.ui-meta-agent-status-row`                        | `SubagentStatusRow`            | Inline timeline row with indicator, name, task/status. Click sets preview store. |
+| `.agent-panel-meta-agent-chat__status-open-button` | chevron on status row          | Hidden until row hover/focus or preview is open.                                 |
+| `.agent-panel-followup-header-tray-stack`          | `SubagentPreviewTrayStack`     | Rendered above composer shell in `ComposerInput`.                                |
+| `.agent-panel-subagent-preview-tray-container`     | `SubagentPreviewTrayContainer` | Bounded nested conversation with header chrome.                                  |
+| `.composer-async-subagent-task-notification`       | `SubagentTaskCard`             | Optional later: quote, status, result, actions in timeline.                      |
+| `.composer-async-subagent-response-card`           | `SubagentResponseCard`         | Optional later: bordered result preview in timeline.                             |
+| `.agent-panel-meta-agent-chat__thread-overlay`     | —                              | **Do not implement.** Wrong layer; superseded by composer tray.                  |
 
 #### Data Selectors
 
@@ -887,13 +881,15 @@ Avoid decorative CSS class buckets. Keep visual styling in Tailwind or `cva`.
 Render the tray in `ComposerInput` above the composer shell, in the same column as `PlanFollowUpTray`:
 
 ```tsx
-{preview ? (
-  <SubagentPreviewTrayStack
-    selection={preview}
-    compact={composerVariant === "compact"}
-    onClose={closePreview}
-  />
-) : null}
+{
+  preview ? (
+    <SubagentPreviewTrayStack
+      selection={preview}
+      compact={composerVariant === "compact"}
+      onClose={closePreview}
+    />
+  ) : null;
+}
 ```
 
 `SubagentPreviewTrayStack` reads `useSubagentPreviewStore`. Timeline rows write to the same store on click.

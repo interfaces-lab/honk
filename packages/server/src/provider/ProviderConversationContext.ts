@@ -24,10 +24,9 @@ export function formatProviderTurnInputText(input: ProviderSendTurnInput): strin
     return currentInput.length > 0 ? currentInput : undefined;
   }
 
-  const contextText = [
-    "Conversation context for the selected branch:",
-    context.join("\n\n"),
-  ].join("\n\n");
+  const contextText = ["Conversation context for the selected branch:", context.join("\n\n")].join(
+    "\n\n",
+  );
 
   if (currentInput.length === 0) {
     return contextText;

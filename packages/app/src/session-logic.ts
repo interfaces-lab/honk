@@ -898,7 +898,7 @@ function toSubagentLog(
   const label =
     activity.kind === "subagent.content.delta"
       ? labelForSubagentStream(streamKind)
-      : title ?? labelForSubagentActivityKind(activity.kind, itemType);
+      : (title ?? labelForSubagentActivityKind(activity.kind, itemType));
   return {
     id: activity.id,
     createdAt: activity.createdAt,

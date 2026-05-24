@@ -76,10 +76,21 @@ function entryRoleLabel(thread: Thread, entry: ThreadTreeEntry): string {
 }
 
 function sortEntries(entries: ThreadTreeEntry[]): ThreadTreeEntry[] {
-  return [...entries].sort(
+  return entries.toSorted(
     (left, right) =>
       left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
   );
+}
+
+function sortTreeNodes(nodes: TreeNode[]): void {
+  nodes.sort(
+    (left, right) =>
+      left.entry.createdAt.localeCompare(right.entry.createdAt) ||
+      left.entry.id.localeCompare(right.entry.id),
+  );
+  for (const node of nodes) {
+    sortTreeNodes(node.children);
+  }
 }
 
 function buildTreeIndex(entries: readonly ThreadTreeEntry[]): TreeIndex {
@@ -130,17 +141,7 @@ function buildTree(index: TreeIndex): TreeNode[] {
     }
   }
 
-  const sortNodes = (nodes: TreeNode[]) => {
-    nodes.sort(
-      (left, right) =>
-        left.entry.createdAt.localeCompare(right.entry.createdAt) ||
-        left.entry.id.localeCompare(right.entry.id),
-    );
-    for (const node of nodes) {
-      sortNodes(node.children);
-    }
-  };
-  sortNodes(roots);
+  sortTreeNodes(roots);
   return roots;
 }
 

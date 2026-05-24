@@ -162,9 +162,7 @@ describe("AppShell CSS root contract", () => {
     expect(shellCssSource).toMatch(
       /\.agent-window-chat-header \{[\s\S]*background:\s*var\(--multi-chat-surface-background\)/,
     );
-    expect(shellCssSource).not.toMatch(
-      /\.agent-window-chat-header \{[\s\S]*border-bottom:/,
-    );
+    expect(shellCssSource).not.toMatch(/\.agent-window-chat-header \{[\s\S]*border-bottom:/);
     expect(shellCssSource).toContain(
       "--multi-workbench-editor-panel-tab-background: var(--multi-workbench-tool-island-background)",
     );
@@ -189,9 +187,7 @@ describe("AppShell CSS root contract", () => {
     expect(rightWorkbenchLayoutSource).toContain('"--multi-shell-secondary-rail-max-width"');
     expect(rightWorkbenchLayoutSource).toContain('data-shell-panel="secondary"');
     expect(rightWorkbenchLayoutSource).toContain("data-resizing");
-    expect(rightWorkbenchLayoutSource).toContain(
-      "bg-(--multi-workbench-panel-title-background)",
-    );
+    expect(rightWorkbenchLayoutSource).toContain("bg-(--multi-workbench-panel-title-background)");
     expect(rightWorkbenchLayoutSource).not.toContain(
       "bg-[color-mix(in_srgb,var(--multi-bg-secondary)_82%,transparent)]",
     );

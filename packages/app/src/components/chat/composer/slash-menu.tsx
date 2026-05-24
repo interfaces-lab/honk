@@ -22,13 +22,7 @@ import {
   IconSquareChecklist,
   type CentralIconBaseProps,
 } from "central-icons";
-import {
-  memo,
-  useCallback,
-  useMemo,
-  type ComponentProps,
-  type ComponentType,
-} from "react";
+import { memo, useCallback, useMemo, type ComponentProps, type ComponentType } from "react";
 
 import { Popover, PopoverPopup } from "@multi/ui/popover";
 import { cn } from "~/lib/utils";
@@ -476,17 +470,16 @@ export function useComposerCommandMenu(input: {
       return [];
     }
 
-    const builtInSlashCommandItems: Array<
-      Extract<ComposerCommandItem, { type: "slash-command" }>
-    > = [
-      {
-        id: "slash:model",
-        type: "slash-command",
-        command: "model",
-        label: "/model",
-        description: "Switch response model for this thread",
-      },
-    ];
+    const builtInSlashCommandItems: Array<Extract<ComposerCommandItem, { type: "slash-command" }>> =
+      [
+        {
+          id: "slash:model",
+          type: "slash-command",
+          command: "model",
+          label: "/model",
+          description: "Switch response model for this thread",
+        },
+      ];
     if (input.allowModeSlashCommands !== false) {
       builtInSlashCommandItems.push(
         {

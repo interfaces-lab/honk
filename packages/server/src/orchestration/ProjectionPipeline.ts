@@ -4,8 +4,6 @@ import {
   MessageId,
   type OrchestrationEvent,
   resolveActiveEntryIdAfterThreadMessage,
-  threadEntryIdForMessageId,
-  ThreadEntryId,
   ThreadId,
 } from "@multi/contracts";
 import { Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
@@ -85,14 +83,6 @@ interface ProjectorDefinition {
 }
 
 const applyCheckpointsProjection: ProjectorDefinition["apply"] = () => Effect.void;
-
-function threadLabelEntryId(input: {
-  readonly targetEntryId: ThreadEntryId;
-  readonly commandId: string | null;
-  readonly eventId: string;
-}): ThreadEntryId {
-  return ThreadEntryId.make(`label:${input.targetEntryId}:${input.commandId ?? input.eventId}`);
-}
 
 interface AttachmentSideEffects {
   readonly deletedThreadIds: Set<string>;

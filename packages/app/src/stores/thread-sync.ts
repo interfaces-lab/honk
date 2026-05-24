@@ -584,7 +584,7 @@ function writeThreadState(
     nextState = {
       ...nextState,
       activeEntryIdByThreadId: {
-        ...(nextState.activeEntryIdByThreadId ?? {}),
+        ...nextState.activeEntryIdByThreadId,
         [nextThread.id]: nextActiveEntryId,
       },
     };
@@ -595,11 +595,11 @@ function writeThreadState(
     nextState = {
       ...nextState,
       entryIdsByThreadId: {
-        ...(nextState.entryIdsByThreadId ?? {}),
+        ...nextState.entryIdsByThreadId,
         [nextThread.id]: nextEntrySlice.ids,
       },
       entryByThreadId: {
-        ...(nextState.entryByThreadId ?? {}),
+        ...nextState.entryByThreadId,
         [nextThread.id]: nextEntrySlice.byId,
       },
     };

@@ -204,6 +204,7 @@ const EMPTY_PENDING_APPROVALS: PendingApproval[] = [];
 const EMPTY_PENDING_USER_INPUTS: PendingUserInput[] = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
 const EMPTY_QUEUED_COMPOSER_ITEMS: QueuedComposerItem[] = [];
+const EMPTY_THREAD_MESSAGES: ChatMessage[] = [];
 const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
 const COMPOSER_INTERACTION_MODE_CYCLE = [
@@ -1451,10 +1452,10 @@ export default function ChatView(props: ChatViewProps) {
     activeThread?.session ?? null,
     localDispatchStartedAt,
   );
-  const allServerMessages = activeThread?.messages ?? [];
+  const threadMessages = activeThread?.messages ?? EMPTY_THREAD_MESSAGES;
   const serverMessages = useMemo(
-    () => filterMessagesToBranch(allServerMessages, branchView),
-    [allServerMessages, branchView],
+    () => filterMessagesToBranch(threadMessages, branchView),
+    [threadMessages, branchView],
   );
   const {
     attachmentPreviewHandoffSync,

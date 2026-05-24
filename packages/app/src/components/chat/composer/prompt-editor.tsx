@@ -852,7 +852,10 @@ function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
       data-composer-skill-chip="true"
       spellCheck={false}
     >
-      <span aria-hidden="true" className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}>
+      <span
+        aria-hidden="true"
+        className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}
+      >
         <SkillIcon className="size-(--multi-composer-chip-icon-size)" />
       </span>
       <span className="min-w-0 truncate">{label}</span>

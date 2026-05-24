@@ -273,7 +273,6 @@ const make = Effect.gen(function* () {
       );
     });
 
-
     window.webContents.setWindowOpenHandler(({ url }) => {
       if (Option.isSome(ElectronShell.parseSafeExternalUrl(url))) {
         void runPromise(electronShell.openExternal(url));

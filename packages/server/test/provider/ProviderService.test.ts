@@ -199,9 +199,9 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = "codex") {
   );
 
   const readThread = vi.fn(
-    (
-      input: { readonly threadId: ThreadId },
-    ): Effect.Effect<
+    (input: {
+      readonly threadId: ThreadId;
+    }): Effect.Effect<
       {
         threadId: ThreadId;
         turns: ReadonlyArray<{ id: TurnId; items: readonly [] }>;

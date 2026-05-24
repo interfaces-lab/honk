@@ -1,6 +1,6 @@
 import { IconArrowRight, IconChevronDownSmall } from "central-icons";
 import { AnimatePresence, motion } from "motion/react";
-import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
+import { type RefObject, useMemo, useRef, useState } from "react";
 
 import { Text } from "@multi/ui/text";
 import { useMountEffect } from "~/hooks/use-mount-effect";

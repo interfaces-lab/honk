@@ -708,7 +708,10 @@ function mapSubagentRuntimeEvents(
           : event.method === "item/fileChange/outputDelta"
             ? readPayload(EffectCodexSchema.V2FileChangeOutputDeltaNotification, event.payload)
             : event.method === "item/reasoning/summaryTextDelta"
-              ? readPayload(EffectCodexSchema.V2ReasoningSummaryTextDeltaNotification, event.payload)
+              ? readPayload(
+                  EffectCodexSchema.V2ReasoningSummaryTextDeltaNotification,
+                  event.payload,
+                )
               : readPayload(EffectCodexSchema.V2ReasoningTextDeltaNotification, event.payload);
     const delta = event.textDelta ?? payload?.delta;
     if (!delta || delta.length === 0) {

@@ -8,7 +8,6 @@ import {
   type OrchestrationProposedPlanId,
   CheckpointRef,
   isToolLifecycleItemType,
-  type ThreadEntryId,
   ThreadId,
   type ThreadTokenUsageSnapshot,
   TurnId,
@@ -65,11 +64,6 @@ type RuntimeIngestionInput =
     };
 
 const processDomainEvent = (_event: TurnStartRequestedDomainEvent) => Effect.void;
-
-type AssistantTreeParent = {
-  readonly turnId: TurnId;
-  readonly parentEntryId: ThreadEntryId;
-};
 
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
   return value === undefined ? undefined : TurnId.make(String(value));

@@ -242,9 +242,7 @@ export function buildProjectChatSections(
     if (item.projectId === null) {
       continue;
     }
-    projectKeysWithItems.add(
-      scopedProjectKey(scopeProjectRef(item.environmentId, item.projectId)),
-    );
+    projectKeysWithItems.add(scopedProjectKey(scopeProjectRef(item.environmentId, item.projectId)));
   }
 
   for (const projectCwd of projectCwds) {

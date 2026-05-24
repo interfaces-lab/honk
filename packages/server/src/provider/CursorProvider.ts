@@ -33,10 +33,7 @@ import {
 } from "./provider-snapshot.ts";
 import { makeManagedServerProvider } from "./make-managed-server-provider.ts";
 import { CursorProvider } from "./CursorProvider.service.ts";
-import {
-  AcpSessionRuntime,
-  type AcpSessionRuntimeOptions,
-} from "./acp/AcpSessionRuntime.ts";
+import { AcpSessionRuntime, type AcpSessionRuntimeOptions } from "./acp/AcpSessionRuntime.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { resolveCursorSettings } from "./provider-settings.ts";
 
@@ -1220,9 +1217,7 @@ export const checkCursorProviderStatus = Effect.fn("checkCursorProviderStatus")(
                 failedDiscoveryMethod = event.method;
               })
             : Effect.void,
-        ).pipe(
-          Effect.timeoutOption(CURSOR_ACP_MODEL_DISCOVERY_TIMEOUT_MS),
-        ),
+        ).pipe(Effect.timeoutOption(CURSOR_ACP_MODEL_DISCOVERY_TIMEOUT_MS)),
       );
       if (Exit.isFailure(discoveryExit)) {
         const detail = formatCursorAcpFailureDetail(discoveryExit.cause);

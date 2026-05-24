@@ -101,7 +101,7 @@ export function resolveThreadEntryPath<TEntry extends ThreadTreeEntryPathEntry>(
   return {
     ok: true,
     entryId: input.entryId,
-    entries: path.reverse(),
+    entries: path.toReversed(),
   };
 }
 

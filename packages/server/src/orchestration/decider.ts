@@ -198,9 +198,7 @@ function requireStableAssistantEntryParent(input: {
       entryId: input.parentEntryId,
     });
 
-    const existingEntry = input.thread.entries.find(
-      (entry) => entry.id === input.assistantEntryId,
-    );
+    const existingEntry = input.thread.entries.find((entry) => entry.id === input.assistantEntryId);
     if (existingEntry && existingEntry.parentEntryId !== input.parentEntryId) {
       return yield* new OrchestrationCommandInvariantError({
         commandType: input.commandType,
