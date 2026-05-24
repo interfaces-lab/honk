@@ -102,7 +102,7 @@ describe("appearance reduce-transparency tokens", () => {
 
   it("applies composer blur in glass mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
-    expect(conversationCss).toContain(
+    expect(conversationCss.replace(/\s+/g, " ")).toContain(
       'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);

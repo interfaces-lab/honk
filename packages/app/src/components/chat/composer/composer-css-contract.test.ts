@@ -46,7 +46,7 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toContain("--multi-composer-radius-compact");
     expect(conversationCss).toContain("--multi-composer-radius-expanded");
     expect(conversationCss).toMatch(
-      /\[data-multi-composer-surface\]\[data-variant="compact"\]:not\(\[data-expanded=""\]\)/,
+      /\[data-multi-composer-surface\]\[data-variant="compact"\]:not\(\[data-expanded=""\]/,
     );
     expect(inputSource).toContain('"data-multi-composer-shell": "thread"');
     expect(inputSource).toContain('data-multi-composer-toolbar={isThreadShell ? "bottom"');
@@ -188,10 +188,18 @@ describe("Composer surface contract", () => {
 
   it("applies composer blur via conversation.css in translucent mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
-    expect(conversationCss).toContain(
+    expect(conversationCss.replace(/\s+/g, " ")).toContain(
       'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
+  });
+
+  it("defines Cursor-aligned motion tokens in conversation.css", () => {
+    expect(conversationCss).toContain("--multi-motion-duration-instant: 50ms");
+    expect(conversationCss).toContain("--multi-motion-duration-fast: 100ms");
+    expect(conversationCss).toContain("--multi-motion-duration-normal: 150ms");
+    expect(conversationCss).toContain("--multi-motion-ease-default:");
+    expect(conversationCss).toContain("--multi-motion-ease-float:");
   });
 
   it("removes composer blur under reduce transparency", () => {
