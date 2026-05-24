@@ -7,9 +7,13 @@ Requires (macOS only): `sips` and `iconutil` for `.icns` output.
 Default source: assets/app-icon-source.png (square raster; outer cream background is removed).
 
 Writes:
-  - packages/desktop/resources/icon.png and icon.icns (production artwork)
+  - packages/desktop/resources/icon.png, icon.icns, and icon.ico (canonical desktop artwork)
   - assets/prod/* (named desktop/splash PNGs, legacy mobile/web PNGs + favicon ICO)
   - assets/dev/* (named desktop/splash PNGs, legacy blueprint web assets)
+
+To refresh desktop icons after editing `packages/desktop/resources/icon.png`:
+
+  python3 scripts/sync-brand-icons-from-source.py packages/desktop/resources/icon.png
 """
 
 from __future__ import annotations
@@ -224,6 +228,7 @@ def main() -> int:
 
         write_png(desktop_res / "icon.png", master)
         write_icns_macos(tmp1024, desktop_res / "icon.icns")
+        write_ico(desktop_res / "icon.ico", master)
 
         prod = repo / "assets" / "prod"
         write_icns_macos(tmp1024, prod / "multi-production-macos-icon.icns")

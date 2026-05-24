@@ -23,23 +23,13 @@ const LAUNCHER_VERSION = 3;
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const desktopDir = resolve(currentDir, "..");
 const productionLauncherIconPath = join(desktopDir, "resources", "icon.icns");
-const developmentLauncherIconPath = resolve(
-  desktopDir,
-  "..",
-  "..",
-  "assets",
-  "dev",
-  "multi-development-macos-icon.icns",
-);
 
 function resolveLauncherIdentity() {
   return isDevelopment
     ? {
         appDisplayName: "Multi (Dev)",
         appBundleId: "com.interfacesco.multi.dev",
-        iconPath: existsSync(developmentLauncherIconPath)
-          ? developmentLauncherIconPath
-          : productionLauncherIconPath,
+        iconPath: productionLauncherIconPath,
       }
     : {
         appDisplayName: "Multi",
