@@ -130,8 +130,8 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             variant={props.triggerVariant ?? "ghost"}
             data-chat-provider-model-picker="true"
             className={cn(
-              "ui-model-picker__trigger max-w-full min-w-0 select-none justify-start overflow-hidden rounded-full px-1.5 py-2.5 text-muted-foreground/70 whitespace-nowrap hover:text-foreground/80 [&_svg]:mx-0",
-              props.compact ? "shrink" : "max-w-48 shrink sm:max-w-56 sm:px-3",
+              "ui-model-picker__trigger max-w-full min-w-0 select-none items-center justify-start overflow-hidden rounded-full text-muted-foreground/70 whitespace-nowrap hover:text-foreground/80 [&_svg]:mx-0",
+              props.compact ? "shrink" : "max-w-48 shrink sm:max-w-56",
               props.triggerClassName,
             )}
             disabled={props.disabled}

@@ -92,7 +92,7 @@ export const MessageActions = memo(function MessageActions(props: { children: Re
     <div
       className={cn(
         "flex items-center gap-1.5",
-        "opacity-0 transition-opacity duration-200",
+        "opacity-0 transition-opacity duration-100",
         "group-hover/message-bubble:opacity-100 focus-within:opacity-100",
       )}
     >

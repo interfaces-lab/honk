@@ -62,7 +62,7 @@ export function ContextWindowRing(props: {
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={dashOffset}
-          className="transition-[stroke-dashoffset] duration-500 ease-out motion-reduce:transition-none"
+          className="transition-[stroke-dashoffset] duration-150 ease-out motion-reduce:transition-none"
         />
       </svg>
       {size === "md" ? (

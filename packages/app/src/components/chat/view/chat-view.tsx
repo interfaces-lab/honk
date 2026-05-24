@@ -209,8 +209,8 @@ const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
 const COMPOSER_INTERACTION_MODE_CYCLE = [
   "default",
-  "ask",
   "plan",
+  "ask",
 ] as const satisfies readonly ProviderInteractionMode[];
 
 interface ThreadBranchView {

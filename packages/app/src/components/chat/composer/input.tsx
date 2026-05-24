@@ -141,12 +141,12 @@ const PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS = "px-2 text-detail [&_svg]:size-3.5
 type ActiveComposerInteractionMode = Exclude<ProviderInteractionMode, "default">;
 
 const interactionModeChipClass = cva(
-  "h-[var(--multi-composer-toolbar-control-size)] shrink-0 justify-between gap-1 overflow-hidden rounded-multi-control border pr-1 pl-1.5 text-detail font-medium [&_svg]:shrink-0",
+  "inline-flex h-[var(--multi-composer-toolbar-control-size)] w-fit max-w-full shrink-0 items-center gap-1 overflow-hidden rounded-full border-0 px-2 pr-1 text-(length:--multi-text-body) leading-none font-medium shadow-none [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       mode: {
-        ask: "w-[4.75rem] border-transparent bg-(--composer-mode-chat-background) text-(--composer-mode-chat-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-chat-background)_78%,var(--vscode-list-hoverBackground))]",
-        plan: "w-[5.25rem] border-(--composer-mode-plan-border) bg-(--composer-mode-plan-background) text-(--composer-mode-plan-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-plan-background)_82%,var(--vscode-list-hoverBackground))] [&_svg]:text-(--composer-mode-plan-icon)",
+        ask: "bg-(--composer-mode-chat-background) text-(--composer-mode-chat-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-chat-background)_78%,var(--vscode-list-hoverBackground))]",
+        plan: "bg-(--composer-mode-plan-background) text-(--composer-mode-plan-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-plan-background)_82%,var(--vscode-list-hoverBackground))]",
       },
     },
   },
@@ -184,23 +184,23 @@ const ComposerInteractionModeChip = memo(function ComposerInteractionModeChip(pr
   return (
     <Button
       variant="ghost"
-      className={interactionModeChipClass({ mode: props.mode })}
+      className={cn(
+        interactionModeChipClass({ mode: props.mode }),
+        "p-0 hover:text-inherit data-pressed:text-inherit",
+      )}
       data-composer-interaction-mode-chip=""
       data-mode={props.mode}
-      size="sm"
       type="button"
       onClick={props.onClear}
       title={`${chip.title}${props.shortcutLabel ? ` (${props.shortcutLabel})` : ""}`}
     >
-      <span className="inline-flex size-4 shrink-0 items-center justify-center">
-        <ChipIcon className="size-3.5" aria-hidden />
-      </span>
+      <ChipIcon aria-hidden />
       <span className="min-w-0 truncate">{chip.label}</span>
       <span
-        className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-current opacity-60 hover:opacity-100"
+        className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-current opacity-70 hover:opacity-100"
         aria-hidden="true"
       >
-        <IconCrossSmall className="size-2.5" />
+        <IconCrossSmall />
       </span>
     </Button>
   );
@@ -882,9 +882,9 @@ const COMPOSER_TOOLBAR_CONTROL_SIZE =
 const COMPOSER_ACTION_ICON_COMPACT = "size-3.5";
 const COMPOSER_ACTION_ICON_EXPANDED = "size-3.5";
 const COMPOSER_SUBMIT_BASE_CLASS =
-  "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-150 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30";
+  "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-100 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30";
 const COMPOSER_STOP_BASE_CLASS =
-  "flex cursor-pointer items-center justify-center rounded-full bg-rose-500/90 text-white transition-[background-color,color,opacity,transform] duration-150 hover:bg-rose-500 motion-reduce:transition-colors motion-reduce:active:scale-100 active:scale-[0.96]";
+  "flex cursor-pointer items-center justify-center rounded-full bg-rose-500/90 text-white transition-[background-color,color,opacity,transform] duration-100 hover:bg-rose-500 motion-reduce:transition-colors motion-reduce:active:scale-100 active:scale-[0.96]";
 
 const PrimaryActionControls = memo(function PrimaryActionControls(props: {
   compact: boolean;
@@ -1122,6 +1122,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
       )}
     >
       <div
+        data-multi-composer-toolbar="left"
         className={cn(
           "flex min-w-0 items-center gap-1",
           dockSingleRow ? "shrink" : "flex-1 overflow-hidden",
@@ -2161,7 +2162,6 @@ export const ComposerInput = memo(
     const providerModelPicker = (
       <ProviderModelPicker
         compact={isDockComposerSingleLine}
-        {...(isDockComposerSingleLine ? { triggerClassName: "mr-1" } : {})}
         activeInstanceId={selectedInstanceId}
         model={instanceCoherentSelectedModel}
         instanceEntries={providerInstanceEntries}
