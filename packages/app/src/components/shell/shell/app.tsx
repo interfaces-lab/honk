@@ -114,6 +114,7 @@ function LeftAside(props: { children: ReactNode }) {
       data-state={leftOpen ? "expanded" : "collapsed"}
       data-resizing={resize.dragging ? "true" : "false"}
       aria-hidden={!leftOpen ? true : undefined}
+      inert={!leftOpen}
       ref={asideRef}
     >
       <div
@@ -234,6 +235,7 @@ function RightAside(props: {
       data-resizing={resize.dragging ? "true" : "false"}
       ref={asideRef}
       aria-hidden={!rightOpen ? true : undefined}
+      inert={!rightOpen}
     >
       <RightAsideRouteSearchSync
         key={`${search.diff ?? ""}:${search.workbench ?? ""}:${activeTab}:${muted}`}

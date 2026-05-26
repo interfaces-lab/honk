@@ -2573,6 +2573,47 @@ describe("ProviderRuntimeIngestion", () => {
     ).toBe("# Plan title");
   });
 
+  it("projects provider tool summaries into thread activities", async () => {
+    const harness = await createHarness();
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "tool.summary",
+      eventId: asEventId("evt-tool-summary"),
+      provider: "cursorSdk",
+      providerInstanceId: "cursorSdk",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-summary"),
+      payload: {
+        summary: "Updated the Cursor SDK adapter and verified the projection path.",
+        precedingToolUseIds: ["tool-1", "tool-2"],
+      },
+    });
+
+    const thread = await waitForThread(harness.engine, (entry) =>
+      entry.activities.some(
+        (activity: ProviderRuntimeTestActivity) => activity.id === "evt-tool-summary",
+      ),
+    );
+    const activity = thread.activities.find(
+      (candidate: ProviderRuntimeTestActivity) => candidate.id === "evt-tool-summary",
+    );
+    const payload =
+      activity?.payload && typeof activity.payload === "object"
+        ? (activity.payload as Record<string, unknown>)
+        : undefined;
+
+    expect(activity?.kind).toBe("task.completed");
+    expect(activity?.summary).toBe("Task completed");
+    expect(payload).toMatchObject({
+      taskId: "turn-summary",
+      status: "completed",
+      detail: "Updated the Cursor SDK adapter and verified the projection path.",
+      precedingToolUseIds: ["tool-1", "tool-2"],
+    });
+  });
+
   it("projects structured user input request and resolution as thread activities", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();

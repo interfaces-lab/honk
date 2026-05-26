@@ -5,6 +5,7 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 
 import {
   gitPreparePullRequestThreadMutationOptions,
+  gitQueryKeys,
   gitResolvePullRequestQueryOptions,
 } from "~/lib/git-react-query";
 import { cn } from "~/lib/utils";
@@ -92,13 +93,9 @@ function PullRequestThreadDialogSession({
     if (!cwd || !parsedReference) {
       return null;
     }
-    const cached = queryClient.getQueryData<GitResolvePullRequestResult>([
-      "git",
-      "pull-request",
-      environmentId,
-      cwd,
-      parsedReference,
-    ]);
+    const cached = queryClient.getQueryData<GitResolvePullRequestResult>(
+      gitQueryKeys.pullRequest(environmentId, cwd, parsedReference),
+    );
     return cached?.pullRequest ?? null;
   }, [cwd, environmentId, parsedReference, queryClient]);
   const preparePullRequestThreadMutation = useMutation(

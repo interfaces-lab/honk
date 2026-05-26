@@ -10,6 +10,8 @@ import { CodexAdapter } from "../../src/provider/CodexAdapter.service.ts";
 import type { CodexAdapterShape } from "../../src/provider/CodexAdapter.service.ts";
 import { CursorAdapter } from "../../src/provider/CursorAdapter.service.ts";
 import type { CursorAdapterShape } from "../../src/provider/CursorAdapter.service.ts";
+import { CursorSdkAdapter } from "../../src/provider/CursorSdkAdapter.service.ts";
+import type { CursorSdkAdapterShape } from "../../src/provider/CursorSdkAdapter.service.ts";
 import { OpenCodeAdapter } from "../../src/provider/OpenCodeAdapter.service.ts";
 import type { OpenCodeAdapterShape } from "../../src/provider/OpenCodeAdapter.service.ts";
 import { ProviderAdapterRegistry } from "../../src/provider/ProviderAdapterRegistry.service.ts";
@@ -86,6 +88,23 @@ const fakeCursorAdapter: CursorAdapterShape = {
   streamEvents: Stream.empty,
 };
 
+const fakeCursorSdkAdapter: CursorSdkAdapterShape = {
+  provider: "cursorSdk",
+  capabilities: { sessionModelSwitch: "in-session" },
+  startSession: vi.fn(),
+  sendTurn: vi.fn(),
+  interruptTurn: vi.fn(),
+  respondToRequest: vi.fn(),
+  respondToUserInput: vi.fn(),
+  stopSession: vi.fn(),
+  listSessions: vi.fn(),
+  hasSession: vi.fn(),
+  readThread: vi.fn(),
+  rollbackThread: vi.fn(),
+  stopAll: vi.fn(),
+  streamEvents: Stream.empty,
+};
+
 const layer = it.layer(
   Layer.mergeAll(
     Layer.provide(
@@ -95,6 +114,7 @@ const layer = it.layer(
         Layer.succeed(ClaudeAdapter, fakeClaudeAdapter),
         Layer.succeed(OpenCodeAdapter, fakeOpenCodeAdapter),
         Layer.succeed(CursorAdapter, fakeCursorAdapter),
+        Layer.succeed(CursorSdkAdapter, fakeCursorSdkAdapter),
         ServerSettingsService.layerTest(),
       ),
     ),
@@ -110,13 +130,15 @@ layer("ProviderAdapterRegistryLive", (it) => {
       const claude = yield* registry.getByInstance(ProviderInstanceId.make("claudeAgent"));
       const openCode = yield* registry.getByInstance(ProviderInstanceId.make("opencode"));
       const cursor = yield* registry.getByInstance(ProviderInstanceId.make("cursor"));
+      const cursorSdk = yield* registry.getByInstance(ProviderInstanceId.make("cursorSdk"));
       assert.equal(codex, fakeCodexAdapter);
       assert.equal(claude, fakeClaudeAdapter);
       assert.equal(openCode, fakeOpenCodeAdapter);
       assert.equal(cursor, fakeCursorAdapter);
+      assert.equal(cursorSdk, fakeCursorSdkAdapter);
 
       const instances = yield* registry.listInstances();
-      assert.deepEqual(instances, ["codex", "claudeAgent", "opencode", "cursor"]);
+      assert.deepEqual(instances, ["codex", "claudeAgent", "opencode", "cursor", "cursorSdk"]);
     }),
   );
 

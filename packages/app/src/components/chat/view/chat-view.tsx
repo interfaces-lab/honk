@@ -3440,7 +3440,6 @@ export default function ChatView(props: ChatViewProps) {
                 <MessagesTimeline
                   key={activeTimelineCacheKey}
                   isWorking={isWorking}
-                  activeTurnInProgress={isWorking || !latestTurnSettled}
                   editUserMessagesDisabled={isWorking}
                   activeTurnStartedAt={activeWorkStartedAt}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}

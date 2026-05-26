@@ -10,10 +10,12 @@ import { ServerConfig } from "../config.ts";
 import { ClaudeProviderLive } from "./ClaudeProvider.ts";
 import { CodexProviderLive } from "./CodexProvider.ts";
 import { CursorProviderLive } from "./CursorProvider.ts";
+import { CursorSdkProviderLive } from "./CursorSdkProvider.ts";
 import { OpenCodeProviderLive } from "./OpenCodeProvider.ts";
 import { ClaudeProvider } from "./ClaudeProvider.service.ts";
 import { CodexProvider } from "./CodexProvider.service.ts";
 import { CursorProvider } from "./CursorProvider.service.ts";
+import { CursorSdkProvider } from "./CursorSdkProvider.service.ts";
 import { OpenCodeProvider } from "./OpenCodeProvider.service.ts";
 import { ProviderRegistry, type ProviderRegistryShape } from "./ProviderRegistry.service.ts";
 import { OpenCodeRuntimeLive } from "./opencodeRuntime.ts";
@@ -69,6 +71,7 @@ const ProviderRegistryLiveBase = Layer.effect(
     const claudeProvider = yield* ClaudeProvider;
     const openCodeProvider = yield* OpenCodeProvider;
     const cursorProvider = yield* CursorProvider;
+    const cursorSdkProvider = yield* CursorSdkProvider;
     const config = yield* ServerConfig;
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -78,6 +81,7 @@ const ProviderRegistryLiveBase = Layer.effect(
       claudeAgent: claudeProvider,
       opencode: openCodeProvider,
       cursor: cursorProvider,
+      cursorSdk: cursorSdkProvider,
     }) satisfies ReadonlyArray<ProviderSnapshotSource>;
     const changesPubSub = yield* Effect.acquireRelease(
       PubSub.unbounded<ReadonlyArray<ServerProvider>>(),
@@ -242,6 +246,7 @@ export const ProviderRegistryLive = Layer.unwrap(
       Layer.provideMerge(ClaudeProviderLive),
       Layer.provideMerge(OpenCodeProviderLive),
       Layer.provideMerge(CursorProviderLive),
+      Layer.provideMerge(CursorSdkProviderLive),
       Layer.provideMerge(OpenCodeRuntimeLive),
     ),
   ),

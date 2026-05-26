@@ -421,6 +421,29 @@ function runtimeEventToActivities(
       ];
     }
 
+    case "tool.summary": {
+      const taskId = event.turnId ?? event.itemId ?? event.eventId;
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "task.completed",
+          summary: "Task completed",
+          payload: {
+            taskId,
+            status: "completed",
+            detail: truncateDetail(event.payload.summary, 2_000),
+            ...(event.payload.precedingToolUseIds
+              ? { precedingToolUseIds: event.payload.precedingToolUseIds }
+              : {}),
+          },
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
     case "thread.state.changed": {
       if (event.payload.state !== "compacted") {
         return [];

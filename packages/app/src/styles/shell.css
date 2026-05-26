@@ -372,9 +372,10 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] .editor-panel-tab-r
 }
 
 @container (max-width: 900px) {
-  .agent-window:not([data-shell-right-intent="expanded"]) .agent-window__workbench {
+  .agent-window .agent-window__workbench {
     width: var(--multi-shell-right-workbench-collapsed-width);
     min-width: 0;
+    opacity: 0;
     pointer-events: none;
     visibility: hidden;
   }

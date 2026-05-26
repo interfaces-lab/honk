@@ -24,6 +24,7 @@ const EMPTY_SUBAGENT_LOGS: ReadonlyArray<WorkLogSubagentLog> = [];
 export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(props: {
   activeThreadId: ThreadId | null;
   compact: boolean;
+  visible: boolean;
 }) {
   const preview = useSubagentPreviewStore((state) => state.preview);
   const closePreview = useSubagentPreviewStore((state) => state.closePreview);
@@ -33,14 +34,15 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
     props.activeThreadId !== null && previewActiveThreadId === props.activeThreadId;
   const activeThreadSync = (
     <SubagentPreviewActiveThreadSync
-      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}`}
+      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}:${props.visible ? "1" : "0"}`}
       belongsToActiveThread={belongsToActiveThread}
       closePreview={closePreview}
       previewKey={previewKey}
+      visible={props.visible}
     />
   );
 
-  if (!preview || !belongsToActiveThread) {
+  if (!preview || !belongsToActiveThread || !props.visible) {
     return activeThreadSync;
   }
 
@@ -67,13 +69,15 @@ function SubagentPreviewActiveThreadSync({
   belongsToActiveThread,
   closePreview,
   previewKey,
+  visible,
 }: {
   belongsToActiveThread: boolean;
   closePreview: () => void;
   previewKey: string | null;
+  visible: boolean;
 }) {
   useMountEffect(() => {
-    if (previewKey !== null && !belongsToActiveThread) {
+    if (previewKey !== null && (!belongsToActiveThread || !visible)) {
       closePreview();
     }
   });

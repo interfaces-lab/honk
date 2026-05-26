@@ -23,6 +23,11 @@ export const gitQueryKeys = {
     ["git", "branches", environmentId ?? null, cwd] as const,
   branchSearch: (environmentId: EnvironmentId | null, cwd: string | null, query: string) =>
     ["git", "branches", environmentId ?? null, cwd, "search", query] as const,
+  pullRequest: (
+    environmentId: EnvironmentId | null,
+    cwd: string | null,
+    reference: string | null,
+  ) => ["git", "pull-request", environmentId ?? null, cwd, reference] as const,
 };
 
 export const gitMutationKeys = {
@@ -86,7 +91,7 @@ export function gitBranchSearchInfiniteQueryOptions(input: {
       });
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    enabled: input.cwd !== null && (input.enabled ?? true),
+    enabled: input.environmentId !== null && input.cwd !== null && (input.enabled ?? true),
     staleTime: GIT_BRANCHES_STALE_TIME_MS,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -100,13 +105,7 @@ export function gitResolvePullRequestQueryOptions(input: {
   reference: string | null;
 }) {
   return queryOptions({
-    queryKey: [
-      "git",
-      "pull-request",
-      input.environmentId ?? null,
-      input.cwd,
-      input.reference,
-    ] as const,
+    queryKey: gitQueryKeys.pullRequest(input.environmentId, input.cwd, input.reference),
     queryFn: async () => {
       if (!input.cwd || !input.reference || !input.environmentId) {
         throw new Error("Pull request lookup is unavailable.");

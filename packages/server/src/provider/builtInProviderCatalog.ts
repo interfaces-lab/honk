@@ -15,18 +15,21 @@ const CODEX_PROVIDER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_PROVIDER = ProviderDriverKind.make("claudeAgent");
 const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
 const CURSOR_PROVIDER = ProviderDriverKind.make("cursor");
+const CURSOR_SDK_PROVIDER = ProviderDriverKind.make("cursorSdk");
 
 type BuiltInProviderServiceMap = {
   readonly codex: ServerProviderShape;
   readonly claudeAgent: ServerProviderShape;
   readonly opencode: ServerProviderShape;
   readonly cursor: ServerProviderShape;
+  readonly cursorSdk: ServerProviderShape;
 };
 type BuiltInAdapterMap = {
   readonly codex: ProviderAdapterShape<ProviderAdapterError>;
   readonly claudeAgent: ProviderAdapterShape<ProviderAdapterError>;
   readonly opencode: ProviderAdapterShape<ProviderAdapterError>;
   readonly cursor: ProviderAdapterShape<ProviderAdapterError>;
+  readonly cursorSdk: ProviderAdapterShape<ProviderAdapterError>;
 };
 
 export const BUILT_IN_PROVIDER_ORDER = [
@@ -34,6 +37,7 @@ export const BUILT_IN_PROVIDER_ORDER = [
   CLAUDE_AGENT_PROVIDER,
   OPENCODE_PROVIDER,
   CURSOR_PROVIDER,
+  CURSOR_SDK_PROVIDER,
 ] as const satisfies ReadonlyArray<ProviderDriverKind>;
 
 export function createBuiltInProviderSources(
@@ -64,11 +68,23 @@ export function createBuiltInProviderSources(
       refresh: services.cursor.refresh,
       streamChanges: services.cursor.streamChanges,
     },
+    {
+      provider: CURSOR_SDK_PROVIDER,
+      getSnapshot: services.cursorSdk.getSnapshot,
+      refresh: services.cursorSdk.refresh,
+      streamChanges: services.cursorSdk.streamChanges,
+    },
   ];
 }
 
 export function createBuiltInAdapterList(
   adapters: BuiltInAdapterMap,
 ): ReadonlyArray<ProviderAdapterShape<ProviderAdapterError>> {
-  return [adapters.codex, adapters.claudeAgent, adapters.opencode, adapters.cursor];
+  return [
+    adapters.codex,
+    adapters.claudeAgent,
+    adapters.opencode,
+    adapters.cursor,
+    adapters.cursorSdk,
+  ];
 }

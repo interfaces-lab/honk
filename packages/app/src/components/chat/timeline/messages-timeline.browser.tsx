@@ -17,7 +17,6 @@ function buildProps() {
 
   return {
     isWorking: false,
-    activeTurnInProgress: false,
     editUserMessagesDisabled: false,
     activeTurnStartedAt: null,
     timelineControllerRef: createRef<MessagesTimelineController | null>(),
@@ -147,6 +146,15 @@ async function waitForBottom(scrollElement: HTMLElement) {
   });
 }
 
+async function waitForTimelineScrollState(
+  props: ReturnType<typeof buildProps>,
+  isAtBottom: boolean,
+) {
+  await vi.waitFor(() => {
+    expect(props.timelineControllerRef.current?.getScrollState()).toEqual({ isAtBottom });
+  });
+}
+
 async function waitForTimelineScrollSettle() {
   await new Promise<void>((resolve) => {
     window.setTimeout(resolve, TIMELINE_SCROLL_SETTLE_MS);
@@ -162,6 +170,89 @@ async function scrollTo(scrollElement: HTMLElement, scrollTop: number) {
   await new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => resolve());
   });
+}
+
+interface VisibleTimelineRow {
+  id: string;
+  top: number;
+  scrollTop: number;
+}
+
+function getFirstVisibleTimelineRow(
+  scrollElement: HTMLElement,
+  options?: { messageRole?: ChatMessage["role"] },
+): VisibleTimelineRow | null {
+  const viewportRect = scrollElement.getBoundingClientRect();
+  const rowElements = document.querySelectorAll<HTMLElement>("[data-index]");
+
+  for (const rowElement of rowElements) {
+    if (rowElement.dataset.sticky === "true") {
+      continue;
+    }
+
+    const timelineRoot = rowElement.querySelector<HTMLElement>("[data-timeline-row-id]");
+    if (!timelineRoot?.dataset.timelineRowId) {
+      continue;
+    }
+    if (options?.messageRole && timelineRoot.dataset.messageRole !== options.messageRole) {
+      continue;
+    }
+
+    const rowRect = timelineRoot.getBoundingClientRect();
+    if (rowRect.bottom > viewportRect.top + 1 && rowRect.top < viewportRect.bottom - 1) {
+      return {
+        id: timelineRoot.dataset.timelineRowId,
+        top: rowRect.top,
+        scrollTop: scrollElement.scrollTop,
+      };
+    }
+  }
+
+  return null;
+}
+
+async function waitForFirstVisibleTimelineRow(
+  scrollElement: HTMLElement,
+  options?: { messageRole?: ChatMessage["role"] },
+): Promise<VisibleTimelineRow> {
+  let visibleRow: VisibleTimelineRow | null = null;
+  await vi.waitFor(() => {
+    visibleRow = getFirstVisibleTimelineRow(scrollElement, options);
+    expect(visibleRow).not.toBeNull();
+  });
+  if (!visibleRow) {
+    throw new Error("Expected a visible timeline row.");
+  }
+  return visibleRow;
+}
+
+function growLastAssistantMessage(
+  entries: readonly TimelineEntry[],
+  extraLineCount: number,
+): TimelineEntry[] {
+  const nextEntries = [...entries];
+  for (let index = nextEntries.length - 1; index >= 0; index -= 1) {
+    const entry = nextEntries[index];
+    if (!entry || entry.kind !== "message" || entry.message.role !== "assistant") {
+      continue;
+    }
+
+    nextEntries[index] = {
+      ...entry,
+      message: {
+        ...entry.message,
+        text: [
+          entry.message.text,
+          ...Array.from(
+            { length: extraLineCount },
+            (_, lineIndex) => `Streaming response growth line ${lineIndex}.`,
+          ),
+        ].join("\n"),
+      },
+    };
+    break;
+  }
+  return nextEntries;
 }
 
 function requireElement<T extends Element>(selector: string, root: ParentNode = document): T {
@@ -378,7 +469,7 @@ describe("messages-timeline", () => {
       );
 
       await expect.element(page.getByText("Thinking - Inspecting repository state")).toBeVisible();
-      expect(props.timelineControllerRef.current?.getScrollState()).toEqual({ isAtBottom: true });
+      await waitForTimelineScrollState(props, true);
     } finally {
       await screen.unmount();
     }
@@ -404,7 +495,7 @@ describe("messages-timeline", () => {
       );
 
       await waitForBottom(scrollElement);
-      expect(props.timelineControllerRef.current?.getScrollState()).toEqual({ isAtBottom: true });
+      await waitForTimelineScrollState(props, true);
     } finally {
       await screen.unmount();
     }
@@ -442,7 +533,75 @@ describe("messages-timeline", () => {
         expect(getDistanceFromBottom(scrollElement)).toBeGreaterThan(2);
       });
       expect(scrollElement.scrollTop).toBeLessThanOrEqual(scrollTopBeforeAppend + 2);
-      expect(props.timelineControllerRef.current?.getScrollState()).toEqual({ isAtBottom: false });
+      await waitForTimelineScrollState(props, false);
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("keeps the same visible row in view when older rows are prepended", async () => {
+    const props = buildProps();
+    const initialEntries = buildConversationEntries(22);
+    const screen = await renderTimeline(props, initialEntries);
+
+    try {
+      const scrollElement = await waitForScrollable();
+      props.timelineControllerRef.current?.scrollToBottom({ animated: false });
+      await waitForBottom(scrollElement);
+      await waitForTimelineScrollSettle();
+      await scrollTo(scrollElement, 180);
+      await waitForTimelineScrollState(props, false);
+
+      const beforePrepend = await waitForFirstVisibleTimelineRow(scrollElement, {
+        messageRole: "assistant",
+      });
+      const olderEntries = buildConversationEntries(2, -2);
+
+      await screen.rerender(
+        <div style={{ height: 360, width: 860 }}>
+          <MessagesTimeline {...props} timelineEntries={[...olderEntries, ...initialEntries]} />
+        </div>,
+      );
+
+      await vi.waitFor(() => {
+        const afterPrepend = getFirstVisibleTimelineRow(scrollElement, {
+          messageRole: "assistant",
+        });
+        expect(afterPrepend).not.toBeNull();
+        if (!afterPrepend) {
+          return;
+        }
+        expect(afterPrepend.id).toBe(beforePrepend.id);
+        expect(afterPrepend.scrollTop).toBeGreaterThan(beforePrepend.scrollTop);
+      });
+      await waitForTimelineScrollState(props, false);
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("keeps the viewport pinned when the final message grows while streaming", async () => {
+    const props = buildProps();
+    const initialEntries = buildConversationEntries(16);
+    const screen = await renderTimeline(props, initialEntries);
+
+    try {
+      const scrollElement = await waitForScrollable();
+      props.timelineControllerRef.current?.scrollToBottom({ animated: false });
+      await waitForBottom(scrollElement);
+      await waitForTimelineScrollState(props, true);
+
+      await screen.rerender(
+        <div style={{ height: 360, width: 860 }}>
+          <MessagesTimeline
+            {...props}
+            timelineEntries={growLastAssistantMessage(initialEntries, 18)}
+          />
+        </div>,
+      );
+
+      await waitForBottom(scrollElement);
+      await waitForTimelineScrollState(props, true);
     } finally {
       await screen.unmount();
     }

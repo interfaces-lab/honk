@@ -42,10 +42,10 @@
     "@effect/language-service": "catalog:",
     "@types/node": "catalog:",
     "bun": "catalog:",
-    "knip": "^6.14.1",
-    "oxfmt": "^0.50.0",
-    "oxlint": "^1.65.0",
-    "stylelint": "^17.11.1",
+    "knip": "^6.14.2",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
+    "stylelint": "^17.12.0",
     "stylelint-config-standard": "^40.0.0",
     "turbo": "^2.9.14",
     "typescript": "catalog:",
@@ -59,12 +59,12 @@
     "@effect/sql-sqlite-bun": "catalog:",
     "@effect/vitest": "catalog:",
     "effect": "catalog:",
-    "vite": "^8.0.13"
+    "vite": "^8.0.14"
   },
   "engines": {
     "node": "25.8.1"
   },
-  "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
+  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215",
   "msw": {
     "workerDirectory": [
       "packages/app/public"

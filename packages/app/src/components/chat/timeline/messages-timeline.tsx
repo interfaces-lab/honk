@@ -1,5 +1,4 @@
 import { type EnvironmentId, type MessageId, type ThreadId } from "@multi/contracts";
-import { useThrottledCallback } from "@tanstack/react-pacer";
 import {
   createContext,
   memo,
@@ -23,7 +22,7 @@ import {
 } from "@tanstack/react-virtual";
 import { IconChevronRightMedium } from "central-icons";
 import { Spinner } from "@multi/ui/spinner";
-import { deriveTimelineEntries, formatDuration } from "../../../session-logic";
+import { deriveTimelineEntries, formatDuration, type WorkLogEntry } from "../../../session-logic";
 import { type ChatMessage } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
@@ -61,6 +60,7 @@ export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
 const DEFAULT_VIRTUALIZER_RECT = { width: 0, height: 720 };
 const VIRTUAL_ROW_GAP_PX = 12;
 const VIRTUALIZER_OVERSCAN = 8;
+const TIMELINE_SCROLL_END_THRESHOLD_PX = 2;
 const WORK_GROUP_PREVIEW_MAX_ENTRIES = 6;
 const MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS = 16;
 
@@ -98,7 +98,6 @@ export interface MessagesTimelineController {
 
 interface MessagesTimelineProps {
   isWorking: boolean;
-  activeTurnInProgress: boolean;
   editUserMessagesDisabled: boolean;
   activeTurnStartedAt: string | null;
   bottomClearancePx?: number | undefined;
@@ -125,7 +124,6 @@ interface MessagesTimelineProps {
 
 export const MessagesTimeline = memo(function MessagesTimeline({
   isWorking,
-  activeTurnInProgress,
   editUserMessagesDisabled,
   activeTurnStartedAt,
   bottomClearancePx = 0,
@@ -179,12 +177,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const isAtBottomRef = useRef(true);
   const programmaticScrollFrameRef = useRef<number | null>(null);
   const programmaticScrollDeadlineRef = useRef(0);
-  const programmaticScrollTargetRef = useRef<number | null>(null);
+  const programmaticScrollActiveRef = useRef(false);
   const initializedScrollRef = useRef(false);
   const stickyUserRowIndicesRef = useRef(stickyUserRowIndices);
-  const scrollSnapshotRef = useRef({ rowsLength: 0, scrollTop: 0 });
-  const renderedRowsLengthRef = useRef(0);
-  const pendingScrollTopRestoreRef = useRef<number | null>(null);
   const rowsRef = useRef(rows);
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
   const cachedVirtualizerSnapshot = useMemo(
@@ -195,28 +190,24 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     () => filterReusableTimelineMeasurements(cachedVirtualizerSnapshot, rows),
     [cachedVirtualizerSnapshot, rows],
   );
-  const estimatedRowSizes = useMemo(() => rows.map(getEstimatedTimelineRowSize), [rows]);
-  const initialScrollOffset = useMemo(
+  const restoredInitialScrollOffset = useMemo(
     () =>
       shouldRestoreTimelineScrollOffset(cachedVirtualizerSnapshot, rows)
         ? cachedVirtualizerSnapshot.scrollOffset
-        : estimateInitialTimelineBottomOffset(estimatedRowSizes, virtualizerBottomPadding),
-    [cachedVirtualizerSnapshot, estimatedRowSizes, rows, virtualizerBottomPadding],
+        : null,
+    [cachedVirtualizerSnapshot, rows],
   );
+  const shouldRestoreInitialScrollOffset = restoredInitialScrollOffset !== null;
+  const estimatedRowSizes = useMemo(() => rows.map(getEstimatedTimelineRowSize), [rows]);
+  const initialScrollOffset = useMemo(() => {
+    if (restoredInitialScrollOffset !== null) {
+      return restoredInitialScrollOffset;
+    }
+    return estimateInitialTimelineBottomOffset(estimatedRowSizes, virtualizerBottomPadding);
+  }, [estimatedRowSizes, restoredInitialScrollOffset, virtualizerBottomPadding]);
 
   rowsRef.current = rows;
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
-  if (renderedRowsLengthRef.current !== rows.length) {
-    if (
-      renderedRowsLengthRef.current > 0 &&
-      rows.length > renderedRowsLengthRef.current &&
-      !isAtBottomRef.current
-    ) {
-      pendingScrollTopRestoreRef.current =
-        scrollElementRef.current?.scrollTop ?? scrollSnapshotRef.current.scrollTop;
-    }
-    renderedRowsLengthRef.current = rows.length;
-  }
 
   const reportIsAtBottom = useCallback(
     (isAtBottom: boolean, options?: { force?: boolean }) => {
@@ -229,107 +220,13 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     [onIsAtBottomChange],
   );
 
-  const getIsAtBottom = useCallback(() => {
-    const scrollElement = scrollElementRef.current;
-    if (!scrollElement) {
-      return true;
-    }
-
-    const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
-    return maxScrollTop <= 1 || scrollElement.scrollTop >= maxScrollTop - 2;
-  }, []);
-
   const clearProgrammaticScrollTracking = useCallback(() => {
-    programmaticScrollTargetRef.current = null;
+    programmaticScrollActiveRef.current = false;
     if (programmaticScrollFrameRef.current != null) {
       window.cancelAnimationFrame(programmaticScrollFrameRef.current);
       programmaticScrollFrameRef.current = null;
     }
   }, []);
-
-  const scheduleProgrammaticScrollResolution = useCallback(() => {
-    if (programmaticScrollFrameRef.current != null) {
-      return;
-    }
-
-    const resolveProgrammaticScroll = () => {
-      programmaticScrollFrameRef.current = null;
-      if (programmaticScrollTargetRef.current === null) {
-        return;
-      }
-
-      const isAtBottom = getIsAtBottom();
-      if (isAtBottom || window.performance.now() >= programmaticScrollDeadlineRef.current) {
-        programmaticScrollTargetRef.current = null;
-        reportIsAtBottom(isAtBottom);
-        return;
-      }
-
-      programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
-    };
-
-    programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
-  }, [getIsAtBottom, reportIsAtBottom]);
-
-  const scrollToBottom = useCallback(
-    (options?: { animated?: boolean }) => {
-      const scrollElement = scrollElementRef.current;
-      if (!scrollElement) {
-        return;
-      }
-
-      const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
-      const animated = options?.animated === true;
-      if (animated) {
-        programmaticScrollTargetRef.current = maxScrollTop;
-        programmaticScrollDeadlineRef.current = window.performance.now() + 1600;
-      } else {
-        clearProgrammaticScrollTracking();
-      }
-
-      scrollElement.scrollTo({
-        top: maxScrollTop,
-        behavior: animated ? "smooth" : "auto",
-      });
-      if (animated) {
-        scheduleProgrammaticScrollResolution();
-      } else {
-        reportIsAtBottom(true);
-      }
-    },
-    [clearProgrammaticScrollTracking, reportIsAtBottom, scheduleProgrammaticScrollResolution],
-  );
-
-  const scheduleStickToBottom = useThrottledCallback(
-    (options?: { animated?: boolean }) => {
-      scrollToBottom({ animated: options?.animated ?? false });
-    },
-    { wait: 16, leading: true, trailing: true },
-  );
-  const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
-  const rowsVersion = useValueIdentityVersion(rows);
-  const scheduleStickToBottomVersion = useValueIdentityVersion(scheduleStickToBottom);
-  const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
-
-  const handleScroll = useCallback(() => {
-    const scrollElement = scrollElementRef.current;
-    const isAtBottom = getIsAtBottom();
-    if (scrollElement) {
-      scrollSnapshotRef.current = {
-        rowsLength: rows.length,
-        scrollTop: scrollElement.scrollTop,
-      };
-    }
-    if (programmaticScrollTargetRef.current !== null) {
-      if (isAtBottom) {
-        clearProgrammaticScrollTracking();
-        reportIsAtBottom(true);
-      }
-      return;
-    }
-
-    reportIsAtBottom(isAtBottom);
-  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom, rows.length]);
 
   const rangeExtractor = useCallback((range: Range) => {
     const defaultRange = defaultRangeExtractor(range);
@@ -356,38 +253,107 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     initialRect: DEFAULT_VIRTUALIZER_RECT,
     initialOffset: initialScrollOffset,
     initialMeasurementsCache,
+    anchorTo: "end",
+    followOnAppend: true,
+    scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD_PX,
     useAnimationFrameWithResizeObserver: true,
-    onChange: (_instance, sync) => {
-      if (!sync && isAtBottomRef.current) {
-        scheduleStickToBottom();
-      }
-    },
   });
 
-  useLayoutSyncEffect(() => {
-    const scrollElement = scrollElementRef.current;
-    if (!scrollElement) {
-      scrollSnapshotRef.current = { rowsLength: rows.length, scrollTop: 0 };
+  const getIsAtBottom = useCallback(
+    () => rowVirtualizer.isAtEnd(TIMELINE_SCROLL_END_THRESHOLD_PX),
+    [rowVirtualizer],
+  );
+
+  const scheduleProgrammaticScrollResolution = useCallback(() => {
+    if (programmaticScrollFrameRef.current != null) {
       return;
     }
 
-    const restoreScrollTop = pendingScrollTopRestoreRef.current;
-    if (restoreScrollTop !== null) {
-      pendingScrollTopRestoreRef.current = null;
-      isAtBottomRef.current = false;
-      rowVirtualizer.scrollToOffset(restoreScrollTop, { behavior: "auto" });
-      scrollElement.scrollTop = restoreScrollTop;
-      window.requestAnimationFrame(() => {
-        rowVirtualizer.scrollToOffset(restoreScrollTop, { behavior: "auto" });
-        scrollElement.scrollTop = restoreScrollTop;
-      });
+    const resolveProgrammaticScroll = () => {
+      programmaticScrollFrameRef.current = null;
+      if (!programmaticScrollActiveRef.current) {
+        return;
+      }
+
+      const isAtBottom = getIsAtBottom();
+      if (isAtBottom || window.performance.now() >= programmaticScrollDeadlineRef.current) {
+        programmaticScrollActiveRef.current = false;
+        reportIsAtBottom(isAtBottom);
+        return;
+      }
+
+      programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
+    };
+
+    programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
+  }, [getIsAtBottom, reportIsAtBottom]);
+
+  const scrollToBottom = useCallback(
+    (options?: { animated?: boolean }) => {
+      if (!scrollElementRef.current) {
+        return;
+      }
+
+      const animated = options?.animated === true;
+      if (animated) {
+        programmaticScrollActiveRef.current = true;
+        programmaticScrollDeadlineRef.current = window.performance.now() + 1600;
+      } else {
+        clearProgrammaticScrollTracking();
+      }
+
+      rowVirtualizer.scrollToEnd({ behavior: animated ? "smooth" : "auto" });
+      if (animated) {
+        scheduleProgrammaticScrollResolution();
+      } else {
+        reportIsAtBottom(true);
+      }
+    },
+    [
+      clearProgrammaticScrollTracking,
+      reportIsAtBottom,
+      rowVirtualizer,
+      scheduleProgrammaticScrollResolution,
+    ],
+  );
+  const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
+  const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
+
+  const handleScroll = useCallback(() => {
+    const isAtBottom = getIsAtBottom();
+    if (programmaticScrollActiveRef.current) {
+      if (isAtBottom) {
+        clearProgrammaticScrollTracking();
+        reportIsAtBottom(true);
+      }
+      return;
     }
 
-    scrollSnapshotRef.current = {
-      rowsLength: rows.length,
-      scrollTop: scrollElement.scrollTop,
-    };
-  }, [rows.length]);
+    reportIsAtBottom(isAtBottom);
+  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom]);
+
+  useLayoutSyncEffect(() => {
+    if (rows.length === 0 || initializedScrollRef.current) {
+      return;
+    }
+
+    initializedScrollRef.current = true;
+    if (shouldRestoreInitialScrollOffset) {
+      reportIsAtBottom(false, { force: true });
+      return;
+    }
+
+    rowVirtualizer.scrollToEnd({ behavior: "auto" });
+    reportIsAtBottom(true, { force: true });
+  }, [reportIsAtBottom, rowVirtualizer, rows.length, shouldRestoreInitialScrollOffset]);
+
+  useLayoutSyncEffect(() => {
+    if (!initializedScrollRef.current || rows.length === 0 || !isAtBottomRef.current) {
+      return;
+    }
+
+    rowVirtualizer.scrollToEnd({ behavior: "auto" });
+  }, [rowVirtualizer, virtualizerBottomPadding]);
 
   useLayoutSyncEffect(
     () => () => {
@@ -434,21 +400,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       />
       <ProgrammaticScrollTrackingCleanup
         clearProgrammaticScrollTracking={clearProgrammaticScrollTracking}
-      />
-      <TimelineRowsStickToBottomSync
-        key={`rows-stick:${rowsVersion}:${scheduleStickToBottomVersion}`}
-        initializedScrollRef={initializedScrollRef}
-        isAtBottomRef={isAtBottomRef}
-        reportIsAtBottom={reportIsAtBottom}
-        rows={rows}
-        scheduleStickToBottom={scheduleStickToBottom}
-      />
-      <TimelineActiveWorkStickToBottomSync
-        key={`active-work-stick:${activeTurnInProgress}:${isWorking}:${scheduleStickToBottomVersion}`}
-        activeTurnInProgress={activeTurnInProgress}
-        isAtBottomRef={isAtBottomRef}
-        isWorking={isWorking}
-        scheduleStickToBottom={scheduleStickToBottom}
       />
     </>
   );
@@ -559,66 +510,6 @@ function ProgrammaticScrollTrackingCleanup({
 }) {
   useMountEffect(() => () => {
     clearProgrammaticScrollTracking();
-  });
-
-  return null;
-}
-
-function TimelineRowsStickToBottomSync({
-  initializedScrollRef,
-  isAtBottomRef,
-  reportIsAtBottom,
-  rows,
-  scheduleStickToBottom,
-}: {
-  initializedScrollRef: RefObject<boolean>;
-  isAtBottomRef: RefObject<boolean>;
-  reportIsAtBottom: (isAtBottom: boolean, options?: { force?: boolean }) => void;
-  rows: readonly MessagesTimelineRow[];
-  scheduleStickToBottom: (options?: { animated?: boolean }) => void;
-}) {
-  useLayoutSyncEffect(() => {
-    if (rows.length === 0) {
-      return;
-    }
-
-    if (!initializedScrollRef.current) {
-      initializedScrollRef.current = true;
-      reportIsAtBottom(true);
-      scheduleStickToBottom();
-      return;
-    }
-
-    if (!isAtBottomRef.current) {
-      return;
-    }
-
-    scheduleStickToBottom();
-  }, []);
-
-  return null;
-}
-
-function TimelineActiveWorkStickToBottomSync({
-  activeTurnInProgress,
-  isAtBottomRef,
-  isWorking,
-  scheduleStickToBottom,
-}: {
-  activeTurnInProgress: boolean;
-  isAtBottomRef: RefObject<boolean>;
-  isWorking: boolean;
-  scheduleStickToBottom: (options?: { animated?: boolean }) => void;
-}) {
-  useMountEffect(() => {
-    if (!isWorking && !activeTurnInProgress) {
-      return;
-    }
-    if (!isAtBottomRef.current) {
-      return;
-    }
-
-    scheduleStickToBottom();
   });
 
   return null;
@@ -956,6 +847,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   const summary = row.summary;
   const isRunning = row.isRunning;
   const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
+  const isCommandGroup = row.groupedEntries.every(isCommandWorkEntry);
   const headerLabel = isThinkingGroup
     ? [summary.action, summary.details].filter(Boolean).join(" ")
     : isRunning
@@ -1002,7 +894,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
       </button>
       {isRunning ? (
         <>
-          {expanded ? <WorkGroupSummaryLine summary={summary} /> : null}
+          {expanded && !isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
           <WorkGroupPreview
             key={`work-preview:${row.id}`}
             row={row}
@@ -1012,7 +904,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
         </>
       ) : expanded ? (
         <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
-          <WorkGroupSummaryLine summary={summary} />
+          {!isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
           {row.groupedEntries.map((workEntry) => (
             <ToolCallMessage
               key={`work-row:${workEntry.id}`}
@@ -1028,6 +920,10 @@ const WorkGroupSection = memo(function WorkGroupSection({
     </div>
   );
 });
+
+function isCommandWorkEntry(entry: WorkLogEntry): boolean {
+  return entry.itemType === "command_execution" || Boolean(entry.command);
+}
 
 function WorkGroupSummaryLine({
   summary,

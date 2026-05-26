@@ -467,7 +467,7 @@ function emitEnvironmentConnectionRegistryChange() {
   }
 }
 
-function coalesceOrchestrationUiEvents(
+export function coalesceOrchestrationUiEvents(
   events: ReadonlyArray<OrchestrationEvent>,
 ): OrchestrationEvent[] {
   if (events.length < 2) {
@@ -481,7 +481,8 @@ function coalesceOrchestrationUiEvents(
       previous?.type === "thread.message-sent" &&
       event.type === "thread.message-sent" &&
       previous.payload.threadId === event.payload.threadId &&
-      previous.payload.messageId === event.payload.messageId
+      previous.payload.messageId === event.payload.messageId &&
+      !(previous.payload.streaming && !event.payload.streaming && event.payload.text.length === 0)
     ) {
       coalesced[coalesced.length - 1] = {
         ...event,

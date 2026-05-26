@@ -14,6 +14,7 @@ export function getRouter(history: RouterHistory) {
     context: {
       queryClient,
     },
+    defaultPreloadStaleTime: 0,
     Wrap: ({ children }) =>
       createElement(
         QueryClientProvider,

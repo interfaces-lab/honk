@@ -84,6 +84,16 @@ export type SidebarChatItem =
 
 type SidebarThreadChatItem = Extract<SidebarChatItem, { kind: "thread" }>;
 
+const MARKDOWN_SKILL_PREVIEW_TOKEN_REGEX =
+  /(^|\s)\[\$([a-zA-Z][a-zA-Z0-9:_-]*)\]\([^)]*\)(?=\s|$)/g;
+
+function compactSerializedSkillPreviewTokens(text: string): string {
+  return text.replace(
+    MARKDOWN_SKILL_PREVIEW_TOKEN_REGEX,
+    (_match, prefix: string, skillName: string) => `${prefix}$${skillName}`,
+  );
+}
+
 export interface SidebarSectionModel {
   id: string;
   label: string;
@@ -133,7 +143,7 @@ function shortProjectPathLabel(path: string, home: string | null): string {
 }
 
 function draftTitle(draft: SidebarDraftSummary) {
-  const text = draft.text.trim();
+  const text = compactSerializedSkillPreviewTokens(draft.text).trim();
   if (text) {
     const line = text.split("\n")[0]?.trim();
     if (line) return line;

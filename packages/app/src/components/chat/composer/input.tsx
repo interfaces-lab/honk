@@ -2231,6 +2231,7 @@ export const ComposerInput = memo(
           <SubagentPreviewTrayStack
             activeThreadId={activeThreadId}
             compact={composerVariant === "compact"}
+            visible={composerVariant !== "compact" || isDockComposerExpanded}
           />
           {showQueuedComposerPanel ? (
             <QueuedComposerItemsPanel

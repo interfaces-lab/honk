@@ -1,9 +1,13 @@
 import { QueryClient } from "@tanstack/react-query";
 import {
+  CommandId,
   EnvironmentId,
   EventId,
+  MessageId,
+  type OrchestrationEvent,
   ProjectId,
   ThreadId,
+  ThreadEntryId,
   TurnId,
   type OrchestrationShellSnapshot,
 } from "@multi/contracts";
@@ -14,6 +18,8 @@ const mockThreadUnsubscribe = vi.fn();
 const mockCreateEnvironmentConnection = vi.fn();
 const mockCreateWsRpcClient = vi.fn();
 const mockRefreshGitStatus = vi.fn();
+
+type MessageSentEvent = Extract<OrchestrationEvent, { type: "thread.message-sent" }>;
 
 function MockWsTransport() {
   return undefined;
@@ -405,5 +411,53 @@ describe("projection version guards", () => {
         },
       }),
     ).toBe(false);
+  });
+});
+
+describe("coalesceOrchestrationUiEvents", () => {
+  it("keeps final empty assistant messages separate from streaming chunks", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./service");
+    const threadId = ThreadId.make("thread-stream");
+    const messageId = MessageId.make("assistant-stream");
+    const entryId = ThreadEntryId.make("entry-assistant-stream");
+    const turnId = TurnId.make("turn-stream");
+    const makeMessageEvent = (
+      sequence: number,
+      text: string,
+      streaming: boolean,
+    ): MessageSentEvent => ({
+      sequence,
+      eventId: EventId.make(`event-stream-${sequence}`),
+      aggregateKind: "thread",
+      aggregateId: threadId,
+      occurredAt: `2026-04-13T00:00:0${sequence}.000Z`,
+      commandId: CommandId.make("command-stream"),
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "thread.message-sent",
+      payload: {
+        threadId,
+        messageId,
+        entryId,
+        parentEntryId: null,
+        role: "assistant",
+        text,
+        turnId,
+        streaming,
+        createdAt: "2026-04-13T00:00:01.000Z",
+        updatedAt: `2026-04-13T00:00:0${sequence}.000Z`,
+      },
+    });
+
+    const events = coalesceOrchestrationUiEvents([
+      makeMessageEvent(1, "hello", true),
+      makeMessageEvent(2, "", false),
+    ]);
+    const messageEvents = events as MessageSentEvent[];
+
+    expect(events).toHaveLength(2);
+    expect(messageEvents.map((event) => event.payload.text)).toEqual(["hello", ""]);
+    expect(messageEvents.map((event) => event.payload.streaming)).toEqual([true, false]);
   });
 });

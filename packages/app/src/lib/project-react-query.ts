@@ -62,7 +62,10 @@ export function projectSearchEntriesQueryOptions(input: {
       input.cwd !== null &&
       input.query.length > 0,
     staleTime: input.staleTime ?? DEFAULT_SEARCH_ENTRIES_STALE_TIME,
-    placeholderData: (previous) => previous ?? EMPTY_SEARCH_ENTRIES_RESULT,
+    placeholderData: (previous) =>
+      input.query.length > 0
+        ? (previous ?? EMPTY_SEARCH_ENTRIES_RESULT)
+        : EMPTY_SEARCH_ENTRIES_RESULT,
   });
 }
 

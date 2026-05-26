@@ -26,6 +26,7 @@ import {
 import { ClaudeAdapter } from "./ClaudeAdapter.service.ts";
 import { CodexAdapter } from "./CodexAdapter.service.ts";
 import { CursorAdapter } from "./CursorAdapter.service.ts";
+import { CursorSdkAdapter } from "./CursorSdkAdapter.service.ts";
 import { OpenCodeAdapter } from "./OpenCodeAdapter.service.ts";
 import { createBuiltInAdapterList } from "./builtInProviderCatalog.ts";
 import { ServerSettingsService } from "../server-settings.ts";
@@ -47,6 +48,7 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
           claudeAgent: yield* ClaudeAdapter,
           opencode: yield* OpenCodeAdapter,
           cursor: yield* CursorAdapter,
+          cursorSdk: yield* CursorSdkAdapter,
         });
   const byProvider = new Map(
     adapters.map((adapter) => [ProviderDriverKind.make(adapter.provider), adapter] as const),

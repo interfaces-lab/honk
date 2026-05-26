@@ -1,6 +1,7 @@
 import {
   ClaudeSettings,
   CodexSettings,
+  CursorSdkSettings,
   CursorSettings,
   OpenCodeSettings,
   ProviderDriverKind,
@@ -60,6 +61,13 @@ export const DRIVER_OPTIONS: readonly DriverOption[] = [
     label: "Cursor",
     icon: IconCursor,
     settingsSchema: CursorSettings,
+  },
+  {
+    value: ProviderDriverKind.make("cursorSdk"),
+    label: "Cursor SDK",
+    icon: IconCursor,
+    settingsSchema: CursorSdkSettings,
+    badgeLabel: "SDK",
   },
 ];
 

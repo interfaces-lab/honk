@@ -560,7 +560,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
 
               assert.deepStrictEqual(
                 providers.map((provider) => provider.driver),
-                ["claudeAgent", "codex", "cursor", "opencode"],
+                ["claudeAgent", "codex", "cursor", "cursorSdk", "opencode"],
               );
               assert.strictEqual(cursorProvider?.enabled, false);
               assert.strictEqual(cursorProvider?.status, "disabled");
