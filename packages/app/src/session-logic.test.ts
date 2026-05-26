@@ -1,10 +1,11 @@
 import {
   EventId,
   MessageId,
+  OrchestrationThreadActivity,
   ThreadId,
   TurnId,
-  type OrchestrationThreadActivity,
 } from "@multi/contracts";
+import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -24,7 +25,7 @@ import {
 function makeActivity(overrides: {
   id?: string;
   createdAt?: string;
-  kind?: string;
+  kind?: OrchestrationThreadActivity["kind"];
   summary?: string;
   tone?: OrchestrationThreadActivity["tone"];
   payload?: Record<string, unknown>;
@@ -32,7 +33,7 @@ function makeActivity(overrides: {
   sequence?: number;
 }): OrchestrationThreadActivity {
   const payload = overrides.payload ?? {};
-  return {
+  return Schema.decodeUnknownSync(OrchestrationThreadActivity)({
     id: EventId.make(overrides.id ?? crypto.randomUUID()),
     createdAt: overrides.createdAt ?? "2026-02-23T00:00:00.000Z",
     kind: overrides.kind ?? "tool.started",
@@ -41,7 +42,7 @@ function makeActivity(overrides: {
     payload,
     turnId: overrides.turnId ? TurnId.make(overrides.turnId) : null,
     ...(overrides.sequence !== undefined ? { sequence: overrides.sequence } : {}),
-  };
+  });
 }
 
 describe("derivePendingApprovals", () => {

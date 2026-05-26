@@ -7,7 +7,7 @@ import {
   type OrchestrationProjectShell,
   type OrchestrationSession,
   type OrchestrationThread,
-  type OrchestrationThreadActivity,
+  OrchestrationThreadActivity,
   type OrchestrationThreadEntry,
   type OrchestrationThreadShell,
 } from "@multi/contracts";
@@ -724,7 +724,7 @@ const makeThreadProjection = Effect.gen(function* () {
               for (const row of activityRows) {
                 updatedAt = maxIso(updatedAt, row.createdAt);
                 const threadActivities = activitiesByThread.get(row.threadId) ?? [];
-                threadActivities.push({
+                threadActivities.push(Schema.decodeUnknownSync(OrchestrationThreadActivity)({
                   id: row.activityId,
                   tone: row.tone,
                   kind: row.kind,
@@ -733,7 +733,7 @@ const makeThreadProjection = Effect.gen(function* () {
                   turnId: row.turnId,
                   ...(row.sequence !== null ? { sequence: row.sequence } : {}),
                   createdAt: row.createdAt,
-                });
+                }));
                 activitiesByThread.set(row.threadId, threadActivities);
               }
 

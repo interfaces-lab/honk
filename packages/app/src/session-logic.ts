@@ -726,7 +726,6 @@ export function deriveWorkLogEntries(
   const subagentDetailsByProviderThreadId = deriveSubagentDetailsByProviderThreadId(ordered);
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
-    .filter((activity) => activity.kind !== "account.rate-limits.updated")
     .filter((activity) => activity.kind !== "context-window.updated")
     .filter((activity) => !isSubagentRuntimeActivity(activity))
     .filter((activity) => activity.summary !== "Checkpoint captured")

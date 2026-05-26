@@ -96,14 +96,10 @@ function normalizeProposedPlanMarkdown(planMarkdown: string | undefined): string
   return trimmed;
 }
 
-function proposedPlanIdForTurn(threadId: ThreadId, turnId: TurnId): string {
-  return `plan:${threadId}:turn:${turnId}`;
-}
-
 function proposedPlanIdFromEvent(event: ProviderRuntimeEvent, threadId: ThreadId): string {
   const turnId = toTurnId(event.turnId);
   if (turnId) {
-    return proposedPlanIdForTurn(threadId, turnId);
+    return `plan:${threadId}:turn:${turnId}`;
   }
   if (event.itemId) {
     return `plan:${threadId}:item:${event.itemId}`;
@@ -422,18 +418,15 @@ function runtimeEventToActivities(
     }
 
     case "tool.summary": {
-      const taskId = event.turnId ?? event.itemId ?? event.eventId;
       return [
         {
           id: event.eventId,
           createdAt: event.createdAt,
           tone: "info",
-          kind: "task.completed",
-          summary: "Task completed",
+          kind: "tool.summary",
+          summary: truncateDetail(event.payload.summary, 2_000),
           payload: {
-            taskId,
-            status: "completed",
-            detail: truncateDetail(event.payload.summary, 2_000),
+            summary: truncateDetail(event.payload.summary, 2_000),
             ...(event.payload.precedingToolUseIds
               ? { precedingToolUseIds: event.payload.precedingToolUseIds }
               : {}),
@@ -1482,7 +1475,7 @@ const make = Effect.fn("make")(function* () {
           event,
           threadId: thread.id,
           threadProposedPlans: thread.proposedPlans,
-          planId: proposedPlanIdForTurn(thread.id, turnId),
+          planId: `plan:${thread.id}:turn:${turnId}`,
           turnId,
           updatedAt: now,
         });

@@ -268,7 +268,7 @@ describe("thread selection memoization", () => {
         {
           id: EventId.make("activity-1"),
           tone: "info",
-          kind: "step",
+          kind: "tool.started",
           summary: "working",
           payload: {},
           turnId: TurnId.make("turn-1"),
@@ -897,7 +897,7 @@ describe("incremental orchestration updates", () => {
           {
             id: EventId.make("activity-1"),
             tone: "info",
-            kind: "step",
+            kind: "tool.started",
             summary: "one",
             payload: {},
             turnId: TurnId.make("turn-1"),
@@ -906,7 +906,7 @@ describe("incremental orchestration updates", () => {
           {
             id: EventId.make("activity-2"),
             tone: "info",
-            kind: "step",
+            kind: "tool.started",
             summary: "two",
             payload: {},
             turnId: TurnId.make("turn-2"),

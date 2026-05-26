@@ -8,5 +8,12 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "files.associations": {
     "*.css": "tailwindcss"
-  }
+  },
+  "python-envs.pythonProjects": [
+    {
+      "path": "specs",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
 }

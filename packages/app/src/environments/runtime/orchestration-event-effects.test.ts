@@ -2,12 +2,13 @@ import {
   CheckpointRef,
   EventId,
   MessageId,
-  type OrchestrationThreadActivity,
+  OrchestrationThreadActivity,
   ProjectId,
   ThreadId,
   TurnId,
   type OrchestrationEvent,
 } from "@multi/contracts";
+import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { deriveOrchestrationBatchEffects } from "./orchestration-event-effects";
@@ -41,10 +42,10 @@ function makeEvent<T extends OrchestrationEvent["type"]>(
 
 function makeActivity(input: {
   id: string;
-  kind: string;
+  kind: OrchestrationThreadActivity["kind"];
   payload: unknown;
 }): OrchestrationThreadActivity {
-  return {
+  return Schema.decodeUnknownSync(OrchestrationThreadActivity)({
     id: EventId.make(input.id),
     tone: "tool",
     kind: input.kind,
@@ -52,7 +53,7 @@ function makeActivity(input: {
     payload: input.payload,
     turnId: null,
     createdAt: "2026-02-27T00:00:00.000Z",
-  };
+  });
 }
 
 describe("deriveOrchestrationBatchEffects", () => {

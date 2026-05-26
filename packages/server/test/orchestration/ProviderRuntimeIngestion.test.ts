@@ -2129,7 +2129,7 @@ describe("ProviderRuntimeIngestion", () => {
         explanation: "Working through the plan",
         plan: [
           { step: "Inspect files", status: "completed" },
-          { step: "Apply patch", status: "in_progress" },
+          { step: "Apply patch", status: "inProgress" },
         ],
       },
     });
@@ -2604,12 +2604,10 @@ describe("ProviderRuntimeIngestion", () => {
         ? (activity.payload as Record<string, unknown>)
         : undefined;
 
-    expect(activity?.kind).toBe("task.completed");
-    expect(activity?.summary).toBe("Task completed");
+    expect(activity?.kind).toBe("tool.summary");
+    expect(activity?.summary).toBe("Updated the Cursor SDK adapter and verified the projection path.");
     expect(payload).toMatchObject({
-      taskId: "turn-summary",
-      status: "completed",
-      detail: "Updated the Cursor SDK adapter and verified the projection path.",
+      summary: "Updated the Cursor SDK adapter and verified the projection path.",
       precedingToolUseIds: ["tool-1", "tool-2"],
     });
   });

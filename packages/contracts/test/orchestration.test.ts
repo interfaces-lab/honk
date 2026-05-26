@@ -9,6 +9,8 @@ import {
   OrchestrationEvent,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
+  OrchestrationThreadActivity,
+  OrchestrationThreadActivityKind,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
@@ -29,6 +31,10 @@ const decodeThreadTurnStartCommand = Schema.decodeUnknownEffect(ThreadTurnStartC
 const decodeOrchestrationLatestTurn = Schema.decodeUnknownEffect(OrchestrationLatestTurn);
 const decodeOrchestrationProposedPlan = Schema.decodeUnknownEffect(OrchestrationProposedPlan);
 const decodeOrchestrationSession = Schema.decodeUnknownEffect(OrchestrationSession);
+const decodeOrchestrationThreadActivity = Schema.decodeUnknownEffect(OrchestrationThreadActivity);
+const decodeOrchestrationThreadActivityKind = Schema.decodeUnknownEffect(
+  OrchestrationThreadActivityKind,
+);
 
 function getOptionValue(
   options: ReadonlyArray<{ id: string; value: unknown }> | undefined,
@@ -488,5 +494,72 @@ it.effect("preserves proposed plan implementation metadata when present", () =>
     });
     assert.strictEqual(parsed.implementedAt, "2026-01-02T00:00:00.000Z");
     assert.strictEqual(parsed.implementationThreadId, "thread-2");
+  }),
+);
+
+it.effect("decodes named orchestration activity kinds", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationThreadActivityKind("tool.completed");
+    assert.strictEqual(parsed, "tool.completed");
+
+    const result = yield* Effect.exit(decodeOrchestrationThreadActivityKind("runtime.unknown"));
+    assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+it.effect("decodes activities through the canonical activity contract", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationThreadActivity({
+      id: "activity-1",
+      tone: "info",
+      kind: "runtime.warning",
+      summary: "provider started",
+      payload: { message: "provider started" },
+      turnId: "turn-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.strictEqual(parsed.kind, "runtime.warning");
+    assert.deepStrictEqual(parsed.payload, { message: "provider started" });
+  }),
+);
+
+it.effect("validates orchestration activity payloads by kind", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationThreadActivity({
+      id: "activity-input-1",
+      tone: "info",
+      kind: "user-input.requested",
+      summary: "User input requested",
+      payload: {
+        requestId: "request-1",
+        questions: [
+          {
+            id: "choice",
+            header: "Choose",
+            question: "Pick one",
+            options: [{ label: "A", description: "Option A" }],
+          },
+        ],
+      },
+      turnId: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.strictEqual(parsed.kind, "user-input.requested");
+    assert.strictEqual(parsed.payload.questions[0]?.id, "choice");
+
+    const result = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-input-2",
+        tone: "info",
+        kind: "user-input.requested",
+        summary: "User input requested",
+        payload: { requestId: "request-1" },
+        turnId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }),
+    );
+    assert.strictEqual(result._tag, "Failure");
   }),
 );
