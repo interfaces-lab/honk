@@ -142,8 +142,7 @@ Changes:
 Data structures:
 
 - `OrchestrationThreadActivityKind`.
-- `OrchestrationThreadActivityPayloadByKind`.
-- `TypedOrchestrationThreadActivity`.
+- `OrchestrationThreadActivity` as the canonical typed union.
 
 Verification:
 
@@ -165,7 +164,7 @@ Changes:
 
 - Extract `runtimeEventToActivities` from `[ProviderRuntimeIngestion.ts](packages/server/src/orchestration/ProviderRuntimeIngestion.ts)` into a mapper module.
 - Add a closed list for handled runtime events and intentionally ignored runtime events.
-- Stop mapping `tool.summary` to `task.completed`. Add a dedicated summary activity kind.
+- Keep `tool.summary` as its own activity kind. Do not map it through `task.completed`.
 - Keep assistant message deltas and proposed-plan writes as orchestration commands, not activities.
 - Remove or justify the no-op `processDomainEvent` subscription.
 

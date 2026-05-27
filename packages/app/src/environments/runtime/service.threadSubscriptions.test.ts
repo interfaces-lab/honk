@@ -416,7 +416,7 @@ describe("projection version guards", () => {
 
 describe("coalesceOrchestrationUiEvents", () => {
   it("keeps final empty assistant messages separate from streaming chunks", async () => {
-    const { coalesceOrchestrationUiEvents } = await import("./service");
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
     const threadId = ThreadId.make("thread-stream");
     const messageId = MessageId.make("assistant-stream");
     const entryId = ThreadEntryId.make("entry-assistant-stream");

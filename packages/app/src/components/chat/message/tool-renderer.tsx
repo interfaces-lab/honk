@@ -475,8 +475,10 @@ function TaskToolCall({
 
   return (
     <div
-      className="min-w-0 max-w-full text-multi-fg-secondary"
+      className="group/task-tool-call min-w-0 max-w-full text-multi-fg-secondary"
+      data-task-tool-call=""
       data-status={hasError ? "error" : loading ? "running" : "completed"}
+      data-expanded={isExpanded ? "true" : "false"}
     >
       {hasBody ? (
         <button
@@ -484,14 +486,17 @@ function TaskToolCall({
           className="inline-flex min-h-6 w-fit max-w-full min-w-0 cursor-pointer items-center gap-1 overflow-hidden"
           aria-expanded={isExpanded}
           onClick={toggleExpanded}
+          data-task-tool-call-header=""
         >
           {statusIcon}
           {titleArea}
           <IconChevronRightMedium
             className={cn(
-              "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
-              isExpanded && "rotate-90",
+              "size-3 shrink-0 text-multi-icon-tertiary opacity-0 transition-[opacity,transform] duration-(--motion-duration-collapsible) ease-out",
+              "group-hover/task-tool-call:opacity-100 group-focus-within/task-tool-call:opacity-100",
+              isExpanded && "rotate-90 opacity-100",
             )}
+            data-task-tool-call-chevron=""
           />
         </button>
       ) : (
@@ -501,7 +506,7 @@ function TaskToolCall({
         </div>
       )}
       {isExpanded && hasBody ? (
-        <div className="mt-1 min-w-0 max-w-full">
+        <div className="mt-1 min-w-0 max-w-full" data-task-tool-call-body="">
           {subagentConversation}
           {renderStep?.(toolCall, 0, callId)}
         </div>
@@ -815,7 +820,12 @@ function ShellToolCall({
   };
 
   return (
-    <div className="group/shell-tool-call min-w-0 max-w-full px-0 text-conversation tracking-normal">
+    <div
+      className="group/shell-tool-call min-w-0 max-w-full px-0 text-conversation tracking-normal"
+      data-shell-tool-call=""
+      data-status={hasError ? "error" : loading ? "running" : "completed"}
+      data-expanded={isExpanded ? "true" : "false"}
+    >
       <button
         type="button"
         className={cn(
@@ -828,6 +838,7 @@ function ShellToolCall({
         )}
         aria-expanded={expandable ? isExpanded : undefined}
         data-tool-call-line=""
+        data-shell-tool-call-header=""
         disabled={!expandable}
         onClick={toggleExpanded}
       >
@@ -857,7 +868,7 @@ function ShellToolCall({
           >
             <IconChevronRightMedium
               className={cn(
-                "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
+                "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out",
                 isExpanded && "rotate-90",
               )}
             />
@@ -865,7 +876,7 @@ function ShellToolCall({
         ) : null}
       </button>
       {isExpanded && hasContent ? (
-        <div className="mt-1 min-w-0 max-w-full">
+        <div className="mt-1 min-w-0 max-w-full" data-shell-tool-call-body="">
           <div
             className={cn(
               "relative overflow-hidden rounded-multi-control border bg-multi-editor",
@@ -1211,12 +1222,16 @@ const TOOL_ACTION_LABELS: Record<ToolCase, { loading: string; completed: string;
       completed: "Searched",
       error: "Search",
     },
-    shellToolCall: { loading: "Running", completed: "Ran", error: "Command" },
+    shellToolCall: { loading: "Running command", completed: "Ran command", error: "Command" },
     editToolCall: { loading: "Editing", completed: "Edited", error: "Edit" },
     deleteToolCall: { loading: "Deleting", completed: "Deleted", error: "Delete" },
     mcpToolCall: { loading: "Running", completed: "Ran", error: "Run" },
     dynamicToolCall: { loading: "Running", completed: "Ran", error: "Run" },
-    taskToolCall: { loading: "Task", completed: "Task", error: "Task" },
+    taskToolCall: {
+      loading: "Working on task",
+      completed: "Completed task",
+      error: "Work on task",
+    },
     webSearchToolCall: { loading: "Searching", completed: "Searched", error: "Search" },
     webFetchToolCall: { loading: "Fetching", completed: "Fetched", error: "Fetch" },
     imageViewToolCall: { loading: "Viewing", completed: "Viewed", error: "View" },

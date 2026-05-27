@@ -64,7 +64,7 @@ paths:
 | `runtime.warning` | runtime warning activity | timeline |
 | `turn.plan.updated` | plan activity | work log/timeline |
 | `task.started`, `task.progress`, `task.completed` | task activities | work log/timeline |
-| `tool.summary` | `task.completed` activity | work log/timeline |
+| `tool.summary` | `tool.summary` activity | work log/timeline |
 | `thread.state.changed` with `compacted` | `context-compaction` activity | timeline |
 | `thread.token-usage.updated` with nonzero tokens | context-window or subagent usage activity | context display and subagent tray |
 | `subagent.thread.*`, `subagent.item.*`, `subagent.content.delta`, `subagent.usage.updated` | subagent activities | subagent tray and timeline |
@@ -138,8 +138,7 @@ Emitted canonical events:
 - `content.delta` with assistant and reasoning streams. Assistant text becomes
   message commands. Reasoning text is unhandled.
 - `turn.plan.updated`, `task.started`, `task.progress`, `task.completed`,
-  `files.persisted`, and `tool.summary`. These become activities, although
-  `tool.summary` is currently mislabeled as `task.completed`.
+  `files.persisted`, and `tool.summary`. These become activities.
 - `hook.started`, `hook.progress`, `hook.completed`, `tool.progress`,
   `auth.status`, and `account.rate-limits.updated`. Ingestion does not handle
   these today.
@@ -204,7 +203,7 @@ Emitted canonical events:
   Assistant text becomes message commands; command output becomes tool output;
   reasoning text is unhandled.
 - `tool.summary` from summary deltas and stream messages. Ingestion appends a
-  `task.completed` activity.
+  `tool.summary` activity.
 - `item.started`, `item.updated`, and `item.completed` for tools, assistant
   messages, and git interactions. Tool lifecycle items become activities;
   completed assistant messages finalize assistant messages.
@@ -269,8 +268,8 @@ orchestration logging is wired later without changing the logger.
   unhandled families include `thread.realtime.*`, Claude hooks, `tool.progress`,
   provider account/MCP telemetry, auth status, model reroutes, and config or
   deprecation notices.
-- `tool.summary` currently becomes a `task.completed` activity. Phase 3 should
-  give it a dedicated activity kind.
+- `tool.summary` has its own activity kind. Composer should render it without
+  treating it as task completion.
 - Main-thread reasoning streams are emitted by multiple adapters but do not
   become messages or activities.
 - Subagent assistant text stays on the activity path only. It does not use the

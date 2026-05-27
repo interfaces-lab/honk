@@ -6,6 +6,10 @@ Visual and wire-shape reference for Cursor lives in `cursor-composer-reference.m
 
 Last verified: 2026-05-26.
 
+Orchestration checkpoint: `OrchestrationThreadActivity` is the typed activity
+union. Do not add parallel `Typed*` activity aliases, keyword-based helpers, or
+provider-runtime event names as composer timeline rows.
+
 ## What matters first
 
 The current failure mode is not a CSS-only problem. Multi shows a work-group preview while the run is still active, loses subagent focus when the composer collapses, and polls a separate subagent snapshot instead of rendering one coherent timeline.
@@ -18,7 +22,7 @@ Composer chat reads **projected thread state**, not a provider SDK. The stack to
 
 ```text
 packages/server/src/orchestration/
-  ProviderRuntimeIngestion.ts   → thread.activity-appended (OrchestrationThreadActivity)
+  ProviderRuntimeIngestion.ts   → thread.activity-appended (canonical OrchestrationThreadActivity)
   ProjectionPipeline.ts / ThreadProjection.ts / decider.ts
 
 packages/app/src/environments/runtime/
@@ -37,12 +41,36 @@ packages/app/src/components/chat/
 
 Provider drivers under `packages/server/src/provider/` are out of scope for this plan unless orchestration ingestion proves an activity contract gap that only a driver change can fill. Do not list adapter refactors here.
 
+## Canonical activity map
+
+Composer UI reads three local sources:
+
+| Area | Source | UI owner |
+| ----- | ------ | -------- |
+| Messages | `OrchestrationMessage` and assistant message commands | Human and assistant timeline rows. |
+| Work | `OrchestrationThreadActivity` | Work groups, tool rows, task rows, subagent tray data. |
+| Composer chrome | Pending approval and user-input state from activities | Approval panels and question flows, not generic work rows. |
+
+Activity kind ownership:
+
+| Activity kind | Target |
+| ------------- | ------ |
+| `tool.started`, `tool.updated`, `tool.completed` | `WorkLogEntry` tool rows, collapsed by `payload.itemId`. |
+| `tool.summary` | Summary work row or group summary; never task completion. |
+| `task.started`, `task.progress`, `task.completed` | Thinking/task work rows, collapsed by `payload.taskId`. |
+| `subagent.thread.*`, `subagent.item.*`, `subagent.content.delta`, `subagent.usage.updated` | Parent task/subagent tray state, not top-level timeline noise. |
+| `approval.*`, `provider.approval.respond.failed` | Pending approval state and stale-request cleanup. |
+| `user-input.*`, `provider.user-input.respond.failed` | Pending user-input state and stale-request cleanup. |
+| `context-window.updated` | Context window display only. |
+| `turn.plan.updated` | Active plan state only. |
+| `runtime.error`, `runtime.warning`, `context-compaction`, checkpoint/setup/provider failures | Work or error rows when user-visible. |
+
 ## Scope
 
 In scope:
 
 - Timeline rows, tool rows, work groups, subagent UI, composer tray, plan tray, and queued composer.
-- Orchestration activity semantics and app derivation (`ProviderRuntimeIngestion`, `session-logic`, runtime `service.ts`).
+- Orchestration activity semantics and app derivation from `OrchestrationThreadActivity` (`ProviderRuntimeIngestion`, `session-logic`, runtime `service.ts`).
 - Chat components and styles (`conversation.css`, `tool-call.css`, `tokens.css`).
 - Later rich text parity with `text` plus `richText`, readonly human bubbles, and an editable in-chat plan body.
 
@@ -71,12 +99,12 @@ The result in Multi is predictable. A header can say "Working · 16 steps" while
 | Phase | Scope | Acceptance |
 | ----- | ----- | ---------- |
 | P0-A | Work groups render all entries when expanded, even while running. Collapsed running state may show a small tail preview. | Expanding "Working · 16 steps" shows 16 rows. |
-| P0-B | Split subagent selection from presentation with a `subagentFocus` store and derived `subagentPresented` state. | Collapse composer, expand again, and the same subagent is still selected. |
+| P0-B | Split subagent selection from presentation with a `subagentFocus` store and `subagentPresented` state. | Collapse composer, expand again, and the same subagent is still selected. |
 | P0-C | Virtualize subagent tray or task body scroll regions. | 100+ subagent steps scroll smoothly. |
-| P0-D | Drive subagent transcript from `subagent.*` thread activities; snapshot poll is reconcile-only. | Steady active runs do not flicker. |
+| P0-D | Drive subagent transcript from `subagent.*` thread activities, including coalesced `subagent.content.delta`; snapshot poll is reconcile-only. | Steady active runs do not flicker. |
 | P0-E | Export one `isCommandWorkEntry` helper from `timeline-rows.ts` and delete the duplicate in `messages-timeline.tsx`. | Command group classification is consistent. |
-| P0-F | Extract `coalesceOrchestrationUiEvents` from `service.ts` with focused tests. | `service.ts` drops below 1000 lines without behavior changes. |
-| P1 | Fix orchestration activity mapping and work-log derivation (`tool.summary`, stable tool lifecycle collapse, activity noise). | Activity count and work rows match a production-like thread. |
+| P0-F | Extract `coalesceOrchestrationUiEvents` from `service.ts`, then add subscription microbatching for activity bursts. | `service.ts` drops below 1000 lines without behavior changes; activity-heavy runs commit at most once per frame. |
+| P1 | Finish work-log derivation from `OrchestrationThreadActivity` (`tool.summary`, stable tool lifecycle collapse, activity noise). | Activity count and work rows match a production-like thread. |
 | P2 | Fix shell/task labels, add shell output preview, and style task cards through `tool-call.css`. | Shell rows say `Running command` and `Ran command`; task rows look like cards. |
 | P2-M | Wire chat motion to motion tokens, add reduced-motion handling, and reveal task chevrons on hover. | No shimmer or smooth scroll under reduced motion; chat menus remain instant. |
 | P3 | Add extra timeline row kinds only if orchestration already exposes equivalent local activities. | No Cursor cloud-only rows are copied. |
@@ -96,11 +124,19 @@ Target behavior:
 | State | Render |
 | ----- | ------ |
 | Collapsed and idle | Header plus summary. |
-| Collapsed and running | Header plus count, with an optional tail preview of at most three lines. |
+| Collapsed and running | Header plus count, with an optional tail preview capped by entries and height. |
 | Expanded and idle | Every `groupedEntries` row. |
 | Expanded and running | Every `groupedEntries` row. |
 
 If expanded groups can grow past a few dozen rows, use a nested virtual list or flatten child work rows into the main timeline. Cursor keeps nested rows inside the group, so a nested virtual list is the closer match.
+
+Implementation details:
+
+- `WorkGroupSection` must check `expanded` before the running preview path.
+- Pick one collapsed preview cap and test it. Current code uses six entries and a 144px cap; do not leave the plan saying three while the implementation says six.
+- Update `estimateTimelineRowSize` when expanded running groups render every child row.
+- Keep `expandedWorkGroupIds` stable for the current timeline cache key while new activity rows arrive.
+- Update the browser test that currently encodes the bug: expanded running groups should not render `[data-work-group-preview]`.
 
 ### Subagent focus
 
@@ -110,7 +146,7 @@ Use one durable selection and derive whether it is visible:
 type SubagentFocus = {
   key: string;
   activeThreadId: ThreadId;
-  taskCallId: string;
+  parentItemId?: string;
   providerThreadId?: string;
 } | null;
 
@@ -133,7 +169,15 @@ Expected behavior:
 
 Render subagent steps with the same row components used by the main timeline. Do not invent a parallel `SubagentActivityLine` path for long-term display.
 
-Build the tray body from thread activities (`subagent.thread.started`, `subagent.item.started`, `subagent.content.delta`, and related kinds) that `session-logic` already surfaces on `WorkLogEntry.subagents`. Use `getProviderThreadSnapshot` only when opening or reconciling an existing subagent, not on a 2500ms loop during an active run.
+Build the tray body from thread activities (`subagent.thread.started`, `subagent.item.started`, `subagent.content.delta`, and related kinds) that `session-logic` surfaces on `WorkLogEntry.subagents`.
+
+Required derivation:
+
+- Coalesce `subagent.content.delta` by `providerThreadId`, `itemId`, `streamKind`, and `contentIndex` or `summaryIndex`.
+- Use `payload.providerThreadId` as the primary tray key.
+- Use `payload.parentItemId` to connect the subagent back to the parent task tool when present.
+- Treat `subagent.thread.*` as header/status metadata when item rows exist.
+- Use `getProviderThreadSnapshot` only on open, reconnect, explicit gaps, or terminal reconcile. Do not poll it every 2500ms during an active run.
 
 ## P1 details
 
@@ -141,18 +185,23 @@ P1 is orchestration and derivation, not provider code.
 
 ### Server: `ProviderRuntimeIngestion.ts`
 
-- Map `tool.summary` to a dedicated summary activity kind. Do not emit `task.completed` for group summaries.
-- Audit which runtime events become `thread.activity-appended` and whether `itemId` / `toolCallId` in activity payloads stay stable across `tool.started`, `tool.updated`, and `tool.completed`.
+- Keep `tool.summary` as an `OrchestrationThreadActivity` kind. Do not reintroduce `task.completed` as the summary alias.
+- Audit which runtime events become `thread.activity-appended` and whether `payload.itemId` stays stable across `tool.started`, `tool.updated`, and `tool.completed`.
+- Treat provider runtime events as adapter output only. Composer should switch on `OrchestrationThreadActivity.kind`, not on provider event names.
 
 ### App: `session-logic.ts`
 
-- `deriveWorkLogEntries` and `collapseDerivedWorkLogEntries` must collapse tool lifecycle rows on stable `toolCallId`, not per-activity `id`, so a busy thread does not produce hundreds of visible `tool.updated` rows.
+- `deriveWorkLogEntries` and `collapseDerivedWorkLogEntries` must switch on `activity.kind` and collapse tool lifecycle rows on stable `payload.itemId`, not per-activity `id`, so a busy thread does not produce hundreds of visible `tool.updated` rows.
 - Confirm subagent lifecycle activities attach to the parent `WorkLogEntry` the timeline and tray both read.
+- `tool.summary` must render once and must not increment task/tool lifecycle counts.
+- Preserve the current lifecycle collapse behavior for `tool.started` / `tool.updated` / `tool.completed`; extend tests for `tool.summary` instead of rewriting collapse from scratch.
 
 ### App: `environments/runtime/service.ts`
 
 - Keep message streaming coalescing in `coalesceOrchestrationUiEvents`.
-- If activity batches still overwhelm the store before derivation, add targeted coalescing or batching at the subscription boundary (still in runtime, not in chat components).
+- Buffer live subscription events per thread and flush on `requestAnimationFrame` or a short frame-sized window.
+- Coalesce activity bursts only when the activity has a stable key: tool lifecycle by `payload.itemId`, subagent deltas by the subagent stream key. Do not coalesce approvals, user-input, or plan events.
+- Run side-effect derivation on the raw batch before UI coalescing.
 
 ## P2 details
 
@@ -168,6 +217,15 @@ Labels should match the tool semantics:
 Style tool rows through `tool-call.css` with data attributes already emitted by the React components. Add `data-shell-tool-call` on shell roots and `data-task-tool-call` on task card roots.
 
 Keep Tailwind for one-off layout. Put cross-cutting tool row, shell card, task card, shimmer, and margin-collapse rules in CSS.
+
+Add these data hooks as the CSS contract:
+
+| Hook | Owner |
+| ---- | ----- |
+| `data-shell-tool-call` | Shell tool card root. |
+| `data-task-tool-call` | Task tool card root. |
+| `data-tool-summary` | `tool.summary` row. |
+| `data-assistant-tool-row` | Work-group tool row wrapper. |
 
 ## P4 details
 
@@ -205,7 +263,7 @@ Chat UI (after P1 semantics are trustworthy):
 
 Contracts for P4:
 
-1. `packages/contracts/src/orchestration.ts`.
+1. `packages/contracts/src/orchestration.ts` for message shape only. The activity contract is already canonical.
 2. `packages/app/src/types.ts`.
 
 ## Verification
@@ -231,6 +289,8 @@ Manual acceptance:
 - Expand a running "Working · 16 steps" group and count all rows.
 - Collapse and reopen the composer with a subagent selected.
 - Watch an active subagent run for tray flicker.
+- Confirm `subagent.content.delta` appears in the tray through activity derivation before snapshot reconcile.
+- Confirm `tool.summary` renders once and does not complete a task card.
 - Confirm shell labels and task labels match the table above.
 - Check reduced motion with chat shimmers, tray entry, chevrons, and scroll-to-bottom.
 

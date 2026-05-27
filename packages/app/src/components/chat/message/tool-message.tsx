@@ -1,5 +1,5 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { IconChevronRightMedium, IconClock, IconRobot } from "central-icons";
+import { IconChevronRightMedium, IconClock, IconRobot, IconSummary } from "central-icons";
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
@@ -43,6 +43,10 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   const isLoading = status === "loading";
   const subagents = workEntry.subagents ?? [];
 
+  if (workEntry.isToolSummary) {
+    return <ToolSummaryRow text={workEntry.label} />;
+  }
+
   if (workEntry.tone === "thinking" && !isToolLikeWorkEntry(workEntry)) {
     return <ThinkingStatus task={resolveThinkingTask(workEntry, isLoading)} active={isLoading} />;
   }
@@ -76,6 +80,27 @@ export const ToolCallMessage = memo(function ToolCallMessage({
     </div>
   );
 });
+
+function ToolSummaryRow({ text }: { text: string }) {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return (
+    <div
+      data-tool-summary=""
+      className="flex w-full min-w-0 items-start gap-2 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-conversation text-multi-fg-secondary"
+    >
+      <IconSummary
+        className="mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary"
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1 whitespace-pre-wrap break-words wrap-anywhere">
+        {trimmed}
+      </div>
+    </div>
+  );
+}
 
 function SubagentStatusSurface({
   activeThreadId,

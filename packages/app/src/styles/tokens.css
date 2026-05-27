@@ -12,7 +12,7 @@
   /* Defaults match Pierre blue at Hue 247° / Intensity 33% (appearance sliders). */
   --multi-user-hue: 247;
   --multi-intensity: 33;
-  /* Typography scale — relative to user preference */
+  /* Typography scale relative to user preference. */
   --multi-text-caption: calc(var(--multi-ui-font-size-user, 13px) - 3px);
   --multi-text-detail: calc(var(--multi-ui-font-size-user, 13px) - 2px);
   --multi-text-body: calc(var(--multi-ui-font-size-user, 13px) - 1px);
@@ -331,8 +331,8 @@
 
 /*
  * Shared semantic roles + chrome (after Pierre + P3 so primitives exist).
- * Workbench, terminal chrome, and surface aliases — same math app-wide; .agent-window only
- * sets font smoothing + sash hit targets.
+ * Workbench, terminal chrome, and background aliases use the same math
+ * app-wide. .agent-window only sets font smoothing and sash hit targets.
  */
 html {
   --multi-chat-surface-background: var(--multi-color-chat);
@@ -464,6 +464,28 @@ html {
   --multi-shell-sidebar-bg: var(--multi-color-sidebar);
   --multi-shell-surface-bg: var(--multi-color-surface);
   --multi-radius-full: 9999px;
+
+  /*
+   * Motion duration tokens. Cursor binary notes in
+   * cursor-composer-reference.md show 100ms chevrons, 100ms hover fades, and
+   * 2s linear shimmers. Slash and mention menus stay instant.
+   */
+  --motion-duration-instant: 0ms;
+  --motion-duration-hover: 100ms;
+  --motion-duration-collapsible: 100ms;
+  --motion-duration-bubble: 150ms;
+  --motion-duration-shimmer: 2000ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Reduced motion: set durations to 0 so layout shifts do not animate. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  html {
+    --motion-duration-hover: 0ms;
+    --motion-duration-collapsible: 0ms;
+    --motion-duration-bubble: 0ms;
+  }
 }
 
 [data-component="root"] {
@@ -496,8 +518,8 @@ html.dark {
 }
 
 /*
- * Vibrancy surface layer — scoped to shell root; vibrancy-on mixes use fixed bands,
- * Reduce Transparency forces opaque semantic remaps.
+ * Vibrancy colors live on the shell root. Vibrancy-on mixes use fixed bands.
+ * Reduce Transparency remaps semantic tokens to opaque colors.
  */
 body[data-multi-glass-mode="true"] [data-component="root"] {
   --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);

@@ -203,7 +203,7 @@ describe("deriveOrchestrationBatchEffects", () => {
         activity: makeActivity({
           id: "activity-3",
           kind: "tool.completed",
-          payload: { itemType: 42 },
+          payload: { itemId: "tool-without-item-type" },
         }),
       }),
     ]);

@@ -83,6 +83,10 @@ Cursor does not use a single `MessageRenderer` dispatch. It uses parallel discri
 
 Cursor-only row kinds should not be copied into Multi unless Multi has a local product concept for them.
 
+Multi's local discriminator is `OrchestrationThreadActivity.kind`. Composer work
+rows should switch on that field. Do not add a second typed activity alias or
+route composer code on raw provider runtime event names.
+
 ## Tool dispatch notes
 
 Cursor has explicit tool branches for await, edit, delete, shell, task, todos, read, grep, glob, list, semantic search, web search, web fetch, lints, MCP tool discovery, MCP execution, and reflection. The default branch renders a generic `ToolCallLine`.
@@ -160,10 +164,12 @@ packages/contracts/src/orchestration.ts
 | Running expanded work groups still show preview. | `WorkGroupSection` branches on `isRunning` before `expanded`. |
 | Subagent selection is cleared on composer collapse. | `SubagentPreviewActiveThreadSync` calls `closePreview()` when not visible. |
 | Subagent tray polls during active runs. | `getProviderThreadSnapshot` repeats every 2500ms while active. |
+| Subagent streaming does not read activities first yet. | `subagent.content.delta` exists in `OrchestrationThreadActivity`, but the tray still relies on snapshot rendering. |
 | Shell labels are too generic. | `shellToolCall` maps to `Running` and `Ran`. |
 | Task labels are too generic. | `taskToolCall` maps to `Task` and `Task`. |
-| `tool.summary` is semantically wrong. | `ProviderRuntimeIngestion` maps it to `kind: "task.completed"`. |
-| Tool lifecycle may not collapse in the UI. | `collapseDerivedWorkLogEntries` keys lifecycle by `entry.id`; verify collapse uses stable `toolCallId` from activity payloads. |
+| Work-log derivation still needs summary handling. | `ProviderRuntimeIngestion` now emits `kind: "tool.summary"`; composer should render it without treating it as task completion. |
+| Tool lifecycle collapse depends on stable ids. | `collapseDerivedWorkLogEntries` already collapses lifecycle rows when `payload.itemId` is stable. Verify high-volume updates and `tool.summary`. |
+| Activity-heavy runs can churn the store. | Live thread subscription applies most events one at a time. Microbatch activity bursts before remaking the expanded UI. |
 | Rich text is absent from contracts and app messages. | `OrchestrationMessage` and `ChatMessage` only carry `text`. |
 | Lexical is not installed in `@multi/app`. | `package.json` has TipTap deps only. |
 

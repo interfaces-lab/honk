@@ -1,3 +1,12 @@
+/*
+ * Tool-call timeline styles. Cursor references: `ui-shell-tool-call`,
+ * `ui-task-tool-call`, `ui-task-tool-call__chevron`, and `tool-call-line-shine`
+ * in cursor-composer-reference.md. Values come from tokens.css.
+ *
+ * Multi keeps layout in Tailwind and uses `data-` hooks for rules that are
+ * easier in CSS: margin resets, hover chevrons, and shimmer paint.
+ */
+
 @keyframes tool-call-line-shine {
   0% {
     background-position: 200% 0;
@@ -9,7 +18,7 @@
 }
 
 .tool-call-shimmer {
-  animation: tool-call-line-shine 2s linear infinite;
+  animation: tool-call-line-shine var(--motion-duration-shimmer, 2000ms) linear infinite;
   background-clip: text;
   background-image: linear-gradient(
     90deg,
@@ -25,11 +34,107 @@
   -webkit-text-fill-color: transparent;
 }
 
+/*
+ * Task tool call card. Cursor uses a rounded, bordered container with hidden
+ * overflow.
+ */
+[data-task-tool-call] {
+  border-radius: var(--multi-radius-card);
+  border: 1px solid var(--multi-stroke-tertiary);
+  background: var(--multi-bg-quinary);
+  overflow: hidden;
+  font-size: var(--multi-text-body);
+}
+
+[data-task-tool-call-header] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  outline: none;
+}
+
+[data-task-tool-call-body] {
+  padding: 0 10px 8px;
+}
+
+/*
+ * JSX animates opacity through Tailwind. This rule also handles portal cases
+ * where group focus-within does not reach the chevron.
+ */
+[data-task-tool-call-chevron] {
+  transition:
+    transform var(--motion-duration-collapsible, 100ms) var(--motion-easing-standard),
+    opacity var(--motion-duration-hover, 100ms) var(--motion-easing-standard);
+}
+
+[data-task-tool-call][data-expanded="true"] [data-task-tool-call-chevron] {
+  opacity: 1;
+}
+
+/*
+ * Keep the shell icon, label, and truncated command aligned like Cursor's
+ * `ui-shell-tool-call__header`.
+ */
+[data-shell-tool-call] {
+  font-size: var(--multi-text-body);
+  line-height: var(--multi-leading-body);
+  letter-spacing: -0.15px;
+}
+
+[data-shell-tool-call-header] {
+  padding-inline: 0;
+  overflow: visible;
+  text-overflow: clip;
+  min-width: 0;
+}
+
+[data-shell-tool-call][data-expanded="true"] [data-shell-tool-call-header]:hover [data-tool-call-line-action] {
+  color: var(--multi-fg-primary);
+}
+
+[data-shell-tool-call] [data-shell-tool-call-body] pre {
+  margin: 0;
+}
+
+/*
+ * Cursor strips vertical margins on `.composer-tool-former-message` when it
+ * contains a tool call. Multi usually separates assistant text and tool rows,
+ * but older threads can still put a tool row inside an assistant bubble.
+ */
+[data-timeline-row-kind="message"][data-message-role="assistant"]
+  :is([data-shell-tool-call], [data-task-tool-call], [data-tool-call-line]) {
+  margin-block: 0;
+}
+
+/*
+ * Subagent tray rows use `content-visibility: auto` so off-screen turns and
+ * running-log rows skip layout and paint. The size hint keeps scrollbar
+ * geometry stable while rows are skipped.
+ */
+[data-subagent-preview-body] [data-subagent-tray-row] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 32px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tool-call-shimmer {
     animation: none;
     background: none;
     color: var(--multi-fg-tertiary);
     -webkit-text-fill-color: unset;
+  }
+
+  [data-task-tool-call-chevron],
+  [data-shell-tool-call] [data-tool-call-line-chevron] svg {
+    transition: none;
   }
 }

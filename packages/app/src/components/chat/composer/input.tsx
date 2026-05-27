@@ -105,8 +105,7 @@ const composerEditorClass = cva(
   {
     variants: {
       mode: {
-        "new-agent":
-          "min-h-[var(--multi-composer-new-agent-editor-min-height)] max-h-[var(--multi-composer-new-agent-editor-max-height)] px-3 py-2",
+        "new-agent": "min-h-14 max-h-[min(75vh,420px)] px-3 py-2",
         "thread-multiline": "min-w-0 px-3 pt-2",
         "thread-pill": "flex-1 pl-1",
         "inline-edit": "min-h-5 max-h-60 px-3 py-2",
@@ -118,7 +117,7 @@ const composerEditorClass = cva(
 const composerShellClass = cva("relative z-[1] min-w-0 rounded-[inherit]", {
   variants: {
     mode: {
-      "new-agent": "flex flex-col gap-[var(--multi-composer-section-gap)] px-2.5 pt-2 pb-1.5",
+      "new-agent": "flex flex-col gap-2 px-2.5 pt-2 pb-1.5",
       thread: "",
       "inline-edit": "flex flex-col",
     },
@@ -141,7 +140,7 @@ const PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS = "px-2 text-detail [&_svg]:size-3.5
 type ActiveComposerInteractionMode = Exclude<ProviderInteractionMode, "default">;
 
 const interactionModeChipClass = cva(
-  "inline-flex h-[var(--multi-composer-toolbar-control-size)] w-fit max-w-full shrink-0 items-center gap-1 overflow-hidden rounded-full border-0 px-2 pr-1 text-(length:--multi-text-body) leading-none font-medium shadow-none [&_svg]:size-3 [&_svg]:shrink-0",
+  "inline-flex h-6 w-fit max-w-full shrink-0 items-center gap-1 overflow-hidden rounded-full border-0 px-2 pr-1 text-(length:--multi-text-body) leading-none font-medium shadow-none [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       mode: {
@@ -231,7 +230,7 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--multi-composer-plan-tray-radius) bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
@@ -257,7 +256,7 @@ const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
       </div>
 
       {previewMarkdown ? (
-        <div className="plan-tray__description px-3 pb-2">
+        <div className="plan-tray__description relative px-3 pb-2">
           <div className="plan-tray__markdown">
             <ChatMarkdown text={previewMarkdown} cwd={props.gitCwd} />
           </div>
@@ -873,12 +872,9 @@ const OverflowControls = memo(function OverflowControls(props: {
   );
 });
 
-const COMPOSER_ACTION_SIZE_COMPACT =
-  "h-[var(--multi-composer-compact-send-size)] w-[var(--multi-composer-compact-send-size)]";
-const COMPOSER_ACTION_SIZE_EXPANDED =
-  "h-[var(--multi-composer-expanded-send-size)] w-[var(--multi-composer-expanded-send-size)]";
-const COMPOSER_TOOLBAR_CONTROL_SIZE =
-  "h-[var(--multi-composer-toolbar-control-size)] w-[var(--multi-composer-toolbar-control-size)]";
+const COMPOSER_ACTION_SIZE_COMPACT = "h-6 w-6";
+const COMPOSER_ACTION_SIZE_EXPANDED = "h-6 w-6";
+const COMPOSER_TOOLBAR_CONTROL_SIZE = "h-6 w-6";
 const COMPOSER_ACTION_ICON_COMPACT = "size-3.5";
 const COMPOSER_ACTION_ICON_EXPANDED = "size-3.5";
 const COMPOSER_SUBMIT_BASE_CLASS =
@@ -2308,7 +2304,7 @@ export const ComposerInput = memo(
                     type="button"
                     className={cn(
                       COMPOSER_TOOLBAR_CONTROL_SIZE,
-                      "flex shrink-0 items-center justify-center rounded-full bg-multi-bg-quaternary p-0 text-multi-icon-tertiary transition-[background-color,color] duration-150 hover:bg-multi-bg-tertiary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35",
+                      "flex shrink-0 items-center justify-center rounded-full bg-multi-bg-tertiary p-0 text-multi-icon-tertiary transition-[background-color,color] duration-150 hover:bg-multi-bg-secondary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35",
                     )}
                     aria-label="Attach images"
                     disabled={pendingUserInputs.length > 0 || isConnecting}
@@ -2403,9 +2399,7 @@ export const ComposerInput = memo(
                   }
                   className={cn(
                     "flex items-center justify-end",
-                    isDockComposerExpanded
-                      ? "gap-[0.55rem]"
-                      : "gap-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+                    isDockComposerExpanded ? "gap-[0.55rem]" : "gap-2 px-3 pb-2.5 sm:pb-3",
                   )}
                 >
                   <ComposerPendingApprovalActions

@@ -3461,7 +3461,7 @@ export default function ChatView(props: ChatViewProps) {
                 />
 
                 {showScrollToBottom && (
-                  <div className="pointer-events-none absolute bottom-[calc(var(--multi-composer-compact-shell-min-height)_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                  <div className="pointer-events-none absolute bottom-[calc(44px_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
                     <button
                       type="button"
                       onClick={() => scrollTimelineToBottom(true)}

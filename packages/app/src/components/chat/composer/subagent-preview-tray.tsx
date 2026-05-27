@@ -32,17 +32,20 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
   const previewActiveThreadId = preview?.activeThreadId ?? null;
   const belongsToActiveThread =
     props.activeThreadId !== null && previewActiveThreadId === props.activeThreadId;
+  // Keep the selected subagent across composer collapse. Clear it only when
+  // the user switches threads.
   const activeThreadSync = (
     <SubagentPreviewActiveThreadSync
-      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}:${props.visible ? "1" : "0"}`}
+      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}`}
       belongsToActiveThread={belongsToActiveThread}
       closePreview={closePreview}
       previewKey={previewKey}
-      visible={props.visible}
     />
   );
 
-  if (!preview || !belongsToActiveThread || !props.visible) {
+  const isPresented = preview !== null && belongsToActiveThread && props.visible;
+
+  if (!isPresented) {
     return activeThreadSync;
   }
 
@@ -50,7 +53,7 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
     <>
       {activeThreadSync}
       <div
-        className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
+        className={cn("relative mt-2 w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
         data-subagent-followup-tray-stack=""
       >
         <div
@@ -69,15 +72,13 @@ function SubagentPreviewActiveThreadSync({
   belongsToActiveThread,
   closePreview,
   previewKey,
-  visible,
 }: {
   belongsToActiveThread: boolean;
   closePreview: () => void;
   previewKey: string | null;
-  visible: boolean;
 }) {
   useMountEffect(() => {
-    if (previewKey !== null && (!belongsToActiveThread || !visible)) {
+    if (previewKey !== null && !belongsToActiveThread) {
       closePreview();
     }
   });
@@ -145,7 +146,6 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   selection: SubagentPreviewSelection;
 }) {
   const { activeThreadId, environmentId, projectRoot, subagent } = props.selection;
-  const isActive = subagent.isActive === true;
   const [snapshotState, setSnapshotState] = useState<SubagentSnapshotState>({ status: "idle" });
   const providerThreadId = subagent.providerThreadId?.trim();
   const canReadTranscript = (providerThreadId?.length ?? 0) > 0;
@@ -158,6 +158,9 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   );
   const streamingLogId = runningLogs.at(-1)?.id;
 
+  // Read the provider snapshot once per tray identity. Live progress comes from
+  // `subagent.*` activities on `subagent.logs`; polling during active runs made
+  // the tray flicker and skipped the activity contract.
   useMountEffect(() => {
     if (!canReadTranscript || !providerThreadId) {
       return;
@@ -170,50 +173,35 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
     }
 
     let cancelled = false;
-    let refreshTimeoutId: number | undefined;
 
-    const readSnapshot = (showLoading: boolean) => {
-      if (showLoading) {
-        setSnapshotState((current) =>
-          current.status === "loaded" ? current : { status: "loading" },
-        );
-      }
+    setSnapshotState((current) =>
+      current.status === "loaded" ? current : { status: "loading" },
+    );
 
-      void api.orchestration
-        .getProviderThreadSnapshot({
-          threadId: activeThreadId,
-          providerThreadId,
-          includeTurns: true,
-        })
-        .then((snapshot) => {
-          if (cancelled) {
-            return;
-          }
-          setSnapshotState({ status: "loaded", snapshot });
-        })
-        .catch((error: unknown) => {
-          if (cancelled) {
-            return;
-          }
-          setSnapshotState({
-            status: "error",
-            message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
-          });
-        })
-        .finally(() => {
-          if (!cancelled && isActive) {
-            refreshTimeoutId = window.setTimeout(() => readSnapshot(false), 2500);
-          }
+    void api.orchestration
+      .getProviderThreadSnapshot({
+        threadId: activeThreadId,
+        providerThreadId,
+        includeTurns: true,
+      })
+      .then((snapshot) => {
+        if (cancelled) {
+          return;
+        }
+        setSnapshotState({ status: "loaded", snapshot });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setSnapshotState({
+          status: "error",
+          message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
         });
-    };
-
-    readSnapshot(true);
+      });
 
     return () => {
       cancelled = true;
-      if (refreshTimeoutId !== undefined) {
-        window.clearTimeout(refreshTimeoutId);
-      }
     };
   });
 
@@ -235,12 +223,13 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
           className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
         >
           {runningLogs.map((log) => (
-            <SubagentActivityLine
-              key={log.id}
-              action={log.label}
-              detail={log.detail}
-              loading={log.id === streamingLogId}
-            />
+            <div key={log.id} data-subagent-tray-row="">
+              <SubagentActivityLine
+                action={log.label}
+                detail={log.detail}
+                loading={log.id === streamingLogId}
+              />
+            </div>
           ))}
         </div>
       ) : null}
@@ -285,7 +274,11 @@ const SubagentSnapshotSection = memo(function SubagentSnapshotSection({
       className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
     >
       {turns.map((turn, turnIndex) => (
-        <div key={turn.id} className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)">
+        <div
+          key={turn.id}
+          data-subagent-tray-row=""
+          className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
+        >
           {turn.items.map((item, itemIndex) => (
             <SubagentSnapshotItem
               key={item.id ?? `${turn.id}:${itemIndex}`}
@@ -407,12 +400,5 @@ function deriveVisibleSubagentLogs(
   logs: ReadonlyArray<WorkLogSubagentLog>,
   hasCanonicalTranscript: boolean,
 ): ReadonlyArray<WorkLogSubagentLog> {
-  const visibleLogs: WorkLogSubagentLog[] = [];
-  for (const log of logs) {
-    if (!isSubagentPreviewLogVisible(log, hasCanonicalTranscript)) {
-      continue;
-    }
-    visibleLogs.push(log);
-  }
-  return visibleLogs.slice(-80);
+  return logs.filter((log) => isSubagentPreviewLogVisible(log, hasCanonicalTranscript)).slice(-80);
 }

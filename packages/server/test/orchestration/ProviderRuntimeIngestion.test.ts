@@ -162,6 +162,65 @@ async function waitForThread(
   return poll();
 }
 
+async function startProviderTurn(
+  harness: {
+    readonly engine: OrchestrationEngineShape;
+    readonly emit: (event: FixtureProviderRuntimeEvent) => void;
+    readonly drain: () => Promise<void>;
+  },
+  input: {
+    readonly commandId: string;
+    readonly messageId: MessageId;
+    readonly eventId: EventId;
+    readonly turnId: TurnId;
+    readonly text?: string;
+    readonly threadId?: ThreadId;
+    readonly provider?: ProviderRuntimeEvent["provider"];
+    readonly providerInstanceId?: string;
+    readonly createdAt?: string;
+  },
+) {
+  const threadId = input.threadId ?? asThreadId("thread-1");
+  const provider = input.provider ?? "codex";
+  const providerInstanceId = input.providerInstanceId ?? provider;
+  const createdAt = input.createdAt ?? new Date().toISOString();
+
+  await Effect.runPromise(
+    harness.engine.dispatch({
+      type: "thread.turn.start",
+      commandId: CommandId.make(input.commandId),
+      threadId,
+      message: {
+        messageId: input.messageId,
+        role: "user",
+        text: input.text ?? "start provider turn",
+        attachments: [],
+      },
+      interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+      runtimeMode: "approval-required",
+      createdAt,
+    }),
+  );
+  await harness.drain();
+
+  harness.emit({
+    type: "turn.started",
+    eventId: input.eventId,
+    provider,
+    providerInstanceId,
+    threadId,
+    createdAt,
+    turnId: input.turnId,
+  });
+
+  await waitForThread(
+    harness.engine,
+    (thread) => thread.session?.status === "running" && thread.session?.activeTurnId === input.turnId,
+    2_000,
+    threadId,
+  );
+}
+
 type ProviderRuntimeTestReadModel = OrchestrationReadModel;
 type ProviderRuntimeTestThread = ProviderRuntimeTestReadModel["threads"][number];
 type ProviderRuntimeTestMessage = ProviderRuntimeTestThread["messages"][number];
@@ -846,6 +905,15 @@ describe("ProviderRuntimeIngestion", () => {
     const harness = await createHarness();
     const now = new Date().toISOString();
 
+    await startProviderTurn(harness, {
+      commandId: "cmd-turn-start-message-finalize",
+      messageId: asMessageId("message-message-finalize"),
+      eventId: asEventId("evt-turn-started-message-finalize"),
+      turnId: asTurnId("turn-2"),
+      text: "write a greeting",
+      createdAt: now,
+    });
+
     harness.emit({
       type: "content.delta",
       eventId: asEventId("evt-message-delta-1"),
@@ -905,6 +973,15 @@ describe("ProviderRuntimeIngestion", () => {
   it("uses assistant item completion detail when no assistant deltas were streamed", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();
+
+    await startProviderTurn(harness, {
+      commandId: "cmd-turn-start-no-delta",
+      messageId: asMessageId("message-no-delta"),
+      eventId: asEventId("evt-turn-started-no-delta"),
+      turnId: asTurnId("turn-no-delta"),
+      text: "answer without streaming",
+      createdAt: now,
+    });
 
     harness.emit({
       type: "item.completed",
@@ -1199,35 +1276,6 @@ describe("ProviderRuntimeIngestion", () => {
         createdAt,
       }),
     );
-    harness.setProviderSession({
-      provider: "codex",
-      providerInstanceId: "codex",
-      status: "running",
-      runtimeMode: "approval-required",
-      threadId: targetThreadId,
-      createdAt,
-      updatedAt: createdAt,
-      activeTurnId,
-    });
-
-    harness.emit({
-      type: "turn.started",
-      eventId: asEventId("evt-turn-started-already-running"),
-      provider: "codex",
-      providerInstanceId: "codex",
-      createdAt,
-      threadId: targetThreadId,
-      turnId: activeTurnId,
-    });
-
-    await waitForThread(
-      harness.engine,
-      (thread) =>
-        thread.session?.status === "running" && thread.session?.activeTurnId === activeTurnId,
-      2_000,
-      targetThreadId,
-    );
-
     harness.emit({
       type: "turn.proposed.completed",
       eventId: asEventId("evt-plan-source-completed-guarded"),
@@ -1280,6 +1328,42 @@ describe("ProviderRuntimeIngestion", () => {
         runtimeMode: "approval-required",
         createdAt: new Date().toISOString(),
       }),
+    );
+
+    harness.setProviderSession({
+      provider: "codex",
+      providerInstanceId: "codex",
+      status: "running",
+      runtimeMode: "approval-required",
+      threadId: targetThreadId,
+      createdAt,
+      updatedAt: createdAt,
+      activeTurnId,
+    });
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.session.set",
+        commandId: CommandId.make("cmd-session-set-plan-target-guarded-running"),
+        threadId: targetThreadId,
+        session: {
+          threadId: targetThreadId,
+          status: "running",
+          providerName: "codex",
+          runtimeMode: "approval-required",
+          activeTurnId,
+          updatedAt: createdAt,
+          lastError: null,
+        },
+        createdAt,
+      }),
+    );
+
+    await waitForThread(
+      harness.engine,
+      (thread) =>
+        thread.session?.status === "running" && thread.session?.activeTurnId === activeTurnId,
+      2_000,
+      targetThreadId,
     );
 
     harness.emit({
@@ -1555,20 +1639,14 @@ describe("ProviderRuntimeIngestion", () => {
     const harness = await createHarness({ serverSettings: { enableAssistantStreaming: false } });
     const now = new Date().toISOString();
 
-    harness.emit({
-      type: "turn.started",
+    await startProviderTurn(harness, {
+      commandId: "cmd-turn-start-buffered",
+      messageId: asMessageId("message-buffered"),
       eventId: asEventId("evt-turn-started-buffered"),
-      provider: "codex",
-      providerInstanceId: "codex",
-      createdAt: now,
-      threadId: asThreadId("thread-1"),
       turnId: asTurnId("turn-buffered"),
+      text: "buffer assistant output",
+      createdAt: now,
     });
-    await waitForThread(
-      harness.engine,
-      (thread) =>
-        thread.session?.status === "running" && thread.session?.activeTurnId === "turn-buffered",
-    );
 
     harness.emit({
       type: "content.delta",
@@ -1722,21 +1800,14 @@ describe("ProviderRuntimeIngestion", () => {
     const now = new Date().toISOString();
     const oversizedText = "x".repeat(40_000);
 
-    harness.emit({
-      type: "turn.started",
+    await startProviderTurn(harness, {
+      commandId: "cmd-turn-start-buffer-spill",
+      messageId: asMessageId("message-buffer-spill"),
       eventId: asEventId("evt-turn-started-buffer-spill"),
-      provider: "codex",
-      providerInstanceId: "codex",
-      createdAt: now,
-      threadId: asThreadId("thread-1"),
       turnId: asTurnId("turn-buffer-spill"),
+      text: "spill assistant output",
+      createdAt: now,
     });
-    await waitForThread(
-      harness.engine,
-      (thread) =>
-        thread.session?.status === "running" &&
-        thread.session?.activeTurnId === "turn-buffer-spill",
-    );
 
     harness.emit({
       type: "content.delta",
@@ -1785,22 +1856,14 @@ describe("ProviderRuntimeIngestion", () => {
     const harness = await createHarness();
     const now = new Date().toISOString();
 
-    harness.emit({
-      type: "turn.started",
+    await startProviderTurn(harness, {
+      commandId: "cmd-turn-start-complete-dedup",
+      messageId: asMessageId("message-complete-dedup"),
       eventId: asEventId("evt-turn-started-for-complete-dedup"),
-      provider: "codex",
-      providerInstanceId: "codex",
-      createdAt: now,
-      threadId: asThreadId("thread-1"),
       turnId: asTurnId("turn-complete-dedup"),
+      text: "complete once",
+      createdAt: now,
     });
-
-    await waitForThread(
-      harness.engine,
-      (thread) =>
-        thread.session?.status === "running" &&
-        thread.session?.activeTurnId === "turn-complete-dedup",
-    );
 
     harness.emit({
       type: "content.delta",

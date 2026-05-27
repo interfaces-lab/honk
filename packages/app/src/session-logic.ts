@@ -172,6 +172,12 @@ export interface WorkLogEntry {
   artifacts?: ReadonlyArray<ToolDisplayArtifact>;
   subagents?: ReadonlyArray<WorkLogSubagent>;
   subagentAction?: WorkLogSubagentAction;
+  /**
+   * `tool.summary` activities render once and must not increment task or tool
+   * lifecycle counts. Composer uses this flag for summary styling; collapse
+   * logic skips them.
+   */
+  isToolSummary?: boolean;
 }
 
 interface DerivedWorkLogEntry extends WorkLogEntry {
@@ -240,20 +246,28 @@ export type TimelineEntry =
       entry: WorkLogEntry;
     };
 
-export function formatDuration(durationMs: number): string {
+export interface FormatDurationOptions {
+  /** Label when duration is under 1s. Default: "less than 1 second". */
+  subSecond?: string | undefined;
+  /** Prefix for durations of at least 1s (for example, "for "). */
+  prefix?: string | undefined;
+}
+
+export function formatDuration(durationMs: number, options?: FormatDurationOptions): string {
   if (!Number.isFinite(durationMs) || durationMs < 1_000) {
-    return "less than 1 second";
+    return options?.subSecond ?? "less than 1 second";
   }
 
   const totalSeconds = Math.max(1, Math.round(durationMs / 1_000));
   const hours = Math.floor(totalSeconds / 3_600);
   const minutes = Math.floor((totalSeconds % 3_600) / 60);
   const seconds = totalSeconds % 60;
-  return durationFormatter.format({
+  const formatted = durationFormatter.format({
     ...(hours > 0 ? { hours } : {}),
     ...(minutes > 0 ? { minutes } : {}),
     ...(seconds > 0 ? { seconds } : {}),
   });
+  return options?.prefix ? `${options.prefix}${formatted}` : formatted;
 }
 
 const durationFormatter = new Intl.DurationFormat("en", {
@@ -551,8 +565,8 @@ export function deriveActivePlanState(
 ): ActivePlanState | null {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   const allPlanActivities = ordered.filter((activity) => activity.kind === "turn.plan.updated");
-  // Prefer plan from the current turn; fall back to the most recent plan from a prior turn
-  // so that TodoWrite tasks persist across follow-up messages.
+  // Prefer the current turn's plan. If it has none, keep the most recent prior
+  // plan so TodoWrite tasks survive follow-up messages.
   const latest =
     (latestTurnId
       ? allPlanActivities.findLast((activity) => activity.turnId === latestTurnId)
@@ -1125,8 +1139,10 @@ function toDerivedWorkLogEntry(
           ? `task:${activity.turnId}:${taskId}`
           : `task:${taskId}`
         : activity.id;
-  const tone: WorkLogEntry["tone"] =
-    activity.kind === "task.started" || activity.kind === "task.progress"
+  const isToolSummary = activity.kind === "tool.summary";
+  const tone: WorkLogEntry["tone"] = isToolSummary
+    ? "info"
+    : activity.kind === "task.started" || activity.kind === "task.progress"
       ? "thinking"
       : activity.tone === "approval"
         ? "info"
@@ -1138,6 +1154,7 @@ function toDerivedWorkLogEntry(
     tone,
     activityKind: activity.kind,
     turnId: activity.turnId,
+    ...(isToolSummary ? { isToolSummary: true } : {}),
   };
   const status = resolveWorkLogStatus(activity, payload, tone);
   const streamKind = asTrimmedString(data?.streamKind);

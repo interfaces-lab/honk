@@ -664,7 +664,7 @@ export function QueuedMessageDemoPage() {
                       "block w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-conversation text-foreground outline-hidden",
                       compact && !composerExpanded
                         ? "min-h-[var(--multi-composer-editor-min-height)] max-h-none pl-1 [&>p]:leading-[1.5]"
-                        : "min-h-[var(--multi-composer-editor-min-height)] max-h-[var(--multi-composer-editor-max-height)] [&>p]:leading-[1.5]",
+                        : "min-h-[var(--multi-composer-editor-min-height)] max-h-[200px] [&>p]:leading-[1.5]",
                     )}
                   >
                     <Textarea

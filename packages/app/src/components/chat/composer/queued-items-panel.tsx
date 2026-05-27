@@ -184,7 +184,7 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
   return (
     <div className="relative" role="listitem" data-queued-composer-item-wrapper="">
       {showDropBefore ? (
-        <div className="queue-drop-indicator queue-drop-indicator--before" />
+        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
       ) : null}
       <SidebarItem
         render={<div />}
@@ -249,7 +249,9 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
           />
         )}
       </SidebarItem>
-      {showDropAfter ? <div className="queue-drop-indicator queue-drop-indicator--after" /> : null}
+      {showDropAfter ? (
+        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
+      ) : null}
     </div>
   );
 });
@@ -304,7 +306,7 @@ const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
 
   return (
     <div
-      className="agent-panel-queue-items flex max-h-[var(--multi-composer-queue-panel-list-max-height)] flex-col gap-px overflow-y-auto px-2 pb-2"
+      className="agent-panel-queue-items flex max-h-[var(--multi-composer-queue-panel-list-max-height)] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-none"
       role="list"
       aria-label={QUEUE_PANEL_ARIA_LABEL}
       data-queued-composer-items-list=""
