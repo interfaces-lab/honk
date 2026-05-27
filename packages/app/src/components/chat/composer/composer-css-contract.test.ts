@@ -16,23 +16,20 @@ const queuedItemsPanelSource = readFileSync(resolve(composerDir, "queued-items-p
 const slashMenuSource = readFileSync(resolve(composerDir, "slash-menu.tsx"), "utf8");
 
 describe("Composer CSS contract", () => {
-  it("stores composer geometry in conversation.css vars", () => {
-    expect(conversationCss).toContain("--multi-composer-new-agent-editor-min-height: 56px");
-    expect(conversationCss).toContain(
-      "--multi-composer-new-agent-editor-max-height: min(75vh, 420px)",
-    );
+  it("stores shared composer typography in conversation.css vars", () => {
     expect(conversationCss).toContain("--multi-composer-editor-font-size:");
     expect(conversationCss).toContain("--multi-composer-editor-line-height:");
     expect(conversationCss).toContain("--multi-composer-editor-min-height:");
-    expect(conversationCss).toContain("--multi-composer-editor-max-height: 200px");
-    expect(conversationCss).toContain("--multi-composer-editor-max-height-pill: 72px");
+    expect(conversationCss).toContain("max-height: 200px");
+    expect(conversationCss).toContain("max-height: 72px");
+    expect(conversationCss).not.toContain("--multi-composer-editor-max-height:");
   });
 
   it("wires geometry through input.tsx cva instead of composer-height buckets", () => {
     expect(existsSync(resolve(stylesDir, "composer.css"))).toBe(false);
     expect(existsSync(resolve(composerDir, "composer-height.ts"))).toBe(false);
     expect(inputSource).toContain("composerEditorClass");
-    expect(inputSource).toContain("var(--multi-composer-new-agent-editor-min-height)");
+    expect(inputSource).toContain("min-h-14 max-h-[min(75vh,420px)]");
     expect(inputSource).toContain("data-layout={layout}");
     expect(inputSource).not.toMatch(/composer-height|HERO_COMPOSER_|!min-h-|!max-h-/);
   });
@@ -46,7 +43,7 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toContain("--multi-composer-radius-compact");
     expect(conversationCss).toContain("--multi-composer-radius-expanded");
     expect(conversationCss).toMatch(
-      /\[data-multi-composer-surface\]\[data-variant="compact"\]:not\(\[data-expanded=""\]/,
+      /\[data-multi-composer-surface\]\[data-variant="compact"\]:not\([\s\S]*?\[data-expanded=""\]/,
     );
     expect(inputSource).toContain("data-multi-composer-shell={composerShellMode}");
     expect(inputSource).toContain('data-multi-composer-toolbar={isThreadShell ? "bottom"');
@@ -61,16 +58,20 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toContain("--multi-composer-editor-line-height:");
   });
 
-  it("renders Tiptap placeholders from stable composer CSS", () => {
-    expect(promptEditorSource).toContain("Placeholder.configure");
-    expect(promptEditorSource).toContain("showOnlyWhenEditable: false");
+  it("renders Lexical placeholders from stable composer CSS", () => {
+    expect(promptEditorSource).toContain("LexicalComposer");
+    expect(promptEditorSource).toContain("RichTextPlugin");
+    expect(promptEditorSource).toContain("ContentEditable");
+    expect(promptEditorSource).toContain('data-prompt-editor-placeholder=""');
     expect(promptEditorSource).not.toContain("content-[attr(data-placeholder)]");
-    expect(conversationCss).toContain(".ProseMirror p.is-editor-empty:first-child::before");
-    expect(conversationCss).toContain("content: attr(data-placeholder)");
+    expect(promptEditorSource).not.toContain("@tiptap");
+    expect(conversationCss).toContain(".multi-lexical-composer-paragraph");
+    expect(conversationCss).toContain("[data-prompt-editor-placeholder]");
+    expect(conversationCss).not.toContain(".ProseMirror");
     expect(conversationCss).toContain("position: absolute");
     expect(conversationCss).toContain("color: var(--multi-fg-quaternary)");
     expect(promptEditorSource).toContain('data-prompt-editor-root="true"');
-    expect(promptEditorSource).toContain("editor.view.dispatch(editor.state.tr)");
+    expect(promptEditorSource).toContain("editor.update");
   });
 });
 
@@ -107,8 +108,17 @@ describe("Composer queue contract", () => {
     expect(queuedItemsPanelSource).toContain('data-queue-row="true"');
     expect(queuedItemsPanelSource).toContain('"Expand queue"');
     expect(queuedItemsPanelSource).toContain('"Collapse queue"');
-    expect(conversationCss).toContain("--multi-composer-queue-panel-list-max-height: 200px");
+    expect(queuedItemsPanelSource).toContain("max-h-[200px]");
     expect(conversationCss).toContain("[data-queued-composer-panel]");
+  });
+});
+
+describe("Composer subagent preview contract", () => {
+  it("keeps tray presentation tied to the expanded dock instead of inline row mounting", () => {
+    expect(inputSource).toMatch(
+      /const subagentPreviewVisible =\s*!isInlineEditComposer && \(composerVariant !== "compact" \|\| isDockComposerExpanded\);/,
+    );
+    expect(inputSource).toContain("visible={subagentPreviewVisible}");
   });
 });
 
@@ -125,12 +135,9 @@ describe("Composer send/stop contract", () => {
     expect(inputSource).toContain("COMPOSER_ACTION_SIZE_COMPACT");
     expect(inputSource).toContain("COMPOSER_ACTION_SIZE_EXPANDED");
     expect(inputSource).toContain("COMPOSER_TOOLBAR_CONTROL_SIZE");
-    expect(conversationCss).toContain("--multi-composer-compact-send-size: 24px");
-    expect(conversationCss).toContain("--multi-composer-expanded-send-size: 24px");
-    expect(conversationCss).toContain("--multi-composer-toolbar-control-size: 24px");
-    expect(inputSource).toContain("--multi-composer-compact-send-size");
-    expect(inputSource).toContain("--multi-composer-expanded-send-size");
-    expect(inputSource).toContain("--multi-composer-toolbar-control-size");
+    expect(inputSource).toContain('COMPOSER_ACTION_SIZE_COMPACT = "h-6 w-6"');
+    expect(inputSource).toContain('COMPOSER_ACTION_SIZE_EXPANDED = "h-6 w-6"');
+    expect(inputSource).toContain('COMPOSER_TOOLBAR_CONTROL_SIZE = "h-6 w-6"');
     expect(inputSource).toContain("COMPOSER_SUBMIT_BASE_CLASS");
     expect(inputSource).toContain("COMPOSER_STOP_BASE_CLASS");
     const primaryActionsSource = inputSource.slice(
@@ -156,10 +163,11 @@ describe("Composer slash menu contract", () => {
   it("anchors the slash/mention menu at the caret via a 1x1 span inside the prompt editor", () => {
     expect(promptEditorSource).toContain('data-composer-menu-anchor=""');
     expect(promptEditorSource).toContain("usePromptEditorCaretAnchor");
-    expect(promptEditorSource).toContain("editor.view.coordsAtPos");
-    expect(promptEditorSource).toContain("selection.from");
-    expect(promptEditorSource).toContain("coords.top - anchorRootRect.top");
-    expect(promptEditorSource).not.toContain("coords.bottom - anchorRootRect.top");
+    expect(promptEditorSource).toContain("caretRectFromDomSelection");
+    expect(promptEditorSource).toContain("window.getSelection");
+    expect(promptEditorSource).toContain("selectionchange");
+    expect(promptEditorSource).toContain("anchorRootRect.top");
+    expect(promptEditorSource).not.toContain("editor.view.coordsAtPos");
     expect(promptEditorSource).toContain("commandMenuOpen");
     expect(inputSource).not.toContain('data-composer-menu-anchor=""');
     expect(inputSource).toContain("caretAnchorRef={composerMenuAnchorRef}");
@@ -228,7 +236,7 @@ describe("Composer surface contract", () => {
   });
 
   it("renders context usage below the composer and hides it when not scrolled to bottom", () => {
-    expect(conversationCss).toContain("--multi-composer-context-usage-bar-max-height: 24px");
+    expect(contextUsageBarSource).toContain("max-h-6");
     expect(conversationCss).toContain(
       ":not([data-scrolled-to-bottom]) [data-composer-context-usage-bar]",
     );

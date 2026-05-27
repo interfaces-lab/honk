@@ -102,6 +102,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           turn_id,
           role,
           text,
+          rich_text_json,
           is_streaming,
           created_at,
           updated_at
@@ -112,6 +113,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           'turn-1',
           'assistant',
           'hello from projection',
+          '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"hello from projection"}]}]}',
           0,
           '2026-02-24T00:00:04.000Z',
           '2026-02-24T00:00:05.000Z'
@@ -157,9 +159,9 @@ threadProjectionLayer("ThreadProjection", (it) => {
           'thread-1',
           'turn-1',
           'info',
-          'runtime.note',
+          'runtime.warning',
           'provider started',
-          '{"stage":"start"}',
+          '{"message":"provider started"}',
           '2026-02-24T00:00:06.000Z'
         )
       `;
@@ -303,6 +305,15 @@ threadProjectionLayer("ThreadProjection", (it) => {
               id: asMessageId("message-1"),
               role: "assistant",
               text: "hello from projection",
+              richText: {
+                type: "doc",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [{ type: "text", text: "hello from projection" }],
+                  },
+                ],
+              },
               turnId: asTurnId("turn-1"),
               streaming: false,
               createdAt: "2026-02-24T00:00:04.000Z",
@@ -326,9 +337,9 @@ threadProjectionLayer("ThreadProjection", (it) => {
             {
               id: asEventId("activity-1"),
               tone: "info",
-              kind: "runtime.note",
+              kind: "runtime.warning",
               summary: "provider started",
-              payload: { stage: "start" },
+              payload: { message: "provider started" },
               turnId: asTurnId("turn-1"),
               createdAt: "2026-02-24T00:00:06.000Z",
             },
@@ -864,9 +875,9 @@ threadProjectionLayer("ThreadProjection", (it) => {
             'thread-1',
             NULL,
             'info',
-            'runtime.note',
+            'tool.started',
             'unsequenced first',
-            '{"source":"unsequenced"}',
+            '{"data":{"source":"unsequenced"}}',
             NULL,
             '2026-04-01T00:00:06.000Z'
           ),
@@ -875,9 +886,9 @@ threadProjectionLayer("ThreadProjection", (it) => {
             'thread-1',
             NULL,
             'info',
-            'runtime.note',
+            'tool.started',
             'sequence two',
-            '{"source":"sequence-2"}',
+            '{"data":{"source":"sequence-2"}}',
             2,
             '2026-04-01T00:00:04.000Z'
           ),
@@ -886,9 +897,9 @@ threadProjectionLayer("ThreadProjection", (it) => {
             'thread-1',
             NULL,
             'info',
-            'runtime.note',
+            'tool.started',
             'sequence one',
-            '{"source":"sequence-1"}',
+            '{"data":{"source":"sequence-1"}}',
             1,
             '2026-04-01T00:00:05.000Z'
           )
@@ -906,18 +917,18 @@ threadProjectionLayer("ThreadProjection", (it) => {
         {
           id: asEventId("activity-unsequenced"),
           tone: "info",
-          kind: "runtime.note",
+          kind: "tool.started",
           summary: "unsequenced first",
-          payload: { source: "unsequenced" },
+          payload: { data: { source: "unsequenced" } },
           turnId: null,
           createdAt: "2026-04-01T00:00:06.000Z",
         },
         {
           id: asEventId("activity-sequence-1"),
           tone: "info",
-          kind: "runtime.note",
+          kind: "tool.started",
           summary: "sequence one",
-          payload: { source: "sequence-1" },
+          payload: { data: { source: "sequence-1" } },
           turnId: null,
           sequence: 1,
           createdAt: "2026-04-01T00:00:05.000Z",
@@ -925,9 +936,9 @@ threadProjectionLayer("ThreadProjection", (it) => {
         {
           id: asEventId("activity-sequence-2"),
           tone: "info",
-          kind: "runtime.note",
+          kind: "tool.started",
           summary: "sequence two",
-          payload: { source: "sequence-2" },
+          payload: { data: { source: "sequence-2" } },
           turnId: null,
           sequence: 2,
           createdAt: "2026-04-01T00:00:04.000Z",

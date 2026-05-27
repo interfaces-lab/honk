@@ -27,6 +27,7 @@ import {
   resolveGitAgentActionFromPrompt,
   type GitAgentAction,
 } from "~/lib/git-agent-actions";
+import { hasRenderableRichText, ReadonlyRichTextMessage } from "./rich-text-message";
 
 const TERMINAL_CONTEXT_HEADER_PATTERN = /^(.*?)\s+line(?:s)?\s+(\d+)(?:-(\d+))?$/i;
 
@@ -57,6 +58,10 @@ export const HumanMessage = memo(function HumanMessage({
   const gitAgentAction = resolveGitAgentActionFromPrompt(message.text);
   const isGitAgentActionMessage =
     gitAgentAction !== null && userImages.length === 0 && terminalContexts.length === 0;
+  const shouldRenderRichText =
+    terminalContexts.length === 0 &&
+    message.richText !== undefined &&
+    hasRenderableRichText(message.richText);
 
   const media =
     userImages.length > 0 ? (
@@ -97,6 +102,11 @@ export const HumanMessage = memo(function HumanMessage({
     <GitAgentActionMessage
       action={gitAgentAction}
       label={GIT_AGENT_ACTIONS[gitAgentAction].label}
+    />
+  ) : shouldRenderRichText ? (
+    <ReadonlyRichTextMessage
+      fallbackText={displayedUserMessage.visibleText}
+      richText={message.richText}
     />
   ) : displayedUserMessage.visibleText.trim().length > 0 || terminalContexts.length > 0 ? (
     <UserMessageBody text={displayedUserMessage.visibleText} terminalContexts={terminalContexts} />

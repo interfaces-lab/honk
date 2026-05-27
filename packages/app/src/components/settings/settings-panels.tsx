@@ -6,8 +6,15 @@ import {
   IconPlusLarge,
 } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { useDebouncer } from "@tanstack/react-pacer";
-import { type CSSProperties, useCallback, useMemo, useRef, useState } from "react";
+import { useThrottler } from "@tanstack/react-pacer";
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
@@ -415,30 +422,49 @@ function SettingsSlider(props: {
   min: number;
   max: number;
   onChange: (value: number) => void;
-  accentColor?: string;
+  variant?: "hue" | "intensity";
+  tintHue?: number;
+  tintSaturation?: number;
   showSwatch?: boolean;
   suffix?: string;
 }) {
-  const accentColor = props.accentColor ?? "var(--multi-action)";
+  const tintIntensity = props.tintSaturation ?? 0;
+  const thumbHue = props.tintHue ?? 247;
+  const thumbSaturation =
+    props.variant === "hue" && tintIntensity <= 0 ? 0 : tintIntensity;
+  const swatchColor = `hsl(${thumbHue} ${thumbSaturation}% 50%)`;
+  const sliderClassName =
+    props.variant === "hue"
+      ? "multi-appearance-hue-slider"
+      : props.variant === "intensity"
+        ? "multi-appearance-intensity-slider"
+        : undefined;
+  const sliderStyle = props.variant
+    ? ({
+        "--multi-appearance-slider-hue": String(thumbHue),
+        "--multi-appearance-slider-sat": `${thumbSaturation}%`,
+        "--multi-appearance-slider-light": "50%",
+      } as CSSProperties)
+    : { accentColor: "var(--multi-action)" };
 
   return (
-    <div className="grid w-full grid-cols-[minmax(0,1fr)_2rem] items-center gap-2 sm:w-34">
+    <div className="grid w-full grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2 sm:w-34">
       <input
         aria-label={props.label}
-        className="h-4 w-full"
+        className={sliderClassName ? `${sliderClassName} w-full` : "h-4 w-full"}
         max={props.max}
         min={props.min}
-        style={{ accentColor }}
+        style={sliderStyle}
         type="range"
         value={props.value}
         onChange={(event) => props.onChange(Number(event.target.value))}
       />
-      <span className="flex w-8 shrink-0 justify-end">
+      <span className="flex w-10 shrink-0 justify-end">
         {props.showSwatch ? (
           <span
             aria-hidden
-            className="size-8 rounded-full shadow-multi-swatch-inset"
-            style={{ backgroundColor: accentColor }}
+            className="size-5 rounded-full shadow-multi-swatch-inset"
+            style={{ backgroundColor: swatchColor }}
           />
         ) : (
           <Text size="xs" tone="tertiary" className="w-full text-right tabular-nums">
@@ -450,6 +476,9 @@ function SettingsSlider(props: {
     </div>
   );
 }
+
+const NUMBER_STEPPER_BUTTON_CLASS =
+  "h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-multi-fg-tertiary shadow-none outline-none ring-offset-0 before:hidden hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-0 data-pressed:bg-multi-bg-quaternary active:bg-multi-bg-quaternary";
 
 function NumberStepper(props: {
   label: string;
@@ -469,7 +498,7 @@ function NumberStepper(props: {
       <Button
         type="button"
         variant="ghost"
-        className="h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-multi-fg-tertiary shadow-none hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className={NUMBER_STEPPER_BUTTON_CLASS}
         aria-label={`Decrease ${props.label}`}
         onClick={() => set(props.value - 1)}
       >
@@ -488,7 +517,7 @@ function NumberStepper(props: {
       <Button
         type="button"
         variant="ghost"
-        className="h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-multi-fg-tertiary shadow-none hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className={NUMBER_STEPPER_BUTTON_CLASS}
         aria-label={`Increase ${props.label}`}
         onClick={() => set(props.value + 1)}
       >
@@ -498,6 +527,8 @@ function NumberStepper(props: {
   );
 }
 
+const APPEARANCE_TINT_COMMIT_WAIT_MS = 32;
+
 function FontFamilyInput(props: {
   label: string;
   value: string;
@@ -506,25 +537,81 @@ function FontFamilyInput(props: {
   onDraftValueChange?: (value: string) => void;
 }) {
   const [draftValue, setDraftValue] = useState(props.value);
-  const commitValue = useDebouncer(props.onChange, {
-    wait: 350,
-    onUnmount: (debouncer) => debouncer.flush(),
-  });
+  const draftValueRef = useRef(props.value);
+  const focusedRef = useRef(false);
+  const displayedValue = focusedRef.current ? draftValue : props.value;
+
+  const updateDraftValue = (nextValue: string) => {
+    draftValueRef.current = nextValue;
+    setDraftValue(nextValue);
+    props.onDraftValueChange?.(nextValue);
+  };
+
+  const commitDraftValue = () => {
+    const nextValue = draftValueRef.current;
+    if (nextValue !== props.value) {
+      props.onChange(nextValue);
+    }
+  };
 
   return (
     <Input
+      nativeInput
       size="sm"
       className="w-full border-multi-stroke-tertiary bg-multi-bg-quinary shadow-none has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused sm:w-36"
-      value={draftValue}
+      value={displayedValue}
       placeholder={props.placeholder}
       aria-label={props.label}
-      onBlur={() => commitValue.flush()}
-      onChange={(event) => {
-        const nextValue = event.target.value;
-        setDraftValue(nextValue);
-        props.onDraftValueChange?.(nextValue);
-        commitValue.maybeExecute(nextValue);
+      onFocus={() => {
+        focusedRef.current = true;
+        updateDraftValue(props.value);
       }}
+      onBlur={() => {
+        focusedRef.current = false;
+        commitDraftValue();
+      }}
+      onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+      onChange={(event) => {
+        updateDraftValue(event.target.value);
+      }}
+    />
+  );
+}
+
+function AppearanceTintSlider(props: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+  variant: "hue" | "intensity";
+  tintHue: number;
+  tintSaturation: number;
+  showSwatch?: boolean;
+  suffix?: string;
+}) {
+  const commitValue = useThrottler(props.onChange, {
+    wait: APPEARANCE_TINT_COMMIT_WAIT_MS,
+    onUnmount: (throttler) => throttler.flush(),
+  });
+
+  return (
+    <SettingsSlider
+      label={props.label}
+      max={props.max}
+      min={props.min}
+      tintHue={props.tintHue}
+      tintSaturation={props.tintSaturation}
+      value={props.value}
+      variant={props.variant}
+      {...(props.showSwatch === undefined ? {} : { showSwatch: props.showSwatch })}
+      {...(props.suffix === undefined ? {} : { suffix: props.suffix })}
+      onChange={(value) => commitValue.maybeExecute(value)}
     />
   );
 }
@@ -831,13 +918,15 @@ export function AppearanceSettingsPanel() {
           title="Hue"
           description="Accent color."
           control={
-            <SettingsSlider
+            <AppearanceTintSlider
               label="Accent hue"
-              accentColor={`oklch(0.682 calc(0.1 + var(--multi-intensity, 33) / 100 * 0.236) ${appearance.hue})`}
               max={360}
               min={0}
               showSwatch
+              tintHue={appearance.hue}
+              tintSaturation={appearance.saturation}
               value={appearance.hue}
+              variant="hue"
               onChange={appearanceSettingsActions.setTintHue}
             />
           }
@@ -846,12 +935,15 @@ export function AppearanceSettingsPanel() {
           title="Intensity"
           description="Tint strength."
           control={
-            <SettingsSlider
+            <AppearanceTintSlider
               label="Accent intensity"
               max={100}
               min={0}
               suffix="%"
+              tintHue={appearance.hue}
+              tintSaturation={appearance.saturation}
               value={appearance.saturation}
+              variant="intensity"
               onChange={appearanceSettingsActions.setTintSaturation}
             />
           }

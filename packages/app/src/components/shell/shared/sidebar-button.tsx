@@ -26,7 +26,7 @@ export function SidebarItem({
         "font-multi flex min-h-6 w-full min-w-0 select-none items-center justify-start gap-1.5 rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) [-webkit-user-drag:none]",
         interactive &&
           "cursor-(--multi-button-cursor) outline-none ring-offset-0 transition-[background-color,color] duration-100 ease-out hover:bg-multi-bg-quaternary motion-reduce:transition-none data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
-        "data-[selected=true]:bg-multi-bg-tertiary data-[selected=true]:hover:bg-multi-bg-tertiary",
+        "data-[selected=true]:bg-multi-bg-quaternary data-[selected=true]:hover:bg-multi-bg-quaternary",
         "bg-transparent shadow-none before:hidden",
         className,
       )}

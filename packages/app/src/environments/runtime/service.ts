@@ -20,6 +20,7 @@ import {
   markPromotedDraftThreadsByRef,
   useComposerDraftStore,
 } from "~/stores/chat-drafts";
+import { coalesceOrchestrationUiEvents } from "./coalesce-orchestration-events";
 import { deriveOrchestrationBatchEffects } from "./orchestration-event-effects";
 import { refreshGitStatus } from "~/lib/git-status-state";
 import { invalidateGitPatchQueries } from "~/lib/native-git-react-query";
@@ -33,6 +34,7 @@ import {
   rememberLiveShellEvent,
   rememberLiveShellSnapshot,
 } from "./local-shell-snapshot-cache";
+import { createFrameBatcher, type FrameBatcher } from "./frame-batcher";
 import {
   useStore,
   selectProjectByRef,
@@ -68,6 +70,7 @@ type ThreadDetailSubscriptionEntry = {
 const environmentConnections = new Map<EnvironmentId, EnvironmentConnection>();
 const environmentConnectionListeners = new Set<() => void>();
 const threadDetailSubscriptions = new Map<string, ThreadDetailSubscriptionEntry>();
+const pendingThreadDetailEventBatches = new Map<EnvironmentId, FrameBatcher<OrchestrationEvent>>();
 const lastAppliedProjectionVersionByEnvironment = new Map<
   EnvironmentId,
   {
@@ -86,13 +89,12 @@ interface TerminalRetentionThread {
 }
 
 // Thread detail subscription cache policy:
-// - Active consumers keep a subscription retained via refCount.
-// - Released subscriptions stay warm for a longer idle TTL to avoid churn
-//   while moving around the UI.
-// - Threads with active work or pending user action are sticky and are never
-//   evicted while they remain non-idle.
-// - Capacity eviction only targets idle cached subscriptions.
+// - Active consumers retain a subscription through refCount.
+// - Released subscriptions stay warm during UI navigation.
+// - Threads with active work or pending user action are not evicted.
+// - Capacity eviction only removes idle cached subscriptions.
 const THREAD_DETAIL_SUBSCRIPTION_IDLE_EVICTION_MS = 15 * 60 * 1000;
+const THREAD_DETAIL_EVENT_BATCH_TIMEOUT_MS = 16;
 const MAX_CACHED_THREAD_DETAIL_SUBSCRIPTIONS = 32;
 const NOOP = () => undefined;
 
@@ -192,6 +194,47 @@ function getThreadDetailSubscriptionKey(environmentId: EnvironmentId, threadId: 
   return scopedThreadKey(scopeThreadRef(environmentId, threadId));
 }
 
+function getThreadDetailEventBatcher(environmentId: EnvironmentId): FrameBatcher<OrchestrationEvent> {
+  let batch = pendingThreadDetailEventBatches.get(environmentId);
+  if (!batch) {
+    batch = createFrameBatcher({
+      timeoutMs: THREAD_DETAIL_EVENT_BATCH_TIMEOUT_MS,
+      flush: (events) => {
+        pendingThreadDetailEventBatches.delete(environmentId);
+        applyRecoveredEventBatch(events, environmentId);
+      },
+    });
+    pendingThreadDetailEventBatches.set(environmentId, batch);
+  }
+  return batch;
+}
+function enqueueThreadDetailEvent(event: OrchestrationEvent, environmentId: EnvironmentId): void {
+  getThreadDetailEventBatcher(environmentId).enqueue(event);
+}
+function flushThreadDetailEventBatch(environmentId: EnvironmentId): void {
+  const batch = pendingThreadDetailEventBatches.get(environmentId);
+  if (!batch) {
+    return;
+  }
+
+  batch.flush();
+}
+function cancelThreadDetailEventBatchForEnvironment(environmentId: EnvironmentId): void {
+  const batch = pendingThreadDetailEventBatches.get(environmentId);
+  if (!batch) {
+    return;
+  }
+  batch.cancel();
+  pendingThreadDetailEventBatches.delete(environmentId);
+}
+
+function cancelPendingThreadDetailEventBatches(): void {
+  for (const batch of pendingThreadDetailEventBatches.values()) {
+    batch.cancel();
+  }
+  pendingThreadDetailEventBatches.clear();
+}
+
 function clearThreadDetailSubscriptionEviction(
   entry: ThreadDetailSubscriptionEntry,
 ): ThreadDetailSubscriptionEntry {
@@ -207,8 +250,8 @@ function isNonIdleThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry)
   const state = useStore.getState();
   const sidebarThread = selectSidebarThreadSummaryByRef(state, threadRef);
 
-  // Prefer shell/sidebar state first because it carries the coarse thread
-  // readiness flags used throughout the UI (pending approvals/input/plan).
+  // Prefer shell/sidebar state first because it has the thread readiness flags
+  // used by the UI: pending approvals, input, and plans.
   if (sidebarThread) {
     if (
       sidebarThread.hasPendingApprovals ||
@@ -269,10 +312,11 @@ function attachThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry): b
     { threadId: entry.threadId },
     (item) => {
       if (item.kind === "snapshot") {
+        flushThreadDetailEventBatch(entry.environmentId);
         useStore.getState().syncServerThreadDetail(item.snapshot.thread, entry.environmentId);
         return;
       }
-      applyEnvironmentThreadDetailEvent(item.event, entry.environmentId);
+      enqueueThreadDetailEvent(item.event, entry.environmentId);
     },
   );
   return true;
@@ -467,44 +511,6 @@ function emitEnvironmentConnectionRegistryChange() {
   }
 }
 
-export function coalesceOrchestrationUiEvents(
-  events: ReadonlyArray<OrchestrationEvent>,
-): OrchestrationEvent[] {
-  if (events.length < 2) {
-    return [...events];
-  }
-
-  const coalesced: OrchestrationEvent[] = [];
-  for (const event of events) {
-    const previous = coalesced.at(-1);
-    if (
-      previous?.type === "thread.message-sent" &&
-      event.type === "thread.message-sent" &&
-      previous.payload.threadId === event.payload.threadId &&
-      previous.payload.messageId === event.payload.messageId &&
-      !(previous.payload.streaming && !event.payload.streaming && event.payload.text.length === 0)
-    ) {
-      coalesced[coalesced.length - 1] = {
-        ...event,
-        payload: {
-          ...event.payload,
-          attachments: event.payload.attachments ?? previous.payload.attachments,
-          createdAt: previous.payload.createdAt,
-          text:
-            !event.payload.streaming && event.payload.text.length > 0
-              ? event.payload.text
-              : previous.payload.text + event.payload.text,
-        },
-      };
-      continue;
-    }
-
-    coalesced.push(event);
-  }
-
-  return coalesced;
-}
-
 function syncProjectUiFromStore() {
   const projects = selectProjectsAcrossEnvironments(useStore.getState());
   useUiStateStore.getState().syncProjects(
@@ -605,10 +611,10 @@ function refreshGitStatusForThreadActivityEffects(
       try {
         await refreshGitStatus({ environmentId, cwd }, undefined, { force: true });
       } finally {
-        // The service can stop/restart while the git refresh is in flight, so use the
-        // QueryClient that was active when this event scheduled the refresh.
-        // Status rows and patch queries must move together; stale patch data can ask Git
-        // for a path that was valid in an older status snapshot and now has no diff.
+        // The service can restart while the git refresh is in flight, so use
+        // the QueryClient from the event that scheduled the refresh. Status
+        // rows and patch queries must move together; stale patch data can ask
+        // Git for a path that no longer has a diff.
         if (queryClient) {
           await invalidateGitPatchQueries(queryClient, { environmentId, cwd });
         }
@@ -668,27 +674,14 @@ function applyRecoveredEventBatch(
   }
   refreshGitStatusForThreadActivityEffects(environmentId, batchEffects.gitRefreshThreadIds);
   if (needsProjectUiSync) {
-    const projects = selectProjectsAcrossEnvironments(useStore.getState());
-    useUiStateStore.getState().syncProjects(
-      projects.map((project) => ({
-        key: getProjectOrderKey(project),
-        logicalKey: deriveSidebarProjectStateKey(project),
-        cwd: project.cwd,
-      })),
-    );
+    syncProjectUiFromStore();
   }
 
   const needsThreadUiSync = events.some(
     (event) => event.type === "thread.created" || event.type === "thread.deleted",
   );
   if (needsThreadUiSync) {
-    const threads = selectThreadsAcrossEnvironments(useStore.getState());
-    useUiStateStore.getState().syncThreads(
-      threads.map((thread) => ({
-        key: scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
-        seedVisitedAt: thread.updatedAt ?? thread.createdAt,
-      })),
-    );
+    syncThreadUiFromStore();
   }
 
   const draftStore = useComposerDraftStore.getState();
@@ -847,6 +840,7 @@ async function removeConnection(environmentId: EnvironmentId): Promise<boolean> 
     return false;
   }
 
+  cancelThreadDetailEventBatchForEnvironment(environmentId);
   disposeThreadDetailSubscriptionsForEnvironment(environmentId);
   lastAppliedProjectionVersionByEnvironment.delete(environmentId);
   forgetLiveShellSnapshot(environmentId);
@@ -992,6 +986,7 @@ export function startEnvironmentConnectionService(queryClient: QueryClient): () 
 
 export async function resetEnvironmentServiceForTests(): Promise<void> {
   stopActiveService();
+  cancelPendingThreadDetailEventBatches();
   lastAppliedProjectionVersionByEnvironment.clear();
   for (const key of Array.from(threadDetailSubscriptions.keys())) {
     disposeThreadDetailSubscriptionByKey(key);

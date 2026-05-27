@@ -9,6 +9,8 @@ import {
   OrchestrationEvent,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
+  OrchestrationThreadActivity,
+  OrchestrationThreadActivityKind,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
@@ -29,6 +31,10 @@ const decodeThreadTurnStartCommand = Schema.decodeUnknownEffect(ThreadTurnStartC
 const decodeOrchestrationLatestTurn = Schema.decodeUnknownEffect(OrchestrationLatestTurn);
 const decodeOrchestrationProposedPlan = Schema.decodeUnknownEffect(OrchestrationProposedPlan);
 const decodeOrchestrationSession = Schema.decodeUnknownEffect(OrchestrationSession);
+const decodeOrchestrationThreadActivity = Schema.decodeUnknownEffect(OrchestrationThreadActivity);
+const decodeOrchestrationThreadActivityKind = Schema.decodeUnknownEffect(
+  OrchestrationThreadActivityKind,
+);
 
 function getOptionValue(
   options: ReadonlyArray<{ id: string; value: unknown }> | undefined,
@@ -256,6 +262,60 @@ it.effect("accepts bootstrap metadata in thread.turn.start", () =>
   }),
 );
 
+it.effect("preserves optional rich text metadata on user message commands and events", () =>
+  Effect.gen(function* () {
+    const richText = {
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }],
+    };
+    const command = yield* decodeOrchestrationCommand({
+      type: "thread.turn.start",
+      commandId: "cmd-rich-text",
+      threadId: "thread-1",
+      message: {
+        messageId: "msg-rich-text",
+        role: "user",
+        text: "hello",
+        richText,
+        attachments: [],
+      },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(command.type, "thread.turn.start");
+    assert.deepStrictEqual(command.message.richText, richText);
+
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 1,
+      eventId: "event-rich-text",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-rich-text",
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "thread.message-sent",
+      payload: {
+        threadId: "thread-1",
+        messageId: "msg-rich-text",
+        entryId: "entry-rich-text",
+        parentEntryId: null,
+        role: "user",
+        text: "hello",
+        richText,
+        turnId: null,
+        streaming: false,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    assert.strictEqual(event.type, "thread.message-sent");
+    assert.deepStrictEqual(event.payload.richText, richText);
+  }),
+);
+
 it.effect("decodes thread.created runtime mode for historical events", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeThreadCreatedPayload({
@@ -424,6 +484,22 @@ it.effect("accepts a source proposed plan reference in thread.turn.start", () =>
   }),
 );
 
+it.effect("accepts client proposed plan update commands", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.proposed-plan.update",
+      commandId: "cmd-plan-update",
+      threadId: "thread-1",
+      planId: "plan-1",
+      planMarkdown: "# Updated plan",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.proposed-plan.update");
+    assert.strictEqual(parsed.planId, "plan-1");
+    assert.strictEqual(parsed.planMarkdown, "# Updated plan");
+  }),
+);
+
 it.effect("decodes latest turn source proposed plan metadata when present", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeOrchestrationLatestTurn({
@@ -488,5 +564,170 @@ it.effect("preserves proposed plan implementation metadata when present", () =>
     });
     assert.strictEqual(parsed.implementedAt, "2026-01-02T00:00:00.000Z");
     assert.strictEqual(parsed.implementationThreadId, "thread-2");
+  }),
+);
+
+it.effect("decodes named orchestration activity kinds", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationThreadActivityKind("tool.completed");
+    assert.strictEqual(parsed, "tool.completed");
+
+    const result = yield* Effect.exit(decodeOrchestrationThreadActivityKind("runtime.unknown"));
+    assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+it.effect("decodes activities through the canonical activity contract", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationThreadActivity({
+      id: "activity-1",
+      tone: "info",
+      kind: "runtime.warning",
+      summary: "provider started",
+      payload: { message: "provider started" },
+      turnId: "turn-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.strictEqual(parsed.kind, "runtime.warning");
+    assert.deepStrictEqual(parsed.payload, { message: "provider started" });
+  }),
+);
+
+it.effect("validates orchestration activity payloads by kind", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationThreadActivity({
+      id: "activity-input-1",
+      tone: "info",
+      kind: "user-input.requested",
+      summary: "User input requested",
+      payload: {
+        requestId: "request-1",
+        questions: [
+          {
+            id: "choice",
+            header: "Choose",
+            question: "Pick one",
+            options: [{ label: "A", description: "Option A" }],
+          },
+        ],
+      },
+      turnId: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.strictEqual(parsed.kind, "user-input.requested");
+    assert.strictEqual(parsed.payload.questions[0]?.id, "choice");
+
+    const result = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-input-2",
+        tone: "info",
+        kind: "user-input.requested",
+        summary: "User input requested",
+        payload: { requestId: "request-1" },
+        turnId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }),
+    );
+    assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+it.effect("validates canonical subagent activity payloads", () =>
+  Effect.gen(function* () {
+    const reasoningItem = yield* decodeOrchestrationThreadActivity({
+      id: "activity-subagent-item-1",
+      tone: "tool",
+      kind: "subagent.item.completed",
+      summary: "Reasoning",
+      payload: {
+        providerThreadId: "provider-thread-1",
+        parentItemId: "call_1",
+        itemId: "rs_1",
+        itemType: "reasoning",
+        status: "completed",
+        title: "Reasoning",
+        detail: "I inspected the relevant files.",
+      },
+      turnId: "turn-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    if (reasoningItem.kind !== "subagent.item.completed") {
+      throw new Error("Expected subagent item activity.");
+    }
+    assert.strictEqual(reasoningItem.payload.providerThreadId, "provider-thread-1");
+    assert.strictEqual(reasoningItem.payload.itemType, "reasoning");
+
+    const reasoningDelta = yield* decodeOrchestrationThreadActivity({
+      id: "activity-subagent-delta-1",
+      tone: "tool",
+      kind: "subagent.content.delta",
+      summary: "Subagent output",
+      payload: {
+        providerThreadId: "provider-thread-1",
+        streamKind: "reasoning_summary_text",
+        delta: "Inspecting files",
+        itemId: "rs_1",
+      },
+      turnId: "turn-1",
+      createdAt: "2026-01-01T00:00:01.000Z",
+    });
+
+    if (reasoningDelta.kind !== "subagent.content.delta") {
+      throw new Error("Expected subagent delta activity.");
+    }
+    assert.strictEqual(reasoningDelta.payload.streamKind, "reasoning_summary_text");
+
+    const missingThread = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-subagent-item-2",
+        tone: "tool",
+        kind: "subagent.item.completed",
+        summary: "Reasoning",
+        payload: {
+          itemType: "reasoning",
+          detail: "Missing provider thread.",
+        },
+        turnId: "turn-1",
+        createdAt: "2026-01-01T00:00:02.000Z",
+      }),
+    );
+    assert.strictEqual(missingThread._tag, "Failure");
+
+    const invalidItemType = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-subagent-item-3",
+        tone: "tool",
+        kind: "subagent.item.completed",
+        summary: "Reasoning",
+        payload: {
+          providerThreadId: "provider-thread-1",
+          itemType: "not_canonical",
+          detail: "Invalid item type.",
+        },
+        turnId: "turn-1",
+        createdAt: "2026-01-01T00:00:03.000Z",
+      }),
+    );
+    assert.strictEqual(invalidItemType._tag, "Failure");
+
+    const invalidStreamKind = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-subagent-delta-2",
+        tone: "tool",
+        kind: "subagent.content.delta",
+        summary: "Subagent output",
+        payload: {
+          providerThreadId: "provider-thread-1",
+          streamKind: "debug_text",
+          delta: "Invalid stream.",
+        },
+        turnId: "turn-1",
+        createdAt: "2026-01-01T00:00:04.000Z",
+      }),
+    );
+    assert.strictEqual(invalidStreamKind._tag, "Failure");
   }),
 );

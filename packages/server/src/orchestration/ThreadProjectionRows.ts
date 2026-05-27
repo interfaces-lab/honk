@@ -5,6 +5,7 @@ import {
   ModelSelection,
   NonNegativeInt,
   OrchestrationCheckpointFile,
+  OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
   OrchestrationReadModel,
   OrchestrationShellSnapshot,
@@ -32,6 +33,7 @@ export const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFie
   Struct.assign({
     isStreaming: Schema.Number,
     attachments: Schema.NullOr(Schema.fromJsonString(Schema.Array(ChatAttachment))),
+    richText: Schema.NullOr(Schema.fromJsonString(OrchestrationMessageRichText)),
   }),
 );
 export const ProjectionThreadProposedPlanDbRowSchema = ProjectionThreadProposedPlan;

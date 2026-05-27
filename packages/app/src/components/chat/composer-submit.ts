@@ -1,4 +1,9 @@
-import type { ModelSelection, ProviderDriverKind, ServerProvider } from "@multi/contracts";
+import type {
+  ModelSelection,
+  OrchestrationMessageRichText,
+  ProviderDriverKind,
+  ServerProvider,
+} from "@multi/contracts";
 import { applyClaudePromptEffortPrefix } from "@multi/shared/model";
 import { Data, Effect, Schema } from "effect";
 
@@ -49,6 +54,7 @@ export const IMAGE_ONLY_BOOTSTRAP_PROMPT =
 
 export type ComposerSubmitContext = {
   prompt: string;
+  richText?: OrchestrationMessageRichText | undefined;
   images: readonly ComposerImageAttachment[];
   selectedProvider: ProviderDriverKind;
   selectedModel: string | null;
@@ -83,6 +89,7 @@ export type PreparedComposerTurnAttachment = {
 export type CompiledComposerSubmitTurn = ComposerSubmitState & {
   messageTextForSend: string;
   outgoingMessageText: string;
+  outgoingRichText?: OrchestrationMessageRichText | undefined;
   optimisticAttachments: OptimisticComposerAttachment[];
   title: string;
 };
@@ -125,6 +132,9 @@ export function compileComposerSubmitTurn(
     ...sendState,
     messageTextForSend,
     outgoingMessageText,
+    ...(outgoingMessageText === messageTextForSend && input.richText !== undefined
+      ? { outgoingRichText: input.richText }
+      : {}),
     optimisticAttachments: buildOptimisticImageAttachments(input.images),
     title: resolveComposerThreadTitle({
       trimmedPrompt: sendState.trimmedPrompt,

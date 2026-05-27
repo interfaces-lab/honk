@@ -56,11 +56,11 @@ export function SettingsNavRail(props: { onBack: () => void }) {
                 <Link
                   to={item.to}
                   activeProps={{
-                    className: "border-multi-border/90 bg-multi-active text-foreground",
+                    className: "bg-multi-bg-quaternary text-foreground",
                     "aria-current": "page",
                   }}
                   inactiveProps={{
-                    className: "text-muted-foreground hover:bg-multi-hover hover:text-foreground",
+                    className: "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",
                   }}
                 />
               }

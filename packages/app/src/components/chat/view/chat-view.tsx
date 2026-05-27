@@ -33,6 +33,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@multi/ui/alert";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -65,6 +66,7 @@ import {
   isLatestTurnSettled,
   type PendingApproval,
   type PendingUserInput,
+  type WorkLogEntry,
 } from "../../../session-logic";
 import {
   buildPendingUserInputAnswers,
@@ -83,11 +85,12 @@ import {
   createThreadSelectorByRef,
 } from "../../../stores/thread-selectors";
 import { useUiStateStore } from "../../../stores/ui-state-store";
-import { resolvePlanFollowUpSubmission } from "~/plan/proposed-plan";
+import { normalizePlanMarkdownForExport, resolvePlanFollowUpSubmission } from "~/plan/proposed-plan";
 import {
   DEFAULT_INTERACTION_MODE,
   MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
+  type ProposedPlan,
   type SessionPhase,
   type Thread,
   type ThreadTreeEntry,
@@ -212,6 +215,10 @@ const COMPOSER_INTERACTION_MODE_CYCLE = [
   "plan",
   "ask",
 ] as const satisfies readonly ProviderInteractionMode[];
+
+function workLogEntrySubagents(entry: WorkLogEntry) {
+  return entry.subagents ?? [];
+}
 
 interface ThreadBranchView {
   status: "unfiltered" | "valid" | "invalid";
@@ -1042,8 +1049,12 @@ export default function ChatView(props: ChatViewProps) {
     (store) => store.setLogicalProjectDraftThreadId,
   );
   const gitAgentActionHandoff = useGitAgentActionHandoff();
-  const subagentPreviewOpen = useSubagentPreviewStore((state) => state.preview !== null);
+  const subagentPreviewPresented = useSubagentPreviewStore((state) => state.presented);
+  const focusedSubagentPreviewKey = useSubagentPreviewStore((state) => state.focus?.key ?? null);
   const closeSubagentPreview = useSubagentPreviewStore((state) => state.closePreview);
+  const updateFocusedSubagentPreview = useSubagentPreviewStore(
+    (state) => state.updatePreviewSubagent,
+  );
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
       ? store.getDraftSessionByRef(routeThreadRef)
@@ -1341,6 +1352,15 @@ export default function ChatView(props: ChatViewProps) {
       }),
     [activeRunningTurnId, visibleThreadActivities],
   );
+  useEffect(() => {
+    if (focusedSubagentPreviewKey === null) {
+      return;
+    }
+
+    for (const subagent of workLogEntries.flatMap(workLogEntrySubagents)) {
+      updateFocusedSubagentPreview(subagent);
+    }
+  }, [focusedSubagentPreviewKey, updateFocusedSubagentPreview, workLogEntries]);
   const pendingApprovals = useMemo(
     () =>
       latestTurnSettled
@@ -2010,6 +2030,46 @@ export default function ChatView(props: ChatViewProps) {
     [environmentId, serverThread],
   );
 
+  const onUpdateProposedPlan = useCallback(
+    async (proposedPlan: ProposedPlan, nextMarkdown: string): Promise<boolean> => {
+      if (!activeThread || !isServerThread) {
+        return false;
+      }
+      const normalizedMarkdown = normalizePlanMarkdownForExport(nextMarkdown);
+      if (normalizedMarkdown.trim().length === 0) {
+        return false;
+      }
+      if (normalizedMarkdown === proposedPlan.planMarkdown) {
+        return true;
+      }
+
+      const api = readEnvironmentApi(environmentId);
+      if (!api) {
+        return false;
+      }
+
+      const updatedAt = new Date().toISOString();
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "thread.proposed-plan.update",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          planId: proposedPlan.id,
+          planMarkdown: normalizedMarkdown,
+          createdAt: updatedAt,
+        });
+        return true;
+      } catch (err) {
+        setThreadError(
+          activeThread.id,
+          err instanceof Error ? err.message : "Failed to update proposed plan.",
+        );
+        return false;
+      }
+    },
+    [activeThread, environmentId, isServerThread, setThreadError],
+  );
+
   // Scroll helpers — the messages timeline owns virtualized scroll state.
   const scrollTimelineToBottom = useCallback((animated = false) => {
     messagesTimelineControllerRef.current?.scrollToBottom({ animated });
@@ -2192,6 +2252,9 @@ export default function ChatView(props: ChatViewProps) {
             id: messageIdForSend,
             role: "user",
             text: compiledTurn.outgoingMessageText,
+            ...(compiledTurn.outgoingRichText !== undefined
+              ? { richText: compiledTurn.outgoingRichText }
+              : {}),
             ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
             createdAt: messageCreatedAt,
             streaming: false,
@@ -2217,6 +2280,9 @@ export default function ChatView(props: ChatViewProps) {
             messageId: messageIdForSend,
             role: "user",
             text: compiledTurn.outgoingMessageText,
+            ...(compiledTurn.outgoingRichText !== undefined
+              ? { richText: compiledTurn.outgoingRichText }
+              : {}),
             attachments: turnAttachments,
           },
           modelSelection: ctxSelectedModelSelection,
@@ -2359,6 +2425,9 @@ export default function ChatView(props: ChatViewProps) {
         id: messageIdForSend,
         role: "user",
         text: compiledTurn.outgoingMessageText,
+        ...(compiledTurn.outgoingRichText !== undefined
+          ? { richText: compiledTurn.outgoingRichText }
+          : {}),
         ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
         createdAt: messageCreatedAt,
         streaming: false,
@@ -2447,6 +2516,9 @@ export default function ChatView(props: ChatViewProps) {
           messageId: messageIdForSend,
           role: "user",
           text: compiledTurn.outgoingMessageText,
+          ...(compiledTurn.outgoingRichText !== undefined
+            ? { richText: compiledTurn.outgoingRichText }
+            : {}),
           attachments: turnAttachments,
         },
         modelSelection: ctxSelectedModelSelection,
@@ -3425,7 +3497,7 @@ export default function ChatView(props: ChatViewProps) {
             <div
               className="relative flex min-h-0 flex-1 flex-col"
               data-subagent-conversation-shell=""
-              data-subagent-preview-open={subagentPreviewOpen ? "" : undefined}
+              data-subagent-preview-open={subagentPreviewPresented ? "" : undefined}
             >
               <div data-subagent-conversation-mask="">
                 {branchView.status === "invalid" ? (
@@ -3456,12 +3528,13 @@ export default function ChatView(props: ChatViewProps) {
                   editingUserMessageId={activeEditingUserMessageId}
                   onBeginEditUserMessage={onBeginEditUserMessage}
                   renderEditComposer={renderEditComposer}
+                  onUpdateProposedPlan={onUpdateProposedPlan}
                   awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
                   onIsAtBottomChange={onIsAtBottomChange}
                 />
 
                 {showScrollToBottom && (
-                  <div className="pointer-events-none absolute bottom-[calc(var(--multi-composer-compact-shell-min-height)_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                  <div className="pointer-events-none absolute bottom-[calc(44px_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
                     <button
                       type="button"
                       onClick={() => scrollTimelineToBottom(true)}
@@ -3477,7 +3550,7 @@ export default function ChatView(props: ChatViewProps) {
                   </div>
                 )}
               </div>
-              {subagentPreviewOpen ? (
+              {subagentPreviewPresented ? (
                 <button
                   type="button"
                   data-subagent-preview-click-capture=""

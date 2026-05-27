@@ -14,10 +14,17 @@ import {
   ThreadEntryId,
   ThreadId,
   TrimmedNonEmptyString,
+  RuntimeTaskId,
   TurnId,
 } from "./base-schemas";
 import { ProviderInstanceId } from "./provider-instance";
-import { ProviderThreadSnapshotItem } from "./provider-runtime";
+import {
+  CanonicalItemType,
+  ProviderThreadSnapshotItem,
+  ThreadTokenUsageSnapshot,
+  ToolLifecycleItemType,
+  UserInputQuestion,
+} from "./provider-runtime";
 
 export const ORCHESTRATION_WS_METHODS = {
   dispatchCommand: "orchestration.dispatchCommand",
@@ -156,11 +163,14 @@ export type OrchestrationProject = typeof OrchestrationProject.Type;
 
 export const OrchestrationMessageRole = Schema.Literals(["user", "assistant", "system"]);
 export type OrchestrationMessageRole = typeof OrchestrationMessageRole.Type;
+export const OrchestrationMessageRichText = Schema.Record(Schema.String, Schema.Unknown);
+export type OrchestrationMessageRichText = typeof OrchestrationMessageRichText.Type;
 
 export const OrchestrationMessage = Schema.Struct({
   id: MessageId,
   role: OrchestrationMessageRole,
   text: Schema.String,
+  richText: Schema.optional(OrchestrationMessageRichText),
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
   turnId: Schema.NullOr(TurnId),
   streaming: Schema.Boolean,
@@ -260,16 +270,340 @@ export const OrchestrationThreadActivityTone = Schema.Literals([
 ]);
 export type OrchestrationThreadActivityTone = typeof OrchestrationThreadActivityTone.Type;
 
-export const OrchestrationThreadActivity = Schema.Struct({
+export const OrchestrationThreadActivityKind = Schema.Literals([
+  "approval.requested",
+  "approval.resolved",
+  "user-input.requested",
+  "user-input.resolved",
+  "runtime.error",
+  "runtime.warning",
+  "turn.plan.updated",
+  "task.started",
+  "task.progress",
+  "task.completed",
+  "tool.started",
+  "tool.updated",
+  "tool.completed",
+  "tool.summary",
+  "context-window.updated",
+  "context-compaction",
+  "subagent.thread.started",
+  "subagent.thread.state.changed",
+  "subagent.item.started",
+  "subagent.item.updated",
+  "subagent.item.completed",
+  "subagent.content.delta",
+  "subagent.usage.updated",
+  "provider.turn.start.failed",
+  "provider.turn.interrupt.failed",
+  "provider.approval.respond.failed",
+  "provider.user-input.respond.failed",
+  "provider.session.stop.failed",
+  "checkpoint.capture.failed",
+  "checkpoint.revert.failed",
+  "checkpoint.captured",
+  "setup-script.requested",
+  "setup-script.started",
+  "setup-script.failed",
+]);
+export type OrchestrationThreadActivityKind = typeof OrchestrationThreadActivityKind.Type;
+
+const ActivityUnknownRecord = Schema.Record(Schema.String, Schema.Unknown);
+
+const ApprovalRequestedActivityPayload = Schema.Struct({
+  requestId: Schema.optional(TrimmedNonEmptyString),
+  requestKind: Schema.optional(ProviderRequestKind),
+  requestType: Schema.optional(TrimmedNonEmptyString),
+  detail: Schema.optional(TrimmedNonEmptyString),
+});
+
+const ApprovalResolvedActivityPayload = Schema.Struct({
+  requestId: Schema.optional(TrimmedNonEmptyString),
+  requestKind: Schema.optional(ProviderRequestKind),
+  requestType: Schema.optional(TrimmedNonEmptyString),
+  decision: Schema.optional(TrimmedNonEmptyString),
+});
+
+const UserInputRequestedActivityPayload = Schema.Struct({
+  requestId: Schema.optional(TrimmedNonEmptyString),
+  questions: Schema.Array(UserInputQuestion),
+});
+
+const UserInputResolvedActivityPayload = Schema.Struct({
+  requestId: Schema.optional(TrimmedNonEmptyString),
+  answers: ActivityUnknownRecord,
+});
+
+const RuntimeMessageActivityPayload = Schema.Struct({
+  message: TrimmedNonEmptyString,
+  detail: Schema.optional(Schema.Unknown),
+});
+
+const ActivityPlanStep = Schema.Struct({
+  step: TrimmedNonEmptyString,
+  status: Schema.Literals(["pending", "inProgress", "completed"]),
+});
+
+const TurnPlanUpdatedActivityPayload = Schema.Struct({
+  plan: Schema.Array(ActivityPlanStep),
+  explanation: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+});
+
+const TaskStartedActivityPayload = Schema.Struct({
+  taskId: RuntimeTaskId,
+  taskType: Schema.optional(TrimmedNonEmptyString),
+  detail: Schema.optional(TrimmedNonEmptyString),
+});
+
+const TaskProgressActivityPayload = Schema.Struct({
+  taskId: RuntimeTaskId,
+  detail: TrimmedNonEmptyString,
+  summary: Schema.optional(TrimmedNonEmptyString),
+  usage: Schema.optional(Schema.Unknown),
+  lastToolName: Schema.optional(TrimmedNonEmptyString),
+});
+
+const TaskCompletedActivityPayload = Schema.Struct({
+  taskId: RuntimeTaskId,
+  status: Schema.Literals(["completed", "failed", "stopped"]),
+  detail: Schema.optional(TrimmedNonEmptyString),
+  usage: Schema.optional(Schema.Unknown),
+  precedingToolUseIds: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
+});
+
+const ToolActivityPayload = Schema.Struct({
+  itemType: Schema.optional(ToolLifecycleItemType),
+  itemId: Schema.optional(TrimmedNonEmptyString),
+  status: Schema.optional(TrimmedNonEmptyString),
+  title: Schema.optional(TrimmedNonEmptyString),
+  detail: Schema.optional(Schema.String),
+  data: Schema.optional(Schema.Unknown),
+});
+
+const ToolSummaryActivityPayload = Schema.Struct({
+  summary: TrimmedNonEmptyString,
+  precedingToolUseIds: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
+});
+
+const ContextWindowUpdatedActivityPayload = ThreadTokenUsageSnapshot;
+
+const ContextCompactionActivityPayload = Schema.Struct({
+  state: Schema.Literal("compacted"),
+  detail: Schema.optional(Schema.Unknown),
+});
+
+const ActivityContentStreamKind = Schema.Literals([
+  "assistant_text",
+  "reasoning_text",
+  "reasoning_summary_text",
+  "plan_text",
+  "command_output",
+  "file_change_output",
+  "unknown",
+]);
+
+const SubagentIdentityActivityPayloadFields = {
+  providerThreadId: TrimmedNonEmptyString,
+  parentProviderThreadId: Schema.optional(TrimmedNonEmptyString),
+  parentTurnId: Schema.optional(TurnId),
+  parentItemId: Schema.optional(ProviderItemId),
+  agentId: Schema.optional(TrimmedNonEmptyString),
+  nickname: Schema.optional(TrimmedNonEmptyString),
+  role: Schema.optional(TrimmedNonEmptyString),
+  model: Schema.optional(TrimmedNonEmptyString),
+  prompt: Schema.optional(TrimmedNonEmptyString),
+} as const;
+
+const SubagentIdentityActivityPayload = Schema.Struct(SubagentIdentityActivityPayloadFields);
+
+const SubagentStateChangedActivityPayload = Schema.Struct({
+  ...SubagentIdentityActivityPayloadFields,
+  state: Schema.Literals(["active", "idle", "archived", "closed", "compacted", "error"]),
+  detail: Schema.optional(Schema.Unknown),
+});
+
+const SubagentItemActivityPayload = Schema.Struct({
+  ...SubagentIdentityActivityPayloadFields,
+  itemType: Schema.optional(CanonicalItemType),
+  itemId: Schema.optional(TrimmedNonEmptyString),
+  status: Schema.optional(TrimmedNonEmptyString),
+  title: Schema.optional(TrimmedNonEmptyString),
+  detail: Schema.optional(TrimmedNonEmptyString),
+  data: Schema.optional(Schema.Unknown),
+});
+
+const SubagentContentDeltaActivityPayload = Schema.Struct({
+  ...SubagentIdentityActivityPayloadFields,
+  streamKind: ActivityContentStreamKind,
+  delta: Schema.String,
+  itemId: Schema.optional(TrimmedNonEmptyString),
+  contentIndex: Schema.optional(Schema.Int),
+  summaryIndex: Schema.optional(Schema.Int),
+});
+
+const SubagentUsageUpdatedActivityPayload = Schema.Struct({
+  ...SubagentIdentityActivityPayloadFields,
+  ...ThreadTokenUsageSnapshot.fields,
+});
+
+const ProviderFailureActivityPayload = Schema.Struct({
+  detail: TrimmedNonEmptyString,
+  messageId: Schema.optional(MessageId),
+  requestId: Schema.optional(TrimmedNonEmptyString),
+});
+
+const CheckpointCaptureFailedActivityPayload = Schema.Struct({
+  detail: TrimmedNonEmptyString,
+});
+
+const CheckpointRevertFailedActivityPayload = Schema.Struct({
+  turnCount: NonNegativeInt,
+  detail: TrimmedNonEmptyString,
+});
+
+const CheckpointCapturedActivityPayload = Schema.Struct({
+  turnCount: NonNegativeInt,
+  status: OrchestrationCheckpointStatus,
+});
+
+const SetupScriptActivityPayload = ActivityUnknownRecord;
+
+const OrchestrationThreadActivityBaseFields = {
   id: EventId,
   tone: OrchestrationThreadActivityTone,
-  kind: TrimmedNonEmptyString,
   summary: TrimmedNonEmptyString,
-  payload: Schema.Unknown,
   turnId: Schema.NullOr(TurnId),
   sequence: Schema.optional(NonNegativeInt),
   createdAt: IsoDateTime,
-});
+} as const;
+
+export const OrchestrationThreadActivity = Schema.Union([
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("approval.requested"),
+    payload: ApprovalRequestedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("approval.resolved"),
+    payload: ApprovalResolvedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("user-input.requested"),
+    payload: UserInputRequestedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("user-input.resolved"),
+    payload: UserInputResolvedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literals(["runtime.error", "runtime.warning"]),
+    payload: RuntimeMessageActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("turn.plan.updated"),
+    payload: TurnPlanUpdatedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("task.started"),
+    payload: TaskStartedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("task.progress"),
+    payload: TaskProgressActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("task.completed"),
+    payload: TaskCompletedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literals(["tool.started", "tool.updated", "tool.completed"]),
+    payload: ToolActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("tool.summary"),
+    payload: ToolSummaryActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("context-window.updated"),
+    payload: ContextWindowUpdatedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("context-compaction"),
+    payload: ContextCompactionActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("subagent.thread.started"),
+    payload: SubagentIdentityActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("subagent.thread.state.changed"),
+    payload: SubagentStateChangedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literals([
+      "subagent.item.started",
+      "subagent.item.updated",
+      "subagent.item.completed",
+    ]),
+    payload: SubagentItemActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("subagent.content.delta"),
+    payload: SubagentContentDeltaActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("subagent.usage.updated"),
+    payload: SubagentUsageUpdatedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literals([
+      "provider.turn.start.failed",
+      "provider.turn.interrupt.failed",
+      "provider.approval.respond.failed",
+      "provider.user-input.respond.failed",
+      "provider.session.stop.failed",
+    ]),
+    payload: ProviderFailureActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("checkpoint.capture.failed"),
+    payload: CheckpointCaptureFailedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("checkpoint.revert.failed"),
+    payload: CheckpointRevertFailedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("checkpoint.captured"),
+    payload: CheckpointCapturedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literals(["setup-script.requested", "setup-script.started", "setup-script.failed"]),
+    payload: SetupScriptActivityPayload,
+  }),
+]);
 export type OrchestrationThreadActivity = typeof OrchestrationThreadActivity.Type;
 
 const OrchestrationLatestTurnState = Schema.Literals([
@@ -535,6 +869,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
     messageId: MessageId,
     role: Schema.Literal("user"),
     text: Schema.String,
+    richText: Schema.optional(OrchestrationMessageRichText),
     attachments: Schema.Array(ChatAttachment),
   }),
   modelSelection: Schema.optional(ModelSelection),
@@ -557,6 +892,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
     messageId: MessageId,
     role: Schema.Literal("user"),
     text: Schema.String,
+    richText: Schema.optional(OrchestrationMessageRichText),
     attachments: Schema.Array(UploadChatAttachment),
   }),
   modelSelection: Schema.optional(ModelSelection),
@@ -641,6 +977,15 @@ const ThreadTreeLabelSetCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadProposedPlanUpdateCommand = Schema.Struct({
+  type: Schema.Literal("thread.proposed-plan.update"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  planId: OrchestrationProposedPlanId,
+  planMarkdown: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
@@ -661,6 +1006,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
   ThreadTreeLabelSetCommand,
+  ThreadProposedPlanUpdateCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
@@ -685,6 +1031,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
   ThreadTreeLabelSetCommand,
+  ThreadProposedPlanUpdateCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
@@ -891,6 +1238,7 @@ export const ThreadMessageSentPayload = Schema.Struct({
   parentEntryId: Schema.NullOr(ThreadEntryId),
   role: OrchestrationMessageRole,
   text: Schema.String,
+  richText: Schema.optional(OrchestrationMessageRichText),
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
   turnId: Schema.NullOr(TurnId),
   streaming: Schema.Boolean,

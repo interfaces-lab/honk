@@ -110,4 +110,45 @@ layer("ProjectionThreadMessageRepository", (it) => {
       assert.deepEqual(rows[0]?.attachments, []);
     }),
   );
+
+  it.effect("preserves existing rich text when upsert omits rich text", () =>
+    Effect.gen(function* () {
+      const repository = yield* ProjectionThreadMessageRepository;
+      const threadId = ThreadId.make("thread-preserve-rich-text");
+      const messageId = MessageId.make("message-preserve-rich-text");
+      const createdAt = "2026-02-28T19:20:00.000Z";
+      const richText = {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "initial" }] }],
+      };
+
+      yield* repository.upsert({
+        messageId,
+        threadId,
+        turnId: null,
+        role: "user",
+        text: "initial",
+        richText,
+        isStreaming: false,
+        createdAt,
+        updatedAt: "2026-02-28T19:20:01.000Z",
+      });
+
+      yield* repository.upsert({
+        messageId,
+        threadId,
+        turnId: null,
+        role: "user",
+        text: "updated",
+        isStreaming: false,
+        createdAt,
+        updatedAt: "2026-02-28T19:20:02.000Z",
+      });
+
+      const rows = yield* repository.listByThreadId({ threadId });
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0]?.text, "updated");
+      assert.deepEqual(rows[0]?.richText, richText);
+    }),
+  );
 });

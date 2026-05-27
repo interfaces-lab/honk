@@ -1,5 +1,5 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { IconChevronRightMedium, IconClock, IconRobot } from "central-icons";
+import { IconChevronRightMedium, IconClock, IconRobot, IconSummary } from "central-icons";
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
@@ -43,6 +43,10 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   const isLoading = status === "loading";
   const subagents = workEntry.subagents ?? [];
 
+  if (workEntry.isToolSummary) {
+    return <ToolSummaryRow text={workEntry.label} />;
+  }
+
   if (workEntry.tone === "thinking" && !isToolLikeWorkEntry(workEntry)) {
     return <ThinkingStatus task={resolveThinkingTask(workEntry, isLoading)} active={isLoading} />;
   }
@@ -58,24 +62,44 @@ export const ToolCallMessage = memo(function ToolCallMessage({
       subagents={subagents}
     />
   ) : null;
-  const renderSubagentsInToolBody = hasSubagents && toolCall.tool.case === "taskToolCall";
+
+  if (workEntry.itemType === "collab_agent_tool_call") {
+    return subagentStatusSurface;
+  }
 
   return (
-    <div className="w-full min-w-0 max-w-full">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-1">
       <ToolCallRenderer
         toolCall={toolCall}
         callId={workEntry.toolCallId ?? workEntry.id}
         loading={isLoading}
         startedAtMs={Date.parse(workEntry.createdAt)}
         hasError={status === "error"}
-        subagentConversation={renderSubagentsInToolBody ? subagentStatusSurface : undefined}
-        defaultExpanded={renderSubagentsInToolBody}
         conversationDensity="minimal"
       />
-      {hasSubagents && !renderSubagentsInToolBody ? subagentStatusSurface : null}
+      {subagentStatusSurface}
     </div>
   );
 });
+
+function ToolSummaryRow({ text }: { text: string }) {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return (
+    <div
+      data-tool-summary=""
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
+    >
+      <IconSummary
+        className="mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary"
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1 whitespace-pre-wrap break-words wrap-anywhere">{trimmed}</div>
+    </div>
+  );
+}
 
 function SubagentStatusSurface({
   activeThreadId,
@@ -90,7 +114,7 @@ function SubagentStatusSurface({
   subagentDetailsEnabled: boolean;
   subagents: ReadonlyArray<WorkLogSubagent>;
 }) {
-  const openPreviewKey = useSubagentPreviewStore((state) => state.preview?.key ?? null);
+  const openPreviewKey = useSubagentPreviewStore((state) => state.focus?.key ?? null);
   const hasOpenPreview = subagents.some(
     (subagent) => subagentPreviewKey(subagent) === openPreviewKey,
   );
@@ -99,12 +123,9 @@ function SubagentStatusSurface({
     <div
       data-subagent-status-container=""
       data-subagent-open={hasOpenPreview ? "" : undefined}
-      className="mt-1 w-full min-w-0 max-w-[85%] text-[14px]/5"
+      className="w-full min-w-0 max-w-full px-3 py-1 text-conversation"
     >
-      <div
-        data-subagent-status-stack=""
-        className="flex w-full min-w-0 flex-col items-start pt-0.5"
-      >
+      <div data-subagent-status-stack="" className="flex w-full min-w-0 flex-col items-start gap-1">
         {subagents.map((subagent) => (
           <SubagentStatusRow
             key={subagentPreviewKey(subagent)}
@@ -162,7 +183,6 @@ function SubagentStatusRow({
       subagent,
     });
   };
-  const handleKeyDown = stopSubagentStatusRowKeyDown;
 
   const previewUpdateSync = isPreviewOpen ? (
     <SubagentPreviewUpdateSync
@@ -178,8 +198,8 @@ function SubagentStatusRow({
       <button
         type="button"
         className={cn(
-          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
-          "border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary",
+          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
+          "border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary",
           hasDetails &&
             "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
           isPreviewOpen && hasDetails && "text-multi-fg-primary",
@@ -191,18 +211,18 @@ function SubagentStatusRow({
         aria-label={hasDetails ? `Open ${title} details` : undefined}
         aria-pressed={hasDetails ? isPreviewOpen : undefined}
         onClick={handleOpenPreview}
-        onKeyDown={handleKeyDown}
+        onKeyDown={stopSubagentStatusRowKeyDown}
       >
         <SubagentStatusIndicator subagent={subagent} />
-        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
+        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5 overflow-hidden">
           <span
             data-subagent-name=""
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-multi-fg-primary"
           >
             {title}
           </span>
           {subagent.model ? (
-            <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
+            <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
               {subagent.model}
             </span>
           ) : null}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EventId, type OrchestrationThreadActivity, TurnId } from "@multi/contracts";
+import { EventId, OrchestrationThreadActivity, TurnId } from "@multi/contracts";
+import { Schema } from "effect";
 
 import {
   deriveLatestContextWindowSnapshot,
@@ -7,8 +8,12 @@ import {
   formatContextUsageSummary,
 } from "./context-window";
 
-function makeActivity(id: string, kind: string, payload: unknown): OrchestrationThreadActivity {
-  return {
+function makeActivity(
+  id: string,
+  kind: OrchestrationThreadActivity["kind"],
+  payload: unknown,
+): OrchestrationThreadActivity {
+  return Schema.decodeUnknownSync(OrchestrationThreadActivity)({
     id: EventId.make(id),
     tone: "info",
     kind,
@@ -16,7 +21,7 @@ function makeActivity(id: string, kind: string, payload: unknown): Orchestration
     payload,
     turnId: TurnId.make("turn-1"),
     createdAt: "2026-03-23T00:00:00.000Z",
-  };
+  });
 }
 
 describe("contextWindow", () => {

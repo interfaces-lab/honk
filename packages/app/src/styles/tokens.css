@@ -12,7 +12,7 @@
   /* Defaults match Pierre blue at Hue 247° / Intensity 33% (appearance sliders). */
   --multi-user-hue: 247;
   --multi-intensity: 33;
-  /* Typography scale — relative to user preference */
+  /* Typography scale relative to user preference. */
   --multi-text-caption: calc(var(--multi-ui-font-size-user, 13px) - 3px);
   --multi-text-detail: calc(var(--multi-ui-font-size-user, 13px) - 2px);
   --multi-text-body: calc(var(--multi-ui-font-size-user, 13px) - 1px);
@@ -63,10 +63,21 @@
   --secondary-foreground: var(--foreground);
   --muted: color-mix(in oklch, var(--foreground) 4%, var(--background));
   --muted-foreground: oklch(0.55 0.012 278);
-  /* Hue + intensity sliders: Pierre L/C at default hue ~247°, intensity 33% ≈ Pierre blue. */
-  --accent: oklch(
-    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) / 0.45
+
+  /* Tint bases (Cursor surface split): only these five read hue / intensity. */
+  --multi-base-sidebar: oklch(
+    0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
   );
+  --multi-base-chrome: oklch(
+    0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+  );
+  --multi-base-editor: oklch(
+    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+  );
+  --multi-base-accent: oklch(0.682 0.178 var(--multi-user-hue, 247));
+  --multi-base-focus: oklch(0.682 0.178 var(--multi-user-hue, 247));
+
+  --accent: color-mix(in oklch, var(--multi-base-accent) 12%, var(--multi-base-chrome));
   --accent-foreground: var(--foreground);
 
   --destructive: oklch(0.647 0.239 23.794);
@@ -79,11 +90,9 @@
   --border: oklch(0.943 0.004 270);
   --input: oklch(0.895 0.006 278);
 
-  --primary: oklch(
-    0.682 calc(0.1 + var(--multi-intensity, 33) / 100 * 0.236) var(--multi-user-hue, 247)
-  );
+  --primary: var(--multi-base-accent);
   --primary-foreground: oklch(0.992 0 0);
-  --ring: color-mix(in oklch, var(--primary) 38%, transparent);
+  --ring: color-mix(in oklch, var(--multi-base-focus) 38%, transparent);
 
   --info: var(--primary);
   --info-foreground: oklch(0.992 0 0);
@@ -95,67 +104,46 @@
   --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 15%, transparent);
   --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 15%, transparent);
 
+  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
   --multi-color-sidebar: color-mix(
     in oklch,
-    oklch(0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247))
-      var(--multi-sidebar-opacity),
+    var(--multi-base-sidebar) var(--multi-sidebar-opacity),
     transparent
   );
+  --multi-color-chat-opaque: var(--multi-base-chrome);
   --multi-color-chat: color-mix(
     in oklch,
-    oklch(0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
-      var(--multi-chat-opacity),
+    var(--multi-base-chrome) var(--multi-chat-opacity),
     transparent
   );
+  --multi-color-editor-opaque: var(--multi-base-editor);
   --multi-color-editor: color-mix(
     in oklch,
-    oklch(0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247))
-      var(--multi-editor-opacity),
+    var(--multi-base-editor) var(--multi-editor-opacity),
     transparent
   );
+  --multi-color-surface-opaque: color-mix(in oklch, var(--multi-base-chrome) 96%, var(--foreground));
   --multi-color-surface: color-mix(
     in oklch,
-    oklch(0.964 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247))
-      var(--multi-surface-opacity),
+    var(--multi-color-surface-opaque) var(--multi-surface-opacity),
     transparent
   );
+  --multi-color-elevated-opaque: color-mix(in oklch, var(--multi-base-chrome) 92%, var(--foreground));
   --multi-color-elevated: color-mix(
     in oklch,
-    oklch(0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
-      var(--multi-elevated-opacity),
+    var(--multi-color-elevated-opaque) var(--multi-elevated-opacity),
     transparent
   );
+  --multi-color-bubble-opaque: var(--multi-color-elevated-opaque);
   --multi-color-bubble: color-mix(
     in oklch,
-    oklch(0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
-      var(--multi-bubble-opacity),
+    var(--multi-color-bubble-opaque) var(--multi-bubble-opacity),
     transparent
   );
-  --multi-color-bubble-opaque: oklch(
-    0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
-  );
-  --multi-color-sidebar-opaque: oklch(
-    0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
-  );
-  --multi-color-chat-opaque: oklch(
-    0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
-  );
-  --multi-color-editor-opaque: oklch(
-    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247)
-  );
-  --multi-color-surface-opaque: oklch(
-    0.964 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247)
-  );
-  --multi-color-elevated-opaque: oklch(
-    0.943 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
-  );
-  --multi-color-menubar-opaque: oklch(
-    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247)
-  );
+  --multi-color-menubar-opaque: var(--multi-base-editor);
   --multi-color-menubar: color-mix(
     in oklch,
-    oklch(0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.004) var(--multi-user-hue, 247))
-      var(--multi-menubar-opacity),
+    var(--multi-base-editor) var(--multi-menubar-opacity),
     transparent
   );
 
@@ -163,12 +151,8 @@
   --multi-color-stroke: color-mix(in oklch, var(--foreground) 8%, transparent);
   --multi-stroke-tertiary: color-mix(in oklch, var(--foreground) 6%, transparent);
   --multi-color-stroke-strong: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --multi-color-hover: oklch(
-    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) / 0.35
-  );
-  --multi-color-active: oklch(
-    0.94 calc(0.014 + var(--multi-intensity, 33) / 100 * 0.03) var(--multi-user-hue, 247) / 0.8
-  );
+  --multi-color-hover: color-mix(in srgb, var(--foreground) 14%, var(--multi-interactive-surface));
+  --multi-color-active: color-mix(in srgb, var(--multi-base-accent) 18%, var(--multi-interactive-surface));
 
   --multi-hue-green: var(--multi-diff-addition);
   --multi-hue-red: var(--multi-diff-deletion);
@@ -193,9 +177,20 @@
   --secondary-foreground: var(--foreground);
   --muted: color-mix(in oklch, var(--foreground) 6%, var(--background));
   --muted-foreground: oklch(0.597 0.012 278);
-  --accent: oklch(
-    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) / 0.45
+
+  --multi-base-sidebar: oklch(
+    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
   );
+  --multi-base-chrome: oklch(
+    0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+  );
+  --multi-base-editor: oklch(
+    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+  );
+  --multi-base-accent: oklch(0.682 0.178 var(--multi-user-hue, 247));
+  --multi-base-focus: oklch(0.682 0.178 var(--multi-user-hue, 247));
+
+  --accent: color-mix(in oklch, var(--multi-base-accent) 12%, var(--multi-base-chrome));
   --accent-foreground: var(--foreground);
 
   --destructive: oklch(0.647 0.239 23.794);
@@ -208,11 +203,9 @@
   --border: oklch(0.268 0.006 270);
   --input: oklch(0.268 0.006 270);
 
-  --primary: oklch(
-    0.682 calc(0.1 + var(--multi-intensity, 33) / 100 * 0.236) var(--multi-user-hue, 247)
-  );
+  --primary: var(--multi-base-accent);
   --primary-foreground: oklch(0.146 0.002 270);
-  --ring: color-mix(in oklch, var(--primary) 45%, transparent);
+  --ring: color-mix(in oklch, var(--multi-base-focus) 45%, transparent);
 
   --info: var(--primary);
   --info-foreground: var(--primary-foreground);
@@ -224,67 +217,46 @@
   --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 18%, transparent);
   --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 18%, transparent);
 
+  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
   --multi-color-sidebar: color-mix(
     in oklch,
-    oklch(0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
-      var(--multi-sidebar-opacity),
+    var(--multi-base-sidebar) var(--multi-sidebar-opacity),
     transparent
   );
+  --multi-color-chat-opaque: var(--multi-base-chrome);
   --multi-color-chat: color-mix(
     in oklch,
-    oklch(0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247))
-      var(--multi-chat-opacity),
+    var(--multi-base-chrome) var(--multi-chat-opacity),
     transparent
   );
+  --multi-color-editor-opaque: var(--multi-base-editor);
   --multi-color-editor: color-mix(
     in oklch,
-    oklch(0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
-      var(--multi-editor-opacity),
+    var(--multi-base-editor) var(--multi-editor-opacity),
     transparent
   );
+  --multi-color-surface-opaque: color-mix(in oklch, var(--multi-base-chrome) 96%, var(--foreground));
   --multi-color-surface: color-mix(
     in oklch,
-    oklch(0.182 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247))
-      var(--multi-surface-opacity),
+    var(--multi-color-surface-opaque) var(--multi-surface-opacity),
     transparent
   );
+  --multi-color-elevated-opaque: color-mix(in oklch, var(--multi-base-chrome) 92%, var(--foreground));
   --multi-color-elevated: color-mix(
     in oklch,
-    oklch(0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
-      var(--multi-elevated-opacity),
+    var(--multi-color-elevated-opaque) var(--multi-elevated-opacity),
     transparent
   );
+  --multi-color-bubble-opaque: var(--multi-color-elevated-opaque);
   --multi-color-bubble: color-mix(
     in oklch,
-    oklch(0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247))
-      var(--multi-bubble-opacity),
+    var(--multi-color-bubble-opaque) var(--multi-bubble-opacity),
     transparent
   );
-  --multi-color-bubble-opaque: oklch(
-    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
-  );
-  --multi-color-sidebar-opaque: oklch(
-    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
-  );
-  --multi-color-chat-opaque: oklch(
-    0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
-  );
-  --multi-color-editor-opaque: oklch(
-    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
-  );
-  --multi-color-surface-opaque: oklch(
-    0.182 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.014) var(--multi-user-hue, 247)
-  );
-  --multi-color-elevated-opaque: oklch(
-    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
-  );
-  --multi-color-menubar-opaque: oklch(
-    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
-  );
+  --multi-color-menubar-opaque: var(--multi-base-editor);
   --multi-color-menubar: color-mix(
     in oklch,
-    oklch(0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247))
-      var(--multi-menubar-opacity),
+    var(--multi-base-editor) var(--multi-menubar-opacity),
     transparent
   );
 
@@ -292,12 +264,8 @@
   --multi-color-stroke: color-mix(in oklch, var(--foreground) 8%, transparent);
   --multi-stroke-tertiary: color-mix(in oklch, var(--foreground) 6%, transparent);
   --multi-color-stroke-strong: color-mix(in oklch, var(--foreground) 14%, transparent);
-  --multi-color-hover: oklch(
-    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) / 0.35
-  );
-  --multi-color-active: oklch(
-    0.268 calc(0.03 + var(--multi-intensity, 33) / 100 * 0.045) var(--multi-user-hue, 247) / 0.6
-  );
+  --multi-color-hover: color-mix(in srgb, var(--foreground) 14%, var(--multi-interactive-surface));
+  --multi-color-active: color-mix(in srgb, var(--multi-base-accent) 18%, var(--multi-interactive-surface));
 
   --multi-hue-green: var(--multi-diff-addition);
   --multi-hue-red: var(--multi-diff-deletion);
@@ -331,10 +299,11 @@
 
 /*
  * Shared semantic roles + chrome (after Pierre + P3 so primitives exist).
- * Workbench, terminal chrome, and surface aliases — same math app-wide; .agent-window only
- * sets font smoothing + sash hit targets.
+ * Workbench, terminal chrome, and background aliases use the same math
+ * app-wide. .agent-window only sets font smoothing and sash hit targets.
  */
 html {
+  --multi-interactive-surface: var(--multi-base-chrome);
   --multi-chat-surface-background: var(--multi-color-chat);
   --multi-chat-bubble-translucent-background: var(--multi-color-bubble);
   --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
@@ -408,12 +377,12 @@ html {
   --multi-fg-focused: var(--foreground);
   --multi-fg-red-primary: var(--destructive);
   --multi-fg-green-primary: var(--success);
-  --multi-bg-primary: color-mix(in oklch, var(--foreground) 20%, transparent);
-  --multi-bg-secondary: color-mix(in oklch, var(--foreground) 14%, transparent);
+  --multi-bg-primary: color-mix(in srgb, var(--foreground) 20%, var(--multi-interactive-surface));
+  --multi-bg-secondary: color-mix(in srgb, var(--foreground) 14%, var(--multi-interactive-surface));
   --multi-bg-secondary-wash: color-mix(in srgb, var(--multi-bg-secondary) 72%, transparent);
-  --multi-bg-tertiary: color-mix(in oklch, var(--foreground) 8%, transparent);
-  --multi-bg-quaternary: color-mix(in oklch, var(--foreground) 6%, transparent);
-  --multi-bg-quinary: color-mix(in oklch, var(--foreground) 4%, transparent);
+  --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, var(--multi-interactive-surface));
+  --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, var(--multi-interactive-surface));
+  --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, var(--multi-interactive-surface));
   --multi-bg-elevated: var(--multi-color-bubble-opaque);
   --multi-bg-active: var(--multi-color-active);
   --multi-bg-focused: var(--multi-color-hover);
@@ -464,6 +433,19 @@ html {
   --multi-shell-sidebar-bg: var(--multi-color-sidebar);
   --multi-shell-surface-bg: var(--multi-color-surface);
   --multi-radius-full: 9999px;
+
+  --motion-duration-hover: 100ms;
+  --motion-duration-collapsible: 100ms;
+  --motion-duration-shimmer: 2000ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  html {
+    --motion-duration-hover: 0ms;
+    --motion-duration-collapsible: 0ms;
+  }
 }
 
 [data-component="root"] {
@@ -496,8 +478,8 @@ html.dark {
 }
 
 /*
- * Vibrancy surface layer — scoped to shell root; vibrancy-on mixes use fixed bands,
- * Reduce Transparency forces opaque semantic remaps.
+ * Vibrancy colors live on the shell root. Vibrancy-on mixes use fixed bands.
+ * Reduce Transparency remaps semantic tokens to opaque colors.
  */
 body[data-multi-glass-mode="true"] [data-component="root"] {
   --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);

@@ -15,6 +15,7 @@ import "./styles/app.css";
 
 import { isElectron } from "./env";
 import { installDesktopActiveWorkBridge } from "./desktop-active-work";
+import { installDesktopMenuActionBridge } from "./desktop-menu-actions";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./app/branding";
 
@@ -42,6 +43,7 @@ if (isElectron && typeof navigator !== "undefined") {
 
 document.title = APP_DISPLAY_NAME;
 installDesktopActiveWorkBridge();
+installDesktopMenuActionBridge(router);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

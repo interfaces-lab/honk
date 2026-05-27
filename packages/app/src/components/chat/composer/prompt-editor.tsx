@@ -1,33 +1,52 @@
-import Link from "@tiptap/extension-link";
-import Mention from "@tiptap/extension-mention";
-import { Placeholder } from "@tiptap/extensions";
-import { PluginKey, TextSelection } from "@tiptap/pm/state";
-import StarterKit from "@tiptap/starter-kit";
-import {
-  EditorContent,
-  Node as TiptapNode,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-  mergeAttributes,
-  useEditor,
-  type Editor,
-  type JSONContent,
-  type NodeViewProps,
-} from "@tiptap/react";
-import { type ServerProviderSkill } from "@multi/contracts";
+import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalComposer";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
+import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
+import { type OrchestrationMessageRichText, type ServerProviderSkill } from "@multi/contracts";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
-import type { ComponentType } from "react";
+import {
+  $applyNodeReplacement,
+  $createLineBreakNode,
+  $createParagraphNode,
+  $createRangeSelection,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $isElementNode,
+  $isLineBreakNode,
+  $isRangeSelection,
+  $isTextNode,
+  $nodesOfType,
+  $setSelection,
+  DecoratorNode,
+  type EditorConfig,
+  type EditorState,
+  type ElementNode,
+  type InitialEditorStateType,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  type RangeSelection,
+  type SerializedLexicalNode,
+} from "lexical";
 import {
   forwardRef,
+  memo,
   useCallback,
   useImperativeHandle,
   useMemo,
   useRef,
   type ClipboardEventHandler,
+  type ComponentType,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
   type RefObject,
 } from "react";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import {
   clampCollapsedComposerCursor,
@@ -39,17 +58,15 @@ import {
   selectionTouchesMentionBoundary,
   splitPromptIntoComposerSegments,
 } from "./prompt-segments";
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import { cn } from "~/lib/utils";
 import {
   basenameOfPath,
   getVscodeIconUrlForEntry,
   inferEntryKindFromPath,
 } from "../shared/vscode-entry-icons";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { formatProviderSkillDisplayName } from "./provider-skills";
-import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
-import { cva } from "class-variance-authority";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 
 const SURROUND_SYMBOLS: [string, string][] = [
   ["(", ")"],
@@ -65,19 +82,9 @@ const SURROUND_SYMBOLS: [string, string][] = [
   ["_", "_"],
 ];
 const SURROUND_SYMBOLS_MAP = new Map<string, string>(SURROUND_SYMBOLS);
-const COMPOSER_ATOM_NODE_NAMES = new Set([
-  "mentionNode",
-  "commandNode",
-  "skillNode",
-  "inlineTokenNode",
-]);
-const COMPOSER_MENTION_PLUGIN_KEY = new PluginKey("composer-mention");
-const EMPTY_DOC = Object.freeze({
-  type: "doc",
-  content: [{ type: "paragraph" }],
-}) satisfies PromptEditorDoc;
+const EMPTY_DOC: ComposerDocSegment[] = [];
 
-type PromptEditorDoc = JSONContent & { type: "doc" };
+type ComposerAtomKind = "mention" | "command" | "skill" | "inline-token";
 
 export interface ComposerCommandData {
   id: string;
@@ -102,6 +109,7 @@ export interface ComposerMentionData {
 
 export interface ComposerPromptSubmitData {
   text: string;
+  richText?: OrchestrationMessageRichText | undefined;
   commands: ComposerCommandData[];
   mentions: ComposerMentionData[];
 }
@@ -134,7 +142,7 @@ export interface ComposerPromptEditorHandle {
   getMentions: () => ComposerMentionData[];
   getSubmitData: () => ComposerPromptSubmitData;
   readSnapshot: () => ComposerPromptEditorSnapshot;
-  editor: Editor | null;
+  editor: LexicalEditor | null;
 }
 
 interface ComposerPromptEditorProps {
@@ -166,11 +174,72 @@ type ComposerSkillMetadata = {
   description: string | null;
 };
 
+type ComposerMentionPayload = {
+  path: string;
+  label: string | null;
+  lineStart: number | null;
+  lineEnd: number | null;
+};
+
+type ComposerCommandPayload = ComposerCommandData;
+
+type ComposerSkillPayload = {
+  name: string;
+  label: string;
+  description: string | null;
+  path: string | null;
+};
+
+type ComposerInlineTokenPayload = {
+  label: string;
+  sourceUri: string;
+  markdown: string;
+};
+
+type ComposerDocSegment =
+  | { type: "text"; text: string }
+  | { type: "linebreak" }
+  | { type: "mention"; payload: ComposerMentionPayload }
+  | { type: "command"; payload: ComposerCommandPayload }
+  | { type: "skill"; payload: ComposerSkillPayload }
+  | { type: "inline-token"; payload: ComposerInlineTokenPayload };
+
+type SerializedComposerMentionNode = SerializedLexicalNode &
+  ComposerMentionPayload & {
+    text: string;
+  };
+
+type SerializedComposerCommandNode = SerializedLexicalNode &
+  Omit<ComposerCommandPayload, "type"> & {
+    commandType: string | null;
+    text: string;
+  };
+
+type SerializedComposerSkillNode = SerializedLexicalNode &
+  ComposerSkillPayload & {
+    text: string;
+  };
+
+type SerializedComposerInlineTokenNode = SerializedLexicalNode &
+  ComposerInlineTokenPayload & {
+    text: string;
+  };
+
+type ComposerAtomNode =
+  | ComposerMentionNode
+  | ComposerCommandNode
+  | ComposerSkillNode
+  | ComposerInlineTokenNode;
+
+type LexicalSelectionPoint = {
+  key: NodeKey;
+  offset: number;
+  type: "text" | "element";
+};
+
 type SurroundSelectionSnapshot = {
-  from: number;
-  to: number;
-  expandedStart: number;
-  expandedEnd: number;
+  start: number;
+  end: number;
   value: string;
 };
 
@@ -231,221 +300,832 @@ function nullableNumberAttr(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function mentionText(attrs: Record<string, unknown>): string {
-  const path = stringAttr(attrs.path);
-  return path ? `@${path}` : "@";
+function mentionText(payload: Pick<ComposerMentionPayload, "path">): string {
+  return payload.path ? `@${payload.path}` : "@";
 }
 
-function commandText(attrs: Record<string, unknown>): string {
-  const name = stringAttr(attrs.name);
-  return name ? `/${name}` : "/";
+function commandText(payload: Pick<ComposerCommandPayload, "name">): string {
+  return payload.name ? `/${payload.name}` : "/";
 }
 
-function skillText(attrs: Record<string, unknown>): string {
-  const skillName = stringAttr(attrs.skillName);
-  const skillPath = nullableStringAttr(attrs.skillPath);
-  if (!skillName) return "$";
-  return skillPath ? `[$${skillName}](${skillPath})` : `$${skillName}`;
+function skillText(payload: Pick<ComposerSkillPayload, "name" | "path">): string {
+  if (!payload.name) return "$";
+  return payload.path ? `[$${payload.name}](${payload.path})` : `$${payload.name}`;
 }
 
-function inlineTokenText(attrs: Record<string, unknown>): string {
-  return stringAttr(attrs.markdown);
+function inlineTokenText(payload: Pick<ComposerInlineTokenPayload, "markdown">): string {
+  return payload.markdown;
 }
 
-function expandedLeafText(node: ProseMirrorNode): string {
-  switch (node.type.name) {
-    case "hardBreak":
+function composerSegmentExpandedText(segment: ComposerDocSegment): string {
+  switch (segment.type) {
+    case "text":
+      return segment.text;
+    case "linebreak":
       return "\n";
-    case "mentionNode":
-      return mentionText(node.attrs);
-    case "commandNode":
-      return commandText(node.attrs);
-    case "skillNode":
-      return skillText(node.attrs);
-    case "inlineTokenNode":
-      return inlineTokenText(node.attrs);
-    default:
-      return "";
+    case "mention":
+      return mentionText(segment.payload);
+    case "command":
+      return commandText(segment.payload);
+    case "skill":
+      return skillText(segment.payload);
+    case "inline-token":
+      return inlineTokenText(segment.payload);
   }
 }
 
-function collapsedLeafText(node: ProseMirrorNode): string {
-  if (node.type.name === "hardBreak") {
-    return "\n";
-  }
-  return COMPOSER_ATOM_NODE_NAMES.has(node.type.name) ? "\ufffc" : "";
+function composerSegmentCollapsedLength(segment: ComposerDocSegment): number {
+  return segment.type === "text" ? segment.text.length : 1;
 }
 
-function textBetween(
-  doc: ProseMirrorNode,
-  from: number,
-  to: number,
-  mode: "expanded" | "collapsed",
-): string {
-  const safeFrom = Math.max(0, Math.min(doc.content.size, from));
-  const safeTo = Math.max(safeFrom, Math.min(doc.content.size, to));
-  return doc.textBetween(
-    safeFrom,
-    safeTo,
-    "\n",
-    mode === "expanded" ? expandedLeafText : collapsedLeafText,
+function composerSegmentExpandedLength(segment: ComposerDocSegment): number {
+  return composerSegmentExpandedText(segment).length;
+}
+
+function composerSegmentsExpandedText(segments: ReadonlyArray<ComposerDocSegment>): string {
+  return segments.map(composerSegmentExpandedText).join("");
+}
+
+const composerPromptChipVariants = cva(
+  cn(
+    "inline-flex min-w-0 max-w-(--multi-composer-chip-max-width) select-none items-center gap-0.5",
+    "bg-transparent px-0 py-0 font-multi font-normal align-middle",
+    "-mt-[3px] -ml-px text-(length:--multi-composer-chip-font-size) leading-(--multi-composer-chip-line-height)",
+  ),
+  {
+    variants: {
+      kind: {
+        mention: "text-(--multi-composer-mention-text)",
+        command: "rounded-[2px] text-(--multi-composer-command-text)",
+        skill: "rounded-[2px] text-(--multi-composer-command-text)",
+        "inline-token": "text-(--multi-composer-mention-text)",
+      },
+    },
+  },
+);
+
+const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
+
+const ComposerMentionChip = memo(function ComposerMentionChip({
+  label,
+  lineEnd,
+  lineStart,
+  path,
+}: ComposerMentionPayload) {
+  const theme = resolvedThemeFromDocument();
+  const displayedLabel = label ?? basenameOfPath(path);
+  const chip = (
+    <span
+      className={composerPromptChipVariants({ kind: "mention" })}
+      contentEditable={false}
+      data-read-only-mention=""
+      data-type="mentionNode"
+      spellCheck={false}
+    >
+      <img
+        alt=""
+        aria-hidden="true"
+        className={cn(composerPromptChipIconClass, "opacity-90")}
+        loading="lazy"
+        src={getVscodeIconUrlForEntry(path, inferEntryKindFromPath(path), theme)}
+      />
+      <span className="min-w-0 truncate">{displayedLabel}</span>
+      {lineStart !== null && lineEnd !== null ? (
+        <span className="shrink-0 text-(length:--multi-composer-chip-line-range-font-size) text-(--multi-composer-mention-line-range-text)">
+          {lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`}
+        </span>
+      ) : null}
+    </span>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={chip} />
+      <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4 wrap-anywhere">
+        {path}
+      </TooltipPopup>
+    </Tooltip>
+  );
+});
+
+const ComposerCommandChip = memo(function ComposerCommandChip({
+  content,
+  name,
+}: ComposerCommandPayload) {
+  const label = commandText({ name });
+  const chip = (
+    <span
+      className={composerPromptChipVariants({ kind: "command" })}
+      contentEditable={false}
+      data-type="commandNode"
+      spellCheck={false}
+    >
+      <button type="button" tabIndex={-1} className="truncate text-left hover:underline">
+        {label}
+      </button>
+    </span>
+  );
+
+  return content ? (
+    <Tooltip>
+      <TooltipTrigger render={chip} />
+      <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
+        {content}
+      </TooltipPopup>
+    </Tooltip>
+  ) : (
+    chip
+  );
+});
+
+const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
+
+const ComposerSkillChip = memo(function ComposerSkillChip({
+  description,
+  label,
+}: ComposerSkillPayload) {
+  const chip = (
+    <span
+      className={composerPromptChipVariants({ kind: "skill" })}
+      contentEditable={false}
+      data-composer-skill-chip="true"
+      spellCheck={false}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}
+      >
+        <SkillIcon className="size-(--multi-composer-chip-icon-size)" />
+      </span>
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+
+  return description ? (
+    <Tooltip>
+      <TooltipTrigger render={chip} />
+      <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
+        {description}
+      </TooltipPopup>
+    </Tooltip>
+  ) : (
+    chip
+  );
+});
+
+const ComposerInlineTokenChip = memo(function ComposerInlineTokenChip({
+  label,
+  sourceUri,
+}: ComposerInlineTokenPayload) {
+  const chip = (
+    <span
+      className={composerPromptChipVariants({ kind: "inline-token" })}
+      contentEditable={false}
+      data-composer-inline-token-chip="true"
+      spellCheck={false}
+    >
+      <span className="min-w-0 truncate">{label || sourceUri}</span>
+    </span>
+  );
+
+  return sourceUri ? (
+    <Tooltip>
+      <TooltipTrigger render={chip} />
+      <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
+        {sourceUri}
+      </TooltipPopup>
+    </Tooltip>
+  ) : (
+    chip
+  );
+});
+
+class ComposerMentionNode extends DecoratorNode<ReactElement> {
+  __payload: ComposerMentionPayload;
+
+  static override getType(): string {
+    return "mentionNode";
+  }
+
+  static override clone(node: ComposerMentionNode): ComposerMentionNode {
+    return new ComposerMentionNode(node.__payload, node.__key);
+  }
+
+  static override importJSON(serializedNode: SerializedLexicalNode): ComposerMentionNode {
+    const node = serializedNode as SerializedComposerMentionNode;
+    return new ComposerMentionNode({
+      path: node.path,
+      label: node.label,
+      lineStart: node.lineStart,
+      lineEnd: node.lineEnd,
+    });
+  }
+
+  constructor(payload: ComposerMentionPayload = emptyMentionPayload(), key?: NodeKey) {
+    super(key);
+    this.__payload = payload;
+  }
+
+  override exportJSON(): SerializedComposerMentionNode {
+    return {
+      type: "mentionNode",
+      version: 1,
+      ...this.__payload,
+      text: mentionText(this.__payload),
+    };
+  }
+
+  override createDOM(): HTMLElement {
+    const element = document.createElement("span");
+    element.className = "inline-flex align-middle";
+    return element;
+  }
+
+  override updateDOM(): false {
+    return false;
+  }
+
+  override decorate(): ReactElement {
+    return <ComposerMentionChip {...this.__payload} />;
+  }
+
+  override getTextContent(): string {
+    return mentionText(this.__payload);
+  }
+
+  override isInline(): true {
+    return true;
+  }
+
+  override isKeyboardSelectable(): boolean {
+    return true;
+  }
+}
+
+class ComposerCommandNode extends DecoratorNode<ReactElement> {
+  __payload: ComposerCommandPayload;
+
+  static override getType(): string {
+    return "commandNode";
+  }
+
+  static override clone(node: ComposerCommandNode): ComposerCommandNode {
+    return new ComposerCommandNode(node.__payload, node.__key);
+  }
+
+  static override importJSON(serializedNode: SerializedLexicalNode): ComposerCommandNode {
+    const node = serializedNode as SerializedComposerCommandNode;
+    return new ComposerCommandNode({
+      id: node.id,
+      name: node.name,
+      content: node.content,
+      type: node.commandType,
+    });
+  }
+
+  constructor(payload: ComposerCommandPayload = emptyCommandPayload(), key?: NodeKey) {
+    super(key);
+    this.__payload = payload;
+  }
+
+  override exportJSON(): SerializedComposerCommandNode {
+    return {
+      id: this.__payload.id,
+      name: this.__payload.name,
+      content: this.__payload.content,
+      commandType: this.__payload.type,
+      text: commandText(this.__payload),
+      type: "commandNode",
+      version: 1,
+    };
+  }
+
+  override createDOM(): HTMLElement {
+    const element = document.createElement("span");
+    element.className = "inline-flex align-middle";
+    return element;
+  }
+
+  override updateDOM(): false {
+    return false;
+  }
+
+  override decorate(): ReactElement {
+    return <ComposerCommandChip {...this.__payload} />;
+  }
+
+  override getTextContent(): string {
+    return commandText(this.__payload);
+  }
+
+  override isInline(): true {
+    return true;
+  }
+
+  override isKeyboardSelectable(): boolean {
+    return true;
+  }
+}
+
+class ComposerSkillNode extends DecoratorNode<ReactElement> {
+  __payload: ComposerSkillPayload;
+
+  static override getType(): string {
+    return "skillNode";
+  }
+
+  static override clone(node: ComposerSkillNode): ComposerSkillNode {
+    return new ComposerSkillNode(node.__payload, node.__key);
+  }
+
+  static override importJSON(serializedNode: SerializedLexicalNode): ComposerSkillNode {
+    const node = serializedNode as SerializedComposerSkillNode;
+    return new ComposerSkillNode({
+      name: node.name,
+      label: node.label,
+      description: node.description,
+      path: node.path,
+    });
+  }
+
+  constructor(payload: ComposerSkillPayload = emptySkillPayload(), key?: NodeKey) {
+    super(key);
+    this.__payload = payload;
+  }
+
+  override exportJSON(): SerializedComposerSkillNode {
+    return {
+      type: "skillNode",
+      version: 1,
+      ...this.__payload,
+      text: skillText(this.__payload),
+    };
+  }
+
+  override createDOM(): HTMLElement {
+    const element = document.createElement("span");
+    element.className = "inline-flex align-middle";
+    return element;
+  }
+
+  override updateDOM(): false {
+    return false;
+  }
+
+  override decorate(): ReactElement {
+    return <ComposerSkillChip {...this.__payload} />;
+  }
+
+  override getTextContent(): string {
+    return skillText(this.__payload);
+  }
+
+  override isInline(): true {
+    return true;
+  }
+
+  override isKeyboardSelectable(): boolean {
+    return true;
+  }
+}
+
+class ComposerInlineTokenNode extends DecoratorNode<ReactElement> {
+  __payload: ComposerInlineTokenPayload;
+
+  static override getType(): string {
+    return "inlineTokenNode";
+  }
+
+  static override clone(node: ComposerInlineTokenNode): ComposerInlineTokenNode {
+    return new ComposerInlineTokenNode(node.__payload, node.__key);
+  }
+
+  static override importJSON(serializedNode: SerializedLexicalNode): ComposerInlineTokenNode {
+    const node = serializedNode as SerializedComposerInlineTokenNode;
+    return new ComposerInlineTokenNode({
+      label: node.label,
+      sourceUri: node.sourceUri,
+      markdown: node.markdown,
+    });
+  }
+
+  constructor(payload: ComposerInlineTokenPayload = emptyInlineTokenPayload(), key?: NodeKey) {
+    super(key);
+    this.__payload = payload;
+  }
+
+  override exportJSON(): SerializedComposerInlineTokenNode {
+    return {
+      type: "inlineTokenNode",
+      version: 1,
+      ...this.__payload,
+      text: inlineTokenText(this.__payload),
+    };
+  }
+
+  override createDOM(): HTMLElement {
+    const element = document.createElement("span");
+    element.className = "inline-flex align-middle";
+    return element;
+  }
+
+  override updateDOM(): false {
+    return false;
+  }
+
+  override decorate(): ReactElement {
+    return <ComposerInlineTokenChip {...this.__payload} />;
+  }
+
+  override getTextContent(): string {
+    return inlineTokenText(this.__payload);
+  }
+
+  override isInline(): true {
+    return true;
+  }
+
+  override isKeyboardSelectable(): boolean {
+    return true;
+  }
+}
+
+function emptyMentionPayload(): ComposerMentionPayload {
+  return { path: "", label: null, lineStart: null, lineEnd: null };
+}
+
+function emptyCommandPayload(): ComposerCommandPayload {
+  return { id: "", name: "", content: null, type: null };
+}
+
+function emptySkillPayload(): ComposerSkillPayload {
+  return { name: "", label: "", description: null, path: null };
+}
+
+function emptyInlineTokenPayload(): ComposerInlineTokenPayload {
+  return { label: "", sourceUri: "", markdown: "" };
+}
+
+function $createComposerMentionNode(payload: ComposerMentionPayload): ComposerMentionNode {
+  return $applyNodeReplacement(new ComposerMentionNode(payload));
+}
+
+function $createComposerCommandNode(payload: ComposerCommandPayload): ComposerCommandNode {
+  return $applyNodeReplacement(new ComposerCommandNode(payload));
+}
+
+function $createComposerSkillNode(payload: ComposerSkillPayload): ComposerSkillNode {
+  return $applyNodeReplacement(new ComposerSkillNode(payload));
+}
+
+function $createComposerInlineTokenNode(
+  payload: ComposerInlineTokenPayload,
+): ComposerInlineTokenNode {
+  return $applyNodeReplacement(new ComposerInlineTokenNode(payload));
+}
+
+function isComposerAtomNode(node: LexicalNode | null | undefined): node is ComposerAtomNode {
+  return (
+    node instanceof ComposerMentionNode ||
+    node instanceof ComposerCommandNode ||
+    node instanceof ComposerSkillNode ||
+    node instanceof ComposerInlineTokenNode
   );
 }
 
-function promptTextFromDoc(doc: ProseMirrorNode): string {
-  return textBetween(doc, 0, doc.content.size, "expanded");
-}
-
-function textToPosition(
-  doc: ProseMirrorNode,
-  targetOffset: number,
-  mode: "expanded" | "collapsed",
-): number {
-  const fullLength = textBetween(doc, 0, doc.content.size, mode).length;
-  const boundedTarget = Math.max(0, Math.min(fullLength, Math.floor(targetOffset)));
-  const maxPosition = Math.max(1, doc.content.size - 1);
-  if (boundedTarget <= 0) return 1;
-  if (boundedTarget >= fullLength) return maxPosition;
-
-  let low = 1;
-  let high = maxPosition;
-  let result = maxPosition;
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const lengthAtMid = textBetween(doc, 0, mid, mode).length;
-    if (lengthAtMid >= boundedTarget) {
-      result = mid;
-      high = mid - 1;
-    } else {
-      low = mid + 1;
-    }
+function atomNodeToSegment(node: ComposerAtomNode): ComposerDocSegment {
+  if (node instanceof ComposerMentionNode) {
+    return { type: "mention", payload: node.__payload };
   }
-  return result;
+  if (node instanceof ComposerCommandNode) {
+    return { type: "command", payload: node.__payload };
+  }
+  if (node instanceof ComposerSkillNode) {
+    return { type: "skill", payload: node.__payload };
+  }
+  return { type: "inline-token", payload: node.__payload };
 }
 
-function setSelectionAtCollapsedOffset(editor: Editor, cursor: number): void {
-  const position = textToPosition(editor.state.doc, cursor, "collapsed");
-  const selection = TextSelection.near(editor.state.doc.resolve(position), 1);
-  editor.view.dispatch(editor.state.tr.setSelection(selection));
-}
-
-function appendTextNodes(content: JSONContent[], text: string): void {
-  const parts = text.split("\n");
-  parts.forEach((part, index) => {
-    if (index > 0) {
-      content.push({ type: "hardBreak" });
-    }
-    if (part.length > 0) {
-      content.push({ type: "text", text: part });
-    }
-  });
-}
-
-function promptToTiptapDoc(
+function promptToComposerSegments(
   prompt: string,
   skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
-): PromptEditorDoc {
+): ComposerDocSegment[] {
   if (!prompt) {
     return EMPTY_DOC;
   }
 
-  const content: JSONContent[] = [];
+  const segments: ComposerDocSegment[] = [];
   for (const segment of splitPromptIntoComposerSegments(prompt)) {
     if (segment.type === "text") {
-      appendTextNodes(content, segment.text);
+      segments.push({ type: "text", text: segment.text });
       continue;
     }
     if (segment.type === "mention") {
-      content.push({
-        type: "mentionNode",
-        attrs: {
+      segments.push({
+        type: "mention",
+        payload: {
           path: segment.path,
           label: basenameOfPath(segment.path),
+          lineStart: null,
+          lineEnd: null,
         },
       });
       continue;
     }
     if (segment.type === "skill") {
       const metadata = skillMetadata.get(segment.name);
-      const attrs: Record<string, unknown> = {
-        skillName: segment.name,
-        skillLabel: metadata?.label ?? formatProviderSkillDisplayName({ name: segment.name }),
-      };
-      if (metadata?.description) attrs.skillDescription = metadata.description;
-      if (segment.path) attrs.skillPath = segment.path;
-      content.push({ type: "skillNode", attrs });
-      continue;
-    }
-    if (segment.type === "inline-token") {
-      content.push({
-        type: "inlineTokenNode",
-        attrs: {
-          label: segment.label,
-          sourceUri: segment.sourceUri,
-          markdown: segment.markdown,
+      segments.push({
+        type: "skill",
+        payload: {
+          name: segment.name,
+          label: metadata?.label ?? formatProviderSkillDisplayName({ name: segment.name }),
+          description: metadata?.description ?? null,
+          path: segment.path ?? null,
         },
       });
       continue;
     }
+    segments.push({
+      type: "inline-token",
+      payload: {
+        label: segment.label,
+        sourceUri: segment.sourceUri,
+        markdown: segment.markdown,
+      },
+    });
+  }
+  return segments;
+}
+
+function appendTextToParagraph(paragraph: ElementNode, text: string): void {
+  const parts = text.split("\n");
+  parts.forEach((part, index) => {
+    if (index > 0) {
+      paragraph.append($createLineBreakNode());
+    }
+    if (part.length > 0) {
+      paragraph.append($createTextNode(part));
+    }
+  });
+}
+
+function appendSegmentToParagraph(paragraph: ElementNode, segment: ComposerDocSegment): void {
+  switch (segment.type) {
+    case "text":
+      appendTextToParagraph(paragraph, segment.text);
+      return;
+    case "linebreak":
+      paragraph.append($createLineBreakNode());
+      return;
+    case "mention":
+      paragraph.append($createComposerMentionNode(segment.payload));
+      return;
+    case "command":
+      paragraph.append($createComposerCommandNode(segment.payload));
+      return;
+    case "skill":
+      paragraph.append($createComposerSkillNode(segment.payload));
+      return;
+    case "inline-token":
+      paragraph.append($createComposerInlineTokenNode(segment.payload));
+      return;
+  }
+}
+
+function setRootFromSegments(segments: ReadonlyArray<ComposerDocSegment>): void {
+  const root = $getRoot();
+  root.clear();
+  const paragraph = $createParagraphNode();
+  for (const segment of segments) {
+    appendSegmentToParagraph(paragraph, segment);
+  }
+  root.append(paragraph);
+}
+
+function setRootFromPrompt(
+  prompt: string,
+  skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
+): void {
+  setRootFromSegments(promptToComposerSegments(prompt, skillMetadata));
+}
+
+function collectSegmentsFromNode(node: LexicalNode, segments: ComposerDocSegment[]): void {
+  if ($isTextNode(node)) {
+    const text = node.getTextContent();
+    if (text.length > 0) {
+      segments.push({ type: "text", text });
+    }
+    return;
+  }
+  if ($isLineBreakNode(node)) {
+    segments.push({ type: "linebreak" });
+    return;
+  }
+  if (isComposerAtomNode(node)) {
+    segments.push(atomNodeToSegment(node));
+    return;
+  }
+  if ($isElementNode(node)) {
+    for (const child of node.getChildren()) {
+      collectSegmentsFromNode(child, segments);
+    }
+  }
+}
+
+function collectComposerSegmentsFromRoot(): ComposerDocSegment[] {
+  const root = $getRoot();
+  const segments: ComposerDocSegment[] = [];
+  root.getChildren().forEach((child, index) => {
+    if (index > 0) {
+      segments.push({ type: "linebreak" });
+    }
+    collectSegmentsFromNode(child, segments);
+  });
+  return segments;
+}
+
+function nodeTextLength(node: LexicalNode, mode: "expanded" | "collapsed"): number {
+  if ($isTextNode(node)) {
+    return node.getTextContent().length;
+  }
+  if ($isLineBreakNode(node)) {
+    return 1;
+  }
+  if (isComposerAtomNode(node)) {
+    return mode === "expanded" ? node.getTextContent().length : 1;
+  }
+  if ($isElementNode(node)) {
+    return node.getChildren().reduce((total, child) => total + nodeTextLength(child, mode), 0);
+  }
+  return node.getTextContent().length;
+}
+
+function offsetBeforePointInNode(
+  node: LexicalNode,
+  point: RangeSelection["focus"],
+  mode: "expanded" | "collapsed",
+): { found: boolean; offset: number } {
+  if (point.type === "element" && point.key === node.getKey() && $isElementNode(node)) {
+    const offset = node
+      .getChildren()
+      .slice(0, point.offset)
+      .reduce((total, child) => total + nodeTextLength(child, mode), 0);
+    return { found: true, offset };
+  }
+  if (point.key === node.getKey()) {
+    if ($isTextNode(node)) {
+      return { found: true, offset: Math.min(point.offset, node.getTextContent().length) };
+    }
+    return { found: true, offset: point.offset > 0 ? nodeTextLength(node, mode) : 0 };
+  }
+  if (!$isElementNode(node)) {
+    return { found: false, offset: nodeTextLength(node, mode) };
   }
 
+  let offset = 0;
+  for (const child of node.getChildren()) {
+    const result = offsetBeforePointInNode(child, point, mode);
+    if (result.found) {
+      return { found: true, offset: offset + result.offset };
+    }
+    offset += result.offset;
+  }
+  return { found: false, offset };
+}
+
+function offsetBeforePoint(
+  point: RangeSelection["focus"],
+  mode: "expanded" | "collapsed",
+): number {
+  return offsetBeforePointInNode($getRoot(), point, mode).offset;
+}
+
+function pointAroundNode(node: LexicalNode, after: boolean): LexicalSelectionPoint {
+  const parent = node.getParentOrThrow<ElementNode>();
   return {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        ...(content.length > 0 ? { content } : {}),
-      },
-    ],
+    key: parent.getKey(),
+    offset: node.getIndexWithinParent() + (after ? 1 : 0),
+    type: "element",
   };
 }
 
-function collectCommands(doc: ProseMirrorNode): ComposerCommandData[] {
-  const commands: ComposerCommandData[] = [];
-  doc.descendants((node) => {
-    if (node.type.name !== "commandNode") {
-      return true;
+function findPointInNodeAtOffset(
+  node: LexicalNode,
+  targetOffset: number,
+  mode: "expanded" | "collapsed",
+): { found: boolean; point: LexicalSelectionPoint; remaining: number } {
+  if ($isTextNode(node)) {
+    const textLength = node.getTextContent().length;
+    if (targetOffset <= textLength) {
+      return {
+        found: true,
+        point: {
+          key: node.getKey(),
+          offset: Math.max(0, targetOffset),
+          type: "text",
+        },
+        remaining: 0,
+      };
     }
-    commands.push({
-      id: stringAttr(node.attrs.id),
-      name: stringAttr(node.attrs.name),
-      content: nullableStringAttr(node.attrs.content),
-      type: nullableStringAttr(node.attrs.type),
-    });
-    return false;
-  });
-  return commands;
+    return {
+      found: false,
+      point: pointAroundNode(node, true),
+      remaining: targetOffset - textLength,
+    };
+  }
+
+  if ($isLineBreakNode(node) || isComposerAtomNode(node)) {
+    const length = nodeTextLength(node, mode);
+    if (targetOffset === 0) {
+      return { found: true, point: pointAroundNode(node, false), remaining: 0 };
+    }
+    if (targetOffset <= length) {
+      return { found: true, point: pointAroundNode(node, true), remaining: 0 };
+    }
+    return {
+      found: false,
+      point: pointAroundNode(node, true),
+      remaining: targetOffset - length,
+    };
+  }
+
+  if ($isElementNode(node)) {
+    let remaining = targetOffset;
+    const children = node.getChildren();
+    if (children.length === 0 || remaining === 0) {
+      return {
+        found: true,
+        point: { key: node.getKey(), offset: 0, type: "element" },
+        remaining: 0,
+      };
+    }
+    for (const child of children) {
+      const result = findPointInNodeAtOffset(child, remaining, mode);
+      if (result.found) {
+        return result;
+      }
+      remaining = result.remaining;
+    }
+    return {
+      found: false,
+      point: { key: node.getKey(), offset: children.length, type: "element" },
+      remaining,
+    };
+  }
+
+  return {
+    found: false,
+    point: pointAroundNode(node, true),
+    remaining: Math.max(0, targetOffset - node.getTextContent().length),
+  };
 }
 
-function collectMentions(doc: ProseMirrorNode): ComposerMentionData[] {
-  const mentions: ComposerMentionData[] = [];
-  doc.descendants((node) => {
-    if (node.type.name !== "mentionNode") {
-      return true;
-    }
-    mentions.push({
-      path: stringAttr(node.attrs.path),
-      label: nullableStringAttr(node.attrs.label),
-      lineStart: nullableNumberAttr(node.attrs.lineStart),
-      lineEnd: nullableNumberAttr(node.attrs.lineEnd),
-    });
-    return false;
-  });
-  return mentions;
+function pointAtTextOffset(
+  offset: number,
+  mode: "expanded" | "collapsed",
+): LexicalSelectionPoint {
+  const root = $getRoot();
+  const safeOffset = Math.max(0, Math.floor(offset));
+  const result = findPointInNodeAtOffset(root, safeOffset, mode);
+  return result.point;
 }
 
-function readSnapshotFromEditor(editor: Editor): ComposerPromptEditorSnapshot {
-  const doc = editor.state.doc;
-  const selection = editor.state.selection;
-  const head =
-    "head" in selection && typeof selection.head === "number" ? selection.head : selection.to;
-  const value = promptTextFromDoc(doc);
-  const cursor = textBetween(doc, 0, head, "collapsed").length;
-  const expandedCursor = textBetween(doc, 0, head, "expanded").length;
+function setSelectionRangeAtTextOffsets(
+  start: number,
+  end: number,
+  mode: "expanded" | "collapsed",
+): void {
+  const anchor = pointAtTextOffset(start, mode);
+  const focus = pointAtTextOffset(end, mode);
+  const selection = $createRangeSelection();
+  selection.anchor.set(anchor.key, anchor.offset, anchor.type);
+  selection.focus.set(focus.key, focus.offset, focus.type);
+  $setSelection(selection);
+}
+
+function setSelectionAtTextOffset(offset: number, mode: "expanded" | "collapsed"): void {
+  setSelectionRangeAtTextOffsets(offset, offset, mode);
+}
+
+function readSnapshotFromEditorState(): ComposerPromptEditorSnapshot {
+  const segments = collectComposerSegmentsFromRoot();
+  const value = composerSegmentsExpandedText(segments);
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    const cursor = segments.reduce(
+      (total, segment) => total + composerSegmentCollapsedLength(segment),
+      0,
+    );
+    return {
+      value,
+      cursor,
+      expandedCursor: value.length,
+    };
+  }
   return {
     value,
-    cursor,
-    expandedCursor,
+    cursor: offsetBeforePoint(selection.focus, "collapsed"),
+    expandedCursor: offsetBeforePoint(selection.focus, "expanded"),
   };
 }
 
@@ -462,21 +1142,26 @@ function snapshotsEqual(
 
 const COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD = 24;
 
-function measureComposerEditorMultiline(editor: Editor): boolean {
-  const dom = editor.view.dom;
-  const value = promptTextFromDoc(editor.state.doc);
+function measureComposerEditorMultiline(editor: LexicalEditor): boolean {
+  const rootElement = editor.getRootElement();
+  if (!rootElement) {
+    return false;
+  }
+  let value = "";
+  editor.getEditorState().read(() => {
+    value = readSnapshotFromEditorState().value;
+  });
   if (value.includes("\n")) {
     return true;
   }
   if (value.trim().length === 0) {
     return false;
   }
-
-  return dom.scrollHeight > COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD;
+  return rootElement.scrollHeight > COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD;
 }
 
 function emitMeasuredMultiline(
-  editor: Editor,
+  editor: LexicalEditor,
   callback: ((multiline: boolean) => void) | undefined,
   measuredMultilineRef: RefObject<boolean>,
 ): void {
@@ -501,6 +1186,67 @@ function notifyComposerEditorMultiline(
   callback(nextMultiline);
 }
 
+function updateEditorFromControlledState({
+  cursor,
+  editor,
+  isApplyingControlledUpdateRef,
+  measuredMultilineRef,
+  onMeasuredMultilineChangeRef,
+  skillsSignature,
+  skillsSignatureRef,
+  skillMetadataRef,
+  snapshotRef,
+  value,
+}: {
+  cursor: number;
+  editor: LexicalEditor;
+  isApplyingControlledUpdateRef: RefObject<boolean>;
+  measuredMultilineRef: RefObject<boolean>;
+  onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
+  skillsSignature: string;
+  skillsSignatureRef: RefObject<string>;
+  skillMetadataRef: RefObject<ReadonlyMap<string, ComposerSkillMetadata>>;
+  snapshotRef: RefObject<ComposerPromptEditorSnapshot>;
+  value: string;
+}) {
+  const normalizedCursor = clampCollapsedComposerCursor(value, cursor);
+  const previousSnapshot = snapshotRef.current;
+  const skillsChanged = skillsSignatureRef.current !== skillsSignature;
+  if (
+    previousSnapshot.value === value &&
+    previousSnapshot.cursor === normalizedCursor &&
+    !skillsChanged
+  ) {
+    return;
+  }
+
+  snapshotRef.current = {
+    value,
+    cursor: normalizedCursor,
+    expandedCursor: expandCollapsedComposerCursor(value, normalizedCursor),
+  };
+  skillsSignatureRef.current = skillsSignature;
+
+  const rootElement = editor.getRootElement();
+  const isFocused = rootElement !== null && document.activeElement === rootElement;
+  if (previousSnapshot.value === value && !skillsChanged && !isFocused) {
+    return;
+  }
+
+  isApplyingControlledUpdateRef.current = true;
+  const shouldRewriteEditorState = previousSnapshot.value !== value || skillsChanged;
+  editor.update(() => {
+    if (shouldRewriteEditorState) {
+      setRootFromPrompt(value, skillMetadataRef.current);
+    }
+    setSelectionAtTextOffset(normalizedCursor, "collapsed");
+  });
+  emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
+  queueMicrotask(() => {
+    isApplyingControlledUpdateRef.current = false;
+  });
+}
+
 function usePromptEditorControlledStateSync({
   cursor,
   editor,
@@ -514,7 +1260,7 @@ function usePromptEditorControlledStateSync({
   value,
 }: {
   cursor: number;
-  editor: Editor | null;
+  editor: LexicalEditor;
   isApplyingControlledUpdateRef: RefObject<boolean>;
   measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
@@ -525,43 +1271,17 @@ function usePromptEditorControlledStateSync({
   value: string;
 }) {
   useLayoutSyncEffect(() => {
-    if (!editor) return;
-    const normalizedCursor = clampCollapsedComposerCursor(value, cursor);
-    const previousSnapshot = snapshotRef.current;
-    const skillsChanged = skillsSignatureRef.current !== skillsSignature;
-    if (
-      previousSnapshot.value === value &&
-      previousSnapshot.cursor === normalizedCursor &&
-      !skillsChanged
-    ) {
-      return;
-    }
-
-    const nextDoc = promptToTiptapDoc(value, skillMetadataRef.current);
-    snapshotRef.current = {
+    updateEditorFromControlledState({
+      cursor,
+      editor,
+      isApplyingControlledUpdateRef,
+      measuredMultilineRef,
+      onMeasuredMultilineChangeRef,
+      skillsSignature,
+      skillsSignatureRef,
+      skillMetadataRef,
+      snapshotRef,
       value,
-      cursor: normalizedCursor,
-      expandedCursor: expandCollapsedComposerCursor(value, normalizedCursor),
-    };
-    skillsSignatureRef.current = skillsSignature;
-
-    const rootElement = editor.view.dom;
-    const isFocused = document.activeElement === rootElement;
-    if (previousSnapshot.value === value && !skillsChanged && !isFocused) {
-      return;
-    }
-
-    isApplyingControlledUpdateRef.current = true;
-    const shouldRewriteEditorState = previousSnapshot.value !== value || skillsChanged;
-    if (shouldRewriteEditorState) {
-      editor.commands.setContent(nextDoc, { emitUpdate: false });
-    }
-    if (shouldRewriteEditorState || previousSnapshot.cursor !== normalizedCursor) {
-      setSelectionAtCollapsedOffset(editor, normalizedCursor);
-    }
-    emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
-    queueMicrotask(() => {
-      isApplyingControlledUpdateRef.current = false;
     });
   }, [cursor, editor, measuredMultilineRef, skillsSignature, value]);
 }
@@ -571,62 +1291,67 @@ function usePromptEditorMultilineMeasurement({
   measuredMultilineRef,
   onMeasuredMultilineChangeRef,
 }: {
-  editor: Editor | null;
+  editor: LexicalEditor;
   measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
 }) {
   useLayoutSyncEffect(() => {
-    if (!editor) return;
-    const dom = editor.view.dom;
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
     emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
     if (typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver(() => {
       emitMeasuredMultiline(editor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
     });
-    observer.observe(dom);
+    observer.observe(rootElement);
     return () => {
       observer.disconnect();
     };
   }, [editor]);
 }
 
+function caretRectFromDomSelection(editorRoot: HTMLElement): DOMRect | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+  const anchorNode = selection.anchorNode;
+  if (!anchorNode || !editorRoot.contains(anchorNode)) {
+    return null;
+  }
+  const range = selection.getRangeAt(0).cloneRange();
+  range.collapse(true);
+  const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+  return rect.width === 0 && rect.height === 0 ? null : rect;
+}
+
 // Mirrors Cursor's caret-tracked menu anchor: a real 1x1 span whose position is
-// rewritten from `coordsAtPos(selection.from)`. Floating UI reads the live DOM
-// rect via MutationObserver-driven updates, not React state per keystroke.
+// rewritten from the live DOM selection. Floating UI reads the live DOM rect via
+// MutationObserver-driven updates, not React state per keystroke.
 function usePromptEditorCaretAnchor({
   commandMenuOpen,
   editor,
   anchorElementRef,
 }: {
   commandMenuOpen: boolean;
-  editor: Editor | null;
+  editor: LexicalEditor;
   anchorElementRef: RefObject<HTMLSpanElement | null>;
 }) {
   useLayoutSyncEffect(() => {
-    if (!editor || !commandMenuOpen) return;
+    if (!commandMenuOpen) return;
     const anchor = anchorElementRef.current;
-    const editorDom = editor.view.dom;
+    const editorRoot = editor.getRootElement();
     const anchorRoot =
       anchor?.offsetParent instanceof HTMLElement ? anchor.offsetParent : anchor?.parentElement;
-    if (!anchor || !anchorRoot) return;
+    if (!anchor || !anchorRoot || !editorRoot) return;
 
     let frame: number | null = null;
     const place = () => {
-      const pmPos = Math.min(
-        Math.max(editor.state.selection.from, 1),
-        editor.state.doc.content.size,
-      );
-      let coords: ReturnType<typeof editor.view.coordsAtPos>;
-      try {
-        coords = editor.view.coordsAtPos(pmPos);
-      } catch {
-        coords = editor.view.coordsAtPos(editor.state.selection.head);
-      }
-      // Cursor top-start placement uses coords.top for side="top".
+      const rect = caretRectFromDomSelection(editorRoot) ?? editorRoot.getBoundingClientRect();
       const anchorRootRect = anchorRoot.getBoundingClientRect();
-      anchor.style.left = `${coords.left - anchorRootRect.left}px`;
-      anchor.style.top = `${coords.top - anchorRootRect.top}px`;
+      anchor.style.left = `${rect.left - anchorRootRect.left}px`;
+      anchor.style.top = `${rect.top - anchorRootRect.top}px`;
       anchor.style.bottom = "auto";
     };
     const schedulePlace = () => {
@@ -641,20 +1366,23 @@ function usePromptEditorCaretAnchor({
     };
 
     schedulePlace();
-    editor.on("transaction", schedulePlace);
+    const unregisterUpdate = editor.registerUpdateListener(schedulePlace);
+    document.addEventListener("selectionchange", schedulePlace);
     if (typeof ResizeObserver === "undefined") {
       return () => {
-        editor.off("transaction", schedulePlace);
+        unregisterUpdate();
+        document.removeEventListener("selectionchange", schedulePlace);
         if (frame !== null) {
           window.cancelAnimationFrame(frame);
         }
       };
     }
     const observer = new ResizeObserver(schedulePlace);
-    observer.observe(editorDom);
+    observer.observe(editorRoot);
     observer.observe(anchorRoot);
     return () => {
-      editor.off("transaction", schedulePlace);
+      unregisterUpdate();
+      document.removeEventListener("selectionchange", schedulePlace);
       if (frame !== null) {
         window.cancelAnimationFrame(frame);
       }
@@ -663,469 +1391,276 @@ function usePromptEditorCaretAnchor({
   }, [anchorElementRef, commandMenuOpen, editor]);
 }
 
-function selectionContainsComposerAtom(editor: Editor, from: number, to: number): boolean {
-  let containsAtom = false;
-  editor.state.doc.nodesBetween(from, to, (node) => {
-    if (COMPOSER_ATOM_NODE_NAMES.has(node.type.name)) {
-      containsAtom = true;
-      return false;
-    }
-    return true;
-  });
-  return containsAtom;
-}
-
-function syncEditorSelectionFromDom(editor: Editor): void {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return;
-  const anchorNode = selection.anchorNode;
-  const focusNode = selection.focusNode;
-  if (!anchorNode || !focusNode) return;
-  if (!editor.view.dom.contains(anchorNode) || !editor.view.dom.contains(focusNode)) return;
-
-  try {
-    const anchor = editor.view.posAtDOM(anchorNode, selection.anchorOffset);
-    const head = editor.view.posAtDOM(focusNode, selection.focusOffset);
-    if (anchor === editor.state.selection.anchor && head === editor.state.selection.head) {
+function captureSurroundSelection(editor: LexicalEditor): SurroundSelectionSnapshot | null {
+  let snapshot: SurroundSelectionSnapshot | null = null;
+  editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+      snapshot = null;
       return;
     }
-    editor.view.dispatch(
-      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, anchor, head)),
-    );
-  } catch {
-    // ProseMirror may reject DOM points inside atom node views. In that case the
-    // current editor state is still the safest source of truth.
-  }
+    if (selection.getNodes().some(isComposerAtomNode)) {
+      snapshot = null;
+      return;
+    }
+    const value = readSnapshotFromEditorState().value;
+    const anchorOffset = offsetBeforePoint(selection.anchor, "expanded");
+    const focusOffset = offsetBeforePoint(selection.focus, "expanded");
+    const start = Math.min(anchorOffset, focusOffset);
+    const end = Math.max(anchorOffset, focusOffset);
+    if (selectionTouchesMentionBoundary(value, start, end)) {
+      snapshot = null;
+      return;
+    }
+    snapshot = { start, end, value };
+  });
+  return snapshot;
 }
 
-function captureSurroundSelection(editor: Editor): SurroundSelectionSnapshot | null {
-  syncEditorSelectionFromDom(editor);
-  const selection = editor.state.selection;
-  if (selection.empty) return null;
-  const from = Math.min(selection.from, selection.to);
-  const to = Math.max(selection.from, selection.to);
-  if (selectionContainsComposerAtom(editor, from, to)) {
-    return null;
+function replaceSegmentsInExpandedRange(
+  segments: ReadonlyArray<ComposerDocSegment>,
+  start: number,
+  end: number,
+  insertion: ReadonlyArray<ComposerDocSegment>,
+): ComposerDocSegment[] {
+  const next: ComposerDocSegment[] = [];
+  let offset = 0;
+  let inserted = false;
+
+  const insertOnce = () => {
+    if (inserted) return;
+    next.push(...insertion);
+    inserted = true;
+  };
+
+  for (const segment of segments) {
+    const segmentText = composerSegmentExpandedText(segment);
+    const segmentStart = offset;
+    const segmentEnd = segmentStart + segmentText.length;
+    offset = segmentEnd;
+
+    if (segmentEnd <= start) {
+      next.push(segment);
+      continue;
+    }
+    if (segmentStart >= end) {
+      insertOnce();
+      next.push(segment);
+      continue;
+    }
+    if (segment.type !== "text") {
+      continue;
+    }
+    const beforeEnd = Math.max(0, start - segmentStart);
+    const afterStart = Math.max(beforeEnd, end - segmentStart);
+    if (beforeEnd > 0) {
+      next.push({ type: "text", text: segment.text.slice(0, beforeEnd) });
+    }
+    insertOnce();
+    if (afterStart < segment.text.length) {
+      next.push({ type: "text", text: segment.text.slice(afterStart) });
+    }
   }
-  const value = promptTextFromDoc(editor.state.doc);
-  const expandedStart = textBetween(editor.state.doc, 0, from, "expanded").length;
-  const expandedEnd = textBetween(editor.state.doc, 0, to, "expanded").length;
-  if (selectionTouchesMentionBoundary(value, expandedStart, expandedEnd)) {
-    return null;
-  }
-  return { from, to, expandedStart, expandedEnd, value };
+
+  insertOnce();
+  return next;
 }
 
 function applySurroundInput(
-  editor: Editor,
+  editor: LexicalEditor,
   snapshot: SurroundSelectionSnapshot,
   open: string,
   close: string,
 ): boolean {
-  const selection = editor.state.selection;
-  if (
-    selection.empty ||
-    Math.min(selection.from, selection.to) !== snapshot.from ||
-    Math.max(selection.from, selection.to) !== snapshot.to
-  ) {
-    return false;
-  }
-
-  const tr = editor.state.tr;
-  tr.insertText(open, snapshot.from, snapshot.from);
-  tr.insertText(close, snapshot.to + open.length, snapshot.to + open.length);
-  tr.setSelection(
-    TextSelection.create(tr.doc, snapshot.from + open.length, snapshot.to + open.length),
-  );
-  editor.view.dispatch(tr.scrollIntoView());
-  return true;
+  let applied = false;
+  editor.update(() => {
+    const current = readSnapshotFromEditorState();
+    if (current.value !== snapshot.value) {
+      return;
+    }
+    const selectedText = snapshot.value.slice(snapshot.start, snapshot.end);
+    const segments = replaceSegmentsInExpandedRange(
+      collectComposerSegmentsFromRoot(),
+      snapshot.start,
+      snapshot.end,
+      [{ type: "text", text: `${open}${selectedText}${close}` }],
+    );
+    setRootFromSegments(segments);
+    setSelectionRangeAtTextOffsets(
+      snapshot.start + open.length,
+      snapshot.end + open.length,
+      "expanded",
+    );
+    applied = true;
+  });
+  return applied;
 }
 
-const composerPromptChipVariants = cva(
-  cn(
-    "inline-flex min-w-0 max-w-(--multi-composer-chip-max-width) select-none items-center gap-0.5",
-    "bg-transparent px-0 py-0 font-multi font-normal align-middle",
-    "-mt-[3px] -ml-px text-(length:--multi-composer-chip-font-size) leading-(--multi-composer-chip-line-height)",
-  ),
-  {
-    variants: {
-      kind: {
-        mention: "text-(--multi-composer-mention-text)",
-        command: "rounded-[2px] text-(--multi-composer-command-text)",
-        skill: "rounded-[2px] text-(--multi-composer-command-text)",
-        "inline-token": "text-(--multi-composer-mention-text)",
-      },
-    },
-  },
-);
-
-const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
-
-function ComposerMentionNodeView(props: NodeViewProps): ReactElement {
-  const path = stringAttr(props.node.attrs.path);
-  const label = nullableStringAttr(props.node.attrs.label) ?? basenameOfPath(path);
-  const lineStart = nullableNumberAttr(props.node.attrs.lineStart);
-  const lineEnd = nullableNumberAttr(props.node.attrs.lineEnd);
-  const theme = resolvedThemeFromDocument();
-  const chip = (
-    <span
-      className={composerPromptChipVariants({ kind: "mention" })}
-      contentEditable={false}
-      data-read-only-mention=""
-      data-type="mentionNode"
-      spellCheck={false}
-    >
-      <img
-        alt=""
-        aria-hidden="true"
-        className={cn(composerPromptChipIconClass, "opacity-90")}
-        loading="lazy"
-        src={getVscodeIconUrlForEntry(path, inferEntryKindFromPath(path), theme)}
-      />
-      <span className="min-w-0 truncate">{label}</span>
-      {lineStart !== null && lineEnd !== null ? (
-        <span className="shrink-0 text-(length:--multi-composer-chip-line-range-font-size) text-(--multi-composer-mention-line-range-text)">
-          {lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`}
-        </span>
-      ) : null}
-    </span>
-  );
-
-  return (
-    <NodeViewWrapper as="span" className="inline-flex align-middle">
-      <Tooltip>
-        <TooltipTrigger render={chip} />
-        <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4 wrap-anywhere">
-          {path}
-        </TooltipPopup>
-      </Tooltip>
-    </NodeViewWrapper>
-  );
+function insertTextAtSelection(editor: LexicalEditor, text: string): void {
+  editor.update(() => {
+    const selection = $getSelection();
+    if ($isRangeSelection(selection)) {
+      selection.insertRawText(text);
+    }
+  });
 }
 
-function ComposerCommandNodeView(props: NodeViewProps): ReactElement {
-  const name = stringAttr(props.node.attrs.name);
-  const content = nullableStringAttr(props.node.attrs.content);
-  const label = name ? `/${name}` : "/";
-  const chip = (
-    <span
-      className={composerPromptChipVariants({ kind: "command" })}
-      contentEditable={false}
-      data-type="commandNode"
-      spellCheck={false}
-    >
-      <button type="button" tabIndex={-1} className="truncate text-left hover:underline">
-        {label}
-      </button>
-    </span>
-  );
-
-  return (
-    <NodeViewWrapper as="span" className="inline-flex align-middle">
-      {content ? (
-        <Tooltip>
-          <TooltipTrigger render={chip} />
-          <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
-            {content}
-          </TooltipPopup>
-        </Tooltip>
-      ) : (
-        chip
-      )}
-    </NodeViewWrapper>
-  );
+function replaceExpandedRangeWithCommand(
+  editor: LexicalEditor,
+  rangeStart: number,
+  rangeEnd: number,
+  command: ComposerCommandData,
+): boolean {
+  let applied = false;
+  editor.update(() => {
+    const current = readSnapshotFromEditorState();
+    const safeStart = Math.max(0, Math.min(current.value.length, rangeStart));
+    const safeEnd = Math.max(safeStart, Math.min(current.value.length, rangeEnd));
+    const segments = replaceSegmentsInExpandedRange(
+      collectComposerSegmentsFromRoot(),
+      safeStart,
+      safeEnd,
+      [
+        { type: "command", payload: command },
+        { type: "text", text: " " },
+      ],
+    );
+    setRootFromSegments(segments);
+    setSelectionAtTextOffset(safeStart + commandText(command).length + 1, "expanded");
+    applied = true;
+  });
+  return applied;
 }
 
-const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
-
-function ComposerSkillNodeView(props: NodeViewProps): ReactElement {
-  const label =
-    nullableStringAttr(props.node.attrs.skillLabel) ??
-    formatProviderSkillDisplayName({
-      name: stringAttr(props.node.attrs.skillName),
-    });
-  const description = nullableStringAttr(props.node.attrs.skillDescription);
-  const chip = (
-    <span
-      className={composerPromptChipVariants({ kind: "skill" })}
-      contentEditable={false}
-      data-composer-skill-chip="true"
-      spellCheck={false}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}
-      >
-        <SkillIcon className="size-(--multi-composer-chip-icon-size)" />
-      </span>
-      <span className="min-w-0 truncate">{label}</span>
-    </span>
-  );
-
-  return (
-    <NodeViewWrapper as="span" className="inline-flex align-middle">
-      {description ? (
-        <Tooltip>
-          <TooltipTrigger render={chip} />
-          <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
-            {description}
-          </TooltipPopup>
-        </Tooltip>
-      ) : (
-        chip
-      )}
-    </NodeViewWrapper>
-  );
-}
-
-function ComposerInlineTokenNodeView(props: NodeViewProps): ReactElement {
-  const label =
-    nullableStringAttr(props.node.attrs.label) ??
-    nullableStringAttr(props.node.attrs.sourceUri) ??
-    "";
-  const sourceUri = nullableStringAttr(props.node.attrs.sourceUri);
-  const chip = (
-    <span
-      className={composerPromptChipVariants({ kind: "inline-token" })}
-      contentEditable={false}
-      data-composer-inline-token-chip="true"
-      spellCheck={false}
-    >
-      <span className="min-w-0 truncate">{label}</span>
-    </span>
-  );
-
-  return (
-    <NodeViewWrapper as="span" className="inline-flex align-middle">
-      {sourceUri ? (
-        <Tooltip>
-          <TooltipTrigger render={chip} />
-          <TooltipPopup side="top" className="max-w-lg whitespace-normal text-xs/4">
-            {sourceUri}
-          </TooltipPopup>
-        </Tooltip>
-      ) : (
-        chip
-      )}
-    </NodeViewWrapper>
-  );
-}
-
-const ComposerMentionExtension = Mention.extend({
-  name: "mentionNode",
-
-  addAttributes() {
-    return {
-      path: { default: "" },
-      label: { default: null },
-      lineStart: { default: null },
-      lineEnd: { default: null },
+function replaceExpandedRangeWithSkill(
+  editor: LexicalEditor,
+  rangeStart: number,
+  rangeEnd: number,
+  skill: ComposerSkillData,
+): boolean {
+  let applied = false;
+  editor.update(() => {
+    const current = readSnapshotFromEditorState();
+    const safeStart = Math.max(0, Math.min(current.value.length, rangeStart));
+    const safeEnd = Math.max(safeStart, Math.min(current.value.length, rangeEnd));
+    const payload: ComposerSkillPayload = {
+      name: skill.name,
+      label: skill.label,
+      description: skill.description,
+      path: skill.path,
     };
-  },
-
-  renderText({ node }) {
-    return mentionText(node.attrs);
-  },
-
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "mentionNode",
-        "data-read-only-mention": "",
-      }),
-      mentionText(node.attrs),
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(ComposerMentionNodeView);
-  },
-}).configure({
-  renderText: ({ node }) => mentionText(node.attrs),
-  renderHTML: ({ node }) => [
-    "span",
-    {
-      "data-type": "mentionNode",
-      "data-read-only-mention": "",
-    },
-    mentionText(node.attrs),
-  ],
-  suggestion: {
-    char: "@",
-    pluginKey: COMPOSER_MENTION_PLUGIN_KEY,
-    allowSpaces: true,
-    allowedPrefixes: null,
-    allow: () => false,
-    items: () => [],
-  },
-});
-
-const ComposerCommandExtension = TiptapNode.create({
-  name: "commandNode",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: true,
-
-  addAttributes() {
-    return {
-      id: { default: "" },
-      name: { default: "" },
-      content: { default: null },
-      type: { default: null },
-    };
-  },
-
-  parseHTML() {
-    return [{ tag: 'span[data-type="commandNode"]' }];
-  },
-
-  renderText({ node }) {
-    return commandText(node.attrs);
-  },
-
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "commandNode",
-      }),
-      commandText(node.attrs),
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(ComposerCommandNodeView);
-  },
-});
-
-const ComposerSkillExtension = TiptapNode.create({
-  name: "skillNode",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: true,
-
-  addAttributes() {
-    return {
-      skillName: { default: "" },
-      skillLabel: { default: "" },
-      skillDescription: { default: null },
-      skillPath: { default: null },
-    };
-  },
-
-  renderText({ node }) {
-    return skillText(node.attrs);
-  },
-
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "skillNode",
-      }),
-      skillText(node.attrs),
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(ComposerSkillNodeView);
-  },
-});
-
-const ComposerInlineTokenExtension = TiptapNode.create({
-  name: "inlineTokenNode",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: true,
-
-  addAttributes() {
-    return {
-      label: { default: "" },
-      sourceUri: { default: "" },
-      markdown: { default: "" },
-    };
-  },
-
-  renderText({ node }) {
-    return inlineTokenText(node.attrs);
-  },
-
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "inlineTokenNode",
-      }),
-      inlineTokenText(node.attrs),
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(ComposerInlineTokenNodeView);
-  },
-});
-
-function createComposerExtensions(placeholderRef: { current: string }) {
-  return [
-    StarterKit.configure({
-      // The composer preserves markdown syntax as plain prompt text. These marks
-      // otherwise convert typed markdown like **text** into styled editor content.
-      bold: false,
-      heading: false,
-      code: false,
-      link: false,
-      italic: false,
-      strike: false,
-      underline: false,
-      bulletList: false,
-      orderedList: false,
-      listItem: false,
-      listKeymap: false,
-      blockquote: false,
-      codeBlock: false,
-      horizontalRule: false,
-      dropcursor: false,
-      gapcursor: false,
-      trailingNode: false,
-    }),
-    Link.configure({
-      openOnClick: false,
-      enableClickSelection: false,
-      linkOnPaste: false,
-      autolink: false,
-      defaultProtocol: "https",
-      HTMLAttributes: {
-        rel: "noreferrer",
-        target: "_blank",
-      },
-      isAllowedUri: (url, context) => {
-        const trimmedUrl = url.trim().toLowerCase();
-        return (
-          (trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) &&
-          context.defaultValidate(url)
-        );
-      },
-      shouldAutoLink: () => false,
-    }),
-    Placeholder.configure({
-      placeholder: () => placeholderRef.current,
-      showOnlyWhenEditable: false,
-    }),
-    ComposerCommandExtension,
-    ComposerMentionExtension,
-    ComposerSkillExtension,
-    ComposerInlineTokenExtension,
-  ];
+    const segments = replaceSegmentsInExpandedRange(
+      collectComposerSegmentsFromRoot(),
+      safeStart,
+      safeEnd,
+      [
+        { type: "skill", payload },
+        { type: "text", text: " " },
+      ],
+    );
+    setRootFromSegments(segments);
+    setSelectionAtTextOffset(safeStart + skillText(payload).length + 1, "expanded");
+    applied = true;
+  });
+  return applied;
 }
+
+function collectCommands(editor: LexicalEditor): ComposerCommandData[] {
+  const commands: ComposerCommandData[] = [];
+  editor.getEditorState().read(() => {
+    for (const node of $nodesOfType(ComposerCommandNode)) {
+      commands.push(node.__payload);
+    }
+  });
+  return commands;
+}
+
+function collectMentions(editor: LexicalEditor): ComposerMentionData[] {
+  const mentions: ComposerMentionData[] = [];
+  editor.getEditorState().read(() => {
+    for (const node of $nodesOfType(ComposerMentionNode)) {
+      mentions.push(node.__payload);
+    }
+  });
+  return mentions;
+}
+
+function readSnapshot(editor: LexicalEditor): ComposerPromptEditorSnapshot {
+  let snapshot: ComposerPromptEditorSnapshot | null = null;
+  editor.getEditorState().read(() => {
+    snapshot = readSnapshotFromEditorState();
+  });
+  return snapshot ?? { value: "", cursor: 0, expandedCursor: 0 };
+}
+
+function readSnapshotFromLexicalState(editorState: EditorState): ComposerPromptEditorSnapshot {
+  let snapshot: ComposerPromptEditorSnapshot | null = null;
+  editorState.read(() => {
+    snapshot = readSnapshotFromEditorState();
+  });
+  return snapshot ?? { value: "", cursor: 0, expandedCursor: 0 };
+}
+
+function readRichText(editorState: EditorState): OrchestrationMessageRichText {
+  return editorState.toJSON() as unknown as OrchestrationMessageRichText;
+}
+
+function lexicalEditorStateFromPrompt(
+  value: string,
+  skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
+): InitialEditorStateType {
+  return () => {
+    setRootFromPrompt(value, skillMetadata);
+    const collapsedCursor = clampCollapsedComposerCursor(value, value.length);
+    setSelectionAtTextOffset(collapsedCursor, "collapsed");
+  };
+}
+
+const composerTheme = {
+  paragraph: "multi-lexical-composer-paragraph",
+};
 
 export const ComposerPromptEditor = forwardRef<
   ComposerPromptEditorHandle,
   ComposerPromptEditorProps
->(function ComposerPromptEditor(
+>(function ComposerPromptEditor({ value, skills, disabled, ...props }, ref) {
+  const initialSkillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
+  const initialConfig = useMemo<InitialConfigType>(
+    () => ({
+      namespace: "multi-composer-prompt-editor",
+      editable: !disabled,
+      nodes: [
+        ComposerMentionNode,
+        ComposerCommandNode,
+        ComposerSkillNode,
+        ComposerInlineTokenNode,
+      ],
+      editorState: lexicalEditorStateFromPrompt(value, initialSkillMetadata),
+      theme: composerTheme,
+      onError: (error) => {
+        throw error;
+      },
+    }),
+    [],
+  );
+
+  return (
+    <LexicalComposer initialConfig={initialConfig}>
+      <ComposerPromptEditorInner
+        {...props}
+        ref={ref}
+        disabled={disabled}
+        skills={skills}
+        value={value}
+      />
+    </LexicalComposer>
+  );
+});
+
+const ComposerPromptEditorInner = forwardRef<
+  ComposerPromptEditorHandle,
+  ComposerPromptEditorProps
+>(function ComposerPromptEditorInner(
   {
     value,
     cursor,
@@ -1143,19 +1678,17 @@ export const ComposerPromptEditor = forwardRef<
   },
   ref,
 ) {
+  const [editor] = useLexicalComposerContext();
   const onChangeRef = useRef(onChange);
   const onCommandKeyDownRef = useRef(onCommandKeyDown);
   const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
   const onPasteRef = useRef(onPaste);
-  const placeholderRef = useRef(placeholder);
-  const decoratedPlaceholderRef = useRef(placeholder);
   const commandMenuOpenRef = useRef(commandMenuOpen);
   const skillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
   onChangeRef.current = onChange;
   onCommandKeyDownRef.current = onCommandKeyDown;
   onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
   onPasteRef.current = onPaste;
-  placeholderRef.current = placeholder;
   commandMenuOpenRef.current = commandMenuOpen;
   const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
   const setCaretAnchor = useCallback(
@@ -1167,14 +1700,11 @@ export const ComposerPromptEditor = forwardRef<
     },
     [caretAnchorRef],
   );
-  const extensionsRef = useRef<ReturnType<typeof createComposerExtensions> | null>(null);
-  extensionsRef.current ??= createComposerExtensions(placeholderRef);
   const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
   const isApplyingControlledUpdateRef = useRef(false);
   const measuredMultilineRef = useRef(false);
   const skillMetadataRef = useRef(skillMetadata);
   skillMetadataRef.current = skillMetadata;
-  const initialDocRef = useRef(promptToTiptapDoc(value, skillMetadataRef.current));
   const initialCursor = clampCollapsedComposerCursor(value, cursor);
   const initialSnapshotRef = useRef<ComposerPromptEditorSnapshot>({
     value,
@@ -1184,157 +1714,6 @@ export const ComposerPromptEditor = forwardRef<
   const snapshotRef = useRef(initialSnapshotRef.current);
   const skillsSignature = skillSignature(skills);
   const skillsSignatureRef = useRef(skillsSignature);
-  const emitSnapshotRef = useRef<(editor: Editor) => void>(() => {});
-  const keyDownHandlerRef = useRef<(event: KeyboardEvent) => boolean>(() => false);
-  const beforeInputHandlerRef = useRef<(event: InputEvent) => boolean>(() => false);
-
-  const editor = useEditor(
-    {
-      extensions: extensionsRef.current,
-      content: initialDocRef.current,
-      editable: !disabled,
-      immediatelyRender: true,
-      shouldRerenderOnTransaction: false,
-      editorProps: {
-        attributes: {
-          class: cn("block w-full whitespace-pre-wrap break-words outline-hidden", className),
-          "data-testid": "composer-editor",
-          "data-prompt-editor-input": "true",
-          tabindex: "-1",
-        },
-        handleKeyDown: (_view, event) => keyDownHandlerRef.current(event),
-        handleDOMEvents: {
-          beforeinput: (_view, event) => beforeInputHandlerRef.current(event as InputEvent),
-          paste: (_view, event) => {
-            onPasteRef.current(
-              event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0],
-            );
-            if (!event.defaultPrevented) {
-              const pastedText = event.clipboardData?.getData("text/plain") ?? "";
-              if (pastedText.includes("\n")) {
-                notifyComposerEditorMultiline(
-                  onMeasuredMultilineChangeRef.current,
-                  measuredMultilineRef,
-                  true,
-                );
-              }
-            }
-            return event.defaultPrevented;
-          },
-        },
-      },
-      onUpdate: ({ editor: nextEditor }) => {
-        emitSnapshotRef.current(nextEditor);
-      },
-      onSelectionUpdate: ({ editor: nextEditor }) => {
-        emitSnapshotRef.current(nextEditor);
-      },
-    },
-    [],
-  );
-
-  useLayoutSyncEffect(() => {
-    if (!editor || decoratedPlaceholderRef.current === placeholder) return;
-    decoratedPlaceholderRef.current = placeholder;
-    editor.view.dispatch(editor.state.tr);
-  }, [editor, placeholder]);
-
-  const readSnapshot = useCallback((): ComposerPromptEditorSnapshot => {
-    if (!editor) {
-      return snapshotRef.current;
-    }
-    const nextSnapshot = readSnapshotFromEditor(editor);
-    snapshotRef.current = nextSnapshot;
-    return nextSnapshot;
-  }, [editor]);
-
-  emitSnapshotRef.current = (nextEditor: Editor) => {
-    if (isApplyingControlledUpdateRef.current) {
-      return;
-    }
-    const nextSnapshot = readSnapshotFromEditor(nextEditor);
-    const previous = snapshotRef.current;
-    snapshotRef.current = nextSnapshot;
-    if (snapshotsEqual(previous, nextSnapshot)) {
-      return;
-    }
-    const cursorAdjacentToMention =
-      isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "left") ||
-      isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "right");
-    onChangeRef.current(
-      nextSnapshot.value,
-      nextSnapshot.cursor,
-      nextSnapshot.expandedCursor,
-      cursorAdjacentToMention,
-    );
-    emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
-  };
-
-  keyDownHandlerRef.current = (event: KeyboardEvent) => {
-    if (!editor) return false;
-    const menuOpen = commandMenuOpenRef.current;
-    const isAlwaysMenuKey = event.key === "Escape" || event.key === "Enter";
-    const isMenuNavigationKey =
-      event.key === "ArrowDown" ||
-      event.key === "ArrowUp" ||
-      (event.key === "Tab" && !event.shiftKey);
-    if (isAlwaysMenuKey || (menuOpen && isMenuNavigationKey)) {
-      const handled = onCommandKeyDownRef.current?.(event.key, event) ?? false;
-      if (handled) {
-        event.preventDefault();
-        event.stopPropagation();
-        pendingSurroundSelectionRef.current = null;
-        return true;
-      }
-    }
-
-    if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey) {
-      pendingSurroundSelectionRef.current = null;
-      return false;
-    }
-    const surroundSelection = captureSurroundSelection(editor);
-    pendingSurroundSelectionRef.current = surroundSelection;
-    const close = SURROUND_SYMBOLS_MAP.get(event.key);
-    if (
-      surroundSelection &&
-      close &&
-      applySurroundInput(editor, surroundSelection, event.key, close)
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-      pendingSurroundSelectionRef.current = null;
-      return true;
-    }
-    return false;
-  };
-
-  beforeInputHandlerRef.current = (event: InputEvent) => {
-    if (!editor) return false;
-    const pendingSelection = pendingSurroundSelectionRef.current;
-    if (!pendingSelection) {
-      return false;
-    }
-    if (event.inputType === "insertCompositionText") {
-      return false;
-    }
-    if (event.inputType !== "insertText" || typeof event.data !== "string") {
-      pendingSurroundSelectionRef.current = null;
-      return false;
-    }
-    const close = SURROUND_SYMBOLS_MAP.get(event.data);
-    if (!close) {
-      pendingSurroundSelectionRef.current = null;
-      return false;
-    }
-    if (!applySurroundInput(editor, pendingSelection, event.data, close)) {
-      pendingSurroundSelectionRef.current = null;
-      return false;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    pendingSurroundSelectionRef.current = null;
-    return true;
-  };
 
   usePromptEditorControlledStateSync({
     cursor,
@@ -1361,82 +1740,177 @@ export const ComposerPromptEditor = forwardRef<
     anchorElementRef: localCaretAnchorRef,
   });
 
-  const focusAt = useCallback(
-    (nextCursor: number) => {
-      if (!editor) return;
-      const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);
-      editor.commands.focus();
-      setSelectionAtCollapsedOffset(editor, boundedCursor);
-      const nextSnapshot = readSnapshotFromEditor(editor);
+  const emitSnapshot = useCallback(
+    (editorState: EditorState, nextEditor: LexicalEditor) => {
+      if (isApplyingControlledUpdateRef.current) {
+        return;
+      }
+      const nextSnapshot = readSnapshotFromLexicalState(editorState);
+      const previous = snapshotRef.current;
       snapshotRef.current = nextSnapshot;
+      if (snapshotsEqual(previous, nextSnapshot)) {
+        return;
+      }
+      const cursorAdjacentToMention =
+        isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "left") ||
+        isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "right");
       onChangeRef.current(
         nextSnapshot.value,
         nextSnapshot.cursor,
         nextSnapshot.expandedCursor,
-        false,
+        cursorAdjacentToMention,
       );
+      emitMeasuredMultiline(
+        nextEditor,
+        onMeasuredMultilineChangeRef.current,
+        measuredMultilineRef,
+      );
+    },
+    [],
+  );
+
+  const focusAt = useCallback(
+    (nextCursor: number) => {
+      const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);
+      editor.focus(() => {
+        editor.update(() => {
+          setSelectionAtTextOffset(boundedCursor, "collapsed");
+        });
+        const nextSnapshot = readSnapshot(editor);
+        snapshotRef.current = nextSnapshot;
+        onChangeRef.current(
+          nextSnapshot.value,
+          nextSnapshot.cursor,
+          nextSnapshot.expandedCursor,
+          false,
+        );
+      });
     },
     [editor],
   );
 
   const insertText = useCallback(
     (text: string) => {
-      if (!editor || !text) return;
-      editor.chain().focus().insertContent(text).run();
+      if (!text) return;
+      editor.focus(() => {
+        insertTextAtSelection(editor, text);
+      });
     },
     [editor],
   );
 
   const replaceRangeWithCommand = useCallback(
     (rangeStart: number, rangeEnd: number, command: ComposerCommandData): boolean => {
-      if (!editor) return false;
-      const from = textToPosition(editor.state.doc, rangeStart, "expanded");
-      const to = textToPosition(editor.state.doc, rangeEnd, "expanded");
-      const safeFrom = Math.min(from, to);
-      const safeTo = Math.max(from, to);
-      const attrs: Record<string, unknown> = {
-        id: command.id,
-        name: command.name,
-      };
-      if (command.content) attrs.content = command.content;
-      if (command.type) attrs.type = command.type;
-      return editor
-        .chain()
-        .focus()
-        .deleteRange({ from: safeFrom, to: safeTo })
-        .insertContent([
-          { type: "commandNode", attrs },
-          { type: "text", text: " " },
-        ])
-        .run();
+      editor.focus();
+      return replaceExpandedRangeWithCommand(editor, rangeStart, rangeEnd, command);
     },
     [editor],
   );
 
   const replaceRangeWithSkill = useCallback(
     (rangeStart: number, rangeEnd: number, skill: ComposerSkillData): boolean => {
-      if (!editor) return false;
-      const from = textToPosition(editor.state.doc, rangeStart, "expanded");
-      const to = textToPosition(editor.state.doc, rangeEnd, "expanded");
-      const safeFrom = Math.min(from, to);
-      const safeTo = Math.max(from, to);
-      const attrs: Record<string, unknown> = {
-        skillName: skill.name,
-        skillLabel: skill.label,
-      };
-      if (skill.description) attrs.skillDescription = skill.description;
-      if (skill.path) attrs.skillPath = skill.path;
-      return editor
-        .chain()
-        .focus()
-        .deleteRange({ from: safeFrom, to: safeTo })
-        .insertContent([
-          { type: "skillNode", attrs },
-          { type: "text", text: " " },
-        ])
-        .run();
+      editor.focus();
+      return replaceExpandedRangeWithSkill(editor, rangeStart, rangeEnd, skill);
     },
     [editor],
+  );
+
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const menuOpen = commandMenuOpenRef.current;
+      const isAlwaysMenuKey = event.key === "Escape" || event.key === "Enter";
+      const isMenuNavigationKey =
+        event.key === "ArrowDown" ||
+        event.key === "ArrowUp" ||
+        (event.key === "Tab" && !event.shiftKey);
+      if (isAlwaysMenuKey || (menuOpen && isMenuNavigationKey)) {
+        const handled =
+          onCommandKeyDownRef.current?.(
+            event.key as "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
+            event.nativeEvent,
+          ) ?? false;
+        if (handled) {
+          event.preventDefault();
+          event.stopPropagation();
+          pendingSurroundSelectionRef.current = null;
+          return;
+        }
+      }
+
+      if (
+        event.defaultPrevented ||
+        event.nativeEvent.isComposing ||
+        event.metaKey ||
+        event.ctrlKey
+      ) {
+        pendingSurroundSelectionRef.current = null;
+        return;
+      }
+      const surroundSelection = captureSurroundSelection(editor);
+      pendingSurroundSelectionRef.current = surroundSelection;
+      const close = SURROUND_SYMBOLS_MAP.get(event.key);
+      if (
+        surroundSelection &&
+        close &&
+        applySurroundInput(editor, surroundSelection, event.key, close)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        pendingSurroundSelectionRef.current = null;
+      }
+    },
+    [editor],
+  );
+
+  const handleBeforeInput = useCallback(
+    (event: FormEvent<HTMLDivElement>) => {
+      const inputEvent = event.nativeEvent;
+      if (!(inputEvent instanceof InputEvent)) {
+        pendingSurroundSelectionRef.current = null;
+        return;
+      }
+      const pendingSelection = pendingSurroundSelectionRef.current;
+      if (!pendingSelection) {
+        return;
+      }
+      if (inputEvent.inputType === "insertCompositionText") {
+        return;
+      }
+      if (inputEvent.inputType !== "insertText" || typeof inputEvent.data !== "string") {
+        pendingSurroundSelectionRef.current = null;
+        return;
+      }
+      const close = SURROUND_SYMBOLS_MAP.get(inputEvent.data);
+      if (!close) {
+        pendingSurroundSelectionRef.current = null;
+        return;
+      }
+      if (!applySurroundInput(editor, pendingSelection, inputEvent.data, close)) {
+        pendingSurroundSelectionRef.current = null;
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      pendingSurroundSelectionRef.current = null;
+    },
+    [editor],
+  );
+
+  const handlePaste: ClipboardEventHandler<HTMLDivElement> = useCallback(
+    (event) => {
+      onPasteRef.current(event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0]);
+      if (!event.defaultPrevented) {
+        const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+        if (pastedText.includes("\n")) {
+          notifyComposerEditorMultiline(
+            onMeasuredMultilineChangeRef.current,
+            measuredMultilineRef,
+            true,
+          );
+        }
+      }
+    },
+    [],
   );
 
   useImperativeHandle(
@@ -1446,13 +1920,14 @@ export const ComposerPromptEditor = forwardRef<
         focusAt(snapshotRef.current.cursor);
       },
       blur: () => {
-        editor?.commands.blur();
+        editor.blur();
       },
       clear: () => {
-        if (!editor) return;
-        editor.commands.setContent(EMPTY_DOC, { emitUpdate: false });
-        setSelectionAtCollapsedOffset(editor, 0);
-        const nextSnapshot = readSnapshotFromEditor(editor);
+        editor.update(() => {
+          setRootFromSegments(EMPTY_DOC);
+          setSelectionAtTextOffset(0, "collapsed");
+        });
+        const nextSnapshot = readSnapshot(editor);
         snapshotRef.current = nextSnapshot;
         onChangeRef.current("", 0, 0, false);
       },
@@ -1468,29 +1943,50 @@ export const ComposerPromptEditor = forwardRef<
       insertText,
       replaceRangeWithCommand,
       replaceRangeWithSkill,
-      getText: () => readSnapshot().value,
-      getCommands: () => (editor ? collectCommands(editor.state.doc) : []),
-      getMentions: () => (editor ? collectMentions(editor.state.doc) : []),
+      getText: () => readSnapshot(editor).value,
+      getCommands: () => collectCommands(editor),
+      getMentions: () => collectMentions(editor),
       getSubmitData: () => {
-        const snapshot = readSnapshot();
+        const snapshot = readSnapshot(editor);
         return {
           text: snapshot.value,
-          commands: editor ? collectCommands(editor.state.doc) : [],
-          mentions: editor ? collectMentions(editor.state.doc) : [],
+          richText: readRichText(editor.getEditorState()),
+          commands: collectCommands(editor),
+          mentions: collectMentions(editor),
         };
       },
-      readSnapshot,
+      readSnapshot: () => readSnapshot(editor),
       editor,
     }),
-    [editor, focusAt, insertText, readSnapshot, replaceRangeWithCommand, replaceRangeWithSkill],
+    [editor, focusAt, insertText, replaceRangeWithCommand, replaceRangeWithSkill],
   );
 
   return (
     <div ref={hotkeyTargetRef} className="relative w-full min-w-0" data-prompt-editor-root="true">
-      {editor ? (
-        <PromptEditorEditableSync key={String(disabled)} disabled={disabled} editor={editor} />
-      ) : null}
-      <EditorContent editor={editor} />
+      <PromptEditorEditableSync key={String(disabled)} disabled={disabled} editor={editor} />
+      <OnChangePlugin
+        ignoreHistoryMergeTagChange
+        ignoreSelectionChange={false}
+        onChange={emitSnapshot}
+      />
+      <RichTextPlugin
+        ErrorBoundary={LexicalErrorBoundary}
+        contentEditable={
+          <ContentEditable
+            aria-label={placeholder}
+            className={cn("block w-full whitespace-pre-wrap break-words outline-hidden", className)}
+            data-prompt-editor-input="true"
+            data-testid="composer-editor"
+            onBeforeInput={handleBeforeInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={null}
+            spellCheck
+            tabIndex={-1}
+          />
+        }
+        placeholder={<PromptEditorPlaceholder placeholder={placeholder} />}
+      />
       <span
         ref={setCaretAnchor}
         aria-hidden="true"
@@ -1502,7 +1998,25 @@ export const ComposerPromptEditor = forwardRef<
   );
 });
 
-function PromptEditorEditableSync({ disabled, editor }: { disabled: boolean; editor: Editor }) {
+const PromptEditorPlaceholder = memo(function PromptEditorPlaceholder({
+  placeholder,
+}: {
+  placeholder: string;
+}) {
+  return (
+    <div aria-hidden="true" data-prompt-editor-placeholder="">
+      {placeholder}
+    </div>
+  );
+});
+
+function PromptEditorEditableSync({
+  disabled,
+  editor,
+}: {
+  disabled: boolean;
+  editor: LexicalEditor;
+}) {
   useMountEffect(() => {
     editor.setEditable(!disabled);
   });

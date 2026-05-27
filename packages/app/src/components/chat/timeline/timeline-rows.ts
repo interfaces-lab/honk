@@ -106,7 +106,7 @@ export function deriveMessagesTimelineRows(input: {
       while (cursor < input.timelineEntries.length) {
         const nextEntry = input.timelineEntries[cursor];
         if (!nextEntry || nextEntry.kind !== "work") break;
-        if (isThinkingWorkEntry(timelineEntry.entry) !== isThinkingWorkEntry(nextEntry.entry)) {
+        if ((timelineEntry.entry.tone === "thinking") !== (nextEntry.entry.tone === "thinking")) {
           break;
         }
         groupedEntries.push(nextEntry.entry);
@@ -180,7 +180,7 @@ export function computeStableMessagesTimelineRows(
   return anyChanged ? { byId: next, result } : previous;
 }
 
-/** Shallow field comparison per row variant — avoids deep equality cost. */
+/** Compare row fields shallowly to avoid deep equality checks. */
 function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean {
   if (a.kind !== b.kind || a.id !== b.id) return false;
 
@@ -210,7 +210,7 @@ export function summarizeWorkGroup(
   projectRoot?: string | undefined,
 ): WorkGroupSummary {
   const running = entries.some((entry) => entry.status === "running");
-  const thinkingCount = entries.filter(isThinkingWorkEntry).length;
+  const thinkingCount = entries.filter((entry) => entry.tone === "thinking").length;
   const commandCount = entries.filter(isCommandWorkEntry).length;
   const editedFiles = collectEditedFilePaths(entries);
   const stats = summarizeEditedFileStats(entries);
@@ -219,25 +219,30 @@ export function summarizeWorkGroup(
   if (thinkingCount === entries.length && thinkingCount > 0) {
     return {
       action: running ? "Thinking" : "Thought",
-      details: running ? "" : formatThoughtDurationDetail(computeWorkGroupDurationMs(entries)),
+      details: running
+        ? ""
+        : formatDuration(computeWorkGroupDurationMs(entries), {
+            subSecond: "briefly",
+            prefix: "for ",
+          }),
     };
   }
 
   if (commandCount === entries.length && commandCount > 0) {
     return {
       action: running ? "Running" : "Ran",
-      details: countLabel(commandCount, "command"),
+      details: commandCount === 1 ? "1 command" : `${commandCount} commands`,
     };
   }
 
   if (editedFiles.size > 0) {
     const editedSegment =
       editedFiles.size === 1
-        ? (primaryEditedFileLabel(entries, projectRoot) ?? countLabel(1, "file"))
-        : countLabel(editedFiles.size, "file");
+        ? (primaryEditedFileLabel(entries, projectRoot) ?? "1 file")
+        : `${editedFiles.size} files`;
     const trailingSegments = [
       ...explorationSegments,
-      ...(commandCount > 0 ? [countLabel(commandCount, "command")] : []),
+      ...(commandCount > 0 ? [commandCount === 1 ? "1 command" : `${commandCount} commands`] : []),
     ];
     const detailParts = [
       editedSegment,
@@ -260,7 +265,7 @@ export function summarizeWorkGroup(
 
   return {
     action: running ? "Working" : "Worked",
-    details: countLabel(entries.length, "step"),
+    details: entries.length === 1 ? "1 step" : `${entries.length} steps`,
   };
 }
 
@@ -286,17 +291,6 @@ function computeWorkGroupDurationMs(entries: ReadonlyArray<WorkLogEntry>): numbe
   return Math.max(timelineDurationMs, artifactDurationMs);
 }
 
-function isThinkingWorkEntry(entry: WorkLogEntry): boolean {
-  return entry.tone === "thinking";
-}
-
-function formatThoughtDurationDetail(durationMs: number): string {
-  if (!Number.isFinite(durationMs) || durationMs < 1_000) {
-    return "briefly";
-  }
-  return `for ${formatDuration(durationMs)}`;
-}
-
 function collectExplorationSegments(entries: ReadonlyArray<WorkLogEntry>): string[] {
   const exploredFiles = collectExploredFilePaths(entries);
   const readCount = entries.filter(isFileReadWorkEntry).length;
@@ -305,10 +299,12 @@ function collectExplorationSegments(entries: ReadonlyArray<WorkLogEntry>): strin
   const webFetchCount = entries.filter((entry) => entry.itemType === "web_fetch").length;
   const fileCount = exploredFiles.size || readCount;
   return [
-    ...(fileCount > 0 ? [countLabel(fileCount, "file")] : []),
-    ...(searchCount > 0 ? [countLabel(searchCount, "search")] : []),
-    ...(webSearchCount > 0 ? [countLabel(webSearchCount, "web search")] : []),
-    ...(webFetchCount > 0 ? [countLabel(webFetchCount, "fetch")] : []),
+    ...(fileCount > 0 ? [fileCount === 1 ? "1 file" : `${fileCount} files`] : []),
+    ...(searchCount > 0 ? [searchCount === 1 ? "1 search" : `${searchCount} searches`] : []),
+    ...(webSearchCount > 0
+      ? [webSearchCount === 1 ? "1 web search" : `${webSearchCount} web searches`]
+      : []),
+    ...(webFetchCount > 0 ? [webFetchCount === 1 ? "1 fetch" : `${webFetchCount} fetches`] : []),
   ];
 }
 
@@ -392,7 +388,7 @@ function diffArtifactsForEntry(entry: WorkLogEntry) {
   return resultArtifacts.length > 0 ? resultArtifacts : diffArtifacts;
 }
 
-function isCommandWorkEntry(entry: WorkLogEntry): boolean {
+export function isCommandWorkEntry(entry: WorkLogEntry): boolean {
   return (
     entry.requestKind === "command" ||
     entry.itemType === "command_execution" ||
@@ -436,10 +432,6 @@ function addPath(target: Set<string>, path: string | undefined) {
   if (trimmedPath) {
     target.add(trimmedPath);
   }
-}
-
-function countLabel(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {

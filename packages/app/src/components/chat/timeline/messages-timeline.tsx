@@ -23,11 +23,12 @@ import {
 import { IconChevronRightMedium } from "central-icons";
 import { Spinner } from "@multi/ui/spinner";
 import { deriveTimelineEntries, formatDuration, type WorkLogEntry } from "../../../session-logic";
-import { type ChatMessage } from "../../../types";
+import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
+  isCommandWorkEntry,
   type StableMessagesTimelineRowsState,
   type MessagesTimelineRow,
 } from "./timeline-rows";
@@ -36,13 +37,12 @@ import { HumanMessage } from "../message/human-message";
 import { AssistantMessage } from "../message/assistant-message";
 import { WorkingStatusRow } from "../message/status-row";
 import { ToolCallMessage } from "../message/tool-message";
+import { ProposedPlanMessage } from "../message/proposed-plan-message";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
 
-// ---------------------------------------------------------------------------
-// Context — shared state consumed by every row component via useContext.
-// ---------------------------------------------------------------------------
+// Context shared by every row component via useContext.
 
 export interface TimelineRowSharedState {
   markdownCwd: string | undefined;
@@ -52,6 +52,9 @@ export interface TimelineRowSharedState {
   isServerThread: boolean;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
+  onUpdateProposedPlan:
+    | ((proposedPlan: ProposedPlan, nextMarkdown: string) => Promise<boolean>)
+    | undefined;
   onImageExpand: (preview: ExpandedImagePreview) => void;
 }
 
@@ -92,9 +95,7 @@ export interface MessagesTimelineController {
   getScrollState: () => MessagesTimelineScrollState;
 }
 
-// ---------------------------------------------------------------------------
-// Props (public API)
-// ---------------------------------------------------------------------------
+// Public props.
 
 interface MessagesTimelineProps {
   isWorking: boolean;
@@ -114,13 +115,15 @@ interface MessagesTimelineProps {
   editingUserMessageId?: MessageId | null | undefined;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer?: ((message: ChatMessage) => ReactNode) | undefined;
+  onUpdateProposedPlan?: (
+    proposedPlan: ProposedPlan,
+    nextMarkdown: string,
+  ) => Promise<boolean>;
   awaitingServerThreadDetail?: boolean | undefined;
   onIsAtBottomChange: (isAtBottom: boolean) => void;
 }
 
-// ---------------------------------------------------------------------------
-// MessagesTimeline — list owner
-// ---------------------------------------------------------------------------
+// Virtualized message list.
 
 export const MessagesTimeline = memo(function MessagesTimeline({
   isWorking,
@@ -140,6 +143,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   editingUserMessageId = null,
   onBeginEditUserMessage,
   renderEditComposer,
+  onUpdateProposedPlan,
   awaitingServerThreadDetail = false,
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
@@ -198,7 +202,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     [cachedVirtualizerSnapshot, rows],
   );
   const shouldRestoreInitialScrollOffset = restoredInitialScrollOffset !== null;
-  const estimatedRowSizes = useMemo(() => rows.map(getEstimatedTimelineRowSize), [rows]);
+  const estimatedRowSizes = useMemo(
+    () => rows.map((row) => getEstimatedTimelineRowSize(row, expandedWorkGroupIds)),
+    [rows, expandedWorkGroupIds],
+  );
   const initialScrollOffset = useMemo(() => {
     if (restoredInitialScrollOffset !== null) {
       return restoredInitialScrollOffset;
@@ -377,6 +384,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       isServerThread,
       onBeginEditUserMessage,
       renderEditComposer,
+      onUpdateProposedPlan,
       onImageExpand,
     }),
     [
@@ -387,6 +395,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       isServerThread,
       onBeginEditUserMessage,
       renderEditComposer,
+      onUpdateProposedPlan,
       onImageExpand,
     ],
   );
@@ -533,6 +542,8 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
 const WORK_GROUP_PREVIEW_PX = 144;
 const WORK_GROUP_PREVIEW_ENTRY_PX = 28;
 const WORK_GROUP_HEADER_PX = 28;
+const WORK_GROUP_HEADER_GAP_PX = 4;
+const WORK_GROUP_STEP_GAP_PX = 6;
 const ASSISTANT_MESSAGE_MIN_PX = 156;
 const USER_MESSAGE_MIN_PX = 88;
 const MESSAGE_ROW_CHROME_PX = 40;
@@ -605,13 +616,19 @@ function rememberTimelineVirtualizerSnapshot(input: {
   }
 }
 
-function getEstimatedTimelineRowSize(row: MessagesTimelineRow): number {
+function getEstimatedTimelineRowSize(
+  row: MessagesTimelineRow,
+  expandedWorkGroupIds: ReadonlySet<string>,
+): number {
+  if (row.kind === "work") {
+    return estimateTimelineRowSize(row, expandedWorkGroupIds.has(row.id));
+  }
   const cachedSize = estimatedTimelineRowSizeCache.get(row);
   if (cachedSize !== undefined) {
     return cachedSize;
   }
 
-  const size = estimateTimelineRowSize(row);
+  const size = estimateTimelineRowSize(row, false);
   estimatedTimelineRowSizeCache.set(row, size);
   return size;
 }
@@ -624,7 +641,10 @@ function estimateInitialTimelineBottomOffset(
   return Math.max(0, totalSize - DEFAULT_VIRTUALIZER_RECT.height);
 }
 
-function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
+function estimateTimelineRowSize(
+  row: MessagesTimelineRow | undefined,
+  expanded = false,
+): number {
   if (!row) {
     return 96 + VIRTUAL_ROW_GAP_PX;
   }
@@ -641,13 +661,28 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined): number {
     return 52 + VIRTUAL_ROW_GAP_PX;
   }
 
+  if (expanded) {
+    const hasExpandedSummary = row.groupedEntries.some((entry) => !isCommandWorkEntry(entry));
+    const expandedRowCount = row.groupedEntries.length + (hasExpandedSummary ? 1 : 0);
+    const childRowsHeight = row.groupedEntries.length * WORK_GROUP_PREVIEW_ENTRY_PX;
+    const expandedContentGap = Math.max(0, expandedRowCount - 1) * WORK_GROUP_STEP_GAP_PX;
+    return (
+      WORK_GROUP_HEADER_PX +
+      WORK_GROUP_HEADER_GAP_PX +
+      childRowsHeight +
+      (hasExpandedSummary ? WORK_GROUP_PREVIEW_ENTRY_PX : 0) +
+      expandedContentGap +
+      VIRTUAL_ROW_GAP_PX
+    );
+  }
+
   if (row.isRunning) {
     const previewCount = Math.min(row.groupedEntries.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
     const previewHeight = Math.min(
       WORK_GROUP_PREVIEW_PX,
       previewCount * WORK_GROUP_PREVIEW_ENTRY_PX,
     );
-    return WORK_GROUP_HEADER_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
+    return WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
   }
 
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;
@@ -705,9 +740,7 @@ function virtualRowStyle(virtualRow: VirtualItem, isSticky: boolean): CSSPropert
   };
 }
 
-// ---------------------------------------------------------------------------
-// TimelineRowContent — dispatcher into extracted components
-// ---------------------------------------------------------------------------
+// Route each row model to its renderer.
 
 type TimelineRow = MessagesTimelineRow;
 
@@ -794,6 +827,15 @@ function TimelineRowBody({
         </div>
       )}
 
+      {row.kind === "proposed-plan" && (
+        <ProposedPlanMessage
+          canEdit={ctx.isServerThread}
+          markdownCwd={ctx.markdownCwd}
+          onSave={ctx.onUpdateProposedPlan}
+          proposedPlan={row.proposedPlan}
+        />
+      )}
+
       {row.kind === "working" && (
         <div className="flex w-full min-w-0 opacity-75">
           <WorkingStatusRow />
@@ -830,9 +872,7 @@ const HumanTimelineRow = memo(function HumanTimelineRow({
   );
 });
 
-// ---------------------------------------------------------------------------
-// WorkGroupSection — tool activity group with overflow control
-// ---------------------------------------------------------------------------
+// Collapsible group for adjacent tool activity rows.
 
 const WorkGroupSection = memo(function WorkGroupSection({
   row,
@@ -843,7 +883,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   expanded: boolean;
   onToggleExpanded: (rowId: string) => void;
 }) {
-  const { activeThreadEnvironmentId, activeThreadId, projectRoot } = use(TimelineRowCtx);
+  const { projectRoot, activeThreadId, activeThreadEnvironmentId } = use(TimelineRowCtx);
   const summary = row.summary;
   const isRunning = row.isRunning;
   const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
@@ -867,7 +907,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
       <button
         type="button"
         className={cn(
-          "group/work-header inline-flex w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
+          "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
           "border-0 bg-transparent p-0 text-left select-none",
           "text-conversation text-multi-fg-tertiary",
           "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
@@ -877,7 +917,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
         data-work-group-header=""
       >
         <span className="shrink-0 whitespace-nowrap tabular-nums">{headerLabel}</span>
-        {!expanded && !isRunning && !isThinkingGroup ? (
+        {!expanded && !isThinkingGroup ? (
           <>
             <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
               ·
@@ -887,22 +927,12 @@ const WorkGroupSection = memo(function WorkGroupSection({
         ) : null}
         <IconChevronRightMedium
           className={cn(
-            "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
+            "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out",
             expanded && "rotate-90",
           )}
         />
       </button>
-      {isRunning ? (
-        <>
-          {expanded && !isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
-          <WorkGroupPreview
-            key={`work-preview:${row.id}`}
-            row={row}
-            onExpand={handleToggle}
-            projectRoot={projectRoot}
-          />
-        </>
-      ) : expanded ? (
+      {expanded ? (
         <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
           {!isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
           {row.groupedEntries.map((workEntry) => (
@@ -916,14 +946,19 @@ const WorkGroupSection = memo(function WorkGroupSection({
             />
           ))}
         </div>
+      ) : isRunning ? (
+        <WorkGroupPreview
+          key={`work-preview:${row.id}`}
+          row={row}
+          onExpand={handleToggle}
+          projectRoot={projectRoot}
+          activeThreadId={activeThreadId}
+          activeThreadEnvironmentId={activeThreadEnvironmentId}
+        />
       ) : null}
     </div>
   );
 });
-
-function isCommandWorkEntry(entry: WorkLogEntry): boolean {
-  return entry.itemType === "command_execution" || Boolean(entry.command);
-}
 
 function WorkGroupSummaryLine({
   summary,
@@ -950,12 +985,15 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
   row,
   onExpand,
   projectRoot,
+  activeThreadId,
+  activeThreadEnvironmentId,
 }: {
   row: Extract<MessagesTimelineRow, { kind: "work" }>;
   onExpand: () => void;
   projectRoot: string | undefined;
+  activeThreadId: ThreadId;
+  activeThreadEnvironmentId: EnvironmentId;
 }) {
-  const { activeThreadEnvironmentId, activeThreadId } = use(TimelineRowCtx);
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
   const entries = row.groupedEntries;
   const previewEntries = entries.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
@@ -1054,9 +1092,7 @@ function timelineRowKind(row: TimelineRow): "human" | "assistant" | "tool-call" 
   return "tool-call";
 }
 
-// ---------------------------------------------------------------------------
-// Structural sharing — reuse old row references when data hasn't changed
-// ---------------------------------------------------------------------------
+// Reuse old row references when data has not changed.
 
 function useStableRows(rows: MessagesTimelineRow[]): MessagesTimelineRow[] {
   const prevState = useRef<StableMessagesTimelineRowsState>({

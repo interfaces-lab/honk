@@ -5,7 +5,9 @@ import {
   EventId,
   MessageId,
   type OrchestrationEvent,
+  type OrchestrationThread,
   ProjectId,
+  ProviderItemId,
   ThreadId,
   ThreadEntryId,
   TurnId,
@@ -20,6 +22,10 @@ const mockCreateWsRpcClient = vi.fn();
 const mockRefreshGitStatus = vi.fn();
 
 type MessageSentEvent = Extract<OrchestrationEvent, { type: "thread.message-sent" }>;
+type ThreadActivityAppendedEvent = Extract<
+  OrchestrationEvent,
+  { type: "thread.activity-appended" }
+>;
 
 function MockWsTransport() {
   return undefined;
@@ -138,6 +144,155 @@ function makeThreadShellSnapshot(params: {
         hasActionableProposedPlan: params.hasActionableProposedPlan ?? false,
       },
     ],
+  };
+}
+
+function makeThreadDetail(threadId: ThreadId): OrchestrationThread {
+  return {
+    id: threadId,
+    projectId: ProjectId.make("project-1"),
+    title: "Thread",
+    modelSelection: {
+      instanceId: "codex",
+      model: "gpt-5-codex",
+    },
+    runtimeMode: "full-access",
+    interactionMode: "default",
+    branch: null,
+    worktreePath: null,
+    latestTurn: null,
+    createdAt: "2026-04-13T00:00:00.000Z",
+    updatedAt: "2026-04-13T00:00:00.000Z",
+    archivedAt: null,
+    deletedAt: null,
+    messages: [],
+    activeEntryId: null,
+    entries: [],
+    proposedPlans: [],
+    activities: [],
+    checkpoints: [],
+    session: null,
+  };
+}
+
+function makeToolActivityEvent(params: {
+  readonly sequence: number;
+  readonly threadId: ThreadId;
+  readonly activityId: string;
+  readonly kind: "tool.started" | "tool.updated" | "tool.completed";
+  readonly status: "inProgress" | "completed";
+  readonly detail?: string | undefined;
+  readonly streamKind?: "command_output" | "file_change_output" | undefined;
+}): ThreadActivityAppendedEvent {
+  return {
+    sequence: params.sequence,
+    eventId: EventId.make(`event-${params.activityId}`),
+    aggregateKind: "thread",
+    aggregateId: params.threadId,
+    occurredAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+    commandId: CommandId.make("command-tool"),
+    causationEventId: null,
+    correlationId: null,
+    metadata: {},
+    type: "thread.activity-appended",
+    payload: {
+      threadId: params.threadId,
+      activity: {
+        id: EventId.make(params.activityId),
+        tone: "tool",
+        kind: params.kind,
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          status: params.status,
+          ...(params.detail !== undefined ? { detail: params.detail } : {}),
+          ...(params.streamKind
+            ? { data: { streamKind: params.streamKind, delta: params.detail ?? "" } }
+            : {}),
+        },
+        turnId: null,
+        createdAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+      },
+    },
+  };
+}
+
+function makeSubagentDeltaEvent(params: {
+  readonly sequence: number;
+  readonly threadId: ThreadId;
+  readonly delta: string;
+}): ThreadActivityAppendedEvent {
+  return {
+    sequence: params.sequence,
+    eventId: EventId.make(`event-subagent-delta-${params.sequence}`),
+    aggregateKind: "thread",
+    aggregateId: params.threadId,
+    occurredAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+    commandId: CommandId.make("command-subagent"),
+    causationEventId: null,
+    correlationId: null,
+    metadata: {},
+    type: "thread.activity-appended",
+    payload: {
+      threadId: params.threadId,
+      activity: {
+        id: EventId.make(`activity-subagent-delta-${params.sequence}`),
+        tone: "tool",
+        kind: "subagent.content.delta",
+        summary: "Subagent content delta",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          itemId: "subagent-message-1",
+          streamKind: "assistant_text",
+          delta: params.delta,
+        },
+        turnId: null,
+        createdAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+      },
+    },
+  };
+}
+
+function makeSubagentItemEvent(params: {
+  readonly sequence: number;
+  readonly threadId: ThreadId;
+  readonly activityId: string;
+  readonly kind: "subagent.item.started" | "subagent.item.updated" | "subagent.item.completed";
+  readonly status: "inProgress" | "completed";
+  readonly detail?: string | undefined;
+}): ThreadActivityAppendedEvent {
+  return {
+    sequence: params.sequence,
+    eventId: EventId.make(`event-${params.activityId}`),
+    aggregateKind: "thread",
+    aggregateId: params.threadId,
+    occurredAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+    commandId: CommandId.make("command-subagent-item"),
+    causationEventId: null,
+    correlationId: null,
+    metadata: {},
+    type: "thread.activity-appended",
+    payload: {
+      threadId: params.threadId,
+      activity: {
+        id: EventId.make(params.activityId),
+        tone: "tool",
+        kind: params.kind,
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: ProviderItemId.make("parent-subagent-call"),
+          itemId: "subagent-command-1",
+          itemType: "command_execution",
+          status: params.status,
+          title: "Ran command",
+          ...(params.detail !== undefined ? { detail: params.detail } : {}),
+        },
+        turnId: null,
+        createdAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+      },
+    },
   };
 }
 
@@ -358,6 +513,7 @@ describe("retainThreadDetailSubscription", () => {
       },
     });
 
+    await vi.advanceTimersByTimeAsync(16);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -365,6 +521,76 @@ describe("retainThreadDetailSubscription", () => {
       force: true,
     });
     expect(queryClient.getQueryState(patchQueryKey)?.isInvalidated).toBe(true);
+
+    release();
+    stop();
+    await resetEnvironmentServiceForTests();
+  });
+
+  it("batches live thread detail activity events into one frame-sized UI commit", async () => {
+    const {
+      retainThreadDetailSubscription,
+      startEnvironmentConnectionService,
+      resetEnvironmentServiceForTests,
+    } = await import("./service");
+    const { useStore } = await import("~/stores/thread-store");
+    const queryClient = new QueryClient();
+    const environmentId = EnvironmentId.make("env-1");
+    const threadId = ThreadId.make("thread-activity-batch");
+
+    const stop = startEnvironmentConnectionService(queryClient);
+    const connectionInput = mockCreateEnvironmentConnection.mock.calls[0]?.[0];
+    expect(connectionInput).toBeDefined();
+    connectionInput.syncShellSnapshot(makeThreadShellSnapshot({ threadId }), environmentId);
+
+    const release = retainThreadDetailSubscription(environmentId, threadId);
+    const threadListener = mockSubscribeThread.mock.calls[0]?.[1];
+    expect(threadListener).toBeDefined();
+    threadListener({
+      kind: "snapshot",
+      snapshot: {
+        thread: makeThreadDetail(threadId),
+      },
+    });
+
+    threadListener({
+      kind: "event",
+      event: makeToolActivityEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-command-started",
+        kind: "tool.started",
+        status: "inProgress",
+      }),
+    });
+    threadListener({
+      kind: "event",
+      event: makeToolActivityEvent({
+        sequence: 3,
+        threadId,
+        activityId: "activity-command-completed",
+        kind: "tool.completed",
+        status: "completed",
+      }),
+    });
+
+    const readActivities = () =>
+      useStore.getState().environmentStateById[environmentId]?.activityByThreadId[threadId] ?? {};
+
+    expect(Object.keys(readActivities())).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(16);
+
+    const activities = readActivities();
+    expect(Object.keys(activities)).toEqual(["activity-command-completed"]);
+    expect(activities["activity-command-completed"]).toMatchObject({
+      kind: "tool.completed",
+      createdAt: "2026-04-13T00:00:02.000Z",
+      payload: {
+        itemId: "command-1",
+        status: "completed",
+      },
+    });
 
     release();
     stop();
@@ -416,7 +642,7 @@ describe("projection version guards", () => {
 
 describe("coalesceOrchestrationUiEvents", () => {
   it("keeps final empty assistant messages separate from streaming chunks", async () => {
-    const { coalesceOrchestrationUiEvents } = await import("./service");
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
     const threadId = ThreadId.make("thread-stream");
     const messageId = MessageId.make("assistant-stream");
     const entryId = ThreadEntryId.make("entry-assistant-stream");
@@ -459,5 +685,261 @@ describe("coalesceOrchestrationUiEvents", () => {
     expect(events).toHaveLength(2);
     expect(messageEvents.map((event) => event.payload.text)).toEqual(["hello", ""]);
     expect(messageEvents.map((event) => event.payload.streaming)).toEqual([true, false]);
+  });
+
+  it("coalesces stable tool lifecycle activities for UI application", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-tool-coalesce");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeToolActivityEvent({
+        sequence: 1,
+        threadId,
+        activityId: "activity-command-started",
+        kind: "tool.started",
+        status: "inProgress",
+        detail: "pnpm test",
+      }),
+      makeToolActivityEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-command-completed",
+        kind: "tool.completed",
+        status: "completed",
+      }),
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          id: "activity-command-completed",
+          kind: "tool.completed",
+          createdAt: "2026-04-13T00:00:01.000Z",
+          payload: {
+            itemId: "command-1",
+            status: "completed",
+            detail: "pnpm test",
+          },
+        },
+      },
+    });
+  });
+
+  it("preserves stable tool lifecycle payload fields from earlier events", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-tool-coalesce-sparse");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeToolActivityEvent({
+        sequence: 1,
+        threadId,
+        activityId: "activity-command-started",
+        kind: "tool.started",
+        status: "inProgress",
+        detail: "pnpm test",
+      }),
+      makeToolActivityEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-command-completed",
+        kind: "tool.completed",
+        status: "completed",
+      }),
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          kind: "tool.completed",
+          payload: {
+            itemId: "command-1",
+            status: "completed",
+            detail: "pnpm test",
+          },
+        },
+      },
+    });
+  });
+
+  it("coalesces stable tool output deltas without losing earlier chunks", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-tool-output-coalesce");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeToolActivityEvent({
+        sequence: 1,
+        threadId,
+        activityId: "activity-command-output-1",
+        kind: "tool.updated",
+        status: "inProgress",
+        detail: "hello ",
+        streamKind: "command_output",
+      }),
+      makeToolActivityEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-command-output-2",
+        kind: "tool.updated",
+        status: "inProgress",
+        detail: "world",
+        streamKind: "command_output",
+      }),
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          kind: "tool.updated",
+          createdAt: "2026-04-13T00:00:01.000Z",
+          payload: {
+            itemId: "command-1",
+            detail: "hello world",
+            data: {
+              streamKind: "command_output",
+              delta: "hello world",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("keeps tool output stream updates separate from lifecycle completion", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-tool-output-lifecycle-coalesce");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeToolActivityEvent({
+        sequence: 1,
+        threadId,
+        activityId: "activity-command-started",
+        kind: "tool.started",
+        status: "inProgress",
+        detail: "pnpm test",
+      }),
+      makeToolActivityEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-command-output",
+        kind: "tool.updated",
+        status: "inProgress",
+        detail: "test output",
+        streamKind: "command_output",
+      }),
+      makeToolActivityEvent({
+        sequence: 3,
+        threadId,
+        activityId: "activity-command-completed",
+        kind: "tool.completed",
+        status: "completed",
+      }),
+    ]);
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          kind: "tool.completed",
+          payload: {
+            itemId: "command-1",
+            status: "completed",
+            detail: "pnpm test",
+          },
+        },
+      },
+    });
+    expect(events[1]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          kind: "tool.updated",
+          payload: {
+            itemId: "command-1",
+            detail: "test output",
+            data: {
+              streamKind: "command_output",
+              delta: "test output",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("coalesces subagent content deltas by stream key", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-subagent-coalesce");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeSubagentDeltaEvent({ sequence: 1, threadId, delta: "hello " }),
+      makeSubagentDeltaEvent({ sequence: 2, threadId, delta: "world" }),
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          kind: "subagent.content.delta",
+          createdAt: "2026-04-13T00:00:01.000Z",
+          payload: {
+            delta: "hello world",
+            itemId: "subagent-message-1",
+            providerThreadId: "subagent-thread-1",
+            streamKind: "assistant_text",
+          },
+        },
+      },
+    });
+  });
+
+  it("coalesces stable subagent item lifecycle activities for UI application", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-subagent-item-coalesce");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeSubagentItemEvent({
+        sequence: 1,
+        threadId,
+        activityId: "activity-subagent-command-started",
+        kind: "subagent.item.started",
+        status: "inProgress",
+        detail: "pnpm test",
+      }),
+      makeSubagentItemEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-subagent-command-completed",
+        kind: "subagent.item.completed",
+        status: "completed",
+      }),
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          id: "activity-subagent-command-completed",
+          kind: "subagent.item.completed",
+          createdAt: "2026-04-13T00:00:01.000Z",
+          payload: {
+            providerThreadId: "subagent-thread-1",
+            itemId: "subagent-command-1",
+            itemType: "command_execution",
+            status: "completed",
+            title: "Ran command",
+            detail: "pnpm test",
+          },
+        },
+      },
+    });
   });
 });

@@ -140,6 +140,11 @@ function trimText(value: string | undefined | null): string | undefined {
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
+function joinTrimmedParts(parts: ReadonlyArray<string | undefined>): string | undefined {
+  const text = parts.filter((part): part is string => part !== undefined).join("\n").trim();
+  return text.length > 0 ? text : undefined;
+}
+
 const FATAL_CODEX_STDERR_SNIPPETS = ["failed to connect to websocket"];
 
 function isFatalCodexProcessStderrMessage(message: string): boolean {
@@ -259,6 +264,11 @@ function itemTitle(itemType: CanonicalItemType): string | undefined {
 }
 
 function itemDetail(item: CodexLifecycleItem): string | undefined {
+  const content = readItemContentText(item);
+  if (content) {
+    return content;
+  }
+
   const candidates = [
     "command" in item ? item.command : undefined,
     "title" in item ? item.title : undefined,
@@ -273,6 +283,19 @@ function itemDetail(item: CodexLifecycleItem): string | undefined {
     return trimmed;
   }
   return undefined;
+}
+
+function readItemContentText(item: CodexLifecycleItem): string | undefined {
+  switch (item.type) {
+    case "userMessage":
+      return joinTrimmedParts(
+        item.content.map((part) => (part.type === "text" ? trimText(part.text) : undefined)),
+      );
+    case "reasoning":
+      return joinTrimmedParts((item.content ?? []).map((part) => trimText(part)));
+    default:
+      return undefined;
+  }
 }
 
 function toRequestTypeFromMethod(method: string): CanonicalRequestType {

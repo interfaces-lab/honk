@@ -59,6 +59,7 @@
 }
 
 .multi-shell-sidebar {
+  --multi-interactive-surface: var(--multi-base-sidebar);
   background: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
 }
 

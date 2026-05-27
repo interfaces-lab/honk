@@ -10,7 +10,7 @@ export function ComposerContextUsageBar(props: { usage: ContextWindowSnapshot })
   return (
     <div
       data-composer-context-usage-bar=""
-      className="box-border flex w-full justify-end px-1 pb-1 pt-0.5"
+      className="box-border flex max-h-6 w-full justify-end px-1 pb-1 pt-0.5"
     >
       <Popover data-composer-context-meter="">
         <PopoverTrigger
