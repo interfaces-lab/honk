@@ -851,7 +851,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
   expanded: boolean;
   onToggleExpanded: (rowId: string) => void;
 }) {
-  const { activeThreadEnvironmentId, activeThreadId, projectRoot } = use(TimelineRowCtx);
+  const { projectRoot, activeThreadId, activeThreadEnvironmentId } = use(TimelineRowCtx);
   const summary = row.summary;
   const isRunning = row.isRunning;
   const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
@@ -920,6 +920,8 @@ const WorkGroupSection = memo(function WorkGroupSection({
           row={row}
           onExpand={handleToggle}
           projectRoot={projectRoot}
+          activeThreadId={activeThreadId}
+          activeThreadEnvironmentId={activeThreadEnvironmentId}
         />
       ) : null}
     </div>
@@ -951,12 +953,15 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
   row,
   onExpand,
   projectRoot,
+  activeThreadId,
+  activeThreadEnvironmentId,
 }: {
   row: Extract<MessagesTimelineRow, { kind: "work" }>;
   onExpand: () => void;
   projectRoot: string | undefined;
+  activeThreadId: ThreadId;
+  activeThreadEnvironmentId: EnvironmentId;
 }) {
-  const { activeThreadEnvironmentId, activeThreadId } = use(TimelineRowCtx);
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
   const entries = row.groupedEntries;
   const previewEntries = entries.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);

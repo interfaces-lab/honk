@@ -35,7 +35,7 @@ export const DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE: SidebarProjectGroupingMode =
 
 export const DEFAULT_AGENT_WINDOW_FONT_SMOOTHING_ANTIALIASED = true;
 export const DEFAULT_AGENT_WINDOW_CHAT_MAX_WIDTH = 840;
-export const DEFAULT_CURSOR_POINTER_ON_BUTTONS = true;
+export const DEFAULT_CURSOR_POINTER_ON_BUTTONS = false;
 export const AgentWindowChatMaxWidth = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 export type AgentWindowChatMaxWidth = typeof AgentWindowChatMaxWidth.Type;
 

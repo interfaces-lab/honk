@@ -1717,7 +1717,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("shows a pointer cursor for the running stop button", async () => {
+  it("uses the default cursor for the running stop button when pointer cursors are off", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -1733,7 +1733,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
         "Unable to find stop generation button.",
       );
 
-      expect(getComputedStyle(stopButton).cursor).toBe("pointer");
+      expect(getComputedStyle(stopButton).cursor).toBe("default");
     } finally {
       await mounted.cleanup();
     }

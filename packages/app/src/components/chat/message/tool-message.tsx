@@ -53,6 +53,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
 
   const toolCall = toToolCall(workEntry, projectRoot);
   const hasSubagents = subagents.length > 0;
+  const renderSubagentsInToolBody = hasSubagents && toolCall.tool.case === "taskToolCall";
   const subagentStatusSurface = hasSubagents ? (
     <SubagentStatusSurface
       activeThreadId={activeThreadId}
@@ -62,7 +63,6 @@ export const ToolCallMessage = memo(function ToolCallMessage({
       subagents={subagents}
     />
   ) : null;
-  const renderSubagentsInToolBody = hasSubagents && toolCall.tool.case === "taskToolCall";
 
   return (
     <div className="w-full min-w-0 max-w-full">
@@ -89,7 +89,7 @@ function ToolSummaryRow({ text }: { text: string }) {
   return (
     <div
       data-tool-summary=""
-      className="flex w-full min-w-0 items-start gap-2 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-conversation text-multi-fg-secondary"
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
     >
       <IconSummary
         className="mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary"
@@ -124,11 +124,11 @@ function SubagentStatusSurface({
     <div
       data-subagent-status-container=""
       data-subagent-open={hasOpenPreview ? "" : undefined}
-      className="mt-1 w-full min-w-0 max-w-[85%] text-[14px]/5"
+      className="w-full min-w-0 max-w-full px-3 py-1 text-conversation"
     >
       <div
         data-subagent-status-stack=""
-        className="flex w-full min-w-0 flex-col items-start pt-0.5"
+        className="flex w-full min-w-0 flex-col items-start gap-1"
       >
         {subagents.map((subagent) => (
           <SubagentStatusRow
@@ -187,7 +187,6 @@ function SubagentStatusRow({
       subagent,
     });
   };
-  const handleKeyDown = stopSubagentStatusRowKeyDown;
 
   const previewUpdateSync = isPreviewOpen ? (
     <SubagentPreviewUpdateSync
@@ -203,8 +202,8 @@ function SubagentStatusRow({
       <button
         type="button"
         className={cn(
-          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
-          "border-0 bg-transparent p-0 text-left text-detail text-multi-fg-secondary",
+          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
+          "border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary",
           hasDetails &&
             "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
           isPreviewOpen && hasDetails && "text-multi-fg-primary",
@@ -216,18 +215,18 @@ function SubagentStatusRow({
         aria-label={hasDetails ? `Open ${title} details` : undefined}
         aria-pressed={hasDetails ? isPreviewOpen : undefined}
         onClick={handleOpenPreview}
-        onKeyDown={handleKeyDown}
+        onKeyDown={stopSubagentStatusRowKeyDown}
       >
         <SubagentStatusIndicator subagent={subagent} />
-        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
+        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5 overflow-hidden">
           <span
             data-subagent-name=""
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-multi-fg-primary"
           >
             {title}
           </span>
           {subagent.model ? (
-            <span className="shrink-0 rounded border border-multi-stroke-tertiary px-1 text-caption text-multi-fg-tertiary">
+            <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
               {subagent.model}
             </span>
           ) : null}

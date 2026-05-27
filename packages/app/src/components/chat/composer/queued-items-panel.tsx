@@ -306,7 +306,7 @@ const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
 
   return (
     <div
-      className="agent-panel-queue-items flex max-h-[var(--multi-composer-queue-panel-list-max-height)] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-none"
+      className="agent-panel-queue-items flex max-h-[200px] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-none"
       role="list"
       aria-label={QUEUE_PANEL_ARIA_LABEL}
       data-queued-composer-items-list=""

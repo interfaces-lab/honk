@@ -104,7 +104,7 @@ describe("Composer queue contract", () => {
     expect(queuedItemsPanelSource).toContain('data-queue-row="true"');
     expect(queuedItemsPanelSource).toContain('"Expand queue"');
     expect(queuedItemsPanelSource).toContain('"Collapse queue"');
-    expect(conversationCss).toContain("--multi-composer-queue-panel-list-max-height: 200px");
+    expect(queuedItemsPanelSource).toContain("max-h-[200px]");
     expect(conversationCss).toContain("[data-queued-composer-panel]");
   });
 });
@@ -222,7 +222,7 @@ describe("Composer surface contract", () => {
   });
 
   it("renders context usage below the composer and hides it when not scrolled to bottom", () => {
-    expect(conversationCss).toContain("--multi-composer-context-usage-bar-max-height: 24px");
+    expect(contextUsageBarSource).toContain("max-h-6");
     expect(conversationCss).toContain(
       ":not([data-scrolled-to-bottom]) [data-composer-context-usage-bar]",
     );

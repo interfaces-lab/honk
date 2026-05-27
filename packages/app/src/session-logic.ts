@@ -66,6 +66,7 @@ export interface WorkLogSubagent {
   usedPercentage?: number | undefined;
   logs?: ReadonlyArray<WorkLogSubagentLog> | undefined;
   hasDetails?: boolean | undefined;
+  transcriptItems?: ReadonlyArray<SubagentTranscriptItem> | undefined;
 }
 
 export interface WorkLogSubagentLog {
@@ -78,6 +79,30 @@ export interface WorkLogSubagentLog {
   streamKind?: string | undefined;
   itemType?: string | undefined;
   status?: string | undefined;
+}
+
+export type SubagentTranscriptItemKind =
+  | "message"
+  | "tool"
+  | "command"
+  | "reasoning"
+  | "plan"
+  | "status"
+  | "output";
+
+export interface SubagentTranscriptItem {
+  readonly id: string;
+  readonly itemId: string;
+  readonly kind: SubagentTranscriptItemKind;
+  readonly role?: "user" | "assistant" | "system" | undefined;
+  readonly title?: string | undefined;
+  readonly text?: string | undefined;
+  readonly itemType?: string | undefined;
+  readonly status?: string | undefined;
+  readonly streamKind?: string | undefined;
+  readonly loading: boolean;
+  readonly createdAt: string;
+  readonly sequence: number;
 }
 
 export interface WorkLogSubagentAction {
@@ -172,11 +197,6 @@ export interface WorkLogEntry {
   artifacts?: ReadonlyArray<ToolDisplayArtifact>;
   subagents?: ReadonlyArray<WorkLogSubagent>;
   subagentAction?: WorkLogSubagentAction;
-  /**
-   * `tool.summary` activities render once and must not increment task or tool
-   * lifecycle counts. Composer uses this flag for summary styling; collapse
-   * logic skips them.
-   */
   isToolSummary?: boolean;
 }
 
@@ -803,7 +823,18 @@ interface DerivedSubagentDetails {
   readonly latestUpdate?: string | undefined;
   readonly isActive?: boolean | undefined;
   readonly logs: ReadonlyArray<WorkLogSubagentLog>;
+  readonly transcriptItems: ReadonlyArray<SubagentTranscriptItem>;
 }
+
+interface MutableTranscriptContext {
+  readonly itemsById: Map<string, SubagentTranscriptItem>;
+  readonly itemsOrdered: SubagentTranscriptItem[];
+  readonly streamBuffers: Map<string, string>;
+  nextSequence: number;
+}
+
+const TRANSCRIPT_ITEMS_CAP = 200;
+const TRANSCRIPT_TEXT_CAP = 16_000;
 
 function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boolean {
   return activity.kind.startsWith("subagent.");
@@ -813,13 +844,10 @@ function deriveSubagentDetailsByProviderThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): Map<string, DerivedSubagentDetails> {
   const detailsByProviderThreadId = new Map<string, DerivedSubagentDetails>();
+  const transcriptByProviderThreadId = new Map<string, MutableTranscriptContext>();
 
   for (const activity of activities) {
-    if (
-      !isSubagentRuntimeActivity(activity) ||
-      activity.kind === "subagent.usage.updated" ||
-      activity.kind === "subagent.content.delta"
-    ) {
+    if (!isSubagentRuntimeActivity(activity) || activity.kind === "subagent.usage.updated") {
       continue;
     }
 
@@ -829,12 +857,36 @@ function deriveSubagentDetailsByProviderThreadId(
       continue;
     }
 
+    if (activity.kind === "subagent.content.delta") {
+      reduceTranscriptDelta(transcriptByProviderThreadId, providerThreadId, activity, payload);
+      continue;
+    }
+
     const previous = detailsByProviderThreadId.get(providerThreadId);
     const log = toSubagentLog(activity, payload);
     const rawStatus = resolveSubagentRawStatus(activity, payload) ?? previous?.rawStatus;
     const statusLabel = resolveSubagentStatusLabel(rawStatus) ?? previous?.statusLabel;
     const latestUpdate = resolveSubagentLatestUpdate(activity, log, previous?.latestUpdate);
     const logs = [...(previous?.logs ?? []), log].slice(-200);
+
+    if (activity.kind === "subagent.item.started" || activity.kind === "subagent.item.updated") {
+      reduceTranscriptItemLifecycle(
+        transcriptByProviderThreadId,
+        providerThreadId,
+        activity,
+        payload,
+        false,
+      );
+    } else if (activity.kind === "subagent.item.completed") {
+      reduceTranscriptItemLifecycle(
+        transcriptByProviderThreadId,
+        providerThreadId,
+        activity,
+        payload,
+        true,
+      );
+    }
+
     detailsByProviderThreadId.set(providerThreadId, {
       rawStatus,
       statusLabel,
@@ -844,10 +896,236 @@ function deriveSubagentDetailsByProviderThreadId(
           ? isActiveSubagentStatus(rawStatus, statusLabel)
           : previous?.isActive,
       logs,
+      transcriptItems: previous?.transcriptItems ?? [],
     });
   }
 
+  for (const [providerThreadId, ctx] of transcriptByProviderThreadId) {
+    const existing = detailsByProviderThreadId.get(providerThreadId);
+    const items = ctx.itemsOrdered.slice(-TRANSCRIPT_ITEMS_CAP);
+    if (existing) {
+      detailsByProviderThreadId.set(providerThreadId, { ...existing, transcriptItems: items });
+    } else {
+      detailsByProviderThreadId.set(providerThreadId, { logs: [], transcriptItems: items });
+    }
+  }
+
   return detailsByProviderThreadId;
+}
+
+function getOrInitTranscriptContext(
+  byProviderThread: Map<string, MutableTranscriptContext>,
+  providerThreadId: string,
+): MutableTranscriptContext {
+  let ctx = byProviderThread.get(providerThreadId);
+  if (!ctx) {
+    ctx = {
+      itemsById: new Map(),
+      itemsOrdered: [],
+      streamBuffers: new Map(),
+      nextSequence: 0,
+    };
+    byProviderThread.set(providerThreadId, ctx);
+  }
+  return ctx;
+}
+
+function reduceTranscriptItemLifecycle(
+  byProviderThread: Map<string, MutableTranscriptContext>,
+  providerThreadId: string,
+  activity: OrchestrationThreadActivity,
+  payload: Record<string, unknown> | null,
+  completed: boolean,
+): void {
+  const itemId = asTrimmedString(payload?.itemId);
+  if (!itemId) return;
+
+  const itemType = asTrimmedString(payload?.itemType) ?? undefined;
+  const status = asTrimmedString(payload?.status) ?? undefined;
+  const title = asTrimmedString(payload?.title) ?? undefined;
+  const detail = asTrimmedString(payload?.detail) ?? undefined;
+
+  const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
+  const existing = ctx.itemsById.get(itemId);
+
+  const isCompletedStatus =
+    completed || status === "completed" || status === "failed" || status === "succeeded";
+
+  if (existing) {
+    const merged: SubagentTranscriptItem = {
+      ...existing,
+      ...(itemType ? { itemType, kind: itemTypeToTranscriptKind(itemType) } : {}),
+      ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
+      ...(title ? { title } : {}),
+      ...(status ? { status } : {}),
+      ...(completed && detail
+        ? { text: capTranscriptText(detail) }
+        : detail && !existing.text
+          ? { text: capTranscriptText(detail) }
+          : {}),
+      loading: !isCompletedStatus,
+    };
+    ctx.itemsById.set(itemId, merged);
+    const idx = ctx.itemsOrdered.findIndex((row) => row.itemId === itemId);
+    if (idx >= 0) {
+      ctx.itemsOrdered[idx] = merged;
+    } else {
+      ctx.itemsOrdered.push(merged);
+    }
+    return;
+  }
+
+  const item: SubagentTranscriptItem = {
+    id: itemId,
+    itemId,
+    kind: itemTypeToTranscriptKind(itemType),
+    ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
+    ...(title ? { title } : {}),
+    ...(detail ? { text: capTranscriptText(detail) } : {}),
+    ...(itemType ? { itemType } : {}),
+    ...(status ? { status } : {}),
+    loading: !isCompletedStatus,
+    createdAt: activity.createdAt,
+    sequence: ctx.nextSequence++,
+  };
+  ctx.itemsById.set(itemId, item);
+  ctx.itemsOrdered.push(item);
+}
+
+function reduceTranscriptDelta(
+  byProviderThread: Map<string, MutableTranscriptContext>,
+  providerThreadId: string,
+  activity: OrchestrationThreadActivity,
+  payload: Record<string, unknown> | null,
+): void {
+  const itemId = asTrimmedString(payload?.itemId);
+  if (!itemId) return;
+
+  const delta = asSubagentDeltaString(payload?.delta);
+  if (delta === null) return;
+
+  const streamKind = asTrimmedString(payload?.streamKind) ?? "";
+  const contentIndex = asFiniteNumber(payload?.contentIndex);
+  const summaryIndex = asFiniteNumber(payload?.summaryIndex);
+  const bucketKey = `${itemId}\u001f${streamKind}\u001f${contentIndex ?? ""}\u001f${summaryIndex ?? ""}`;
+
+  const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
+  const previousBuffer = ctx.streamBuffers.get(bucketKey);
+  const merged = mergeStreamText(previousBuffer, delta) ?? delta;
+  ctx.streamBuffers.set(bucketKey, merged);
+
+  if (!isUserVisibleStreamKind(streamKind)) {
+    return;
+  }
+
+  const existing = ctx.itemsById.get(itemId);
+  if (existing) {
+    const next: SubagentTranscriptItem = {
+      ...existing,
+      text: capTranscriptText(merged),
+      ...(streamKind ? { streamKind } : {}),
+    };
+    ctx.itemsById.set(itemId, next);
+    const idx = ctx.itemsOrdered.findIndex((row) => row.itemId === itemId);
+    if (idx >= 0) {
+      ctx.itemsOrdered[idx] = next;
+    } else {
+      ctx.itemsOrdered.push(next);
+    }
+    return;
+  }
+
+  const synthetic: SubagentTranscriptItem = {
+    id: itemId,
+    itemId,
+    kind: streamKindToTranscriptKind(streamKind),
+    role: "assistant",
+    text: capTranscriptText(merged),
+    loading: true,
+    createdAt: activity.createdAt,
+    sequence: ctx.nextSequence++,
+    ...(streamKind ? { streamKind } : {}),
+  };
+  ctx.itemsById.set(itemId, synthetic);
+  ctx.itemsOrdered.push(synthetic);
+}
+
+function isUserVisibleStreamKind(streamKind: string): boolean {
+  switch (streamKind) {
+    case "assistant_text":
+    case "command_output":
+    case "plan_text":
+    case "":
+      return true;
+    case "reasoning_text":
+    case "reasoning_summary_text":
+    case "file_change_output":
+    default:
+      return false;
+  }
+}
+
+function itemTypeToTranscriptKind(itemType: string | undefined): SubagentTranscriptItemKind {
+  if (!itemType) return "tool";
+  switch (itemType) {
+    case "assistant_message":
+    case "user_message":
+      return "message";
+    case "command_execution":
+      return "command";
+    case "reasoning":
+    case "agent_reasoning":
+    case "reasoning_summary":
+      return "reasoning";
+    case "plan":
+      return "plan";
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+      return "status";
+    default:
+      return "tool";
+  }
+}
+
+function itemTypeToRole(
+  itemType: string | undefined,
+): "user" | "assistant" | "system" | undefined {
+  switch (itemType) {
+    case "assistant_message":
+      return "assistant";
+    case "user_message":
+      return "user";
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+      return "system";
+    default:
+      return undefined;
+  }
+}
+
+function streamKindToTranscriptKind(streamKind: string): SubagentTranscriptItemKind {
+  switch (streamKind) {
+    case "command_output":
+      return "command";
+    case "plan_text":
+      return "plan";
+    case "reasoning_text":
+    case "reasoning_summary_text":
+      return "reasoning";
+    case "assistant_text":
+    case "":
+    default:
+      return "message";
+  }
+}
+
+function capTranscriptText(text: string): string {
+  if (text.length <= TRANSCRIPT_TEXT_CAP) return text;
+  return text.slice(text.length - TRANSCRIPT_TEXT_CAP);
 }
 
 function resolveSubagentLatestUpdate(
@@ -1038,6 +1316,8 @@ function applySubagentDetails(
     if (!details) {
       return subagent;
     }
+    const transcriptItems = details.transcriptItems;
+    const hasTranscript = transcriptItems !== undefined && transcriptItems.length > 0;
     return {
       ...subagent,
       ...(details.rawStatus ? { rawStatus: details.rawStatus } : {}),
@@ -1045,7 +1325,8 @@ function applySubagentDetails(
       ...(details.latestUpdate ? { latestUpdate: details.latestUpdate } : {}),
       ...(details.isActive !== undefined ? { isActive: details.isActive } : {}),
       logs: details.logs,
-      hasDetails: details.logs.length > 0,
+      ...(hasTranscript ? { transcriptItems } : {}),
+      hasDetails: details.logs.length > 0 || hasTranscript,
     };
   });
 }

@@ -648,7 +648,7 @@ export function ProviderInstanceCard({
               )}
               <h3
                 className={textVariants({
-                  size: "sm",
+                  size: "lg",
                   tone: "primary",
                   weight: "medium",
                   truncate: true,

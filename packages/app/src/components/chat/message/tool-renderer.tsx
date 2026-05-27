@@ -1,4 +1,5 @@
 import {
+  IconCheckCircle2,
   IconChevronRightMedium,
   IconClock,
   IconCodeBrackets,
@@ -9,6 +10,7 @@ import {
   IconMagnifyingGlass,
   IconRobot,
   IconToolbox,
+  IconWarningSign,
 } from "central-icons";
 import { cva } from "class-variance-authority";
 import {
@@ -443,29 +445,21 @@ function TaskToolCall({
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasBody = Boolean(subagentConversation) || Boolean(renderStep);
-  const statusIcon = showIcon ? (
-    <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-tertiary">
-      {loading ? (
-        <IconClock className="tool-call-shimmer size-3.5" />
-      ) : hasError ? (
-        <IconToolbox className="size-3.5 text-multi-fg-red-primary" />
-      ) : (
-        <IconRobot className="size-3.5" />
-      )}
-    </span>
-  ) : null;
-  const titleArea = (
-    <span className="inline-flex min-w-0 max-w-full items-baseline gap-1 overflow-hidden">
-      <span className={toolCallLineActionVariants({ loading })}>{action}</span>
-      {details ? (
-        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary">
-          {details}
-        </span>
-      ) : null}
-    </span>
-  );
+
+  if (!hasBody) {
+    return (
+      <ToolCallLine
+        icon={showIcon ? IconRobot : undefined}
+        action={action}
+        details={details}
+        loading={loading}
+      />
+    );
+  }
+
+  const title = details || action;
+  const subtitle = details ? action : "";
   const toggleExpanded = () => {
-    if (!hasBody) return;
     setIsExpanded((current) => {
       const next = !current;
       onNestedToolExpand?.(callId, next);
@@ -475,38 +469,41 @@ function TaskToolCall({
 
   return (
     <div
-      className="group/task-tool-call min-w-0 max-w-full text-multi-fg-secondary"
+      className="min-w-0 max-w-full text-conversation"
       data-task-tool-call=""
       data-status={hasError ? "error" : loading ? "running" : "completed"}
       data-expanded={isExpanded ? "true" : "false"}
     >
-      {hasBody ? (
-        <button
-          type="button"
-          className="inline-flex min-h-6 w-fit max-w-full min-w-0 cursor-pointer items-center gap-1 overflow-hidden"
-          aria-expanded={isExpanded}
-          onClick={toggleExpanded}
-          data-task-tool-call-header=""
-        >
-          {statusIcon}
-          {titleArea}
-          <IconChevronRightMedium
-            className={cn(
-              "size-3 shrink-0 text-multi-icon-tertiary opacity-0 transition-[opacity,transform] duration-(--motion-duration-collapsible) ease-out",
-              "group-hover/task-tool-call:opacity-100 group-focus-within/task-tool-call:opacity-100",
-              isExpanded && "rotate-90 opacity-100",
-            )}
-            data-task-tool-call-chevron=""
-          />
-        </button>
-      ) : (
-        <div className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden">
-          {statusIcon}
-          {titleArea}
-        </div>
-      )}
-      {isExpanded && hasBody ? (
-        <div className="mt-1 min-w-0 max-w-full" data-task-tool-call-body="">
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        onClick={toggleExpanded}
+        data-task-tool-call-header=""
+      >
+        <span data-task-tool-call-status-icon="">
+          {loading ? (
+            <IconClock className="tool-call-shimmer size-3.5" />
+          ) : hasError ? (
+            <IconWarningSign className="size-3.5 text-multi-fg-red-primary" />
+          ) : (
+            <IconCheckCircle2 className="size-3.5" />
+          )}
+        </span>
+        <span data-task-tool-call-title-area="">
+          <span
+            data-task-tool-call-title=""
+            className={cn(loading && "tool-call-shimmer")}
+          >
+            {title}
+          </span>
+          {subtitle ? (
+            <span data-task-tool-call-subtitle="">{subtitle}</span>
+          ) : null}
+        </span>
+        <IconChevronRightMedium className="size-3" data-task-tool-call-chevron="" />
+      </button>
+      {isExpanded ? (
+        <div className="min-w-0 max-w-full" data-task-tool-call-body="">
           {subagentConversation}
           {renderStep?.(toolCall, 0, callId)}
         </div>
@@ -733,9 +730,7 @@ export const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLi
         <div
           className={cn(
             "mt-1 max-w-agent-chat",
-            "overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-multi-editor",
-            "px-(--conversation-tool-card-padding-x) py-1.5",
-            "font-mono text-body text-multi-fg-tertiary",
+            "pl-[18px] font-mono text-conversation text-multi-fg-tertiary",
           )}
         >
           {bodyText ? (
@@ -744,7 +739,7 @@ export const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLi
             </pre>
           ) : null}
           {metadataItems.length > 0 ? (
-            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary pt-1 text-detail text-multi-fg-tertiary">
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-detail text-multi-fg-tertiary">
               {metadataItems.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -891,7 +886,7 @@ function ShellToolCall({
                   "m-0 bg-multi-editor",
                   "px-(--conversation-tool-card-padding-x)",
                   "py-1.5",
-                  "font-mono text-body whitespace-pre-wrap",
+                  "font-mono text-conversation whitespace-pre-wrap",
                   "text-multi-fg-tertiary wrap-anywhere select-text",
                 )}
               >
@@ -905,7 +900,7 @@ function ShellToolCall({
                   "m-0 bg-multi-editor",
                   "px-(--conversation-tool-card-padding-x)",
                   "pb-1.5",
-                  "font-mono text-body whitespace-pre-wrap",
+                  "font-mono text-conversation whitespace-pre-wrap",
                   "text-multi-fg-tertiary wrap-anywhere select-text",
                 )}
               >
@@ -1027,16 +1022,16 @@ function EditToolCall({
         <div
           className={cn(
             "mt-1 max-w-agent-chat",
-            "overflow-hidden rounded-multi-control",
-            "border border-multi-stroke-secondary bg-multi-editor",
-            "px-(--conversation-tool-card-padding-x) py-1.5",
-            "font-mono text-body text-multi-fg-tertiary",
+            "overflow-hidden rounded-multi-control border border-multi-stroke-secondary",
+            "font-mono text-conversation text-multi-fg-tertiary",
           )}
         >
           {diffArtifact ? (
             <InlineToolDiff artifact={diffArtifact} />
           ) : (
-            <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0">{detail}</pre>
+            <pre className="m-0 overflow-hidden whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5">
+              {detail}
+            </pre>
           )}
         </div>
       ) : null}

@@ -313,7 +313,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
         aria-hidden="true"
       />
       <SettingsNavRail onBack={backToChat} />
-      <ShellSidebarFooter settings />
+      <ShellSidebarFooter settings onToggleSettings={backToChat} />
     </div>
   );
 

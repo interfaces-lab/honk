@@ -1,10 +1,13 @@
 /*
- * Tool-call timeline styles. Cursor references: `ui-shell-tool-call`,
- * `ui-task-tool-call`, `ui-task-tool-call__chevron`, and `tool-call-line-shine`
- * in cursor-composer-reference.md. Values come from tokens.css.
+ * Tool-call timeline styles.
  *
- * Multi keeps layout in Tailwind and uses `data-` hooks for rules that are
- * easier in CSS: margin resets, hover chevrons, and shimmer paint.
+ * Mirrors Cursor's `ui-tool-call-line`, `ui-task-tool-call*`, and
+ * `ui-shell-tool-call*` model (embedded CSS in `workbench.desktop.main.js`,
+ * byte 16314283 + 16319943 + 16341242). The typography on every tool row
+ * is intentionally identical to chat markdown — there is no body-size
+ * down-scaling. Card chrome only appears on the task tool root, on the
+ * shell expanded body, and on the edit expanded diff wrapper, matching
+ * Cursor's selective chrome model.
  */
 
 @keyframes tool-call-line-shine {
@@ -35,61 +38,121 @@
 }
 
 /*
- * Task tool call card. Cursor uses a rounded, bordered container with hidden
- * overflow.
+ * Task tool card. Cursor's `.ui-task-tool-call` (byte 16341242) draws a
+ * filled, bordered container. Header is a 36px-tall full-width button
+ * with hover fill; body is divided from the header by a top border.
+ *
+ * The card only renders when the task tool has a body to expand
+ * (subagent transcript or nested steps). For the no-body branch the
+ * React component falls through to a compact tool line — never wrap
+ * a plain line in this card shell.
  */
 [data-task-tool-call] {
   border-radius: var(--multi-radius-card);
-  border: 1px solid var(--multi-stroke-tertiary);
-  background: var(--multi-bg-quinary);
+  border: 1px solid var(--multi-stroke-secondary);
+  background: var(--multi-bg-tertiary);
   overflow: hidden;
-  font-size: var(--multi-text-body);
 }
 
 [data-task-tool-call-header] {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
-  padding: 6px 10px;
-  cursor: pointer;
-  user-select: none;
+  min-height: 36px;
+  padding: 8px 10px;
   width: 100%;
   border: none;
   background: transparent;
-  font: inherit;
   color: inherit;
+  font: inherit;
   text-align: left;
+  cursor: pointer;
+  user-select: none;
   outline: none;
+  transition: background-color var(--motion-duration-hover, 100ms) var(--motion-easing-standard);
+}
+
+[data-task-tool-call-header]:hover {
+  background: var(--multi-bg-secondary);
+}
+
+[data-task-tool-call-title-area] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+[data-task-tool-call-title],
+[data-task-tool-call-subtitle] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 20px;
+}
+
+[data-task-tool-call-title] {
+  color: var(--multi-fg-primary);
+}
+
+[data-task-tool-call-subtitle] {
+  color: var(--multi-fg-tertiary);
+}
+
+[data-task-tool-call-status-icon] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 20px;
+  color: var(--multi-fg-secondary);
 }
 
 [data-task-tool-call-body] {
-  padding: 0 10px 8px;
+  border-top: 1px solid var(--multi-stroke-secondary);
+  padding: 6px 0;
+}
+
+[data-task-tool-call-turns] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--chat-timeline-step-gap, 6px);
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /*
- * JSX animates opacity through Tailwind. This rule also handles portal cases
- * where group focus-within does not reach the chevron.
+ * Chevron is hidden by default and revealed on hover or while expanded,
+ * matching Cursor's `.ui-task-tool-call__chevron` (transform-only
+ * transition; opacity hop is instant).
  */
 [data-task-tool-call-chevron] {
-  transition:
-    transform var(--motion-duration-collapsible, 100ms) var(--motion-easing-standard),
-    opacity var(--motion-duration-hover, 100ms) var(--motion-easing-standard);
+  flex-shrink: 0;
+  color: var(--multi-icon-tertiary);
+  opacity: 0;
+  transition: transform var(--motion-duration-collapsible, 100ms) var(--motion-easing-standard);
 }
 
+[data-task-tool-call-header]:hover [data-task-tool-call-chevron],
+[data-task-tool-call-header]:focus-visible [data-task-tool-call-chevron],
 [data-task-tool-call][data-expanded="true"] [data-task-tool-call-chevron] {
   opacity: 1;
 }
 
-/*
- * Keep the shell icon, label, and truncated command aligned like Cursor's
- * `ui-shell-tool-call__header`.
- */
-[data-shell-tool-call] {
-  font-size: var(--multi-text-body);
-  line-height: var(--multi-leading-body);
-  letter-spacing: -0.15px;
+[data-task-tool-call][data-expanded="true"] [data-task-tool-call-chevron] {
+  transform: rotate(90deg);
 }
 
+/*
+ * Shell tool line is typography-only on the collapsed row (Cursor
+ * `.ui-shell-tool-call` carries no background or border on the row).
+ * The card surface appears on the expanded accordion body, painted in
+ * JSX via Tailwind so it stays adjacent to the tokens it references.
+ */
 [data-shell-tool-call-header] {
   padding-inline: 0;
   overflow: visible;
@@ -105,22 +168,7 @@
   margin: 0;
 }
 
-/*
- * Cursor strips vertical margins on `.composer-tool-former-message` when it
- * contains a tool call. Multi usually separates assistant text and tool rows,
- * but older threads can still put a tool row inside an assistant bubble.
- */
-[data-timeline-row-kind="message"][data-message-role="assistant"]
-  :is([data-shell-tool-call], [data-task-tool-call], [data-tool-call-line]) {
-  margin-block: 0;
-}
-
-/*
- * Subagent tray rows use `content-visibility: auto` so off-screen turns and
- * running-log rows skip layout and paint. The size hint keeps scrollbar
- * geometry stable while rows are skipped.
- */
-[data-subagent-preview-body] [data-subagent-tray-row] {
+[data-task-tool-call-turns] > [data-subagent-transcript] > * {
   content-visibility: auto;
   contain-intrinsic-size: auto 32px;
 }
@@ -134,6 +182,7 @@
   }
 
   [data-task-tool-call-chevron],
+  [data-task-tool-call-header],
   [data-shell-tool-call] [data-tool-call-line-chevron] svg {
     transition: none;
   }

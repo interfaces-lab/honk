@@ -7,6 +7,47 @@ const tokensCss = readFileSync(resolve(__dirname, "../styles/tokens.css"), "utf8
 const conversationCss = readFileSync(resolve(__dirname, "../styles/conversation.css"), "utf8");
 const appearanceSettingsSource = readFileSync(resolve(__dirname, "appearance-settings.ts"), "utf8");
 
+const TINT_BASE_TOKEN_NAMES = [
+  "--multi-base-sidebar",
+  "--multi-base-chrome",
+  "--multi-base-editor",
+  "--multi-base-accent",
+  "--multi-base-focus",
+] as const;
+
+function isSurfaceBaseOklchContinuation(line: string): boolean {
+  return /^\s+[\d.]+\s+calc\(/.test(line);
+}
+
+function isAccentWashLine(line: string): boolean {
+  return /^(\s*--accent:)/.test(line) && line.includes("var(--multi-base-accent)");
+}
+
+describe("appearance tint base tokens", () => {
+  it("defines five base tokens that own hue (and intensity on surfaces only)", () => {
+    for (const name of TINT_BASE_TOKEN_NAMES) {
+      expect(tokensCss).toContain(`${name}:`);
+    }
+  });
+
+  it("limits var(--multi-user-hue) and var(--multi-intensity) to base and accent-wash tokens", () => {
+    const intensityOutsideBases = tokensCss
+      .split("\n")
+      .filter((line) => line.includes("var(--multi-intensity"))
+      .filter((line) => !/^(\s*--multi-base-(sidebar|chrome|editor)):/.test(line))
+      .filter((line) => !isSurfaceBaseOklchContinuation(line));
+    expect(intensityOutsideBases).toEqual([]);
+
+    const hueOutsideBases = tokensCss
+      .split("\n")
+      .filter((line) => line.includes("var(--multi-user-hue"))
+      .filter((line) => !/^(\s*--multi-base-)/.test(line))
+      .filter((line) => !isSurfaceBaseOklchContinuation(line))
+      .filter((line) => !isAccentWashLine(line));
+    expect(hueOutsideBases).toEqual([]);
+  });
+});
+
 describe("appearance reduce-transparency tokens", () => {
   it("defines opaque surface aliases for sidebar and chat", () => {
     expect(tokensCss).toContain("--multi-color-sidebar-opaque:");
