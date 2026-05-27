@@ -4,14 +4,16 @@ import {
   type ThreadId,
 } from "@multi/contracts";
 import { IconCrossSmall } from "central-icons";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import ChatMarkdown from "../markdown/chat-markdown";
 import { ChatMessageBubble } from "../message/message-surface";
 import { ExpandableToolMetadataLine, ToolCallLine } from "../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import { readEnvironmentApi } from "~/environment-api";
-import { useMountEffect } from "~/hooks/use-mount-effect";
-import { type WorkLogSubagentLog } from "../../../session-logic";
+import {
+  type SubagentTranscriptItem,
+  type WorkLogSubagentLog,
+} from "../../../session-logic";
 import {
   isSubagentPreviewLogVisible,
   subagentPreviewKey,
@@ -20,29 +22,33 @@ import {
 } from "../../../stores/subagent-preview-store";
 
 const EMPTY_SUBAGENT_LOGS: ReadonlyArray<WorkLogSubagentLog> = [];
+const EMPTY_SUBAGENT_TRANSCRIPT_ITEMS: ReadonlyArray<SubagentTranscriptItem> = [];
 
 export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(props: {
   activeThreadId: ThreadId | null;
   compact: boolean;
   visible: boolean;
 }) {
-  const preview = useSubagentPreviewStore((state) => state.preview);
+  const focus = useSubagentPreviewStore((state) => state.focus);
   const closePreview = useSubagentPreviewStore((state) => state.closePreview);
-  const previewKey = preview?.key ?? null;
-  const previewActiveThreadId = preview?.activeThreadId ?? null;
+  const setPreviewPresented = useSubagentPreviewStore((state) => state.setPreviewPresented);
+  const previewKey = focus?.key ?? null;
+  const previewActiveThreadId = focus?.activeThreadId ?? null;
   const belongsToActiveThread =
     props.activeThreadId !== null && previewActiveThreadId === props.activeThreadId;
+  const presented = focus !== null && belongsToActiveThread && props.visible;
   const activeThreadSync = (
     <SubagentPreviewActiveThreadSync
-      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}:${props.visible ? "1" : "0"}`}
+      key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}:${presented ? "1" : "0"}`}
       belongsToActiveThread={belongsToActiveThread}
       closePreview={closePreview}
+      setPreviewPresented={setPreviewPresented}
+      presented={presented}
       previewKey={previewKey}
-      visible={props.visible}
     />
   );
 
-  if (!preview || !belongsToActiveThread || !props.visible) {
+  if (!focus || !belongsToActiveThread || !props.visible) {
     return activeThreadSync;
   }
 
@@ -58,7 +64,7 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
           data-subagent-followup-tray=""
           data-subagent-preview-open=""
         >
-          <SubagentPreviewTray selection={preview} onClose={closePreview} />
+          <SubagentPreviewTray selection={focus} onClose={closePreview} />
         </div>
       </div>
     </>
@@ -68,19 +74,22 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
 function SubagentPreviewActiveThreadSync({
   belongsToActiveThread,
   closePreview,
+  setPreviewPresented,
+  presented,
   previewKey,
-  visible,
 }: {
   belongsToActiveThread: boolean;
   closePreview: () => void;
+  setPreviewPresented: (presented: boolean) => void;
+  presented: boolean;
   previewKey: string | null;
-  visible: boolean;
 }) {
-  useMountEffect(() => {
-    if (previewKey !== null && (!belongsToActiveThread || !visible)) {
+  useEffect(() => {
+    setPreviewPresented(previewKey !== null && presented);
+    if (previewKey !== null && !belongsToActiveThread) {
       closePreview();
     }
-  });
+  }, [belongsToActiveThread, closePreview, presented, previewKey, setPreviewPresented]);
 
   return null;
 }
@@ -145,12 +154,14 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   selection: SubagentPreviewSelection;
 }) {
   const { activeThreadId, environmentId, projectRoot, subagent } = props.selection;
-  const isActive = subagent.isActive === true;
   const [snapshotState, setSnapshotState] = useState<SubagentSnapshotState>({ status: "idle" });
   const providerThreadId = subagent.providerThreadId?.trim();
   const canReadTranscript = (providerThreadId?.length ?? 0) > 0;
-  const hasCanonicalTranscript =
+  const transcriptItems = subagent.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
+  const hasActivityTranscript = transcriptItems.length > 0;
+  const hasSnapshotTranscript =
     snapshotState.status === "loaded" && snapshotHasItems(snapshotState.snapshot);
+  const hasCanonicalTranscript = hasActivityTranscript || hasSnapshotTranscript;
   const logs = subagent.logs ?? EMPTY_SUBAGENT_LOGS;
   const runningLogs = useMemo(
     () => deriveVisibleSubagentLogs(logs, hasCanonicalTranscript),
@@ -158,8 +169,8 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   );
   const streamingLogId = runningLogs.at(-1)?.id;
 
-  useMountEffect(() => {
-    if (!canReadTranscript || !providerThreadId) {
+  useEffect(() => {
+    if (!canReadTranscript || !providerThreadId || hasActivityTranscript) {
       return;
     }
 
@@ -170,59 +181,48 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
     }
 
     let cancelled = false;
-    let refreshTimeoutId: number | undefined;
 
-    const readSnapshot = (showLoading: boolean) => {
-      if (showLoading) {
-        setSnapshotState((current) =>
-          current.status === "loaded" ? current : { status: "loading" },
-        );
-      }
+    setSnapshotState((current) => (current.status === "loaded" ? current : { status: "loading" }));
 
-      void api.orchestration
-        .getProviderThreadSnapshot({
-          threadId: activeThreadId,
-          providerThreadId,
-          includeTurns: true,
-        })
-        .then((snapshot) => {
-          if (cancelled) {
-            return;
-          }
-          setSnapshotState({ status: "loaded", snapshot });
-        })
-        .catch((error: unknown) => {
-          if (cancelled) {
-            return;
-          }
-          setSnapshotState({
-            status: "error",
-            message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
-          });
-        })
-        .finally(() => {
-          if (!cancelled && isActive) {
-            refreshTimeoutId = window.setTimeout(() => readSnapshot(false), 2500);
-          }
+    void api.orchestration
+      .getProviderThreadSnapshot({
+        threadId: activeThreadId,
+        providerThreadId,
+        includeTurns: true,
+      })
+      .then((snapshot) => {
+        if (cancelled) {
+          return;
+        }
+        setSnapshotState({ status: "loaded", snapshot });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setSnapshotState({
+          status: "error",
+          message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
         });
-    };
-
-    readSnapshot(true);
+      });
 
     return () => {
       cancelled = true;
-      if (refreshTimeoutId !== undefined) {
-        window.clearTimeout(refreshTimeoutId);
-      }
     };
-  });
+  }, [activeThreadId, canReadTranscript, environmentId, hasActivityTranscript, providerThreadId]);
 
   return (
     <div
       data-subagent-preview-body=""
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-(--chat-timeline-step-gap) overflow-y-auto overscroll-contain px-3 py-2 text-conversation text-multi-fg-primary"
     >
-      {canReadTranscript ? (
+      {hasActivityTranscript ? (
+        <SubagentActivityTranscriptSection
+          isStreaming={subagent.isActive === true}
+          items={transcriptItems}
+          projectRoot={projectRoot}
+        />
+      ) : canReadTranscript ? (
         <SubagentSnapshotSection
           isStreaming={subagent.isActive === true}
           projectRoot={projectRoot}
@@ -244,10 +244,73 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
           ))}
         </div>
       ) : null}
-      {!canReadTranscript && runningLogs.length === 0 ? (
+      {!hasActivityTranscript && !canReadTranscript && runningLogs.length === 0 ? (
         <div className="py-1 text-detail text-multi-fg-tertiary">No thread content yet.</div>
       ) : null}
     </div>
+  );
+});
+
+const SubagentActivityTranscriptSection = memo(function SubagentActivityTranscriptSection({
+  isStreaming,
+  items,
+  projectRoot,
+}: {
+  isStreaming: boolean;
+  items: ReadonlyArray<SubagentTranscriptItem>;
+  projectRoot: string | undefined;
+}) {
+  return (
+    <div
+      data-subagent-activity-transcript=""
+      className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
+    >
+      {items.map((item, index) => (
+        <SubagentTranscriptItemRow
+          key={item.id}
+          isStreaming={isStreaming && index === items.length - 1 && item.loading}
+          item={item}
+          projectRoot={projectRoot}
+        />
+      ))}
+    </div>
+  );
+});
+
+const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow({
+  isStreaming,
+  item,
+  projectRoot,
+}: {
+  isStreaming: boolean;
+  item: SubagentTranscriptItem;
+  projectRoot: string | undefined;
+}) {
+  const detail = item.text;
+
+  if (item.kind === "message" && item.role === "assistant" && detail) {
+    return (
+      <div className="min-w-0 select-text">
+        <ChatMarkdown cwd={projectRoot} isStreaming={isStreaming} text={detail} />
+      </div>
+    );
+  }
+
+  if (item.kind === "message" && item.role === "user" && detail) {
+    return (
+      <ChatMessageBubble
+        role="user"
+        body={<SubagentUserMessageBody detail={detail} title={item.title} />}
+      />
+    );
+  }
+
+  return (
+    <SubagentActivityLine
+      action={item.title ?? formatSnapshotTypeLabel(item.itemType ?? item.kind)}
+      detail={detail}
+      loading={isStreaming}
+    />
   );
 });
 

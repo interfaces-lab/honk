@@ -1397,7 +1397,7 @@ describe("deriveWorkLogEntries", () => {
     expect(entries[0]?.id).toBe("tool:tool-1");
   });
 
-  it("keeps collab agent lifecycle rows separate", () => {
+  it("collapses collab agent lifecycle rows by stable item id", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({
         id: "subagent-start",
@@ -1435,20 +1435,24 @@ describe("deriveWorkLogEntries", () => {
           detail: "code-reviewer: Review the database layer",
         },
       }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
     ];
 
     const entries = deriveWorkLogEntries(activities, undefined);
 
-    expect(entries.map((entry) => entry.id)).toEqual([
-      "subagent-start",
-      "subagent-update",
-      "subagent-complete",
-    ]);
-    expect(entries.map((entry) => entry.toolCallId)).toEqual([
-      "tool-task-1",
-      "tool-task-1",
-      "tool-task-1",
-    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.id).toBe("tool:tool-task-1");
+    expect(entries[0]?.toolCallId).toBe("tool-task-1");
+    expect(entries[0]?.status).toBe("completed");
   });
 
   it("merges subagent usage updates onto collab subagent rows", () => {
@@ -1491,6 +1495,213 @@ describe("deriveWorkLogEntries", () => {
       usedTokens: 4200,
       maxTokens: 128_000,
       usedPercentage: 3.28125,
+    });
+  });
+
+  it("attaches streamed subagent activity details to the parent tool row", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the database layer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          nickname: "reviewer",
+          model: "gpt-5.3-codex",
+        },
+      }),
+      makeActivity({
+        id: "subagent-item",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.started",
+        summary: "Subagent message started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          itemType: "assistant_message",
+          status: "running",
+        },
+      }),
+      makeActivity({
+        id: "subagent-delta-1",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.content.delta",
+        summary: "Subagent content delta",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          streamKind: "assistant_text",
+          delta: "Reviewed ",
+        },
+      }),
+      makeActivity({
+        id: "subagent-delta-2",
+        createdAt: "2026-02-23T00:00:05.000Z",
+        kind: "subagent.content.delta",
+        summary: "Subagent content delta",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          streamKind: "assistant_text",
+          delta: "the database layer.",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]).toMatchObject({
+      providerThreadId: "codex-subagent-thread-1",
+      parentItemId: "tool-task-1",
+      nickname: "reviewer",
+      model: "gpt-5.3-codex",
+      hasDetails: true,
+    });
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]).toMatchObject({
+      itemId: "subagent-message-1",
+      kind: "message",
+      role: "assistant",
+      text: "Reviewed the database layer.",
+      loading: true,
+    });
+  });
+
+  it("keeps a subagent row on the parent spawn call when wait references the same thread", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "spawn-start",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "spawn-tool-1",
+          itemType: "collab_agent_tool_call",
+          detail: "Review the database layer",
+          data: {
+            item: {
+              id: "spawn-tool-1",
+              tool: "spawnAgent",
+              prompt: "Review the database layer",
+              receiverThreadIds: [],
+              type: "collabAgentToolCall",
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "spawn-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Subagent task completed",
+        payload: {
+          itemId: "spawn-tool-1",
+          itemType: "collab_agent_tool_call",
+          detail: "Review the database layer",
+          data: {
+            item: {
+              id: "spawn-tool-1",
+              tool: "spawnAgent",
+              prompt: "Review the database layer",
+              receiverThreadIds: ["codex-subagent-thread-1"],
+              type: "collabAgentToolCall",
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread-active",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.thread.state.changed",
+        summary: "Subagent active",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "spawn-tool-1",
+          state: "active",
+        },
+      }),
+      makeActivity({
+        id: "subagent-message",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.item.completed",
+        summary: "Subagent message",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "spawn-tool-1",
+          itemId: "subagent-message-1",
+          itemType: "assistant_message",
+          status: "completed",
+          detail: "Reviewed the database layer.",
+        },
+      }),
+      makeActivity({
+        id: "wait-start",
+        createdAt: "2026-02-23T00:00:05.000Z",
+        kind: "tool.started",
+        summary: "Waiting for subagent",
+        payload: {
+          itemId: "wait-tool-1",
+          itemType: "collab_agent_tool_call",
+          data: {
+            item: {
+              id: "wait-tool-1",
+              tool: "wait",
+              receiverThreadIds: ["codex-subagent-thread-1"],
+              type: "collabAgentToolCall",
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "wait-complete",
+        createdAt: "2026-02-23T00:00:06.000Z",
+        kind: "tool.completed",
+        summary: "Subagent completed",
+        payload: {
+          itemId: "wait-tool-1",
+          itemType: "collab_agent_tool_call",
+          data: {
+            item: {
+              id: "wait-tool-1",
+              tool: "wait",
+              receiverThreadIds: ["codex-subagent-thread-1"],
+              type: "collabAgentToolCall",
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries.map((entry) => entry.id)).toEqual(["tool:spawn-tool-1"]);
+    expect(entries[0]?.subagents).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]).toMatchObject({
+      providerThreadId: "codex-subagent-thread-1",
+      parentItemId: "spawn-tool-1",
+      hasDetails: true,
+    });
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]).toMatchObject({
+      itemId: "subagent-message-1",
+      text: "Reviewed the database layer.",
+      loading: false,
     });
   });
 });

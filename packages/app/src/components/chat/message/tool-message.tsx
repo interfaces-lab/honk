@@ -53,7 +53,6 @@ export const ToolCallMessage = memo(function ToolCallMessage({
 
   const toolCall = toToolCall(workEntry, projectRoot);
   const hasSubagents = subagents.length > 0;
-  const renderSubagentsInToolBody = hasSubagents && toolCall.tool.case === "taskToolCall";
   const subagentStatusSurface = hasSubagents ? (
     <SubagentStatusSurface
       activeThreadId={activeThreadId}
@@ -64,19 +63,21 @@ export const ToolCallMessage = memo(function ToolCallMessage({
     />
   ) : null;
 
+  if (workEntry.itemType === "collab_agent_tool_call") {
+    return subagentStatusSurface;
+  }
+
   return (
-    <div className="w-full min-w-0 max-w-full">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-1">
       <ToolCallRenderer
         toolCall={toolCall}
         callId={workEntry.toolCallId ?? workEntry.id}
         loading={isLoading}
         startedAtMs={Date.parse(workEntry.createdAt)}
         hasError={status === "error"}
-        subagentConversation={renderSubagentsInToolBody ? subagentStatusSurface : undefined}
-        defaultExpanded={renderSubagentsInToolBody}
         conversationDensity="minimal"
       />
-      {hasSubagents && !renderSubagentsInToolBody ? subagentStatusSurface : null}
+      {subagentStatusSurface}
     </div>
   );
 });
@@ -115,7 +116,7 @@ function SubagentStatusSurface({
   subagentDetailsEnabled: boolean;
   subagents: ReadonlyArray<WorkLogSubagent>;
 }) {
-  const openPreviewKey = useSubagentPreviewStore((state) => state.preview?.key ?? null);
+  const openPreviewKey = useSubagentPreviewStore((state) => state.focus?.key ?? null);
   const hasOpenPreview = subagents.some(
     (subagent) => subagentPreviewKey(subagent) === openPreviewKey,
   );

@@ -38,20 +38,17 @@
 }
 
 /*
- * Task tool card. Cursor's `.ui-task-tool-call` (byte 16341242) draws a
- * filled, bordered container. Header is a 36px-tall full-width button
- * with hover fill; body is divided from the header by a top border.
+ * Task tool surface. Cursor only paints chrome (border + background) on
+ * the todos tool card; every other tool, including task, renders without
+ * a frame. Multi has no todos surface, so nothing here paints chrome.
+ * Keep layout and typography rules only.
  *
- * The card only renders when the task tool has a body to expand
- * (subagent transcript or nested steps). For the no-body branch the
- * React component falls through to a compact tool line — never wrap
- * a plain line in this card shell.
+ * The expandable form renders only when there is a body (subagent
+ * transcript or nested steps). The no-body branch falls through to a
+ * compact tool line in JSX.
  */
 [data-task-tool-call] {
-  border-radius: var(--multi-radius-card);
-  border: 1px solid var(--multi-stroke-secondary);
-  background: var(--multi-bg-tertiary);
-  overflow: hidden;
+  /* layout-only wrapper; no border, background, or radius */
 }
 
 [data-task-tool-call-header] {
@@ -59,7 +56,7 @@
   align-items: flex-start;
   gap: 8px;
   min-height: 36px;
-  padding: 8px 10px;
+  padding: 0;
   width: 100%;
   border: none;
   background: transparent;
@@ -69,11 +66,6 @@
   cursor: pointer;
   user-select: none;
   outline: none;
-  transition: background-color var(--motion-duration-hover, 100ms) var(--motion-easing-standard);
-}
-
-[data-task-tool-call-header]:hover {
-  background: var(--multi-bg-secondary);
 }
 
 [data-task-tool-call-title-area] {
@@ -112,8 +104,7 @@
 }
 
 [data-task-tool-call-body] {
-  border-top: 1px solid var(--multi-stroke-secondary);
-  padding: 6px 0;
+  padding: 6px 0 0 0;
 }
 
 [data-task-tool-call-turns] {

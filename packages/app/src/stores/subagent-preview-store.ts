@@ -63,6 +63,7 @@ export function subagentPreviewUpdateSignature(subagent: WorkLogSubagent): strin
     subagent.role ?? "",
     subagent.model ?? "",
     subagent.prompt ?? "",
+    subagent.parentItemId ?? "",
     subagent.rawStatus ?? "",
     subagent.latestUpdate ?? "",
     subagent.statusLabel ?? "",
@@ -72,7 +73,34 @@ export function subagentPreviewUpdateSignature(subagent: WorkLogSubagent): strin
     subagent.usedPercentage ?? "",
     subagent.hasDetails === true ? "1" : "0",
     subagentPreviewVisibleLogsSignature(subagent.logs),
+    subagentPreviewTranscriptSignature(subagent.transcriptItems),
   ].join("\u001f");
+}
+
+function subagentPreviewTranscriptSignature(
+  transcriptItems: WorkLogSubagent["transcriptItems"],
+): string {
+  if (!transcriptItems || transcriptItems.length === 0) {
+    return "";
+  }
+
+  return transcriptItems
+    .slice(-80)
+    .map((item) =>
+      [
+        item.id,
+        item.itemId,
+        item.kind,
+        item.role ?? "",
+        item.title ?? "",
+        item.text ?? "",
+        item.itemType ?? "",
+        item.status ?? "",
+        item.streamKind ?? "",
+        item.loading ? "1" : "0",
+      ].join("\u001e"),
+    )
+    .join("\u001d");
 }
 
 function subagentPreviewVisibleLogsSignature(
@@ -104,17 +132,20 @@ function subagentPreviewVisibleLogsSignature(
 }
 
 interface SubagentPreviewStore {
-  preview: SubagentPreviewSelection | null;
+  focus: SubagentPreviewSelection | null;
+  presented: boolean;
   openPreview: (selection: SubagentPreviewSelection) => void;
   updatePreviewSubagent: (subagent: WorkLogSubagent) => void;
+  setPreviewPresented: (presented: boolean) => void;
   closePreview: () => void;
 }
 
 export const useSubagentPreviewStore = create<SubagentPreviewStore>((set, get) => ({
-  preview: null,
-  openPreview: (selection) => set({ preview: selection }),
+  focus: null,
+  presented: false,
+  openPreview: (selection) => set({ focus: selection }),
   updatePreviewSubagent: (subagent) => {
-    const current = get().preview;
+    const current = get().focus;
     if (!current || !isSameSubagentPreview(current, subagent)) {
       return;
     }
@@ -123,7 +154,13 @@ export const useSubagentPreviewStore = create<SubagentPreviewStore>((set, get) =
     if (currentSignature === nextSignature) {
       return;
     }
-    set({ preview: { ...current, key: subagentPreviewKey(subagent), subagent } });
+    set({ focus: { ...current, key: subagentPreviewKey(subagent), subagent } });
   },
-  closePreview: () => set({ preview: null }),
+  setPreviewPresented: (presented) => {
+    if (get().presented === presented) {
+      return;
+    }
+    set({ presented });
+  },
+  closePreview: () => set({ focus: null, presented: false }),
 }));

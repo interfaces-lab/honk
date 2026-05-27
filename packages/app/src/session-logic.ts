@@ -50,6 +50,7 @@ export const PROVIDER_OPTIONS: Array<{
 export interface WorkLogSubagent {
   threadId: string;
   providerThreadId?: string | undefined;
+  parentItemId?: string | undefined;
   resolvedThreadId?: string | undefined;
   agentId?: string | undefined;
   nickname?: string | undefined;
@@ -758,6 +759,9 @@ export function deriveWorkLogEntries(
   const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
   const subagentUsageByProviderThreadId = deriveSubagentUsageByProviderThreadId(ordered);
   const subagentDetailsByProviderThreadId = deriveSubagentDetailsByProviderThreadId(ordered);
+  const subagentDetailsByParentItemId = deriveSubagentDetailsByParentItemId(
+    subagentDetailsByProviderThreadId,
+  );
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
     .filter((activity) => activity.kind !== "context-window.updated")
@@ -802,22 +806,48 @@ export function deriveWorkLogEntries(
         }
       : entry;
     const { activityKind: _activityKind, turnId: _turnId, ...workEntry } = settledEntry;
-    workLogEntries.push(
-      workEntry.subagents && workEntry.subagents.length > 0
-        ? {
-            ...workEntry,
-            subagents: applySubagentDetails(
-              applySubagentUsage(workEntry.subagents, subagentUsageByProviderThreadId),
-              subagentDetailsByProviderThreadId,
-            ),
-          }
-        : workEntry,
+    const subagents = mergeSubagents(
+      workEntry.subagents,
+      workEntry.toolCallId
+        ? subagentDetailsByParentItemId
+            .get(workEntry.toolCallId)
+            ?.map(subagentFromDerivedDetails)
+        : undefined,
     );
+    if (shouldOmitWorkLogEntry(workEntry, subagents)) {
+      continue;
+    }
+    if (subagents.length === 0) {
+      workLogEntries.push(workEntry);
+      continue;
+    }
+    workLogEntries.push({
+      ...workEntry,
+      subagents: applySubagentDetails(
+        applySubagentUsage(subagents, subagentUsageByProviderThreadId),
+        subagentDetailsByProviderThreadId,
+      ),
+    });
   }
   return workLogEntries;
 }
 
+function shouldOmitWorkLogEntry(
+  workEntry: WorkLogEntry,
+  subagents: ReadonlyArray<WorkLogSubagent>,
+): boolean {
+  return workEntry.itemType === "collab_agent_tool_call" && subagents.length === 0;
+}
+
 interface DerivedSubagentDetails {
+  readonly providerThreadId: string;
+  readonly parentItemId?: string | undefined;
+  readonly agentId?: string | undefined;
+  readonly nickname?: string | undefined;
+  readonly role?: string | undefined;
+  readonly model?: string | undefined;
+  readonly prompt?: string | undefined;
+  readonly title?: string | undefined;
   readonly rawStatus?: string | undefined;
   readonly statusLabel?: string | undefined;
   readonly latestUpdate?: string | undefined;
@@ -857,12 +887,23 @@ function deriveSubagentDetailsByProviderThreadId(
       continue;
     }
 
+    const previous = detailsByProviderThreadId.get(providerThreadId);
+    const identity = deriveSubagentIdentityDetails(providerThreadId, payload, previous);
+
     if (activity.kind === "subagent.content.delta") {
       reduceTranscriptDelta(transcriptByProviderThreadId, providerThreadId, activity, payload);
+      detailsByProviderThreadId.set(providerThreadId, {
+        ...identity,
+        rawStatus: previous?.rawStatus,
+        statusLabel: previous?.statusLabel,
+        latestUpdate: previous?.latestUpdate,
+        isActive: previous?.isActive,
+        logs: previous?.logs ?? [],
+        transcriptItems: previous?.transcriptItems ?? [],
+      });
       continue;
     }
 
-    const previous = detailsByProviderThreadId.get(providerThreadId);
     const log = toSubagentLog(activity, payload);
     const rawStatus = resolveSubagentRawStatus(activity, payload) ?? previous?.rawStatus;
     const statusLabel = resolveSubagentStatusLabel(rawStatus) ?? previous?.statusLabel;
@@ -888,6 +929,7 @@ function deriveSubagentDetailsByProviderThreadId(
     }
 
     detailsByProviderThreadId.set(providerThreadId, {
+      ...identity,
       rawStatus,
       statusLabel,
       latestUpdate,
@@ -906,11 +948,79 @@ function deriveSubagentDetailsByProviderThreadId(
     if (existing) {
       detailsByProviderThreadId.set(providerThreadId, { ...existing, transcriptItems: items });
     } else {
-      detailsByProviderThreadId.set(providerThreadId, { logs: [], transcriptItems: items });
+      detailsByProviderThreadId.set(providerThreadId, {
+        providerThreadId,
+        logs: [],
+        transcriptItems: items,
+      });
     }
   }
 
   return detailsByProviderThreadId;
+}
+
+function deriveSubagentIdentityDetails(
+  providerThreadId: string,
+  payload: Record<string, unknown> | null,
+  previous: DerivedSubagentDetails | undefined,
+): Pick<
+  DerivedSubagentDetails,
+  "providerThreadId" | "parentItemId" | "agentId" | "nickname" | "role" | "model" | "prompt" | "title"
+> {
+  const parentItemId = asTrimmedString(payload?.parentItemId) ?? previous?.parentItemId;
+  const agentId = asTrimmedString(payload?.agentId) ?? previous?.agentId;
+  const nickname = asTrimmedString(payload?.nickname) ?? previous?.nickname;
+  const role = asTrimmedString(payload?.role) ?? previous?.role;
+  const model = asTrimmedString(payload?.model) ?? previous?.model;
+  const prompt = asTrimmedString(payload?.prompt) ?? previous?.prompt;
+  const title = resolveSubagentTitle(nickname, role) ?? previous?.title;
+  return {
+    providerThreadId,
+    ...(parentItemId ? { parentItemId } : {}),
+    ...(agentId ? { agentId } : {}),
+    ...(nickname ? { nickname } : {}),
+    ...(role ? { role } : {}),
+    ...(model ? { model } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(title ? { title } : {}),
+  };
+}
+
+function deriveSubagentDetailsByParentItemId(
+  detailsByProviderThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
+): Map<string, DerivedSubagentDetails[]> {
+  const detailsByParentItemId = new Map<string, DerivedSubagentDetails[]>();
+  for (const details of detailsByProviderThreadId.values()) {
+    if (!details.parentItemId) {
+      continue;
+    }
+    const current = detailsByParentItemId.get(details.parentItemId) ?? [];
+    current.push(details);
+    detailsByParentItemId.set(details.parentItemId, current);
+  }
+  return detailsByParentItemId;
+}
+
+function subagentFromDerivedDetails(details: DerivedSubagentDetails): WorkLogSubagent {
+  const hasTranscript = details.transcriptItems.length > 0;
+  return {
+    threadId: details.providerThreadId,
+    providerThreadId: details.providerThreadId,
+    ...(details.parentItemId ? { parentItemId: details.parentItemId } : {}),
+    ...(details.agentId ? { agentId: details.agentId } : {}),
+    ...(details.nickname ? { nickname: details.nickname } : {}),
+    ...(details.role ? { role: details.role } : {}),
+    ...(details.model ? { model: details.model } : {}),
+    ...(details.prompt ? { prompt: details.prompt } : {}),
+    ...(details.title ? { title: details.title } : {}),
+    ...(details.rawStatus ? { rawStatus: details.rawStatus } : {}),
+    ...(details.latestUpdate ? { latestUpdate: details.latestUpdate } : {}),
+    ...(details.statusLabel ? { statusLabel: details.statusLabel } : {}),
+    ...(details.isActive !== undefined ? { isActive: details.isActive } : {}),
+    logs: details.logs,
+    ...(hasTranscript ? { transcriptItems: details.transcriptItems } : {}),
+    hasDetails: details.logs.length > 0 || hasTranscript,
+  };
 }
 
 function getOrInitTranscriptContext(
@@ -1320,6 +1430,13 @@ function applySubagentDetails(
     const hasTranscript = transcriptItems !== undefined && transcriptItems.length > 0;
     return {
       ...subagent,
+      ...(details.parentItemId ? { parentItemId: details.parentItemId } : {}),
+      ...(details.agentId ? { agentId: details.agentId } : {}),
+      ...(details.nickname ? { nickname: details.nickname } : {}),
+      ...(details.role ? { role: details.role } : {}),
+      ...(details.model ? { model: details.model } : {}),
+      ...(details.prompt ? { prompt: details.prompt } : {}),
+      ...(details.title ? { title: details.title } : {}),
       ...(details.rawStatus ? { rawStatus: details.rawStatus } : {}),
       ...(details.statusLabel ? { statusLabel: details.statusLabel } : {}),
       ...(details.latestUpdate ? { latestUpdate: details.latestUpdate } : {}),
@@ -1409,9 +1526,8 @@ function toDerivedWorkLogEntry(
   const itemType = extractWorkLogItemType(payload);
   const requestKind = extractWorkLogRequestKind(payload);
   const toolCallId = asTrimmedString(payload?.itemId);
-  const isSubagentLifecycle = itemType === "collab_agent_tool_call" || subagents.length > 0;
   const entryId =
-    toolCallId && isToolLifecycleActivityKind(activity.kind) && !isSubagentLifecycle
+    toolCallId && isToolLifecycleActivityKind(activity.kind)
       ? activity.turnId
         ? `tool:${activity.turnId}:${toolCallId}`
         : `tool:${toolCallId}`
@@ -1565,7 +1681,7 @@ function collapseDerivedWorkLogEntries(
 
 function activeLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefined {
   if (isToolLifecycleActivityKind(entry.activityKind)) {
-    if (!entry.toolCallId || isSubagentLifecycleEntry(entry)) {
+    if (!entry.toolCallId) {
       return undefined;
     }
     return entry.id;
@@ -1604,9 +1720,6 @@ function shouldCollapseToolLifecycleEntries(
   previous: DerivedWorkLogEntry,
   next: DerivedWorkLogEntry,
 ): boolean {
-  if (isSubagentLifecycleEntry(previous) || isSubagentLifecycleEntry(next)) {
-    return false;
-  }
   if (!isToolLifecycleActivityKind(previous.activityKind)) {
     return false;
   }
@@ -1629,10 +1742,6 @@ function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
 
 function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
   return kind === "task.started" || kind === "task.progress" || kind === "task.completed";
-}
-
-function isSubagentLifecycleEntry(entry: DerivedWorkLogEntry): boolean {
-  return entry.itemType === "collab_agent_tool_call" || (entry.subagents?.length ?? 0) > 0;
 }
 
 function mergeDerivedWorkLogEntries(
@@ -2815,6 +2924,10 @@ function extractWorkLogSubagents(
     return [];
   }
 
+  if (!shouldExtractWorkLogSubagents(item)) {
+    return [];
+  }
+
   const threadIds = decodeSubagentReceiverThreadIds(item);
   const agents = decodeSubagentReceiverAgents(item, threadIds);
   const states = decodeSubagentAgentStates(item);
@@ -2859,6 +2972,11 @@ function extractWorkLogSubagents(
   }
 
   return [...byThreadId.values()];
+}
+
+function shouldExtractWorkLogSubagents(item: Record<string, unknown>): boolean {
+  const tool = asTrimmedString(item.tool);
+  return tool !== "wait";
 }
 
 function extractSubagentAction(

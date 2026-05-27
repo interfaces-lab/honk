@@ -1,20 +1,24 @@
 # Composer chat parity implementation plan
 
-Plan for matching Cursor's local composer timeline in Multi. Scope is the **composer chat surface**: timeline, tools, work groups, subagent UI, composer input, and related styles.
+Plan for matching Cursor's local composer timeline in Multi. Scope is the composer chat surface: timeline, tools, work groups, subagent UI, composer input, and related styles.
 
 Visual and wire-shape reference for Cursor lives in `cursor-composer-reference.md`. Implementation work stays in Multi's orchestration and chat packages.
 
 Last verified: 2026-05-26.
 
-Orchestration checkpoint: `OrchestrationThreadActivity` is the typed activity
-union. Do not add parallel `Typed*` activity aliases, keyword-based helpers, or
-provider-runtime event names as composer timeline rows.
+Orchestration checkpoint: `OrchestrationThreadActivity` is the typed activity union. Do not add parallel `Typed*` activity aliases, keyword-based helpers, or provider-runtime event names as composer timeline rows.
 
-## What matters first
+## Recent corrections
 
-The current failure mode is not a CSS-only problem. Multi shows a work-group preview while the run is still active, loses subagent focus when the composer collapses, and polls a separate subagent snapshot instead of rendering one coherent timeline.
+Three earlier mistakes drove visible regressions. They are fixed; do not reintroduce them.
 
-Fix those first. Lexical and rich text parity is real, but it should not block the screenshot-level chat fixes.
+1. Chrome on task and shell tool calls. Cursor only paints a bordered card on the todos tool. Multi has no todos surface. No tool call should draw a border, fill, or radius. Anywhere chrome existed (the task wrapper, the shell expanded body, the `EditToolCall` body, the metadata block) was stripped back to typography and indentation.
+2. Tool message font size pinned to 12px. Cursor renders tool lines and titles at the markdown body size (13px in the audited build). The `font-size` overrides in `tool-call.css` were removed. Tool messages inherit the markdown size.
+3. Deleting the subagent preview store and tray in `new-chat`. The "broken card with chrome" the user reported was the missing overlay, not a styling issue on the task card. The store and tray were restored from `main`; the dim mask, click-capture, and CSS were re-wired.
+
+## What matters next
+
+Multi still shows a work-group preview while the run is active, loses subagent focus when the composer collapses, and polls a snapshot during runs instead of streaming `subagent.*` activities. Fix those before rich text parity.
 
 ## Data path (what this plan owns)
 
@@ -84,15 +88,15 @@ Out of scope:
 
 ## Current diagnosis
 
-Multi models agent work through three loosely connected views:
+Multi has three views of agent work that do not share state cleanly:
 
 1. `WorkGroupSection` renders generic `work` timeline rows from `deriveWorkLogEntries`.
-2. `SubagentStatusRow` opens a composer preview tray.
-3. `SubagentPreviewTray` reads provider thread snapshots on a timer instead of streaming from `subagent.*` activities already on the thread.
+2. `SubagentStatusRow` opens the composer preview tray.
+3. `SubagentPreviewTray` reads provider thread snapshots on a 2500ms timer instead of streaming from `subagent.*` activities already on the thread.
 
-Cursor models the same area as typed tool rows on a shared `ui-tool-call-line` base, group headers for collapsed summaries, and a task tool card with nested streamed steps.
+Cursor models the same area as typed tool rows on a shared `ui-tool-call-line` base, group headers for collapsed summaries, and a separate overlay for the full transcript. None of those tool surfaces draws chrome; only the todos tool gets a border.
 
-The result in Multi is predictable. A header can say "Working · 16 steps" while the body shows only the preview tail. The subagent tray can feel detached because collapsing the composer clears the selected preview. The tray can flicker because it refreshes snapshots every 2500ms during active runs.
+What this produces in Multi today: a header that says "Working · 16 steps" while the body shows only the preview tail, a subagent tray that loses its selection when the composer collapses, and tray flicker every 2.5 seconds during active runs.
 
 ## Priority plan
 
@@ -100,12 +104,12 @@ The result in Multi is predictable. A header can say "Working · 16 steps" while
 | ----- | ----- | ---------- |
 | P0-A | Work groups render all entries when expanded, even while running. Collapsed running state may show a small tail preview. | Expanding "Working · 16 steps" shows 16 rows. |
 | P0-B | Split subagent selection from presentation with a `subagentFocus` store and `subagentPresented` state. | Collapse composer, expand again, and the same subagent is still selected. |
-| P0-C | Virtualize subagent tray or task body scroll regions. | 100+ subagent steps scroll smoothly. |
+| P0-C | Virtualize subagent tray scroll regions. | 100+ subagent steps scroll smoothly. |
 | P0-D | Drive subagent transcript from `subagent.*` thread activities, including coalesced `subagent.content.delta`; snapshot poll is reconcile-only. | Steady active runs do not flicker. |
 | P0-E | Export one `isCommandWorkEntry` helper from `timeline-rows.ts` and delete the duplicate in `messages-timeline.tsx`. | Command group classification is consistent. |
 | P0-F | Extract `coalesceOrchestrationUiEvents` from `service.ts`, then add subscription microbatching for activity bursts. | `service.ts` drops below 1000 lines without behavior changes; activity-heavy runs commit at most once per frame. |
 | P1 | Finish work-log derivation from `OrchestrationThreadActivity` (`tool.summary`, stable tool lifecycle collapse, activity noise). | Activity count and work rows match a production-like thread. |
-| P2 | Fix shell/task labels, add shell output preview, and style task cards through `tool-call.css`. | Shell rows say `Running command` and `Ran command`; task rows look like cards. |
+| P2 | Fix shell/task labels and add shell output preview. | Shell rows say `Running command` and `Ran command`. |
 | P2-M | Wire chat motion to motion tokens, add reduced-motion handling, and reveal task chevrons on hover. | No shimmer or smooth scroll under reduced motion; chat menus remain instant. |
 | P3 | Add extra timeline row kinds only if orchestration already exposes equivalent local activities. | No Cursor cloud-only rows are copied. |
 | P4-A | Add Lexical composer input and store `richText` on sent messages. | Send and reopen a thread with text plus rich text intact. |
@@ -159,7 +163,7 @@ Expected behavior:
 
 | Event | Store | UI |
 | ----- | ----- | -- |
-| Click a subagent row | Set `subagentFocus`. | Expand or highlight the task tool card. |
+| Click a subagent row | Set `subagentFocus`. | |
 | Collapse composer | Keep `subagentFocus`. | Hide the tray only. |
 | Expand composer | Keep store unchanged. | Show the same tray again. |
 | Change thread | Clear `subagentFocus`. | Close the tray. |
@@ -214,16 +218,16 @@ Labels should match the tool semantics:
 | `deleteToolCall` | `Deleting` | `Deleted` |
 | `taskToolCall` | `Working on task` | `Completed task` |
 
-Style tool rows through `tool-call.css` with data attributes already emitted by the React components. Add `data-shell-tool-call` on shell roots and `data-task-tool-call` on task card roots.
+Style tool rows through `tool-call.css` with data attributes already emitted by the React components.
 
-Keep Tailwind for one-off layout. Put cross-cutting tool row, shell card, task card, shimmer, and margin-collapse rules in CSS.
+Keep Tailwind for one-off layout. Put cross-cutting tool row, shell, task, shimmer, and margin-collapse rules in CSS.
 
 Add these data hooks as the CSS contract:
 
 | Hook | Owner |
 | ---- | ----- |
-| `data-shell-tool-call` | Shell tool card root. |
-| `data-task-tool-call` | Task tool card root. |
+| `data-shell-tool-call` | Shell tool root. |
+| `data-task-tool-call` | Task tool root. |
 | `data-tool-summary` | `tool.summary` row. |
 | `data-assistant-tool-row` | Work-group tool row wrapper. |
 

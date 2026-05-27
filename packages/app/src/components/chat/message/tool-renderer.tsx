@@ -798,7 +798,6 @@ function ShellToolCall({
   }
   const metadataItems = getCommandMetadataItems(artifact);
   const hasContent = command.length > 0 || Boolean(output) || metadataItems.length > 0;
-  const isPending = approval?.status === "pending";
   const expandable = hasContent;
   const isExpanded = activeExpansionState.isExpanded;
 
@@ -872,22 +871,17 @@ function ShellToolCall({
       </button>
       {isExpanded && hasContent ? (
         <div className="mt-1 min-w-0 max-w-full" data-shell-tool-call-body="">
-          <div
-            className={cn(
-              "relative overflow-hidden rounded-multi-control border bg-multi-editor",
-              "border-multi-stroke-secondary",
-              isPending && "border-multi-stroke-primary",
-              hasError && "border-multi-fg-red-primary",
-            )}
-          >
+          <div className="min-w-0 max-w-full">
             {command ? (
               <pre
                 className={cn(
-                  "m-0 bg-multi-editor",
-                  "px-(--conversation-tool-card-padding-x)",
-                  "py-1.5",
+                  "m-0",
+                  "py-1",
                   "font-mono text-conversation whitespace-pre-wrap",
-                  "text-multi-fg-tertiary wrap-anywhere select-text",
+                  hasError
+                    ? "text-multi-fg-red-primary"
+                    : "text-multi-fg-tertiary",
+                  "wrap-anywhere select-text",
                 )}
               >
                 <span className="text-multi-fg-tertiary select-none">$ </span>
@@ -897,9 +891,8 @@ function ShellToolCall({
             {output ? (
               <pre
                 className={cn(
-                  "m-0 bg-multi-editor",
-                  "px-(--conversation-tool-card-padding-x)",
-                  "pb-1.5",
+                  "m-0",
+                  "pb-1",
                   "font-mono text-conversation whitespace-pre-wrap",
                   "text-multi-fg-tertiary wrap-anywhere select-text",
                 )}
@@ -908,7 +901,7 @@ function ShellToolCall({
               </pre>
             ) : null}
             {metadataItems.length > 0 ? (
-              <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-multi-stroke-tertiary px-(--conversation-tool-card-padding-x) py-1 text-detail text-multi-fg-tertiary">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 py-1 text-detail text-multi-fg-tertiary">
                 {metadataItems.map((item) => (
                   <span key={item}>{item}</span>
                 ))}

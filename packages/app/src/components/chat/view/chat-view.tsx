@@ -1042,7 +1042,7 @@ export default function ChatView(props: ChatViewProps) {
     (store) => store.setLogicalProjectDraftThreadId,
   );
   const gitAgentActionHandoff = useGitAgentActionHandoff();
-  const subagentPreviewOpen = useSubagentPreviewStore((state) => state.preview !== null);
+  const subagentPreviewPresented = useSubagentPreviewStore((state) => state.presented);
   const closeSubagentPreview = useSubagentPreviewStore((state) => state.closePreview);
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
@@ -3425,7 +3425,7 @@ export default function ChatView(props: ChatViewProps) {
             <div
               className="relative flex min-h-0 flex-1 flex-col"
               data-subagent-conversation-shell=""
-              data-subagent-preview-open={subagentPreviewOpen ? "" : undefined}
+              data-subagent-preview-open={subagentPreviewPresented ? "" : undefined}
             >
               <div data-subagent-conversation-mask="">
                 {branchView.status === "invalid" ? (
@@ -3477,7 +3477,7 @@ export default function ChatView(props: ChatViewProps) {
                   </div>
                 )}
               </div>
-              {subagentPreviewOpen ? (
+              {subagentPreviewPresented ? (
                 <button
                   type="button"
                   data-subagent-preview-click-capture=""
