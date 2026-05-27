@@ -96,9 +96,7 @@ function ToolSummaryRow({ text }: { text: string }) {
         className="mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary"
         aria-hidden="true"
       />
-      <div className="min-w-0 flex-1 whitespace-pre-wrap break-words wrap-anywhere">
-        {trimmed}
-      </div>
+      <div className="min-w-0 flex-1 whitespace-pre-wrap break-words wrap-anywhere">{trimmed}</div>
     </div>
   );
 }
@@ -127,10 +125,7 @@ function SubagentStatusSurface({
       data-subagent-open={hasOpenPreview ? "" : undefined}
       className="w-full min-w-0 max-w-full px-3 py-1 text-conversation"
     >
-      <div
-        data-subagent-status-stack=""
-        className="flex w-full min-w-0 flex-col items-start gap-1"
-      >
+      <div data-subagent-status-stack="" className="flex w-full min-w-0 flex-col items-start gap-1">
         {subagents.map((subagent) => (
           <SubagentStatusRow
             key={subagentPreviewKey(subagent)}

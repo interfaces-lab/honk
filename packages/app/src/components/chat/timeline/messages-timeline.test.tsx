@@ -240,6 +240,25 @@ describe("messages-timeline", () => {
     const markup = renderToStaticMarkup(<ToolCallRenderer toolCall={toolCall} defaultExpanded />);
 
     expect(markup).toContain("first line");
+    expect(markup.split("CONTEXT.md")).toHaveLength(2);
     expect(markup).not.toContain("/bin/zsh -lc");
+  });
+
+  it("does not expose generic completed task labels for subagent tool calls", () => {
+    const toolCall: ToolCallModel = {
+      tool: {
+        case: "taskToolCall",
+        value: {
+          action: "Task",
+          details: "Please inspect the local codebase.",
+        },
+      },
+    };
+
+    const markup = renderToStaticMarkup(<ToolCallRenderer toolCall={toolCall} />);
+
+    expect(markup).toContain("Subagent");
+    expect(markup).not.toContain("Completed task");
+    expect(markup).not.toContain("Please inspect the local codebase.");
   });
 });

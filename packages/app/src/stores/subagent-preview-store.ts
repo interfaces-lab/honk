@@ -43,10 +43,17 @@ export function isSubagentPreviewLogVisible(
   if (log.kind === "subagent.content.delta") {
     return false;
   }
+  if (
+    log.kind === "subagent.item.started" ||
+    log.kind === "subagent.item.updated" ||
+    log.kind === "subagent.item.completed"
+  ) {
+    return false;
+  }
   if (!hasCanonicalTranscript) {
     return true;
   }
-  if (log.kind === "subagent.thread.state.changed") {
+  if (log.kind === "subagent.thread.started" || log.kind === "subagent.thread.state.changed") {
     return false;
   }
   return !isSubagentProviderSnapshotItemType(log.itemType);
@@ -72,7 +79,10 @@ export function subagentPreviewUpdateSignature(subagent: WorkLogSubagent): strin
     subagent.maxTokens ?? "",
     subagent.usedPercentage ?? "",
     subagent.hasDetails === true ? "1" : "0",
-    subagentPreviewVisibleLogsSignature(subagent.logs),
+    subagentPreviewVisibleLogsSignature(
+      subagent.logs,
+      (subagent.transcriptItems?.length ?? 0) > 0,
+    ),
     subagentPreviewTranscriptSignature(subagent.transcriptItems),
   ].join("\u001f");
 }
@@ -94,6 +104,9 @@ function subagentPreviewTranscriptSignature(
         item.role ?? "",
         item.title ?? "",
         item.text ?? "",
+        item.command ?? "",
+        item.rawCommand ?? "",
+        item.output ?? "",
         item.itemType ?? "",
         item.status ?? "",
         item.streamKind ?? "",
@@ -105,6 +118,7 @@ function subagentPreviewTranscriptSignature(
 
 function subagentPreviewVisibleLogsSignature(
   logs: ReadonlyArray<WorkLogSubagentLog> | undefined,
+  hasCanonicalTranscript: boolean,
 ): string {
   if (!logs || logs.length === 0) {
     return "";
@@ -112,7 +126,7 @@ function subagentPreviewVisibleLogsSignature(
 
   const visibleLogSignatures: string[] = [];
   for (const log of logs) {
-    if (log.kind === "subagent.content.delta") {
+    if (!isSubagentPreviewLogVisible(log, hasCanonicalTranscript)) {
       continue;
     }
     visibleLogSignatures.push(

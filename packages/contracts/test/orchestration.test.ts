@@ -563,3 +563,101 @@ it.effect("validates orchestration activity payloads by kind", () =>
     assert.strictEqual(result._tag, "Failure");
   }),
 );
+
+it.effect("validates canonical subagent activity payloads", () =>
+  Effect.gen(function* () {
+    const reasoningItem = yield* decodeOrchestrationThreadActivity({
+      id: "activity-subagent-item-1",
+      tone: "tool",
+      kind: "subagent.item.completed",
+      summary: "Reasoning",
+      payload: {
+        providerThreadId: "provider-thread-1",
+        parentItemId: "call_1",
+        itemId: "rs_1",
+        itemType: "reasoning",
+        status: "completed",
+        title: "Reasoning",
+        detail: "I inspected the relevant files.",
+      },
+      turnId: "turn-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    if (reasoningItem.kind !== "subagent.item.completed") {
+      throw new Error("Expected subagent item activity.");
+    }
+    assert.strictEqual(reasoningItem.payload.providerThreadId, "provider-thread-1");
+    assert.strictEqual(reasoningItem.payload.itemType, "reasoning");
+
+    const reasoningDelta = yield* decodeOrchestrationThreadActivity({
+      id: "activity-subagent-delta-1",
+      tone: "tool",
+      kind: "subagent.content.delta",
+      summary: "Subagent output",
+      payload: {
+        providerThreadId: "provider-thread-1",
+        streamKind: "reasoning_summary_text",
+        delta: "Inspecting files",
+        itemId: "rs_1",
+      },
+      turnId: "turn-1",
+      createdAt: "2026-01-01T00:00:01.000Z",
+    });
+
+    if (reasoningDelta.kind !== "subagent.content.delta") {
+      throw new Error("Expected subagent delta activity.");
+    }
+    assert.strictEqual(reasoningDelta.payload.streamKind, "reasoning_summary_text");
+
+    const missingThread = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-subagent-item-2",
+        tone: "tool",
+        kind: "subagent.item.completed",
+        summary: "Reasoning",
+        payload: {
+          itemType: "reasoning",
+          detail: "Missing provider thread.",
+        },
+        turnId: "turn-1",
+        createdAt: "2026-01-01T00:00:02.000Z",
+      }),
+    );
+    assert.strictEqual(missingThread._tag, "Failure");
+
+    const invalidItemType = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-subagent-item-3",
+        tone: "tool",
+        kind: "subagent.item.completed",
+        summary: "Reasoning",
+        payload: {
+          providerThreadId: "provider-thread-1",
+          itemType: "not_canonical",
+          detail: "Invalid item type.",
+        },
+        turnId: "turn-1",
+        createdAt: "2026-01-01T00:00:03.000Z",
+      }),
+    );
+    assert.strictEqual(invalidItemType._tag, "Failure");
+
+    const invalidStreamKind = yield* Effect.exit(
+      decodeOrchestrationThreadActivity({
+        id: "activity-subagent-delta-2",
+        tone: "tool",
+        kind: "subagent.content.delta",
+        summary: "Subagent output",
+        payload: {
+          providerThreadId: "provider-thread-1",
+          streamKind: "debug_text",
+          delta: "Invalid stream.",
+        },
+        turnId: "turn-1",
+        createdAt: "2026-01-01T00:00:04.000Z",
+      }),
+    );
+    assert.strictEqual(invalidStreamKind._tag, "Failure");
+  }),
+);

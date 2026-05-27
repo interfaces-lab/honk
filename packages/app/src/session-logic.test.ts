@@ -32,17 +32,44 @@ function makeActivity(overrides: {
   turnId?: string;
   sequence?: number;
 }): OrchestrationThreadActivity {
-  const payload = overrides.payload ?? {};
+  const id = overrides.id ?? crypto.randomUUID();
+  const kind = overrides.kind ?? "tool.started";
+  const payload = withActivityPayloadDefaults(kind, overrides.payload ?? {}, id);
   return Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-    id: EventId.make(overrides.id ?? crypto.randomUUID()),
+    id: EventId.make(id),
     createdAt: overrides.createdAt ?? "2026-02-23T00:00:00.000Z",
-    kind: overrides.kind ?? "tool.started",
+    kind,
     summary: overrides.summary ?? "Tool call",
     tone: overrides.tone ?? "tool",
     payload,
     turnId: overrides.turnId ? TurnId.make(overrides.turnId) : null,
     ...(overrides.sequence !== undefined ? { sequence: overrides.sequence } : {}),
   });
+}
+
+function withActivityPayloadDefaults(
+  kind: OrchestrationThreadActivity["kind"],
+  payload: Record<string, unknown>,
+  activityId: string,
+): Record<string, unknown> {
+  switch (kind) {
+    case "task.started":
+      return { taskId: activityId, ...payload };
+    case "task.progress":
+      return {
+        taskId: activityId,
+        detail: typeof payload.summary === "string" ? payload.summary : "Task progress",
+        ...payload,
+      };
+    case "task.completed":
+      return { taskId: activityId, status: "completed", ...payload };
+    case "context-window.updated":
+      return { usedTokens: 0, ...payload };
+    case "context-compaction":
+      return { state: "compacted", ...payload };
+    default:
+      return payload;
+  }
 }
 
 describe("derivePendingApprovals", () => {
@@ -763,9 +790,9 @@ describe("deriveWorkLogEntries", () => {
 
     const entries = deriveWorkLogEntries(activities, undefined);
     expect(entries.map((entry) => entry.id)).toEqual([
-      "task-start",
-      "task-progress",
-      "task-complete",
+      "task:task-start",
+      "task:task-progress",
+      "task:task-complete",
     ]);
     expect(entries.map((entry) => entry.status)).toEqual(["running", "running", "completed"]);
   });
@@ -1351,6 +1378,52 @@ describe("deriveWorkLogEntries", () => {
     expect(entries.map((entry) => entry.command)).toEqual(["pnpm lint", "pnpm test"]);
   });
 
+  it("collapses a tool lifecycle when one event is missing its turn id", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "command-update",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.updated",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+        },
+      }),
+      makeActivity({
+        id: "command-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+          data: {
+            result: {
+              stdout: "typecheck passed\n",
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: "tool:turn-1:command-1",
+      toolCallId: "command-1",
+      command: "pnpm run typecheck",
+      output: "typecheck passed",
+      status: "completed",
+    });
+  });
+
   it("collapses same-timestamp lifecycle rows even when completed sorts before updated by id", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({
@@ -1581,6 +1654,437 @@ describe("deriveWorkLogEntries", () => {
       role: "assistant",
       text: "Reviewed the database layer.",
       loading: true,
+    });
+  });
+
+  it("keeps subagent reasoning detail as a reasoning transcript item", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the database layer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-reasoning",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.completed",
+        summary: "Reasoning",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "reasoning-1",
+          itemType: "reasoning",
+          status: "completed",
+          title: "Reasoning",
+          detail: "I inspected the relevant files.",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]).toMatchObject({
+      itemId: "reasoning-1",
+      kind: "reasoning",
+      title: "Reasoning",
+      text: "I inspected the relevant files.",
+      loading: false,
+    });
+  });
+
+  it("hydrates subagent user message text from canonical item content", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the database layer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-user-message",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.completed",
+        summary: "User message",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "user-message-1",
+          itemType: "user_message",
+          status: "completed",
+          title: "User message",
+          data: {
+            item: {
+              content: [
+                {
+                  type: "text",
+                  text: "Please inspect the local codebase.",
+                },
+              ],
+              id: "user-message-1",
+              type: "userMessage",
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]).toMatchObject({
+      itemId: "user-message-1",
+      kind: "message",
+      role: "user",
+      text: "Please inspect the local codebase.",
+      loading: false,
+    });
+  });
+
+  it("keeps subagent reasoning stream detail as a reasoning transcript item", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the database layer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-reasoning-start",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.started",
+        summary: "Reasoning",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "reasoning-1",
+          itemType: "reasoning",
+          status: "running",
+          title: "Reasoning",
+        },
+      }),
+      makeActivity({
+        id: "subagent-reasoning-delta",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.content.delta",
+        summary: "Reasoning update",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "reasoning-1",
+          streamKind: "reasoning_summary_text",
+          delta: "Inspecting files.",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]).toMatchObject({
+      itemId: "reasoning-1",
+      kind: "reasoning",
+      title: "Reasoning",
+      text: "Inspecting files.",
+      loading: true,
+      streamKind: "reasoning_summary_text",
+    });
+  });
+
+  it("keeps subagent command lifecycle and output in one transcript tool row", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the database layer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-start",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.started",
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "command-1",
+          itemType: "command_execution",
+          status: "inProgress",
+          title: "Ran command",
+          detail: "/bin/zsh -lc 'pnpm run typecheck'",
+          data: {
+            item: {
+              command: "/bin/zsh -lc 'pnpm run typecheck'",
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-output",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.content.delta",
+        summary: "Command output",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "command-1",
+          streamKind: "command_output",
+          delta: "typecheck passed\n",
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-output-2",
+        createdAt: "2026-02-23T00:00:04.500Z",
+        kind: "subagent.content.delta",
+        summary: "Command output",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "command-1",
+          streamKind: "command_output",
+          delta: "all good\n",
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-complete",
+        createdAt: "2026-02-23T00:00:05.000Z",
+        kind: "subagent.item.completed",
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "command-1",
+          itemType: "command_execution",
+          status: "completed",
+          title: "Ran command",
+          detail: "/bin/zsh -lc 'pnpm run typecheck'",
+          data: {
+            item: {
+              aggregatedOutput: "typecheck passed\nall good\n",
+              command: "/bin/zsh -lc 'pnpm run typecheck'",
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-message",
+        createdAt: "2026-02-23T00:00:06.000Z",
+        kind: "subagent.item.completed",
+        summary: "Subagent message",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          itemType: "assistant_message",
+          status: "completed",
+          detail: "Typecheck passed.",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.subagents?.[0]?.transcriptItems).toEqual([
+      expect.objectContaining({
+        itemId: "command-1",
+        kind: "command",
+        title: "Ran command",
+        command: "pnpm run typecheck",
+        rawCommand: "/bin/zsh -lc 'pnpm run typecheck'",
+        output: "typecheck passed\nall good",
+      }),
+      expect.objectContaining({
+        itemId: "subagent-message-1",
+        kind: "message",
+        text: "Typecheck passed.",
+      }),
+    ]);
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]?.text).toBeUndefined();
+  });
+
+  it("hydrates subagent command output from completed payload without duplicate command text", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the database layer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-complete",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.completed",
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "command-1",
+          itemType: "command_execution",
+          status: "completed",
+          title: "Ran command",
+          detail: "/bin/zsh -lc 'pnpm dlx @tanstack/intent@latest list'",
+          data: {
+            item: {
+              aggregatedOutput: "3 intent-enabled packages, 14 skills\nWarnings:\nnone",
+              command: "/bin/zsh -lc 'pnpm dlx @tanstack/intent@latest list'",
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+    const commandItem = entries[0]?.subagents?.[0]?.transcriptItems?.[0];
+
+    expect(commandItem).toMatchObject({
+      itemId: "command-1",
+      kind: "command",
+      command: "pnpm dlx @tanstack/intent@latest list",
+      rawCommand: "/bin/zsh -lc 'pnpm dlx @tanstack/intent@latest list'",
+      output: "3 intent-enabled packages, 14 skills\nWarnings:\nnone",
+    });
+    expect(commandItem?.text).toBeUndefined();
+  });
+
+  it("uses raw subagent message text instead of truncated lifecycle detail", () => {
+    const fullSummary =
+      "Multi is a pnpm/Turbo TypeScript monorepo for a desktop coding-agent app. The product is a local server plus a web UI, wrapped by Electron for desktop. Main docs are README.md and AGENTS.md.";
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the repo",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-message",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.completed",
+        summary: "Subagent message",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          itemType: "assistant_message",
+          status: "completed",
+          detail:
+            "Multi is a pnpm/Turbo TypeScript monorepo for a desktop coding-agent app. The product is a local ser...",
+          data: {
+            item: {
+              id: "subagent-message-1",
+              text: fullSummary,
+              type: "agentMessage",
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries[0]?.subagents?.[0]?.transcriptItems?.[0]).toMatchObject({
+      itemId: "subagent-message-1",
+      kind: "message",
+      role: "assistant",
+      text: fullSummary,
     });
   });
 

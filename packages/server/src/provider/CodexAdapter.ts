@@ -259,6 +259,11 @@ function itemTitle(itemType: CanonicalItemType): string | undefined {
 }
 
 function itemDetail(item: CodexLifecycleItem): string | undefined {
+  const content = readItemContentText(item);
+  if (content) {
+    return content;
+  }
+
   const candidates = [
     "command" in item ? item.command : undefined,
     "title" in item ? item.title : undefined,
@@ -273,6 +278,38 @@ function itemDetail(item: CodexLifecycleItem): string | undefined {
     return trimmed;
   }
   return undefined;
+}
+
+function readItemContentText(item: CodexLifecycleItem): string | undefined {
+  const record = readRecord(item);
+  const content = record?.content;
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const text = content
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      const entryRecord = readRecord(entry);
+      const nestedContent = readRecord(entryRecord?.content);
+      return readString(entryRecord?.text) ?? readString(nestedContent?.text);
+    })
+    .filter((entry): entry is string => entry !== undefined)
+    .join("\n")
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" ? trimText(value) : undefined;
 }
 
 function toRequestTypeFromMethod(method: string): CanonicalRequestType {

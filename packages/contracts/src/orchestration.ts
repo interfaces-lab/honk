@@ -19,6 +19,7 @@ import {
 } from "./base-schemas";
 import { ProviderInstanceId } from "./provider-instance";
 import {
+  CanonicalItemType,
   ProviderThreadSnapshotItem,
   ThreadTokenUsageSnapshot,
   ToolLifecycleItemType,
@@ -388,8 +389,18 @@ const ContextCompactionActivityPayload = Schema.Struct({
   detail: Schema.optional(Schema.Unknown),
 });
 
+const ActivityContentStreamKind = Schema.Literals([
+  "assistant_text",
+  "reasoning_text",
+  "reasoning_summary_text",
+  "plan_text",
+  "command_output",
+  "file_change_output",
+  "unknown",
+]);
+
 const SubagentIdentityActivityPayloadFields = {
-  providerThreadId: Schema.optional(TrimmedNonEmptyString),
+  providerThreadId: TrimmedNonEmptyString,
   parentProviderThreadId: Schema.optional(TrimmedNonEmptyString),
   parentTurnId: Schema.optional(TurnId),
   parentItemId: Schema.optional(ProviderItemId),
@@ -410,7 +421,7 @@ const SubagentStateChangedActivityPayload = Schema.Struct({
 
 const SubagentItemActivityPayload = Schema.Struct({
   ...SubagentIdentityActivityPayloadFields,
-  itemType: Schema.optional(TrimmedNonEmptyString),
+  itemType: Schema.optional(CanonicalItemType),
   itemId: Schema.optional(TrimmedNonEmptyString),
   status: Schema.optional(TrimmedNonEmptyString),
   title: Schema.optional(TrimmedNonEmptyString),
@@ -420,7 +431,7 @@ const SubagentItemActivityPayload = Schema.Struct({
 
 const SubagentContentDeltaActivityPayload = Schema.Struct({
   ...SubagentIdentityActivityPayloadFields,
-  streamKind: TrimmedNonEmptyString,
+  streamKind: ActivityContentStreamKind,
   delta: Schema.String,
   itemId: Schema.optional(TrimmedNonEmptyString),
   contentIndex: Schema.optional(Schema.Int),

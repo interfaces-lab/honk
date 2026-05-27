@@ -63,6 +63,11 @@ type RuntimeIngestionInput =
       event: TurnStartRequestedDomainEvent;
     };
 
+type SubagentIdentityActivityPayload = Extract<
+  OrchestrationThreadActivity,
+  { kind: "subagent.thread.started" }
+>["payload"];
+
 const processDomainEvent = (_event: TurnStartRequestedDomainEvent) => Effect.void;
 
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
@@ -116,7 +121,9 @@ function buildContextWindowActivityPayload(
   return event.payload.usage;
 }
 
-function buildSubagentIdentityPayload(subagent: RuntimeSubagentRef): Record<string, unknown> {
+function buildSubagentIdentityPayload(
+  subagent: RuntimeSubagentRef,
+): SubagentIdentityActivityPayload {
   return {
     providerThreadId: subagent.providerThreadId,
     ...(subagent.parentProviderThreadId

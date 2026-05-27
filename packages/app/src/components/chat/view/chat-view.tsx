@@ -33,6 +33,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@multi/ui/alert";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -65,6 +66,7 @@ import {
   isLatestTurnSettled,
   type PendingApproval,
   type PendingUserInput,
+  type WorkLogEntry,
 } from "../../../session-logic";
 import {
   buildPendingUserInputAnswers,
@@ -212,6 +214,10 @@ const COMPOSER_INTERACTION_MODE_CYCLE = [
   "plan",
   "ask",
 ] as const satisfies readonly ProviderInteractionMode[];
+
+function workLogEntrySubagents(entry: WorkLogEntry) {
+  return entry.subagents ?? [];
+}
 
 interface ThreadBranchView {
   status: "unfiltered" | "valid" | "invalid";
@@ -1043,7 +1049,11 @@ export default function ChatView(props: ChatViewProps) {
   );
   const gitAgentActionHandoff = useGitAgentActionHandoff();
   const subagentPreviewPresented = useSubagentPreviewStore((state) => state.presented);
+  const focusedSubagentPreviewKey = useSubagentPreviewStore((state) => state.focus?.key ?? null);
   const closeSubagentPreview = useSubagentPreviewStore((state) => state.closePreview);
+  const updateFocusedSubagentPreview = useSubagentPreviewStore(
+    (state) => state.updatePreviewSubagent,
+  );
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
       ? store.getDraftSessionByRef(routeThreadRef)
@@ -1341,6 +1351,15 @@ export default function ChatView(props: ChatViewProps) {
       }),
     [activeRunningTurnId, visibleThreadActivities],
   );
+  useEffect(() => {
+    if (focusedSubagentPreviewKey === null) {
+      return;
+    }
+
+    for (const subagent of workLogEntries.flatMap(workLogEntrySubagents)) {
+      updateFocusedSubagentPreview(subagent);
+    }
+  }, [focusedSubagentPreviewKey, updateFocusedSubagentPreview, workLogEntries]);
   const pendingApprovals = useMemo(
     () =>
       latestTurnSettled

@@ -98,6 +98,9 @@ export interface SubagentTranscriptItem {
   readonly role?: "user" | "assistant" | "system" | undefined;
   readonly title?: string | undefined;
   readonly text?: string | undefined;
+  readonly command?: string | undefined;
+  readonly rawCommand?: string | undefined;
+  readonly output?: string | undefined;
   readonly itemType?: string | undefined;
   readonly status?: string | undefined;
   readonly streamKind?: string | undefined;
@@ -809,9 +812,7 @@ export function deriveWorkLogEntries(
     const subagents = mergeSubagents(
       workEntry.subagents,
       workEntry.toolCallId
-        ? subagentDetailsByParentItemId
-            .get(workEntry.toolCallId)
-            ?.map(subagentFromDerivedDetails)
+        ? subagentDetailsByParentItemId.get(workEntry.toolCallId)?.map(subagentFromDerivedDetails)
         : undefined,
     );
     if (shouldOmitWorkLogEntry(workEntry, subagents)) {
@@ -965,7 +966,14 @@ function deriveSubagentIdentityDetails(
   previous: DerivedSubagentDetails | undefined,
 ): Pick<
   DerivedSubagentDetails,
-  "providerThreadId" | "parentItemId" | "agentId" | "nickname" | "role" | "model" | "prompt" | "title"
+  | "providerThreadId"
+  | "parentItemId"
+  | "agentId"
+  | "nickname"
+  | "role"
+  | "model"
+  | "prompt"
+  | "title"
 > {
   const parentItemId = asTrimmedString(payload?.parentItemId) ?? previous?.parentItemId;
   const agentId = asTrimmedString(payload?.agentId) ?? previous?.agentId;
@@ -1053,7 +1061,14 @@ function reduceTranscriptItemLifecycle(
   const itemType = asTrimmedString(payload?.itemType) ?? undefined;
   const status = asTrimmedString(payload?.status) ?? undefined;
   const title = asTrimmedString(payload?.title) ?? undefined;
-  const detail = asTrimmedString(payload?.detail) ?? undefined;
+  const detail = extractSubagentTranscriptDetail(payload);
+  const isCommand = itemType === "command_execution";
+  const commandPreview = isCommand ? extractToolCommand(payload) : null;
+  const command = commandPreview?.command ?? undefined;
+  const rawCommand = commandPreview?.rawCommand ?? undefined;
+  const output = isCommand
+    ? (extractToolResultText(payload, commandPreview ?? undefined) ?? undefined)
+    : undefined;
 
   const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
   const existing = ctx.itemsById.get(itemId);
@@ -1068,11 +1083,17 @@ function reduceTranscriptItemLifecycle(
       ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
       ...(title ? { title } : {}),
       ...(status ? { status } : {}),
-      ...(completed && detail
-        ? { text: capTranscriptText(detail) }
-        : detail && !existing.text
+      ...(isCommand
+        ? {
+            ...(command ? { command: capTranscriptText(command) } : {}),
+            ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
+            ...(output ? { output: capTranscriptText(output) } : {}),
+          }
+        : completed && detail
           ? { text: capTranscriptText(detail) }
-          : {}),
+          : detail && !existing.text
+            ? { text: capTranscriptText(detail) }
+            : {}),
       loading: !isCompletedStatus,
     };
     ctx.itemsById.set(itemId, merged);
@@ -1091,7 +1112,15 @@ function reduceTranscriptItemLifecycle(
     kind: itemTypeToTranscriptKind(itemType),
     ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
     ...(title ? { title } : {}),
-    ...(detail ? { text: capTranscriptText(detail) } : {}),
+    ...(isCommand
+      ? {
+          ...(command ? { command: capTranscriptText(command) } : {}),
+          ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
+          ...(output ? { output: capTranscriptText(output) } : {}),
+        }
+      : detail
+        ? { text: capTranscriptText(detail) }
+        : {}),
     ...(itemType ? { itemType } : {}),
     ...(status ? { status } : {}),
     loading: !isCompletedStatus,
@@ -1100,6 +1129,74 @@ function reduceTranscriptItemLifecycle(
   };
   ctx.itemsById.set(itemId, item);
   ctx.itemsOrdered.push(item);
+}
+
+function extractSubagentTranscriptDetail(
+  payload: Record<string, unknown> | null,
+): string | undefined {
+  const itemType = asTrimmedString(payload?.itemType) ?? undefined;
+  const itemText = extractSubagentPayloadItemText(payload);
+  if (shouldPreferRawSubagentItemText(itemType) && itemText) {
+    return itemText;
+  }
+
+  const detail = asTrimmedString(payload?.detail);
+  if (detail) {
+    return detail;
+  }
+
+  return itemText;
+}
+
+function extractSubagentPayloadItemText(
+  payload: Record<string, unknown> | null,
+): string | undefined {
+  const item = extractPayloadItem(payload);
+  const text = asTrimmedString(item?.text);
+  if (text) {
+    return text;
+  }
+
+  const content = extractSubagentContentText(item?.content);
+  if (content) {
+    return content;
+  }
+
+  return undefined;
+}
+
+function shouldPreferRawSubagentItemText(itemType: string | undefined): boolean {
+  switch (itemType) {
+    case "assistant_message":
+    case "user_message":
+    case "reasoning":
+    case "agent_reasoning":
+    case "reasoning_summary":
+    case "plan":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function extractSubagentContentText(content: unknown): string | undefined {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const text = content
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      const record = asRecord(entry);
+      const nestedContent = asRecord(record?.content);
+      return asTrimmedString(record?.text) ?? asTrimmedString(nestedContent?.text);
+    })
+    .filter((entry): entry is string => entry !== null)
+    .join("\n")
+    .trim();
+  return text.length > 0 ? text : undefined;
 }
 
 function reduceTranscriptDelta(
@@ -1130,9 +1227,13 @@ function reduceTranscriptDelta(
 
   const existing = ctx.itemsById.get(itemId);
   if (existing) {
+    const nextKind =
+      streamKind === "command_output" ? "command" : streamKindToTranscriptKind(streamKind);
     const next: SubagentTranscriptItem = {
       ...existing,
-      text: capTranscriptText(merged),
+      ...(streamKind === "command_output"
+        ? { output: capTranscriptText(merged), kind: nextKind }
+        : { text: capTranscriptText(merged), kind: nextKind }),
       ...(streamKind ? { streamKind } : {}),
     };
     ctx.itemsById.set(itemId, next);
@@ -1145,12 +1246,17 @@ function reduceTranscriptDelta(
     return;
   }
 
+  const syntheticKind = streamKindToTranscriptKind(streamKind);
   const synthetic: SubagentTranscriptItem = {
     id: itemId,
     itemId,
-    kind: streamKindToTranscriptKind(streamKind),
-    role: "assistant",
-    text: capTranscriptText(merged),
+    kind: syntheticKind,
+    ...(streamKind === "command_output"
+      ? { title: "Ran command", output: capTranscriptText(merged) }
+      : {
+          ...(syntheticKind === "message" ? { role: "assistant" as const } : {}),
+          text: capTranscriptText(merged),
+        }),
     loading: true,
     createdAt: activity.createdAt,
     sequence: ctx.nextSequence++,
@@ -1165,10 +1271,10 @@ function isUserVisibleStreamKind(streamKind: string): boolean {
     case "assistant_text":
     case "command_output":
     case "plan_text":
-    case "":
-      return true;
     case "reasoning_text":
     case "reasoning_summary_text":
+    case "":
+      return true;
     case "file_change_output":
     default:
       return false;
@@ -1199,9 +1305,7 @@ function itemTypeToTranscriptKind(itemType: string | undefined): SubagentTranscr
   }
 }
 
-function itemTypeToRole(
-  itemType: string | undefined,
-): "user" | "assistant" | "system" | undefined {
+function itemTypeToRole(itemType: string | undefined): "user" | "assistant" | "system" | undefined {
   switch (itemType) {
     case "assistant_message":
       return "assistant";
@@ -1653,10 +1757,22 @@ function collapseDerivedWorkLogEntries(
 ): DerivedWorkLogEntry[] {
   const collapsed: DerivedWorkLogEntry[] = [];
   const lifecycleIndexByWorkEntryId = new Map<string, number>();
+  const lifecycleIndexByUnscopedKey = new Map<string, number>();
 
   for (const entry of entries) {
     const workEntryId = activeLifecycleWorkEntryId(entry);
-    const existingIndex = workEntryId ? lifecycleIndexByWorkEntryId.get(workEntryId) : undefined;
+    const unscopedKey = unscopedLifecycleWorkEntryKey(entry);
+    const exactIndex = workEntryId ? lifecycleIndexByWorkEntryId.get(workEntryId) : undefined;
+    const fallbackIndex =
+      exactIndex === undefined && unscopedKey
+        ? lifecycleIndexByUnscopedKey.get(unscopedKey)
+        : undefined;
+    const fallbackEntry = fallbackIndex === undefined ? undefined : collapsed[fallbackIndex];
+    const existingIndex =
+      exactIndex ??
+      (fallbackEntry && shouldUseUnscopedLifecycleFallback(fallbackEntry, entry)
+        ? fallbackIndex
+        : undefined);
     const existingEntry = existingIndex === undefined ? undefined : collapsed[existingIndex];
     if (
       existingIndex !== undefined &&
@@ -1668,12 +1784,18 @@ function collapseDerivedWorkLogEntries(
       if (workEntryId) {
         lifecycleIndexByWorkEntryId.set(workEntryId, existingIndex);
       }
+      if (unscopedKey) {
+        lifecycleIndexByUnscopedKey.set(unscopedKey, existingIndex);
+      }
       continue;
     }
 
     collapsed.push(entry);
     if (workEntryId) {
       lifecycleIndexByWorkEntryId.set(workEntryId, collapsed.length - 1);
+    }
+    if (unscopedKey) {
+      lifecycleIndexByUnscopedKey.set(unscopedKey, collapsed.length - 1);
     }
   }
   return collapsed;
@@ -1695,6 +1817,23 @@ function activeLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefi
   return undefined;
 }
 
+function unscopedLifecycleWorkEntryKey(entry: DerivedWorkLogEntry): string | undefined {
+  if (isToolLifecycleActivityKind(entry.activityKind)) {
+    return entry.toolCallId ? `tool:${entry.toolCallId}` : undefined;
+  }
+  if (isTaskLifecycleActivityKind(entry.activityKind)) {
+    return entry.taskId ? `task:${entry.taskId}` : undefined;
+  }
+  return undefined;
+}
+
+function shouldUseUnscopedLifecycleFallback(
+  previous: DerivedWorkLogEntry,
+  next: DerivedWorkLogEntry,
+): boolean {
+  return previous.turnId === null || next.turnId === null;
+}
+
 function shouldCollapseLifecycleEntries(
   previous: DerivedWorkLogEntry,
   next: DerivedWorkLogEntry,
@@ -1712,7 +1851,9 @@ function shouldCollapseLifecycleEntries(
     return false;
   }
   return (
-    previous.taskId !== undefined && previous.taskId === next.taskId && previous.id === next.id
+    previous.taskId !== undefined &&
+    previous.taskId === next.taskId &&
+    lifecycleEntriesShareTurnScope(previous, next)
   );
 }
 
@@ -1732,7 +1873,7 @@ function shouldCollapseToolLifecycleEntries(
   return (
     previous.toolCallId !== undefined &&
     previous.toolCallId === next.toolCallId &&
-    previous.id === next.id
+    lifecycleEntriesShareTurnScope(previous, next)
   );
 }
 
@@ -1742,6 +1883,13 @@ function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
 
 function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
   return kind === "task.started" || kind === "task.progress" || kind === "task.completed";
+}
+
+function lifecycleEntriesShareTurnScope(
+  previous: DerivedWorkLogEntry,
+  next: DerivedWorkLogEntry,
+): boolean {
+  return previous.id === next.id || previous.turnId === null || next.turnId === null;
 }
 
 function mergeDerivedWorkLogEntries(
@@ -2789,8 +2937,12 @@ function extractToolResultText(
     item?.aggregatedOutput,
     itemResult?.content,
     itemResult?.output,
+    itemResult?.stdout,
+    itemResult?.stderr,
     directResult?.content,
     directResult?.output,
+    directResult?.stdout,
+    directResult?.stderr,
     extractRawToolOutputText(data?.rawOutput),
   ];
 

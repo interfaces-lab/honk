@@ -10,19 +10,14 @@
           "fill": "automatic",
           "glass": true,
           "hidden": false,
-          "image-name": "gpt-image-1.5-kn76n9hynne5q3qxy3g91chp2d84t871.png",
-          "name": "gpt-image-1.5-kn76n9hynne5q3qxy3g91chp2d84t871",
+          "image-name": "flower.png",
+          "name": "flower",
           "position": {
-            "scale": 1.05,
-            "translation-in-points": [0, 0]
-          }
-        },
-        {
-          "image-name": "T3.svg",
-          "name": "T3",
-          "position": {
-            "scale": 10,
-            "translation-in-points": [0, 0]
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
           }
         },
         {
@@ -42,6 +37,9 @@
     }
   ],
   "supported-platforms": {
-    "squares": ["iOS", "macOS"]
+    "squares": [
+      "iOS",
+      "macOS"
+    ]
   }
 }

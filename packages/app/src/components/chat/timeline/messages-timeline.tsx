@@ -531,6 +531,8 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
 const WORK_GROUP_PREVIEW_PX = 144;
 const WORK_GROUP_PREVIEW_ENTRY_PX = 28;
 const WORK_GROUP_HEADER_PX = 28;
+const WORK_GROUP_HEADER_GAP_PX = 4;
+const WORK_GROUP_STEP_GAP_PX = 6;
 const ASSISTANT_MESSAGE_MIN_PX = 156;
 const USER_MESSAGE_MIN_PX = 88;
 const MESSAGE_ROW_CHROME_PX = 40;
@@ -649,8 +651,18 @@ function estimateTimelineRowSize(
   }
 
   if (expanded) {
+    const hasExpandedSummary = row.groupedEntries.some((entry) => !isCommandWorkEntry(entry));
+    const expandedRowCount = row.groupedEntries.length + (hasExpandedSummary ? 1 : 0);
     const childRowsHeight = row.groupedEntries.length * WORK_GROUP_PREVIEW_ENTRY_PX;
-    return WORK_GROUP_HEADER_PX + childRowsHeight + VIRTUAL_ROW_GAP_PX;
+    const expandedContentGap = Math.max(0, expandedRowCount - 1) * WORK_GROUP_STEP_GAP_PX;
+    return (
+      WORK_GROUP_HEADER_PX +
+      WORK_GROUP_HEADER_GAP_PX +
+      childRowsHeight +
+      (hasExpandedSummary ? WORK_GROUP_PREVIEW_ENTRY_PX : 0) +
+      expandedContentGap +
+      VIRTUAL_ROW_GAP_PX
+    );
   }
 
   if (row.isRunning) {
@@ -659,7 +671,7 @@ function estimateTimelineRowSize(
       WORK_GROUP_PREVIEW_PX,
       previewCount * WORK_GROUP_PREVIEW_ENTRY_PX,
     );
-    return WORK_GROUP_HEADER_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
+    return WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
   }
 
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;
@@ -875,7 +887,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
       <button
         type="button"
         className={cn(
-          "group/work-header inline-flex w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
+          "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
           "border-0 bg-transparent p-0 text-left select-none",
           "text-conversation text-multi-fg-tertiary",
           "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
@@ -885,7 +897,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
         data-work-group-header=""
       >
         <span className="shrink-0 whitespace-nowrap tabular-nums">{headerLabel}</span>
-        {!expanded && !isRunning && !isThinkingGroup ? (
+        {!expanded && !isThinkingGroup ? (
           <>
             <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
               ·

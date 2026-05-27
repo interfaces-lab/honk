@@ -336,12 +336,14 @@ describe("messages-timeline", () => {
         document.querySelector("[data-tool-call-line]"),
         "tool rows should not render while the work group is collapsed",
       ).toBeNull();
+      const collapsedHeaderHeight = header.getBoundingClientRect().height;
 
       header.click();
       await vi.waitFor(() => {
         expect(group.getAttribute("data-work-group-expanded")).toBe("true");
         expect(document.querySelector("[data-tool-call-line]")).not.toBeNull();
       });
+      const expandedHeaderHeight = header.getBoundingClientRect().height;
 
       const line = requireElement<HTMLElement>("[data-tool-call-line]", group);
       const action = requireElement<HTMLElement>("[data-tool-call-line-action]", line);
@@ -370,6 +372,10 @@ describe("messages-timeline", () => {
         chevronRect.left - detailsRect.right,
         "tool row chevron should sit next to the visible details text, not in a far-right column",
       ).toBeLessThanOrEqual(6);
+      expect(
+        Math.abs(expandedHeaderHeight - collapsedHeaderHeight),
+        "work group header height should remain stable after expanding",
+      ).toBeLessThanOrEqual(1);
     } finally {
       await screen.unmount();
     }
@@ -385,6 +391,9 @@ describe("messages-timeline", () => {
       });
 
       const preview = requireElement<HTMLElement>("[data-work-group-preview]");
+      const header = requireElement<HTMLElement>("[data-work-group-header]");
+      expect(header.textContent).toContain("Exploring");
+      expect(header.textContent).toContain("12 files");
       expect(preview.clientHeight).toBeLessThanOrEqual(145);
       expect(preview.scrollHeight).toBeLessThanOrEqual(preview.clientHeight + 1);
       expect(preview.getAttribute("data-work-preview-scrollable")).toBe("false");

@@ -103,7 +103,7 @@ export interface ToolCallRendererProps {
 
 const thinkingStatusTaskVariants = cva(
   cn(
-    "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
+    "min-w-0",
     "text-detail text-multi-fg-tertiary",
   ),
   {
@@ -112,9 +112,14 @@ const thinkingStatusTaskVariants = cva(
         false: "",
         true: "tool-call-shimmer",
       },
+      wrap: {
+        false: "overflow-hidden text-ellipsis whitespace-nowrap",
+        true: "whitespace-pre-wrap break-words wrap-anywhere",
+      },
     },
     defaultVariants: {
       active: false,
+      wrap: false,
     },
   },
 );
@@ -212,14 +217,16 @@ const editToolCallFilenameVariants = cva(
 export const ThinkingStatus = memo(function ThinkingStatus({
   task,
   active,
+  wrap = false,
 }: {
   task: string;
   active: boolean;
+  wrap?: boolean | undefined;
 }) {
   return (
-    <div className="flex min-h-6 items-center gap-1 py-0.5">
+    <div className={cn("flex min-h-6 gap-1 py-0.5", wrap ? "items-start" : "items-center")}>
       <IconRobot className="size-3.5 shrink-0 text-multi-fg-tertiary" />
-      <span className={thinkingStatusTaskVariants({ active })}>{task}</span>
+      <span className={thinkingStatusTaskVariants({ active, wrap })}>{task}</span>
     </div>
   );
 });
@@ -418,7 +425,6 @@ function getMetadataArtifactItems(
 
 function TaskToolCall({
   action,
-  details,
   loading,
   hasError,
   subagentConversation,
@@ -451,14 +457,13 @@ function TaskToolCall({
       <ToolCallLine
         icon={showIcon ? IconRobot : undefined}
         action={action}
-        details={details}
+        details=""
         loading={loading}
       />
     );
   }
 
-  const title = details || action;
-  const subtitle = details ? action : "";
+  const title = action;
   const toggleExpanded = () => {
     setIsExpanded((current) => {
       const next = !current;
@@ -496,9 +501,6 @@ function TaskToolCall({
           >
             {title}
           </span>
-          {subtitle ? (
-            <span data-task-tool-call-subtitle="">{subtitle}</span>
-          ) : null}
         </span>
         <IconChevronRightMedium className="size-3" data-task-tool-call-chevron="" />
       </button>
@@ -846,7 +848,7 @@ function ShellToolCall({
           <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
             {action}
           </span>
-          {details ? (
+          {details && !isExpanded ? (
             <span
               className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary"
               data-tool-call-line-details=""
@@ -1216,9 +1218,9 @@ const TOOL_ACTION_LABELS: Record<ToolCase, { loading: string; completed: string;
     mcpToolCall: { loading: "Running", completed: "Ran", error: "Run" },
     dynamicToolCall: { loading: "Running", completed: "Ran", error: "Run" },
     taskToolCall: {
-      loading: "Working on task",
-      completed: "Completed task",
-      error: "Work on task",
+      loading: "Subagent",
+      completed: "Subagent",
+      error: "Subagent",
     },
     webSearchToolCall: { loading: "Searching", completed: "Searched", error: "Search" },
     webFetchToolCall: { loading: "Fetching", completed: "Fetched", error: "Fetch" },

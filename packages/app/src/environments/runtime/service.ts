@@ -34,6 +34,7 @@ import {
   rememberLiveShellEvent,
   rememberLiveShellSnapshot,
 } from "./local-shell-snapshot-cache";
+import { createFrameBatcher, type FrameBatcher } from "./frame-batcher";
 import {
   useStore,
   selectProjectByRef,
@@ -69,6 +70,7 @@ type ThreadDetailSubscriptionEntry = {
 const environmentConnections = new Map<EnvironmentId, EnvironmentConnection>();
 const environmentConnectionListeners = new Set<() => void>();
 const threadDetailSubscriptions = new Map<string, ThreadDetailSubscriptionEntry>();
+const pendingThreadDetailEventBatches = new Map<EnvironmentId, FrameBatcher<OrchestrationEvent>>();
 const lastAppliedProjectionVersionByEnvironment = new Map<
   EnvironmentId,
   {
@@ -92,6 +94,7 @@ interface TerminalRetentionThread {
 // - Threads with active work or pending user action are not evicted.
 // - Capacity eviction only removes idle cached subscriptions.
 const THREAD_DETAIL_SUBSCRIPTION_IDLE_EVICTION_MS = 15 * 60 * 1000;
+const THREAD_DETAIL_EVENT_BATCH_TIMEOUT_MS = 16;
 const MAX_CACHED_THREAD_DETAIL_SUBSCRIPTIONS = 32;
 const NOOP = () => undefined;
 
@@ -191,6 +194,47 @@ function getThreadDetailSubscriptionKey(environmentId: EnvironmentId, threadId: 
   return scopedThreadKey(scopeThreadRef(environmentId, threadId));
 }
 
+function getThreadDetailEventBatcher(environmentId: EnvironmentId): FrameBatcher<OrchestrationEvent> {
+  let batch = pendingThreadDetailEventBatches.get(environmentId);
+  if (!batch) {
+    batch = createFrameBatcher({
+      timeoutMs: THREAD_DETAIL_EVENT_BATCH_TIMEOUT_MS,
+      flush: (events) => {
+        pendingThreadDetailEventBatches.delete(environmentId);
+        applyRecoveredEventBatch(events, environmentId);
+      },
+    });
+    pendingThreadDetailEventBatches.set(environmentId, batch);
+  }
+  return batch;
+}
+function enqueueThreadDetailEvent(event: OrchestrationEvent, environmentId: EnvironmentId): void {
+  getThreadDetailEventBatcher(environmentId).enqueue(event);
+}
+function flushThreadDetailEventBatch(environmentId: EnvironmentId): void {
+  const batch = pendingThreadDetailEventBatches.get(environmentId);
+  if (!batch) {
+    return;
+  }
+
+  batch.flush();
+}
+function cancelThreadDetailEventBatchForEnvironment(environmentId: EnvironmentId): void {
+  const batch = pendingThreadDetailEventBatches.get(environmentId);
+  if (!batch) {
+    return;
+  }
+  batch.cancel();
+  pendingThreadDetailEventBatches.delete(environmentId);
+}
+
+function cancelPendingThreadDetailEventBatches(): void {
+  for (const batch of pendingThreadDetailEventBatches.values()) {
+    batch.cancel();
+  }
+  pendingThreadDetailEventBatches.clear();
+}
+
 function clearThreadDetailSubscriptionEviction(
   entry: ThreadDetailSubscriptionEntry,
 ): ThreadDetailSubscriptionEntry {
@@ -268,10 +312,11 @@ function attachThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry): b
     { threadId: entry.threadId },
     (item) => {
       if (item.kind === "snapshot") {
+        flushThreadDetailEventBatch(entry.environmentId);
         useStore.getState().syncServerThreadDetail(item.snapshot.thread, entry.environmentId);
         return;
       }
-      applyEnvironmentThreadDetailEvent(item.event, entry.environmentId);
+      enqueueThreadDetailEvent(item.event, entry.environmentId);
     },
   );
   return true;
@@ -795,6 +840,7 @@ async function removeConnection(environmentId: EnvironmentId): Promise<boolean> 
     return false;
   }
 
+  cancelThreadDetailEventBatchForEnvironment(environmentId);
   disposeThreadDetailSubscriptionsForEnvironment(environmentId);
   lastAppliedProjectionVersionByEnvironment.delete(environmentId);
   forgetLiveShellSnapshot(environmentId);
@@ -940,6 +986,7 @@ export function startEnvironmentConnectionService(queryClient: QueryClient): () 
 
 export async function resetEnvironmentServiceForTests(): Promise<void> {
   stopActiveService();
+  cancelPendingThreadDetailEventBatches();
   lastAppliedProjectionVersionByEnvironment.clear();
   for (const key of Array.from(threadDetailSubscriptions.keys())) {
     disposeThreadDetailSubscriptionByKey(key);
