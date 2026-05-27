@@ -799,9 +799,13 @@ function ShellToolCall({
     setExpansionState(activeExpansionState);
   }
   const metadataItems = getCommandMetadataItems(artifact);
-  const hasContent = command.length > 0 || Boolean(output) || metadataItems.length > 0;
+  const outputText = output?.trim() ?? "";
+  const commandText = command.trim();
+  const bodyCommand = commandText && commandText !== details.trim() ? command : "";
+  const hasExpandedContent = outputText.length > 0 || metadataItems.length > 0;
+  const hasContent = bodyCommand.length > 0 || hasExpandedContent;
   const expandable = hasContent;
-  const isExpanded = activeExpansionState.isExpanded;
+  const isExpanded = expandable && activeExpansionState.isExpanded;
 
   const toggleExpanded = () => {
     if (!expandable) return;
@@ -848,7 +852,7 @@ function ShellToolCall({
           <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
             {action}
           </span>
-          {details && !isExpanded ? (
+          {details ? (
             <span
               className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary"
               data-tool-call-line-details=""
@@ -874,7 +878,7 @@ function ShellToolCall({
       {isExpanded && hasContent ? (
         <div className="mt-1 min-w-0 max-w-full" data-shell-tool-call-body="">
           <div className="min-w-0 max-w-full">
-            {command ? (
+            {bodyCommand ? (
               <pre
                 className={cn(
                   "m-0",
@@ -887,10 +891,10 @@ function ShellToolCall({
                 )}
               >
                 <span className="text-multi-fg-tertiary select-none">$ </span>
-                <ShellCommandTokens command={command} />
+                <ShellCommandTokens command={bodyCommand} />
               </pre>
             ) : null}
-            {output ? (
+            {outputText ? (
               <pre
                 className={cn(
                   "m-0",
@@ -1212,7 +1216,7 @@ const TOOL_ACTION_LABELS: Record<ToolCase, { loading: string; completed: string;
       completed: "Searched",
       error: "Search",
     },
-    shellToolCall: { loading: "Running command", completed: "Ran command", error: "Command" },
+    shellToolCall: { loading: "Running", completed: "Ran", error: "Command" },
     editToolCall: { loading: "Editing", completed: "Edited", error: "Edit" },
     deleteToolCall: { loading: "Deleting", completed: "Deleted", error: "Delete" },
     mcpToolCall: { loading: "Running", completed: "Ran", error: "Run" },

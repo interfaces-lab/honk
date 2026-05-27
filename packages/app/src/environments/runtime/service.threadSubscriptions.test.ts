@@ -7,6 +7,7 @@ import {
   type OrchestrationEvent,
   type OrchestrationThread,
   ProjectId,
+  ProviderItemId,
   ThreadId,
   ThreadEntryId,
   TurnId,
@@ -245,6 +246,48 @@ function makeSubagentDeltaEvent(params: {
           itemId: "subagent-message-1",
           streamKind: "assistant_text",
           delta: params.delta,
+        },
+        turnId: null,
+        createdAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+      },
+    },
+  };
+}
+
+function makeSubagentItemEvent(params: {
+  readonly sequence: number;
+  readonly threadId: ThreadId;
+  readonly activityId: string;
+  readonly kind: "subagent.item.started" | "subagent.item.updated" | "subagent.item.completed";
+  readonly status: "inProgress" | "completed";
+  readonly detail?: string | undefined;
+}): ThreadActivityAppendedEvent {
+  return {
+    sequence: params.sequence,
+    eventId: EventId.make(`event-${params.activityId}`),
+    aggregateKind: "thread",
+    aggregateId: params.threadId,
+    occurredAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
+    commandId: CommandId.make("command-subagent-item"),
+    causationEventId: null,
+    correlationId: null,
+    metadata: {},
+    type: "thread.activity-appended",
+    payload: {
+      threadId: params.threadId,
+      activity: {
+        id: EventId.make(params.activityId),
+        tone: "tool",
+        kind: params.kind,
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: ProviderItemId.make("parent-subagent-call"),
+          itemId: "subagent-command-1",
+          itemType: "command_execution",
+          status: params.status,
+          title: "Ran command",
+          ...(params.detail !== undefined ? { detail: params.detail } : {}),
         },
         turnId: null,
         createdAt: `2026-04-13T00:00:0${params.sequence}.000Z`,
@@ -851,6 +894,49 @@ describe("coalesceOrchestrationUiEvents", () => {
             itemId: "subagent-message-1",
             providerThreadId: "subagent-thread-1",
             streamKind: "assistant_text",
+          },
+        },
+      },
+    });
+  });
+
+  it("coalesces stable subagent item lifecycle activities for UI application", async () => {
+    const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
+    const threadId = ThreadId.make("thread-subagent-item-coalesce");
+
+    const events = coalesceOrchestrationUiEvents([
+      makeSubagentItemEvent({
+        sequence: 1,
+        threadId,
+        activityId: "activity-subagent-command-started",
+        kind: "subagent.item.started",
+        status: "inProgress",
+        detail: "pnpm test",
+      }),
+      makeSubagentItemEvent({
+        sequence: 2,
+        threadId,
+        activityId: "activity-subagent-command-completed",
+        kind: "subagent.item.completed",
+        status: "completed",
+      }),
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "thread.activity-appended",
+      payload: {
+        activity: {
+          id: "activity-subagent-command-completed",
+          kind: "subagent.item.completed",
+          createdAt: "2026-04-13T00:00:01.000Z",
+          payload: {
+            providerThreadId: "subagent-thread-1",
+            itemId: "subagent-command-1",
+            itemType: "command_execution",
+            status: "completed",
+            title: "Ran command",
+            detail: "pnpm test",
           },
         },
       },

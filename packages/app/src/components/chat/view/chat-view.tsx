@@ -85,11 +85,12 @@ import {
   createThreadSelectorByRef,
 } from "../../../stores/thread-selectors";
 import { useUiStateStore } from "../../../stores/ui-state-store";
-import { resolvePlanFollowUpSubmission } from "~/plan/proposed-plan";
+import { normalizePlanMarkdownForExport, resolvePlanFollowUpSubmission } from "~/plan/proposed-plan";
 import {
   DEFAULT_INTERACTION_MODE,
   MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
+  type ProposedPlan,
   type SessionPhase,
   type Thread,
   type ThreadTreeEntry,
@@ -2029,6 +2030,46 @@ export default function ChatView(props: ChatViewProps) {
     [environmentId, serverThread],
   );
 
+  const onUpdateProposedPlan = useCallback(
+    async (proposedPlan: ProposedPlan, nextMarkdown: string): Promise<boolean> => {
+      if (!activeThread || !isServerThread) {
+        return false;
+      }
+      const normalizedMarkdown = normalizePlanMarkdownForExport(nextMarkdown);
+      if (normalizedMarkdown.trim().length === 0) {
+        return false;
+      }
+      if (normalizedMarkdown === proposedPlan.planMarkdown) {
+        return true;
+      }
+
+      const api = readEnvironmentApi(environmentId);
+      if (!api) {
+        return false;
+      }
+
+      const updatedAt = new Date().toISOString();
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "thread.proposed-plan.update",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          planId: proposedPlan.id,
+          planMarkdown: normalizedMarkdown,
+          createdAt: updatedAt,
+        });
+        return true;
+      } catch (err) {
+        setThreadError(
+          activeThread.id,
+          err instanceof Error ? err.message : "Failed to update proposed plan.",
+        );
+        return false;
+      }
+    },
+    [activeThread, environmentId, isServerThread, setThreadError],
+  );
+
   // Scroll helpers — the messages timeline owns virtualized scroll state.
   const scrollTimelineToBottom = useCallback((animated = false) => {
     messagesTimelineControllerRef.current?.scrollToBottom({ animated });
@@ -2211,6 +2252,9 @@ export default function ChatView(props: ChatViewProps) {
             id: messageIdForSend,
             role: "user",
             text: compiledTurn.outgoingMessageText,
+            ...(compiledTurn.outgoingRichText !== undefined
+              ? { richText: compiledTurn.outgoingRichText }
+              : {}),
             ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
             createdAt: messageCreatedAt,
             streaming: false,
@@ -2236,6 +2280,9 @@ export default function ChatView(props: ChatViewProps) {
             messageId: messageIdForSend,
             role: "user",
             text: compiledTurn.outgoingMessageText,
+            ...(compiledTurn.outgoingRichText !== undefined
+              ? { richText: compiledTurn.outgoingRichText }
+              : {}),
             attachments: turnAttachments,
           },
           modelSelection: ctxSelectedModelSelection,
@@ -2378,6 +2425,9 @@ export default function ChatView(props: ChatViewProps) {
         id: messageIdForSend,
         role: "user",
         text: compiledTurn.outgoingMessageText,
+        ...(compiledTurn.outgoingRichText !== undefined
+          ? { richText: compiledTurn.outgoingRichText }
+          : {}),
         ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
         createdAt: messageCreatedAt,
         streaming: false,
@@ -2466,6 +2516,9 @@ export default function ChatView(props: ChatViewProps) {
           messageId: messageIdForSend,
           role: "user",
           text: compiledTurn.outgoingMessageText,
+          ...(compiledTurn.outgoingRichText !== undefined
+            ? { richText: compiledTurn.outgoingRichText }
+            : {}),
           attachments: turnAttachments,
         },
         modelSelection: ctxSelectedModelSelection,
@@ -3475,6 +3528,7 @@ export default function ChatView(props: ChatViewProps) {
                   editingUserMessageId={activeEditingUserMessageId}
                   onBeginEditUserMessage={onBeginEditUserMessage}
                   renderEditComposer={renderEditComposer}
+                  onUpdateProposedPlan={onUpdateProposedPlan}
                   awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
                   onIsAtBottomChange={onIsAtBottomChange}
                 />

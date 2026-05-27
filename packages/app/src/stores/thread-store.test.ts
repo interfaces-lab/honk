@@ -458,6 +458,35 @@ describe("incremental orchestration updates", () => {
     expect(nextAfterThreadDelete).toBe(state);
   });
 
+  it("stores rich text metadata from thread message events", () => {
+    const thread = makeThread();
+    const state = makeState(thread);
+    const richText = {
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }],
+    };
+
+    const next = applyOrchestrationEvent(
+      state,
+      makeEvent("thread.message-sent", {
+        threadId: thread.id,
+        messageId: MessageId.make("message-rich-text"),
+        entryId: ThreadEntryId.make("entry-message-rich-text"),
+        parentEntryId: null,
+        role: "user",
+        text: "hello",
+        richText,
+        turnId: null,
+        streaming: false,
+        createdAt: "2026-02-27T00:00:01.000Z",
+        updatedAt: "2026-02-27T00:00:01.000Z",
+      }),
+      localEnvironmentId,
+    );
+
+    expect(threadsOf(next)[0]?.messages[0]?.richText).toEqual(richText);
+  });
+
   it("reuses an existing project row when project.created arrives with a new id for the same cwd", () => {
     const originalProjectId = ProjectId.make("project-1");
     const recreatedProjectId = ProjectId.make("project-2");

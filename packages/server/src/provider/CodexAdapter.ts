@@ -140,6 +140,11 @@ function trimText(value: string | undefined | null): string | undefined {
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
+function joinTrimmedParts(parts: ReadonlyArray<string | undefined>): string | undefined {
+  const text = parts.filter((part): part is string => part !== undefined).join("\n").trim();
+  return text.length > 0 ? text : undefined;
+}
+
 const FATAL_CODEX_STDERR_SNIPPETS = ["failed to connect to websocket"];
 
 function isFatalCodexProcessStderrMessage(message: string): boolean {
@@ -281,35 +286,16 @@ function itemDetail(item: CodexLifecycleItem): string | undefined {
 }
 
 function readItemContentText(item: CodexLifecycleItem): string | undefined {
-  const record = readRecord(item);
-  const content = record?.content;
-  if (!Array.isArray(content)) {
-    return undefined;
+  switch (item.type) {
+    case "userMessage":
+      return joinTrimmedParts(
+        item.content.map((part) => (part.type === "text" ? trimText(part.text) : undefined)),
+      );
+    case "reasoning":
+      return joinTrimmedParts((item.content ?? []).map((part) => trimText(part)));
+    default:
+      return undefined;
   }
-
-  const text = content
-    .map((entry) => {
-      if (typeof entry === "string") {
-        return entry;
-      }
-      const entryRecord = readRecord(entry);
-      const nestedContent = readRecord(entryRecord?.content);
-      return readString(entryRecord?.text) ?? readString(nestedContent?.text);
-    })
-    .filter((entry): entry is string => entry !== undefined)
-    .join("\n")
-    .trim();
-  return text.length > 0 ? text : undefined;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" ? trimText(value) : undefined;
 }
 
 function toRequestTypeFromMethod(method: string): CanonicalRequestType {

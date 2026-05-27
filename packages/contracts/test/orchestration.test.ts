@@ -262,6 +262,60 @@ it.effect("accepts bootstrap metadata in thread.turn.start", () =>
   }),
 );
 
+it.effect("preserves optional rich text metadata on user message commands and events", () =>
+  Effect.gen(function* () {
+    const richText = {
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }],
+    };
+    const command = yield* decodeOrchestrationCommand({
+      type: "thread.turn.start",
+      commandId: "cmd-rich-text",
+      threadId: "thread-1",
+      message: {
+        messageId: "msg-rich-text",
+        role: "user",
+        text: "hello",
+        richText,
+        attachments: [],
+      },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(command.type, "thread.turn.start");
+    assert.deepStrictEqual(command.message.richText, richText);
+
+    const event = yield* decodeOrchestrationEvent({
+      sequence: 1,
+      eventId: "event-rich-text",
+      aggregateKind: "thread",
+      aggregateId: "thread-1",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-rich-text",
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "thread.message-sent",
+      payload: {
+        threadId: "thread-1",
+        messageId: "msg-rich-text",
+        entryId: "entry-rich-text",
+        parentEntryId: null,
+        role: "user",
+        text: "hello",
+        richText,
+        turnId: null,
+        streaming: false,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    assert.strictEqual(event.type, "thread.message-sent");
+    assert.deepStrictEqual(event.payload.richText, richText);
+  }),
+);
+
 it.effect("decodes thread.created runtime mode for historical events", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeThreadCreatedPayload({
@@ -427,6 +481,22 @@ it.effect("accepts a source proposed plan reference in thread.turn.start", () =>
       threadId: "thread-1",
       planId: "plan-1",
     });
+  }),
+);
+
+it.effect("accepts client proposed plan update commands", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.proposed-plan.update",
+      commandId: "cmd-plan-update",
+      threadId: "thread-1",
+      planId: "plan-1",
+      planMarkdown: "# Updated plan",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.proposed-plan.update");
+    assert.strictEqual(parsed.planId, "plan-1");
+    assert.strictEqual(parsed.planMarkdown, "# Updated plan");
   }),
 );
 

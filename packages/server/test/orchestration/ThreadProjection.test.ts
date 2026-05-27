@@ -102,6 +102,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           turn_id,
           role,
           text,
+          rich_text_json,
           is_streaming,
           created_at,
           updated_at
@@ -112,6 +113,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           'turn-1',
           'assistant',
           'hello from projection',
+          '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"hello from projection"}]}]}',
           0,
           '2026-02-24T00:00:04.000Z',
           '2026-02-24T00:00:05.000Z'
@@ -303,6 +305,15 @@ threadProjectionLayer("ThreadProjection", (it) => {
               id: asMessageId("message-1"),
               role: "assistant",
               text: "hello from projection",
+              richText: {
+                type: "doc",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [{ type: "text", text: "hello from projection" }],
+                  },
+                ],
+              },
               turnId: asTurnId("turn-1"),
               streaming: false,
               createdAt: "2026-02-24T00:00:04.000Z",

@@ -1471,7 +1471,7 @@ export const ComposerInput = memo(
       if (!(target instanceof HTMLElement)) return;
       if (
         target.closest(
-          '.ProseMirror, button, input, select, textarea, a, [role="button"], [role="menuitem"]',
+          '[data-prompt-editor-input="true"], button, input, select, textarea, a, [role="button"], [role="menuitem"]',
         )
       ) {
         return;
@@ -1541,6 +1541,8 @@ export const ComposerInput = memo(
       pendingUserInputs.length === 0 &&
       showPlanFollowUpPrompt &&
       activeProposedPlan !== null;
+    const subagentPreviewVisible =
+      !isInlineEditComposer && (composerVariant !== "compact" || isDockComposerExpanded);
 
     // ------------------------------------------------------------------
     // Prompt helpers
@@ -2098,6 +2100,7 @@ export const ComposerInput = memo(
           const promptForSend = submitData?.text ?? promptRef.current;
           return {
             prompt: promptForSend,
+            ...(submitData?.richText !== undefined ? { richText: submitData.richText } : {}),
             images: composerImagesRef.current,
             selectedPromptEffort,
             selectedModelSelection,
@@ -2227,7 +2230,7 @@ export const ComposerInput = memo(
           <SubagentPreviewTrayStack
             activeThreadId={activeThreadId}
             compact={composerVariant === "compact"}
-            visible={!isInlineEditComposer}
+            visible={subagentPreviewVisible}
           />
           {showQueuedComposerPanel ? (
             <QueuedComposerItemsPanel

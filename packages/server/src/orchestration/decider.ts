@@ -616,6 +616,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           parentEntryId,
           role: "user",
           text: command.message.text,
+          ...(command.message.richText !== undefined ? { richText: command.message.richText } : {}),
           attachments: command.message.attachments,
           turnId: null,
           streaming: false,
@@ -1008,6 +1009,38 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           proposedPlan: command.proposedPlan,
+        },
+      };
+    }
+
+    case "thread.proposed-plan.update": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const proposedPlan = thread.proposedPlans.find((entry) => entry.id === command.planId);
+      if (!proposedPlan) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Proposed plan '${command.planId}' does not exist on thread '${command.threadId}'.`,
+        });
+      }
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.proposed-plan-upserted",
+        payload: {
+          threadId: command.threadId,
+          proposedPlan: {
+            ...proposedPlan,
+            planMarkdown: command.planMarkdown,
+            updatedAt: command.createdAt,
+          },
         },
       };
     }

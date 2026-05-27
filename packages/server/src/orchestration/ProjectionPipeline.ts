@@ -725,12 +725,17 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
                   attachments: event.payload.attachments,
                 })
               : previousMessage?.attachments;
+          const nextRichText =
+            event.payload.richText !== undefined
+              ? event.payload.richText
+              : previousMessage?.richText;
           yield* projectionThreadMessageRepository.upsert({
             messageId: event.payload.messageId,
             threadId: event.payload.threadId,
             turnId: event.payload.turnId,
             role: event.payload.role,
             text: nextText,
+            ...(nextRichText !== undefined ? { richText: nextRichText } : {}),
             ...(nextAttachments !== undefined ? { attachments: [...nextAttachments] } : {}),
             isStreaming: event.payload.streaming,
             createdAt: previousMessage?.createdAt ?? event.payload.createdAt,

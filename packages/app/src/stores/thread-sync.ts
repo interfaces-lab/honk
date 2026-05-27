@@ -99,6 +99,7 @@ function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage)
     id: message.id,
     role: message.role,
     text: message.text,
+    ...(message.richText !== undefined ? { richText: message.richText } : {}),
     turnId: message.turnId,
     createdAt: message.createdAt,
     streaming: message.streaming,
@@ -1342,6 +1343,7 @@ export function applyThreadDetailEvent(
           id: event.payload.messageId,
           role: event.payload.role,
           text: event.payload.text,
+          ...(event.payload.richText !== undefined ? { richText: event.payload.richText } : {}),
           ...(event.payload.attachments !== undefined
             ? { attachments: event.payload.attachments }
             : {}),
@@ -1364,6 +1366,7 @@ export function applyThreadDetailEvent(
                         : entry.text,
                     streaming: message.streaming,
                     ...(message.turnId !== undefined ? { turnId: message.turnId } : {}),
+                    ...(message.richText !== undefined ? { richText: message.richText } : {}),
                     ...(message.streaming
                       ? entry.completedAt !== undefined
                         ? { completedAt: entry.completedAt }

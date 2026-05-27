@@ -23,7 +23,7 @@ import {
 import { IconChevronRightMedium } from "central-icons";
 import { Spinner } from "@multi/ui/spinner";
 import { deriveTimelineEntries, formatDuration, type WorkLogEntry } from "../../../session-logic";
-import { type ChatMessage } from "../../../types";
+import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
   computeStableMessagesTimelineRows,
@@ -37,6 +37,7 @@ import { HumanMessage } from "../message/human-message";
 import { AssistantMessage } from "../message/assistant-message";
 import { WorkingStatusRow } from "../message/status-row";
 import { ToolCallMessage } from "../message/tool-message";
+import { ProposedPlanMessage } from "../message/proposed-plan-message";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
@@ -51,6 +52,9 @@ export interface TimelineRowSharedState {
   isServerThread: boolean;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
+  onUpdateProposedPlan:
+    | ((proposedPlan: ProposedPlan, nextMarkdown: string) => Promise<boolean>)
+    | undefined;
   onImageExpand: (preview: ExpandedImagePreview) => void;
 }
 
@@ -111,6 +115,10 @@ interface MessagesTimelineProps {
   editingUserMessageId?: MessageId | null | undefined;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer?: ((message: ChatMessage) => ReactNode) | undefined;
+  onUpdateProposedPlan?: (
+    proposedPlan: ProposedPlan,
+    nextMarkdown: string,
+  ) => Promise<boolean>;
   awaitingServerThreadDetail?: boolean | undefined;
   onIsAtBottomChange: (isAtBottom: boolean) => void;
 }
@@ -135,6 +143,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   editingUserMessageId = null,
   onBeginEditUserMessage,
   renderEditComposer,
+  onUpdateProposedPlan,
   awaitingServerThreadDetail = false,
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
@@ -375,6 +384,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       isServerThread,
       onBeginEditUserMessage,
       renderEditComposer,
+      onUpdateProposedPlan,
       onImageExpand,
     }),
     [
@@ -385,6 +395,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       isServerThread,
       onBeginEditUserMessage,
       renderEditComposer,
+      onUpdateProposedPlan,
       onImageExpand,
     ],
   );
@@ -814,6 +825,15 @@ function TimelineRowBody({
         <div className="box-border flex w-full min-w-0 px-0">
           <AssistantMessage message={row.message} markdownCwd={ctx.markdownCwd} />
         </div>
+      )}
+
+      {row.kind === "proposed-plan" && (
+        <ProposedPlanMessage
+          canEdit={ctx.isServerThread}
+          markdownCwd={ctx.markdownCwd}
+          onSave={ctx.onUpdateProposedPlan}
+          proposedPlan={row.proposedPlan}
+        />
       )}
 
       {row.kind === "working" && (

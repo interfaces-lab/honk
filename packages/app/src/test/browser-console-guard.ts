@@ -19,13 +19,6 @@ const allowedConsoleMessages: readonly AllowedConsoleMessage[] = [
   {
     method: "error",
     pattern: /^flushSync was called from inside a lifecycle method\./,
-    stackPattern: /@tiptap_react\.js|@tiptap\/react/,
-    reason:
-      "TODO: @tiptap/react ReactRenderer still calls ReactDOM.flushSync while ProseMirror mounts node views.",
-  },
-  {
-    method: "error",
-    pattern: /^flushSync was called from inside a lifecycle method\./,
     stackPattern: /@base-ui_react_tooltip\.js|@base-ui-components\/react/,
     reason:
       "TODO: Base UI tooltip hover currently calls ReactDOM.flushSync during React 19 render work.",

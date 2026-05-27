@@ -198,6 +198,7 @@ export interface WorkLogEntry {
   itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
   taskId?: string;
+  precedingToolUseIds?: ReadonlyArray<string>;
   artifacts?: ReadonlyArray<ToolDisplayArtifact>;
   subagents?: ReadonlyArray<WorkLogSubagent>;
   subagentAction?: WorkLogSubagentAction;
@@ -773,6 +774,7 @@ export function deriveWorkLogEntries(
     .filter((activity) => !isPlanBoundaryToolActivity(activity))
     .map((activity) => toDerivedWorkLogEntry(activity, completedAtByTaskKey));
   const workLogEntries: WorkLogEntry[] = [];
+  const visibleToolCallIds = new Set<string>();
   for (const entry of collapseDerivedWorkLogEntries(entries)) {
     const shouldSettle =
       options.activeRunningTurnId !== undefined &&
@@ -815,8 +817,14 @@ export function deriveWorkLogEntries(
         ? subagentDetailsByParentItemId.get(workEntry.toolCallId)?.map(subagentFromDerivedDetails)
         : undefined,
     );
+    if (shouldOmitToolSummaryEntry(workEntry, visibleToolCallIds)) {
+      continue;
+    }
     if (shouldOmitWorkLogEntry(workEntry, subagents)) {
       continue;
+    }
+    if (workEntry.toolCallId) {
+      visibleToolCallIds.add(workEntry.toolCallId);
     }
     if (subagents.length === 0) {
       workLogEntries.push(workEntry);
@@ -838,6 +846,29 @@ function shouldOmitWorkLogEntry(
   subagents: ReadonlyArray<WorkLogSubagent>,
 ): boolean {
   return workEntry.itemType === "collab_agent_tool_call" && subagents.length === 0;
+}
+
+function shouldOmitToolSummaryEntry(
+  workEntry: WorkLogEntry,
+  visibleToolCallIds: ReadonlySet<string>,
+): boolean {
+  if (!workEntry.isToolSummary || !isGenericDuplicateToolSummary(workEntry.label)) {
+    return false;
+  }
+  return (workEntry.precedingToolUseIds ?? []).some((toolUseId) =>
+    visibleToolCallIds.has(toolUseId),
+  );
+}
+
+function isGenericDuplicateToolSummary(label: string): boolean {
+  const normalized = label.trim().toLowerCase().replace(/[.:]+$/, "");
+  return (
+    normalized === "ran" ||
+    normalized === "ran command" ||
+    normalized === "running" ||
+    normalized === "running command" ||
+    normalized === "command"
+  );
 }
 
 interface DerivedSubagentDetails {
@@ -1089,11 +1120,9 @@ function reduceTranscriptItemLifecycle(
             ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
             ...(output ? { output: capTranscriptText(output) } : {}),
           }
-        : completed && detail
-          ? { text: capTranscriptText(detail) }
-          : detail && !existing.text
-            ? { text: capTranscriptText(detail) }
-            : {}),
+        : detail
+          ? { text: capTranscriptText(mergeSubagentTranscriptText(existing.text, detail)) }
+          : {}),
       loading: !isCompletedStatus,
     };
     ctx.itemsById.set(itemId, merged);
@@ -1170,8 +1199,6 @@ function shouldPreferRawSubagentItemText(itemType: string | undefined): boolean 
     case "assistant_message":
     case "user_message":
     case "reasoning":
-    case "agent_reasoning":
-    case "reasoning_summary":
     case "plan":
       return true;
     default:
@@ -1290,8 +1317,6 @@ function itemTypeToTranscriptKind(itemType: string | undefined): SubagentTranscr
     case "command_execution":
       return "command";
     case "reasoning":
-    case "agent_reasoning":
-    case "reasoning_summary":
       return "reasoning";
     case "plan":
       return "plan";
@@ -1374,8 +1399,6 @@ export function isSubagentProviderSnapshotItemType(itemType: string | undefined)
     case "assistant_message":
     case "user_message":
     case "reasoning":
-    case "reasoning_summary":
-    case "agent_reasoning":
     case "plan":
     case "review_entered":
     case "review_exited":
@@ -1641,6 +1664,9 @@ function toDerivedWorkLogEntry(
           : `task:${taskId}`
         : activity.id;
   const isToolSummary = activity.kind === "tool.summary";
+  const precedingToolUseIds = isToolSummary
+    ? asTrimmedStringArray(payload?.precedingToolUseIds)
+    : [];
   const tone: WorkLogEntry["tone"] = isToolSummary
     ? "info"
     : activity.kind === "task.started" || activity.kind === "task.progress"
@@ -1656,6 +1682,7 @@ function toDerivedWorkLogEntry(
     activityKind: activity.kind,
     turnId: activity.turnId,
     ...(isToolSummary ? { isToolSummary: true } : {}),
+    ...(precedingToolUseIds.length > 0 ? { precedingToolUseIds } : {}),
   };
   const status = resolveWorkLogStatus(activity, payload, tone);
   const streamKind = asTrimmedString(data?.streamKind);
@@ -1958,7 +1985,30 @@ function shouldPreservePreviousTaskLabel(
   if (next.activityKind !== "task.completed") {
     return false;
   }
-  return next.label === "Task completed" || next.label === "Task stopped";
+  return (
+    next.label === "Task completed" ||
+    next.label === "Task stopped" ||
+    next.label === "Completed task"
+  );
+}
+
+function mergeSubagentTranscriptText(
+  previous: string | undefined,
+  next: string,
+): string {
+  if (!previous) {
+    return next;
+  }
+  if (next === previous || previous.startsWith(next) || previous.endsWith(next)) {
+    return previous;
+  }
+  if (next.startsWith(previous)) {
+    return next;
+  }
+  if (next.length < previous.length) {
+    return previous;
+  }
+  return mergeStreamText(previous, next) ?? previous;
 }
 
 function mergeStreamText(
@@ -2739,6 +2789,15 @@ function asTrimmedString(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function asTrimmedStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => asTrimmedString(item))
+    .filter((item): item is string => item !== null);
 }
 
 function asSubagentDeltaString(value: unknown): string | null {

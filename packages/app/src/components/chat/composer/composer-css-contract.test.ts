@@ -58,16 +58,20 @@ describe("Composer CSS contract", () => {
     expect(conversationCss).toContain("--multi-composer-editor-line-height:");
   });
 
-  it("renders Tiptap placeholders from stable composer CSS", () => {
-    expect(promptEditorSource).toContain("Placeholder.configure");
-    expect(promptEditorSource).toContain("showOnlyWhenEditable: false");
+  it("renders Lexical placeholders from stable composer CSS", () => {
+    expect(promptEditorSource).toContain("LexicalComposer");
+    expect(promptEditorSource).toContain("RichTextPlugin");
+    expect(promptEditorSource).toContain("ContentEditable");
+    expect(promptEditorSource).toContain('data-prompt-editor-placeholder=""');
     expect(promptEditorSource).not.toContain("content-[attr(data-placeholder)]");
-    expect(conversationCss).toContain(".ProseMirror p.is-editor-empty:first-child::before");
-    expect(conversationCss).toContain("content: attr(data-placeholder)");
+    expect(promptEditorSource).not.toContain("@tiptap");
+    expect(conversationCss).toContain(".multi-lexical-composer-paragraph");
+    expect(conversationCss).toContain("[data-prompt-editor-placeholder]");
+    expect(conversationCss).not.toContain(".ProseMirror");
     expect(conversationCss).toContain("position: absolute");
     expect(conversationCss).toContain("color: var(--multi-fg-quaternary)");
     expect(promptEditorSource).toContain('data-prompt-editor-root="true"');
-    expect(promptEditorSource).toContain("editor.view.dispatch(editor.state.tr)");
+    expect(promptEditorSource).toContain("editor.update");
   });
 });
 
@@ -106,6 +110,15 @@ describe("Composer queue contract", () => {
     expect(queuedItemsPanelSource).toContain('"Collapse queue"');
     expect(queuedItemsPanelSource).toContain("max-h-[200px]");
     expect(conversationCss).toContain("[data-queued-composer-panel]");
+  });
+});
+
+describe("Composer subagent preview contract", () => {
+  it("keeps tray presentation tied to the expanded dock instead of inline row mounting", () => {
+    expect(inputSource).toMatch(
+      /const subagentPreviewVisible =\s*!isInlineEditComposer && \(composerVariant !== "compact" \|\| isDockComposerExpanded\);/,
+    );
+    expect(inputSource).toContain("visible={subagentPreviewVisible}");
   });
 });
 
@@ -150,10 +163,11 @@ describe("Composer slash menu contract", () => {
   it("anchors the slash/mention menu at the caret via a 1x1 span inside the prompt editor", () => {
     expect(promptEditorSource).toContain('data-composer-menu-anchor=""');
     expect(promptEditorSource).toContain("usePromptEditorCaretAnchor");
-    expect(promptEditorSource).toContain("editor.view.coordsAtPos");
-    expect(promptEditorSource).toContain("selection.from");
-    expect(promptEditorSource).toContain("coords.top - anchorRootRect.top");
-    expect(promptEditorSource).not.toContain("coords.bottom - anchorRootRect.top");
+    expect(promptEditorSource).toContain("caretRectFromDomSelection");
+    expect(promptEditorSource).toContain("window.getSelection");
+    expect(promptEditorSource).toContain("selectionchange");
+    expect(promptEditorSource).toContain("anchorRootRect.top");
+    expect(promptEditorSource).not.toContain("editor.view.coordsAtPos");
     expect(promptEditorSource).toContain("commandMenuOpen");
     expect(inputSource).not.toContain('data-composer-menu-anchor=""');
     expect(inputSource).toContain("caretAnchorRef={composerMenuAnchorRef}");

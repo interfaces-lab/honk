@@ -1,6 +1,7 @@
 import type {
   EnvironmentId,
   OrchestrationProposedPlanId,
+  OrchestrationMessageRichText,
   ProviderInteractionMode,
   ThreadId,
 } from "@multi/contracts";
@@ -25,6 +26,7 @@ type SourceProposedPlanReference = {
 
 type PreparedQueuedTurn = {
   messageText: string;
+  richText?: OrchestrationMessageRichText | undefined;
   interactionMode: ProviderInteractionMode;
   sourceProposedPlan?: SourceProposedPlanReference;
 };
@@ -56,6 +58,9 @@ function prepareQueuedTurn(item: QueuedComposerItem): PreparedQueuedTurn | null 
 
   return {
     messageText: compiledTurn.outgoingMessageText,
+    ...(compiledTurn.outgoingRichText !== undefined
+      ? { richText: compiledTurn.outgoingRichText }
+      : {}),
     interactionMode: item.interactionMode,
   };
 }
@@ -109,6 +114,7 @@ export async function dispatchNextQueuedComposerItemForThread(
         messageId: item.id,
         role: "user",
         text: prepared.messageText,
+        ...(prepared.richText !== undefined ? { richText: prepared.richText } : {}),
         attachments,
       },
       modelSelection: item.sendContext.selectedModelSelection,

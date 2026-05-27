@@ -163,11 +163,14 @@ export type OrchestrationProject = typeof OrchestrationProject.Type;
 
 export const OrchestrationMessageRole = Schema.Literals(["user", "assistant", "system"]);
 export type OrchestrationMessageRole = typeof OrchestrationMessageRole.Type;
+export const OrchestrationMessageRichText = Schema.Record(Schema.String, Schema.Unknown);
+export type OrchestrationMessageRichText = typeof OrchestrationMessageRichText.Type;
 
 export const OrchestrationMessage = Schema.Struct({
   id: MessageId,
   role: OrchestrationMessageRole,
   text: Schema.String,
+  richText: Schema.optional(OrchestrationMessageRichText),
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
   turnId: Schema.NullOr(TurnId),
   streaming: Schema.Boolean,
@@ -866,6 +869,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
     messageId: MessageId,
     role: Schema.Literal("user"),
     text: Schema.String,
+    richText: Schema.optional(OrchestrationMessageRichText),
     attachments: Schema.Array(ChatAttachment),
   }),
   modelSelection: Schema.optional(ModelSelection),
@@ -888,6 +892,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
     messageId: MessageId,
     role: Schema.Literal("user"),
     text: Schema.String,
+    richText: Schema.optional(OrchestrationMessageRichText),
     attachments: Schema.Array(UploadChatAttachment),
   }),
   modelSelection: Schema.optional(ModelSelection),
@@ -972,6 +977,15 @@ const ThreadTreeLabelSetCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadProposedPlanUpdateCommand = Schema.Struct({
+  type: Schema.Literal("thread.proposed-plan.update"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  planId: OrchestrationProposedPlanId,
+  planMarkdown: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
@@ -992,6 +1006,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
   ThreadTreeLabelSetCommand,
+  ThreadProposedPlanUpdateCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
@@ -1016,6 +1031,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
   ThreadTreeLabelSetCommand,
+  ThreadProposedPlanUpdateCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
@@ -1222,6 +1238,7 @@ export const ThreadMessageSentPayload = Schema.Struct({
   parentEntryId: Schema.NullOr(ThreadEntryId),
   role: OrchestrationMessageRole,
   text: Schema.String,
+  richText: Schema.optional(OrchestrationMessageRichText),
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
   turnId: Schema.NullOr(TurnId),
   streaming: Schema.Boolean,

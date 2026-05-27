@@ -7,9 +7,8 @@ import {
   type ThreadId,
   type ToolLifecycleItemType,
 } from "@multi/contracts";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { IconCrossSmall } from "central-icons";
-import { memo, type CSSProperties, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { type ChatMessage } from "../../../types";
 import { AssistantMessage } from "../message/assistant-message";
 import { HumanMessage } from "../message/human-message";
@@ -37,12 +36,9 @@ const EMPTY_SUBAGENT_LOGS: ReadonlyArray<WorkLogSubagentLog> = [];
 const EMPTY_SUBAGENT_TRANSCRIPT_ITEMS: ReadonlyArray<SubagentTranscriptItem> = [];
 const EMPTY_SUBAGENT_SNAPSHOT_ITEMS: ReadonlyArray<SubagentSnapshotListItem> = [];
 type WorkLogStatus = NonNullable<WorkLogEntry["status"]>;
-const SUBAGENT_TRANSCRIPT_VIRTUALIZE_THRESHOLD = 80;
-const SUBAGENT_TRANSCRIPT_ESTIMATE_PX = 44;
-const SUBAGENT_TRANSCRIPT_MESSAGE_ESTIMATE_PX = 120;
-const SUBAGENT_TRANSCRIPT_VIRTUAL_OVERSCAN = 8;
+const SUBAGENT_SNAPSHOT_ITEMS_CAP = 200;
 
-interface SubagentSnapshotListItem {
+export interface SubagentSnapshotListItem {
   readonly key: string;
   readonly item: ProviderThreadSnapshotItem;
 }
@@ -183,7 +179,11 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
   const providerThreadId = subagent.providerThreadId?.trim();
   const canReadTranscript = (providerThreadId?.length ?? 0) > 0;
   const transcriptItems = subagent.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
-  const hasActivityTranscript = transcriptItems.some(hasRenderableSubagentTranscriptItem);
+  const renderableTranscriptItems = useMemo(
+    () => transcriptItems.filter(hasRenderableSubagentTranscriptItem),
+    [transcriptItems],
+  );
+  const hasActivityTranscript = renderableTranscriptItems.length > 0;
   const hasSnapshotTranscript =
     snapshotState.status === "loaded" && snapshotHasItems(snapshotState.snapshot);
   const hasCanonicalTranscript = hasActivityTranscript || hasSnapshotTranscript;
@@ -193,7 +193,6 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
     [hasCanonicalTranscript, logs],
   );
   const streamingLogId = runningLogs.at(-1)?.id;
-  const bodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!canReadTranscript || !providerThreadId || hasActivityTranscript) {
@@ -239,7 +238,6 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
 
   return (
     <div
-      ref={bodyRef}
       data-subagent-preview-body=""
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-(--chat-timeline-step-gap) overflow-y-auto overscroll-contain px-3 py-2 text-conversation text-multi-fg-primary"
     >
@@ -248,9 +246,8 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
           activeThreadId={activeThreadId}
           environmentId={environmentId}
           isStreaming={subagent.isActive === true}
-          items={transcriptItems}
+          items={renderableTranscriptItems}
           projectRoot={projectRoot}
-          scrollElementRef={bodyRef}
         />
       ) : canReadTranscript ? (
         <SubagentSnapshotSection
@@ -258,7 +255,6 @@ const SubagentPreviewBody = memo(function SubagentPreviewBody(props: {
           environmentId={environmentId}
           isStreaming={subagent.isActive === true}
           projectRoot={projectRoot}
-          scrollElementRef={bodyRef}
           snapshotState={snapshotState}
         />
       ) : null}
@@ -290,60 +286,13 @@ const SubagentActivityTranscriptSection = memo(function SubagentActivityTranscri
   isStreaming,
   items,
   projectRoot,
-  scrollElementRef,
 }: {
   activeThreadId: ThreadId;
   environmentId: EnvironmentId;
   isStreaming: boolean;
   items: ReadonlyArray<SubagentTranscriptItem>;
   projectRoot: string | undefined;
-  scrollElementRef: RefObject<HTMLDivElement | null>;
 }) {
-  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
-    count: items.length,
-    getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimateSubagentTranscriptItemSize(items[index]),
-    getItemKey: (index) => items[index]?.id ?? index,
-    overscan: SUBAGENT_TRANSCRIPT_VIRTUAL_OVERSCAN,
-    useAnimationFrameWithResizeObserver: true,
-  });
-
-  if (items.length >= SUBAGENT_TRANSCRIPT_VIRTUALIZE_THRESHOLD) {
-    return (
-      <div
-        data-subagent-activity-transcript=""
-        data-subagent-transcript-virtualized=""
-        className="relative min-w-0"
-        style={subagentVirtualListStyle(rowVirtualizer.getTotalSize())}
-      >
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const item = items[virtualRow.index];
-          if (!item) {
-            return null;
-          }
-
-          return (
-            <div
-              key={virtualRow.key}
-              ref={rowVirtualizer.measureElement}
-              data-index={virtualRow.index}
-              className="absolute top-0 left-0 w-full pb-(--chat-timeline-step-gap)"
-              style={subagentVirtualRowStyle(virtualRow.start)}
-            >
-              <SubagentTranscriptItemRow
-                activeThreadId={activeThreadId}
-                environmentId={environmentId}
-                isStreaming={isStreaming && virtualRow.index === items.length - 1 && item.loading}
-                item={item}
-                projectRoot={projectRoot}
-              />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
     <div
       data-subagent-activity-transcript=""
@@ -443,31 +392,23 @@ const SubagentSnapshotSection = memo(function SubagentSnapshotSection({
   environmentId,
   isStreaming,
   projectRoot,
-  scrollElementRef,
   snapshotState,
 }: {
   activeThreadId: ThreadId;
   environmentId: EnvironmentId;
   isStreaming: boolean;
   projectRoot: string | undefined;
-  scrollElementRef: RefObject<HTMLDivElement | null>;
   snapshotState: SubagentSnapshotState;
 }) {
   const snapshotItems = useMemo(
     () =>
       snapshotState.status === "loaded"
-        ? flattenSubagentSnapshotItems(snapshotState.snapshot.turns)
+        ? flattenSubagentSnapshotItems(snapshotState.snapshot.turns).slice(
+            -SUBAGENT_SNAPSHOT_ITEMS_CAP,
+          )
         : EMPTY_SUBAGENT_SNAPSHOT_ITEMS,
     [snapshotState],
   );
-  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
-    count: snapshotItems.length,
-    getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimateSubagentSnapshotItemSize(snapshotItems[index]?.item),
-    getItemKey: (index) => snapshotItems[index]?.key ?? index,
-    overscan: SUBAGENT_TRANSCRIPT_VIRTUAL_OVERSCAN,
-    useAnimationFrameWithResizeObserver: true,
-  });
 
   if (snapshotState.status === "idle" || snapshotState.status === "loading") {
     return (
@@ -485,42 +426,6 @@ const SubagentSnapshotSection = memo(function SubagentSnapshotSection({
 
   if (snapshotItems.length === 0) {
     return null;
-  }
-
-  if (snapshotItems.length >= SUBAGENT_TRANSCRIPT_VIRTUALIZE_THRESHOLD) {
-    return (
-      <div
-        data-subagent-thread-snapshot=""
-        data-subagent-transcript-virtualized=""
-        className="relative min-w-0"
-        style={subagentVirtualListStyle(rowVirtualizer.getTotalSize())}
-      >
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const snapshotItem = snapshotItems[virtualRow.index];
-          if (!snapshotItem) {
-            return null;
-          }
-
-          return (
-            <div
-              key={virtualRow.key}
-              ref={rowVirtualizer.measureElement}
-              data-index={virtualRow.index}
-              className="absolute top-0 left-0 w-full pb-(--chat-timeline-step-gap)"
-              style={subagentVirtualRowStyle(virtualRow.start)}
-            >
-              <SubagentSnapshotItem
-                activeThreadId={activeThreadId}
-                environmentId={environmentId}
-                isStreaming={isStreaming && virtualRow.index === snapshotItems.length - 1}
-                item={snapshotItem.item}
-                projectRoot={projectRoot}
-              />
-            </div>
-          );
-        })}
-      </div>
-    );
   }
 
   return (
@@ -542,51 +447,102 @@ const SubagentSnapshotSection = memo(function SubagentSnapshotSection({
   );
 });
 
-function flattenSubagentSnapshotItems(
+export function flattenSubagentSnapshotItems(
   turns: ProviderThreadSnapshot["turns"],
 ): ReadonlyArray<SubagentSnapshotListItem> {
-  return turns.flatMap((turn) =>
-    turn.items.map((item, itemIndex) => ({
-      key: item.id ?? `${turn.id}:${itemIndex}`,
-      item,
-    })),
-  );
+  const orderedKeys: string[] = [];
+  const itemsByKey = new Map<string, SubagentSnapshotListItem>();
+
+  for (const turn of turns) {
+    turn.items.forEach((item, itemIndex) => {
+      if (!hasRenderableSubagentSnapshotItem(item)) {
+        return;
+      }
+
+      const key = subagentSnapshotCanonicalKey(String(turn.id), item, itemIndex);
+      const existing = itemsByKey.get(key);
+      if (!existing) {
+        orderedKeys.push(key);
+        itemsByKey.set(key, { key, item });
+        return;
+      }
+
+      itemsByKey.set(key, { key, item: mergeSubagentSnapshotItem(existing.item, item) });
+    });
+  }
+
+  return orderedKeys.flatMap((key) => {
+    const item = itemsByKey.get(key);
+    return item ? [item] : [];
+  });
 }
 
-function estimateSubagentTranscriptItemSize(item: SubagentTranscriptItem | undefined): number {
-  if (!item) {
-    return SUBAGENT_TRANSCRIPT_ESTIMATE_PX;
-  }
-  if (subagentTranscriptMessageRole(item)) {
-    return SUBAGENT_TRANSCRIPT_MESSAGE_ESTIMATE_PX;
-  }
-  if (item.kind === "command" || isSubagentToolTranscriptItem(item)) {
-    return SUBAGENT_TRANSCRIPT_ESTIMATE_PX;
-  }
-  if (isSubagentReasoningTranscriptItem(item)) {
-    return SUBAGENT_TRANSCRIPT_ESTIMATE_PX;
-  }
-  return SUBAGENT_TRANSCRIPT_ESTIMATE_PX;
+function subagentSnapshotCanonicalKey(
+  turnId: string,
+  item: ProviderThreadSnapshotItem,
+  itemIndex: number,
+): string {
+  const payloadItemId = extractSnapshotPayloadItemId(item);
+  const toolCallId = extractSnapshotPayloadToolCallId(item);
+  const providerItemId = item.id?.trim();
+  const stableItemId = toolCallId ?? payloadItemId ?? providerItemId ?? String(itemIndex);
+  return `${turnId}\u001f${item.itemType}\u001f${stableItemId}`;
 }
 
-function estimateSubagentSnapshotItemSize(
-  item: ProviderThreadSnapshotItem | undefined,
-): number {
-  if (!item) {
-    return SUBAGENT_TRANSCRIPT_ESTIMATE_PX;
-  }
-  if (subagentSnapshotMessageRole(item)) {
-    return SUBAGENT_TRANSCRIPT_MESSAGE_ESTIMATE_PX;
-  }
-  return SUBAGENT_TRANSCRIPT_ESTIMATE_PX;
+function mergeSubagentSnapshotItem(
+  previous: ProviderThreadSnapshotItem,
+  next: ProviderThreadSnapshotItem,
+): ProviderThreadSnapshotItem {
+  const previousDetail = subagentSnapshotDisplayDetail(previous);
+  const nextDetail = subagentSnapshotDisplayDetail(next);
+  const detail = mergeSubagentSnapshotDetail(previousDetail, nextDetail);
+  const data = shouldPreferNextSnapshotData(previous, next)
+    ? (next.data ?? previous.data)
+    : (previous.data ?? next.data);
+
+  return {
+    ...previous,
+    ...next,
+    ...(previous.title && !next.title ? { title: previous.title } : {}),
+    ...(detail ? { detail } : {}),
+    ...(data !== undefined ? { data } : {}),
+  };
 }
 
-function subagentVirtualListStyle(height: number): CSSProperties {
-  return { height, position: "relative" };
+function mergeSubagentSnapshotDetail(
+  previous: string | undefined,
+  next: string | undefined,
+): string | undefined {
+  if (!previous) {
+    return next;
+  }
+  if (!next || next === previous || previous.startsWith(next) || previous.endsWith(next)) {
+    return previous;
+  }
+  if (next.startsWith(previous)) {
+    return next;
+  }
+  return next.length >= previous.length ? next : previous;
 }
 
-function subagentVirtualRowStyle(start: number): CSSProperties {
-  return { transform: `translateY(${start}px)` };
+function shouldPreferNextSnapshotData(
+  previous: ProviderThreadSnapshotItem,
+  next: ProviderThreadSnapshotItem,
+): boolean {
+  if (next.itemType === "command_execution" || previous.itemType === "command_execution") {
+    const previousCommand = snapshotCommandParts(previous);
+    const nextCommand = snapshotCommandParts(next);
+    if (nextCommand.output && !previousCommand.output) {
+      return true;
+    }
+    if (nextCommand.command && !previousCommand.command) {
+      return true;
+    }
+  }
+
+  const previousLength = subagentSnapshotDisplayDetail(previous)?.length ?? 0;
+  const nextLength = subagentSnapshotDisplayDetail(next)?.length ?? 0;
+  return nextLength >= previousLength;
 }
 
 const SubagentSnapshotItem = memo(function SubagentSnapshotItem({
@@ -602,7 +558,7 @@ const SubagentSnapshotItem = memo(function SubagentSnapshotItem({
   item: ProviderThreadSnapshotItem;
   projectRoot: string | undefined;
 }) {
-  const detail = item.detail;
+  const detail = subagentSnapshotDisplayDetail(item);
   const messageRole = subagentSnapshotMessageRole(item);
 
   if (messageRole === "assistant" && detail) {
@@ -787,6 +743,19 @@ export function hasRenderableSubagentTranscriptItem(item: SubagentTranscriptItem
   return Boolean(item.text?.trim());
 }
 
+export function hasRenderableSubagentSnapshotItem(item: ProviderThreadSnapshotItem): boolean {
+  if (subagentSnapshotMessageRole(item)) {
+    return Boolean(subagentSnapshotDisplayDetail(item)?.trim());
+  }
+  if (isSubagentReasoningSnapshotItem(item) || item.itemType === "plan") {
+    return Boolean(subagentSnapshotDisplayDetail(item)?.trim());
+  }
+  if (isSubagentSnapshotToolItem(item)) {
+    return true;
+  }
+  return Boolean(subagentSnapshotDisplayDetail(item)?.trim());
+}
+
 function subagentTranscriptMessageRole(
   item: SubagentTranscriptItem,
 ): "user" | "assistant" | undefined {
@@ -835,21 +804,94 @@ function subagentSnapshotMessageRole(
   }
 }
 
+export function subagentSnapshotDisplayDetail(
+  item: ProviderThreadSnapshotItem,
+): string | undefined {
+  const itemText = extractSnapshotPayloadItemText(item);
+  if (shouldPreferRawSnapshotItemText(item.itemType) && itemText) {
+    return itemText;
+  }
+  return item.detail ?? itemText;
+}
+
+function extractSnapshotPayloadItemText(item: ProviderThreadSnapshotItem): string | undefined {
+  const data = asRecord(item.data);
+  const dataItem = asRecord(data?.item) ?? data;
+  const text = asString(dataItem?.text);
+  if (text) {
+    return text;
+  }
+  return extractSnapshotContentText(dataItem?.content);
+}
+
+function extractSnapshotPayloadItemId(item: ProviderThreadSnapshotItem): string | undefined {
+  const data = asRecord(item.data);
+  const dataItem = asRecord(data?.item) ?? data;
+  return (
+    asString(dataItem?.id) ??
+    asString(dataItem?.itemId) ??
+    asString(data?.itemId) ??
+    asString(data?.providerItemId)
+  );
+}
+
+function extractSnapshotPayloadToolCallId(item: ProviderThreadSnapshotItem): string | undefined {
+  const data = asRecord(item.data);
+  const dataItem = asRecord(data?.item) ?? data;
+  return (
+    asString(dataItem?.toolCallId) ??
+    asString(dataItem?.tool_call_id) ??
+    asString(dataItem?.callId) ??
+    asString(data?.toolCallId) ??
+    asString(data?.tool_call_id) ??
+    asString(data?.callId)
+  );
+}
+
+function extractSnapshotContentText(content: unknown): string | undefined {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+  const text = content
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+      const record = asRecord(entry);
+      const nestedContent = asRecord(record?.content);
+      return asString(record?.text) ?? asString(nestedContent?.text);
+    })
+    .filter((entry): entry is string => entry !== undefined)
+    .join("\n")
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function shouldPreferRawSnapshotItemText(itemType: string): boolean {
+  switch (itemType) {
+    case "assistant_message":
+    case "user_message":
+    case "reasoning":
+    case "plan":
+      return true;
+    default:
+      return false;
+  }
+}
+
 function isSubagentReasoningTranscriptItem(item: SubagentTranscriptItem): boolean {
   if (item.kind === "reasoning") {
     return true;
   }
   switch (item.itemType) {
     case "reasoning":
-    case "agent_reasoning":
-    case "reasoning_summary":
       return true;
     default:
       return item.title === "Reasoning";
   }
 }
 
-function isSubagentReasoningSnapshotItem(item: ProviderThreadSnapshotItem): boolean {
+export function isSubagentReasoningSnapshotItem(item: ProviderThreadSnapshotItem): boolean {
   switch (item.itemType) {
     case "reasoning":
       return true;
@@ -900,6 +942,7 @@ function subagentSnapshotItemToWorkEntry(
   const { command, output } =
     itemType === "command_execution" ? snapshotCommandParts(item) : { command: "", output: null };
   const label = item.title ?? formatSnapshotTypeLabel(itemType);
+  const detail = subagentSnapshotDisplayDetail(item);
   const status = resolveSubagentToolStatus(undefined, isStreaming);
   return {
     id: `subagent-snapshot-tool:${item.id ?? label}`,
@@ -909,7 +952,7 @@ function subagentSnapshotItemToWorkEntry(
     status,
     ...(item.id ? { toolCallId: item.id } : {}),
     itemType,
-    ...(item.detail && itemType !== "command_execution" ? { detail: item.detail } : {}),
+    ...(detail && itemType !== "command_execution" ? { detail } : {}),
     ...(command ? { command } : {}),
     ...(output ? { output } : {}),
     ...(item.title ? { toolTitle: item.title } : {}),
@@ -938,17 +981,18 @@ function snapshotCommandParts(item: ProviderThreadSnapshotItem): {
   output: string | null;
 } {
   const data = asRecord(item.data);
-  const args = asRecord(data?.args);
-  const result = asRecord(data?.result);
+  const dataItem = asRecord(data?.item) ?? data;
+  const args = asRecord(dataItem?.args);
+  const result = asRecord(dataItem?.result);
   const command =
-    asString(data?.command) ??
-    asString(data?.cmd) ??
+    asString(dataItem?.command) ??
+    asString(dataItem?.cmd) ??
     asString(args?.command) ??
     asString(args?.cmd) ??
     "";
   const output =
-    asString(data?.aggregatedOutput) ??
-    asString(data?.output) ??
+    asString(dataItem?.aggregatedOutput) ??
+    asString(dataItem?.output) ??
     asString(result?.output) ??
     asString(result?.stdout) ??
     null;
@@ -1000,7 +1044,7 @@ function shouldExpandSubagentActivityDetail(detail: string): boolean {
 }
 
 function snapshotHasItems(snapshot: ProviderThreadSnapshot): boolean {
-  return snapshot.turns.some((turn) => turn.items.length > 0);
+  return snapshot.turns.some((turn) => turn.items.some(hasRenderableSubagentSnapshotItem));
 }
 
 function formatSnapshotTypeLabel(value: string): string {

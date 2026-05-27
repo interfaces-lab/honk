@@ -144,6 +144,35 @@ describe("messages-timeline", () => {
     expect(markup).toContain("yoo what&#x27;s ");
   }, 20_000);
 
+  it("renders proposed plan rows in the conversation timeline", async () => {
+    const { MessagesTimeline } = await import("./messages-timeline");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "plan-1",
+            kind: "proposed-plan",
+            createdAt: "2026-02-23T00:00:01.000Z",
+            proposedPlan: {
+              id: "plan-1",
+              turnId: null,
+              planMarkdown: "# Ship feature\n\n- Render the plan card",
+              implementedAt: null,
+              implementationThreadId: null,
+              createdAt: "2026-02-23T00:00:01.000Z",
+              updatedAt: "2026-02-23T00:00:01.000Z",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("data-proposed-plan-message");
+    expect(markup).toContain("Ship feature");
+    expect(markup).toContain("Render the plan card");
+  }, 20_000);
+
   it("renders edit affordance for user messages with session entries", async () => {
     const { MessagesTimeline } = await import("./messages-timeline");
     const messageId = MessageId.make("message-entry-edit");
@@ -240,8 +269,31 @@ describe("messages-timeline", () => {
     const markup = renderToStaticMarkup(<ToolCallRenderer toolCall={toolCall} defaultExpanded />);
 
     expect(markup).toContain("first line");
+    expect(markup).toContain("data-shell-tool-call-body");
     expect(markup.split("CONTEXT.md")).toHaveLength(2);
     expect(markup).not.toContain("/bin/zsh -lc");
+  });
+
+  it("renders command-only shell rows as a single non-expandable command line", () => {
+    const toolCall: ToolCallModel = {
+      tool: {
+        case: "shellToolCall",
+        value: {
+          action: "Ran command",
+          details: "pnpm test",
+          command: "pnpm test",
+          output: null,
+        },
+      },
+    };
+
+    const markup = renderToStaticMarkup(<ToolCallRenderer toolCall={toolCall} defaultExpanded />);
+
+    expect(markup).toContain(">Ran<");
+    expect(markup).not.toContain("Ran command");
+    expect(markup.match(/pnpm test/g)).toHaveLength(1);
+    expect(markup).not.toContain("data-shell-tool-call-body");
+    expect(markup).not.toContain("aria-expanded");
   });
 
   it("does not expose generic completed task labels for subagent tool calls", () => {

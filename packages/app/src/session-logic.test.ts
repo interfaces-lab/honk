@@ -830,6 +830,39 @@ describe("deriveWorkLogEntries", () => {
     expect(entries[0]?.tone).toBe("error");
   });
 
+  it("keeps the meaningful task label when completion uses a generic label", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "subagent-task",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "task.started",
+        summary: "Subagent task",
+        payload: {
+          taskId: "task-1",
+          detail: "Inspect the repo",
+        },
+      }),
+      makeActivity({
+        id: "subagent-task-completed",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "task.completed",
+        summary: "Completed task",
+        payload: {
+          taskId: "task-1",
+          status: "completed",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      label: "Inspect the repo",
+      status: "completed",
+    });
+  });
+
   it("filters by turn id when provided", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({ id: "turn-1", turnId: "turn-1", summary: "Tool call", kind: "tool.started" }),
@@ -901,6 +934,321 @@ describe("deriveWorkLogEntries", () => {
 
     const entries = deriveWorkLogEntries(activities, undefined);
     expect(entries.map((entry) => entry.id)).toEqual(["real-work-log"]);
+  });
+
+  it("preserves tool summary rows separately from matching command lifecycle rows", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "command-start",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          detail: "pnpm test",
+          data: {
+            item: {
+              command: ["pnpm", "test"],
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "command-summary",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.summary",
+        summary: "1 test passed",
+        payload: {
+          summary: "1 test passed",
+          precedingToolUseIds: ["command-1"],
+        },
+      }),
+      makeActivity({
+        id: "command-completed",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          detail: "pnpm test",
+          data: {
+            item: {
+              command: ["pnpm", "test"],
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      id: "tool:command-1",
+      label: "Ran command",
+      status: "completed",
+      command: "pnpm test",
+    });
+    expect(entries[1]).toMatchObject({
+      id: "command-summary",
+      label: "1 test passed",
+      isToolSummary: true,
+    });
+  });
+
+  it("omits generic tool summary rows that duplicate command lifecycle rows", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "command-start",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          detail: "pnpm test",
+          data: {
+            item: {
+              command: ["pnpm", "test"],
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "command-summary",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.summary",
+        summary: "Ran command",
+        payload: {
+          summary: "Ran command",
+          precedingToolUseIds: ["command-1"],
+        },
+      }),
+      makeActivity({
+        id: "command-completed",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemId: "command-1",
+          itemType: "command_execution",
+          detail: "pnpm test",
+          data: {
+            item: {
+              command: ["pnpm", "test"],
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: "tool:command-1",
+      label: "Ran command",
+      status: "completed",
+      command: "pnpm test",
+    });
+  });
+
+  it("collapses streamed subagent lifecycle rows and keeps completed assistant text intact", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "spawn-subagent",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.completed",
+        summary: "Subagent",
+        payload: {
+          itemId: "call-subagent",
+          itemType: "collab_agent_tool_call",
+          detail: "Inspect the repo",
+          data: {
+            item: {
+              tool: "spawnAgent",
+              receiverThreadIds: ["subagent-thread-1"],
+              agentsStates: {
+                "subagent-thread-1": {
+                  status: "completed",
+                },
+              },
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread-started",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: "call-subagent",
+          role: "explorer",
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-start",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.item.started",
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: "call-subagent",
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm test",
+          data: {
+            item: {
+              command: ["pnpm", "test"],
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-command-completed",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.item.completed",
+        summary: "Ran command",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: "call-subagent",
+          itemId: "command-1",
+          itemType: "command_execution",
+          title: "Ran command",
+          status: "completed",
+          detail: "pnpm test",
+          data: {
+            item: {
+              command: ["pnpm", "test"],
+              result: {
+                content: "ok <exited with exit code 0>",
+              },
+            },
+          },
+        },
+      }),
+      makeActivity({
+        id: "subagent-assistant-delta",
+        createdAt: "2026-02-23T00:00:05.000Z",
+        kind: "subagent.content.delta",
+        summary: "Output",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: "call-subagent",
+          itemId: "assistant-final",
+          streamKind: "assistant_text",
+          delta: "Multi is a pnpm/Turbo TypeScript monorepo",
+        },
+      }),
+      makeActivity({
+        id: "subagent-assistant-completed",
+        createdAt: "2026-02-23T00:00:06.000Z",
+        kind: "subagent.item.completed",
+        summary: "Assistant message",
+        payload: {
+          providerThreadId: "subagent-thread-1",
+          parentItemId: "call-subagent",
+          itemId: "assistant-final",
+          itemType: "assistant_message",
+          title: "Assistant message",
+          status: "completed",
+          detail:
+            "Multi is a pnpm/Turbo TypeScript monorepo for a desktop coding-agent app. The final sentence stays visible.",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+    const transcriptItems = entries[0]?.subagents?.[0]?.transcriptItems ?? [];
+    const commandItems = transcriptItems.filter((item) => item.itemId === "command-1");
+    const finalAssistant = transcriptItems.find((item) => item.itemId === "assistant-final");
+
+    expect(entries).toHaveLength(1);
+    expect(commandItems).toHaveLength(1);
+    expect(commandItems[0]).toMatchObject({
+      kind: "command",
+      command: "pnpm test",
+      output: "ok",
+      loading: false,
+    });
+    expect(finalAssistant).toMatchObject({
+      kind: "message",
+      role: "assistant",
+      loading: false,
+    });
+    expect(finalAssistant?.text).toContain("The final sentence stays visible.");
+  });
+
+  it("does not replace streamed subagent assistant text with shorter completed detail", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "parent-task-tool",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.started",
+        summary: "Subagent task started",
+        payload: {
+          itemId: "tool-task-1",
+          itemType: "collab_agent_tool_call",
+          title: "Subagent task",
+          detail: "Review the repo",
+        },
+      }),
+      makeActivity({
+        id: "subagent-thread",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "subagent.thread.started",
+        summary: "Subagent thread started",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+        },
+      }),
+      makeActivity({
+        id: "subagent-message-delta",
+        createdAt: "2026-02-23T00:00:03.000Z",
+        kind: "subagent.content.delta",
+        summary: "Subagent output",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          streamKind: "assistant_text",
+          delta:
+            "Multi is a pnpm/Turbo TypeScript monorepo for a desktop coding-agent app. The final sentence remains visible.",
+        },
+      }),
+      makeActivity({
+        id: "subagent-message-completed",
+        createdAt: "2026-02-23T00:00:04.000Z",
+        kind: "subagent.item.completed",
+        summary: "Assistant message",
+        payload: {
+          providerThreadId: "codex-subagent-thread-1",
+          parentItemId: "tool-task-1",
+          itemId: "subagent-message-1",
+          itemType: "assistant_message",
+          status: "completed",
+          title: "Assistant message",
+          detail: "Multi is a pnpm/Turbo TypeScript monorepo...",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+    const finalAssistant = entries[0]?.subagents?.[0]?.transcriptItems?.find(
+      (item) => item.itemId === "subagent-message-1",
+    );
+
+    expect(finalAssistant).toMatchObject({
+      kind: "message",
+      role: "assistant",
+      loading: false,
+    });
+    expect(finalAssistant?.text).toContain("The final sentence remains visible.");
+    expect(finalAssistant?.text).not.toBe("Multi is a pnpm/Turbo TypeScript monorepo...");
   });
 
   it("orders work log by activity sequence when present", () => {

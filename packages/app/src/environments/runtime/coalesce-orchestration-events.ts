@@ -15,6 +15,11 @@ type ToolLifecycleActivity = Extract<
   { kind: "tool.started" | "tool.updated" | "tool.completed" }
 >;
 
+type SubagentItemLifecycleActivity = Extract<
+  OrchestrationThreadActivity,
+  { kind: "subagent.item.started" | "subagent.item.updated" | "subagent.item.completed" }
+>;
+
 /**
  * Coalesce assistant-message streaming bursts so the UI commits one merged
  * `thread.message-sent` per (threadId, messageId) instead of one commit per
@@ -44,6 +49,11 @@ export function coalesceOrchestrationUiEvents(
         payload: {
           ...event.payload,
           attachments: event.payload.attachments ?? previous.payload.attachments,
+          ...(event.payload.richText !== undefined
+            ? { richText: event.payload.richText }
+            : previous.payload.richText !== undefined
+              ? { richText: previous.payload.richText }
+              : {}),
           createdAt: previous.payload.createdAt,
           text:
             !event.payload.streaming && event.payload.text.length > 0
@@ -110,6 +120,16 @@ function stableActivityUiKey(event: ThreadActivityAppendedEvent): string | null 
         activity.payload.summaryIndex ?? "",
       ].join("\u001f");
     }
+    case "subagent.item.started":
+    case "subagent.item.updated":
+    case "subagent.item.completed": {
+      const providerThreadId = activity.payload.providerThreadId;
+      const itemId = activity.payload.itemId;
+      if (!providerThreadId || !itemId) {
+        return null;
+      }
+      return [event.payload.threadId, "subagent-item", providerThreadId, itemId].join("\u001f");
+    }
     default:
       return null;
   }
@@ -144,6 +164,19 @@ function mergeThreadActivityAppendedEvent(
     };
   }
 
+  if (
+    isSubagentItemLifecycleActivity(previousActivity) &&
+    isSubagentItemLifecycleActivity(nextActivity)
+  ) {
+    return {
+      ...next,
+      payload: {
+        ...next.payload,
+        activity: mergeSubagentItemLifecycleActivity(previousActivity, nextActivity),
+      },
+    };
+  }
+
   return next;
 }
 
@@ -155,6 +188,31 @@ function isToolLifecycleActivity(
     activity.kind === "tool.updated" ||
     activity.kind === "tool.completed"
   );
+}
+
+function isSubagentItemLifecycleActivity(
+  activity: OrchestrationThreadActivity,
+): activity is SubagentItemLifecycleActivity {
+  return (
+    activity.kind === "subagent.item.started" ||
+    activity.kind === "subagent.item.updated" ||
+    activity.kind === "subagent.item.completed"
+  );
+}
+
+function mergeSubagentItemLifecycleActivity(
+  previous: SubagentItemLifecycleActivity,
+  next: SubagentItemLifecycleActivity,
+): SubagentItemLifecycleActivity {
+  return {
+    ...next,
+    createdAt: previous.createdAt,
+    ...(previous.sequence !== undefined ? { sequence: previous.sequence } : {}),
+    payload: {
+      ...previous.payload,
+      ...next.payload,
+    },
+  };
 }
 
 function mergeToolLifecycleActivity(
