@@ -55,7 +55,12 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
   const previewActiveThreadId = focus?.activeThreadId ?? null;
   const belongsToActiveThread =
     props.activeThreadId !== null && previewActiveThreadId === props.activeThreadId;
-  const presented = focus !== null && belongsToActiveThread && props.visible;
+  const presented = shouldPresentSubagentPreviewTray({
+    activeThreadId: props.activeThreadId,
+    hasFocus: focus !== null,
+    previewActiveThreadId,
+    visible: props.visible,
+  });
   const activeThreadSync = (
     <SubagentPreviewActiveThreadSync
       key={`${props.activeThreadId ?? ""}:${previewKey ?? ""}:${belongsToActiveThread ? "1" : "0"}:${presented ? "1" : "0"}`}
@@ -89,6 +94,20 @@ export const SubagentPreviewTrayStack = memo(function SubagentPreviewTrayStack(p
     </>
   );
 });
+
+export function shouldPresentSubagentPreviewTray(input: {
+  activeThreadId: ThreadId | null;
+  previewActiveThreadId: ThreadId | null;
+  hasFocus: boolean;
+  visible: boolean;
+}): boolean {
+  return (
+    input.hasFocus &&
+    input.visible &&
+    input.activeThreadId !== null &&
+    input.previewActiveThreadId === input.activeThreadId
+  );
+}
 
 function SubagentPreviewActiveThreadSync({
   belongsToActiveThread,

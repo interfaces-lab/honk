@@ -2107,6 +2107,10 @@ export default function ChatView(props: ChatViewProps) {
         : "local";
   const activeThreadBranch = activeThread?.branch ?? null;
   const currentGitBranch = gitStatusQuery.data?.branch ?? null;
+  const [unavailableBaseBranch, setUnavailableBaseBranch] = useState<string | null>(null);
+  const handleStoredBranchAvailabilityChange = useCallback((missingBranch: string | null) => {
+    setUnavailableBaseBranch(missingBranch);
+  }, []);
   const sendEnvMode = resolveSendEnvMode({
     requestedEnvMode: envMode,
     isGitRepo,
@@ -2402,6 +2406,13 @@ export default function ChatView(props: ChatViewProps) {
       activeProject && isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath;
     if (shouldCreateWorktree && !activeThreadBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
+      return;
+    }
+    if (shouldCreateWorktree && unavailableBaseBranch) {
+      setThreadError(
+        threadIdForSend,
+        `Base branch "${unavailableBaseBranch}" is no longer available. Choose another branch.`,
+      );
       return;
     }
 
@@ -3572,7 +3583,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "absolute bottom-0 left-0 right-0 isolate z-30 pointer-events-auto before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:-ml-[50vw] before:w-screen before:bg-(--multi-chat-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:-ml-[50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-chat-surface-background),transparent)] [&>*]:relative [&>*]:z-1"
+                ? "absolute bottom-0 left-0 right-0 isolate z-30 pointer-events-auto before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-chat-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-chat-surface-background),transparent)] *:relative *:z-1"
                 : undefined,
             )}
             data-layout={isHeroComposer ? "wide" : undefined}
@@ -3596,6 +3607,7 @@ export default function ChatView(props: ChatViewProps) {
                 onEnvModeChange={handleBranchEnvModeChange}
                 onBranchSelect={handleBranchSelect}
                 onCheckoutPullRequest={openPullRequestBranchDialog}
+                onStoredBranchAvailabilityChange={handleStoredBranchAvailabilityChange}
               />
             ) : null}
             <ComposerInput

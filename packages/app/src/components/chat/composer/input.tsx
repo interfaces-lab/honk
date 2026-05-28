@@ -1541,8 +1541,7 @@ export const ComposerInput = memo(
       pendingUserInputs.length === 0 &&
       showPlanFollowUpPrompt &&
       activeProposedPlan !== null;
-    const subagentPreviewVisible =
-      !isInlineEditComposer && (composerVariant !== "compact" || isDockComposerExpanded);
+    const subagentPreviewVisible = !isInlineEditComposer;
 
     // ------------------------------------------------------------------
     // Prompt helpers

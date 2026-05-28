@@ -1276,6 +1276,78 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("marks a deleted remote base branch as unavailable in the branch toolbar", async () => {
+    const draftId = draftIdFromPath("/draft/draft-deleted-remote-branch");
+
+    useComposerDraftStore.setState({
+      draftThreadsByThreadKey: {
+        [draftId]: {
+          threadId: THREAD_ID,
+          environmentId: LOCAL_ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          logicalProjectKey: PROJECT_DRAFT_KEY,
+          createdAt: NOW_ISO,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: "feature/merged-away",
+          worktreePath: null,
+          envMode: "worktree",
+        },
+      },
+      logicalProjectDraftThreadKeyByLogicalProjectKey: {
+        [PROJECT_DRAFT_KEY]: draftId,
+      },
+    });
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      initialPath: `/draft/${draftId}`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.gitListBranches) {
+          return {
+            isRepo: true,
+            hasOriginRemote: true,
+            nextCursor: null,
+            totalCount: 1,
+            branches: [
+              {
+                name: "main",
+                current: true,
+                isDefault: true,
+                worktreePath: null,
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const branchButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find((button) =>
+            button.textContent?.includes("From feature/merged-away"),
+          ) as HTMLButtonElement | null,
+        'Unable to find branch selector for deleted remote branch.',
+      );
+      expect(branchButton.textContent).toContain("(unavailable)");
+
+      branchButton.click();
+
+      await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("p")).find((element) =>
+            element.textContent?.includes("no longer available"),
+          ) ?? null,
+        "Unable to find unavailable branch helper copy.",
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("uses the active draft route session when changing the base branch", async () => {
     const staleDraftId = draftIdFromPath("/draft/draft-stale-branch-session");
     const activeDraftId = draftIdFromPath("/draft/draft-active-branch-session");

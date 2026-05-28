@@ -8,9 +8,45 @@ import {
   hasRenderableSubagentSnapshotItem,
   hasRenderableSubagentTranscriptItem,
   isSubagentReasoningSnapshotItem,
+  shouldPresentSubagentPreviewTray,
   subagentSnapshotDisplayDetail,
   SubagentTranscriptItemRow,
 } from "./subagent-preview-tray";
+
+describe("shouldPresentSubagentPreviewTray", () => {
+  it("allows a focused subagent tray whenever the caller marks previews visible", () => {
+    const activeThreadId = ThreadId.make("thread-1");
+
+    expect(
+      shouldPresentSubagentPreviewTray({
+        activeThreadId,
+        previewActiveThreadId: activeThreadId,
+        hasFocus: true,
+        visible: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps inline edit and inactive-thread previews hidden", () => {
+    expect(
+      shouldPresentSubagentPreviewTray({
+        activeThreadId: ThreadId.make("thread-1"),
+        previewActiveThreadId: ThreadId.make("thread-1"),
+        hasFocus: true,
+        visible: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldPresentSubagentPreviewTray({
+        activeThreadId: ThreadId.make("thread-1"),
+        previewActiveThreadId: ThreadId.make("thread-2"),
+        hasFocus: true,
+        visible: true,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("hasRenderableSubagentTranscriptItem", () => {
   it("treats empty message transcript items as placeholders", () => {

@@ -18,9 +18,10 @@ import {
   IconFolder1,
   IconGit,
 } from "central-icons";
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { gitBranchSearchInfiniteQueryOptions } from "../../../lib/git-react-query";
+import { resolveMissingStoredBranch } from "./branch-selection";
 import { cn } from "../../../lib/utils";
 import { parsePullRequestReference } from "~/git/pull-request-reference";
 
@@ -46,6 +47,7 @@ interface BranchToolbarProps {
   onEnvModeChange: (mode: BranchEnvMode, branch: string | null) => void;
   onBranchSelect: (branch: GitBranch) => Promise<void> | void;
   onCheckoutPullRequest: (reference: string) => void;
+  onStoredBranchAvailabilityChange?: (missingBranch: string | null) => void;
 }
 
 interface BranchMenuSection {
@@ -131,12 +133,31 @@ export function BranchToolbar(props: BranchToolbarProps) {
     props.envMode === "worktree" && props.activeWorktreePath === null
       ? (props.activeThreadBranch ?? currentBranch)
       : (currentBranch ?? props.activeThreadBranch);
+  const storedBranchForAvailability =
+    props.envMode === "worktree" && props.activeWorktreePath === null
+      ? props.activeThreadBranch
+      : null;
+  const branchesReady = branchesQuery.isSuccess;
+  const missingStoredBranch = useMemo(
+    () =>
+      resolveMissingStoredBranch(
+        storedBranchForAvailability,
+        branches,
+        branchesReady,
+      ),
+    [branches, branchesReady, storedBranchForAvailability],
+  );
+  useEffect(() => {
+    props.onStoredBranchAvailabilityChange?.(missingStoredBranch);
+  }, [missingStoredBranch, props.onStoredBranchAvailabilityChange]);
   const workspaceLabel =
     props.workspaceName.trim() || formatFallbackWorkspaceName(props.workspacePath);
   const envModeLabel = props.envMode === "worktree" ? "New branch/worktree" : "Local";
   const branchButtonLabel = selectedBranch
     ? props.envMode === "worktree" && props.activeWorktreePath === null
-      ? `From ${selectedBranch}`
+      ? missingStoredBranch
+        ? `From ${selectedBranch} (unavailable)`
+        : `From ${selectedBranch}`
       : selectedBranch
     : "Branch";
   const normalizedBranchQuery = branchQuery.trim();
@@ -300,9 +321,18 @@ export function BranchToolbar(props: BranchToolbarProps) {
               size="sm"
               variant="ghost"
               disabled={props.disabled || branchesQuery.isError}
-              className="h-6 min-w-0 max-w-[11rem] shrink rounded-multi-control px-1.5 font-normal text-[12px] text-multi-fg-secondary shadow-none before:hidden hover:bg-multi-bg-quaternary hover:text-multi-fg-primary disabled:opacity-50 data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary"
+              className={cn(
+                "h-6 min-w-0 max-w-[11rem] shrink rounded-multi-control px-1.5 font-normal text-[12px] shadow-none before:hidden hover:bg-multi-bg-quaternary hover:text-multi-fg-primary disabled:opacity-50 data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary",
+                missingStoredBranch
+                  ? "text-multi-fg-red-primary"
+                  : "text-multi-fg-secondary",
+              )}
               aria-label={`Branch selector: ${branchButtonLabel}`}
-              title="Switch base branch"
+              title={
+                missingStoredBranch
+                  ? `Base branch "${missingStoredBranch}" is no longer available. Choose another branch.`
+                  : "Switch base branch"
+              }
             />
           }
         >
@@ -339,6 +369,16 @@ export function BranchToolbar(props: BranchToolbarProps) {
             />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
+            {missingStoredBranch ? (
+              <div className="border-multi-stroke-tertiary mb-1 border-b px-2 py-2">
+                <p className="font-multi text-[12px] leading-4 text-multi-fg-red-primary">
+                  Base branch &ldquo;{missingStoredBranch}&rdquo; is no longer available.
+                </p>
+                <p className="mt-1 font-multi text-[11px] leading-4 text-multi-fg-tertiary">
+                  It may have been deleted on the remote. Choose another branch below.
+                </p>
+              </div>
+            ) : null}
             {showPullRequestItem && parsedPullRequestReference ? (
               <MenuItem
                 variant="workbench"
