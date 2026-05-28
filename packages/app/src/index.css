@@ -44,8 +44,8 @@
   --color-multi-editor: var(--multi-color-editor);
   --color-multi-surface: var(--multi-color-surface);
   --color-multi-elevated: var(--multi-color-elevated);
-  --color-multi-bubble: var(--multi-color-bubble);
-  --color-multi-bubble-opaque: var(--multi-color-bubble-opaque);
+  --color-multi-bubble: var(--multi-input-surface);
+  --color-multi-bubble-opaque: var(--multi-input-surface-opaque);
   --color-multi-menubar: var(--multi-color-menubar);
   --color-multi-border: var(--multi-color-border);
   --color-multi-stroke: var(--multi-color-stroke);

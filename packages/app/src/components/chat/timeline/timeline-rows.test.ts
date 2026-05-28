@@ -197,6 +197,112 @@ describe("deriveMessagesTimelineRows", () => {
     expect(assistantRows).toHaveLength(2);
   });
 
+  it("assigns pairId and messageIndex to message rows in turn order", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "user-1-entry",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "user-1" as never,
+            role: "user",
+            text: "First",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "assistant-1-entry",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:10Z",
+          message: {
+            id: "assistant-1" as never,
+            role: "assistant",
+            text: "Answer",
+            turnId: "turn-1" as never,
+            createdAt: "2026-01-01T00:00:10Z",
+            completedAt: "2026-01-01T00:00:20Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "user-2-entry",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:30Z",
+          message: {
+            id: "user-2" as never,
+            role: "user",
+            text: "Follow up",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:30Z",
+            streaming: false,
+          },
+        },
+        {
+          id: "assistant-2-entry",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:40Z",
+          message: {
+            id: "assistant-2" as never,
+            role: "assistant",
+            text: "Second answer",
+            turnId: "turn-2" as never,
+            createdAt: "2026-01-01T00:00:40Z",
+            completedAt: "2026-01-01T00:00:50Z",
+            streaming: false,
+          },
+        },
+      ],
+      isWorking: false,
+      activeTurnStartedAt: null,
+      editableUserMessageIds: new Set(),
+    });
+
+    const messageRows = rows.filter(
+      (row): row is Extract<(typeof rows)[number], { kind: "message" }> => row.kind === "message",
+    );
+
+    expect(messageRows.map((row) => ({ id: row.message.id, pairId: row.pairId, index: row.messageIndex }))).toEqual([
+      { id: "user-1", pairId: "user-1", index: 0 },
+      { id: "assistant-1", pairId: "user-1", index: 1 },
+      { id: "user-2", pairId: "user-2", index: 2 },
+      { id: "assistant-2", pairId: "user-2", index: 3 },
+    ]);
+  });
+
+  it("leaves pairId null for a leading system message before any user", () => {
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        {
+          id: "system-1-entry",
+          kind: "message",
+          createdAt: "2026-01-01T00:00:00Z",
+          message: {
+            id: "system-1" as never,
+            role: "system",
+            text: "Welcome",
+            turnId: null,
+            createdAt: "2026-01-01T00:00:00Z",
+            streaming: false,
+          },
+        },
+      ],
+      isWorking: false,
+      activeTurnStartedAt: null,
+      editableUserMessageIds: new Set(),
+    });
+
+    const systemRow = rows.find(
+      (row): row is Extract<(typeof rows)[number], { kind: "message" }> =>
+        row.kind === "message" && row.message.role === "system",
+    );
+
+    expect(systemRow?.pairId).toBeNull();
+    expect(systemRow?.messageIndex).toBe(0);
+  });
+
   it("projects edit availability onto user rows", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [

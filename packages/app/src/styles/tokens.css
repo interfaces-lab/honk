@@ -34,7 +34,6 @@
   --multi-editor-opacity: 91.4%;
   --multi-surface-opacity: 82.96%;
   --multi-elevated-opacity: 81.68%;
-  --multi-bubble-opacity: 89.12%;
   --multi-menubar-opacity: 82.6%;
 }
 
@@ -66,13 +65,13 @@
 
   /* Tint bases (Cursor surface split): only these five read hue / intensity. */
   --multi-base-sidebar: oklch(
-    0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
+    0.974 calc(0.004 + var(--multi-intensity, 33) / 100 * 0.024) var(--multi-user-hue, 247)
   );
   --multi-base-chrome: oklch(
-    0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+    0.985 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
   );
   --multi-base-editor: oklch(
-    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+    0.998 calc(0.001 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
   );
   --multi-base-accent: oklch(0.682 0.178 var(--multi-user-hue, 247));
   --multi-base-focus: oklch(0.682 0.178 var(--multi-user-hue, 247));
@@ -88,7 +87,7 @@
   --warning-foreground: oklch(0.28 0.06 88);
 
   --border: oklch(0.943 0.004 270);
-  --input: oklch(0.895 0.006 278);
+  --input: var(--multi-base-editor);
 
   --primary: var(--multi-base-accent);
   --primary-foreground: oklch(0.992 0 0);
@@ -134,12 +133,6 @@
     var(--multi-color-elevated-opaque) var(--multi-elevated-opacity),
     transparent
   );
-  --multi-color-bubble-opaque: var(--multi-color-elevated-opaque);
-  --multi-color-bubble: color-mix(
-    in oklch,
-    var(--multi-color-bubble-opaque) var(--multi-bubble-opacity),
-    transparent
-  );
   --multi-color-menubar-opaque: var(--multi-base-editor);
   --multi-color-menubar: color-mix(
     in oklch,
@@ -179,13 +172,13 @@
   --muted-foreground: oklch(0.597 0.012 278);
 
   --multi-base-sidebar: oklch(
-    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.018) var(--multi-user-hue, 247)
+    0.226 calc(0.006 + var(--multi-intensity, 33) / 100 * 0.032) var(--multi-user-hue, 247)
   );
   --multi-base-chrome: oklch(
-    0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+    0.169 calc(0.003 + var(--multi-intensity, 33) / 100 * 0.012) var(--multi-user-hue, 247)
   );
   --multi-base-editor: oklch(
-    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.006) var(--multi-user-hue, 247)
+    0.146 calc(0.002 + var(--multi-intensity, 33) / 100 * 0.008) var(--multi-user-hue, 247)
   );
   --multi-base-accent: oklch(0.682 0.178 var(--multi-user-hue, 247));
   --multi-base-focus: oklch(0.682 0.178 var(--multi-user-hue, 247));
@@ -201,7 +194,7 @@
   --warning-foreground: oklch(0.2 0.04 88);
 
   --border: oklch(0.268 0.006 270);
-  --input: oklch(0.268 0.006 270);
+  --input: var(--multi-base-editor);
 
   --primary: var(--multi-base-accent);
   --primary-foreground: oklch(0.146 0.002 270);
@@ -245,12 +238,6 @@
   --multi-color-elevated: color-mix(
     in oklch,
     var(--multi-color-elevated-opaque) var(--multi-elevated-opacity),
-    transparent
-  );
-  --multi-color-bubble-opaque: var(--multi-color-elevated-opaque);
-  --multi-color-bubble: color-mix(
-    in oklch,
-    var(--multi-color-bubble-opaque) var(--multi-bubble-opacity),
     transparent
   );
   --multi-color-menubar-opaque: var(--multi-base-editor);
@@ -305,10 +292,21 @@
 html {
   --multi-interactive-surface: var(--multi-base-chrome);
   --multi-chat-surface-background: var(--multi-color-chat);
-  --multi-chat-bubble-translucent-background: var(--multi-color-bubble);
-  --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
-  --multi-chat-bubble-opaque-background: var(--multi-color-bubble-opaque);
-  --multi-chat-bubble-glass-opaque-background: var(--card);
+  --multi-pane-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-editor-opaque) 96%,
+    #fff
+  );
+  /* Cursor keeps composer chrome and human bubbles on separate neutral lanes. */
+  --multi-input-surface-opaque: var(--input);
+  --multi-input-surface: var(--multi-input-surface-opaque);
+  --multi-composer-surface-background: var(--multi-pane-surface-background);
+  --multi-composer-surface-opaque-background: color-mix(
+    in srgb,
+    var(--multi-color-editor-opaque) 96%,
+    #fff
+  );
+  --multi-message-bubble-background: var(--multi-input-surface);
   --multi-shadow-primary: oklch(0 0 0 / 0.18);
   --multi-shadow-secondary: color-mix(in srgb, var(--multi-shadow-primary) 60%, transparent);
   --multi-shadow-tertiary: color-mix(in srgb, var(--multi-shadow-primary) 30%, transparent);
@@ -383,7 +381,7 @@ html {
   --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, var(--multi-interactive-surface));
   --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, var(--multi-interactive-surface));
   --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, var(--multi-interactive-surface));
-  --multi-bg-elevated: var(--multi-color-bubble-opaque);
+  --multi-bg-elevated: var(--multi-color-elevated-opaque);
   --multi-bg-active: var(--multi-color-active);
   --multi-bg-focused: var(--multi-color-hover);
   --multi-bg-green-primary: var(--success);
@@ -449,10 +447,7 @@ html {
 }
 
 [data-component="root"] {
-  --multi-chat-bubble-glass-background: var(--multi-chat-bubble-glass-opaque-background);
-  --multi-composer-surface-background: var(--multi-chat-bubble-glass-background);
-  --multi-composer-surface-opaque-background: var(--multi-chat-bubble-glass-opaque-background);
-  --multi-message-bubble-background: var(--multi-composer-surface-background);
+  --multi-message-bubble-background: var(--multi-input-surface);
   --multi-composer-queue-edit-banner-background: color-mix(
     in srgb,
     var(--multi-composer-surface-background) 88%,
@@ -506,7 +501,7 @@ body[data-multi-glass-mode="true"] [data-component="root"] {
   --multi-color-sidebar: var(--multi-sidebar-surface-background);
   --multi-color-chat: var(--multi-chat-surface-background);
   --multi-workbench-editor-surface-background: var(--multi-vibrancy-off-editor-surface-background);
-  --multi-chat-bubble-background: var(--multi-chat-bubble-opaque-background);
+  --multi-message-bubble-background: var(--multi-input-surface);
 }
 
 body.multi-os-vibrancy-on[data-multi-glass-mode="true"] [data-component="root"] {
@@ -516,14 +511,14 @@ body.multi-os-vibrancy-on[data-multi-glass-mode="true"] [data-component="root"] 
   --multi-color-sidebar: var(--multi-sidebar-surface-background);
   --multi-color-chat: var(--multi-chat-surface-background);
   --multi-workbench-editor-surface-background: var(--multi-vibrancy-on-editor-surface-background);
-  --multi-chat-bubble-background: var(--multi-chat-bubble-translucent-background);
+  --multi-message-bubble-background: var(--multi-input-surface);
 }
 
 @supports (color: color-mix(in lab, red, red)) {
   html.dark [data-component="root"] {
-    --multi-chat-bubble-glass-background: color-mix(
+    --multi-message-bubble-background: color-mix(
       in srgb,
-      var(--multi-chat-bubble-glass-opaque-background) 96%,
+      var(--multi-input-surface-opaque) 96%,
       #fff
     );
   }
@@ -535,17 +530,15 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="ro
   --multi-editor-opacity: 100%;
   --multi-surface-opacity: 100%;
   --multi-elevated-opacity: 100%;
-  --multi-bubble-opacity: 100%;
   --multi-menubar-opacity: 100%;
   --multi-color-sidebar: var(--multi-color-sidebar-opaque);
   --multi-color-chat: var(--multi-color-chat-opaque);
   --multi-color-editor: var(--multi-color-editor-opaque);
   --multi-color-surface: var(--multi-color-surface-opaque);
   --multi-color-elevated: var(--multi-color-elevated-opaque);
-  --multi-color-bubble: var(--multi-color-bubble-opaque);
   --multi-color-menubar: var(--multi-color-menubar-opaque);
-  --multi-chat-bubble-background: var(--multi-chat-bubble-opaque-background);
-  --multi-chat-bubble-glass-background: var(--multi-chat-bubble-glass-opaque-background);
+  --multi-composer-surface-background: var(--multi-composer-surface-opaque-background);
+  --multi-message-bubble-background: var(--multi-input-surface-opaque);
   --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
   --multi-workbench-surface-background: var(--multi-color-surface-opaque);
   --multi-bg-elevated: var(--multi-color-elevated-opaque);

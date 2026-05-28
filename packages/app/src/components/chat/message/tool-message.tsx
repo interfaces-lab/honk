@@ -68,7 +68,12 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   }
 
   return (
-    <div className="flex w-full min-w-0 max-w-full flex-col gap-1">
+    <div
+      className="flex w-full min-w-0 max-w-full flex-col gap-1"
+      data-tool-call-id={workEntry.toolCallId ?? workEntry.id}
+      data-tool-status={status}
+      data-tool-has-error={status === "error" ? "true" : undefined}
+    >
       <ToolCallRenderer
         toolCall={toolCall}
         callId={workEntry.toolCallId ?? workEntry.id}

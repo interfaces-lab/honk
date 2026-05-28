@@ -1,274 +1,426 @@
-# Composer chat parity implementation plan
+# Composer chat document fix plan
 
-Plan for matching Cursor's local composer timeline in Multi. Scope is the composer chat surface: timeline, tools, work groups, subagent UI, composer input, and related styles.
+Plan for fixing the remaining composer chat/document rendering mismatches in Multi.
 
-Visual and wire-shape reference for Cursor lives in `cursor-composer-reference.md`. Implementation work stays in Multi's orchestration and chat packages.
+Last verified: 2026-05-28.
 
-Last verified: 2026-05-26.
+## Priority dependency
 
-Orchestration checkpoint: `OrchestrationThreadActivity` is the typed activity union. Do not add parallel `Typed*` activity aliases, keyword-based helpers, or provider-runtime event names as composer timeline rows.
+`.cursor/plans/decompose_chat_view_8963f97f.plan.md` is the higher-priority implementation plan. Do not modify that plan from this document.
 
-## Recent corrections
+This document is now a bug/parity addendum for the decomposition work. Route transcript rendering work through the shared transcript extraction in that plan:
 
-Three earlier mistakes drove visible regressions. They are fixed; do not reintroduce them.
+- `packages/app/src/components/chat/transcript/transcript-view.tsx`
+- `packages/app/src/components/chat/transcript/transcript-view-model.ts`
+- `packages/app/src/components/chat/timeline/messages-timeline.tsx`
+- `packages/app/src/components/chat/composer/subagent-preview-tray.tsx`
 
-1. Chrome on task and shell tool calls. Cursor only paints a bordered card on the todos tool. Multi has no todos surface. No tool call should draw a border, fill, or radius. Anywhere chrome existed (the task wrapper, the shell expanded body, the `EditToolCall` body, the metadata block) was stripped back to typography and indentation.
-2. Tool message font size pinned to 12px. Cursor renders tool lines and titles at the markdown body size (13px in the audited build). The `font-size` overrides in `tool-call.css` were removed. Tool messages inherit the markdown size.
-3. Deleting the subagent preview store and tray in `new-chat`. The "broken card with chrome" the user reported was the missing overlay, not a styling issue on the task card. The store and tray were restored from `main`; the dim mask, click-capture, and CSS were re-wired.
+Do not keep adding private rendering logic to `subagent-preview-tray.tsx`. The tray should become a consumer of `TranscriptView`, not a parallel transcript renderer.
 
-## What matters next
+## Current state
 
-Multi still shows a work-group preview while the run is active, loses subagent focus when the composer collapses, and polls a snapshot during runs instead of streaming `subagent.*` activities. Fix those before rich text parity.
+Subagent integration is already present. Do not redo it.
 
-## Data path (what this plan owns)
+Existing pieces:
 
-Composer chat reads **projected thread state**, not a provider SDK. The stack to fix:
+- `packages/app/src/stores/subagent-preview-store.ts` keeps subagent preview focus and presentation state.
+- `packages/app/src/components/chat/composer/subagent-preview-tray.tsx` already reuses `AssistantMessage`, `HumanMessage`, and `ToolCallMessage`.
+- `packages/app/src/stores/subagent-preview-store.ts` hides low-level `subagent.*` item/delta noise once a canonical transcript exists.
+- `packages/app/src/session-logic.ts` already derives subagents from thread activities and attaches them to parent work entries.
+- Work grouping, command grouping, and orchestration UI coalescing have already been extracted or restored in the codebase. Do not put broad "restore grouping" or "restore tray" tasks back into this plan.
 
-```text
-packages/server/src/orchestration/
-  ProviderRuntimeIngestion.ts   → thread.activity-appended (canonical OrchestrationThreadActivity)
-  ProjectionPipeline.ts / ThreadProjection.ts / decider.ts
+The remaining issue is narrower. The subagent panel still passes transcript and snapshot items through a lossy private adapter before rendering tools. That can make the panel differ from the main chat view, especially for file-read tools, Shiki-highlighted code, and duplicate provider events.
 
-packages/app/src/environments/runtime/
-  service.ts                    → subscribe, coalesceOrchestrationUiEvents, applyOrchestrationEvents
-  orchestration-event-effects.ts → batch side effects from orchestration events
+The fix belongs in the shared transcript model from the decomposition plan, not in another private subagent renderer.
 
-packages/app/src/
-  session-logic.ts              → deriveWorkLogEntries(activities) → WorkLogEntry[]
+## Cursor bundle notes
 
-packages/app/src/components/chat/
-  timeline-rows.ts              → row model (work / message / working / proposed-plan)
-  messages-timeline.tsx         → virtualized timeline, WorkGroupSection
-  message/tool-renderer.tsx       → tool row chrome
-  composer/*                    → input, subagent tray, plan tray
-```
+Reference files:
 
-Provider drivers under `packages/server/src/provider/` are out of scope for this plan unless orchestration ingestion proves an activity contract gap that only a driver change can fill. Do not list adapter refactors here.
+- `/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js`
+- `/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.css`
 
-## Canonical activity map
+The bundle is minified and mostly single-line, so byte offsets are the useful anchors.
 
-Composer UI reads three local sources:
+### Message shell
 
-| Area | Source | UI owner |
-| ----- | ------ | -------- |
-| Messages | `OrchestrationMessage` and assistant message commands | Human and assistant timeline rows. |
-| Work | `OrchestrationThreadActivity` | Work groups, tool rows, task rows, subagent tray data. |
-| Composer chrome | Pending approval and user-input state from activities | Approval panels and question flows, not generic work rows. |
+Cursor uses one rendered-message shell for composer bubbles:
 
-Activity kind ownership:
+- JS `@35205884` `KB1`: per-bubble composer renderer.
+- JS `@35215836`: class `relative composer-rendered-message hide-if-empty composer-message-blur`.
+- The wrapper writes `data-message-index`, `data-message-id`, `data-server-bubble-id`, `data-message-role`, `data-message-kind`, `data-tool-call-id`, `data-tool-status`, `data-tool-has-error`.
 
-| Activity kind | Target |
-| ------------- | ------ |
-| `tool.started`, `tool.updated`, `tool.completed` | `WorkLogEntry` tool rows, collapsed by `payload.itemId`. |
-| `tool.summary` | Summary work row or group summary; never task completion. |
-| `task.started`, `task.progress`, `task.completed` | Thinking/task work rows, collapsed by `payload.taskId`. |
-| `subagent.thread.*`, `subagent.item.*`, `subagent.content.delta`, `subagent.usage.updated` | Parent task/subagent tray state, not top-level timeline noise. |
-| `approval.*`, `provider.approval.respond.failed` | Pending approval state and stale-request cleanup. |
-| `user-input.*`, `provider.user-input.respond.failed` | Pending user-input state and stale-request cleanup. |
-| `context-window.updated` | Context window display only. |
-| `turn.plan.updated` | Active plan state only. |
-| `runtime.error`, `runtime.warning`, `context-compaction`, checkpoint/setup/provider failures | Work or error rows when user-visible. |
+Supported message kinds:
 
-## Scope
+- `human`
+- `assistant`
+- `thinking`
+- `tool`
+- `background-composer`
 
-In scope:
+Multi should keep one transcript contract that different views can host. The shared `TranscriptViewModel` should carry enough message and tool data for both `MessagesTimeline` and invokable subagent panels.
 
-- Timeline rows, tool rows, work groups, subagent UI, composer tray, plan tray, and queued composer.
-- Orchestration activity semantics and app derivation from `OrchestrationThreadActivity` (`ProviderRuntimeIngestion`, `session-logic`, runtime `service.ts`).
-- Chat components and styles (`conversation.css`, `tool-call.css`, `tokens.css`).
-- Later rich text parity with `text` plus `richText`, readonly human bubbles, and an editable in-chat plan body.
+### Step grouping
 
-Out of scope:
+Cursor converts AI bubbles into steps, groups them, then renders steps:
 
-- Cloud agents and background composer as chat.
-- `.cloud-readonly` bubbles.
-- `plan_mode_build_in_cloud`.
-- `ai-background-task-completion-group` rows. Multi should use `work`, `message`, `working`, and `proposed-plan` unless the product adds a matching local concept.
-- Provider adapter splits, SDK deltas, or driver-specific parsing.
+- JS `@34409759` `z01`: builds AI render steps.
+- JS `@34410882` `V01`: calls grouped-step logic.
+- JS `@3291784` `nmd/groupSteps`: grouping state machine.
+- JS `@3287442` `aXg/isStepGroupable`: decides whether a step can join a group.
+- JS `@3288337` `mXg/conflictsWithPendingActivityGroup`: splits shell/edit/non-shell groups by density.
+- JS `@3303769` `DXg/StepGroupSummaryView`: renders grouped summary state.
+- JS `@3306794` `smd/GroupedSteps`: grouped step renderer.
 
-## Current diagnosis
+Important options:
 
-Multi has three views of agent work that do not share state cleanly:
+- `groupThinking: true`
+- `groupText: true`
+- `textMaxLength: 100`
+- `textMaxLines: 2`
+- `minGroupSize`
+- `separateShellGroups`
+- `isToolGroupable`
+- `shouldDrop`
+- `isCompleted`
 
-1. `WorkGroupSection` renders generic `work` timeline rows from `deriveWorkLogEntries`.
-2. `SubagentStatusRow` opens the composer preview tray.
-3. `SubagentPreviewTray` reads provider thread snapshots on a 2500ms timer instead of streaming from `subagent.*` activities already on the thread.
+This is reference behavior only. Multi already has grouping work in progress, and the chat-view decomposition plan owns the shared transcript shape. Use these anchors only as evidence when a parity bug is specifically about grouping.
 
-Cursor models the same area as typed tool rows on a shared `ui-tool-call-line` base, group headers for collapsed summaries, and a separate overlay for the full transcript. None of those tool surfaces draws chrome; only the todos tool gets a border.
+### One-line tool row
 
-What this produces in Multi today: a header that says "Working · 16 steps" while the body shows only the preview tail, a subagent tray that loses its selection when the composer collapses, and tray flicker every 2.5 seconds during active runs.
+Cursor's ideal tool row is a one-line trigger:
 
-## Priority plan
+- JS `@3146314` `G$`: renders `.ui-tool-call-line`.
+- Props: `action`, `details`, `loading`, `onClick`, `className`.
+- Clickable rows get `role="button"`, `tabIndex=0`, Enter/Space handling, and `.ui-tool-call-line--clickable`.
 
-| Phase | Scope | Acceptance |
-| ----- | ----- | ---------- |
-| P0-A | Work groups render all entries when expanded, even while running. Collapsed running state may show a small tail preview. | Expanding "Working · 16 steps" shows 16 rows. |
-| P0-B | Split subagent selection from presentation with a `subagentFocus` store and `subagentPresented` state. | Collapse composer, expand again, and the same subagent is still selected. |
-| P0-C | Virtualize subagent tray scroll regions. | 100+ subagent steps scroll smoothly. |
-| P0-D | Drive subagent transcript from `subagent.*` thread activities, including coalesced `subagent.content.delta`; snapshot poll is reconcile-only. | Steady active runs do not flicker. |
-| P0-E | Export one `isCommandWorkEntry` helper from `timeline-rows.ts` and delete the duplicate in `messages-timeline.tsx`. | Command group classification is consistent. |
-| P0-F | Extract `coalesceOrchestrationUiEvents` from `service.ts`, then add subscription microbatching for activity bursts. | `service.ts` drops below 1000 lines without behavior changes; activity-heavy runs commit at most once per frame. |
-| P1 | Finish work-log derivation from `OrchestrationThreadActivity` (`tool.summary`, stable tool lifecycle collapse, activity noise). | Activity count and work rows match a production-like thread. |
-| P2 | Fix shell/task labels and add shell output preview. | Shell rows say `Running command` and `Ran command`. |
-| P2-M | Wire chat motion to motion tokens, add reduced-motion handling, and reveal task chevrons on hover. | No shimmer or smooth scroll under reduced motion; chat menus remain instant. |
-| P3 | Add extra timeline row kinds only if orchestration already exposes equivalent local activities. | No Cursor cloud-only rows are copied. |
-| P4-A | Add Lexical composer input and store `richText` on sent messages. | Send and reopen a thread with text plus rich text intact. |
-| P4-B | Add readonly human bubble branches for TipTap docs and Lexical roots. | Cursor-exported Lexical rich text displays without losing plain text. |
-| P4-C | Add editable in-chat plan body. | Plans can be edited in the conversation, not only in the tray or workbench. |
-| P5 | Audit CSS tokens and tool-former margin collapse. | Tool spacing is pixel-close to Cursor where the local products overlap. |
+Task/subagent specializes that one-line row:
 
-## P0 details
+- JS `@3502466` `a6r`
+- JS `@3503218` `_hd`
+- JS `@3503505` `Hsv`
+- JS `@3504311` `jsv`: task card/detail renderer.
 
-### Work groups
+For Multi, the subagent row in chat should stay a compact one-line trigger. Opening it should reveal the floating panel. The floating panel should render through the shared transcript renderer from the decomposition plan.
 
-`WorkGroupSection` currently branches on `isRunning` before `expanded`. That means a running expanded group still renders `WorkGroupPreview`.
+### Async subagent notification and panel trigger
 
-Target behavior:
+Cursor parses async subagent notifications separately from tool rendering:
 
-| State | Render |
-| ----- | ------ |
-| Collapsed and idle | Header plus summary. |
-| Collapsed and running | Header plus count, with an optional tail preview capped by entries and height. |
-| Expanded and idle | Every `groupedEntries` row. |
-| Expanded and running | Every `groupedEntries` row. |
+- JS `@26308638` `gfC`: field parser.
+- JS `@26309452` `HLi`: accepts only subagent notifications with task id.
+- JS `@26309751` `Vqn`: suppresses empty or aborted notifications.
+- JS `@34610426` `Hx1`: async subagent response card.
+- JS `@34408563` `G01` and `@34408284` `zlf`: open/focus behavior.
+- JS `@59232728` `openSubagentPreviewInAgentsTray`: Glass tray open request.
+- JS `@34616313` `ro_`: emits `agent_id=...` and `agent_name=...`.
 
-If expanded groups can grow past a few dozen rows, use a nested virtual list or flatten child work rows into the main timeline. Cursor keeps nested rows inside the group, so a nested virtual list is the closer match.
-
-Implementation details:
-
-- `WorkGroupSection` must check `expanded` before the running preview path.
-- Pick one collapsed preview cap and test it. Current code uses six entries and a 144px cap; do not leave the plan saying three while the implementation says six.
-- Update `estimateTimelineRowSize` when expanded running groups render every child row.
-- Keep `expandedWorkGroupIds` stable for the current timeline cache key while new activity rows arrive.
-- Update the browser test that currently encodes the bug: expanded running groups should not render `[data-work-group-preview]`.
-
-### Subagent focus
-
-Use one durable selection and derive whether it is visible:
+Relevant parsed shape:
 
 ```ts
-type SubagentFocus = {
-  key: string;
-  activeThreadId: ThreadId;
-  parentItemId?: string;
-  providerThreadId?: string;
-} | null;
-
-const subagentPresented =
-  subagentFocus !== null &&
-  (composerVariant !== "compact" || isDockComposerExpanded);
+{
+  kind: "shell" | "subagent";
+  status: "success" | "error" | "aborted" | "unknown";
+  task_id: string;
+  title?: string;
+  output_path?: string;
+  detail: string;
+}
 ```
 
-Expected behavior:
+Multi does not need to copy this protocol. The useful behavior is a compact chat row, panel open keyed by stable agent identity, and panel content rendered through the shared transcript renderer.
 
-| Event | Store | UI |
-| ----- | ----- | -- |
-| Click a subagent row | Set `subagentFocus`. | |
-| Collapse composer | Keep `subagentFocus`. | Hide the tray only. |
-| Expand composer | Keep store unchanged. | Show the same tray again. |
-| Change thread | Clear `subagentFocus`. | Close the tray. |
-| Active run | Append from `subagent.item.*` / `subagent.content.delta` on the thread. | Do not poll snapshot as the primary path. |
+### Tool rendering props
 
-### Subagent transcript
+Cursor derives a one-line summary first, then chooses body/card rendering when needed:
 
-Render subagent steps with the same row components used by the main timeline. Do not invent a parallel `SubagentActivityLine` path for long-term display.
+- JS `@3280897` `Ydd`: summary dispatcher for tool calls.
+- JS `@3288793` `IEh`: group metadata extraction.
+- JS `@3300373` `EXg`: activity group display info.
+- JS `@3462k` `uee`: generic one-line wrapper.
+- JS `@3473k` `bhd`: shell block renderer.
+- JS `@3493k` `QRs`: approval/blocking card renderer.
+- JS `@3500k`: MCP body/result renderer.
 
-Build the tray body from thread activities (`subagent.thread.started`, `subagent.item.started`, `subagent.content.delta`, and related kinds) that `session-logic` surfaces on `WorkLogEntry.subagents`.
+Important tool fields:
 
-Required derivation:
+- Read: `readToolCall.args.path`, line span, output.
+- Grep/search: `grepToolCall.args.pattern`, optional path.
+- Shell: `shellToolCall.args.command`, output, approval status, running state.
+- Edit: path, before/after content, diff stats.
+- MCP: server/provider id, tool name, parameters, text result, image result, UI resource.
+- Dismissed states: `skipped`, `rejected`, `cancelled`.
 
-- Coalesce `subagent.content.delta` by `providerThreadId`, `itemId`, `streamKind`, and `contentIndex` or `summaryIndex`.
-- Use `payload.providerThreadId` as the primary tray key.
-- Use `payload.parentItemId` to connect the subagent back to the parent task tool when present.
-- Treat `subagent.thread.*` as header/status metadata when item rows exist.
-- Use `getProviderThreadSnapshot` only on open, reconnect, explicit gaps, or terminal reconcile. Do not poll it every 2500ms during an active run.
+For Multi, this means `TranscriptViewModel` rows must preserve enough payload to let the shared transcript renderer choose the same tool rendering path for main chat and subagent panels.
 
-## P1 details
+### CSS map
 
-P1 is orchestration and derivation, not provider code.
+Composer message CSS:
 
-### Server: `ProviderRuntimeIngestion.ts`
+- CSS `@651703` `.composer-bar,.composer-messages-container`: conversation variables.
+- CSS `@652291` `.composer-messages-container`: insets and debug vars.
+- CSS `@652654` glass-mode message overrides.
+- CSS `@652988` `.composer-message-group:has(+.composer-message-group)`.
+- CSS `@653959` `.composer-message-group,.composer-message-group .composer-message-group`.
+- CSS `@654080` AI `.composer-tool-former-message` margin.
+- CSS `@654216` inline tool row zero-margin.
+- CSS `@654559` nested inline/shell zero-margin.
 
-- Keep `tool.summary` as an `OrchestrationThreadActivity` kind. Do not reintroduce `task.completed` as the summary alias.
-- Audit which runtime events become `thread.activity-appended` and whether `payload.itemId` stays stable across `tool.started`, `tool.updated`, and `tool.completed`.
-- Treat provider runtime events as adapter output only. Composer should switch on `OrchestrationThreadActivity.kind`, not on provider event names.
+Subagent notification CSS:
 
-### App: `session-logic.ts`
+- CSS `@660880` quote row sizing.
+- CSS `@661053` quote bubble chrome.
+- CSS `@661815` `.composer-async-subagent-task-notification`.
+- CSS `@662395` `.composer-async-subagent-response-card`.
+- CSS `@662680` hidden `Open` hint.
+- CSS `@663387` reveal `Open` on hover/focus.
+- CSS `@663993-666216` cloud actions and compact markdown detail.
 
-- `deriveWorkLogEntries` and `collapseDerivedWorkLogEntries` must switch on `activity.kind` and collapse tool lifecycle rows on stable `payload.itemId`, not per-activity `id`, so a busy thread does not produce hundreds of visible `tool.updated` rows.
-- Confirm subagent lifecycle activities attach to the parent `WorkLogEntry` the timeline and tray both read.
-- `tool.summary` must render once and must not increment task/tool lifecycle counts.
-- Preserve the current lifecycle collapse behavior for `tool.started` / `tool.updated` / `tool.completed`; extend tests for `tool.summary` instead of rewriting collapse from scratch.
+Tool CSS:
 
-### App: `environments/runtime/service.ts`
+- CSS `@658758` `.composer-tool-call-simple-layout`.
+- CSS `@698859` `.composer-tool-call-container`.
+- CSS `@714088` `.mcp-tool-result-scroll-container`.
+- CSS `@714703` `.mcp-tool-result-preformatted`.
 
-- Keep message streaming coalescing in `coalesceOrchestrationUiEvents`.
-- Buffer live subscription events per thread and flush on `requestAnimationFrame` or a short frame-sized window.
-- Coalesce activity bursts only when the activity has a stable key: tool lifecycle by `payload.itemId`, subagent deltas by the subagent stream key. Do not coalesce approvals, user-input, or plan events.
-- Run side-effect derivation on the raw batch before UI coalescing.
+Markdown/code CSS:
 
-## P2 details
+- CSS `@503852` `.vs-markdown-container .rendered-markdown code`.
+- CSS `@504047` `.vs-markdown-container .rendered-markdown pre`.
+- CSS `@380076` `.chat-tool-hover .monaco-tokenized-source`.
 
-Labels should match the tool semantics:
+Shiki is not in the static CSS file. Shiki variables and token output are injected from JS:
 
-| Tool case | Loading | Completed |
-| --------- | ------- | --------- |
-| `shellToolCall` | `Running command` | `Ran command` |
-| `editToolCall` | `Editing` | `Edited` |
-| `deleteToolCall` | `Deleting` | `Deleted` |
-| `taskToolCall` | `Working on task` | `Completed task` |
+- JS `@9712671` and `@52877689`: `css-variables` Shiki theme.
+- JS `@52973368`: HAST output creates `<pre class="shiki"><code><span class="line"><span style=...>`.
+- JS `@53040752`: `tokenizeStructuredSync`.
+- JS `@53052778`: token spans get `style={{ color: token.color }}`.
+- JS `@16894733`: `.markdown-root` defines `--shiki-foreground`, `--shiki-background: transparent`, and token variables.
+- JS `@16324617`: `.ui-shell-tool-call__command` defines Shiki variables for command rendering.
+- JS `@16329948`: `.ui-shell-tool-call__output` sets output background and tertiary text.
 
-Style tool rows through `tool-call.css` with data attributes already emitted by the React components.
+## Repro inputs
 
-Keep Tailwind for one-off layout. Put cross-cutting tool row, shell, task, shimmer, and margin-collapse rules in CSS.
+Use these logs when validating fixes:
 
-Add these data hooks as the CSS contract:
+- Broken subagent: `/Users/workgyver/.multi/dev/logs/provider/025faa85-e3a7-4b95-9a6f-5c1280a440fc.log`
+- Duplicated messages: `/Users/workgyver/.multi/dev/logs/provider/207335f9-ed95-4280-bf95-04ee39a69cce.log`
 
-| Hook | Owner |
-| ---- | ----- |
-| `data-shell-tool-call` | Shell tool root. |
-| `data-task-tool-call` | Task tool root. |
-| `data-tool-summary` | `tool.summary` row. |
-| `data-assistant-tool-row` | Work-group tool row wrapper. |
+Observed from the broken subagent log:
 
-## P4 details
+- Child thread events can appear before parent metadata is complete.
+- The parent task can briefly report `agentsStates` as `pendingInit`.
+- Later parent-linked `subagent.thread.state.changed` and `subagent.content.delta` events are present.
+- UI should tolerate early partial parent metadata and update once stable `providerThreadId` / parent item linkage arrives.
 
-Cursor's live agent composer input is Lexical. Multi's current composer is TipTap. That does not make TipTap wrong for the immediate chat bug, but it does mean true rich text parity needs a separate phase.
+Observed from the duplicated-message log:
 
-P4 should add:
+- The provider log intentionally contains raw protocol, decoded protocol, native events, and canonical events.
+- UI duplication should be judged after canonical ingestion, not by counting provider log lines.
+- Suspicious real duplication comes from streamed assistant chunks without stable item ids and append-only ingestion keyed too broadly.
 
-- Optional `richText` to the message contracts and app `ChatMessage`.
-- Lexical input that syncs both plain `text` and serialized rich text.
-- Readonly bubble routing that handles TipTap `doc`, Lexical `root`, and plain text fallback.
-- A plan body editor separate from the composer send path.
+## Current Multi gap
 
-Do not start P4 until P0 and P1 are either done or staffed separately. The user-visible broken chat thread is in P0.
+The panel currently renders through the same component family, but it owns private row conversion first:
 
-## File touch order
+- `packages/app/src/components/chat/composer/subagent-preview-tray.tsx`
+- `subagentTranscriptItemToWorkEntry`
+- `subagentSnapshotItemToWorkEntry`
 
-Orchestration and runtime (foundation):
+Those functions preserve:
 
-1. `packages/server/src/orchestration/ProviderRuntimeIngestion.ts`.
-2. `packages/app/src/session-logic.ts`.
-3. `packages/app/src/environments/runtime/service.ts`.
-4. `packages/app/src/environments/runtime/orchestration-event-effects.ts`.
+- `text`
+- `command`
+- `rawCommand`
+- `output`
+- `title`
+- `itemType`
+- `toolCallId`
+- `status`
 
-Chat UI (after P1 semantics are trustworthy):
+They do not consistently preserve:
 
-5. `packages/app/src/components/chat/timeline/timeline-rows.ts`.
-6. `packages/app/src/components/chat/timeline/messages-timeline.tsx`.
-7. `packages/app/src/stores/subagent-preview-store.ts`.
-8. `packages/app/src/components/chat/composer/subagent-preview-tray.tsx`.
-9. `packages/app/src/components/chat/composer/input.tsx`.
-10. `packages/app/src/components/chat/message/tool-message.tsx`.
-11. `packages/app/src/components/chat/message/tool-renderer.tsx`.
-12. `packages/app/src/styles/tool-call.css`.
-13. `packages/app/src/styles/conversation.css`.
+- `artifacts`
+- `changedFiles`
+- original payload/data
+- read-file path metadata
+- truncated metadata
+- MCP result structure
+- diff stats and before/after content
 
-Contracts for P4:
+That loss is enough to make the floating panel render a different file-read component than the main chat view.
 
-1. `packages/contracts/src/orchestration.ts` for message shape only. The activity contract is already canonical.
-2. `packages/app/src/types.ts`.
+Avoid:
+
+- Expanding the private adapter inside `subagent-preview-tray.tsx` as the long-term solution.
+- Adding subagent-only render components for file reads, search results, MCP results, or command output.
+- Making `MessagesTimeline` and `SubagentPreviewTray` normalize transcript rows independently.
+
+Do this:
+
+- Extract the shared transcript renderer first, as specified by `.cursor/plans/decompose_chat_view_8963f97f.plan.md`.
+- Make subagent panels pass normalized rows into `TranscriptView`.
+- Ensure `TranscriptViewModel` preserves the tool payload/artifact fields required for exact chat/panel parity.
+
+## Target behavior
+
+### Chat row
+
+Subagent chat row should be a compact trigger:
+
+- one line
+- stable label
+- current status
+- opens floating panel
+- no duplicated transcript content in the top-level timeline
+
+### Floating panel
+
+Floating panel should render the exact same logical messages as chat:
+
+- assistant rows through the shared transcript renderer
+- user rows through the shared transcript renderer
+- tool rows through the shared transcript renderer
+- file reads through the normal file-read artifact/component
+- markdown/code through the same `ChatMarkdown` path
+- no separate long-term `SubagentActivityLine` fallback for tool items that can be represented as real transcript rows
+
+### Logs
+
+Provider logs can contain multiple lanes. UI should only render canonical logical messages:
+
+- raw protocol events are diagnostics
+- native provider events are diagnostics unless converted to canonical activities
+- canonical activities should collapse by stable ids
+- deltas should append only once per stable stream key
+
+## Implementation plan
+
+### P0: Shared transcript payload parity
+
+Goal: make the decomposition plan's shared `TranscriptViewModel` preserve the same tool payload shape for main chat and invokable subagent panels.
+
+Work:
+
+- During the `shared-transcript-view` slice, define transcript tool rows that can carry original payload/data where available.
+- Populate `changedFiles` for file-read rows from payload path fields, snapshot args, or provider item data.
+- Populate file-read artifacts using the same semantics as `extractToolReadArtifact`.
+- Preserve command artifacts for `command_execution` instead of only `command` and `output`.
+- Preserve search artifacts for `file_search` instead of flattening to `detail`.
+- Preserve MCP result structure, diff stats, and before/after content when present.
+- Keep `subagent-preview-tray.tsx` as a consumer of shared transcript rows, not the owner of a private transcript renderer.
+
+Acceptance:
+
+- A file-read tool in the main chat and in the floating subagent panel render the same component.
+- The panel shows read path, output, partial/truncated state, and code coloring the same way as chat.
+- No new subagent-only file-read component is introduced.
+- `subagent-preview-tray.tsx` no longer owns private assistant/human/tool row renderers after the decomposition slice lands.
+
+Primary files:
+
+- `packages/app/src/components/chat/transcript/transcript-view.tsx`
+- `packages/app/src/components/chat/transcript/transcript-view-model.ts`
+- `packages/app/src/components/chat/composer/subagent-preview-tray.tsx`
+- `packages/app/src/components/chat/timeline/messages-timeline.tsx`
+- `packages/app/src/session-logic.ts`
+- `packages/app/src/components/chat/message/tool-message.tsx`
+- `packages/app/src/components/chat/message/tool-renderer.tsx`
+
+### P1: Deduplicate canonical message streams
+
+Goal: remove visible duplicated messages without hiding valid repeated provider diagnostics.
+
+Work:
+
+- Inspect `packages/server/src/provider/acp/AcpRuntimeModel.ts` for ACP assistant chunks that lack stable `itemId`.
+- Inspect `packages/server/src/orchestration/ProviderRuntimeIngestion.ts` assistant delta buffering keys.
+- Ensure assistant stream buffers key by stable `itemId` when present, else a provider turn/message id, not per event id.
+- Collapse tool lifecycle rows by stable `payload.itemId` / `toolCallId`.
+- Keep provider event log lanes intact; do not "fix" duplication by dropping diagnostic provider log entries.
+
+Acceptance:
+
+- The duplicated-message log does not produce duplicate visible assistant text in the UI.
+- Provider diagnostic logs still include raw/native/canonical events.
+- Tool lifecycle updates still progress one visible row instead of producing multiple rows.
+
+Primary files:
+
+- `packages/server/src/provider/acp/AcpRuntimeModel.ts`
+- `packages/server/src/orchestration/ProviderRuntimeIngestion.ts`
+- `packages/app/src/session-logic.ts`
+- `packages/app/src/environments/runtime/service.ts`
+
+### P2: Shiki color parity
+
+Goal: code blocks and tool code output use theme-safe CSS-variable tokens.
+
+Cursor model:
+
+- Token colors are CSS variables, not concrete theme hex values.
+- `--shiki-background` is transparent.
+- Container owns block background.
+- Generic markdown `pre/code` rules do not override token span colors.
+
+Work:
+
+- Define `--shiki-foreground`, `--shiki-background: transparent`, and token variables on Multi chat markdown/code containers.
+- Ensure token spans keep their Shiki-provided `color`.
+- Remove or narrow generic `.chat-markdown ... pre` / `code` color overrides that fight Shiki spans.
+- Keep code block background on the container, not the Shiki theme.
+
+Acceptance:
+
+- Shiki highlighted code in assistant markdown matches tool/read code colors.
+- Light/dark themes do not require re-tokenizing with hard-coded colors.
+- Plain fallback code still has readable foreground/background.
+
+Primary files:
+
+- `packages/app/src/components/chat/markdown/chat-markdown.tsx`
+- `packages/app/src/styles/markdown.css`
+- `packages/app/src/components/chat/message/tool-renderer.tsx`
+- `packages/app/src/styles/tool-call.css`
+
+### P3: One-line subagent trigger polish
+
+Goal: keep the top-level subagent row compact while the panel body moves to `TranscriptView`.
+
+Work:
+
+- Keep the top-level row compact: action, detail/status, loading state, click handler.
+- Use stable ids from `providerThreadId`, `threadId`, or `agentId`.
+- Do not render the full transcript in the top-level timeline.
+- Keep the existing preview store; only adjust data passed to it if needed.
+- Do not reintroduce snapshot polling as the active-run primary path.
+- Do not add this as a separate implementation slice before `.cursor/plans/decompose_chat_view_8963f97f.plan.md` reaches the shared transcript checkpoint.
+
+Acceptance:
+
+- Clicking the row opens the same focused subagent panel after composer collapse/reopen.
+- Active status updates without duplicate transcript rows.
+- The row stays one line unless the existing design explicitly wraps narrow content.
+
+Primary files:
+
+- `packages/app/src/stores/subagent-preview-store.ts`
+- `packages/app/src/components/chat/composer/subagent-preview-tray.tsx`
+- `packages/app/src/components/chat/timeline/messages-timeline.tsx`
+- `packages/app/src/components/chat/timeline/timeline-rows.ts`
+
+## Out of scope
+
+Do not include these in this fix plan:
+
+- Rebuilding subagent focus/store/tray from scratch.
+- A second private transcript renderer in `subagent-preview-tray.tsx`.
+- Broad Cursor message grouping rewrites.
+- Cloud-agent background composer parity.
+- Lexical rich text composer migration.
+- New panel architecture.
+- New provider adapter split.
+- Cosmetic card chrome changes unrelated to the listed bugs.
 
 ## Verification
 
@@ -278,32 +430,36 @@ Default verifier:
 pnpm run typecheck
 ```
 
-Targeted checks by phase:
+Targeted checks:
 
 ```bash
-cd packages/app && pnpm exec vitest run src/components/chat/timeline/messages-timeline.browser.tsx
-cd packages/app && pnpm exec vitest run src/components/chat/timeline/messages-timeline.test.tsx
+cd packages/app && pnpm run test -- src/components/chat/composer/subagent-preview-tray.test.tsx
+cd packages/app && pnpm exec vitest run src/components/chat/message/tool-message.test.tsx
 cd packages/app && pnpm exec vitest run src/environments/runtime/service.threadSubscriptions.test.ts
-cd packages/app && pnpm exec vitest run src/environments/runtime/orchestration-event-effects.test.ts
 cd packages/server && pnpm exec vitest run test/orchestration/ProviderRuntimeIngestion.test.ts
 ```
 
 Manual acceptance:
 
-- Expand a running "Working · 16 steps" group and count all rows.
-- Collapse and reopen the composer with a subagent selected.
-- Watch an active subagent run for tray flicker.
-- Confirm `subagent.content.delta` appears in the tray through activity derivation before snapshot reconcile.
-- Confirm `tool.summary` renders once and does not complete a task card.
-- Confirm shell labels and task labels match the table above.
-- Check reduced motion with chat shimmers, tray entry, chevrons, and scroll-to-bottom.
+- Open the broken subagent log and confirm the subagent row opens a stable panel.
+- Compare the same file-read item in main chat and subagent panel.
+- Confirm no duplicated visible assistant text from the duplicated-message log.
+- Confirm Shiki token colors survive in assistant markdown, file-read output, and shell/tool output.
+- Collapse and reopen the composer with a subagent selected; the same panel focus should remain.
 
-## Reference map
+## File touch order
 
-Use `cursor-composer-reference.md` for:
+Follow the priority plan's order first. This document starts at that plan's second checkpoint:
 
-- Cursor binary string locations and CSS selectors (visual parity only).
-- Lexical, TipTap, and plan editor source hints.
-- Re-grep commands for future Cursor versions.
-
-Do not treat that file as the implementation checklist. This plan's checklist is orchestration, runtime, `session-logic`, and `packages/app/src/components/chat/`.
+1. `packages/app/src/components/chat/transcript/transcript-view-model.ts`
+2. `packages/app/src/components/chat/transcript/transcript-view.tsx`
+3. `packages/app/src/components/chat/composer/subagent-preview-tray.tsx`
+4. `packages/app/src/components/chat/timeline/messages-timeline.tsx`
+5. `packages/app/src/session-logic.ts`
+6. `packages/app/src/components/chat/message/tool-message.tsx`
+7. `packages/app/src/components/chat/message/tool-renderer.tsx`
+8. `packages/app/src/components/chat/markdown/chat-markdown.tsx`
+9. `packages/app/src/styles/markdown.css`
+10. `packages/server/src/provider/acp/AcpRuntimeModel.ts`
+11. `packages/server/src/orchestration/ProviderRuntimeIngestion.ts`
+12. `packages/app/src/environments/runtime/service.ts`

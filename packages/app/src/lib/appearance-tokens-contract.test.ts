@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const tokensCss = readFileSync(resolve(__dirname, "../styles/tokens.css"), "utf8");
 const conversationCss = readFileSync(resolve(__dirname, "../styles/conversation.css"), "utf8");
+const shellCss = readFileSync(resolve(__dirname, "../styles/shell.css"), "utf8");
 const appearanceSettingsSource = readFileSync(resolve(__dirname, "appearance-settings.ts"), "utf8");
 
 const TINT_BASE_TOKEN_NAMES = [
@@ -90,7 +91,7 @@ describe("appearance reduce-transparency tokens", () => {
       /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-shell-sidebar-bg:\s*var\(--multi-color-sidebar-opaque\)/,
     );
     expect(tokensCss).toMatch(
-      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-chat-bubble-background:\s*var\(--multi-chat-bubble-opaque-background\)/,
+      /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-composer-surface-background:\s*var\(--multi-composer-surface-opaque-background\)/,
     );
     expect(tokensCss).toMatch(
       /body\.multi-reduce-transparency\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-color-chat:\s*var\(--multi-color-chat-opaque\)/,
@@ -147,5 +148,37 @@ describe("appearance reduce-transparency tokens", () => {
       'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
+  });
+});
+
+describe("bubble/composer tint chain", () => {
+  it("separates composer chrome from input-backed message bubbles", () => {
+    expect(tokensCss).toContain("--multi-input-surface-opaque: var(--input);");
+    expect(tokensCss).toContain("--multi-pane-surface-background:");
+    expect(tokensCss).toContain("--multi-composer-surface-background: var(--multi-pane-surface-background);");
+    expect(tokensCss).toContain(
+      "--multi-message-bubble-background: var(--multi-input-surface);",
+    );
+    expect(tokensCss).not.toContain("--multi-chat-bubble-glass-opaque-background:");
+    expect(tokensCss).not.toContain("--multi-color-bubble-opaque:");
+    expect(tokensCss).not.toContain("--multi-color-bubble:");
+    expect(tokensCss).not.toContain("--multi-bubble-opacity:");
+  });
+});
+
+describe("context-aware interactive surfaces", () => {
+  it("scopes --multi-interactive-surface to sidebar base on sidebar selectors", () => {
+    expect(shellCss).toMatch(
+      /\.multi-shell-sidebar[\s\S]*?--multi-interactive-surface:\s*var\(--multi-base-sidebar\)/,
+    );
+    expect(shellCss).toMatch(
+      /\.agent-window__sidebar[\s\S]*?--multi-interactive-surface:\s*var\(--multi-base-sidebar\)/,
+    );
+  });
+
+  it("scopes --multi-interactive-surface to editor base on workbench", () => {
+    expect(shellCss).toMatch(
+      /\.agent-window__workbench[\s\S]*?--multi-interactive-surface:\s*var\(--multi-base-editor\)/,
+    );
   });
 });

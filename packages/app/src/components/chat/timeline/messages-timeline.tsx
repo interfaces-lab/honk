@@ -33,11 +33,13 @@ import {
   type MessagesTimelineRow,
 } from "./timeline-rows";
 import { cn } from "~/lib/utils";
-import { HumanMessage } from "../message/human-message";
-import { AssistantMessage } from "../message/assistant-message";
 import { WorkingStatusRow } from "../message/status-row";
 import { ToolCallMessage } from "../message/tool-message";
 import { ProposedPlanMessage } from "../message/proposed-plan-message";
+import {
+  AssistantTranscriptRow,
+  HumanTranscriptRow,
+} from "../message/transcript-rows";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
@@ -728,7 +730,7 @@ function virtualRowStyle(virtualRow: VirtualItem, isSticky: boolean): CSSPropert
     return {
       position: "sticky",
       top: 0,
-      zIndex: 20,
+      zIndex: 100,
     };
   }
 
@@ -772,6 +774,9 @@ const TimelineRowContent = memo(function TimelineRowContent({
       data-timeline-row-kind={row.kind}
       data-message-id={row.kind === "message" ? row.message.id : undefined}
       data-message-role={row.kind === "message" ? row.message.role : undefined}
+      data-message-kind={timelineRowMessageKind(row)}
+      data-message-index={row.kind === "message" ? row.messageIndex : undefined}
+      data-message-pair-id={row.kind === "message" ? (row.pairId ?? undefined) : undefined}
     >
       <TimelineRowBody
         row={row}
@@ -822,9 +827,7 @@ function TimelineRowBody({
       )}
 
       {row.kind === "message" && row.message.role === "assistant" && (
-        <div className="box-border flex w-full min-w-0 px-0">
-          <AssistantMessage message={row.message} markdownCwd={ctx.markdownCwd} />
-        </div>
+        <AssistantTranscriptRow message={row.message} markdownCwd={ctx.markdownCwd} />
       )}
 
       {row.kind === "proposed-plan" && (
@@ -857,18 +860,16 @@ const HumanTimelineRow = memo(function HumanTimelineRow({
   ctx: TimelineRowSharedState;
 }) {
   return (
-    <div className="box-border flex w-full min-w-0 px-0">
-      <HumanMessage
-        message={row.message}
-        editAvailable={row.editAvailable}
-        isEditing={isEditingUserMessage}
-        editDisabled={editUserMessagesDisabled}
-        isServerThread={ctx.isServerThread}
-        editComposer={isEditingUserMessage ? (ctx.renderEditComposer?.(row.message) ?? null) : null}
-        onImageExpand={ctx.onImageExpand}
-        onBeginEditUserMessage={ctx.onBeginEditUserMessage}
-      />
-    </div>
+    <HumanTranscriptRow
+      message={row.message}
+      editAvailable={row.editAvailable}
+      isEditing={isEditingUserMessage}
+      editDisabled={editUserMessagesDisabled}
+      isServerThread={ctx.isServerThread}
+      editComposer={isEditingUserMessage ? (ctx.renderEditComposer?.(row.message) ?? null) : null}
+      onImageExpand={ctx.onImageExpand}
+      onBeginEditUserMessage={ctx.onBeginEditUserMessage}
+    />
   );
 });
 
@@ -1090,6 +1091,15 @@ function timelineRowKind(row: TimelineRow): "human" | "assistant" | "tool-call" 
   if (row.kind === "message") return row.message.role === "user" ? "human" : "assistant";
   if (row.kind === "working") return "loading";
   return "tool-call";
+}
+
+// Matches Cursor's `data-message-kind` semantics: "message" for user/assistant
+// text bubbles, "tool" for tool-call rows. Proposed plans and working rows fall
+// outside this taxonomy.
+function timelineRowMessageKind(row: TimelineRow): "message" | "tool" | undefined {
+  if (row.kind === "message") return "message";
+  if (row.kind === "work") return "tool";
+  return undefined;
 }
 
 // Reuse old row references when data has not changed.

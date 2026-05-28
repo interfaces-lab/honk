@@ -4,8 +4,8 @@
  * Mirrors Cursor's `ui-tool-call-line`, `ui-task-tool-call*`, and
  * `ui-shell-tool-call*` model (embedded CSS in `workbench.desktop.main.js`,
  * byte 16314283 + 16319943 + 16341242). The typography on every tool row
- * is intentionally identical to chat markdown — there is no body-size
- * down-scaling. Card chrome only appears on the task tool root, on the
+ * is intentionally identical to chat markdown. There is no body-size
+ * downscaling. Card chrome only appears on the task tool root, on the
  * shell expanded body, and on the edit expanded diff wrapper, matching
  * Cursor's selective chrome model.
  */
@@ -38,7 +38,7 @@
 }
 
 /*
- * Task tool surface. Cursor only paints chrome (border + background) on
+ * Task tool layout. Cursor only paints chrome (border + background) on
  * the todos tool card; every other tool, including task, renders without
  * a frame. Multi has no todos surface, so nothing here paints chrome.
  * Keep layout and typography rules only.
@@ -162,6 +162,27 @@
 [data-task-tool-call-turns] > [data-subagent-transcript] > * {
   content-visibility: auto;
   contain-intrinsic-size: auto 32px;
+}
+
+/*
+ * Tool status hooks. Set on the tool-message wrapper as
+ * `data-tool-status` (loading | completed | error) and
+ * `data-tool-has-error="true"`. Cursor exposes the same attributes on its
+ * tool-call step wrapper (workbench.desktop.main.js, `YRh`). The selectors
+ * are kept empty so downstream views (tray, edit panel, etc.) can target
+ * tool state without duplicating the lifecycle logic.
+ */
+[data-tool-status="loading"] {
+  /* hook: spinner reveal lives on inner cards */
+}
+
+[data-tool-status="completed"] {
+  /* hook: completed-state styling lives on inner cards */
+}
+
+[data-tool-status="error"],
+[data-tool-has-error="true"] {
+  /* hook: error-state styling lives on inner cards */
 }
 
 @media (prefers-reduced-motion: reduce) {

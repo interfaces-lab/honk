@@ -1,5 +1,5 @@
 /*
- * shell.css — Shell/window layout contracts. Feature-specific CSS is split into
+ * shell.css. Shell/window layout contracts. Feature-specific CSS is split into
  * sibling files imported by app.css. Custom properties: tokens.css
  */
 
@@ -190,6 +190,7 @@ body.multi-reduce-transparency {
 }
 
 .agent-window__sidebar {
+  --multi-interactive-surface: var(--multi-base-sidebar);
   background: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
   box-shadow: none;
   width: var(--multi-shell-left-effective-width);
@@ -210,6 +211,7 @@ body.multi-reduce-transparency {
 }
 
 .agent-window__workbench {
+  --multi-interactive-surface: var(--multi-base-editor);
   background: var(
     --multi-workbench-editor-surface-background,
     var(--multi-workbench-surface-background)
@@ -251,7 +253,7 @@ body.multi-reduce-transparency {
   z-index: 50;
 }
 
-/* Composite pane title band — full-width under the 35px tool island. */
+/* Composite pane title band, full-width under the 35px tool island. */
 .agent-window .multi-workbench-panel-title-row {
   display: flex;
   align-items: center;
@@ -268,7 +270,7 @@ body.multi-reduce-transparency {
   background-color: var(--multi-workbench-panel-title-background);
 }
 
-/* Primary Electron workbench tabs — matte strip without heavy blur. */
+/* Primary Electron workbench tabs, matte strip without heavy blur. */
 .agent-window .multi-workbench-tool-island.editor-panel-tab-root {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;

@@ -1846,19 +1846,71 @@ function activeLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefi
 
 function unscopedLifecycleWorkEntryKey(entry: DerivedWorkLogEntry): string | undefined {
   if (isToolLifecycleActivityKind(entry.activityKind)) {
-    return entry.toolCallId ? `tool:${entry.toolCallId}` : undefined;
+    if (entry.toolCallId) {
+      return `tool:${entry.toolCallId}`;
+    }
+    const descriptor = toolLifecycleFallbackDescriptor(entry);
+    return descriptor ? `tool-fallback:${descriptor}` : undefined;
   }
   if (isTaskLifecycleActivityKind(entry.activityKind)) {
-    return entry.taskId ? `task:${entry.taskId}` : undefined;
+    if (entry.taskId) {
+      return `task:${entry.taskId}`;
+    }
+    const descriptor = taskLifecycleFallbackDescriptor(entry);
+    return descriptor ? `task-fallback:${descriptor}` : undefined;
   }
   return undefined;
+}
+
+// Composite key used to collapse adjacent tool lifecycle entries when the
+// provider omitted `itemId`. Requires `itemType` plus one stable discriminator
+// (command, title, or label) so two unrelated tool calls with the same itemType
+// will not be merged. Detail is appended for additional specificity.
+function toolLifecycleFallbackDescriptor(entry: DerivedWorkLogEntry): string | undefined {
+  if (!entry.itemType) {
+    return undefined;
+  }
+  const discriminator = entry.command ?? entry.rawCommand ?? entry.toolTitle ?? entry.label;
+  if (!discriminator) {
+    return undefined;
+  }
+  const detailSegment = entry.detail ?? "";
+  return `${entry.itemType}\u001f${discriminator}\u001f${detailSegment}`;
+}
+
+function taskLifecycleFallbackDescriptor(entry: DerivedWorkLogEntry): string | undefined {
+  const discriminator = entry.toolTitle ?? entry.label;
+  if (!discriminator) {
+    return undefined;
+  }
+  const detailSegment = entry.detail ?? "";
+  return `task\u001f${discriminator}\u001f${detailSegment}`;
 }
 
 function shouldUseUnscopedLifecycleFallback(
   previous: DerivedWorkLogEntry,
   next: DerivedWorkLogEntry,
 ): boolean {
-  return previous.turnId === null || next.turnId === null;
+  if (previous.turnId === null || next.turnId === null) {
+    return true;
+  }
+  // Descriptor-based fallback for entries the provider emitted without an id.
+  // Restrict to the same turn so we never merge across turn boundaries.
+  if (
+    isToolLifecycleActivityKind(previous.activityKind) &&
+    previous.toolCallId === undefined &&
+    next.toolCallId === undefined
+  ) {
+    return previous.turnId === next.turnId;
+  }
+  if (
+    isTaskLifecycleActivityKind(previous.activityKind) &&
+    previous.taskId === undefined &&
+    next.taskId === undefined
+  ) {
+    return previous.turnId === next.turnId;
+  }
+  return false;
 }
 
 function shouldCollapseLifecycleEntries(
@@ -1877,11 +1929,22 @@ function shouldCollapseLifecycleEntries(
   if (next.activityKind === "task.started") {
     return false;
   }
-  return (
+  if (
     previous.taskId !== undefined &&
     previous.taskId === next.taskId &&
     lifecycleEntriesShareTurnScope(previous, next)
-  );
+  ) {
+    return true;
+  }
+  if (previous.taskId === undefined && next.taskId === undefined) {
+    const previousDescriptor = taskLifecycleFallbackDescriptor(previous);
+    return (
+      previousDescriptor !== undefined &&
+      previousDescriptor === taskLifecycleFallbackDescriptor(next) &&
+      previous.turnId === next.turnId
+    );
+  }
+  return false;
 }
 
 function shouldCollapseToolLifecycleEntries(
@@ -1897,11 +1960,22 @@ function shouldCollapseToolLifecycleEntries(
   if (next.activityKind === "tool.started") {
     return false;
   }
-  return (
+  if (
     previous.toolCallId !== undefined &&
     previous.toolCallId === next.toolCallId &&
     lifecycleEntriesShareTurnScope(previous, next)
-  );
+  ) {
+    return true;
+  }
+  if (previous.toolCallId === undefined && next.toolCallId === undefined) {
+    const previousDescriptor = toolLifecycleFallbackDescriptor(previous);
+    return (
+      previousDescriptor !== undefined &&
+      previousDescriptor === toolLifecycleFallbackDescriptor(next) &&
+      previous.turnId === next.turnId
+    );
+  }
+  return false;
 }
 
 function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {

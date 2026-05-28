@@ -122,7 +122,7 @@ const DEFAULT_WORKBENCH_PANEL_STATE: WorkbenchPanelState = Object.freeze({
 });
 
 const DEFAULT_SECONDARY_RAIL: SecondaryRailState = Object.freeze({
-  open: true,
+  open: false,
   width: SECONDARY_RAIL_DEFAULT_WIDTH,
 });
 

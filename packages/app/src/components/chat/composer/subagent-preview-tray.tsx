@@ -10,12 +10,14 @@ import {
 import { IconCrossSmall } from "central-icons";
 import { memo, useEffect, useMemo, useState } from "react";
 import { type ChatMessage } from "../../../types";
-import { AssistantMessage } from "../message/assistant-message";
-import { HumanMessage } from "../message/human-message";
-import { ToolCallMessage } from "../message/tool-message";
+import {
+  AssistantTranscriptRow,
+  ReadOnlyHumanTranscriptRow,
+  ThinkingTranscriptRow,
+  ToolTranscriptRow,
+} from "../message/transcript-rows";
 import {
   ExpandableToolMetadataLine,
-  ThinkingStatus,
   ToolCallLine,
 } from "../message/tool-renderer";
 import { cn } from "~/lib/utils";
@@ -370,7 +372,7 @@ export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow
   }
 
   if (isSubagentReasoningTranscriptItem(item)) {
-    return detail ? <ThinkingStatus active={isStreaming} task={detail} wrap /> : null;
+    return detail ? <ThinkingTranscriptRow active={isStreaming} task={detail} /> : null;
   }
 
   if (item.kind === "command") {
@@ -600,7 +602,7 @@ const SubagentSnapshotItem = memo(function SubagentSnapshotItem({
   }
 
   if (isSubagentReasoningSnapshotItem(item)) {
-    return detail ? <ThinkingStatus active={isStreaming} task={detail} wrap /> : null;
+    return detail ? <ThinkingTranscriptRow active={isStreaming} task={detail} /> : null;
   }
 
   if (isSubagentSnapshotToolItem(item)) {
@@ -645,7 +647,7 @@ const SubagentAssistantMessage = memo(function SubagentAssistantMessage({
     streaming: isStreaming,
   };
 
-  return <AssistantMessage message={message} markdownCwd={projectRoot} />;
+  return <AssistantTranscriptRow message={message} markdownCwd={projectRoot} />;
 });
 
 const SubagentHumanMessage = memo(function SubagentHumanMessage({
@@ -665,20 +667,7 @@ const SubagentHumanMessage = memo(function SubagentHumanMessage({
     streaming: false,
   };
 
-  return (
-    <div className="box-border flex w-full min-w-0 px-0">
-      <HumanMessage
-        message={message}
-        editAvailable={false}
-        isEditing={false}
-        editDisabled
-        isServerThread={false}
-        editComposer={null}
-        onImageExpand={() => undefined}
-        onBeginEditUserMessage={undefined}
-      />
-    </div>
-  );
+  return <ReadOnlyHumanTranscriptRow message={message} />;
 });
 
 const SubagentToolTranscriptItem = memo(function SubagentToolTranscriptItem({
@@ -700,7 +689,7 @@ const SubagentToolTranscriptItem = memo(function SubagentToolTranscriptItem({
   }
 
   return (
-    <ToolCallMessage
+    <ToolTranscriptRow
       activeThreadId={activeThreadId}
       environmentId={environmentId}
       projectRoot={projectRoot}
@@ -729,7 +718,7 @@ const SubagentSnapshotToolItem = memo(function SubagentSnapshotToolItem({
   }
 
   return (
-    <ToolCallMessage
+    <ToolTranscriptRow
       activeThreadId={activeThreadId}
       environmentId={environmentId}
       projectRoot={projectRoot}

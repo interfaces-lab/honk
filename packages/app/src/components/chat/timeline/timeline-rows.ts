@@ -35,6 +35,15 @@ export interface MessageTimelineRow {
   message: ChatMessage;
   durationStart: string;
   editAvailable: boolean;
+  // Id of the user message that opens this human/AI pair. For a user message
+  // this is the message's own id; for assistant/system messages it is the most
+  // recent preceding user message. Null only when a message appears before any
+  // user message has been seen (e.g. an opening system note).
+  pairId: MessageId | null;
+  // Sequential index across all message rows in order, 0-based. Mirrors
+  // Cursor's `data-message-index` attribute and lets the renderer expose
+  // a stable position for scroll anchoring and selection.
+  messageIndex: number;
 }
 
 export interface ProposedPlanTimelineRow {
@@ -93,6 +102,8 @@ export function deriveMessagesTimelineRows(input: {
   const durationStartByMessageId = computeMessageDurationStart(
     input.timelineEntries.flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])),
   );
+  let currentPairId: MessageId | null = null;
+  let messageIndex = 0;
 
   for (let index = 0; index < input.timelineEntries.length; index += 1) {
     const timelineEntry = input.timelineEntries[index];
@@ -136,17 +147,23 @@ export function deriveMessagesTimelineRows(input: {
       continue;
     }
 
+    const message = timelineEntry.message;
+    if (message.role === "user") {
+      currentPairId = message.id;
+    }
     baseRows.push({
       kind: "message",
       id: timelineEntry.id,
       createdAt: timelineEntry.createdAt,
-      message: timelineEntry.message,
+      message,
       durationStart:
-        durationStartByMessageId.get(timelineEntry.message.id) ?? timelineEntry.message.createdAt,
+        durationStartByMessageId.get(message.id) ?? message.createdAt,
       editAvailable:
-        timelineEntry.message.role === "user" &&
-        input.editableUserMessageIds.has(timelineEntry.message.id),
+        message.role === "user" && input.editableUserMessageIds.has(message.id),
+      pairId: currentPairId,
+      messageIndex,
     });
+    messageIndex += 1;
   }
 
   if (input.isWorking) {
@@ -199,7 +216,9 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return (
         a.message === bm.message &&
         a.durationStart === bm.durationStart &&
-        a.editAvailable === bm.editAvailable
+        a.editAvailable === bm.editAvailable &&
+        a.pairId === bm.pairId &&
+        a.messageIndex === bm.messageIndex
       );
     }
   }

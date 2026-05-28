@@ -529,7 +529,7 @@ describe("deriveActivePlanState", () => {
       }),
     ];
 
-    // Current turn is turn-2, which has no plan activity — should fall back to turn-1's plan
+    // turn-2 has no plan activity, so the previous turn's plan remains current.
     const result = deriveActivePlanState(activities, TurnId.make("turn-2"));
     expect(result).toEqual({
       createdAt: "2026-02-23T00:00:01.000Z",
@@ -1770,6 +1770,117 @@ describe("deriveWorkLogEntries", () => {
       output: "typecheck passed",
       status: "completed",
     });
+  });
+
+  it("collapses tool lifecycle rows when the provider omitted itemId", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "tool-update",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.updated",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+        },
+      }),
+      makeActivity({
+        id: "tool-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+          data: {
+            result: {
+              stdout: "typecheck passed\n",
+            },
+          },
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "pnpm run typecheck",
+      output: "typecheck passed",
+      status: "completed",
+      itemType: "command_execution",
+    });
+    expect(entries[0]?.toolCallId).toBeUndefined();
+  });
+
+  it("does not collapse tool lifecycle rows without itemId across different turns", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "tool-turn-1",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.updated",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+        },
+      }),
+      makeActivity({
+        id: "tool-turn-2",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        turnId: "turn-2",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(2);
+  });
+
+  it("does not collapse tool lifecycle rows without itemId when descriptors differ", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "tool-cmd-1",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.updated",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run typecheck",
+        },
+      }),
+      makeActivity({
+        id: "tool-cmd-2",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        turnId: "turn-1",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          detail: "pnpm run lint",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+
+    expect(entries).toHaveLength(2);
   });
 
   it("collapses same-timestamp lifecycle rows even when completed sorts before updated by id", () => {

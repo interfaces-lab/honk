@@ -2,6 +2,14 @@
   --conversation-text-font-size: var(--multi-text-title);
   --conversation-text-leading: var(--multi-leading-title);
   --conversation-tool-card-padding-x: 8px;
+  /*
+   * Inset system mirrors Cursor's `--conversation-text-inset` and
+   * `--conversation-block-inset` (workbench.desktop.main.js).
+   * Line tools and prose use `--conversation-text-inset`; bordered card
+   * cards (task/shell-expanded/edit) use `--conversation-block-inset`.
+   */
+  --conversation-text-inset: 11px;
+  --conversation-block-inset: 11px;
   --chat-timeline-row-gap: 12px;
   --chat-timeline-padding-block-start: 12px;
   --chat-timeline-assistant-top-inset: 8px;
