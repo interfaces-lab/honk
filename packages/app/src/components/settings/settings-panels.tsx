@@ -8,6 +8,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  type AgentInteractionMode,
+  type AgentPermissionMode,
+  type AgentPreferencesPatch,
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
   defaultInstanceIdForDriver,
@@ -61,6 +64,8 @@ import { Switch } from "@multi/ui/switch";
 import { Text, textVariants } from "@multi/ui/text";
 import { toastManager } from "~/app/toast";
 import { formatProviderErrorDescription } from "~/lib/provider-error-description";
+import { ensureMultiRuntimeApi } from "~/lib/multi-runtime-api";
+import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import {
   SettingResetButton,
@@ -928,7 +933,192 @@ function withoutProviderInstanceFavorites(
   return favorites.filter((favorite) => favorite.provider !== instanceId);
 }
 
+const AGENT_INTERACTION_MODE_LABELS: Record<AgentInteractionMode, string> = {
+  default: "Agent",
+  ask: "Ask",
+  plan: "Plan",
+};
+
+const AGENT_PERMISSION_MODE_LABELS: Record<AgentPermissionMode, string> = {
+  "read-only": "Read only",
+  "project-write": "Project write",
+  "danger-full-access": "Full access",
+};
+
+function isAgentInteractionMode(value: string | null | undefined): value is AgentInteractionMode {
+  return value === "default" || value === "ask" || value === "plan";
+}
+
+function isAgentPermissionMode(value: string | null | undefined): value is AgentPermissionMode {
+  return value === "read-only" || value === "project-write" || value === "danger-full-access";
+}
+
+function AgentPreferencesSettingsPanel() {
+  const preferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
+  const diagnostics = useAgentRuntimeStore((state) => state.snapshot.diagnostics);
+  const setSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const updateAgentPreferences = useCallback(
+    (patch: AgentPreferencesPatch) => {
+      setIsSaving(true);
+      void ensureMultiRuntimeApi()
+        .updatePreferences(patch)
+        .then(async () => {
+          const snapshot = await ensureMultiRuntimeApi().getHostSnapshot();
+          setSnapshot(snapshot);
+        })
+        .catch((error: unknown) => {
+          toastManager.add({
+            type: "error",
+            title: "Failed to update agent preferences",
+            description: error instanceof Error ? error.message : "Agent preference update failed.",
+          });
+        })
+        .finally(() => setIsSaving(false));
+    },
+    [setSnapshot],
+  );
+
+  return (
+    <SettingsPageContainer>
+      <SettingsSection title="Agent preferences">
+        <SettingsRow
+          title="Interaction mode"
+          description="Default behavior for new agent turns."
+          control={
+            <Select
+              value={preferences.interactionMode}
+              onValueChange={(value) => {
+                if (isAgentInteractionMode(value)) {
+                  updateAgentPreferences({ interactionMode: value });
+                }
+              }}
+            >
+              <SelectTrigger
+                size="xs"
+                variant="outline"
+                className="w-full sm:w-34"
+                aria-label="Interaction mode"
+                disabled={isSaving}
+              >
+                <SelectValue>
+                  {AGENT_INTERACTION_MODE_LABELS[preferences.interactionMode]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="default">
+                  {AGENT_INTERACTION_MODE_LABELS.default}
+                </SelectItem>
+                <SelectItem hideIndicator value="ask">
+                  {AGENT_INTERACTION_MODE_LABELS.ask}
+                </SelectItem>
+                <SelectItem hideIndicator value="plan">
+                  {AGENT_INTERACTION_MODE_LABELS.plan}
+                </SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          title="Permissions"
+          description="Default filesystem and command access for agent turns."
+          control={
+            <Select
+              value={preferences.permissionMode}
+              onValueChange={(value) => {
+                if (isAgentPermissionMode(value)) {
+                  updateAgentPreferences({ permissionMode: value });
+                }
+              }}
+            >
+              <SelectTrigger
+                size="xs"
+                variant="outline"
+                className="w-full sm:w-42"
+                aria-label="Agent permissions"
+                disabled={isSaving}
+              >
+                <SelectValue>{AGENT_PERMISSION_MODE_LABELS[preferences.permissionMode]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="read-only">
+                  {AGENT_PERMISSION_MODE_LABELS["read-only"]}
+                </SelectItem>
+                <SelectItem hideIndicator value="project-write">
+                  {AGENT_PERMISSION_MODE_LABELS["project-write"]}
+                </SelectItem>
+                <SelectItem hideIndicator value="danger-full-access">
+                  {AGENT_PERMISSION_MODE_LABELS["danger-full-access"]}
+                </SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          title="Session tree"
+          description="Persist and render the runtime session tree for branch navigation."
+          control={
+            <Switch
+              checked={preferences.persistSessionTree}
+              disabled={isSaving}
+              aria-label="Persist runtime session tree"
+              onCheckedChange={(checked) =>
+                updateAgentPreferences({ persistSessionTree: Boolean(checked) })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Accounts">
+        {preferences.credentials.map((credential) => (
+          <SettingsRow
+            key={credential.kind}
+            title={credential.label}
+            description={credential.message ?? "Credential state reported by the runtime host."}
+            status={credential.state}
+            control={
+              <Switch
+                checked={credential.enabled}
+                disabled={isSaving}
+                aria-label={`${credential.label} enabled`}
+                onCheckedChange={(checked) =>
+                  updateAgentPreferences({
+                    credentials: preferences.credentials.map((entry) =>
+                      entry.kind === credential.kind
+                        ? { ...entry, enabled: Boolean(checked) }
+                        : entry,
+                    ),
+                  })
+                }
+              />
+            }
+          />
+        ))}
+      </SettingsSection>
+
+      <SettingsSection title="Runtime diagnostics">
+        {diagnostics.length === 0 ? (
+          <SettingsRow title="Desktop runtime" description="No runtime diagnostics reported." />
+        ) : (
+          diagnostics.map((diagnostic) => (
+            <SettingsRow
+              key={`${diagnostic.title}:${diagnostic.updatedAt}`}
+              title={diagnostic.title}
+              description={diagnostic.message ?? diagnostic.state}
+              status={diagnostic.updatedAt}
+            />
+          ))
+        )}
+      </SettingsSection>
+    </SettingsPageContainer>
+  );
+}
+
 export function ModelsSettingsPanel() {
+  return <AgentPreferencesSettingsPanel />;
+
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
   const serverProviders = useServerProviders();
