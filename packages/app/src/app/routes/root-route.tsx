@@ -43,6 +43,7 @@ import {
 } from "~/stores/project-identity";
 import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
+import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
 
 const routeApi = getRouteApi("__root__");
 type ServerEnvironmentDescriptor = NonNullable<ReturnType<typeof useServerEnvironment>>;
@@ -85,17 +86,11 @@ export function RootRouteView() {
       <BrowserChromeThemeSync key={authGateState.status} />
       <AnchoredToastProvider>
         <CursorPreferenceSync />
-        <ServerStateBootstrap />
-        <EnvironmentConnectionManagerBootstrap />
-        <EventRouter />
-        <WebSocketConnectionCoordinator />
-        <SlowRpcAckToastCoordinator />
+        <DesktopRuntimeHostBootstrap />
         <TaskCompletionNotifications />
-        <WebSocketConnectionSurface>
-          <CommandPalette>
-            <Outlet />
-          </CommandPalette>
-        </WebSocketConnectionSurface>
+        <CommandPalette>
+          <Outlet />
+        </CommandPalette>
         <DevDevtoolsPanel />
       </AnchoredToastProvider>
     </ToastProvider>
@@ -267,6 +262,12 @@ function errorDetails(error: unknown): string {
 
 function ServerStateBootstrap() {
   useMountEffect(() => startServerStateSync(getPrimaryEnvironmentConnection().client.server));
+
+  return null;
+}
+
+function DesktopRuntimeHostBootstrap() {
+  useMountEffect(() => startDesktopRuntimeHostSync());
 
   return null;
 }

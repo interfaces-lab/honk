@@ -3,7 +3,7 @@ import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalC
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
+import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { type OrchestrationMessageRichText, type ServerProviderSkill } from "@multi/contracts";
 import {
   $applyNodeReplacement,
@@ -1737,7 +1737,7 @@ const ComposerPromptEditorInner = forwardRef<
         ignoreSelectionChange={false}
         onChange={emitSnapshot}
       />
-      <RichTextPlugin
+      <PlainTextPlugin
         ErrorBoundary={LexicalErrorBoundary}
         contentEditable={
           <ContentEditable

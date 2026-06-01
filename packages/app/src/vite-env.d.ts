@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { DesktopBridge, LocalApi } from "@multi/contracts";
+import type { DesktopBridge, LocalApi, MultiRuntimeApi } from "@multi/contracts";
 
 interface ImportMetaEnv {
   readonly APP_VERSION: string;
@@ -14,5 +14,6 @@ declare global {
   interface Window {
     nativeApi?: LocalApi;
     desktopBridge?: DesktopBridge;
+    multiRuntime?: MultiRuntimeApi;
   }
 }

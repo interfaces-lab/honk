@@ -54,6 +54,13 @@ html.dark {
   --diffs-header-font-family: var(--multi-font-ui);
   --diffs-font-size: var(--multi-code-font-size-user, 12px);
   --diffs-line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  /*
+   * Pierre pads the code grid by --diffs-gap-block (8px fallback) on the block
+   * axis. That padding exposes the diffs-container's own background, which reads
+   * as a white strip between our card header and the first/last code line. We
+   * own the surrounding spacing, so collapse Pierre's gap to remove it.
+   */
+  --diffs-gap-block: 0px;
   font-family: var(--multi-font-mono);
   font-size: var(--multi-code-font-size-user, 12px);
   line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);

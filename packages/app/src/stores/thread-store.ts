@@ -10,6 +10,7 @@ import type {
   OrchestrationThread,
   ProviderRuntimeEvent,
   ProjectId,
+  SessionTreeProjection,
   ScopedProjectRef,
   ScopedThreadRef,
   ThreadId,
@@ -34,6 +35,7 @@ import {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
   applyProviderRuntimeEvent,
+  applyRuntimeSessionTreeProjection,
   applyShellEvent,
   setActiveEnvironmentId,
   setError,
@@ -47,6 +49,7 @@ export {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
   applyProviderRuntimeEvent,
+  applyRuntimeSessionTreeProjection,
   applyShellEvent,
   setActiveEnvironmentId,
   setError,
@@ -309,6 +312,10 @@ interface AppStore extends AppState {
     event: ProviderRuntimeEvent,
     environmentId: EnvironmentId,
   ) => void;
+  applyRuntimeSessionTreeProjection: (
+    tree: SessionTreeProjection,
+    environmentId: EnvironmentId,
+  ) => void;
   applyShellEvent: (event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) => void;
   setError: (threadId: ThreadId, error: string | null) => void;
   setThreadBranch: (
@@ -334,6 +341,8 @@ export const useStore = create<AppStore>((set) => ({
     set((state) => applyOrchestrationEvents(state, events, environmentId)),
   applyProviderRuntimeEvent: (event, environmentId) =>
     set((state) => applyProviderRuntimeEvent(state, event, environmentId)),
+  applyRuntimeSessionTreeProjection: (tree, environmentId) =>
+    set((state) => applyRuntimeSessionTreeProjection(state, tree, environmentId)),
   applyShellEvent: (event, environmentId) =>
     set((state) => applyShellEvent(state, event, environmentId)),
   setError: (threadId, error) => set((state) => setError(state, threadId, error)),

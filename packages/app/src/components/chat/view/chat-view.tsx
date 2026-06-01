@@ -1,5 +1,6 @@
 import {
   type ApprovalRequestId,
+  type DesktopExtensionUiRequest,
   type EnvironmentId,
   type GitBranch,
   type MessageId,
@@ -73,6 +74,10 @@ import {
   createThreadSelectorByRef,
 } from "../../../stores/thread-selectors";
 import { useUiStateStore } from "../../../stores/ui-state-store";
+import {
+  selectPendingExtensionUiRequestsForThread,
+  useAgentRuntimeStore,
+} from "../../../stores/agent-runtime-store";
 import { normalizePlanMarkdownForExport, resolvePlanFollowUpSubmission } from "~/plan/proposed-plan";
 import {
   DEFAULT_INTERACTION_MODE,
@@ -98,6 +103,7 @@ import {
 } from "~/lib/project-scripts";
 import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils";
 import { useSettings } from "../../../hooks/use-settings";
+import { ensureMultiRuntimeApi } from "../../../lib/multi-runtime-api";
 import { resolveAppProviderModelState } from "../../../model/selection";
 import { formatProviderDriverKindLabel } from "../../../model/provider-models";
 import { isTerminalFocused } from "../../../lib/terminal-focus";
@@ -114,6 +120,7 @@ import {
   type DraftId as ComposerDraftId,
 } from "../../../stores/chat-drafts";
 import { type QueuedComposerItem } from "../../../stores/chat-send-queue";
+import { ComposerPendingExtensionUiRequestPanel } from "../composer/pending/extension-ui-request-panel";
 import {
   selectThreadTerminalState,
   type ThreadTerminalLaunchContext,
@@ -786,6 +793,13 @@ export default function ChatView(props: ChatViewProps) {
     latestTurnSettled,
     setThreadError,
   });
+  const pendingExtensionUiRequests = useAgentRuntimeStore((state) =>
+    selectPendingExtensionUiRequestsForThread(state, activeThreadId),
+  );
+  const activePendingExtensionUiRequest = pendingExtensionUiRequests[0] ?? null;
+  const [respondingExtensionUiRequestIds, setRespondingExtensionUiRequestIds] = useState<string[]>(
+    [],
+  );
   const activeProposedPlan = useMemo(() => {
     if (!latestTurnSettled) {
       return null;
@@ -2133,6 +2147,32 @@ export default function ChatView(props: ChatViewProps) {
     [activeThreadId, environmentId, setThreadError],
   );
 
+  const onRespondToExtensionUiRequest = useCallback(
+    (request: DesktopExtensionUiRequest, value: unknown) => {
+      setRespondingExtensionUiRequestIds((existing) =>
+        existing.includes(request.id) ? existing : [...existing, request.id],
+      );
+      void ensureMultiRuntimeApi()
+        .respondToExtensionUiRequest({
+          threadId: request.threadId,
+          requestId: request.id,
+          value,
+        })
+        .catch((error: unknown) => {
+          setThreadError(
+            request.threadId,
+            error instanceof Error ? error.message : "Failed to submit runtime response.",
+          );
+        })
+        .finally(() => {
+          setRespondingExtensionUiRequestIds((existing) =>
+            existing.filter((id) => id !== request.id),
+          );
+        });
+    },
+    [setThreadError],
+  );
+
   const onSubmitPlanFollowUp = useCallback(
     async ({
       text,
@@ -2713,6 +2753,16 @@ export default function ChatView(props: ChatViewProps) {
                 onStoredBranchAvailabilityChange={handleStoredBranchAvailabilityChange}
               />
             ) : null}
+            <ComposerPendingExtensionUiRequestPanel
+              request={activePendingExtensionUiRequest}
+              pendingCount={pendingExtensionUiRequests.length}
+              isResponding={
+                activePendingExtensionUiRequest
+                  ? respondingExtensionUiRequestIds.includes(activePendingExtensionUiRequest.id)
+                  : false
+              }
+              onRespond={onRespondToExtensionUiRequest}
+            />
             <ComposerInput
               ref={composerRef}
               variant={isHeroComposer ? "expanded" : "compact"}

@@ -35,6 +35,16 @@ export const TurnId = makeEntityId("TurnId");
 export type TurnId = typeof TurnId.Type;
 export const AuthSessionId = makeEntityId("AuthSessionId");
 export type AuthSessionId = typeof AuthSessionId.Type;
+export const AuthProviderId = makeEntityId("AuthProviderId");
+export type AuthProviderId = typeof AuthProviderId.Type;
+export const AccountId = makeEntityId("AccountId");
+export type AccountId = typeof AccountId.Type;
+export const ModelId = makeEntityId("ModelId");
+export type ModelId = typeof ModelId.Type;
+export const PiSessionId = makeEntityId("PiSessionId");
+export type PiSessionId = typeof PiSessionId.Type;
+export const PiSessionEntryId = makeEntityId("PiSessionEntryId");
+export type PiSessionEntryId = typeof PiSessionEntryId.Type;
 
 export const ProviderItemId = makeEntityId("ProviderItemId");
 export type ProviderItemId = typeof ProviderItemId.Type;

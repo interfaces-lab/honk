@@ -12,6 +12,7 @@ import type {
   OrchestrationSessionStatus,
   OrchestrationThread,
   OrchestrationThreadShell,
+  SessionTreeProjection,
   ProviderRuntimeEvent,
   OrchestrationThreadActivity,
   ScopedThreadRef,
@@ -20,9 +21,13 @@ import type {
   ThreadId,
 } from "@multi/contracts";
 import {
+  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_RUNTIME_MODE,
+  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   isProviderDriverKind,
   MessageId,
   ProviderDriverKind,
+  ProviderInstanceId,
   resolveLeafIdAfterThreadMessage,
   TurnId,
 } from "@multi/contracts";
@@ -286,6 +291,122 @@ function deriveClientChatTimelineRows(thread: Thread): OrchestrationChatTimeline
         ? (thread.session.activeTurnId ?? thread.latestTurn?.turnId ?? null)
         : null,
   });
+}
+
+function titleForSessionTree(tree: SessionTreeProjection): string {
+  const firstUserText = tree.entries.find((entry) => entry.role === "user")?.text?.trim();
+  if (!firstUserText) {
+    return "Agent thread";
+  }
+  return firstUserText.length > 64 ? `${firstUserText.slice(0, 61)}...` : firstUserText;
+}
+
+function createRuntimeSession(input: {
+  readonly threadId: ThreadId;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}): ThreadSession {
+  return {
+    provider: ProviderDriverKind.make("codex"),
+    providerInstanceId: ProviderInstanceId.make("pi"),
+    status: "ready",
+    orchestrationStatus: "ready",
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+  };
+}
+
+function threadFromRuntimeSessionTree(
+  tree: SessionTreeProjection,
+  environmentId: EnvironmentId,
+  previousThread: Thread | undefined,
+): Thread {
+  const messages: ChatMessage[] = [];
+  const entries: ThreadTreeEntry[] = [];
+  const sessionEntryIdToThreadEntryId = new Map<string, ThreadEntryId>();
+
+  for (const entry of tree.entries) {
+    if (entry.role !== "user" && entry.role !== "assistant" && entry.role !== "system") {
+      continue;
+    }
+
+    const messageId = MessageId.make(entry.threadEntryId);
+    sessionEntryIdToThreadEntryId.set(entry.id, entry.threadEntryId);
+    messages.push({
+      id: messageId,
+      role: entry.role,
+      text: entry.text ?? "",
+      turnId: null,
+      createdAt: entry.createdAt,
+      completedAt: entry.createdAt,
+      streaming: false,
+    });
+    entries.push({
+      id: entry.threadEntryId,
+      threadId: tree.threadId,
+      parentEntryId: entry.parentThreadEntryId,
+      kind: "message",
+      messageId,
+      turnId: null,
+      createdAt: entry.createdAt,
+    });
+  }
+
+  const createdAt = messages[0]?.createdAt ?? new Date().toISOString();
+  const updatedAt = messages.at(-1)?.createdAt ?? createdAt;
+  const session = createRuntimeSession({ threadId: tree.threadId, createdAt, updatedAt });
+  const leafId = tree.leafEntryId
+    ? (sessionEntryIdToThreadEntryId.get(tree.leafEntryId) ?? null)
+    : null;
+
+  return {
+    id: tree.threadId,
+    environmentId,
+    codexThreadId: null,
+    projectId: previousThread?.projectId ?? null,
+    title: previousThread?.title ?? titleForSessionTree(tree),
+    modelSelection: previousThread?.modelSelection ?? DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+    runtimeMode: previousThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE,
+    interactionMode: previousThread?.interactionMode ?? DEFAULT_PROVIDER_INTERACTION_MODE,
+    session,
+    messages,
+    leafId,
+    entries,
+    proposedPlans: previousThread?.proposedPlans ?? [],
+    error: null,
+    createdAt: previousThread?.createdAt ?? createdAt,
+    archivedAt: previousThread?.archivedAt ?? null,
+    updatedAt,
+    latestTurn: previousThread?.latestTurn ?? null,
+    pendingSourceProposedPlan: previousThread?.pendingSourceProposedPlan,
+    branch: previousThread?.branch ?? null,
+    worktreePath: previousThread?.worktreePath ?? null,
+    turnDiffSummaries: previousThread?.turnDiffSummaries ?? [],
+    activities: previousThread?.activities ?? [],
+    chatTimelineRows: [],
+  };
+}
+
+function runtimeSidebarThreadSummary(thread: Thread): SidebarThreadSummary {
+  return {
+    id: thread.id,
+    environmentId: thread.environmentId,
+    projectId: thread.projectId,
+    title: thread.title,
+    interactionMode: thread.interactionMode,
+    session: thread.session,
+    createdAt: thread.createdAt,
+    archivedAt: thread.archivedAt,
+    updatedAt: thread.updatedAt,
+    latestTurn: thread.latestTurn,
+    branch: thread.branch,
+    worktreePath: thread.worktreePath,
+    latestUserMessageAt:
+      thread.messages.findLast((message) => message.role === "user")?.createdAt ?? null,
+    hasPendingApprovals: false,
+    hasPendingUserInput: false,
+    hasActionableProposedPlan: false,
+  };
 }
 
 function sourceProposedPlansEqual(
@@ -1801,6 +1922,30 @@ export function applyProviderRuntimeEvent(
     environmentId,
     applyProviderRuntimeEventToEnvironment(getStoredEnvironmentState(state, environmentId), event),
   );
+}
+
+export function applyRuntimeSessionTreeProjection(
+  state: AppState,
+  tree: SessionTreeProjection,
+  environmentId: EnvironmentId,
+): AppState {
+  const currentEnvironmentState = getStoredEnvironmentState(state, environmentId);
+  const previousThread = getThreadFromEnvironmentState(currentEnvironmentState, tree.threadId);
+  const nextThread = threadFromRuntimeSessionTree(tree, environmentId, previousThread);
+  const nextEnvironmentState = writeThreadShellState(
+    writeThreadState(currentEnvironmentState, nextThread, previousThread),
+    {
+      shell: toThreadShell(nextThread),
+      session: nextThread.session,
+      turnState: toThreadTurnState(nextThread),
+      summary: runtimeSidebarThreadSummary(nextThread),
+    },
+  );
+  return commitEnvironmentState(state, environmentId, {
+    ...nextEnvironmentState,
+    snapshotSource: "server",
+    bootstrapComplete: true,
+  });
 }
 
 export function setError(state: AppState, threadId: ThreadId, error: string | null): AppState {
