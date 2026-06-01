@@ -26,9 +26,6 @@ const makeProjectionThreadEntryRepository = Effect.gen(function* () {
           kind,
           message_id,
           turn_id,
-          target_entry_id,
-          label,
-          summary,
           created_at
         )
         VALUES (
@@ -38,9 +35,6 @@ const makeProjectionThreadEntryRepository = Effect.gen(function* () {
           ${row.kind},
           ${row.messageId},
           ${row.turnId},
-          ${row.targetEntryId},
-          ${row.label},
-          ${row.summary},
           ${row.createdAt}
         )
         ON CONFLICT (entry_id)
@@ -50,9 +44,6 @@ const makeProjectionThreadEntryRepository = Effect.gen(function* () {
           kind = excluded.kind,
           message_id = excluded.message_id,
           turn_id = excluded.turn_id,
-          target_entry_id = excluded.target_entry_id,
-          label = excluded.label,
-          summary = excluded.summary,
           created_at = excluded.created_at
       `,
   });
@@ -69,9 +60,6 @@ const makeProjectionThreadEntryRepository = Effect.gen(function* () {
           kind,
           message_id AS "messageId",
           turn_id AS "turnId",
-          target_entry_id AS "targetEntryId",
-          label,
-          summary,
           created_at AS "createdAt"
         FROM projection_thread_entries
         WHERE entry_id = ${entryId}
@@ -91,9 +79,6 @@ const makeProjectionThreadEntryRepository = Effect.gen(function* () {
           kind,
           message_id AS "messageId",
           turn_id AS "turnId",
-          target_entry_id AS "targetEntryId",
-          label,
-          summary,
           created_at AS "createdAt"
         FROM projection_thread_entries
         WHERE thread_id = ${threadId}

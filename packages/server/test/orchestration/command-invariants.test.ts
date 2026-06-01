@@ -69,12 +69,12 @@ const readModel: OrchestrationReadModel = {
       archivedAt: null,
       latestTurn: null,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       session: null,
       activities: [],
+      chatTimelineRows: [],
       proposedPlans: [],
-      checkpoints: [],
       deletedAt: null,
     },
     {
@@ -94,12 +94,12 @@ const readModel: OrchestrationReadModel = {
       archivedAt: null,
       latestTurn: null,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       session: null,
       activities: [],
+      chatTimelineRows: [],
       proposedPlans: [],
-      checkpoints: [],
       deletedAt: null,
     },
   ],
@@ -203,7 +203,7 @@ describe("command-invariants", () => {
   it("requires non-negative integers", async () => {
     await Effect.runPromise(
       requireNonNegativeInteger({
-        commandType: "thread.checkpoint.revert",
+        commandType: "thread.turn.start",
         field: "turnCount",
         value: 0,
       }),
@@ -212,7 +212,7 @@ describe("command-invariants", () => {
     await expect(
       Effect.runPromise(
         requireNonNegativeInteger({
-          commandType: "thread.checkpoint.revert",
+          commandType: "thread.turn.start",
           field: "turnCount",
           value: -1,
         }),

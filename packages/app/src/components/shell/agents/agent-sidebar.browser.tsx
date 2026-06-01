@@ -9,11 +9,8 @@ import { scopeThreadRef } from "@multi/client-runtime";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  buildProjectChatSections,
-  type SidebarSectionModel,
-  type SidebarThreadSummary,
-} from "./sidebar-chat-view-model";
+import { buildProjectChatSections } from "./sidebar/view-model";
+import type { SidebarSectionModel, SidebarThreadSummary } from "./sidebar/types";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { AgentSidebar } from "./agent-sidebar";
 
@@ -52,7 +49,7 @@ vi.mock("~/environments/runtime/service", () => {
   };
 });
 
-vi.mock("~/components/shell/sidebar/thread-context-menu", () => ({
+vi.mock("~/components/shell/agents/sidebar/context-menu", () => ({
   SidebarSectionContextMenu: (props: { children: ReactNode }) => <div>{props.children}</div>,
   ThreadContextMenu: (props: { children: ReactNode; onRename: () => void }) => (
     <div>
@@ -368,6 +365,24 @@ describe("AgentSidebar", () => {
       selectedElement?.querySelector("[data-agent-sidebar-subtitle]")?.textContent,
       "selected row: expected compact relative time",
     ).toBe("4m");
+    const status = selectedElement?.querySelector("[data-agent-sidebar-status]");
+    const time = selectedElement?.querySelector("[data-agent-sidebar-subtitle]");
+    const pin = selectedElement?.querySelector("[data-agent-sidebar-pin-action]");
+    const archive = selectedElement?.querySelector("[data-agent-sidebar-archive-action]");
+    expect(status?.querySelector("[data-agent-sidebar-pin-action]")).toBeNull();
+    expect(pin, "selected row: expected pin action to render").not.toBeNull();
+    expect(archive, "selected row: expected archive action to render").not.toBeNull();
+    if (!time || !pin || !archive) {
+      throw new Error("selected row: expected trailing time, pin, and archive controls.");
+    }
+    expect(
+      time.compareDocumentPosition(pin) & Node.DOCUMENT_POSITION_FOLLOWING,
+      "selected row: expected time before pin",
+    ).toBeTruthy();
+    expect(
+      pin.compareDocumentPosition(archive) & Node.DOCUMENT_POSITION_FOLLOWING,
+      "selected row: expected pin before archive",
+    ).toBeTruthy();
   });
 
   it("keeps project sections, active rows, and new-thread actions reachable", async () => {

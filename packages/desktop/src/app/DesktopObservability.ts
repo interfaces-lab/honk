@@ -112,11 +112,6 @@ const encodeDesktopBackendChildLogRecord = Schema.encodeEffect(
   Schema.fromJsonString(DesktopBackendChildLogRecord),
 );
 
-const DesktopBackendOutputLogNoop: DesktopBackendOutputLogShape = {
-  writeSessionBoundary: () => Effect.void,
-  writeOutputChunk: () => Effect.void,
-};
-
 const currentDesktopRunId = Effect.gen(function* () {
   const annotations = yield* References.CurrentLogAnnotations;
   const runId = annotations.runId;
@@ -260,7 +255,7 @@ const resolveOtlpTracesUrl = Effect.gen(function* () {
   return yield* readPersistedOtlpTracesUrl;
 });
 
-const writeDevelopmentConsoleOutput = (
+const writeConsoleOutput = (
   streamName: "stdout" | "stderr",
   chunk: Uint8Array,
 ): Effect.Effect<void> =>
@@ -302,45 +297,47 @@ const backendOutputLogLayer = Layer.effect(
       filePath: environment.path.join(environment.logDir, "server-child.log"),
     }).pipe(Effect.option);
 
-    return Option.match(writer, {
-      onNone: () => DesktopBackendOutputLogNoop,
-      onSome: (logFile) =>
-        ({
-          writeSessionBoundary: Effect.fn(
-            "desktop.observability.backendOutput.writeSessionBoundary",
-          )(function* ({ phase, details }) {
-            const runId = yield* currentDesktopRunId;
-            yield* writeBackendChildLogRecord(logFile, {
-              message: `backend child process session ${phase.toLowerCase()}`,
-              level: "INFO",
-              annotations: {
-                component: "desktop-backend-child",
-                runId,
-                phase,
-                details: sanitizeLogValue(details),
-              },
-            });
-          }),
-          writeOutputChunk: Effect.fn("desktop.observability.backendOutput.writeOutputChunk")(
-            function* (streamName, chunk) {
-              if (environment.isDevelopment) {
-                yield* writeDevelopmentConsoleOutput(streamName, chunk);
-              }
-              const runId = yield* currentDesktopRunId;
-              yield* writeBackendChildLogRecord(logFile, {
-                message: "backend child process output",
-                level: streamName === "stderr" ? "ERROR" : "INFO",
-                annotations: {
-                  component: "desktop-backend-child",
-                  runId,
-                  stream: streamName,
-                  text: textDecoder.decode(chunk),
-                },
-              });
+    return {
+      writeSessionBoundary: Effect.fn(
+        "desktop.observability.backendOutput.writeSessionBoundary",
+      )(function* ({ phase, details }) {
+        if (Option.isNone(writer)) {
+          return;
+        }
+
+        const runId = yield* currentDesktopRunId;
+        yield* writeBackendChildLogRecord(writer.value, {
+          message: `backend child process session ${phase.toLowerCase()}`,
+          level: "INFO",
+          annotations: {
+            component: "desktop-backend-child",
+            runId,
+            phase,
+            details: sanitizeLogValue(details),
+          },
+        });
+      }),
+      writeOutputChunk: Effect.fn("desktop.observability.backendOutput.writeOutputChunk")(
+        function* (streamName, chunk) {
+          yield* writeConsoleOutput(streamName, chunk);
+          if (Option.isNone(writer)) {
+            return;
+          }
+
+          const runId = yield* currentDesktopRunId;
+          yield* writeBackendChildLogRecord(writer.value, {
+            message: "backend child process output",
+            level: streamName === "stderr" ? "ERROR" : "INFO",
+            annotations: {
+              component: "desktop-backend-child",
+              runId,
+              stream: streamName,
+              text: textDecoder.decode(chunk),
             },
-          ),
-        }) satisfies DesktopBackendOutputLogShape,
-    });
+          });
+        },
+      ),
+    } satisfies DesktopBackendOutputLogShape;
   }),
 );
 

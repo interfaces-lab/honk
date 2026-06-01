@@ -225,7 +225,7 @@ function segmentTone(
   const hovered =
     (segment.branchId !== null && minimap.hoveredBranch === segment.branchId) ||
     minimap.hoveredEntryId === segment.id;
-  const focused = minimap.activeEntryId === segment.id;
+  const focused = minimap.leafId === segment.id;
 
   if (focused) return "focused";
   if (hovered) return "hover";
@@ -235,7 +235,7 @@ function segmentTone(
 
 interface MinimapProps {
   activeBranch: BranchId;
-  activeEntryId: string;
+  leafId: string;
   hoveredBranch: BranchId | null;
   hoveredEntryId: string | null;
   onHoverBranch: (branchId: BranchId | null) => void;
@@ -247,7 +247,7 @@ interface MinimapProps {
 interface ConversationNavState {
   activeBranch: BranchId;
   visibleBranch: BranchId;
-  activeEntryId: string;
+  leafId: string;
   hoveredBranch: BranchId | null;
   hoveredEntryId: string | null;
   previewBranch: BranchId | null;
@@ -261,7 +261,7 @@ interface ConversationNavState {
 
 function useConversationNav(initialBranch: BranchId = "technical"): ConversationNavState {
   const [activeBranch, setActiveBranch] = useState<BranchId>(initialBranch);
-  const [activeEntryId, setActiveEntryId] = useState<string>("m8a");
+  const [leafId, setLeafId] = useState<string>("m8a");
   const [hoveredBranch, setHoveredBranch] = useState<BranchId | null>(null);
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const [previewBranch, setPreviewBranch] = useState<BranchId | null>(null);
@@ -278,11 +278,11 @@ function useConversationNav(initialBranch: BranchId = "technical"): Conversation
     }
     setPreviewBranch(branchId);
     const forkId = getBranch(branchId).entries[0];
-    if (forkId) setActiveEntryId(forkId);
+    if (forkId) setLeafId(forkId);
   }
 
   function pickEntry(entryId: string) {
-    setActiveEntryId(entryId);
+    setLeafId(entryId);
   }
 
   function confirmPreview() {
@@ -294,7 +294,7 @@ function useConversationNav(initialBranch: BranchId = "technical"): Conversation
 
   const minimapProps: MinimapProps = {
     activeBranch,
-    activeEntryId,
+    leafId,
     hoveredBranch,
     hoveredEntryId,
     onHoverBranch: setHoveredBranch,
@@ -306,7 +306,7 @@ function useConversationNav(initialBranch: BranchId = "technical"): Conversation
   return {
     activeBranch,
     visibleBranch,
-    activeEntryId,
+    leafId,
     hoveredBranch,
     hoveredEntryId,
     previewBranch,
@@ -323,23 +323,23 @@ function useConversationNav(initialBranch: BranchId = "technical"): Conversation
 
 function ChatView(props: {
   messages: readonly MockEntry[];
-  activeEntryId: string;
+  leafId: string;
   isPreviewing: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const entryRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const scrollSyncKey = `${props.activeEntryId}:${props.messages.map((entry) => entry.id).join("|")}`;
+  const scrollSyncKey = `${props.leafId}:${props.messages.map((entry) => entry.id).join("|")}`;
 
   return (
     <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8">
       <ChatActiveEntryScrollSync
         key={scrollSyncKey}
-        activeEntryId={props.activeEntryId}
+        leafId={props.leafId}
         entryRefs={entryRefs}
       />
       <ul className="mx-auto flex max-w-2xl flex-col gap-4">
         {props.messages.map((entry) => {
-          const isActive = entry.id === props.activeEntryId;
+          const isActive = entry.id === props.leafId;
           const isUser = entry.role === "user";
           return (
             <li
@@ -373,14 +373,14 @@ function ChatView(props: {
 }
 
 function ChatActiveEntryScrollSync({
-  activeEntryId,
+  leafId,
   entryRefs,
 }: {
-  activeEntryId: string;
+  leafId: string;
   entryRefs: RefObject<Map<string, HTMLElement>>;
 }) {
   useMountEffect(() => {
-    const node = entryRefs.current.get(activeEntryId);
+    const node = entryRefs.current.get(leafId);
     node?.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 
@@ -467,7 +467,7 @@ function BubbleChip(props: { segment: MinimapSegment; minimap: MinimapProps }) {
           props.minimap.onHoverBranch(null);
         }}
         onClick={handleClick}
-        aria-current={props.minimap.activeEntryId === props.segment.id ? "true" : undefined}
+        aria-current={props.minimap.leafId === props.segment.id ? "true" : undefined}
         className={cn(
           "block max-w-full truncate rounded-full text-left text-[11px] leading-snug transition-colors",
           "px-2.5 py-1",
@@ -501,7 +501,7 @@ function BubbleChip(props: { segment: MinimapSegment; minimap: MinimapProps }) {
         props.minimap.onHoverBranch(null);
       }}
       onClick={handleClick}
-      aria-current={props.minimap.activeEntryId === props.segment.id ? "true" : undefined}
+      aria-current={props.minimap.leafId === props.segment.id ? "true" : undefined}
       aria-label={props.segment.entry.text}
       className={cn(
         "block max-w-full truncate rounded-multi-control px-2 py-0.5 text-left text-[10px] leading-snug transition-colors",
@@ -572,7 +572,7 @@ function FilmstripFlowDemo() {
         <PreviewBanner state={state} />
         <ChatView
           messages={state.messages}
-          activeEntryId={state.activeEntryId}
+          leafId={state.leafId}
           isPreviewing={state.isPreviewing}
         />
         <BubbleMinimap segments={state.segments} minimap={state.minimapProps} />

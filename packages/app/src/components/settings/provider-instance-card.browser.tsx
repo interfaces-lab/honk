@@ -114,13 +114,13 @@ describe("ProviderInstanceCard", () => {
     }
   });
 
-  it("preserves unknown provider instances without editable driver fields", async () => {
-    const unknownDriver = ProviderDriverKind.make("customFork");
+  it("preserves provider instance config without editable driver fields", async () => {
+    const knownDriver = ProviderDriverKind.make("cursor");
     const { screen } = await renderProviderInstanceCard({
-      instanceId: ProviderInstanceId.make("customFork"),
+      instanceId: ProviderInstanceId.make("cursor-work"),
       instance: providerInstance({
-        driver: unknownDriver,
-        displayName: "Custom Fork",
+        driver: knownDriver,
+        displayName: "Cursor Work",
         config: {
           customSetting: true,
         },

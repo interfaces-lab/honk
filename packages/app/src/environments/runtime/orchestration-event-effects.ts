@@ -36,12 +36,6 @@ export function deriveOrchestrationBatchEffects(
 
   for (const event of events) {
     switch (event.type) {
-      case "thread.turn-diff-completed":
-      case "thread.reverted": {
-        needsProviderInvalidation = true;
-        break;
-      }
-
       case "thread.created": {
         threadLifecycleEffects.set(event.payload.threadId, {
           clearPromotedDraft: true,

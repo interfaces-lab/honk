@@ -1,9 +1,8 @@
-import { Effect, Option, Schema, SchemaIssue, Struct } from "effect";
+import { Effect, Schema } from "effect";
 import { ProviderOptionSelections } from "./model";
 import { RepositoryIdentity } from "./environment";
 import {
   ApprovalRequestId,
-  CheckpointRef,
   CommandId,
   EventId,
   IsoDateTime,
@@ -20,6 +19,7 @@ import {
 import { ProviderInstanceId } from "./provider-instance";
 import {
   CanonicalItemType,
+  ProviderRuntimeEvent,
   ProviderThreadSnapshotItem,
   ThreadTokenUsageSnapshot,
   ToolLifecycleItemType,
@@ -28,8 +28,6 @@ import {
 
 export const ORCHESTRATION_WS_METHODS = {
   dispatchCommand: "orchestration.dispatchCommand",
-  getTurnDiff: "orchestration.getTurnDiff",
-  getFullThreadDiff: "orchestration.getFullThreadDiff",
   getProviderThreadSnapshot: "orchestration.getProviderThreadSnapshot",
   replayEvents: "orchestration.replayEvents",
   subscribeShell: "orchestration.subscribeShell",
@@ -77,8 +75,6 @@ export const ProviderRequestKind = Schema.Literals([
   "auth-refresh",
 ]);
 export type ProviderRequestKind = typeof ProviderRequestKind.Type;
-export const AssistantDeliveryMode = Schema.Literals(["buffered", "streaming"]);
-export type AssistantDeliveryMode = typeof AssistantDeliveryMode.Type;
 export const ProviderApprovalDecision = Schema.Literals([
   "accept",
   "acceptForSession",
@@ -179,7 +175,7 @@ export const OrchestrationMessage = Schema.Struct({
 });
 export type OrchestrationMessage = typeof OrchestrationMessage.Type;
 
-export const OrchestrationThreadEntryKind = Schema.Literals(["message", "branch-summary", "label"]);
+export const OrchestrationThreadEntryKind = Schema.Literals(["message"]);
 export type OrchestrationThreadEntryKind = typeof OrchestrationThreadEntryKind.Type;
 
 export const OrchestrationThreadEntry = Schema.Struct({
@@ -189,9 +185,6 @@ export const OrchestrationThreadEntry = Schema.Struct({
   kind: OrchestrationThreadEntryKind,
   messageId: Schema.NullOr(MessageId),
   turnId: Schema.NullOr(TurnId),
-  targetEntryId: Schema.NullOr(ThreadEntryId),
-  label: Schema.NullOr(Schema.String),
-  summary: Schema.NullOr(Schema.String),
   createdAt: IsoDateTime,
 });
 export type OrchestrationThreadEntry = typeof OrchestrationThreadEntry.Type;
@@ -240,28 +233,6 @@ export const OrchestrationSession = Schema.Struct({
 });
 export type OrchestrationSession = typeof OrchestrationSession.Type;
 
-export const OrchestrationCheckpointFile = Schema.Struct({
-  path: TrimmedNonEmptyString,
-  kind: TrimmedNonEmptyString,
-  additions: NonNegativeInt,
-  deletions: NonNegativeInt,
-});
-export type OrchestrationCheckpointFile = typeof OrchestrationCheckpointFile.Type;
-
-export const OrchestrationCheckpointStatus = Schema.Literals(["ready", "missing", "error"]);
-export type OrchestrationCheckpointStatus = typeof OrchestrationCheckpointStatus.Type;
-
-export const OrchestrationCheckpointSummary = Schema.Struct({
-  turnId: TurnId,
-  checkpointTurnCount: NonNegativeInt,
-  checkpointRef: CheckpointRef,
-  status: OrchestrationCheckpointStatus,
-  files: Schema.Array(OrchestrationCheckpointFile),
-  assistantMessageId: Schema.NullOr(MessageId),
-  completedAt: IsoDateTime,
-});
-export type OrchestrationCheckpointSummary = typeof OrchestrationCheckpointSummary.Type;
-
 export const OrchestrationThreadActivityTone = Schema.Literals([
   "info",
   "tool",
@@ -299,9 +270,6 @@ export const OrchestrationThreadActivityKind = Schema.Literals([
   "provider.approval.respond.failed",
   "provider.user-input.respond.failed",
   "provider.session.stop.failed",
-  "checkpoint.capture.failed",
-  "checkpoint.revert.failed",
-  "checkpoint.captured",
   "setup-script.requested",
   "setup-script.started",
   "setup-script.failed",
@@ -452,20 +420,6 @@ const ProviderFailureActivityPayload = Schema.Struct({
   requestId: Schema.optional(TrimmedNonEmptyString),
 });
 
-const CheckpointCaptureFailedActivityPayload = Schema.Struct({
-  detail: TrimmedNonEmptyString,
-});
-
-const CheckpointRevertFailedActivityPayload = Schema.Struct({
-  turnCount: NonNegativeInt,
-  detail: TrimmedNonEmptyString,
-});
-
-const CheckpointCapturedActivityPayload = Schema.Struct({
-  turnCount: NonNegativeInt,
-  status: OrchestrationCheckpointStatus,
-});
-
 const SetupScriptActivityPayload = ActivityUnknownRecord;
 
 const OrchestrationThreadActivityBaseFields = {
@@ -585,21 +539,6 @@ export const OrchestrationThreadActivity = Schema.Union([
   }),
   Schema.Struct({
     ...OrchestrationThreadActivityBaseFields,
-    kind: Schema.Literal("checkpoint.capture.failed"),
-    payload: CheckpointCaptureFailedActivityPayload,
-  }),
-  Schema.Struct({
-    ...OrchestrationThreadActivityBaseFields,
-    kind: Schema.Literal("checkpoint.revert.failed"),
-    payload: CheckpointRevertFailedActivityPayload,
-  }),
-  Schema.Struct({
-    ...OrchestrationThreadActivityBaseFields,
-    kind: Schema.Literal("checkpoint.captured"),
-    payload: CheckpointCapturedActivityPayload,
-  }),
-  Schema.Struct({
-    ...OrchestrationThreadActivityBaseFields,
     kind: Schema.Literals(["setup-script.requested", "setup-script.started", "setup-script.failed"]),
     payload: SetupScriptActivityPayload,
   }),
@@ -625,6 +564,48 @@ export const OrchestrationLatestTurn = Schema.Struct({
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 
+const OrchestrationChatTimelineRowBaseFields = {
+  id: TrimmedNonEmptyString,
+  orderKey: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+} as const;
+
+export const OrchestrationChatTimelineMessageRow = Schema.Struct({
+  ...OrchestrationChatTimelineRowBaseFields,
+  kind: Schema.Literal("message"),
+  messageId: MessageId,
+  turnId: Schema.NullOr(TurnId),
+  entryId: Schema.NullOr(ThreadEntryId),
+});
+export type OrchestrationChatTimelineMessageRow = typeof OrchestrationChatTimelineMessageRow.Type;
+
+export const OrchestrationChatTimelineWorkRow = Schema.Struct({
+  ...OrchestrationChatTimelineRowBaseFields,
+  kind: Schema.Literal("work"),
+  workId: TrimmedNonEmptyString,
+  activityIds: Schema.Array(EventId),
+  turnId: Schema.NullOr(TurnId),
+  toolCallId: Schema.optional(TrimmedNonEmptyString),
+  taskId: Schema.optional(RuntimeTaskId),
+});
+export type OrchestrationChatTimelineWorkRow = typeof OrchestrationChatTimelineWorkRow.Type;
+
+export const OrchestrationChatTimelineProposedPlanRow = Schema.Struct({
+  ...OrchestrationChatTimelineRowBaseFields,
+  kind: Schema.Literal("proposed-plan"),
+  planId: OrchestrationProposedPlanId,
+  turnId: Schema.NullOr(TurnId),
+});
+export type OrchestrationChatTimelineProposedPlanRow =
+  typeof OrchestrationChatTimelineProposedPlanRow.Type;
+
+export const OrchestrationChatTimelineRow = Schema.Union([
+  OrchestrationChatTimelineMessageRow,
+  OrchestrationChatTimelineWorkRow,
+  OrchestrationChatTimelineProposedPlanRow,
+]);
+export type OrchestrationChatTimelineRow = typeof OrchestrationChatTimelineRow.Type;
+
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: Schema.NullOr(ProjectId),
@@ -642,13 +623,15 @@ export const OrchestrationThread = Schema.Struct({
   archivedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
-  activeEntryId: Schema.NullOr(ThreadEntryId),
+  leafId: Schema.NullOr(ThreadEntryId),
   entries: Schema.Array(OrchestrationThreadEntry),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
   activities: Schema.Array(OrchestrationThreadActivity),
-  checkpoints: Schema.Array(OrchestrationCheckpointSummary),
+  chatTimelineRows: Schema.Array(OrchestrationChatTimelineRow).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   session: Schema.NullOr(OrchestrationSession),
 });
 export type OrchestrationThread = typeof OrchestrationThread.Type;
@@ -905,20 +888,6 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-const ThreadTurnRegenerateCommand = Schema.Struct({
-  type: Schema.Literal("thread.turn.regenerate"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  entryId: ThreadEntryId,
-  modelSelection: Schema.optional(ModelSelection),
-  titleSeed: Schema.optional(TrimmedNonEmptyString),
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
-  ),
-  createdAt: IsoDateTime,
-});
-
 const ThreadTurnInterruptCommand = Schema.Struct({
   type: Schema.Literal("thread.turn.interrupt"),
   commandId: CommandId,
@@ -945,14 +914,6 @@ const ThreadUserInputRespondCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-const ThreadCheckpointRevertCommand = Schema.Struct({
-  type: Schema.Literal("thread.checkpoint.revert"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  turnCount: NonNegativeInt,
-  createdAt: IsoDateTime,
-});
-
 const ThreadSessionStopCommand = Schema.Struct({
   type: Schema.Literal("thread.session.stop"),
   commandId: CommandId,
@@ -965,15 +926,6 @@ const ThreadTreeNavigateCommand = Schema.Struct({
   commandId: CommandId,
   threadId: ThreadId,
   entryId: ThreadEntryId,
-  createdAt: IsoDateTime,
-});
-
-const ThreadTreeLabelSetCommand = Schema.Struct({
-  type: Schema.Literal("thread.tree.label.set"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  targetEntryId: ThreadEntryId,
-  label: Schema.NullOr(TrimmedNonEmptyString),
   createdAt: IsoDateTime,
 });
 
@@ -998,14 +950,11 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   ThreadTurnStartCommand,
-  ThreadTurnRegenerateCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
-  ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
-  ThreadTreeLabelSetCommand,
   ThreadProposedPlanUpdateCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
@@ -1023,14 +972,11 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   ClientThreadTurnStartCommand,
-  ThreadTurnRegenerateCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
-  ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
-  ThreadTreeLabelSetCommand,
   ThreadProposedPlanUpdateCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
@@ -1043,22 +989,12 @@ const ThreadSessionSetCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-const ThreadMessageAssistantDeltaCommand = Schema.Struct({
-  type: Schema.Literal("thread.message.assistant.delta"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  messageId: MessageId,
-  delta: Schema.String,
-  turnId: TurnId,
-  parentEntryId: ThreadEntryId,
-  createdAt: IsoDateTime,
-});
-
 const ThreadMessageAssistantCompleteCommand = Schema.Struct({
   type: Schema.Literal("thread.message.assistant.complete"),
   commandId: CommandId,
   threadId: ThreadId,
   messageId: MessageId,
+  text: Schema.String,
   turnId: TurnId,
   parentEntryId: ThreadEntryId,
   createdAt: IsoDateTime,
@@ -1072,20 +1008,6 @@ const ThreadProposedPlanUpsertCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-const ThreadTurnDiffCompleteCommand = Schema.Struct({
-  type: Schema.Literal("thread.turn.diff.complete"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  turnId: TurnId,
-  completedAt: IsoDateTime,
-  checkpointRef: CheckpointRef,
-  status: OrchestrationCheckpointStatus,
-  files: Schema.Array(OrchestrationCheckpointFile),
-  assistantMessageId: Schema.optional(MessageId),
-  checkpointTurnCount: NonNegativeInt,
-  createdAt: IsoDateTime,
-});
-
 const ThreadActivityAppendCommand = Schema.Struct({
   type: Schema.Literal("thread.activity.append"),
   commandId: CommandId,
@@ -1094,22 +1016,11 @@ const ThreadActivityAppendCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-const ThreadRevertCompleteCommand = Schema.Struct({
-  type: Schema.Literal("thread.revert.complete"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  turnCount: NonNegativeInt,
-  createdAt: IsoDateTime,
-});
-
 const InternalOrchestrationCommand = Schema.Union([
   ThreadSessionSetCommand,
-  ThreadMessageAssistantDeltaCommand,
   ThreadMessageAssistantCompleteCommand,
   ThreadProposedPlanUpsertCommand,
-  ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
-  ThreadRevertCompleteCommand,
 ]);
 export type InternalOrchestrationCommand = typeof InternalOrchestrationCommand.Type;
 
@@ -1135,14 +1046,10 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.turn-interrupt-requested",
   "thread.approval-response-requested",
   "thread.user-input-response-requested",
-  "thread.checkpoint-revert-requested",
-  "thread.reverted",
   "thread.session-stop-requested",
-  "thread.tree-navigated",
-  "thread.tree-label-set",
+  "thread.tree-leaf-moved",
   "thread.session-set",
   "thread.proposed-plan-upserted",
-  "thread.turn-diff-completed",
   "thread.activity-appended",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
@@ -1280,31 +1187,14 @@ const ThreadUserInputResponseRequestedPayload = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-export const ThreadCheckpointRevertRequestedPayload = Schema.Struct({
-  threadId: ThreadId,
-  turnCount: NonNegativeInt,
-  createdAt: IsoDateTime,
-});
-
-export const ThreadRevertedPayload = Schema.Struct({
-  threadId: ThreadId,
-  turnCount: NonNegativeInt,
-});
-
 export const ThreadSessionStopRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   createdAt: IsoDateTime,
 });
 
-export const ThreadTreeNavigatedPayload = Schema.Struct({
+export const ThreadTreeLeafMovedPayload = Schema.Struct({
   threadId: ThreadId,
-  entryId: ThreadEntryId,
-  updatedAt: IsoDateTime,
-});
-
-export const ThreadTreeLabelSetPayload = Schema.Struct({
-  threadId: ThreadId,
-  entry: OrchestrationThreadEntry,
+  leafId: Schema.NullOr(ThreadEntryId),
   updatedAt: IsoDateTime,
 });
 
@@ -1316,17 +1206,6 @@ export const ThreadSessionSetPayload = Schema.Struct({
 export const ThreadProposedPlanUpsertedPayload = Schema.Struct({
   threadId: ThreadId,
   proposedPlan: OrchestrationProposedPlan,
-});
-
-export const ThreadTurnDiffCompletedPayload = Schema.Struct({
-  threadId: ThreadId,
-  turnId: TurnId,
-  checkpointTurnCount: NonNegativeInt,
-  checkpointRef: CheckpointRef,
-  status: OrchestrationCheckpointStatus,
-  files: Schema.Array(OrchestrationCheckpointFile),
-  assistantMessageId: Schema.NullOr(MessageId),
-  completedAt: IsoDateTime,
 });
 
 export const ThreadActivityAppendedPayload = Schema.Struct({
@@ -1433,28 +1312,13 @@ export const OrchestrationEvent = Schema.Union([
   }),
   Schema.Struct({
     ...EventBaseFields,
-    type: Schema.Literal("thread.checkpoint-revert-requested"),
-    payload: ThreadCheckpointRevertRequestedPayload,
-  }),
-  Schema.Struct({
-    ...EventBaseFields,
-    type: Schema.Literal("thread.reverted"),
-    payload: ThreadRevertedPayload,
-  }),
-  Schema.Struct({
-    ...EventBaseFields,
     type: Schema.Literal("thread.session-stop-requested"),
     payload: ThreadSessionStopRequestedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,
-    type: Schema.Literal("thread.tree-navigated"),
-    payload: ThreadTreeNavigatedPayload,
-  }),
-  Schema.Struct({
-    ...EventBaseFields,
-    type: Schema.Literal("thread.tree-label-set"),
-    payload: ThreadTreeLabelSetPayload,
+    type: Schema.Literal("thread.tree-leaf-moved"),
+    payload: ThreadTreeLeafMovedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,
@@ -1465,11 +1329,6 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.proposed-plan-upserted"),
     payload: ThreadProposedPlanUpsertedPayload,
-  }),
-  Schema.Struct({
-    ...EventBaseFields,
-    type: Schema.Literal("thread.turn-diff-completed"),
-    payload: ThreadTurnDiffCompletedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,
@@ -1488,33 +1347,15 @@ export const OrchestrationThreadStreamItem = Schema.Union([
     kind: Schema.Literal("event"),
     event: OrchestrationEvent,
   }),
+  Schema.Struct({
+    kind: Schema.Literal("runtime-event"),
+    event: ProviderRuntimeEvent,
+  }),
 ]);
 export type OrchestrationThreadStreamItem = typeof OrchestrationThreadStreamItem.Type;
 
 export const OrchestrationCommandReceiptStatus = Schema.Literals(["accepted", "rejected"]);
 export type OrchestrationCommandReceiptStatus = typeof OrchestrationCommandReceiptStatus.Type;
-
-export const TurnCountRange = Schema.Struct({
-  fromTurnCount: NonNegativeInt,
-  toTurnCount: NonNegativeInt,
-}).check(
-  Schema.makeFilter(
-    (input) =>
-      input.fromTurnCount <= input.toTurnCount ||
-      new SchemaIssue.InvalidValue(Option.some(input.fromTurnCount), {
-        message: "fromTurnCount must be less than or equal to toTurnCount",
-      }),
-    { identifier: "OrchestrationTurnDiffRange" },
-  ),
-);
-
-export const ThreadTurnDiff = TurnCountRange.mapFields(
-  Struct.assign({
-    threadId: ThreadId,
-    diff: Schema.String,
-  }),
-  { unsafePreserveChecks: true },
-);
 
 export const ProviderSessionRuntimeStatus = Schema.Literals([
   "starting",
@@ -1532,18 +1373,6 @@ const ProjectionThreadTurnStatus = Schema.Literals([
 ]);
 export type ProjectionThreadTurnStatus = typeof ProjectionThreadTurnStatus.Type;
 
-const ProjectionCheckpointRow = Schema.Struct({
-  threadId: ThreadId,
-  turnId: TurnId,
-  checkpointTurnCount: NonNegativeInt,
-  checkpointRef: CheckpointRef,
-  status: OrchestrationCheckpointStatus,
-  files: Schema.Array(OrchestrationCheckpointFile),
-  assistantMessageId: Schema.NullOr(MessageId),
-  completedAt: IsoDateTime,
-});
-export type ProjectionCheckpointRow = typeof ProjectionCheckpointRow.Type;
-
 export const ProjectionPendingApprovalStatus = Schema.Literals(["pending", "resolved"]);
 export type ProjectionPendingApprovalStatus = typeof ProjectionPendingApprovalStatus.Type;
 
@@ -1554,24 +1383,6 @@ export const DispatchResult = Schema.Struct({
   sequence: NonNegativeInt,
 });
 export type DispatchResult = typeof DispatchResult.Type;
-
-export const OrchestrationGetTurnDiffInput = TurnCountRange.mapFields(
-  Struct.assign({ threadId: ThreadId }),
-  { unsafePreserveChecks: true },
-);
-export type OrchestrationGetTurnDiffInput = typeof OrchestrationGetTurnDiffInput.Type;
-
-export const OrchestrationGetTurnDiffResult = ThreadTurnDiff;
-export type OrchestrationGetTurnDiffResult = typeof OrchestrationGetTurnDiffResult.Type;
-
-export const OrchestrationGetFullThreadDiffInput = Schema.Struct({
-  threadId: ThreadId,
-  toTurnCount: NonNegativeInt,
-});
-export type OrchestrationGetFullThreadDiffInput = typeof OrchestrationGetFullThreadDiffInput.Type;
-
-export const OrchestrationGetFullThreadDiffResult = ThreadTurnDiff;
-export type OrchestrationGetFullThreadDiffResult = typeof OrchestrationGetFullThreadDiffResult.Type;
 
 export const OrchestrationGetProviderThreadSnapshotInput = Schema.Struct({
   threadId: ThreadId,
@@ -1607,14 +1418,6 @@ export const OrchestrationRpcSchemas = {
   dispatchCommand: {
     input: ClientOrchestrationCommand,
     output: DispatchResult,
-  },
-  getTurnDiff: {
-    input: OrchestrationGetTurnDiffInput,
-    output: OrchestrationGetTurnDiffResult,
-  },
-  getFullThreadDiff: {
-    input: OrchestrationGetFullThreadDiffInput,
-    output: OrchestrationGetFullThreadDiffResult,
   },
   getProviderThreadSnapshot: {
     input: OrchestrationGetProviderThreadSnapshotInput,
@@ -1654,22 +1457,6 @@ export const OrchestrationHttpErrorResponse = Schema.Struct({
   error: TrimmedNonEmptyString,
 });
 export type OrchestrationHttpErrorResponse = typeof OrchestrationHttpErrorResponse.Type;
-
-export class OrchestrationGetTurnDiffError extends Schema.TaggedErrorClass<OrchestrationGetTurnDiffError>()(
-  "OrchestrationGetTurnDiffError",
-  {
-    message: TrimmedNonEmptyString,
-    cause: Schema.optional(Schema.Defect),
-  },
-) {}
-
-export class OrchestrationGetFullThreadDiffError extends Schema.TaggedErrorClass<OrchestrationGetFullThreadDiffError>()(
-  "OrchestrationGetFullThreadDiffError",
-  {
-    message: TrimmedNonEmptyString,
-    cause: Schema.optional(Schema.Defect),
-  },
-) {}
 
 export class OrchestrationReplayEventsError extends Schema.TaggedErrorClass<OrchestrationReplayEventsError>()(
   "OrchestrationReplayEventsError",

@@ -34,12 +34,14 @@ import {
 } from "@multi/shared/model";
 import {
   getClaudeModelCapabilities,
-  normalizeClaudeCliEffort,
+  isClaudeUltracodeEffort,
+  resolveClaudeExecutableEffort,
   resolveClaudeApiModelId,
   resolveClaudeEffort,
 } from "../provider/ClaudeProvider.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { resolveClaudeSettings } from "../provider/provider-settings.ts";
+import { makeClaudeEnvironment } from "../provider/claude-home.ts";
 
 const CLAUDE_TIMEOUT_MS = 180_000;
 
@@ -103,7 +105,8 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
     const findDescriptor = (id: string) => descriptors.find((descriptor) => descriptor.id === id);
     const rawEffortSelection = getModelSelectionStringOptionValue(modelSelection, "effort");
     const resolvedEffort = resolveClaudeEffort(caps, rawEffortSelection);
-    const cliEffort = normalizeClaudeCliEffort(resolvedEffort);
+    const cliEffort = resolveClaudeExecutableEffort(resolvedEffort, modelSelection.model);
+    const ultracode = isClaudeUltracodeEffort(resolvedEffort);
     const thinkingDescriptor = findDescriptor("thinking");
     const fastModeDescriptor = findDescriptor("fastMode");
     const thinking =
@@ -113,11 +116,13 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
     const settings = {
       ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
       ...(fastMode ? { fastMode: true } : {}),
+      ...(ultracode ? { ultracode: true } : {}),
     };
 
     const claudeSettings = yield* Effect.map(serverSettingsService.getSettings, (settings) =>
       resolveClaudeSettings(settings, modelSelection.instanceId),
     ).pipe(Effect.catch(() => Effect.undefined));
+    const claudeEnvironment = makeClaudeEnvironment(claudeSettings ?? { homePath: "" });
 
     const runClaudeCommand = Effect.fn("runClaudeJson.runClaudeCommand")(function* () {
       const command = ChildProcess.make(
@@ -135,6 +140,7 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
           "--dangerously-skip-permissions",
         ],
         {
+          env: claudeEnvironment,
           cwd,
           shell: process.platform === "win32",
           stdin: {

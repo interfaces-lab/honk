@@ -23,9 +23,9 @@ import {
   sanitizeThreadTitle,
 } from "./Utils.ts";
 import {
-  applyCursorAcpModelSelection,
   makeCursorAcpRuntime,
-} from "../provider/acp/CursorAcpSupport.ts";
+} from "../provider/acp/CursorAcp.ts";
+import { applyCursorAcpModelSelection } from "../provider/acp/CursorAcpModel.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { resolveCursorSettings } from "../provider/provider-settings.ts";
 

@@ -4,7 +4,6 @@ import {
   MessageId,
   ModelSelection,
   NonNegativeInt,
-  OrchestrationCheckpointFile,
   OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
   OrchestrationReadModel,
@@ -12,11 +11,9 @@ import {
   OrchestrationThread,
   ThreadId,
   TurnId,
-  ProjectId,
 } from "@multi/contracts";
 import { Schema, Struct } from "effect";
 
-import { ProjectionCheckpoint } from "../persistence/ProjectionCheckpoints.service.ts";
 import { ProjectionState } from "../persistence/ProjectionState.service.ts";
 import { ProjectionThreadActivity } from "../persistence/ProjectionThreadActivities.service.ts";
 import { ProjectionThreadEntry } from "../persistence/ProjectionThreadEntries.service.ts";
@@ -50,11 +47,6 @@ export const ProjectionThreadActivityDbRowSchema = ProjectionThreadActivity.mapF
   }),
 );
 export const ProjectionThreadSessionDbRowSchema = ProjectionThreadSession;
-export const ProjectionCheckpointDbRowSchema = ProjectionCheckpoint.mapFields(
-  Struct.assign({
-    files: Schema.fromJsonString(Schema.Array(OrchestrationCheckpointFile)),
-  }),
-);
 export const ProjectionLatestTurnDbRowSchema = Schema.Struct({
   threadId: ProjectionThread.fields.threadId,
   turnId: TurnId,
@@ -77,13 +69,6 @@ export const ThreadIdLookupInput = Schema.Struct({
 export const ProjectionThreadIdLookupRowSchema = Schema.Struct({
   threadId: ThreadId,
 });
-export const ThreadCheckpointContextThreadRowSchema = Schema.Struct({
-  threadId: ThreadId,
-  projectId: ProjectId,
-  projectRoot: Schema.String,
-  worktreePath: Schema.NullOr(Schema.String),
-});
-
 export const REQUIRED_SNAPSHOT_PROJECTORS = [
   ORCHESTRATION_PROJECTOR_NAMES.projects,
   ORCHESTRATION_PROJECTOR_NAMES.threads,
@@ -92,5 +77,4 @@ export const REQUIRED_SNAPSHOT_PROJECTORS = [
   ORCHESTRATION_PROJECTOR_NAMES.threadProposedPlans,
   ORCHESTRATION_PROJECTOR_NAMES.threadActivities,
   ORCHESTRATION_PROJECTOR_NAMES.threadSessions,
-  ORCHESTRATION_PROJECTOR_NAMES.checkpoints,
 ] as const;

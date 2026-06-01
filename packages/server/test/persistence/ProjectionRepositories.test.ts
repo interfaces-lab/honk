@@ -77,15 +77,15 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
         projectId: ProjectId.make("project-null-options"),
         title: "Null options thread",
         modelSelection: {
-          instanceId: "claudeAgent",
-          model: "claude-opus-4-6",
+          instanceId: "cursor",
+          model: "composer-2",
         },
         runtimeMode: "full-access",
         interactionMode: "default",
         branch: null,
         worktreePath: null,
         latestTurnId: null,
-        activeEntryId: null,
+        leafId: null,
         createdAt: "2026-03-24T00:00:00.000Z",
         updatedAt: "2026-03-24T00:00:00.000Z",
         archivedAt: null,
@@ -111,8 +111,8 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
       assert.strictEqual(
         row.modelSelection,
         JSON.stringify({
-          instanceId: "claudeAgent",
-          model: "claude-opus-4-6",
+          instanceId: "cursor",
+          model: "composer-2",
         }),
       );
 
@@ -120,8 +120,8 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
         threadId: ThreadId.make("thread-null-options"),
       });
       assert.deepStrictEqual(Option.getOrNull(persisted)?.modelSelection, {
-        instanceId: "claudeAgent",
-        model: "claude-opus-4-6",
+        instanceId: "cursor",
+        model: "composer-2",
       });
     }),
   );

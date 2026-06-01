@@ -1,5 +1,4 @@
 import {
-  type OrchestrationCheckpointSummary,
   type OrchestrationLatestTurn,
   type OrchestrationMessage,
   type OrchestrationProposedPlan,
@@ -29,11 +28,11 @@ import {
   mapProjectShellRow,
   maxIso,
 } from "./ThreadProjectionAssembly.ts";
+import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
 import {
   decodeReadModel,
   decodeShellSnapshot,
   decodeThread,
-  ProjectionCheckpointDbRowSchema,
   ProjectionCountsRowSchema,
   ProjectionLatestTurnDbRowSchema,
   ProjectionStateDbRowSchema,
@@ -44,7 +43,6 @@ import {
   ProjectionThreadMessageDbRowSchema,
   ProjectionThreadProposedPlanDbRowSchema,
   ProjectionThreadSessionDbRowSchema,
-  ThreadCheckpointContextThreadRowSchema,
   ThreadIdLookupInput,
 } from "./ThreadProjectionRows.ts";
 import {
@@ -56,7 +54,6 @@ import {
 import {
   ThreadProjection,
   type ThreadProjectionCounts,
-  type ThreadCheckpointContext,
   type ThreadProjectionShape,
 } from "./ThreadProjection.service.ts";
 
@@ -65,6 +62,21 @@ function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: st
     Schema.isSchemaError(cause)
       ? toPersistenceDecodeError(decodeOperation)(cause)
       : toPersistenceSqlError(sqlOperation)(cause);
+}
+
+function attachChatTimelineRows(
+  thread: Omit<OrchestrationThread, "chatTimelineRows">,
+): OrchestrationThread {
+  return {
+    ...thread,
+    chatTimelineRows: deriveChatTimelineRows({
+      messages: thread.messages,
+      entries: thread.entries,
+      activities: thread.activities,
+      proposedPlans: thread.proposedPlans,
+      activeRunningTurnId: thread.session?.activeTurnId ?? null,
+    }),
+  };
 }
 
 const makeThreadProjection = Effect.gen(function* () {
@@ -106,7 +118,7 @@ const makeThreadProjection = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
-          active_entry_id AS "activeEntryId",
+          leaf_id AS "leafId",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
@@ -153,9 +165,6 @@ const makeThreadProjection = Effect.gen(function* () {
           kind,
           message_id AS "messageId",
           turn_id AS "turnId",
-          target_entry_id AS "targetEntryId",
-          label,
-          summary,
           created_at AS "createdAt"
         FROM projection_thread_entries
         ORDER BY thread_id ASC, created_at ASC, entry_id ASC
@@ -223,26 +232,6 @@ const makeThreadProjection = Effect.gen(function* () {
           updated_at AS "updatedAt"
         FROM projection_thread_sessions
         ORDER BY thread_id ASC
-      `,
-  });
-
-  const listCheckpointRows = SqlSchema.findAll({
-    Request: Schema.Void,
-    Result: ProjectionCheckpointDbRowSchema,
-    execute: () =>
-      sql`
-        SELECT
-          thread_id AS "threadId",
-          turn_id AS "turnId",
-          checkpoint_turn_count AS "checkpointTurnCount",
-          checkpoint_ref AS "checkpointRef",
-          checkpoint_status AS "status",
-          checkpoint_files_json AS "files",
-          assistant_message_id AS "assistantMessageId",
-          completed_at AS "completedAt"
-        FROM projection_turns
-        WHERE checkpoint_turn_count IS NOT NULL
-        ORDER BY thread_id ASC, checkpoint_turn_count ASC
       `,
   });
 
@@ -349,25 +338,6 @@ const makeThreadProjection = Effect.gen(function* () {
       `,
   });
 
-  const getThreadCheckpointContextThreadRow = SqlSchema.findOneOption({
-    Request: ThreadIdLookupInput,
-    Result: ThreadCheckpointContextThreadRowSchema,
-    execute: ({ threadId }) =>
-      sql`
-        SELECT
-          threads.thread_id AS "threadId",
-          threads.project_id AS "projectId",
-          projects.project_root AS "projectRoot",
-          threads.worktree_path AS "worktreePath"
-        FROM projection_threads AS threads
-        INNER JOIN projection_projects AS projects
-          ON projects.project_id = threads.project_id
-        WHERE threads.thread_id = ${threadId}
-          AND threads.deleted_at IS NULL
-        LIMIT 1
-      `,
-  });
-
   const getActiveThreadRowById = SqlSchema.findOneOption({
     Request: ThreadIdLookupInput,
     Result: ProjectionThreadDbRowSchema,
@@ -383,7 +353,7 @@ const makeThreadProjection = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
-          active_entry_id AS "activeEntryId",
+          leaf_id AS "leafId",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           archived_at AS "archivedAt",
@@ -433,9 +403,6 @@ const makeThreadProjection = Effect.gen(function* () {
           kind,
           message_id AS "messageId",
           turn_id AS "turnId",
-          target_entry_id AS "targetEntryId",
-          label,
-          summary,
           created_at AS "createdAt"
         FROM projection_thread_entries
         WHERE thread_id = ${threadId}
@@ -532,27 +499,6 @@ const makeThreadProjection = Effect.gen(function* () {
       `,
   });
 
-  const listCheckpointRowsByThread = SqlSchema.findAll({
-    Request: ThreadIdLookupInput,
-    Result: ProjectionCheckpointDbRowSchema,
-    execute: ({ threadId }) =>
-      sql`
-        SELECT
-          thread_id AS "threadId",
-          turn_id AS "turnId",
-          checkpoint_turn_count AS "checkpointTurnCount",
-          checkpoint_ref AS "checkpointRef",
-          checkpoint_status AS "status",
-          checkpoint_files_json AS "files",
-          assistant_message_id AS "assistantMessageId",
-          completed_at AS "completedAt"
-        FROM projection_turns
-        WHERE thread_id = ${threadId}
-          AND checkpoint_turn_count IS NOT NULL
-        ORDER BY checkpoint_turn_count ASC
-      `,
-  });
-
   const getSnapshot: ThreadProjectionShape["getSnapshot"] = () =>
     sql
       .withTransaction(
@@ -613,14 +559,6 @@ const makeThreadProjection = Effect.gen(function* () {
               ),
             ),
           ),
-          listCheckpointRows(undefined).pipe(
-            Effect.mapError(
-              toPersistenceSqlOrDecodeError(
-                "ThreadProjection.getSnapshot:listCheckpoints:query",
-                "ThreadProjection.getSnapshot:listCheckpoints:decodeRows",
-              ),
-            ),
-          ),
           listLatestTurnRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -649,7 +587,6 @@ const makeThreadProjection = Effect.gen(function* () {
             proposedPlanRows,
             activityRows,
             sessionRows,
-            checkpointRows,
             latestTurnRows,
             stateRows,
           ]) =>
@@ -658,7 +595,6 @@ const makeThreadProjection = Effect.gen(function* () {
               const entriesByThread = new Map<string, Array<OrchestrationThreadEntry>>();
               const proposedPlansByThread = new Map<string, Array<OrchestrationProposedPlan>>();
               const activitiesByThread = new Map<string, Array<OrchestrationThreadActivity>>();
-              const checkpointsByThread = new Map<string, Array<OrchestrationCheckpointSummary>>();
               const sessionsByThread = new Map<string, OrchestrationSession>();
               const latestTurnByThread = new Map<string, OrchestrationLatestTurn>();
 
@@ -701,9 +637,6 @@ const makeThreadProjection = Effect.gen(function* () {
                   kind: row.kind,
                   messageId: row.messageId,
                   turnId: row.turnId,
-                  targetEntryId: row.targetEntryId,
-                  label: row.label,
-                  summary: row.summary,
                   createdAt: row.createdAt,
                 });
                 entriesByThread.set(row.threadId, threadEntries);
@@ -738,21 +671,6 @@ const makeThreadProjection = Effect.gen(function* () {
                   createdAt: row.createdAt,
                 }));
                 activitiesByThread.set(row.threadId, threadActivities);
-              }
-
-              for (const row of checkpointRows) {
-                updatedAt = maxIso(updatedAt, row.completedAt);
-                const threadCheckpoints = checkpointsByThread.get(row.threadId) ?? [];
-                threadCheckpoints.push({
-                  turnId: row.turnId,
-                  checkpointTurnCount: row.checkpointTurnCount,
-                  checkpointRef: row.checkpointRef,
-                  status: row.status,
-                  files: row.files,
-                  assistantMessageId: row.assistantMessageId,
-                  completedAt: row.completedAt,
-                });
-                checkpointsByThread.set(row.threadId, threadCheckpoints);
               }
 
               for (const row of latestTurnRows) {
@@ -827,28 +745,29 @@ const makeThreadProjection = Effect.gen(function* () {
                 deletedAt: row.deletedAt,
               }));
 
-              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) => ({
-                id: row.threadId,
-                projectId: row.projectId,
-                title: row.title,
-                modelSelection: row.modelSelection,
-                runtimeMode: row.runtimeMode,
-                interactionMode: row.interactionMode,
-                branch: row.branch,
-                worktreePath: row.worktreePath,
-                latestTurn: latestTurnByThread.get(row.threadId) ?? null,
-                createdAt: row.createdAt,
-                updatedAt: row.updatedAt,
-                archivedAt: row.archivedAt,
-                deletedAt: row.deletedAt,
-                messages: messagesByThread.get(row.threadId) ?? [],
-                activeEntryId: row.activeEntryId,
-                entries: entriesByThread.get(row.threadId) ?? [],
-                proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
-                activities: activitiesByThread.get(row.threadId) ?? [],
-                checkpoints: checkpointsByThread.get(row.threadId) ?? [],
-                session: sessionsByThread.get(row.threadId) ?? null,
-              }));
+              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) =>
+                attachChatTimelineRows({
+                  id: row.threadId,
+                  projectId: row.projectId,
+                  title: row.title,
+                  modelSelection: row.modelSelection,
+                  runtimeMode: row.runtimeMode,
+                  interactionMode: row.interactionMode,
+                  branch: row.branch,
+                  worktreePath: row.worktreePath,
+                  latestTurn: latestTurnByThread.get(row.threadId) ?? null,
+                  createdAt: row.createdAt,
+                  updatedAt: row.updatedAt,
+                  archivedAt: row.archivedAt,
+                  deletedAt: row.deletedAt,
+                  messages: messagesByThread.get(row.threadId) ?? [],
+                  leafId: row.leafId,
+                  entries: entriesByThread.get(row.threadId) ?? [],
+                  proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
+                  activities: activitiesByThread.get(row.threadId) ?? [],
+                  session: sessionsByThread.get(row.threadId) ?? null,
+                }),
+              );
 
               const snapshot = {
                 snapshotSequence: computeSnapshotSequence(stateRows),
@@ -1089,50 +1008,6 @@ const makeThreadProjection = Effect.gen(function* () {
         Effect.map(Option.map((row) => row.threadId)),
       );
 
-  const getThreadCheckpointContext: ThreadProjectionShape["getThreadCheckpointContext"] = (
-    threadId,
-  ) =>
-    Effect.gen(function* () {
-      const threadRow = yield* getThreadCheckpointContextThreadRow({ threadId }).pipe(
-        Effect.mapError(
-          toPersistenceSqlOrDecodeError(
-            "ThreadProjection.getThreadCheckpointContext:getThread:query",
-            "ThreadProjection.getThreadCheckpointContext:getThread:decodeRow",
-          ),
-        ),
-      );
-      if (Option.isNone(threadRow)) {
-        return Option.none<ThreadCheckpointContext>();
-      }
-
-      const checkpointRows = yield* listCheckpointRowsByThread({ threadId }).pipe(
-        Effect.mapError(
-          toPersistenceSqlOrDecodeError(
-            "ThreadProjection.getThreadCheckpointContext:listCheckpoints:query",
-            "ThreadProjection.getThreadCheckpointContext:listCheckpoints:decodeRows",
-          ),
-        ),
-      );
-
-      return Option.some({
-        threadId: threadRow.value.threadId,
-        projectId: threadRow.value.projectId,
-        projectRoot: threadRow.value.projectRoot,
-        worktreePath: threadRow.value.worktreePath,
-        checkpoints: checkpointRows.map(
-          (row): OrchestrationCheckpointSummary => ({
-            turnId: row.turnId,
-            checkpointTurnCount: row.checkpointTurnCount,
-            checkpointRef: row.checkpointRef,
-            status: row.status,
-            files: row.files,
-            assistantMessageId: row.assistantMessageId,
-            completedAt: row.completedAt,
-          }),
-        ),
-      });
-    });
-
   const getThreadShellById: ThreadProjectionShape["getThreadShellById"] = (threadId) =>
     Effect.gen(function* () {
       const [threadRow, latestTurnRow, sessionRow] = yield* Effect.all([
@@ -1195,7 +1070,6 @@ const makeThreadProjection = Effect.gen(function* () {
         entryRows,
         proposedPlanRows,
         activityRows,
-        checkpointRows,
         latestTurnRow,
         sessionRow,
       ] = yield* Effect.all([
@@ -1239,14 +1113,6 @@ const makeThreadProjection = Effect.gen(function* () {
             ),
           ),
         ),
-        listCheckpointRowsByThread({ threadId }).pipe(
-          Effect.mapError(
-            toPersistenceSqlOrDecodeError(
-              "ThreadProjection.getThreadDetailById:listCheckpoints:query",
-              "ThreadProjection.getThreadDetailById:listCheckpoints:decodeRows",
-            ),
-          ),
-        ),
         getLatestTurnRowByThread({ threadId }).pipe(
           Effect.mapError(
             toPersistenceSqlOrDecodeError(
@@ -1269,87 +1135,72 @@ const makeThreadProjection = Effect.gen(function* () {
         return Option.none<OrchestrationThread>();
       }
 
-      const thread = {
-        id: threadRow.value.threadId,
-        projectId: threadRow.value.projectId,
-        title: threadRow.value.title,
-        modelSelection: threadRow.value.modelSelection,
-        runtimeMode: threadRow.value.runtimeMode,
-        interactionMode: threadRow.value.interactionMode,
-        branch: threadRow.value.branch,
-        worktreePath: threadRow.value.worktreePath,
-        latestTurn: Option.isSome(latestTurnRow) ? mapLatestTurn(latestTurnRow.value) : null,
-        createdAt: threadRow.value.createdAt,
-        updatedAt: threadRow.value.updatedAt,
-        archivedAt: threadRow.value.archivedAt,
-        deletedAt: null,
-        messages: messageRows.map((row) => {
-          const message = {
-            id: row.messageId,
-            role: row.role,
-            text: row.text,
-            ...(row.richText !== null ? { richText: row.richText } : {}),
-            turnId: row.turnId,
-            streaming: row.isStreaming === 1,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-          };
-          if (row.attachments !== null) {
-            return Object.assign(message, { attachments: row.attachments });
-          }
-          return message;
-        }),
-        activeEntryId: threadRow.value.activeEntryId,
-        entries: entryRows.map((row) => ({
-          id: row.entryId,
-          threadId: row.threadId,
-          parentEntryId: row.parentEntryId,
-          kind: row.kind,
-          messageId: row.messageId,
-          turnId: row.turnId,
-          targetEntryId: row.targetEntryId,
-          label: row.label,
-          summary: row.summary,
-          createdAt: row.createdAt,
-        })),
-        proposedPlans: proposedPlanRows.map((row) => ({
-          id: row.planId,
-          turnId: row.turnId,
-          planMarkdown: row.planMarkdown,
-          implementedAt: row.implementedAt,
-          implementationThreadId: row.implementationThreadId,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        })),
-        activities: activityRows.map((row) => {
-          const activity = {
-            id: row.activityId,
-            tone: row.tone,
-            kind: row.kind,
-            summary: row.summary,
-            payload: row.payload,
-            turnId: row.turnId,
-            createdAt: row.createdAt,
-          };
-          if (row.sequence !== null) {
-            return Object.assign(activity, { sequence: row.sequence });
-          }
-          return activity;
-        }),
-        checkpoints: checkpointRows.map((row) => ({
-          turnId: row.turnId,
-          checkpointTurnCount: row.checkpointTurnCount,
-          checkpointRef: row.checkpointRef,
-          status: row.status,
-          files: row.files,
-          assistantMessageId: row.assistantMessageId,
-          completedAt: row.completedAt,
-        })),
-        session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
-      };
-
       return Option.some(
-        yield* decodeThread(thread).pipe(
+        yield* decodeThread(
+          attachChatTimelineRows({
+            id: threadRow.value.threadId,
+            projectId: threadRow.value.projectId,
+            title: threadRow.value.title,
+            modelSelection: threadRow.value.modelSelection,
+            runtimeMode: threadRow.value.runtimeMode,
+            interactionMode: threadRow.value.interactionMode,
+            branch: threadRow.value.branch,
+            worktreePath: threadRow.value.worktreePath,
+            latestTurn: Option.isSome(latestTurnRow) ? mapLatestTurn(latestTurnRow.value) : null,
+            createdAt: threadRow.value.createdAt,
+            updatedAt: threadRow.value.updatedAt,
+            archivedAt: threadRow.value.archivedAt,
+            deletedAt: null,
+            messages: messageRows.map((row) => {
+              const message = {
+                id: row.messageId,
+                role: row.role,
+                text: row.text,
+                ...(row.richText !== null ? { richText: row.richText } : {}),
+                turnId: row.turnId,
+                streaming: row.isStreaming === 1,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt,
+              };
+              if (row.attachments !== null) {
+                return Object.assign(message, { attachments: row.attachments });
+              }
+              return message;
+            }),
+            leafId: threadRow.value.leafId,
+            entries: entryRows.map((row) => ({
+              id: row.entryId,
+              threadId: row.threadId,
+              parentEntryId: row.parentEntryId,
+              kind: row.kind,
+              messageId: row.messageId,
+              turnId: row.turnId,
+              createdAt: row.createdAt,
+            })),
+            proposedPlans: proposedPlanRows.map((row) => ({
+              id: row.planId,
+              turnId: row.turnId,
+              planMarkdown: row.planMarkdown,
+              implementedAt: row.implementedAt,
+              implementationThreadId: row.implementationThreadId,
+              createdAt: row.createdAt,
+              updatedAt: row.updatedAt,
+            })),
+            activities: activityRows.map((row) =>
+              Schema.decodeUnknownSync(OrchestrationThreadActivity)({
+                id: row.activityId,
+                tone: row.tone,
+                kind: row.kind,
+                summary: row.summary,
+                payload: row.payload,
+                turnId: row.turnId,
+                ...(row.sequence !== null ? { sequence: row.sequence } : {}),
+                createdAt: row.createdAt,
+              }),
+            ),
+            session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
+          }),
+        ).pipe(
           Effect.mapError(
             toPersistenceDecodeError("ThreadProjection.getThreadDetailById:decodeThread"),
           ),
@@ -1364,7 +1215,6 @@ const makeThreadProjection = Effect.gen(function* () {
     getActiveProjectByProjectRoot,
     getProjectShellById,
     getFirstActiveThreadIdByProjectId,
-    getThreadCheckpointContext,
     getThreadShellById,
     getThreadDetailById,
   } satisfies ThreadProjectionShape;

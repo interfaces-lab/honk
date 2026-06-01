@@ -120,12 +120,6 @@ export interface UiCustomMessage {
   details?: unknown;
 }
 
-export interface UiBranchSummaryMessage {
-  role: "branchSummary";
-  summary: string;
-  fromId: string;
-}
-
 export interface UiCompactionSummaryMessage {
   role: "compactionSummary";
   summary: string;
@@ -149,7 +143,6 @@ export type UiMessage =
   | UiToolResultMessage
   | UiBashExecutionMessage
   | UiCustomMessage
-  | UiBranchSummaryMessage
   | UiCompactionSummaryMessage
   | UiSystemMessage
   | UiUnknownMessage;

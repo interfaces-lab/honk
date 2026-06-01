@@ -1,6 +1,7 @@
 import type {
   EnvironmentId,
   ModelSelection,
+  OrchestrationChatTimelineRow,
   OrchestrationLatestTurn,
   OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
@@ -9,13 +10,13 @@ import type {
   OrchestrationThreadActivity,
   OrchestrationThreadEntry,
   ProjectScript as ContractProjectScript,
+  ThreadEntryId,
   ThreadId,
   ProjectId,
   TurnId,
   MessageId,
   ProviderDriverKind,
   ProviderInstanceId,
-  CheckpointRef,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@multi/contracts";
@@ -57,6 +58,21 @@ export interface ChatMessage {
   streaming: boolean;
 }
 
+export interface LiveAssistantTurn {
+  turnId: TurnId;
+  messageId: MessageId;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PendingTimelineRow {
+  id: string;
+  clientSendKey: MessageId;
+  parentEntryId: ThreadEntryId | null;
+  message: ChatMessage & { role: "user"; streaming: false };
+}
+
 export type ThreadTreeEntry = OrchestrationThreadEntry;
 
 export interface ProposedPlan {
@@ -81,9 +97,7 @@ export interface TurnDiffSummary {
   completedAt: string;
   status?: string | undefined;
   files: TurnDiffFileChange[];
-  checkpointRef?: CheckpointRef | undefined;
   assistantMessageId?: MessageId | undefined;
-  checkpointTurnCount?: number | undefined;
 }
 
 export interface Project {
@@ -109,7 +123,7 @@ export interface Thread {
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
-  activeEntryId: OrchestrationThreadEntry["id"] | null;
+  leafId: OrchestrationThreadEntry["id"] | null;
   entries: ThreadTreeEntry[];
   proposedPlans: ProposedPlan[];
   error: string | null;
@@ -122,6 +136,7 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+  chatTimelineRows?: OrchestrationChatTimelineRow[];
 }
 
 export interface ThreadShell {

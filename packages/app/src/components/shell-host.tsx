@@ -7,7 +7,7 @@ import {
 import { DEFAULT_PROJECTLESS_CWD, type EditorId, type EnvironmentId } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
-import { Outlet, useNavigate, useParams, useRouter } from "@tanstack/react-router";
+import { Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
@@ -15,7 +15,6 @@ import { IconBranch, IconConsole, IconFileText, IconSquareChecklist } from "cent
 
 import { readLastChatRouteTarget } from "~/app/routes/chat-route-persistence";
 import { toastManager } from "~/app/toast";
-import { prefetchDraftNavigation, prefetchThreadNavigation } from "~/app/thread-prefetch";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import { isElectron } from "~/env";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
@@ -26,10 +25,6 @@ import { getServerConfig, useServerAvailableEditors } from "~/rpc/server-state";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { resolveAppProviderModelState } from "~/model/selection";
 import { readEnvironmentApi } from "~/environment-api";
-import {
-  startNewThreadFromContext,
-  startNewThreadInProjectFromContext,
-} from "~/lib/chat-thread-actions";
 import {
   GIT_AGENT_ACTIONS,
   resolveGitAgentActionFromPrompt,
@@ -46,16 +41,7 @@ import {
   useSecondaryRail,
   useTerminalSessions,
 } from "~/stores/shell-panels-store";
-import { useUiStateStore } from "~/stores/ui-state-store";
-import { writeStoredProjectCwd } from "~/lib/project-state";
-import { deriveSidebarProjectStateKey, getProjectOrderKey } from "~/stores/project-identity";
-import { buildPlanImplementationPrompt } from "~/plan/proposed-plan";
-import {
-  buildProjectChatSections,
-  type SidebarDraftSummary,
-  type SidebarProjectSummary,
-  type SidebarThreadSummary as SidebarSectionThreadSummary,
-} from "./shell/agents/sidebar-chat-view-model";
+import { buildPlanImplementationPrompt, normalizePlanMarkdownForExport } from "~/plan/proposed-plan";
 import { cn, newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { useSettings } from "~/hooks/use-settings";
 import {
@@ -75,13 +61,16 @@ import { createThreadSelectorAcrossEnvironments } from "~/stores/thread-selector
 import {
   DEFAULT_INTERACTION_MODE,
   type Project,
-  type SidebarThreadSummary as StoreSidebarThreadSummary,
   type Thread,
 } from "~/types";
 import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
 import { GitPanel } from "./shell/git/panel";
 import { ProjectFilesPanel } from "./shell/files/project-files-panel";
-import { AppShell, type RightWorkbenchDefinition } from "./shell/shell/app";
+import {
+  AppShell,
+  type RightWorkbenchDefinition,
+  useRightWorkbenchPanelRuntime,
+} from "./shell/shell/app";
 import type { WorkbenchTabMeta } from "./shell/shell/right-workbench-header";
 import { RightWorkbenchLayout } from "./shell/shell/right-workbench-layout";
 import { WorkbenchPanel } from "./shell/shell/workbench-panel";
@@ -93,6 +82,7 @@ import { SettingsNavRail } from "./shell/settings/nav-rail";
 import { ShellSidebarFooter } from "./shell/sidebar/footer";
 import { ShellSidebarHeader } from "./shell/sidebar/header";
 import { AgentSidebar } from "./shell/agents/agent-sidebar";
+import { useAgentSidebarModel } from "./shell/agents/sidebar/use-agent-sidebar-model";
 import { TerminalPanel } from "./shell/terminal/panel";
 import { TerminalRail } from "./shell/terminal/terminal-rail";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
@@ -128,35 +118,6 @@ function projectScopedKeyFor(
   projectId: Project["id"] | null,
 ): string | null {
   return projectId ? scopedProjectKey(scopeProjectRef(environmentId, projectId)) : null;
-}
-
-function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefined): boolean {
-  if (!sidebarThread) return false;
-  if (sidebarThread.hasPendingApprovals || sidebarThread.hasPendingUserInput) {
-    return true;
-  }
-  if (
-    sidebarThread.session?.status === "running" ||
-    sidebarThread.session?.status === "connecting"
-  ) {
-    return false;
-  }
-  return false;
-}
-
-function isUnreadFromVisitBoundary(
-  latestReadableAt: string | null | undefined,
-  lastVisitedAt: string | null | undefined,
-): boolean {
-  if (!latestReadableAt) return false;
-  if (!lastVisitedAt) return true;
-  const latestReadableAtMs = Date.parse(latestReadableAt);
-  const lastVisitedAtMs = Date.parse(lastVisitedAt);
-  return (
-    Number.isFinite(latestReadableAtMs) &&
-    Number.isFinite(lastVisitedAtMs) &&
-    latestReadableAtMs > lastVisitedAtMs
-  );
 }
 
 function hasGitAgentStartFailure(thread: Thread, action: GitAgentAction): boolean {
@@ -223,35 +184,6 @@ function resolveActiveGitAgentHandoff(input: {
   return input.orchestrationHandoff;
 }
 
-function toSummaryFromSidebarThread(
-  thread: StoreSidebarThreadSummary,
-  project: Project | null,
-): SidebarSectionThreadSummary {
-  const cwd =
-    thread.projectId === null
-      ? DEFAULT_PROJECTLESS_CWD
-      : (thread.worktreePath ?? project?.cwd ?? DEFAULT_PROJECTLESS_CWD);
-  const projectCwd = thread.projectId === null ? DEFAULT_PROJECTLESS_CWD : (project?.cwd ?? cwd);
-  const orchestrationStatus = thread.session?.orchestrationStatus ?? null;
-  return {
-    id: thread.id,
-    environmentId: thread.environmentId,
-    projectId: thread.projectId,
-    projectCwd,
-    path: cwd,
-    cwd,
-    name: thread.title,
-    createdAt: thread.createdAt,
-    modifiedAt: thread.updatedAt ?? thread.createdAt,
-    latestReadableAt: thread.latestTurn?.completedAt ?? null,
-    messageCount: 0,
-    firstMessage: thread.title,
-    isStreaming: orchestrationStatus === "starting" || orchestrationStatus === "running",
-    orchestrationStatus,
-    needsAttention: needsSidebarAttention(thread),
-  };
-}
-
 const EMPTY_THREAD_ACTIVITIES: Thread["activities"] = [];
 
 type PlanWorkbenchLabel = "Plan" | "Tasks";
@@ -267,6 +199,7 @@ interface PlanWorkbenchState {
   canImplementPlan: boolean;
   isImplementingPlan: boolean;
   onImplementPlan: (() => void) | undefined;
+  onSaveProposedPlan: ((nextMarkdown: string) => Promise<boolean>) | undefined;
 }
 
 export function ShellHost(props: { children?: ReactNode; mode: "chat" | "settings" }) {
@@ -323,6 +256,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
         cwd={firstProjectCwd}
         left={settingsLeft}
         center={props.children ?? <Outlet />}
+        centerSurface="editor"
         right={null}
       />
     </div>
@@ -331,7 +265,6 @@ function SettingsShellHost(props: { children?: ReactNode }) {
 
 function ChatShellHost(props: { children?: ReactNode }) {
   const navigate = useNavigate();
-  const router = useRouter();
   const openAddProject = useCommandPaletteStore((store) => store.openAddProject);
   const routeThreadId = useRouteThreadId();
   const routeTarget = useParams({
@@ -342,15 +275,10 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const sidebarThreads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const availableEditors = useServerAvailableEditors();
   const firstProjectCwd = projects[0]?.cwd ?? null;
-  const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
-  const composerDraftsByThreadKey = useComposerDraftStore((store) => store.draftsByThreadKey);
   const markDraftThreadPromoting = useComposerDraftStore((store) => store.markDraftThreadPromoting);
   const cancelDraftThreadPromotion = useComposerDraftStore(
     (store) => store.cancelDraftThreadPromotion,
   );
-  const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
-  const pinnedThreadKeys = useUiStateStore((store) => store.pinnedThreadKeys);
-  const projectOrder = useUiStateStore((store) => store.projectOrder);
   const {
     activeDraftThread,
     activeThread: routeActiveThread,
@@ -373,93 +301,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
       ),
     [projects],
   );
-
-  const drafts = useMemo<SidebarDraftSummary[]>(() => {
-    return Object.entries(draftThreadsByThreadKey)
-      .filter(([, draftThread]) => draftThread.promotedTo == null)
-      .flatMap(([draftId, draftThread]): SidebarDraftSummary[] => {
-        const composerDraft = composerDraftsByThreadKey[draftId];
-        const hasVisibleDraftContent =
-          composerDraft &&
-          (composerDraft.prompt.trim().length > 0 ||
-            composerDraft.images.length > 0 ||
-            composerDraft.persistedAttachments.length > 0);
-        if (!hasVisibleDraftContent) {
-          return [];
-        }
-        if (draftThread.projectId === null) {
-          const firstAttachment =
-            composerDraft?.images[0] ?? composerDraft?.persistedAttachments[0];
-          return [
-            {
-              id: draftId,
-              text: composerDraft?.prompt ?? "",
-              attachmentCount:
-                (composerDraft?.images.length ?? 0) +
-                (composerDraft?.persistedAttachments.length ?? 0),
-              firstAttachmentName: firstAttachment?.name ?? null,
-              cwd: DEFAULT_PROJECTLESS_CWD,
-              environmentId: draftThread.environmentId,
-              projectId: null,
-              projectCwd: DEFAULT_PROJECTLESS_CWD,
-              updatedAt: draftThread.createdAt,
-            },
-          ];
-        }
-        const projectKey = projectScopedKeyFor(draftThread.environmentId, draftThread.projectId);
-        const project = projectKey ? projectByScopedKey.get(projectKey) : undefined;
-        if (!project) {
-          return [];
-        }
-        const firstAttachment = composerDraft?.images[0] ?? composerDraft?.persistedAttachments[0];
-        const attachmentCount =
-          (composerDraft?.images.length ?? 0) + (composerDraft?.persistedAttachments.length ?? 0);
-        return [
-          {
-            id: draftId,
-            text: composerDraft?.prompt ?? "",
-            attachmentCount,
-            firstAttachmentName: firstAttachment?.name ?? null,
-            cwd: draftThread.worktreePath ?? project.cwd,
-            environmentId: draftThread.environmentId,
-            projectId: draftThread.projectId,
-            projectCwd: project.cwd,
-            updatedAt: draftThread.createdAt,
-          },
-        ];
-      });
-  }, [composerDraftsByThreadKey, draftThreadsByThreadKey, projectByScopedKey]);
-
-  const summaries = useMemo(() => {
-    return sidebarThreads.flatMap((thread) => {
-      if (thread.archivedAt !== null) {
-        return [];
-      }
-      if (thread.projectId === null) {
-        return [toSummaryFromSidebarThread(thread, null)];
-      }
-      const projectKey = projectScopedKeyFor(thread.environmentId, thread.projectId);
-      const project = projectKey ? projectByScopedKey.get(projectKey) : undefined;
-      return project ? [toSummaryFromSidebarThread(thread, project)] : [];
-    });
-  }, [projectByScopedKey, sidebarThreads]);
-
-  const unreadIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const thread of sidebarThreads) {
-      const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
-      if (
-        isUnreadFromVisitBoundary(
-          thread.latestTurn?.completedAt,
-          threadLastVisitedAtById[threadKey],
-        )
-      ) {
-        ids.add(thread.id);
-      }
-    }
-    return ids;
-  }, [sidebarThreads, threadLastVisitedAtById]);
-  const pinnedThreadKeySet = useMemo(() => new Set(pinnedThreadKeys), [pinnedThreadKeys]);
 
   const activeThread = routeActiveThread ?? null;
 
@@ -728,6 +569,54 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const implementPlanInCurrentThread = useCallback(() => {
     void startPlanImplementation();
   }, [startPlanImplementation]);
+  const onSaveProposedPlan = useCallback(
+    async (nextMarkdown: string): Promise<boolean> => {
+      if (
+        !activeProposedPlan ||
+        !activeProposedPlanSourceThreadId ||
+        !activeThread ||
+        routeTarget?.kind !== "server"
+      ) {
+        return false;
+      }
+
+      const normalizedMarkdown = normalizePlanMarkdownForExport(nextMarkdown);
+      if (normalizedMarkdown.trim().length === 0) {
+        return false;
+      }
+      if (normalizedMarkdown === activeProposedPlan.planMarkdown) {
+        return true;
+      }
+
+      const api = readEnvironmentApi(activeThread.environmentId);
+      if (!api) {
+        return false;
+      }
+
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "thread.proposed-plan.update",
+          commandId: newCommandId(),
+          threadId: activeProposedPlanSourceThreadId,
+          planId: activeProposedPlan.id,
+          planMarkdown: normalizedMarkdown,
+          createdAt: new Date().toISOString(),
+        });
+        return true;
+      } catch (error) {
+        toast.error("Could not save plan.", {
+          description: error instanceof Error ? error.message : "An error occurred.",
+        });
+        return false;
+      }
+    },
+    [
+      activeProposedPlan,
+      activeProposedPlanSourceThreadId,
+      activeThread,
+      routeTarget?.kind,
+    ],
+  );
   const planAvailable = activePlan !== null || activeProposedPlan !== null;
   const planLabel: PlanWorkbenchLabel = activeProposedPlan ? "Plan" : "Tasks";
   const planWorkbench: PlanWorkbenchState = {
@@ -741,180 +630,18 @@ function ChatShellHost(props: { children?: ReactNode }) {
     canImplementPlan,
     isImplementingPlan,
     onImplementPlan: showPlanImplementationActions ? implementPlanInCurrentThread : undefined,
+    onSaveProposedPlan: activeProposedPlan ? onSaveProposedPlan : undefined,
   };
-  const sections = useMemo(() => {
-    const projectStateKeyByCwd = new Map(
-      projects.map((project) => [project.cwd, deriveSidebarProjectStateKey(project)] as const),
-    );
-    const projectStateKeyByProjectKey = new Map(
-      projects.map(
-        (project) =>
-          [
-            scopedProjectKey(scopeProjectRef(project.environmentId, project.id)),
-            deriveSidebarProjectStateKey(project),
-          ] as const,
-      ),
-    );
-    const projectOrderRank = new Map(projectOrder.map((projectKey, index) => [projectKey, index]));
-    const projectOrderKeysByProjectStateKey = new Map<string, string[]>();
-    for (const project of projects) {
-      const projectStateKey = deriveSidebarProjectStateKey(project);
-      const orderKeys = projectOrderKeysByProjectStateKey.get(projectStateKey);
-      if (orderKeys) {
-        orderKeys.push(getProjectOrderKey(project));
-      } else {
-        projectOrderKeysByProjectStateKey.set(projectStateKey, [getProjectOrderKey(project)]);
-      }
-    }
-    const orderedSidebarProjects: SidebarProjectSummary[] = projects
-      .map((project, index) => ({
-        id: project.id,
-        environmentId: project.environmentId,
-        title: project.name,
-        cwd: project.cwd,
-        index,
-        orderIndex: projectOrderRank.get(getProjectOrderKey(project)) ?? Number.MAX_SAFE_INTEGER,
-      }))
-      .toSorted((left, right) => {
-        const byOrder = left.orderIndex - right.orderIndex;
-        if (byOrder !== 0) return byOrder;
-        return left.index - right.index;
-      })
-      .map(({ id, environmentId, title, cwd }) => ({
-        id,
-        environmentId,
-        title,
-        cwd,
-      }));
-    const projectCwds = orderedSidebarProjects.map((project) => project.cwd);
-    const projectKeysWithThreads = new Set(
-      sidebarThreads.flatMap((thread) =>
-        thread.projectId === null
-          ? []
-          : [scopedProjectKey(scopeProjectRef(thread.environmentId, thread.projectId))],
-      ),
-    );
-    const retainedSidebarProjects = orderedSidebarProjects.filter((project) =>
-      projectKeysWithThreads.has(
-        scopedProjectKey(scopeProjectRef(project.environmentId, project.id)),
-      ),
-    );
-    return buildProjectChatSections(
-      summaries,
-      drafts,
-      activeCwd,
-      null,
-      unreadIds,
-      projectCwds,
-      pinnedThreadKeySet,
-      retainedSidebarProjects,
-    ).map((section) => {
-      const sectionProjectKey =
-        section.environmentId && section.projectId
-          ? scopedProjectKey(scopeProjectRef(section.environmentId, section.projectId))
-          : null;
-      const projectStateKey =
-        (sectionProjectKey ? projectStateKeyByProjectKey.get(sectionProjectKey) : undefined) ??
-        (section.projectCwd ? projectStateKeyByCwd.get(section.projectCwd) : undefined);
-      const projectOrderKeys = projectStateKey
-        ? projectOrderKeysByProjectStateKey.get(projectStateKey)
-        : undefined;
-      if (!projectStateKey) {
-        return section;
-      }
-      if (!projectOrderKeys) {
-        return Object.assign(section, { projectStateKey });
-      }
-      return Object.assign(section, { projectOrderKeys, projectStateKey });
-    });
-  }, [
+  const sidebarModel = useAgentSidebarModel({
     activeCwd,
-    drafts,
-    pinnedThreadKeySet,
-    projectOrder,
+    activeDraftThread,
+    defaultProjectRef,
+    defaultThreadEnvMode,
+    handleNewThread,
     projects,
+    routeActiveThread: routeActiveThread ?? null,
     sidebarThreads,
-    summaries,
-    unreadIds,
-  ]);
-
-  const create = useCallback(
-    (cwd?: string) => {
-      const context = {
-        activeDraftThread,
-        activeThread: routeActiveThread,
-        defaultProjectRef,
-        defaultThreadEnvMode,
-        handleNewThread,
-      };
-      const project =
-        cwd && cwd.length > 0 ? projects.find((candidate) => candidate.cwd === cwd) : null;
-      if (project) {
-        writeStoredProjectCwd(project.cwd);
-        void startNewThreadInProjectFromContext(
-          context,
-          scopeProjectRef(project.environmentId, project.id),
-        );
-        return;
-      }
-      void startNewThreadFromContext(context);
-    },
-    [
-      activeDraftThread,
-      defaultProjectRef,
-      defaultThreadEnvMode,
-      handleNewThread,
-      projects,
-      routeActiveThread,
-    ],
-  );
-
-  const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
-
-  const select = useCallback(
-    (id: string) => {
-      const draft = drafts.find((entry) => entry.id === id);
-      if (draft) {
-        if (draft.projectId !== null) {
-          writeStoredProjectCwd(draft.cwd);
-        }
-        void navigate({ to: "/draft/$draftId", params: { draftId: id } });
-        return;
-      }
-      const summary = summaries.find((entry) => entry.id === id);
-      if (summary) {
-        markThreadVisited(scopedThreadKey(scopeThreadRef(summary.environmentId, summary.id)));
-        if (summary.projectId !== null && summary.cwd) {
-          writeStoredProjectCwd(summary.cwd);
-        }
-        void navigate({
-          to: "/$environmentId/$threadId",
-          params: { environmentId: summary.environmentId, threadId: summary.id },
-        });
-      }
-    },
-    [drafts, markThreadVisited, navigate, summaries],
-  );
-
-  const prefetchAgent = useCallback(
-    (id: string) => {
-      if (drafts.some((draft) => draft.id === id)) {
-        prefetchDraftNavigation(router, id);
-        return;
-      }
-
-      const summary = summaries.find((entry) => entry.id === id);
-      if (!summary || summary.projectId === null) {
-        return;
-      }
-
-      prefetchThreadNavigation({
-        router,
-        thread: { environmentId: summary.environmentId, id: summary.id },
-      });
-    },
-    [drafts, router, summaries],
-  );
+  });
 
   const startGitAgentAction = useCallback(
     async (action: GitAgentAction) => {
@@ -1198,16 +925,16 @@ function ChatShellHost(props: { children?: ReactNode }) {
         aria-hidden="true"
       />
       <div className={cn("shrink-0", isElectron && "no-drag")}>
-        <ShellSidebarHeader onNewChat={create} onAddProject={openAddProject} />
+        <ShellSidebarHeader onNewChat={sidebarModel.create} onAddProject={openAddProject} />
       </div>
       <AgentSidebar
         loading={false}
         error={false}
-        sections={sections}
+        sections={sidebarModel.sections}
         selectedId={selectedId}
-        onSelectAgent={select}
-        onPrefetchAgent={prefetchAgent}
-        onNewAgent={create}
+        onSelectAgent={sidebarModel.select}
+        onPrefetchAgent={sidebarModel.prefetchAgent}
+        onNewAgent={sidebarModel.create}
       />
       <ShellSidebarFooter />
     </div>
@@ -1268,6 +995,33 @@ function TerminalWorkbenchPanel(props: {
   );
 }
 
+function GitWorkbenchPanel(props: {
+  cwd: string | null;
+  environmentId: EnvironmentId | null;
+  onAgentAction: (action: GitAgentAction) => void;
+  onStopAgentAction: (() => void) | null;
+  stoppingAgentAction: boolean;
+  pendingAgentAction: GitAgentAction | null;
+}) {
+  const runtime = useRightWorkbenchPanelRuntime();
+  const active = runtime.open && runtime.activeTab === "git";
+  const git = useEnvironmentGitPanel(props.environmentId, props.cwd);
+
+  return (
+    <WorkbenchPanel>
+      {git.lifecycleSync}
+      <GitPanel
+        active={active}
+        git={git}
+        onAgentAction={props.onAgentAction}
+        onStopAgentAction={props.onStopAgentAction}
+        stoppingAgentAction={props.stoppingAgentAction}
+        pendingAgentAction={props.pendingAgentAction}
+      />
+    </WorkbenchPanel>
+  );
+}
+
 function ChatWorkbenchShellHost(props: {
   left: ReactNode;
   center: ReactNode;
@@ -1281,7 +1035,6 @@ function ChatWorkbenchShellHost(props: {
   stoppingGitAgentAction: boolean;
   pendingGitAgentAction: GitAgentAction | null;
 }) {
-  const git = useEnvironmentGitPanel(props.environmentId, props.cwd);
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
   const workbenchTabs = useMemo<WorkbenchTabMeta[]>(() => {
     const tabs: WorkbenchTabMeta[] = planTabAvailable
@@ -1317,15 +1070,14 @@ function ChatWorkbenchShellHost(props: {
         </WorkbenchPanel>
       ),
       git: (
-        <WorkbenchPanel>
-          <GitPanel
-            git={git}
-            onAgentAction={props.onGitAgentAction}
-            onStopAgentAction={props.onStopGitAgentAction}
-            stoppingAgentAction={props.stoppingGitAgentAction}
-            pendingAgentAction={props.pendingGitAgentAction}
-          />
-        </WorkbenchPanel>
+        <GitWorkbenchPanel
+          cwd={props.cwd}
+          environmentId={props.environmentId}
+          onAgentAction={props.onGitAgentAction}
+          onStopAgentAction={props.onStopGitAgentAction}
+          stoppingAgentAction={props.stoppingGitAgentAction}
+          pendingAgentAction={props.pendingGitAgentAction}
+        />
       ),
       terminal: <TerminalWorkbenchPanel cwd={props.cwd} environmentId={props.environmentId} />,
     };
@@ -1343,6 +1095,7 @@ function ChatWorkbenchShellHost(props: {
             canImplementPlan={props.plan.canImplementPlan}
             isImplementingPlan={props.plan.isImplementingPlan}
             onImplementPlan={props.plan.onImplementPlan}
+            onSaveProposedPlan={props.plan.onSaveProposedPlan}
           />
         </WorkbenchPanel>
       );
@@ -1350,7 +1103,6 @@ function ChatWorkbenchShellHost(props: {
 
     return { tabs: workbenchTabs, panels };
   }, [
-    git,
     props.availableEditors,
     props.cwd,
     props.environmentId,
@@ -1365,6 +1117,7 @@ function ChatWorkbenchShellHost(props: {
     props.plan.markdownCwd,
     props.plan.isImplementingPlan,
     props.plan.onImplementPlan,
+    props.plan.onSaveProposedPlan,
     props.plan.timestampFormat,
     planTabAvailable,
     props.stoppingGitAgentAction,
@@ -1373,11 +1126,10 @@ function ChatWorkbenchShellHost(props: {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
-      {git.lifecycleSync}
       <AppShell
         cwd={props.cwd}
         routeThreadId={props.routeThreadId}
-        gitFocusId={git.focusId}
+        gitFocusId={null}
         left={props.left}
         center={props.center}
         right={right}

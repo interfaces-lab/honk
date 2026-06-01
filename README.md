@@ -1,12 +1,14 @@
 # Multi
 
-Multi takes [t3code](https://github.com/pingdotgg/t3code) as inspiration and as its first iteration. This tree has since diverged in architecture, providers, and shipping, but owes that project the original push.
+Multi is an agent workspace for running frontier coding agents against real projects.
 
-Multi is a **desktop app** built around a local server. Agent runs, approvals, and live updates stream over WebSockets; the interface is a web UI served from that same process (the desktop shell wraps a local site, not a remote service).
+It gives Codex, Claude, and Cursor a shared runtime: one place to start threads, watch work happen, approve risk when you want supervision, and switch between providers without changing how you work.
 
-Built-in providers: **Codex**, **Claude**, **OpenCode**, and **Cursor**.
+Multi began from [t3code](https://github.com/pingdotgg/t3code) and still carries its local, hackable spirit. Its interface takes inspiration from Cursor.
 
-Multi defaults to **full access** so agents can run commands, edit files, and iterate without approval prompts. If you want a supervised workflow, set the default agent access in Settings.
+## Manifest
+
+Multi is built for frontier models only: a shared agent runtime with room for desktop, browser, and terminal surfaces to work in parallel over the same threads. It is full access by default and designed to let agents keep moving while you steer from one clear interface. It is not fully opinionated about how you work, but it is opinionated about which model or provider should do the work. Codex, Claude, and Cursor can each be the right agent for a different job, and Multi makes switching between them feel like one product instead of three separate workflows.
 
 ## Install
 
@@ -18,7 +20,6 @@ Enable at least one provider in Settings before starting a thread:
 
 - **Codex:** [Codex CLI](https://github.com/openai/codex), then `codex login`
 - **Claude:** Claude Code, then `claude auth login`
-- **OpenCode:** OpenCode CLI and server; set binary path and server URL in Settings
 - **Cursor:** Cursor integration; configure in Settings when you use the Cursor adapter
 
 ## Runtime modes
@@ -31,8 +32,6 @@ Each agent turn uses a **runtime mode** that maps provider permission prompts in
 | **Auto-accept edits** | Allow reads and search; ask before edits and commands.                 |
 | **Supervised**        | Ask before commands and file changes (reads and search still allowed). |
 
-Providers may still show their own sandbox prompts. See [specs/runtime-permissions.md](./specs/runtime-permissions.md) for the full action matrix.
-
 ## Developing
 
-[AGENTS.md](./AGENTS.md) and [specs/README.md](./specs/README.md).
+[AGENTS.md](./AGENTS.md)

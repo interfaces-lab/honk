@@ -112,7 +112,50 @@ export class ServerSettingsService extends Context.Service<
 }
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
+const UnknownSettingsJson = fromLenientJson(Schema.Unknown);
+const decodeServerSettingsUnknownExit = Schema.decodeUnknownExit(ServerSettings);
 const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson);
+const decodeUnknownSettingsJsonExit = Schema.decodeUnknownExit(UnknownSettingsJson);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function pruneUnsupportedProviderInstances(input: unknown): {
+  readonly settings: unknown;
+  readonly removedInstanceIds: ReadonlyArray<string>;
+} {
+  if (!isRecord(input) || !isRecord(input.providerInstances)) {
+    return { settings: input, removedInstanceIds: [] };
+  }
+
+  const nextProviderInstances: Record<string, unknown> = {};
+  const removedInstanceIds: Array<string> = [];
+
+  for (const [instanceId, instanceConfig] of Object.entries(input.providerInstances)) {
+    if (!isRecord(instanceConfig) || !isProviderDriverKind(instanceConfig.driver)) {
+      removedInstanceIds.push(instanceId);
+      continue;
+    }
+    nextProviderInstances[instanceId] = instanceConfig;
+  }
+
+  if (removedInstanceIds.length === 0) {
+    return { settings: input, removedInstanceIds };
+  }
+
+  const nextSettings = { ...input };
+  if (Object.keys(nextProviderInstances).length > 0) {
+    nextSettings.providerInstances = nextProviderInstances;
+  } else {
+    delete nextSettings.providerInstances;
+  }
+
+  return {
+    settings: nextSettings,
+    removedInstanceIds,
+  };
+}
 
 /**
  * Ensure the `textGenerationModelSelection` points to an enabled provider.
@@ -250,30 +293,6 @@ const makeServerSettings = Effect.gen(function* () {
     ),
   );
 
-  const loadSettingsFromDisk = Effect.gen(function* () {
-    if (!(yield* readConfigExists)) {
-      return DEFAULT_SERVER_SETTINGS;
-    }
-
-    const raw = yield* readRawConfig;
-    const decoded = decodeServerSettingsJsonExit(raw);
-    if (decoded._tag === "Failure") {
-      yield* Effect.logWarning("failed to parse settings.json, using defaults", {
-        path: settingsPath,
-        issues: Cause.pretty(decoded.cause),
-      });
-      return DEFAULT_SERVER_SETTINGS;
-    }
-    return decoded.value;
-  });
-
-  const settingsCache = yield* Cache.make<typeof cacheKey, ServerSettings, ServerSettingsError>({
-    capacity: 1,
-    lookup: () => loadSettingsFromDisk,
-  });
-
-  const getSettingsFromCache = Cache.get(settingsCache, cacheKey);
-
   const writeSettingsAtomically = (settings: ServerSettings) => {
     const sparseSettings = stripDefaultServerSettings(settings, DEFAULT_SERVER_SETTINGS) ?? {};
 
@@ -293,6 +312,54 @@ const makeServerSettings = Effect.gen(function* () {
       ),
     );
   };
+
+  const loadSettingsFromDisk = Effect.gen(function* () {
+    if (!(yield* readConfigExists)) {
+      return DEFAULT_SERVER_SETTINGS;
+    }
+
+    const raw = yield* readRawConfig;
+    const decoded = decodeServerSettingsJsonExit(raw);
+    if (decoded._tag === "Success") {
+      return decoded.value;
+    }
+
+    const parsed = decodeUnknownSettingsJsonExit(raw);
+    if (parsed._tag === "Success") {
+      const pruned = pruneUnsupportedProviderInstances(parsed.value);
+      if (pruned.removedInstanceIds.length > 0) {
+        const repaired = decodeServerSettingsUnknownExit(pruned.settings);
+        if (repaired._tag === "Success") {
+          yield* Effect.logWarning("pruned unsupported provider instances from settings.json", {
+            path: settingsPath,
+            providerInstanceIds: pruned.removedInstanceIds,
+          });
+          yield* writeSettingsAtomically(repaired.value).pipe(
+            Effect.catch((cause) =>
+              Effect.logWarning("failed to persist pruned settings.json", {
+                path: settingsPath,
+                cause,
+              }),
+            ),
+          );
+          return repaired.value;
+        }
+      }
+    }
+
+    yield* Effect.logWarning("failed to parse settings.json, using defaults", {
+      path: settingsPath,
+      issues: Cause.pretty(decoded.cause),
+    });
+    return DEFAULT_SERVER_SETTINGS;
+  });
+
+  const settingsCache = yield* Cache.make<typeof cacheKey, ServerSettings, ServerSettingsError>({
+    capacity: 1,
+    lookup: () => loadSettingsFromDisk,
+  });
+
+  const getSettingsFromCache = Cache.get(settingsCache, cacheKey);
 
   const revalidateAndEmit = writeSemaphore.withPermits(1)(
     Effect.gen(function* () {

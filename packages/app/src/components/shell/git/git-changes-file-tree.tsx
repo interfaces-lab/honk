@@ -2,13 +2,12 @@
 
 import { prepareFileTreeInput } from "@pierre/trees";
 import type { GitStatus, GitStatusEntry } from "@pierre/trees";
-import { type RefObject, useMemo, useRef } from "react";
+import { type RefObject, useEffect, useMemo, useRef } from "react";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 import { normalizeTreePath, Tree, useTreeModel } from "../../tree";
 
 type GitChangesTreeModel = ReturnType<typeof useTreeModel>["model"];
@@ -69,7 +68,6 @@ export function GitChangesFileTree(props: {
     () => sortedRows.map((row) => normalizeTreePath(row.path)),
     [sortedRows],
   );
-  const treePathsKey = useMemo(() => treePaths.join("\0"), [treePaths]);
 
   const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
 
@@ -84,10 +82,6 @@ export function GitChangesFileTree(props: {
   }, [sortedRows]);
 
   const gitStatusEntries = useMemo(() => diffRowsToGitStatusEntries(sortedRows), [sortedRows]);
-  const gitStatusKey = useMemo(
-    () => gitStatusEntries.map((entry) => `${entry.path}:${entry.status}`).join("\0"),
-    [gitStatusEntries],
-  );
 
   const selectedPath =
     props.selectedId !== null
@@ -130,19 +124,9 @@ export function GitChangesFileTree(props: {
         props.className,
       )}
     >
-      <GitChangesTreePathsSync
-        key={treePathsKey}
-        model={model}
-        preparedInput={preparedInput}
-        treePaths={treePaths}
-      />
-      <GitChangesTreeGitStatusSync
-        key={gitStatusKey}
-        gitStatusEntries={gitStatusEntries}
-        model={model}
-      />
+      <GitChangesTreePathsSync model={model} preparedInput={preparedInput} treePaths={treePaths} />
+      <GitChangesTreeGitStatusSync gitStatusEntries={gitStatusEntries} model={model} />
       <GitChangesTreeSelectionSync
-        key={`${treePathsKey}:${selectedKey ?? ""}`}
         lastOpenedPathRef={lastOpenedPathRef}
         model={model}
         pathSet={pathSet}
@@ -165,9 +149,9 @@ function GitChangesTreePathsSync({
   preparedInput: GitChangesPreparedInput;
   treePaths: readonly string[];
 }) {
-  useMountEffect(() => {
+  useEffect(() => {
     model.resetPaths(treePaths, { preparedInput });
-  });
+  }, [model, preparedInput, treePaths]);
 
   return null;
 }
@@ -179,9 +163,9 @@ function GitChangesTreeGitStatusSync({
   gitStatusEntries: readonly GitStatusEntry[];
   model: GitChangesTreeModel;
 }) {
-  useMountEffect(() => {
+  useEffect(() => {
     model.setGitStatus(gitStatusEntries);
-  });
+  }, [gitStatusEntries, model]);
 
   return null;
 }
@@ -199,7 +183,7 @@ function GitChangesTreeSelectionSync({
   selectedKey: string | null;
   suppressSelectionOpenRef: RefObject<string | null>;
 }) {
-  useMountEffect(() => {
+  useEffect(() => {
     if (!selectedKey) {
       for (const path of model.getSelectedPaths()) {
         model.getItem(path)?.deselect();
@@ -220,7 +204,7 @@ function GitChangesTreeSelectionSync({
     }
     selectedItem.select();
     model.focusPath(selectedKey);
-  });
+  }, [lastOpenedPathRef, model, pathSet, selectedKey, suppressSelectionOpenRef]);
 
   return null;
 }

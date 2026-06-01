@@ -1,16 +1,13 @@
-import type { EnvironmentId, MessageId, ThreadId } from "@multi/contracts";
+import type { MessageId } from "@multi/contracts";
 import { memo, type ReactNode } from "react";
 
-import type { WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage } from "../../../types";
 import type { ExpandedImagePreview } from "./expanded-image-preview";
 import { AssistantMessage } from "./assistant-message";
 import { HumanMessage } from "./human-message";
-import { ThinkingStatus } from "./tool-renderer";
-import { ToolCallMessage } from "./tool-message";
 
 /**
- * Row wrappers shared by `MessagesTimeline` and `SubagentPreviewTray`.
+ * Row wrappers shared by the canonical timeline step renderer.
  * Grouping, virtualization, and scroll behavior stay with their callers.
  */
 
@@ -56,66 +53,4 @@ export const HumanTranscriptRow = memo(function HumanTranscriptRow(
       />
     </div>
   );
-});
-
-/**
- * Read-only user row for the subagent preview tray.
- */
-export const ReadOnlyHumanTranscriptRow = memo(function ReadOnlyHumanTranscriptRow({
-  message,
-}: {
-  message: ChatMessage;
-}) {
-  return (
-    <div className="box-border flex w-full min-w-0 px-0">
-      <HumanMessage
-        message={message}
-        editAvailable={false}
-        isEditing={false}
-        editDisabled
-        isServerThread={false}
-        editComposer={null}
-        onImageExpand={noopImageExpand}
-        onBeginEditUserMessage={undefined}
-      />
-    </div>
-  );
-});
-
-function noopImageExpand(_preview: ExpandedImagePreview): void {
-  return;
-}
-
-export const ToolTranscriptRow = memo(function ToolTranscriptRow({
-  activeThreadId,
-  environmentId,
-  projectRoot,
-  subagentDetailsEnabled,
-  workEntry,
-}: {
-  activeThreadId: ThreadId;
-  environmentId: EnvironmentId;
-  projectRoot: string | undefined;
-  subagentDetailsEnabled: boolean;
-  workEntry: WorkLogEntry;
-}) {
-  return (
-    <ToolCallMessage
-      activeThreadId={activeThreadId}
-      environmentId={environmentId}
-      projectRoot={projectRoot}
-      subagentDetailsEnabled={subagentDetailsEnabled}
-      workEntry={workEntry}
-    />
-  );
-});
-
-export const ThinkingTranscriptRow = memo(function ThinkingTranscriptRow({
-  task,
-  active,
-}: {
-  task: string;
-  active: boolean;
-}) {
-  return <ThinkingStatus active={active} task={task} wrap />;
 });

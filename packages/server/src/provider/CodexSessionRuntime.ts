@@ -10,6 +10,7 @@ import {
   type ProviderApprovalDecision,
   type ProviderEvent,
   type ProviderInteractionMode,
+  type ProviderInstanceId,
   type ProviderRequestKind,
   type ProviderSession,
   type ProviderThreadSnapshotItem,
@@ -99,8 +100,10 @@ export function parseCodexServiceTier(
 
 export interface CodexSessionRuntimeOptions {
   readonly threadId: ThreadId;
+  readonly providerInstanceId?: ProviderInstanceId | undefined;
   readonly binaryPath: string;
   readonly homePath?: string;
+  readonly environment?: NodeJS.ProcessEnv | undefined;
   readonly cwd: string;
   readonly runtimeMode: RuntimeMode;
   readonly model?: string;
@@ -922,9 +925,10 @@ export const makeCodexSessionRuntime = (
       .spawn(
         ChildProcess.make(options.binaryPath, ["app-server"], {
           cwd: options.cwd,
-          env: buildCodexAppServerEnv(
-            options.homePath ? { codexHome: expandHomePath(options.homePath) } : {},
-          ),
+          env: buildCodexAppServerEnv({
+            ...(options.environment !== undefined ? { baseEnv: options.environment } : {}),
+            ...(options.homePath ? { codexHome: expandHomePath(options.homePath) } : {}),
+          }),
           shell: process.platform === "win32",
         }),
       )
@@ -950,7 +954,7 @@ export const makeCodexSessionRuntime = (
 
     const initialSession = {
       provider: PROVIDER,
-      providerInstanceId: PROVIDER_INSTANCE_ID,
+      providerInstanceId: options.providerInstanceId ?? PROVIDER_INSTANCE_ID,
       status: "connecting",
       runtimeMode: options.runtimeMode,
       cwd: options.cwd,
@@ -969,7 +973,7 @@ export const makeCodexSessionRuntime = (
       offerEvent({
         id: EventId.make(randomUUID()),
         provider: PROVIDER,
-        providerInstanceId: PROVIDER_INSTANCE_ID,
+        providerInstanceId: options.providerInstanceId ?? PROVIDER_INSTANCE_ID,
         createdAt: new Date().toISOString(),
         ...event,
       });

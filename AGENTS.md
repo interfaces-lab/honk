@@ -1,4 +1,10 @@
-# Development Rules
+# Agent Rules
+
+## Product Direction
+
+- Product surface first: durable backend concepts need a clear, loved UI surface.
+- Opinionated by default: keep the good parts close and delete surfaces we do not use and love.
+- Less is better: fewer panels, fewer modes, fewer contracts, and sharper orchestration.
 
 ## Style
 
@@ -11,7 +17,7 @@
 - Read the relevant files before editing. Do not rely on search snippets for broad changes.
 - No `any` types unless there is no better option.
 - Check installed dependency types instead of guessing external APIs.
-- No inline imports: no `await import("./x")`, no `import("pkg").Type`, no dynamic type imports. Use top-level imports.
+- Use top-level imports. Do not use inline imports such as `await import("./x")`, `import("pkg").Type`, or dynamic type imports.
 - Do not remove or downgrade functionality to satisfy type errors. Fix the cause or ask.
 - Do not preserve backward compatibility unless the user asks for it.
 - Ask before removing intentional-looking behavior or large code paths.
@@ -39,7 +45,7 @@
 - Only stage files you changed in this session.
 - Never use `git add -A` or `git add .`.
 - Never use destructive commands: `git reset --hard`, `git checkout .`, `git clean -fd`, or `git stash`.
-- Before committing, inspect `git status` and stage explicit paths only.
+- Before committing, inspect `git status` and stage explicit paths.
 - If rebasing conflicts in files you did not edit, abort and ask.
 
 ## Releases

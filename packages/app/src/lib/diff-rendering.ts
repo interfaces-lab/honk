@@ -68,7 +68,7 @@ export function fnv1a32(
   return hash >>> 0;
 }
 
-export function buildPatchCacheKey(patch: string, scope = "diff-panel"): string {
+export function buildPatchCacheKey(patch: string, scope = "diff-rendering"): string {
   const normalizedPatch = patch.trim();
   const primary = fnv1a32(normalizedPatch, FNV_OFFSET_BASIS_32, FNV_PRIME_32).toString(36);
   const secondary = fnv1a32(

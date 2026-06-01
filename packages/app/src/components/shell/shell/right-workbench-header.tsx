@@ -7,7 +7,7 @@ import type { ComponentType, ReactNode } from "react";
 import type { TerminalSessionEntry, WorkbenchTab } from "~/stores/shell-panels-store";
 import { cn } from "~/lib/utils";
 
-import { workbenchIconButtonVariants, WorkbenchIconButton } from "./workbench-icon-button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 export interface WorkbenchTabMeta {

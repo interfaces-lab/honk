@@ -5,18 +5,13 @@ import type {
   ThreadId,
 } from "@multi/contracts";
 import {
-  OrchestrationCheckpointSummary,
   OrchestrationMessage,
   OrchestrationSession,
   OrchestrationThread,
-  resolveActiveEntryIdAfterThreadMessage,
+  resolveLeafIdAfterThreadMessage,
 } from "@multi/contracts";
 import { Effect, Schema } from "effect";
 
-import {
-  retainMessagesAfterCheckpointRevert,
-  retainTurnFactsAfterCheckpointRevert,
-} from "../checkpointing/CheckpointRetention.ts";
 import { toProjectorDecodeError, type OrchestrationProjectorDecodeError } from "./Errors.ts";
 import {
   MessageSentPayloadSchema,
@@ -32,11 +27,8 @@ import {
   ThreadProposedPlanUpsertedPayload,
   ThreadRuntimeModeSetPayload,
   ThreadUnarchivedPayload,
-  ThreadRevertedPayload,
   ThreadSessionSetPayload,
-  ThreadTreeLabelSetPayload,
-  ThreadTreeNavigatedPayload,
-  ThreadTurnDiffCompletedPayload,
+  ThreadTreeLeafMovedPayload,
 } from "./Schemas.ts";
 
 type ThreadPatch = Partial<Omit<OrchestrationThread, "id" | "projectId">>;
@@ -59,14 +51,6 @@ function settledLatestTurnForRunningSession(
   }
   return null;
 }
-const MAX_THREAD_CHECKPOINTS = 500;
-
-function checkpointStatusToLatestTurnState(status: "ready" | "missing" | "error") {
-  if (status === "error") return "error" as const;
-  if (status === "missing") return "interrupted" as const;
-  return "completed" as const;
-}
-
 function updateThread(
   threads: ReadonlyArray<OrchestrationThread>,
   threadId: ThreadId,
@@ -214,10 +198,9 @@ export function projectEvent(
             archivedAt: null,
             deletedAt: null,
             messages: [],
-            activeEntryId: null,
+            leafId: null,
             entries: [],
             activities: [],
-            checkpoints: [],
             session: null,
           },
           event.type,
@@ -337,27 +320,25 @@ export function projectEvent(
         );
 
         const existingMessage = thread.messages.find((entry) => entry.id === message.id);
-        const messages = existingMessage
-          ? thread.messages.map((entry) =>
-              entry.id === message.id
-                ? {
-                    ...entry,
-                    text: message.streaming
-                      ? `${entry.text}${message.text}`
-                      : message.text.length > 0
-                        ? message.text
-                        : entry.text,
-                    ...(message.richText !== undefined ? { richText: message.richText } : {}),
-                    streaming: message.streaming,
-                    updatedAt: message.updatedAt,
-                    turnId: message.turnId,
-                    ...(message.attachments !== undefined
-                      ? { attachments: message.attachments }
-                      : {}),
-                  }
-                : entry,
-            )
-          : [...thread.messages, message];
+        const messages = (
+          existingMessage
+            ? thread.messages.map((entry) =>
+                entry.id === message.id
+                  ? {
+                      ...entry,
+                      text: message.text.length > 0 ? message.text : entry.text,
+                      ...(message.richText !== undefined ? { richText: message.richText } : {}),
+                      streaming: message.streaming,
+                      updatedAt: message.updatedAt,
+                      turnId: message.turnId,
+                      ...(message.attachments !== undefined
+                        ? { attachments: message.attachments }
+                        : {}),
+                    }
+                  : entry,
+              )
+            : [...thread.messages, message]
+        ).slice(-2_000);
         const entryId = payload.entryId;
         const threadEntries = thread.entries;
         const existingEntry = threadEntries.find((entry) => entry.id === entryId);
@@ -368,9 +349,6 @@ export function projectEvent(
           kind: "message" as const,
           messageId: payload.messageId,
           turnId: payload.turnId,
-          targetEntryId: null,
-          label: null,
-          summary: null,
           createdAt: existingEntry?.createdAt ?? payload.createdAt,
         };
         const entries = existingEntry
@@ -381,8 +359,8 @@ export function projectEvent(
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             messages,
-            activeEntryId: resolveActiveEntryIdAfterThreadMessage({
-              activeEntryId: thread.activeEntryId,
+            leafId: resolveLeafIdAfterThreadMessage({
+              leafId: thread.leafId,
               entryId,
               parentEntryId: payload.parentEntryId,
               role: payload.role,
@@ -393,40 +371,15 @@ export function projectEvent(
         };
       });
 
-    case "thread.tree-navigated":
-      return decodeForEvent(ThreadTreeNavigatedPayload, event.payload, event.type, "payload").pipe(
+    case "thread.tree-leaf-moved":
+      return decodeForEvent(ThreadTreeLeafMovedPayload, event.payload, event.type, "payload").pipe(
         Effect.map((payload) => ({
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
-            activeEntryId: payload.entryId,
+            leafId: payload.leafId,
             updatedAt: payload.updatedAt,
           }),
         })),
-      );
-
-    case "thread.tree-label-set":
-      return decodeForEvent(ThreadTreeLabelSetPayload, event.payload, event.type, "payload").pipe(
-        Effect.map((payload) => {
-          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
-          if (!thread) {
-            return nextBase;
-          }
-          const entries = [
-            ...thread.entries.filter((entry) => entry.id !== payload.entry.id),
-            payload.entry,
-          ].toSorted(
-            (left, right) =>
-              left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
-          );
-
-          return {
-            ...nextBase,
-            threads: updateThread(nextBase.threads, payload.threadId, {
-              entries,
-              updatedAt: payload.updatedAt,
-            }),
-          };
-        }),
       );
 
     case "thread.session-set":
@@ -513,152 +466,6 @@ export function projectEvent(
           }),
         };
       });
-
-    case "thread.turn-diff-completed":
-      return Effect.gen(function* () {
-        const payload = yield* decodeForEvent(
-          ThreadTurnDiffCompletedPayload,
-          event.payload,
-          event.type,
-          "payload",
-        );
-        const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
-        if (!thread) {
-          return nextBase;
-        }
-
-        const checkpoint = yield* decodeForEvent(
-          OrchestrationCheckpointSummary,
-          {
-            turnId: payload.turnId,
-            checkpointTurnCount: payload.checkpointTurnCount,
-            checkpointRef: payload.checkpointRef,
-            status: payload.status,
-            files: payload.files,
-            assistantMessageId: payload.assistantMessageId,
-            completedAt: payload.completedAt,
-          },
-          event.type,
-          "checkpoint",
-        );
-
-        // Do not let a placeholder (status "missing") overwrite a checkpoint
-        // that has already been captured with a real git ref (status "ready").
-        // ProviderRuntimeIngestion may fire multiple turn.diff.updated events
-        // per turn; without this guard later placeholders would clobber the
-        // real capture dispatched by CheckpointReactor.
-        const existing = thread.checkpoints.find((entry) => entry.turnId === checkpoint.turnId);
-        if (existing && existing.status !== "missing" && checkpoint.status === "missing") {
-          return nextBase;
-        }
-
-        const checkpoints = [
-          ...thread.checkpoints.filter((entry) => entry.turnId !== checkpoint.turnId),
-          checkpoint,
-        ]
-          .toSorted((left, right) => left.checkpointTurnCount - right.checkpointTurnCount)
-          .slice(-MAX_THREAD_CHECKPOINTS);
-
-        return {
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            checkpoints,
-            latestTurn: {
-              turnId: payload.turnId,
-              state: checkpointStatusToLatestTurnState(payload.status),
-              requestedAt:
-                thread.latestTurn?.turnId === payload.turnId
-                  ? thread.latestTurn.requestedAt
-                  : payload.completedAt,
-              startedAt:
-                thread.latestTurn?.turnId === payload.turnId
-                  ? (thread.latestTurn.startedAt ?? payload.completedAt)
-                  : payload.completedAt,
-              completedAt: payload.completedAt,
-              assistantMessageId: payload.assistantMessageId,
-            },
-            updatedAt: event.occurredAt,
-          }),
-        };
-      });
-
-    case "thread.reverted":
-      return decodeForEvent(ThreadRevertedPayload, event.payload, event.type, "payload").pipe(
-        Effect.map((payload) => {
-          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
-          if (!thread) {
-            return nextBase;
-          }
-
-          const checkpoints = thread.checkpoints
-            .filter((entry) => entry.checkpointTurnCount <= payload.turnCount)
-            .toSorted((left, right) => left.checkpointTurnCount - right.checkpointTurnCount)
-            .slice(-MAX_THREAD_CHECKPOINTS);
-          const retainedTurnIds = new Set(checkpoints.map((checkpoint) => checkpoint.turnId));
-          const messages = retainMessagesAfterCheckpointRevert({
-            messages: thread.messages,
-            retainedTurnIds,
-            turnCount: payload.turnCount,
-            messageId: (message) => message.id,
-          });
-          const retainedMessageIds = new Set(messages.map((message) => message.id));
-          const messageEntries = thread.entries.filter(
-            (entry) =>
-              entry.kind === "message" &&
-              entry.messageId !== null &&
-              retainedMessageIds.has(entry.messageId),
-          );
-          const retainedEntryIds = new Set(messageEntries.map((entry) => entry.id));
-          const entries = [
-            ...messageEntries,
-            ...thread.entries.filter(
-              (entry) =>
-                entry.kind === "label" &&
-                entry.targetEntryId !== null &&
-                retainedEntryIds.has(entry.targetEntryId),
-            ),
-          ];
-          const activeEntryId =
-            thread.activeEntryId !== null && retainedEntryIds.has(thread.activeEntryId)
-              ? thread.activeEntryId
-              : (messageEntries.at(-1)?.id ?? null);
-          const proposedPlans = retainTurnFactsAfterCheckpointRevert(
-            thread.proposedPlans,
-            retainedTurnIds,
-          ).slice(-200);
-          const activities = retainTurnFactsAfterCheckpointRevert(
-            thread.activities,
-            retainedTurnIds,
-          );
-
-          const latestCheckpoint = checkpoints.at(-1) ?? null;
-          const latestTurn =
-            latestCheckpoint === null
-              ? null
-              : {
-                  turnId: latestCheckpoint.turnId,
-                  state: checkpointStatusToLatestTurnState(latestCheckpoint.status),
-                  requestedAt: latestCheckpoint.completedAt,
-                  startedAt: latestCheckpoint.completedAt,
-                  completedAt: latestCheckpoint.completedAt,
-                  assistantMessageId: latestCheckpoint.assistantMessageId,
-                };
-
-          return {
-            ...nextBase,
-            threads: updateThread(nextBase.threads, payload.threadId, {
-              checkpoints,
-              messages,
-              activeEntryId,
-              entries,
-              proposedPlans,
-              activities,
-              latestTurn,
-              updatedAt: event.occurredAt,
-            }),
-          };
-        }),
-      );
 
     case "thread.activity-appended":
       return decodeForEvent(

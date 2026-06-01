@@ -2,12 +2,14 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
   type ComponentType,
   type Dispatch,
+  type FocusEvent,
   type RefObject,
   type MouseEvent,
   type ReactNode,
@@ -22,12 +24,12 @@ import {
   IconChevronLeftMedium,
   IconCrossSmall,
   IconDotGrid1x3Horizontal,
-  IconEyeOpen,
   IconPlusSmall,
   IconStop,
   IconTodos,
   type CentralIconBaseProps,
 } from "central-icons";
+import { scopedThreadKey } from "@multi/client-runtime";
 import {
   defaultInstanceIdForDriver,
   type MessageId,
@@ -48,6 +50,7 @@ import {
   expandCollapsedComposerCursor,
   isUnresolvedStandaloneComposerSlashCommand,
   replaceTextRange,
+  slashCommandRemovalRange,
 } from "./prompt-triggers";
 import { deriveComposerSendState } from "../composer-submit";
 import {
@@ -62,32 +65,33 @@ import {
   type ComposerCommandItem,
   ComposerCommandMenuPositioned,
   useComposerCommandMenu,
-} from "./slash-menu";
+} from "./command-menu/menu";
 import {
   composerMenuPopoverAnchorFromElement,
   type ComposerMenuPopoverAnchor,
-} from "./composer-menu-anchor";
-import { ComposerPendingApprovalActions } from "./pending-approval-actions";
-import { ComposerPendingApprovalPanel } from "./pending-approval-panel";
-import { ComposerPendingUserInputPanel } from "./pending-user-input-panel";
+} from "./command-menu/anchor";
+import { ComposerPendingApprovalActions } from "./pending/approval-actions";
+import { ComposerPendingApprovalPanel } from "./pending/approval-panel";
+import { ComposerPendingUserInputPanel } from "./pending/user-input-panel";
 import { cn } from "~/lib/utils";
 import { cva } from "class-variance-authority";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import { useComposerKeyboard } from "./use-composer-keyboard";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
-import { useComposerImageAttachments } from "./use-image-attachments";
-import { ComposerImageAttachmentStrip } from "./image-attachment-strip";
-import ChatMarkdown from "../markdown/chat-markdown";
+import { useComposerImageAttachments } from "./attachments/use-image-attachments";
+import { ComposerImageAttachmentStrip } from "./attachments/image-attachment-strip";
 import {
   type ComposerFooterPendingAction,
   type ComposerInputHandle,
   type ComposerInputProps,
 } from "./input-contract";
-import { QueuedComposerEditBanner, QueuedComposerItemsPanel } from "./queued-items-panel";
-import { SubagentPreviewTrayStack } from "./subagent-preview-tray";
-import { ComposerContextUsageBar } from "./composer-context-usage-bar";
+import { QueuedComposerEditBanner, QueuedComposerItemsPanel } from "./queue/queued-items-panel";
+import { SubagentTrayStack } from "./subagents/subagent-tray";
+import { ComposerContextUsageBar } from "./context/context-usage-bar";
+import { PlanFollowUpTray } from "./plan-follow-up/plan-follow-up-tray";
 import { deriveLatestContextWindowSnapshot } from "../../../lib/context-window";
-import { formatProviderSkillDisplayName } from "./provider-skills";
+import { formatProviderSkillDisplayName } from "./command-menu/provider-skills";
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   getComposerProviderState,
@@ -96,7 +100,6 @@ import {
 } from "../../../model/provider-state";
 import { TraitsMenuContent, TraitsPicker } from "../picker/traits-picker";
 import { resolveAppProviderModelState } from "../../../model/selection";
-import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
 
@@ -133,9 +136,25 @@ Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
 
-const PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS =
-  "bg-(--cursor-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] [&_svg]:size-3.5";
-const PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS = "px-2 text-detail [&_svg]:size-3.5";
+const COMPOSER_PROMPT_DRAFT_COMMIT_DEBOUNCE_MS = 300;
+
+type ComposerDraftTarget = ScopedThreadRef | DraftId;
+
+function composerDraftTargetKey(target: ComposerDraftTarget): string {
+  return typeof target === "string" ? target : scopedThreadKey(target);
+}
+
+function nextPromptSyncState(
+  value: string,
+  cursor: number = value.length,
+  previousRevision: number = 0,
+): { value: string; cursor: number; syncRevision: number } {
+  return {
+    value,
+    cursor: clampCollapsedComposerCursor(value, cursor),
+    syncRevision: previousRevision + 1,
+  };
+}
 
 type ActiveComposerInteractionMode = Exclude<ProviderInteractionMode, "default">;
 
@@ -183,9 +202,10 @@ const ComposerInteractionModeChip = memo(function ComposerInteractionModeChip(pr
   return (
     <Button
       variant="ghost"
+      size="sm"
       className={cn(
         interactionModeChipClass({ mode: props.mode }),
-        "p-0 hover:text-inherit data-pressed:text-inherit",
+        "hover:text-inherit data-pressed:text-inherit [&_svg]:mx-0",
       )}
       data-composer-interaction-mode-chip=""
       data-mode={props.mode}
@@ -202,97 +222,6 @@ const ComposerInteractionModeChip = memo(function ComposerInteractionModeChip(pr
         <IconCrossSmall />
       </span>
     </Button>
-  );
-});
-
-const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
-  plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
-  compact: boolean;
-  gitCwd: string | undefined;
-  isBuilding: boolean;
-  planSurfaceOpen: boolean;
-  onBuildPlan: (() => void) | undefined;
-  onViewPlan: (() => void) | undefined;
-}) {
-  const planKey = String(props.plan.id);
-  const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
-  const title = useMemo(() => proposedPlanTitle(props.plan.planMarkdown) ?? "Plan", [props.plan]);
-  const previewMarkdown = useMemo(
-    () => stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim(),
-    [props.plan],
-  );
-  const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
-
-  if (dismissedPlanId === planKey) {
-    return null;
-  }
-
-  return (
-    <div
-      className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--multi-composer-plan-tray-radius) bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
-        props.compact ? "mx-auto w-full" : "",
-      )}
-      data-testid="plan-tray"
-      data-visible="true"
-      style={{ transformOrigin: "bottom left" }}
-    >
-      <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="text-caption font-medium text-multi-fg-tertiary">Review Plan</div>
-          <div className="truncate text-detail font-medium text-multi-fg-primary" title={title}>
-            {title}
-          </div>
-        </div>
-        <button
-          type="button"
-          className="flex size-6 shrink-0 items-center justify-center rounded-multi-control bg-multi-bg-quinary text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-          aria-label="Dismiss plan"
-          title="Dismiss plan"
-          onClick={() => setDismissedPlanId(planKey)}
-        >
-          <IconCrossSmall className="size-3" aria-hidden />
-        </button>
-      </div>
-
-      {previewMarkdown ? (
-        <div className="plan-tray__description relative px-3 pb-2">
-          <div className="plan-tray__markdown">
-            <ChatMarkdown text={previewMarkdown} cwd={props.gitCwd} />
-          </div>
-        </div>
-      ) : null}
-
-      <div className="flex min-h-9 min-w-0 items-center justify-between gap-2.5 px-2.5 py-1.5">
-        {showViewPlan ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={PLAN_FOLLOW_UP_SECONDARY_BUTTON_CLASS}
-            onClick={props.onViewPlan}
-          >
-            <IconEyeOpen aria-hidden />
-            <span>View Plan</span>
-          </Button>
-        ) : (
-          <span className="h-6 min-w-0" aria-hidden />
-        )}
-        <Button
-          type="button"
-          variant="default"
-          size="sm"
-          className={PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS}
-          disabled={props.isBuilding || !props.onBuildPlan}
-          aria-label="Build plan"
-          title="Build plan"
-          onClick={props.onBuildPlan}
-        >
-          <IconArrowUp aria-hidden />
-          <span>{props.isBuilding ? "Building..." : "Build"}</span>
-        </Button>
-      </div>
-    </div>
   );
 });
 
@@ -603,20 +532,6 @@ function mapComposerTriggerDismissalThroughPromptChange(
     return null;
   }
   return dismissal;
-}
-
-function ComposerPromptCursorClampSync({
-  prompt,
-  setComposerCursor,
-}: {
-  prompt: string;
-  setComposerCursor: Dispatch<SetStateAction<number>>;
-}) {
-  useMountEffect(() => {
-    setComposerCursor((existing) => clampCollapsedComposerCursor(prompt, existing));
-  });
-
-  return null;
 }
 
 function ComposerMenuHighlightSync({
@@ -1007,7 +922,7 @@ const PrimaryActionControls = memo(function PrimaryActionControls(props: {
       <Button
         type="submit"
         size="sm"
-        className={PLAN_FOLLOW_UP_PRIMARY_BUTTON_CLASS}
+        className="bg-(--cursor-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] [&_svg]:size-3.5"
         disabled={props.isSendBusy || props.isConnecting}
         aria-label="Refine plan"
         title="Refine plan"
@@ -1086,6 +1001,7 @@ const ComposerFooter = memo(function ComposerFooter(props: {
   };
   providerModelPicker: ReactNode;
   providerTraitsPicker: ReactNode;
+  interactionModeChip: ReactNode;
   secondaryAction?: ReactNode | undefined;
   onAdvancePendingQuestion: () => void;
   onInterrupt: () => void;
@@ -1146,6 +1062,10 @@ const ComposerFooter = memo(function ComposerFooter(props: {
               </>
             ) : null}
           </span>
+        ) : null}
+
+        {props.interactionModeChip ? (
+          <span className="inline-flex shrink-0">{props.interactionModeChip}</span>
         ) : null}
       </div>
 
@@ -1299,7 +1219,14 @@ export const ComposerInput = memo(
     // Store subscriptions (prompt / images)
     // ------------------------------------------------------------------
     const composerDraft = useComposerThreadDraft(composerDraftTarget);
-    const prompt = composerDraft.prompt;
+    const draftPrompt = composerDraft.prompt;
+    const composerDraftTargetKeyValue = composerDraftTargetKey(composerDraftTarget);
+    const [livePrompt, setLivePrompt] = useState(draftPrompt);
+    const [editorSyncState, setEditorSyncState] = useState(() => ({
+      value: draftPrompt,
+      cursor: collapseExpandedComposerCursor(draftPrompt, draftPrompt.length),
+      syncRevision: 0,
+    }));
     const composerImages = composerDraft.images;
     const nonPersistedComposerImageIds = composerDraft.nonPersistedImageIds;
 
@@ -1326,7 +1253,7 @@ export const ComposerInput = memo(
       visibleContextWindow,
     } = useComposerModelState({
       composerDraft,
-      prompt,
+      prompt: livePrompt,
       providerStatuses,
       settings,
       activeThread,
@@ -1339,7 +1266,7 @@ export const ComposerInput = memo(
     // Composer-local state
     // ------------------------------------------------------------------
     const [composerCursor, setComposerCursor] = useState(() =>
-      collapseExpandedComposerCursor(prompt, prompt.length),
+      collapseExpandedComposerCursor(draftPrompt, draftPrompt.length),
     );
     const [composerTrigger, setComposerTrigger] = useState<ComposerTrigger | null>(null);
     const [composerHighlightedItemId, setComposerHighlightedItemId] = useState<string | null>(null);
@@ -1367,8 +1294,76 @@ export const ComposerInput = memo(
     const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
     const activeComposerMenuItemRef = useRef<ComposerCommandItem | null>(null);
     const suppressInitialComposerTriggerDetectionRef = useRef(true);
-    const initialComposerTriggerSuppressionPromptRef = useRef(prompt);
+    const initialComposerTriggerSuppressionPromptRef = useRef(draftPrompt);
     const dismissedComposerTriggerRef = useRef<ComposerTriggerDismissal | null>(null);
+    const composerDraftTargetRef = useRef(composerDraftTarget);
+    const composerDraftTargetKeyRef = useRef(composerDraftTargetKeyValue);
+    const committedPromptRef = useRef(draftPrompt);
+    const committedPromptTargetKeyRef = useRef(composerDraftTargetKeyValue);
+    const pendingPromptCommitRef = useRef<{
+      target: ComposerDraftTarget;
+      targetKey: string;
+      prompt: string;
+    } | null>(null);
+    const promptCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    composerDraftTargetRef.current = composerDraftTarget;
+    composerDraftTargetKeyRef.current = composerDraftTargetKeyValue;
+
+    const clearPromptCommitTimer = useCallback(() => {
+      const timer = promptCommitTimerRef.current;
+      if (timer === null) {
+        return;
+      }
+      clearTimeout(timer);
+      promptCommitTimerRef.current = null;
+    }, []);
+
+    const flushPromptCommit = useCallback(() => {
+      clearPromptCommitTimer();
+      const pending = pendingPromptCommitRef.current;
+      if (!pending) {
+        return;
+      }
+      pendingPromptCommitRef.current = null;
+      if (
+        pending.targetKey === committedPromptTargetKeyRef.current &&
+        pending.prompt === committedPromptRef.current
+      ) {
+        return;
+      }
+      committedPromptRef.current = pending.prompt;
+      committedPromptTargetKeyRef.current = pending.targetKey;
+      setComposerDraftPrompt(pending.target, pending.prompt);
+    }, [clearPromptCommitTimer, setComposerDraftPrompt]);
+
+    const schedulePromptCommit = useCallback(
+      (nextPrompt: string) => {
+        pendingPromptCommitRef.current = {
+          target: composerDraftTargetRef.current,
+          targetKey: composerDraftTargetKeyRef.current,
+          prompt: nextPrompt,
+        };
+        clearPromptCommitTimer();
+        promptCommitTimerRef.current = setTimeout(
+          flushPromptCommit,
+          COMPOSER_PROMPT_DRAFT_COMMIT_DEBOUNCE_MS,
+        );
+      },
+      [clearPromptCommitTimer, flushPromptCommit],
+    );
+
+    const syncEditorToPrompt = useCallback((nextPrompt: string, nextCursor?: number) => {
+      setEditorSyncState((previous) => {
+        const cursor = clampCollapsedComposerCursor(
+          nextPrompt,
+          nextCursor ?? nextPrompt.length,
+        );
+        if (previous.value === nextPrompt && previous.cursor === cursor) {
+          return previous;
+        }
+        return nextPromptSyncState(nextPrompt, cursor, previous.syncRevision);
+      });
+    }, []);
 
     const focusComposer = useCallback(() => {
       composerEditorRef.current?.focusAtEnd();
@@ -1426,10 +1421,10 @@ export const ComposerInput = memo(
     const composerSendState = useMemo(
       () =>
         deriveComposerSendState({
-          prompt,
+          prompt: livePrompt,
           imageCount: composerImages.length,
         }),
-      [composerImages.length, prompt],
+      [composerImages.length, livePrompt],
     );
 
     // ------------------------------------------------------------------
@@ -1510,7 +1505,53 @@ export const ComposerInput = memo(
       hasQueuedComposerItems && !isEditingQueuedComposerItem && !queuedComposerActionsBusy;
     const hasComposerHeader = isComposerApprovalState || pendingUserInputs.length > 0;
 
-    const promptHasExplicitLineBreak = prompt.includes("\n");
+    useLayoutSyncEffect(() => {
+      if (!isComposerApprovalState && !activePendingProgress) {
+        committedPromptRef.current = draftPrompt;
+        committedPromptTargetKeyRef.current = composerDraftTargetKeyValue;
+      }
+      const nextPrompt = isComposerApprovalState
+        ? ""
+        : activePendingProgress
+          ? activePendingProgress.customAnswer
+          : draftPrompt;
+      if (nextPrompt === promptRef.current) {
+        return;
+      }
+      const nextCursor = collapseExpandedComposerCursor(nextPrompt, nextPrompt.length);
+      promptRef.current = nextPrompt;
+      setLivePrompt((current) => (current === nextPrompt ? current : nextPrompt));
+      syncEditorToPrompt(nextPrompt, nextCursor);
+      setComposerCursor(nextCursor);
+      setComposerTrigger(resolveComposerTrigger(nextPrompt, nextPrompt.length));
+      setComposerHighlightedItemId(null);
+    }, [
+      activePendingProgress?.customAnswer,
+      composerDraftTargetKeyValue,
+      draftPrompt,
+      isComposerApprovalState,
+      promptRef,
+      resolveComposerTrigger,
+      syncEditorToPrompt,
+    ]);
+
+    useEffect(() => {
+      return () => {
+        flushPromptCommit();
+      };
+    }, [composerDraftTargetKeyValue, flushPromptCommit]);
+
+    useEffect(() => {
+      if (typeof window === "undefined" || typeof window.addEventListener !== "function") {
+        return;
+      }
+      window.addEventListener("beforeunload", flushPromptCommit);
+      return () => {
+        window.removeEventListener("beforeunload", flushPromptCommit);
+      };
+    }, [flushPromptCommit]);
+
+    const promptHasExplicitLineBreak = livePrompt.includes("\n");
     const isDockComposerExpanded =
       composerVariant === "compact" &&
       (isInlineEditComposer ||
@@ -1541,16 +1582,18 @@ export const ComposerInput = memo(
       pendingUserInputs.length === 0 &&
       showPlanFollowUpPrompt &&
       activeProposedPlan !== null;
-    const subagentPreviewVisible = !isInlineEditComposer;
+    const subagentTrayVisible =
+      !isInlineEditComposer && (composerVariant !== "compact" || isDockComposerExpanded);
 
     // ------------------------------------------------------------------
     // Prompt helpers
     // ------------------------------------------------------------------
     const setPrompt = useCallback(
       (nextPrompt: string) => {
-        setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+        setLivePrompt((current) => (current === nextPrompt ? current : nextPrompt));
+        schedulePromptCommit(nextPrompt);
       },
-      [composerDraftTarget, setComposerDraftPrompt],
+      [schedulePromptCommit],
     );
 
     const applyPromptReplacement = useCallback(
@@ -1578,6 +1621,8 @@ export const ComposerInput = memo(
           next.text,
         );
         promptRef.current = next.text;
+        setLivePrompt((current) => (current === next.text ? current : next.text));
+        syncEditorToPrompt(next.text, nextCursor);
         const activePendingQuestion = activePendingProgress?.activeQuestion;
         if (activePendingQuestion && activePendingUserInput) {
           handleChangeActivePendingUserInputCustomAnswer(
@@ -1592,6 +1637,11 @@ export const ComposerInput = memo(
         }
         setComposerCursor(nextCursor);
         setComposerTrigger(resolveComposerTrigger(next.text, nextExpandedCursor));
+        if (next.text.includes("\n")) {
+          setIsComposerEditorMultiline(true);
+        } else if (next.text.trim().length === 0) {
+          setIsComposerEditorMultiline(false);
+        }
         if (options?.focusEditorAfterReplace !== false) {
           window.requestAnimationFrame(() => {
             composerEditorRef.current?.focusAt(nextCursor);
@@ -1606,6 +1656,7 @@ export const ComposerInput = memo(
         promptRef,
         resolveComposerTrigger,
         setPrompt,
+        syncEditorToPrompt,
       ],
     );
 
@@ -1624,18 +1675,20 @@ export const ComposerInput = memo(
           nextPrompt,
         );
         promptRef.current = nextPrompt;
-        setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+        setLivePrompt((current) => (current === nextPrompt ? current : nextPrompt));
+        syncEditorToPrompt(nextPrompt);
+        schedulePromptCommit(nextPrompt);
         const nextCursor = collapseExpandedComposerCursor(nextPrompt, nextPrompt.length);
         setComposerCursor(nextCursor);
         setComposerTrigger(resolveComposerTrigger(nextPrompt, nextPrompt.length));
         scheduleComposerFocus();
       },
       [
-        composerDraftTarget,
         promptRef,
         resolveComposerTrigger,
         scheduleComposerFocus,
-        setComposerDraftPrompt,
+        schedulePromptCommit,
+        syncEditorToPrompt,
       ],
     );
 
@@ -1646,7 +1699,7 @@ export const ComposerInput = memo(
       model: instanceCoherentSelectedModel,
       models: selectedProviderModels,
       modelOptions: modelOptionSelectionsByInstance?.[selectedInstanceId],
-      prompt,
+      prompt: livePrompt,
       onPromptChange: setPromptFromTraits,
     };
 
@@ -1665,7 +1718,7 @@ export const ComposerInput = memo(
       model: instanceCoherentSelectedModel,
       models: selectedProviderModels,
       modelOptions: modelOptionSelectionsByInstance?.[selectedInstanceId],
-      prompt,
+      prompt: livePrompt,
       onPromptChange: setPromptFromTraits,
     });
     const pendingPrimaryAction = useMemo(
@@ -1685,7 +1738,6 @@ export const ComposerInput = memo(
     // ------------------------------------------------------------------
     // Sync refs back to parent
     // ------------------------------------------------------------------
-    promptRef.current = prompt;
     composerImagesRef.current = composerImages;
 
     const lastSyncedPendingInputRef = useRef<{
@@ -1703,9 +1755,10 @@ export const ComposerInput = memo(
         expandedCursor: number,
         cursorAdjacentToMention: boolean,
       ) => {
+        const previousPrompt = promptRef.current;
         dismissedComposerTriggerRef.current = mapComposerTriggerDismissalThroughPromptChange(
           dismissedComposerTriggerRef.current,
-          promptRef.current,
+          previousPrompt,
           nextPrompt,
         );
         if (activePendingProgress?.activeQuestion && pendingUserInputs.length > 0) {
@@ -1729,7 +1782,9 @@ export const ComposerInput = memo(
           return;
         }
         promptRef.current = nextPrompt;
-        setPrompt(nextPrompt);
+        if (nextPrompt !== previousPrompt) {
+          setPrompt(nextPrompt);
+        }
         setComposerCursor(nextCursor);
         setComposerTrigger(
           cursorAdjacentToMention ? null : resolveComposerTrigger(nextPrompt, expandedCursor),
@@ -1800,11 +1855,6 @@ export const ComposerInput = memo(
     const pendingInputRequestId = activePendingUserInput?.requestId ?? null;
     const lifecycleSync = (
       <>
-        <ComposerPromptCursorClampSync
-          key={`prompt:${prompt}`}
-          prompt={prompt}
-          setComposerCursor={setComposerCursor}
-        />
         <ComposerMenuHighlightSync
           key={[composerMenuOpen, activeComposerMenuItemId ?? "", composerMenuSearchKey ?? ""].join(
             "\0",
@@ -1895,10 +1945,16 @@ export const ComposerInput = memo(
         }
         if (item.type === "slash-command") {
           if (item.command === "model") {
-            const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
-              expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
-              focusEditorAfterReplace: false,
-            });
+            const removalRange = slashCommandRemovalRange(snapshot.value, trigger);
+            const applied = applyPromptReplacement(
+              removalRange.rangeStart,
+              removalRange.rangeEnd,
+              "",
+              {
+                expectedText: snapshot.value.slice(removalRange.rangeStart, removalRange.rangeEnd),
+                focusEditorAfterReplace: false,
+              },
+            );
             if (applied) {
               clearComposerCommandMenuState();
               setModelPickerOpenSearchSeed(undefined);
@@ -1909,9 +1965,15 @@ export const ComposerInput = memo(
           const nextMode = parseInteractionMode(item.command);
           if (!nextMode) return;
           void handleInteractionModeChange(nextMode);
-          const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
-            expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
-          });
+          const removalRange = slashCommandRemovalRange(snapshot.value, trigger);
+          const applied = applyPromptReplacement(
+            removalRange.rangeStart,
+            removalRange.rangeEnd,
+            "",
+            {
+              expectedText: snapshot.value.slice(removalRange.rangeStart, removalRange.rangeEnd),
+            },
+          );
           if (applied) {
             clearComposerCommandMenuState();
           }
@@ -2035,6 +2097,7 @@ export const ComposerInput = memo(
         context: { terminalOpen, composerFocus: true },
       });
       if (command === "composer.send") {
+        flushPromptCommit();
         void onSend();
         return true;
       }
@@ -2052,6 +2115,25 @@ export const ComposerInput = memo(
     const handleInterruptPrimaryAction = useCallback(() => {
       void onInterrupt();
     }, [onInterrupt]);
+
+    const handleComposerSubmit = useCallback(
+      (event?: { preventDefault: () => void }) => {
+        flushPromptCommit();
+        onSend(event);
+      },
+      [flushPromptCommit, onSend],
+    );
+
+    const handleComposerBlurCapture = useCallback(
+      (event: FocusEvent<HTMLFormElement>) => {
+        const nextTarget = event.relatedTarget;
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+          return;
+        }
+        flushPromptCommit();
+      },
+      [flushPromptCommit],
+    );
     // ------------------------------------------------------------------
     // Imperative handle
     // ------------------------------------------------------------------
@@ -2083,6 +2165,11 @@ export const ComposerInput = memo(
         }) => {
           const promptForState = options?.prompt ?? promptRef.current;
           const cursor = clampCollapsedComposerCursor(promptForState, options?.cursor ?? 0);
+          if (options?.prompt !== undefined) {
+            promptRef.current = promptForState;
+            setLivePrompt((current) => (current === promptForState ? current : promptForState));
+          }
+          syncEditorToPrompt(promptForState, cursor);
           setComposerHighlightedItemId(null);
           setComposerCursor(cursor);
           setComposerTrigger(
@@ -2095,6 +2182,7 @@ export const ComposerInput = memo(
           );
         },
         getSendContext: () => {
+          flushPromptCommit();
           const submitData = composerEditorRef.current?.getSubmitData();
           const promptForSend = submitData?.text ?? promptRef.current;
           return {
@@ -2115,9 +2203,11 @@ export const ComposerInput = memo(
       [
         promptRef,
         composerImagesRef,
+        flushPromptCommit,
         isComposerModelPickerOpen,
         readComposerSnapshot,
         resolveComposerTrigger,
+        syncEditorToPrompt,
         instanceCoherentSelectedModel,
         selectedModelSelection,
         selectedPromptEffort,
@@ -2198,7 +2288,8 @@ export const ComposerInput = memo(
     return (
       <form
         ref={composerFormRef}
-        onSubmit={onSend}
+        onSubmit={handleComposerSubmit}
+        onBlurCapture={handleComposerBlurCapture}
         className={cn("w-full min-w-0", !isInlineEditComposer && "mx-auto max-w-agent-chat")}
         data-variant={composerVariant}
         data-layout={layout}
@@ -2226,10 +2317,10 @@ export const ComposerInput = memo(
               onViewPlan={onViewPlan}
             />
           ) : null}
-          <SubagentPreviewTrayStack
+          <SubagentTrayStack
             activeThreadId={activeThreadId}
             compact={composerVariant === "compact"}
-            visible={subagentPreviewVisible}
+            visible={subagentTrayVisible}
           />
           {showQueuedComposerPanel ? (
             <QueuedComposerItemsPanel
@@ -2319,17 +2410,6 @@ export const ComposerInput = memo(
               {isEditingQueuedComposerItem ? (
                 <QueuedComposerEditBanner onCancelEdit={handleCancelEditingQueuedComposerItem} />
               ) : null}
-              {composerInteractionModeChip ? (
-                <div
-                  className={cn(
-                    "min-w-0 shrink-0",
-                    isDockComposerSingleLine ? "contents" : "flex px-3 pt-2",
-                    composerShellMode === "new-agent" && "px-0 pt-0",
-                  )}
-                >
-                  {composerInteractionModeChip}
-                </div>
-              ) : null}
               <div
                 className={cn(
                   "relative min-w-0 cursor-text select-text",
@@ -2353,14 +2433,9 @@ export const ComposerInput = memo(
 
                 <ComposerPromptEditor
                   ref={composerEditorRef}
-                  value={
-                    isComposerApprovalState
-                      ? ""
-                      : activePendingProgress
-                        ? activePendingProgress.customAnswer
-                        : prompt
-                  }
-                  cursor={composerCursor}
+                  value={editorSyncState.value}
+                  cursor={editorSyncState.cursor}
+                  syncRevision={editorSyncState.syncRevision}
                   skills={selectedProviderStatus?.skills ?? []}
                   caretAnchorRef={composerMenuAnchorRef}
                   commandMenuOpen={composerMenuOpen && !isComposerApprovalState}
@@ -2416,6 +2491,7 @@ export const ComposerInput = memo(
                   inlineEdit={isInlineEditComposer}
                   isDockComposerExpanded={isDockComposerExpanded}
                   providerModelPicker={providerModelPicker}
+                  interactionModeChip={composerInteractionModeChip}
                   compactControlsMenu={compactControlsMenu}
                   providerTraitsPicker={providerTraitsPicker}
                   secondaryAction={footerSecondaryAction}
@@ -2425,7 +2501,7 @@ export const ComposerInput = memo(
                     showPlanFollowUpPrompt:
                       pendingUserInputs.length === 0 &&
                       showPlanFollowUpPrompt &&
-                      prompt.trim().length > 0 &&
+                      livePrompt.trim().length > 0 &&
                       !isEditingQueuedComposerItem,
                     isSendBusy,
                     isConnecting,

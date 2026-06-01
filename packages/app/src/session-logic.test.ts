@@ -14,7 +14,6 @@ import {
   PROVIDER_OPTIONS,
   derivePendingApprovals,
   derivePendingUserInputs,
-  deriveTimelineEntries,
   deriveWorkLogEntries,
   findLatestProposedPlan,
   findSidebarProposedPlan,
@@ -872,32 +871,10 @@ describe("deriveWorkLogEntries", () => {
         summary: "Tool call complete",
         kind: "tool.completed",
       }),
-      makeActivity({ id: "no-turn", summary: "Checkpoint captured", tone: "info" }),
     ];
 
     const entries = deriveWorkLogEntries(activities, TurnId.make("turn-2"));
     expect(entries.map((entry) => entry.id)).toEqual(["turn-2"]);
-  });
-
-  it("omits checkpoint captured info entries", () => {
-    const activities: OrchestrationThreadActivity[] = [
-      makeActivity({
-        id: "checkpoint",
-        createdAt: "2026-02-23T00:00:01.000Z",
-        summary: "Checkpoint captured",
-        tone: "info",
-      }),
-      makeActivity({
-        id: "tool-complete",
-        createdAt: "2026-02-23T00:00:02.000Z",
-        summary: "Ran command",
-        tone: "tool",
-        kind: "tool.completed",
-      }),
-    ];
-
-    const entries = deriveWorkLogEntries(activities, undefined);
-    expect(entries.map((entry) => entry.id)).toEqual(["tool-complete"]);
   });
 
   it("omits ExitPlanMode lifecycle entries once the plan card is shown", () => {
@@ -2669,53 +2646,6 @@ describe("deriveWorkLogEntries", () => {
   });
 });
 
-describe("deriveTimelineEntries", () => {
-  it("includes proposed plans alongside messages and work entries in chronological order", () => {
-    const entries = deriveTimelineEntries(
-      [
-        {
-          id: MessageId.make("message-1"),
-          role: "assistant",
-          text: "hello",
-          createdAt: "2026-02-23T00:00:01.000Z",
-          streaming: false,
-        },
-      ],
-      [
-        {
-          id: "plan:thread-1:turn:turn-1",
-          turnId: TurnId.make("turn-1"),
-          planMarkdown: "# Ship it",
-          implementedAt: null,
-          implementationThreadId: null,
-          createdAt: "2026-02-23T00:00:02.000Z",
-          updatedAt: "2026-02-23T00:00:02.000Z",
-        },
-      ],
-      [
-        {
-          id: "work-1",
-          toolCallId: "shared-tool-call",
-          createdAt: "2026-02-23T00:00:03.000Z",
-          label: "Ran tests",
-          tone: "tool",
-        },
-      ],
-    );
-
-    expect(entries.map((entry) => entry.kind)).toEqual(["message", "proposed-plan", "work"]);
-    expect(entries[2]?.id).toBe("work:work-1");
-    expect(entries[1]).toMatchObject({
-      kind: "proposed-plan",
-      proposedPlan: {
-        planMarkdown: "# Ship it",
-        implementedAt: null,
-        implementationThreadId: null,
-      },
-    });
-  });
-});
-
 describe("deriveWorkLogEntries context window handling", () => {
   it("excludes context window updates from the work log", () => {
     const entries = deriveWorkLogEntries(
@@ -2903,17 +2833,20 @@ describe("deriveActiveWorkStartedAt", () => {
 });
 
 describe("PROVIDER_OPTIONS", () => {
-  it("advertises the canonical provider list with Pi pending", () => {
+  it("advertises the canonical provider list", () => {
+    const codex = PROVIDER_OPTIONS.find((option) => option.value === "codex");
     const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeAgent");
     const cursor = PROVIDER_OPTIONS.find((option) => option.value === "cursor");
-    const pi = PROVIDER_OPTIONS.find((option) => option.value === "pi");
     expect(PROVIDER_OPTIONS).toEqual([
       { value: "codex", label: "Codex", available: true },
       { value: "claudeAgent", label: "Claude", available: true },
-      { value: "opencode", label: "OpenCode", available: true },
       { value: "cursor", label: "Cursor", available: true },
-      { value: "pi", label: "Pi", available: false },
     ]);
+    expect(codex).toEqual({
+      value: "codex",
+      label: "Codex",
+      available: true,
+    });
     expect(claude).toEqual({
       value: "claudeAgent",
       label: "Claude",
@@ -2923,11 +2856,6 @@ describe("PROVIDER_OPTIONS", () => {
       value: "cursor",
       label: "Cursor",
       available: true,
-    });
-    expect(pi).toEqual({
-      value: "pi",
-      label: "Pi",
-      available: false,
     });
   });
 });

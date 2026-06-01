@@ -6,16 +6,16 @@ import { describe, expect, it } from "vitest";
 import { resolveAppProviderModelState } from "./selection";
 
 const CODEX_INSTANCE_ID = ProviderInstanceId.make("codex");
-const CLAUDE_INSTANCE_ID = ProviderInstanceId.make("claudeAgent");
+const CURSOR_INSTANCE_ID = ProviderInstanceId.make("cursor");
 
 function provider(input: {
-  readonly driver: string;
+  readonly driver: ProviderDriverKind;
   readonly instanceId: ProviderInstanceId;
   readonly displayName: string;
   readonly models: ServerProvider["models"];
 }): ServerProvider {
   return {
-    driver: ProviderDriverKind.make(input.driver),
+    driver: input.driver,
     instanceId: input.instanceId,
     displayName: input.displayName,
     enabled: true,
@@ -32,7 +32,7 @@ function provider(input: {
 
 const PROVIDERS: ReadonlyArray<ServerProvider> = [
   provider({
-    driver: "codex",
+    driver: ProviderDriverKind.make("codex"),
     instanceId: CODEX_INSTANCE_ID,
     displayName: "Codex",
     models: [
@@ -67,13 +67,13 @@ const PROVIDERS: ReadonlyArray<ServerProvider> = [
     ],
   }),
   provider({
-    driver: "claudeAgent",
-    instanceId: CLAUDE_INSTANCE_ID,
-    displayName: "Claude",
+    driver: ProviderDriverKind.make("cursor"),
+    instanceId: CURSOR_INSTANCE_ID,
+    displayName: "Cursor",
     models: [
       {
-        slug: "claude-opus-4-6",
-        name: "Claude Opus 4.6",
+        slug: "composer-1",
+        name: "Composer 1",
         isCustom: false,
         capabilities: createModelCapabilities({
           optionDescriptors: [],
@@ -134,7 +134,7 @@ describe("resolveAppProviderModelState", () => {
       settings: DEFAULT_UNIFIED_SETTINGS,
       providers: [
         provider({
-          driver: "codex",
+          driver: ProviderDriverKind.make("codex"),
           instanceId: CODEX_INSTANCE_ID,
           displayName: "Codex",
           models: [],

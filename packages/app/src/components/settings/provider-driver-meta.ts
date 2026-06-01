@@ -1,9 +1,7 @@
 import {
   ClaudeSettings,
   CodexSettings,
-  CursorSdkSettings,
   CursorSettings,
-  OpenCodeSettings,
   ProviderDriverKind,
 } from "@multi/contracts";
 import type { Schema } from "effect";
@@ -11,7 +9,6 @@ import {
   IconClaudeai,
   IconCursor,
   IconOpenaiCodex,
-  IconOpencode,
   type CentralIconBaseProps,
 } from "central-icons";
 import type { ComponentType } from "react";
@@ -51,23 +48,10 @@ export const DRIVER_OPTIONS: readonly DriverOption[] = [
     settingsSchema: ClaudeSettings,
   },
   {
-    value: ProviderDriverKind.make("opencode"),
-    label: "OpenCode",
-    icon: IconOpencode,
-    settingsSchema: OpenCodeSettings,
-  },
-  {
     value: ProviderDriverKind.make("cursor"),
     label: "Cursor",
     icon: IconCursor,
     settingsSchema: CursorSettings,
-  },
-  {
-    value: ProviderDriverKind.make("cursorSdk"),
-    label: "Cursor SDK",
-    icon: IconCursor,
-    settingsSchema: CursorSdkSettings,
-    badgeLabel: "SDK",
   },
 ];
 

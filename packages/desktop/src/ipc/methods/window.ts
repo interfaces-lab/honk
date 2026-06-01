@@ -156,6 +156,10 @@ function getMacWindowBackgroundColor(shouldUseDarkColors: boolean): string {
   return shouldUseDarkColors ? "#161616" : "#ffffff";
 }
 
+function getMacGlassWindowBackgroundColor(shouldUseDarkColors: boolean): string {
+  return shouldUseDarkColors ? "#40000000" : "#00FFFFFF";
+}
+
 export const setVibrancy = makeIpcMethod({
   channel: IpcChannels.SET_VIBRANCY_CHANNEL,
   payload: Schema.Boolean,
@@ -173,10 +177,14 @@ export const setVibrancy = makeIpcMethod({
     }
 
     const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
-    window.value.setVibrancy(enabled ? "sidebar" : null);
-    window.value.setBackgroundColor(
-      enabled ? "#00000000" : getMacWindowBackgroundColor(shouldUseDarkColors),
-    );
+    if (enabled) {
+      window.value.setBackgroundColor(getMacGlassWindowBackgroundColor(shouldUseDarkColors));
+      window.value.setVibrancy("sidebar");
+      return;
+    }
+
+    window.value.setVibrancy(null);
+    window.value.setBackgroundColor(getMacWindowBackgroundColor(shouldUseDarkColors));
   }),
 });
 

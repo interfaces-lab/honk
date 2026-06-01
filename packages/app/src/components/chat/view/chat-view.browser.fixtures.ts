@@ -3,6 +3,7 @@ import {
   EnvironmentId,
   EventId,
   OrchestrationSessionStatus,
+  type OrchestrationChatTimelineRow,
   ProviderDriverKind,
   ProviderInstanceId,
   threadEntryIdForMessageId,
@@ -157,6 +158,40 @@ export function createAssistantMessage(options: {
     updatedAt: isoAt(options.offsetSeconds + 1),
   };
 }
+
+function buildCanonicalChatTimelineRows(input: {
+  messages: OrchestrationReadModel["threads"][number]["messages"];
+  entries: OrchestrationReadModel["threads"][number]["entries"];
+  proposedPlans: OrchestrationReadModel["threads"][number]["proposedPlans"];
+}): OrchestrationChatTimelineRow[] {
+  const entryIdByMessageId = new Map(
+    input.entries.flatMap((entry) =>
+      entry.kind === "message" && entry.messageId !== null
+        ? [[entry.messageId, entry.id] as const]
+        : [],
+    ),
+  );
+  return [
+    ...input.messages.map((message) => ({
+      kind: "message" as const,
+      id: `message:${message.id}`,
+      orderKey: `${message.createdAt}:message:${message.id}`,
+      createdAt: message.createdAt,
+      messageId: message.id,
+      turnId: message.turnId,
+      entryId: entryIdByMessageId.get(message.id) ?? null,
+    })),
+    ...input.proposedPlans.map((proposedPlan) => ({
+      kind: "proposed-plan" as const,
+      id: `proposed-plan:${proposedPlan.id}`,
+      orderKey: `${proposedPlan.createdAt}:proposed-plan:${proposedPlan.id}`,
+      createdAt: proposedPlan.createdAt,
+      planId: proposedPlan.id,
+      turnId: proposedPlan.turnId,
+    })),
+  ].toSorted((left, right) => left.orderKey.localeCompare(right.orderKey));
+}
+
 export function createSnapshotForTargetUser(options: {
   targetMessageId: MessageId;
   targetText: string;
@@ -166,7 +201,7 @@ export function createSnapshotForTargetUser(options: {
   const messages: Array<OrchestrationReadModel["threads"][number]["messages"][number]> = [];
   const entries: Array<OrchestrationReadModel["threads"][number]["entries"][number]> = [];
   let parentEntryId: ThreadEntryId | null = null;
-  let targetActiveEntryId: ThreadEntryId | null = null;
+  let targetLeafId: ThreadEntryId | null = null;
   const targetIndex = 3;
   for (let index = 0; index < 22; index += 1) {
     const isTarget = index === targetIndex;
@@ -199,9 +234,6 @@ export function createSnapshotForTargetUser(options: {
       kind: "message",
       messageId,
       turnId: userMessage.turnId,
-      targetEntryId: null,
-      label: null,
-      summary: null,
       createdAt: userMessage.createdAt,
     });
     parentEntryId = userEntryId;
@@ -220,16 +252,19 @@ export function createSnapshotForTargetUser(options: {
       kind: "message",
       messageId: assistantId,
       turnId: assistantMessage.turnId,
-      targetEntryId: null,
-      label: null,
-      summary: null,
       createdAt: assistantMessage.createdAt,
     });
     parentEntryId = assistantEntryId;
     if (isTarget) {
-      targetActiveEntryId = assistantEntryId;
+      targetLeafId = assistantEntryId;
     }
   }
+  const proposedPlans: OrchestrationReadModel["threads"][number]["proposedPlans"] = [];
+  const chatTimelineRows = buildCanonicalChatTimelineRows({
+    messages,
+    entries,
+    proposedPlans,
+  });
   return {
     snapshotSequence: 1,
     projects: [
@@ -266,11 +301,11 @@ export function createSnapshotForTargetUser(options: {
         archivedAt: null,
         deletedAt: null,
         messages,
-        activeEntryId: targetActiveEntryId ?? parentEntryId,
+        leafId: targetLeafId ?? parentEntryId,
         entries,
         activities: [],
-        proposedPlans: [],
-        checkpoints: [],
+        chatTimelineRows,
+        proposedPlans,
         session: {
           threadId: THREAD_ID,
           status: options.sessionStatus ?? "ready",
@@ -331,11 +366,11 @@ export function addThreadToSnapshot(
         archivedAt: null,
         deletedAt: null,
         messages: [],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         activities: [],
+        chatTimelineRows: [],
         proposedPlans: [],
-        checkpoints: [],
         session: {
           threadId,
           status: "ready",
@@ -467,6 +502,19 @@ export function withProjectScripts(
     ),
   };
 }
+
+export function withCanonicalChatTimelineRows(
+  snapshot: OrchestrationReadModel,
+): OrchestrationReadModel {
+  return {
+    ...snapshot,
+    threads: snapshot.threads.map((thread) => ({
+      ...thread,
+      chatTimelineRows: buildCanonicalChatTimelineRows(thread),
+    })),
+  };
+}
+
 export function setDraftThreadWithoutWorktree(): void {
   useComposerDraftStore.setState({
     draftThreadsByThreadKey: {
@@ -523,24 +571,32 @@ export function createSnapshotWithLongProposedPlan(): OrchestrationReadModel {
   ].join("\n");
   return {
     ...snapshot,
-    threads: snapshot.threads.map((thread) =>
-      thread.id === THREAD_ID
-        ? Object.assign({}, thread, {
-            proposedPlans: [
-              {
-                id: "plan-browser-test",
-                turnId: null,
-                planMarkdown,
-                implementedAt: null,
-                implementationThreadId: null,
-                createdAt: isoAt(1_000),
-                updatedAt: isoAt(1_001),
-              },
-            ],
-            updatedAt: isoAt(1_001),
-          })
-        : thread,
-    ),
+    threads: snapshot.threads.map((thread) => {
+      if (thread.id !== THREAD_ID) {
+        return thread;
+      }
+      const proposedPlans: OrchestrationReadModel["threads"][number]["proposedPlans"] = [
+        {
+          id: "plan-browser-test",
+          turnId: null,
+          planMarkdown,
+          implementedAt: null,
+          implementationThreadId: null,
+          createdAt: isoAt(1_000),
+          updatedAt: isoAt(1_001),
+        },
+      ];
+      return {
+        ...thread,
+        proposedPlans,
+        chatTimelineRows: buildCanonicalChatTimelineRows({
+          messages: thread.messages,
+          entries: thread.entries,
+          proposedPlans,
+        }),
+        updatedAt: isoAt(1_001),
+      };
+    }),
   };
 }
 export function createSnapshotWithSecondaryProject(options?: {
@@ -569,11 +625,11 @@ export function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(31),
           deletedAt: null,
           messages: [],
-          activeEntryId: null,
+          leafId: null,
           entries: [],
           activities: [],
+          chatTimelineRows: [],
           proposedPlans: [],
-          checkpoints: [],
           session: {
             threadId: "thread-secondary-project" as ThreadId,
             status: "ready",
@@ -603,11 +659,11 @@ export function createSnapshotWithSecondaryProject(options?: {
           updatedAt: isoAt(25),
           deletedAt: null,
           messages: [],
-          activeEntryId: null,
+          leafId: null,
           entries: [],
           activities: [],
+          chatTimelineRows: [],
           proposedPlans: [],
-          checkpoints: [],
           session: {
             threadId: ARCHIVED_SECONDARY_THREAD_ID,
             status: "ready",
@@ -736,38 +792,49 @@ export function createSnapshotWithPlanFollowUpPrompt(options?: {
     projects: snapshot.projects.map((project) =>
       project.id === PROJECT_ID ? { ...project, defaultModelSelection: modelSelection } : project,
     ),
-    threads: snapshot.threads.map((thread) =>
-      thread.id === THREAD_ID
-        ? Object.assign({}, thread, {
-            modelSelection,
-            interactionMode: "plan",
-            latestTurn: {
-              turnId: "turn-plan-follow-up" as TurnId,
-              state: "completed",
-              requestedAt: isoAt(1_000),
-              startedAt: isoAt(1_001),
-              completedAt: isoAt(1_010),
-              assistantMessageId: null,
-            },
-            proposedPlans: [
-              {
-                id: "plan-follow-up-browser-test",
-                turnId: "turn-plan-follow-up" as TurnId,
-                planMarkdown,
-                implementedAt: null,
-                implementationThreadId: null,
-                createdAt: isoAt(1_002),
-                updatedAt: isoAt(1_003),
+    threads: snapshot.threads.map((thread) => {
+      if (thread.id !== THREAD_ID) {
+        return thread;
+      }
+      const proposedPlans: OrchestrationReadModel["threads"][number]["proposedPlans"] = [
+        {
+          id: "plan-follow-up-browser-test",
+          turnId: "turn-plan-follow-up" as TurnId,
+          planMarkdown,
+          implementedAt: null,
+          implementationThreadId: null,
+          createdAt: isoAt(1_002),
+          updatedAt: isoAt(1_003),
+        },
+      ];
+      return {
+        ...thread,
+        modelSelection,
+        interactionMode: "plan",
+        latestTurn: {
+          turnId: "turn-plan-follow-up" as TurnId,
+          state: "completed",
+          requestedAt: isoAt(1_000),
+          startedAt: isoAt(1_001),
+          completedAt: isoAt(1_010),
+          assistantMessageId: null,
+        },
+        proposedPlans,
+        chatTimelineRows: buildCanonicalChatTimelineRows({
+          messages: thread.messages,
+          entries: thread.entries,
+          proposedPlans,
+        }),
+        session:
+          thread.session === null
+            ? null
+            : {
+                ...thread.session,
+                status: "ready",
+                updatedAt: isoAt(1_010),
               },
-            ],
-            session: {
-              ...thread.session,
-              status: "ready",
-              updatedAt: isoAt(1_010),
-            },
-            updatedAt: isoAt(1_010),
-          })
-        : thread,
-    ),
+        updatedAt: isoAt(1_010),
+      };
+    }),
   };
 }

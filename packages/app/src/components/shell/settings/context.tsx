@@ -3,6 +3,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
+import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
+
 const ShellSettingsContext = createContext<{
   openSettings: () => void;
 } | null>(null);
@@ -10,7 +12,7 @@ const ShellSettingsContext = createContext<{
 export function ShellSettingsProvider(props: { children: ReactNode }) {
   const navigate = useNavigate();
   const openSettings = useCallback(() => {
-    void navigate({ to: "/settings/general" });
+    void navigate({ to: DEFAULT_SETTINGS_ROUTE });
   }, [navigate]);
   const value = useMemo(() => ({ openSettings }), [openSettings]);
   return (

@@ -21,10 +21,8 @@ type SubagentItemLifecycleActivity = Extract<
 >;
 
 /**
- * Coalesce assistant-message streaming bursts so the UI commits one merged
- * `thread.message-sent` per (threadId, messageId) instead of one commit per
- * text delta. Activity bursts with a stable provider key are reduced to the
- * latest visible row state while preserving raw events for side effects.
+ * Activity bursts with a stable provider key are reduced to the latest visible
+ * row state while preserving raw events for side effects.
  */
 export function coalesceOrchestrationUiEvents(
   events: ReadonlyArray<OrchestrationEvent>,
@@ -36,34 +34,6 @@ export function coalesceOrchestrationUiEvents(
   const coalesced: OrchestrationEvent[] = [];
   const activityIndexesByStableKey = new Map<string, number>();
   for (const event of events) {
-    const previous = coalesced.at(-1);
-    if (
-      previous?.type === "thread.message-sent" &&
-      event.type === "thread.message-sent" &&
-      previous.payload.threadId === event.payload.threadId &&
-      previous.payload.messageId === event.payload.messageId &&
-      !(previous.payload.streaming && !event.payload.streaming && event.payload.text.length === 0)
-    ) {
-      coalesced[coalesced.length - 1] = {
-        ...event,
-        payload: {
-          ...event.payload,
-          attachments: event.payload.attachments ?? previous.payload.attachments,
-          ...(event.payload.richText !== undefined
-            ? { richText: event.payload.richText }
-            : previous.payload.richText !== undefined
-              ? { richText: previous.payload.richText }
-              : {}),
-          createdAt: previous.payload.createdAt,
-          text:
-            !event.payload.streaming && event.payload.text.length > 0
-              ? event.payload.text
-              : previous.payload.text + event.payload.text,
-        },
-      };
-      continue;
-    }
-
     if (event.type === "thread.activity-appended") {
       const key = stableActivityUiKey(event);
       if (key) {

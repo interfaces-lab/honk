@@ -82,12 +82,7 @@ export default Effect.gen(function* () {
       requested_at TEXT NOT NULL,
       started_at TEXT,
       completed_at TEXT,
-      checkpoint_turn_count INTEGER,
-      checkpoint_ref TEXT,
-      checkpoint_status TEXT,
-      checkpoint_files_json TEXT NOT NULL,
-      UNIQUE (thread_id, turn_id),
-      UNIQUE (thread_id, checkpoint_turn_count)
+      UNIQUE (thread_id, turn_id)
     )
   `;
 
@@ -139,11 +134,6 @@ export default Effect.gen(function* () {
   yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_turns_thread_requested
     ON projection_turns(thread_id, requested_at)
-  `;
-
-  yield* sql`
-    CREATE INDEX IF NOT EXISTS idx_projection_turns_thread_checkpoint_completed
-    ON projection_turns(thread_id, checkpoint_turn_count, completed_at)
   `;
 
   yield* sql`

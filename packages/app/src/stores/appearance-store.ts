@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import {
+  DEFAULT_APPEARANCE_TINT_HUE,
+  DEFAULT_APPEARANCE_TINT_INTENSITY,
+} from "../lib/appearance-colors";
+import {
   type AppearanceSnapshot,
   readAppearanceSnapshot,
   resetAppearanceSettings,
@@ -17,8 +21,8 @@ import {
 
 export const DEFAULT_APPEARANCE_SNAPSHOT: AppearanceSnapshot = {
   reduceTransparency: false,
-  hue: 247,
-  saturation: 33,
+  hue: DEFAULT_APPEARANCE_TINT_HUE,
+  saturation: DEFAULT_APPEARANCE_TINT_INTENSITY,
   uiFontSize: 13,
   codeFontSize: 12,
   uiFont: "",

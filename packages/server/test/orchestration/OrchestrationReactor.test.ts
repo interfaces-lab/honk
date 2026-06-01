@@ -1,7 +1,6 @@
 import { Effect, Exit, Layer, ManagedRuntime, Scope } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CheckpointReactor } from "../../src/orchestration/CheckpointReactor.service.ts";
 import { ProviderCommandReactor } from "../../src/orchestration/ProviderCommandReactor.service.ts";
 import { ProviderRuntimeIngestionService } from "../../src/orchestration/ProviderRuntimeIngestion.service.ts";
 import { OrchestrationReactor } from "../../src/orchestration/OrchestrationReactor.service.ts";
@@ -17,7 +16,7 @@ describe("OrchestrationReactor", () => {
     runtime = null;
   });
 
-  it("starts provider ingestion, provider command, and checkpoint reactors", async () => {
+  it("starts provider ingestion and provider command reactors", async () => {
     const started: string[] = [];
 
     runtime = ManagedRuntime.make(
@@ -40,15 +39,6 @@ describe("OrchestrationReactor", () => {
             drain: Effect.void,
           }),
         ),
-        Layer.provideMerge(
-          Layer.succeed(CheckpointReactor, {
-            start: () => {
-              started.push("checkpoint-reactor");
-              return Effect.void;
-            },
-            drain: Effect.void,
-          }),
-        ),
       ),
     );
 
@@ -56,11 +46,7 @@ describe("OrchestrationReactor", () => {
     const scope = await Effect.runPromise(Scope.make("sequential"));
     await Effect.runPromise(reactor.start().pipe(Scope.provide(scope)));
 
-    expect(started).toEqual([
-      "provider-runtime-ingestion",
-      "provider-command-reactor",
-      "checkpoint-reactor",
-    ]);
+    expect(started).toEqual(["provider-runtime-ingestion", "provider-command-reactor"]);
 
     await Effect.runPromise(Scope.close(scope, Exit.void));
   });

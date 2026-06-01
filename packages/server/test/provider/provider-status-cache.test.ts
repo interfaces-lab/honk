@@ -37,25 +37,25 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-provider-cache-" });
       const codexProvider = makeProvider("codex");
-      const claudeProvider = makeProvider("claudeAgent", {
+      const cursorProvider = makeProvider("cursor", {
         status: "warning",
         auth: { status: "unknown" },
       });
-      const openCodeProvider = makeProvider("opencode", {
+      const openCodeProvider = makeProvider("cursor", {
         status: "warning",
-        auth: { status: "unknown", type: "opencode" },
+        auth: { status: "unknown", type: "cursor" },
       });
       const codexPath = resolveProviderStatusCachePath({
         cacheDir: tempDir,
         instanceId: "codex",
       });
-      const claudePath = resolveProviderStatusCachePath({
+      const cursorPath = resolveProviderStatusCachePath({
         cacheDir: tempDir,
-        instanceId: "claudeAgent",
+        instanceId: "cursor",
       });
       const openCodePath = resolveProviderStatusCachePath({
         cacheDir: tempDir,
-        instanceId: "opencode",
+        instanceId: "cursor",
       });
 
       yield* writeProviderStatusCache({
@@ -63,8 +63,8 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
         provider: codexProvider,
       });
       yield* writeProviderStatusCache({
-        filePath: claudePath,
-        provider: claudeProvider,
+        filePath: cursorPath,
+        provider: cursorProvider,
       });
       yield* writeProviderStatusCache({
         filePath: openCodePath,
@@ -72,7 +72,7 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
       });
 
       assert.deepStrictEqual(yield* readProviderStatusCache(codexPath), codexProvider);
-      assert.deepStrictEqual(yield* readProviderStatusCache(claudePath), claudeProvider);
+      assert.deepStrictEqual(yield* readProviderStatusCache(cursorPath), cursorProvider);
       assert.deepStrictEqual(yield* readProviderStatusCache(openCodePath), openCodeProvider);
     }),
   );

@@ -4,14 +4,17 @@ import "../../../styles/tokens.css";
 
 import {
   DEFAULT_TERMINAL_ID,
+  EventId,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
   type OrchestrationProposedPlanId,
+  type OrchestrationEvent,
   type ServerConfig,
   type ThreadId,
   WS_METHODS,
   ProviderDriverKind,
   ProviderInstanceId,
+  threadEntryIdForMessageId,
 } from "@multi/contracts";
 import { page } from "vitest/browser";
 import { describe, expect, it, vi } from "vitest";
@@ -57,11 +60,13 @@ import {
   serverThreadPath,
   setDraftThreadWithoutWorktree,
   threadRefFor,
+  withCanonicalChatTimelineRows,
   withProjectScripts,
 } from "./chat-view.browser.fixtures";
 import {
   dispatchChatNewShortcut,
   assertComposerSlashMenuTracksCaret,
+  emitThreadDetailEvent,
   expectComposerActionsContained,
   findButtonByText,
   findComposerProviderModelPicker,
@@ -1158,6 +1163,133 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("renders and reconciles pending sends with canonical timeline rows", async () => {
+    const snapshot = withCanonicalChatTimelineRows(
+      createSnapshotForTargetUser({
+        targetMessageId: "msg-user-canonical-pending-target" as MessageId,
+        targetText: "canonical pending target",
+      }),
+    );
+    const targetThread = snapshot.threads.find((thread) => thread.id === THREAD_ID);
+    if (!targetThread) {
+      throw new Error("Expected canonical pending test thread.");
+    }
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot,
+    });
+
+    try {
+      const prompt = "Canonical pending row reconciles";
+      useComposerDraftStore.getState().setPrompt(THREAD_REF, prompt);
+      await waitForLayout();
+
+      const sendButton = await waitForSendButton();
+      expect(sendButton.disabled).toBe(false);
+      sendButton.click();
+
+      let turnStartRequest:
+        | {
+            _tag: string;
+            type?: string;
+            message?: { messageId?: MessageId; text?: string };
+            createdAt?: string;
+          }
+        | undefined;
+      await vi.waitFor(
+        () => {
+          turnStartRequest = wsRequests.find(
+            (request) =>
+              request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand &&
+              request.type === "thread.turn.start",
+          ) as typeof turnStartRequest;
+          expect(turnStartRequest?.message?.text).toBe(prompt);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+      const messageId = turnStartRequest?.message?.messageId;
+      const createdAt = turnStartRequest?.createdAt;
+      if (!messageId || !createdAt) {
+        throw new Error("Expected pending send request to include message id and createdAt.");
+      }
+
+      const pendingRowSelector = `[data-timeline-row-id="message:${messageId}"][data-message-id="${messageId}"]`;
+      await waitForElement(
+        () => document.querySelector<HTMLElement>(pendingRowSelector),
+        "Unable to find pending canonical timeline row.",
+      );
+      expect(document.querySelector<HTMLElement>(pendingRowSelector)?.textContent).toContain(
+        prompt,
+      );
+
+      const event: OrchestrationEvent = {
+        sequence: 2,
+        eventId: EventId.make("event-canonical-pending-committed"),
+        aggregateKind: "thread",
+        aggregateId: THREAD_ID,
+        occurredAt: createdAt,
+        commandId: null,
+        causationEventId: null,
+        correlationId: null,
+        metadata: {},
+        type: "thread.message-sent",
+        payload: {
+          threadId: THREAD_ID,
+          messageId,
+          entryId: threadEntryIdForMessageId(messageId),
+          parentEntryId: targetThread.leafId,
+          role: "user",
+          text: prompt,
+          turnId: null,
+          streaming: false,
+          createdAt,
+          updatedAt: createdAt,
+        },
+      };
+      await emitThreadDetailEvent(event);
+
+      await vi.waitFor(
+        () => {
+          const rows = Array.from(
+            document.querySelectorAll<HTMLElement>(`[data-message-id="${messageId}"]`),
+          );
+          expect(rows).toHaveLength(1);
+          expect(rows[0]?.textContent).toContain(prompt);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("disables edit-fork actions while queued composer items exist", async () => {
+    const targetMessageId = "msg-user-tree-queue-guard-target" as MessageId;
+    enqueueTestQueuedComposerItem({
+      itemId: "msg-queued-tree-guard" as MessageId,
+      prompt: "Queued tree guard message",
+    });
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId,
+        targetText: "tree queue guard target",
+      }),
+    });
+
+    try {
+      const targetRow = await waitForElement(
+        () => document.querySelector<HTMLElement>(`[data-message-id="${targetMessageId}"]`),
+        "Unable to find target user message row.",
+      );
+      expect(targetRow.querySelector('[data-editable="true"]')).toBeNull();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("shows the send state once bootstrap dispatch is in flight", async () => {
     useTerminalStateStore.setState({
       terminalStateByThreadKey: {},
@@ -1931,6 +2063,85 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("optimistically transitions first-send drafts to the server chat route", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-first-send-route-test" as MessageId,
+        targetText: "first send route test",
+      }),
+    });
+
+    try {
+      const newThreadButton = page.getByTestId("new-thread-button");
+      await expect.element(newThreadButton).toBeInTheDocument();
+
+      await newThreadButton.click();
+
+      const draftPath = await waitForURL(
+        mounted.router,
+        (path) => UUID_ROUTE_RE.test(path),
+        "Route should have changed to a new draft thread UUID.",
+      );
+      const draftId = draftIdFromPath(draftPath);
+      const promotedThreadId = draftThreadIdFor(draftId);
+      const prompt = "Promote draft immediately";
+
+      useComposerDraftStore.getState().setPrompt(draftId, prompt);
+      await waitForLayout();
+
+      const sendButton = await waitForSendButton();
+      expect(sendButton.disabled).toBe(false);
+      sendButton.click();
+
+      await waitForURL(
+        mounted.router,
+        (path) => path === serverThreadPath(promotedThreadId),
+        "First-send drafts should transition to the server chat route immediately.",
+      );
+      await waitForElement(
+        () => document.querySelector<HTMLElement>("[data-subagent-conversation-shell]"),
+        "Chat timeline shell should be visible after the first-send transition.",
+      );
+      let turnStartRequest:
+        | {
+            _tag: string;
+            type?: string;
+            message?: { messageId?: MessageId; text?: string };
+          }
+        | undefined;
+      await vi.waitFor(
+        () => {
+          turnStartRequest = wsRequests.find(
+            (request) =>
+              request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand &&
+              request.type === "thread.turn.start",
+          ) as typeof turnStartRequest;
+          expect(turnStartRequest?.message?.text).toBe(prompt);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+      const messageId = turnStartRequest?.message?.messageId;
+      if (!messageId) {
+        throw new Error("Expected promoted draft send request to include a message id.");
+      }
+      const pendingRowSelector = `[data-timeline-row-id="message:${messageId}"][data-message-id="${messageId}"]`;
+      const pendingRow = await waitForElement(
+        () => document.querySelector<HTMLElement>(pendingRowSelector),
+        "Promoted draft pending row should survive the server-route transition.",
+      );
+      expect(pendingRow.textContent).toContain(prompt);
+      expect(
+        useComposerDraftStore.getState().getDraftSession(draftId)?.promotedTo,
+      ).toMatchObject({
+        environmentId: LOCAL_ENVIRONMENT_ID,
+        threadId: promotedThreadId,
+      });
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("canonicalizes stale promoted draft routes to the server thread route", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -2119,26 +2330,26 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("hydrates the provider alongside a sticky claude model", async () => {
+  it("hydrates the provider alongside a sticky cursor model", async () => {
     useComposerDraftStore.setState({
       stickyModelSelectionByProvider: {
-        [ProviderInstanceId.make("claudeAgent")]: {
-          instanceId: ProviderInstanceId.make("claudeAgent"),
-          model: "claude-opus-4-6",
+        [ProviderInstanceId.make("cursor")]: {
+          instanceId: ProviderInstanceId.make("cursor"),
+          model: "composer-2",
           options: [
             { id: "effort", value: "max" },
             { id: "fastMode", value: true },
           ],
         },
       },
-      stickyActiveProvider: ProviderInstanceId.make("claudeAgent"),
+      stickyActiveProvider: ProviderInstanceId.make("cursor"),
     });
 
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
-        targetMessageId: "msg-user-sticky-claude-model-test" as MessageId,
-        targetText: "sticky claude model test",
+        targetMessageId: "msg-user-sticky-cursor-model-test" as MessageId,
+        targetText: "sticky cursor model test",
       }),
     });
 
@@ -2151,22 +2362,22 @@ describe("ChatView timeline estimator parity (full app)", () => {
       const newThreadPath = await waitForURL(
         mounted.router,
         (path) => UUID_ROUTE_RE.test(path),
-        "Route should have changed to a new sticky claude draft thread UUID.",
+        "Route should have changed to a new sticky cursor draft thread UUID.",
       );
       const newDraftId = draftIdFromPath(newThreadPath);
 
       expect(composerDraftFor(newDraftId)).toMatchObject({
         modelSelectionByProvider: {
-          [ProviderInstanceId.make("claudeAgent")]: {
-            instanceId: ProviderInstanceId.make("claudeAgent"),
-            model: "claude-opus-4-6",
+          [ProviderInstanceId.make("cursor")]: {
+            instanceId: ProviderInstanceId.make("cursor"),
+            model: "composer-2",
             options: [
               { id: "effort", value: "max" },
               { id: "fastMode", value: true },
             ],
           },
         },
-        activeProvider: ProviderInstanceId.make("claudeAgent"),
+        activeProvider: ProviderInstanceId.make("cursor"),
       });
     } finally {
       await mounted.cleanup();

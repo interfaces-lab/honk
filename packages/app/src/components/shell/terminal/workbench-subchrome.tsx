@@ -2,7 +2,7 @@
 
 import { IconBarsThree } from "central-icons";
 
-import { WorkbenchIconButton } from "../shell/workbench-icon-button";
+import { WorkbenchIconButton } from "@multi/ui/workbench-button";
 
 /**
  * Full-width row under the workbench tab strip.

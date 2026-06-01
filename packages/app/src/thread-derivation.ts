@@ -1,7 +1,9 @@
-import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
+import type { EnvironmentId, MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
+import type { OrchestrationChatTimelineRow } from "@multi/contracts";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,
+  LiveAssistantTurn,
   ProposedPlan,
   Thread,
   ThreadTreeEntry,
@@ -12,8 +14,10 @@ import type {
 } from "./types";
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
+const EMPTY_LIVE_ASSISTANT_TURNS: LiveAssistantTurn[] = [];
 const EMPTY_ACTIVITIES: Thread["activities"] = [];
 const EMPTY_PROPOSED_PLANS: ProposedPlan[] = [];
+const EMPTY_CHAT_TIMELINE_ROWS: NonNullable<Thread["chatTimelineRows"]> = [];
 const EMPTY_TURN_DIFF_SUMMARIES: TurnDiffSummary[] = [];
 const EMPTY_THREAD_ENTRIES: ThreadTreeEntry[] = [];
 const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
@@ -28,12 +32,14 @@ const threadCache = new WeakMap<
   {
     session: ThreadSession | null;
     turnState: ThreadTurnState | undefined;
-    activeEntryId: ThreadEntryId | null;
+    leafId: ThreadEntryId | null;
     messages: Thread["messages"];
+    liveAssistantTurns: LiveAssistantTurn[];
     entries: ThreadTreeEntry[];
     activities: Thread["activities"];
     proposedPlans: Thread["proposedPlans"];
     turnDiffSummaries: Thread["turnDiffSummaries"];
+    chatTimelineRows: NonNullable<Thread["chatTimelineRows"]>;
     thread: Thread;
   }
 >();
@@ -71,6 +77,42 @@ function selectThreadMessages(state: EnvironmentState, threadId: ThreadId): Thre
     state.messageByThreadId[threadId] ?? EMPTY_MESSAGE_MAP,
     EMPTY_MESSAGES,
   );
+}
+
+function selectLiveAssistantTurns(
+  state: EnvironmentState,
+  threadId: ThreadId,
+): LiveAssistantTurn[] {
+  return collectByIds(
+    state.liveAssistantTurnIdsByThreadId[threadId],
+    state.liveAssistantTurnByThreadId[threadId] ?? {},
+    EMPTY_LIVE_ASSISTANT_TURNS,
+  );
+}
+
+function withLiveAssistantTurns(
+  messages: Thread["messages"],
+  liveAssistantTurns: ReadonlyArray<LiveAssistantTurn>,
+): Thread["messages"] {
+  if (liveAssistantTurns.length === 0) {
+    return messages;
+  }
+  const committedMessageIds = new Set(messages.map((message) => message.id));
+  const liveMessages = liveAssistantTurns.flatMap((turn): ChatMessage[] =>
+    committedMessageIds.has(turn.messageId)
+      ? []
+      : [
+          {
+            id: turn.messageId,
+            role: "assistant",
+            text: turn.text,
+            turnId: turn.turnId,
+            createdAt: turn.createdAt,
+            streaming: true,
+          },
+        ],
+  );
+  return liveMessages.length === 0 ? messages : [...messages, ...liveMessages];
 }
 
 function selectThreadEntries(state: EnvironmentState, threadId: ThreadId): ThreadTreeEntry[] {
@@ -122,24 +164,29 @@ export function getThreadFromEnvironmentState(
 
   const session = state.threadSessionById[threadId] ?? null;
   const turnState = state.threadTurnStateById[threadId];
-  const activeEntryId = state.activeEntryIdByThreadId?.[threadId] ?? null;
-  const messages = selectThreadMessages(state, threadId);
+  const leafId = state.leafIdByThreadId?.[threadId] ?? null;
+  const committedMessages = selectThreadMessages(state, threadId);
+  const liveAssistantTurns = selectLiveAssistantTurns(state, threadId);
+  const messages = withLiveAssistantTurns(committedMessages, liveAssistantTurns);
   const entries = selectThreadEntries(state, threadId);
   const activities = selectThreadActivities(state, threadId);
   const proposedPlans = selectThreadProposedPlans(state, threadId);
   const turnDiffSummaries = selectThreadTurnDiffSummaries(state, threadId);
+  const chatTimelineRows = state.chatTimelineRowsByThreadId?.[threadId] ?? EMPTY_CHAT_TIMELINE_ROWS;
   const cached = threadCache.get(shell);
 
   if (
     cached &&
     cached.session === session &&
     cached.turnState === turnState &&
-    cached.activeEntryId === activeEntryId &&
+    cached.leafId === leafId &&
     cached.messages === messages &&
+    cached.liveAssistantTurns === liveAssistantTurns &&
     cached.entries === entries &&
     cached.activities === activities &&
     cached.proposedPlans === proposedPlans &&
-    cached.turnDiffSummaries === turnDiffSummaries
+    cached.turnDiffSummaries === turnDiffSummaries &&
+    cached.chatTimelineRows === chatTimelineRows
   ) {
     return cached.thread;
   }
@@ -150,22 +197,25 @@ export function getThreadFromEnvironmentState(
     latestTurn: turnState?.latestTurn ?? null,
     pendingSourceProposedPlan: turnState?.pendingSourceProposedPlan,
     messages,
-    activeEntryId,
+    leafId,
     entries,
     activities,
     proposedPlans,
     turnDiffSummaries,
+    chatTimelineRows,
   };
 
   threadCache.set(shell, {
     session,
     turnState,
-    activeEntryId,
+    leafId,
     messages,
+    liveAssistantTurns,
     entries,
     activities,
     proposedPlans,
     turnDiffSummaries,
+    chatTimelineRows,
     thread,
   });
 

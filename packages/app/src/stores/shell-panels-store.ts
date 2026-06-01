@@ -115,7 +115,7 @@ const DEFAULT_LEFT_PANEL_STATE: LeftPanelState = Object.freeze({
 });
 
 const DEFAULT_WORKBENCH_PANEL_STATE: WorkbenchPanelState = Object.freeze({
-  rightOpen: true,
+  rightOpen: false,
   rightW: 400,
   activeTab: "files",
   muted: false,

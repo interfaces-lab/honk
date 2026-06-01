@@ -15,7 +15,7 @@ import type { RefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
-import type { PendingUserInputDraftAnswer } from "./pending-user-input";
+import type { PendingUserInputDraftAnswer } from "./pending/user-input";
 import type { PendingApproval, PendingUserInput } from "../../../session-logic";
 import type { SessionPhase, Thread } from "../../../types";
 import type { ExpandedImagePreview } from "../message/expanded-image-preview";

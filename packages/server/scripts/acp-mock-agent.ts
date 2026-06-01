@@ -287,6 +287,26 @@ const program = Effect.gen(function* () {
     }),
   );
 
+  yield* agent.handleSetSessionMode((request) => {
+    currentModeId = request.modeId;
+    return agent.client
+      .sessionUpdate({
+        sessionId: request.sessionId,
+        update: {
+          sessionUpdate: "current_mode_update",
+          currentModeId,
+        },
+      })
+      .pipe(Effect.as({}));
+  });
+
+  yield* agent.handleSetSessionModel((request) =>
+    Effect.sync(() => {
+      currentModelId = request.modelId;
+      return {};
+    }),
+  );
+
   yield* agent.handleCancel(({ sessionId }) =>
     Effect.sync(() => {
       cancelledSessions.add(String(sessionId ?? "mock-session-1"));
@@ -516,47 +536,6 @@ const program = Effect.gen(function* () {
       return { stopReason: "end_turn" };
     }),
   );
-
-  yield* agent.handleUnknownExtRequest((method, params) => {
-    if (method !== "session/mode/set" && method !== "session/set_mode") {
-      return Effect.fail(AcpError.AcpRequestError.methodNotFound(method));
-    }
-
-    const nextModeId =
-      typeof params === "object" &&
-      params !== null &&
-      "modeId" in params &&
-      typeof params.modeId === "string"
-        ? params.modeId
-        : typeof params === "object" &&
-            params !== null &&
-            "mode" in params &&
-            typeof params.mode === "string"
-          ? params.mode
-          : undefined;
-    const requestedSessionId =
-      typeof params === "object" &&
-      params !== null &&
-      "sessionId" in params &&
-      typeof params.sessionId === "string"
-        ? params.sessionId
-        : sessionId;
-
-    if (typeof nextModeId === "string" && nextModeId.trim()) {
-      currentModeId = nextModeId.trim();
-      return agent.client
-        .sessionUpdate({
-          sessionId: requestedSessionId,
-          update: {
-            sessionUpdate: "current_mode_update",
-            currentModeId,
-          },
-        })
-        .pipe(Effect.as({}));
-    }
-
-    return Effect.succeed({});
-  });
 
   return yield* Effect.never;
 }).pipe(

@@ -45,10 +45,11 @@ function readModelWithPlan(now: string): OrchestrationReadModel {
         deletedAt: null,
         latestTurn: null,
         messages: [],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         session: null,
         activities: [],
+        chatTimelineRows: [],
         proposedPlans: [
           {
             id: "plan-1",
@@ -60,7 +61,6 @@ function readModelWithPlan(now: string): OrchestrationReadModel {
             updatedAt: now,
           },
         ],
-        checkpoints: [],
       },
     ],
   };

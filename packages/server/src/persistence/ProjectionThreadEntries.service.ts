@@ -25,9 +25,6 @@ export const ProjectionThreadEntry = Schema.Struct({
   kind: OrchestrationThreadEntryKind,
   messageId: Schema.NullOr(MessageId),
   turnId: Schema.NullOr(TurnId),
-  targetEntryId: Schema.NullOr(ThreadEntryId),
-  label: Schema.NullOr(Schema.String),
-  summary: Schema.NullOr(Schema.String),
   createdAt: IsoDateTime,
 });
 export type ProjectionThreadEntry = typeof ProjectionThreadEntry.Type;

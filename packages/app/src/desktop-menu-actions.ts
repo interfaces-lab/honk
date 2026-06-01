@@ -1,7 +1,12 @@
+import {
+  DEFAULT_SETTINGS_ROUTE,
+  type SettingsRoutePath,
+} from "~/components/settings/settings-sections";
+
 const OPEN_SETTINGS_ACTION = "open-settings";
 
 interface DesktopMenuRouter {
-  readonly navigate: (options: { to: "/settings/general" }) => unknown;
+  readonly navigate: (options: { to: SettingsRoutePath }) => unknown;
 }
 
 let uninstallMenuActionBridge: (() => void) | null = null;
@@ -21,7 +26,7 @@ export function installDesktopMenuActionBridge(router: DesktopMenuRouter): void 
       return;
     }
 
-    void router.navigate({ to: "/settings/general" });
+    void router.navigate({ to: DEFAULT_SETTINGS_ROUTE });
   });
 }
 

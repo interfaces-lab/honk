@@ -118,6 +118,12 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
         });
         assert.equal(session.sessionId, "mock-session-1");
 
+        const mode = yield* acp.agent.setSessionMode({
+          sessionId: session.sessionId,
+          modeId: "plan",
+        });
+        assert.deepEqual(mode, {});
+
         const prompt = yield* acp.agent.prompt({
           sessionId: session.sessionId,
           prompt: [{ type: "text", text: "hello" }],

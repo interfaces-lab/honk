@@ -7,6 +7,7 @@ const tokensCss = readFileSync(resolve(__dirname, "../styles/tokens.css"), "utf8
 const conversationCss = readFileSync(resolve(__dirname, "../styles/conversation.css"), "utf8");
 const shellCss = readFileSync(resolve(__dirname, "../styles/shell.css"), "utf8");
 const appearanceSettingsSource = readFileSync(resolve(__dirname, "appearance-settings.ts"), "utf8");
+const appearanceColorsSource = readFileSync(resolve(__dirname, "appearance-colors.ts"), "utf8");
 
 const TINT_BASE_TOKEN_NAMES = [
   "--multi-base-sidebar",
@@ -16,36 +17,52 @@ const TINT_BASE_TOKEN_NAMES = [
   "--multi-base-focus",
 ] as const;
 
-function isSurfaceBaseOklchContinuation(line: string): boolean {
-  return /^\s+[\d.]+\s+calc\(/.test(line);
-}
-
-function isAccentWashLine(line: string): boolean {
-  return /^(\s*--accent:)/.test(line) && line.includes("var(--multi-base-accent)");
-}
-
 describe("appearance tint base tokens", () => {
-  it("defines five base tokens that own hue (and intensity on surfaces only)", () => {
+  it("defines five base token fallbacks for the semantic graph", () => {
     for (const name of TINT_BASE_TOKEN_NAMES) {
       expect(tokensCss).toContain(`${name}:`);
     }
   });
 
-  it("limits var(--multi-user-hue) and var(--multi-intensity) to base and accent-wash tokens", () => {
-    const intensityOutsideBases = tokensCss
-      .split("\n")
-      .filter((line) => line.includes("var(--multi-intensity"))
-      .filter((line) => !/^(\s*--multi-base-(sidebar|chrome|editor)):/.test(line))
-      .filter((line) => !isSurfaceBaseOklchContinuation(line));
-    expect(intensityOutsideBases).toEqual([]);
+  it("uses Cursor foreground and transparent overlay semantics", () => {
+    expect(tokensCss).toContain("--multi-base-foreground: #141414;");
+    expect(tokensCss).toContain("--multi-base-foreground: #e4e4e4;");
+    expect(tokensCss).toContain("--foreground: var(--multi-base-foreground);");
+    expect(tokensCss).toContain(
+      "--muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);",
+    );
+    expect(tokensCss).toContain("--multi-color-sidebar: var(--multi-color-sidebar-opaque);");
+    expect(tokensCss).toContain(
+      "--multi-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);",
+    );
+    expect(tokensCss).toContain(
+      "--multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);",
+    );
+    expect(tokensCss).toContain(
+      "--multi-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);",
+    );
+    expect(tokensCss).toContain("--multi-color-hover: var(--multi-bg-secondary);");
+    expect(tokensCss).toContain("--multi-color-active: var(--multi-bg-active);");
+    expect(tokensCss).not.toContain("--multi-sidebar-opacity");
+    expect(tokensCss).not.toContain("--multi-chat-opacity");
+    expect(tokensCss).not.toContain("--multi-editor-opacity");
+  });
 
-    const hueOutsideBases = tokensCss
+  it("keeps user hue and intensity out of the CSS semantic graph", () => {
+    const intensityReferences = tokensCss
       .split("\n")
-      .filter((line) => line.includes("var(--multi-user-hue"))
-      .filter((line) => !/^(\s*--multi-base-)/.test(line))
-      .filter((line) => !isSurfaceBaseOklchContinuation(line))
-      .filter((line) => !isAccentWashLine(line));
-    expect(hueOutsideBases).toEqual([]);
+      .filter((line) => line.includes("var(--multi-intensity)"));
+    const hueReferences = tokensCss
+      .split("\n")
+      .filter((line) => line.includes("var(--multi-user-hue)"));
+    const dynamicTokenReferences = [...intensityReferences, ...hueReferences];
+
+    expect(dynamicTokenReferences).toEqual([]);
+    expect(appearanceSettingsSource).toContain("applyAppearanceBaseColors(");
+    expect(appearanceColorsSource).toContain("DEFAULT_APPEARANCE_TINT_HUE = 261");
+    expect(appearanceColorsSource).toContain("DEFAULT_APPEARANCE_TINT_INTENSITY = 20");
+    expect(appearanceColorsSource).toContain("chromaScale: 0.5");
+    expect(appearanceColorsSource).toContain("hueShift: true");
   });
 });
 
@@ -62,6 +79,9 @@ describe("appearance reduce-transparency tokens", () => {
     expect(tokensCss).toContain("--multi-vibrancy-off-sidebar-surface-background:");
     expect(tokensCss).toContain("--multi-vibrancy-on-editor-surface-background:");
     expect(tokensCss).toContain("--multi-vibrancy-off-editor-surface-background:");
+    expect(tokensCss).toContain("--multi-glass-surface-background: hsl(0 0% 100% / 0.16);");
+    expect(tokensCss).toContain("--multi-glass-surface-background: rgb(0 0 0 / 0.42);");
+    expect(tokensCss).toContain("--multi-glass-surface-background: var(--multi-color-editor-opaque);");
     expect(tokensCss).toMatch(
       /body\.multi-os-vibrancy-on\[data-multi-glass-mode="true"\] \[data-component="root"\][\s\S]*--multi-sidebar-surface-background:/,
     );
@@ -74,10 +94,14 @@ describe("appearance reduce-transparency tokens", () => {
   });
 
   it("keeps glass bands fixed instead of exposing a window opacity slider", () => {
-    expect(tokensCss).toContain("--multi-vibrancy-sidebar-mix: 32%;");
+    expect(tokensCss).toContain("--multi-vibrancy-sidebar-mix: 42%;");
     expect(tokensCss).toContain("--multi-vibrancy-chat-mix: 84%;");
-    expect(tokensCss).toContain("--multi-vibrancy-sidebar-mix: 56%;");
+    expect(tokensCss).toContain("--multi-vibrancy-sidebar-mix: 36%;");
     expect(tokensCss).toContain("--multi-vibrancy-chat-mix: 72%;");
+    expect(tokensCss).toContain(
+      "--multi-vibrancy-off-editor-surface-background: var(--multi-color-chat-opaque);",
+    );
+    expect(tokensCss).toContain("var(--multi-color-chat-opaque) var(--multi-vibrancy-editor-mix)");
     expect(tokensCss).not.toContain("--multi-transparency");
     expect(appearanceSettingsSource).not.toContain("STORAGE_WINDOW_TRANSPARENCY");
     expect(appearanceSettingsSource).not.toContain("setWindowTransparency");
@@ -145,7 +169,7 @@ describe("appearance reduce-transparency tokens", () => {
   it("applies composer blur in glass mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss.replace(/\s+/g, " ")).toContain(
-      'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
+      'body[data-multi-glass-mode="true"] :is( [data-message-bubble-surface], [data-multi-composer-surface]:not([data-layout="inline-edit"]) )',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });
@@ -155,10 +179,10 @@ describe("bubble/composer tint chain", () => {
   it("separates composer chrome from input-backed message bubbles", () => {
     expect(tokensCss).toContain("--multi-input-surface-opaque: var(--input);");
     expect(tokensCss).toContain("--multi-pane-surface-background:");
-    expect(tokensCss).toContain("--multi-composer-surface-background: var(--multi-pane-surface-background);");
     expect(tokensCss).toContain(
-      "--multi-message-bubble-background: var(--multi-input-surface);",
+      "--multi-composer-surface-background: var(--multi-pane-surface-background);",
     );
+    expect(tokensCss).toContain("--multi-message-bubble-background: var(--multi-input-surface);");
     expect(tokensCss).not.toContain("--multi-chat-bubble-glass-opaque-background:");
     expect(tokensCss).not.toContain("--multi-color-bubble-opaque:");
     expect(tokensCss).not.toContain("--multi-color-bubble:");

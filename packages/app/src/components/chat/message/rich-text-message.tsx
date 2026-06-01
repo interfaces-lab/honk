@@ -36,11 +36,15 @@ function renderRichTextBody(richText: unknown): ReactNode | null {
     return null;
   }
   if (doc.type === "doc") {
-    return nonEmptyNodes(asArray(doc.content).map(renderTiptapNode));
+    return nonEmptyNodes(
+      trimEmptyBoundaryNodes(asArray(doc.content), isEmptyTiptapNode).map(renderTiptapNode),
+    );
   }
   const root = asRecord(doc.root);
   if (root) {
-    return nonEmptyNodes(asArray(root.children).map(renderLexicalNode));
+    return nonEmptyNodes(
+      trimEmptyBoundaryNodes(asArray(root.children), isEmptyLexicalNode).map(renderLexicalNode),
+    );
   }
   return null;
 }
@@ -264,6 +268,45 @@ function lexicalNodeText(node: unknown): string {
     return "\n";
   }
   return asArray(record.children).map(lexicalNodeText).join("");
+}
+
+function trimEmptyBoundaryNodes(
+  nodes: unknown[],
+  isEmptyNode: (node: unknown) => boolean,
+): unknown[] {
+  let start = 0;
+  let end = nodes.length;
+
+  while (start < end && isEmptyNode(nodes[start])) {
+    start += 1;
+  }
+  while (end > start && isEmptyNode(nodes[end - 1])) {
+    end -= 1;
+  }
+
+  return nodes.slice(start, end);
+}
+
+function isEmptyTiptapNode(node: unknown): boolean {
+  const record = asRecord(node);
+  if (!record) {
+    return true;
+  }
+  if (record.type === "paragraph") {
+    return tiptapNodeText(record).trim().length === 0;
+  }
+  return false;
+}
+
+function isEmptyLexicalNode(node: unknown): boolean {
+  const record = asRecord(node);
+  if (!record) {
+    return true;
+  }
+  if (record.type === "paragraph") {
+    return lexicalNodeText(record).trim().length === 0;
+  }
+  return false;
 }
 
 function nonEmptyNodes(nodes: ReactNode[]): ReactNode | null {

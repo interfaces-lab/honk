@@ -1,12 +1,9 @@
 import {
   ApprovalRequestId,
-  type AssistantDeliveryMode,
   CommandId,
-  DEFAULT_PROJECTLESS_CWD,
   MessageId,
   type OrchestrationEvent,
   type OrchestrationProposedPlanId,
-  CheckpointRef,
   isToolLifecycleItemType,
   ThreadId,
   type ThreadTokenUsageSnapshot,
@@ -22,18 +19,11 @@ import { makeDrainableWorker } from "@multi/shared/DrainableWorker";
 import { ProviderService } from "../provider/ProviderService.service.ts";
 import { ProjectionTurnRepository } from "../persistence/ProjectionTurns.service.ts";
 import { ProjectionTurnRepositoryLive } from "../persistence/ProjectionTurns.ts";
-import { isGitRepository } from "../git/Utils.ts";
 import { OrchestrationEngineService } from "./OrchestrationEngine.service.ts";
 import {
   ProviderRuntimeIngestionService,
   type ProviderRuntimeIngestionShape,
 } from "./ProviderRuntimeIngestion.service.ts";
-import { ServerSettingsService } from "../server-settings.ts";
-import { ServerConfig } from "../config.ts";
-import {
-  coerceAccessibleProjectCwd,
-  coerceThreadProjectCwd,
-} from "../project/AccessibleProjectCwd.ts";
 
 const providerTurnKey = (threadId: ThreadId, turnId: TurnId) => `${threadId}:${turnId}`;
 const providerCommandId = (event: ProviderRuntimeEvent, tag: string): CommandId =>
@@ -45,7 +35,6 @@ const BUFFERED_MESSAGE_TEXT_BY_MESSAGE_ID_CACHE_CAPACITY = 20_000;
 const BUFFERED_MESSAGE_TEXT_BY_MESSAGE_ID_TTL = Duration.minutes(120);
 const BUFFERED_PROPOSED_PLAN_BY_ID_CACHE_CAPACITY = 10_000;
 const BUFFERED_PROPOSED_PLAN_BY_ID_TTL = Duration.minutes(120);
-const MAX_BUFFERED_ASSISTANT_CHARS = 24_000;
 const STRICT_PROVIDER_LIFECYCLE_GUARD = process.env.MULTI_STRICT_PROVIDER_LIFECYCLE_GUARD !== "0";
 
 type TurnStartRequestedDomainEvent = Extract<
@@ -757,9 +746,6 @@ const make = Effect.fn("make")(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
   const projectionTurnRepository = yield* ProjectionTurnRepository;
-  const serverSettingsService = yield* ServerSettingsService;
-  const serverConfig = yield* ServerConfig;
-
   const turnMessageIdsByTurnKey = yield* Cache.make<string, Set<MessageId>>({
     capacity: TURN_MESSAGE_IDS_BY_TURN_CACHE_CAPACITY,
     timeToLive: TURN_MESSAGE_IDS_BY_TURN_TTL,
@@ -776,35 +762,6 @@ const make = Effect.fn("make")(function* () {
     capacity: BUFFERED_PROPOSED_PLAN_BY_ID_CACHE_CAPACITY,
     timeToLive: BUFFERED_PROPOSED_PLAN_BY_ID_TTL,
     lookup: () => Effect.succeed({ text: "", createdAt: "" }),
-  });
-
-  const isGitRepoForThread = Effect.fn("isGitRepoForThread")(function* (threadId: ThreadId) {
-    const readModel = yield* orchestrationEngine.getReadModel();
-    const thread = readModel.threads.find((entry) => entry.id === threadId);
-    if (!thread) {
-      return false;
-    }
-    const projectCwd =
-      thread.projectId === null
-        ? yield* coerceAccessibleProjectCwd({
-            operation: "ProviderRuntimeIngestion.isGitRepoForThread",
-            candidates: [{ label: "projectless.cwd", cwd: DEFAULT_PROJECTLESS_CWD }],
-            threadId: thread.id,
-          })
-        : yield* coerceThreadProjectCwd({
-            operation: "ProviderRuntimeIngestion.isGitRepoForThread",
-            thread: {
-              id: thread.id,
-              projectId: thread.projectId,
-              worktreePath: thread.worktreePath,
-            },
-            projects: readModel.projects,
-            fallbackCwds: [{ label: "server.cwd", cwd: serverConfig.cwd }],
-          });
-    if (!projectCwd) {
-      return false;
-    }
-    return isGitRepository(projectCwd);
   });
 
   const rememberAssistantMessageId = (threadId: ThreadId, turnId: TurnId, messageId: MessageId) =>
@@ -896,21 +853,15 @@ const make = Effect.fn("make")(function* () {
 
   const appendBufferedAssistantText = (messageId: MessageId, delta: string) =>
     Cache.getOption(bufferedAssistantTextByMessageId, messageId).pipe(
-      Effect.flatMap(
-        Effect.fn("appendBufferedAssistantText")(function* (existingText) {
-          const nextText = Option.match(existingText, {
+      Effect.flatMap((existingText) =>
+        Cache.set(
+          bufferedAssistantTextByMessageId,
+          messageId,
+          Option.match(existingText, {
             onNone: () => delta,
             onSome: (text) => `${text}${delta}`,
-          });
-          if (nextText.length <= MAX_BUFFERED_ASSISTANT_CHARS) {
-            yield* Cache.set(bufferedAssistantTextByMessageId, messageId, nextText);
-            return "";
-          }
-
-          // Safety valve: flush full buffered text as an assistant delta to cap memory.
-          yield* Cache.invalidate(bufferedAssistantTextByMessageId, messageId);
-          return nextText;
-        }),
+          }),
+        ),
       ),
     );
 
@@ -960,7 +911,6 @@ const make = Effect.fn("make")(function* () {
     turnId?: TurnId;
     createdAt: string;
     commandTag: string;
-    finalDeltaCommandTag: string;
     fallbackText?: string;
   }) {
     const bufferedText = yield* takeBufferedAssistantText(input.messageId);
@@ -980,24 +930,12 @@ const make = Effect.fn("make")(function* () {
       return;
     }
 
-    if (text.length > 0) {
-      yield* orchestrationEngine.dispatch({
-        type: "thread.message.assistant.delta",
-        commandId: providerCommandId(input.event, input.finalDeltaCommandTag),
-        threadId: input.threadId,
-        messageId: input.messageId,
-        delta: text,
-        turnId: treeParent.turnId,
-        parentEntryId: treeParent.parentEntryId,
-        createdAt: input.createdAt,
-      });
-    }
-
     yield* orchestrationEngine.dispatch({
       type: "thread.message.assistant.complete",
       commandId: providerCommandId(input.event, input.commandTag),
       threadId: input.threadId,
       messageId: input.messageId,
+      text,
       turnId: treeParent.turnId,
       parentEntryId: treeParent.parentEntryId,
       createdAt: input.createdAt,
@@ -1362,37 +1300,7 @@ const make = Effect.fn("make")(function* () {
         return;
       }
       yield* rememberAssistantMessageId(thread.id, treeParent.turnId, assistantMessageId);
-
-      const assistantDeliveryMode: AssistantDeliveryMode = yield* Effect.map(
-        serverSettingsService.getSettings,
-        (settings) => (settings.enableAssistantStreaming ? "streaming" : "buffered"),
-      );
-      if (assistantDeliveryMode === "buffered") {
-        const spillChunk = yield* appendBufferedAssistantText(assistantMessageId, assistantDelta);
-        if (spillChunk.length > 0) {
-          yield* orchestrationEngine.dispatch({
-            type: "thread.message.assistant.delta",
-            commandId: providerCommandId(event, "assistant-delta-buffer-spill"),
-            threadId: thread.id,
-            messageId: assistantMessageId,
-            delta: spillChunk,
-            turnId: treeParent.turnId,
-            parentEntryId: treeParent.parentEntryId,
-            createdAt: now,
-          });
-        }
-      } else {
-        yield* orchestrationEngine.dispatch({
-          type: "thread.message.assistant.delta",
-          commandId: providerCommandId(event, "assistant-delta"),
-          threadId: thread.id,
-          messageId: assistantMessageId,
-          delta: assistantDelta,
-          turnId: treeParent.turnId,
-          parentEntryId: treeParent.parentEntryId,
-          createdAt: now,
-        });
-      }
+      yield* appendBufferedAssistantText(assistantMessageId, assistantDelta);
     }
 
     if (proposedPlanDelta && proposedPlanDelta.length > 0) {
@@ -1422,24 +1330,31 @@ const make = Effect.fn("make")(function* () {
       const existingAssistantMessage = thread.messages.find(
         (entry) => entry.id === assistantMessageId,
       );
+      const alreadyCommitted =
+        existingAssistantMessage !== undefined &&
+        !existingAssistantMessage.streaming &&
+        existingAssistantMessage.text.length > 0;
       const shouldApplyFallbackCompletionText =
         !existingAssistantMessage || existingAssistantMessage.text.length === 0;
       if (turnId) {
         yield* rememberAssistantMessageId(thread.id, turnId, assistantMessageId);
       }
 
-      yield* finalizeAssistantMessage({
-        event,
-        threadId: thread.id,
-        messageId: assistantMessageId,
-        ...(turnId ? { turnId } : {}),
-        createdAt: now,
-        commandTag: "assistant-complete",
-        finalDeltaCommandTag: "assistant-delta-finalize",
-        ...(assistantCompletion.fallbackText !== undefined && shouldApplyFallbackCompletionText
-          ? { fallbackText: assistantCompletion.fallbackText }
-          : {}),
-      });
+      if (alreadyCommitted) {
+        yield* clearAssistantMessageState(assistantMessageId);
+      } else {
+        yield* finalizeAssistantMessage({
+          event,
+          threadId: thread.id,
+          messageId: assistantMessageId,
+          ...(turnId ? { turnId } : {}),
+          createdAt: now,
+          commandTag: "assistant-complete",
+          ...(assistantCompletion.fallbackText !== undefined && shouldApplyFallbackCompletionText
+            ? { fallbackText: assistantCompletion.fallbackText }
+            : {}),
+        });
+      }
 
       if (turnId) {
         yield* forgetAssistantMessageId(thread.id, turnId, assistantMessageId);
@@ -1462,20 +1377,28 @@ const make = Effect.fn("make")(function* () {
       const turnId = toTurnId(event.turnId);
       if (turnId) {
         const assistantMessageIds = yield* getAssistantMessageIdsForTurn(thread.id, turnId);
-        yield* Effect.forEach(
-          assistantMessageIds,
-          (assistantMessageId) =>
-            finalizeAssistantMessage({
-              event,
-              threadId: thread.id,
-              messageId: assistantMessageId,
-              turnId,
-              createdAt: now,
-              commandTag: "assistant-complete-finalize",
-              finalDeltaCommandTag: "assistant-delta-finalize-fallback",
-            }),
-          { concurrency: 1 },
-        ).pipe(Effect.asVoid);
+        if (
+          event.type === "turn.completed" &&
+          normalizeRuntimeTurnState(event.payload.state) === "completed"
+        ) {
+          yield* Effect.forEach(
+            assistantMessageIds,
+            (assistantMessageId) =>
+              finalizeAssistantMessage({
+                event,
+                threadId: thread.id,
+                messageId: assistantMessageId,
+                turnId,
+                createdAt: now,
+                commandTag: "assistant-complete-finalize",
+              }),
+            { concurrency: 1 },
+          ).pipe(Effect.asVoid);
+        } else {
+          yield* Effect.forEach(assistantMessageIds, clearAssistantMessageState, {
+            concurrency: 1,
+          }).pipe(Effect.asVoid);
+        }
         yield* clearAssistantMessageIdsForTurn(thread.id, turnId);
 
         yield* finalizeBufferedProposedPlan({
@@ -1526,40 +1449,6 @@ const make = Effect.fn("make")(function* () {
         threadId: thread.id,
         title: event.payload.name,
       });
-    }
-
-    if (event.type === "turn.diff.updated") {
-      const turnId = toTurnId(event.turnId);
-      if (turnId && (yield* isGitRepoForThread(thread.id))) {
-        // Skip if a checkpoint already exists for this turn. A real
-        // (non-placeholder) capture from CheckpointReactor should not
-        // be clobbered, and dispatching a duplicate placeholder for the
-        // same turnId would produce an unstable checkpointTurnCount.
-        if (thread.checkpoints.some((c) => c.turnId === turnId)) {
-          // Already tracked; no-op.
-        } else {
-          const assistantMessageId = MessageId.make(
-            `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
-          );
-          const maxTurnCount = thread.checkpoints.reduce(
-            (max, c) => Math.max(max, c.checkpointTurnCount),
-            0,
-          );
-          yield* orchestrationEngine.dispatch({
-            type: "thread.turn.diff.complete",
-            commandId: providerCommandId(event, "thread-turn-diff-complete"),
-            threadId: thread.id,
-            turnId,
-            completedAt: now,
-            checkpointRef: CheckpointRef.make(`provider-diff:${event.eventId}`),
-            status: "missing",
-            files: [],
-            assistantMessageId,
-            checkpointTurnCount: maxTurnCount + 1,
-            createdAt: now,
-          });
-        }
-      }
     }
 
     const activities = runtimeEventToActivities(event);

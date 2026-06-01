@@ -1,34 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import {
-  IconArchive1,
-  IconChevronLeftMedium,
-  IconCode,
-  IconCollaborationPointerRight,
-  IconColorSwatch,
-  IconSettingsGear2,
-} from "central-icons";
-import type { ComponentType } from "react";
+import { IconChevronLeftMedium } from "central-icons";
 
-import { SidebarItem } from "~/components/shell/shared/sidebar-button";
+import { SidebarItem } from "@multi/ui/sidebar";
+import { SETTINGS_SECTIONS } from "~/components/settings/settings-sections";
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
-
-const items: {
-  to:
-    | "/settings/general"
-    | "/settings/appearance"
-    | "/settings/agents"
-    | "/settings/models"
-    | "/settings/archived";
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-}[] = [
-  { to: "/settings/general", label: "General", icon: IconSettingsGear2 },
-  { to: "/settings/appearance", label: "Appearance", icon: IconColorSwatch },
-  { to: "/settings/agents", label: "Agents", icon: IconCollaborationPointerRight },
-  { to: "/settings/models", label: "Models", icon: IconCode },
-  { to: "/settings/archived", label: "Archived", icon: IconArchive1 },
-];
 
 export function SettingsNavRail(props: { onBack: () => void }) {
   return (
@@ -47,7 +23,7 @@ export function SettingsNavRail(props: { onBack: () => void }) {
         </div>
       </div>
       <nav className="flex min-h-0 flex-1 flex-col gap-px px-2 pb-1.5" aria-label="Settings">
-        {items.map((item) => {
+        {SETTINGS_SECTIONS.map((item) => {
           const Icon = item.icon;
           return (
             <SidebarItem
@@ -60,7 +36,8 @@ export function SettingsNavRail(props: { onBack: () => void }) {
                     "aria-current": "page",
                   }}
                   inactiveProps={{
-                    className: "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",
+                    className:
+                      "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",
                   }}
                 />
               }

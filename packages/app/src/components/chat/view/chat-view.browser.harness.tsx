@@ -2,6 +2,7 @@ import {
   ORCHESTRATION_WS_METHODS,
   WS_METHODS,
   type MessageId,
+  type OrchestrationEvent,
   type OrchestrationReadModel,
   type ThreadId,
   type TurnId,
@@ -15,6 +16,7 @@ import { render } from "vitest-browser-react";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
 import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { useComposerQueueStore } from "../../../stores/chat-send-queue";
+import { usePendingThreadSendStore } from "../../../stores/pending-thread-send-store";
 import { __resetEnvironmentApiOverridesForTests } from "../../../environment-api";
 import { __resetClientSettingsPersistenceForTests } from "../../../hooks/use-settings";
 import { isMacPlatform } from "../../../lib/utils";
@@ -160,6 +162,14 @@ export async function promoteDraftThreadViaDomainEvent(threadId: ThreadId): Prom
     },
     { timeout: 8_000, interval: 16 },
   );
+}
+export async function emitThreadDetailEvent(event: OrchestrationEvent): Promise<void> {
+  await waitForWsClient();
+  rpcHarness.emitStreamValue(ORCHESTRATION_WS_METHODS.subscribeThread, {
+    kind: "event",
+    event,
+  });
+  await waitForLayout();
 }
 function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
   const customResult = customWsRpcResolver?.(body);
@@ -889,6 +899,7 @@ export function installChatViewBrowserHarness(): void {
       editingQueueItemIdByThreadKey: {},
       queueExpandedByThreadKey: {},
     });
+    usePendingThreadSendStore.getState().resetForTests();
     useCommandPaletteStore.setState({
       open: false,
       openIntent: null,

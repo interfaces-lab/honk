@@ -234,6 +234,9 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
   const subscribedAdapters = yield* Ref.make(
     new Map<ProviderInstanceId, ProviderAdapterShape<ProviderAdapterError>>(),
   );
+  const subscribedEventAdapters = yield* Ref.make(
+    new Set<ProviderAdapterShape<ProviderAdapterError>>(),
+  );
 
   const getAdapterEntries = Ref.get(subscribedAdapters).pipe(
     Effect.map((map) => Array.from(map.entries())),
@@ -241,7 +244,6 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
 
   const processRuntimeEvent = (
     source: {
-      readonly instanceId: ProviderInstanceId;
       readonly provider: ProviderSession["provider"];
     },
     event: ProviderRuntimeEvent,
@@ -250,21 +252,21 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       return Effect.fail(
         toValidationError(
           "ProviderService.streamEvents",
-          `Provider instance '${source.instanceId}' is backed by '${source.provider}' but emitted '${event.provider}'.`,
+          `Adapter '${source.provider}' emitted provider '${event.provider}'.`,
         ),
       );
     }
-    const canonicalEvent = { ...event, providerInstanceId: source.instanceId };
     return increment(providerRuntimeEventsTotal, {
-      provider: canonicalEvent.provider,
-      eventType: canonicalEvent.type,
-    }).pipe(Effect.andThen(publishRuntimeEvent(canonicalEvent)));
+      provider: event.provider,
+      eventType: event.type,
+    }).pipe(Effect.andThen(publishRuntimeEvent(event)));
   };
 
   const reconcileInstanceSubscriptions = Effect.gen(function* () {
-    const previous = yield* Ref.get(subscribedAdapters);
+    const previousEventAdapters = yield* Ref.get(subscribedEventAdapters);
     const currentIds = yield* registry.listInstances();
     const next = new Map<ProviderInstanceId, ProviderAdapterShape<ProviderAdapterError>>();
+    const nextEventAdapters = new Set<ProviderAdapterShape<ProviderAdapterError>>();
     for (const id of currentIds) {
       const adapterOption = yield* registry
         .getByInstance(id)
@@ -272,16 +274,25 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       if (Option.isNone(adapterOption)) continue;
       const adapter = adapterOption.value;
       next.set(id, adapter);
-      if (previous.get(id) !== adapter) {
-        yield* Stream.runForEach(adapter.streamEvents, (event) =>
-          processRuntimeEvent(
-            { instanceId: id, provider: ProviderDriverKind.make(adapter.provider) },
-            event,
-          ),
-        ).pipe(Effect.forkScoped);
+      if (!nextEventAdapters.has(adapter)) {
+        nextEventAdapters.add(adapter);
+        if (!previousEventAdapters.has(adapter)) {
+          yield* Stream.runForEach(adapter.streamEvents, (event) =>
+            processRuntimeEvent({ provider: ProviderDriverKind.make(adapter.provider) }, event),
+          ).pipe(
+            Effect.catchCause((cause) =>
+              Effect.logWarning("provider runtime event subscription failed", {
+                provider: adapter.provider,
+                cause,
+              }),
+            ),
+            Effect.forkScoped,
+          );
+        }
       }
     }
     yield* Ref.set(subscribedAdapters, next);
+    yield* Ref.set(subscribedEventAdapters, nextEventAdapters);
   });
 
   const instanceChanges = yield* registry.subscribeChanges;
@@ -414,34 +425,43 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
   const stopStaleSessionsForThread = Effect.fn("stopStaleSessionsForThread")(function* (input: {
     readonly threadId: ThreadId;
     readonly currentInstanceId: ProviderInstanceId;
+    readonly currentAdapter: ProviderAdapterShape<ProviderAdapterError>;
   }) {
     const adapterEntries = yield* getAdapterEntries;
+    const checkedAdapters = new Set<ProviderAdapterShape<ProviderAdapterError>>();
     yield* Effect.forEach(
       adapterEntries,
-      ([instanceId, adapter]) =>
-        instanceId === input.currentInstanceId
-          ? Effect.void
-          : Effect.gen(function* () {
-              const hasSession = yield* adapter.hasSession(input.threadId);
-              if (!hasSession) {
-                return;
-              }
+      ([instanceId, adapter]) => {
+        if (
+          instanceId === input.currentInstanceId ||
+          adapter === input.currentAdapter ||
+          checkedAdapters.has(adapter)
+        ) {
+          return Effect.void;
+        }
+        checkedAdapters.add(adapter);
+        return Effect.gen(function* () {
+          const hasSession = yield* adapter.hasSession(input.threadId);
+          if (!hasSession) {
+            return;
+          }
 
-              yield* adapter.stopSession(input.threadId).pipe(
-                Effect.tap(() =>
-                  analytics.record("provider.session.stopped", {
-                    provider: adapter.provider,
-                  }),
-                ),
-                Effect.catchCause((cause) =>
-                  Effect.logWarning("provider.session.stop-stale-failed", {
-                    threadId: input.threadId,
-                    provider: adapter.provider,
-                    cause,
-                  }),
-                ),
-              );
-            }),
+          yield* adapter.stopSession(input.threadId).pipe(
+            Effect.tap(() =>
+              analytics.record("provider.session.stopped", {
+                provider: adapter.provider,
+              }),
+            ),
+            Effect.catchCause((cause) =>
+              Effect.logWarning("provider.session.stop-stale-failed", {
+                threadId: input.threadId,
+                provider: adapter.provider,
+                cause,
+              }),
+            ),
+          );
+        });
+      },
       { discard: true },
     );
   });
@@ -529,6 +549,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         yield* stopStaleSessionsForThread({
           threadId,
           currentInstanceId: input.providerInstanceId,
+          currentAdapter: adapter,
         });
         const sessionWithInstance = {
           ...session,
@@ -1001,7 +1022,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     readThread,
     rollbackConversation,
     // Each access creates a fresh PubSub subscription so that multiple
-    // consumers (ProviderRuntimeIngestion, CheckpointReactor, etc.) each
+    // consumers (ProviderRuntimeIngestion, etc.) each
     // independently receive all runtime events.
     get streamEvents(): ProviderServiceShape["streamEvents"] {
       return Stream.fromPubSub(runtimeEventPubSub);

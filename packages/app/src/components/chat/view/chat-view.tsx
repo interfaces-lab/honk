@@ -42,13 +42,12 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
 import { isElectron } from "../../../env";
 import { readLocalApi } from "../../../local-api";
-import { parseDiffRouteSearch, stripDiffSearchParams } from "~/app/routes/chat-shell-search";
 import {
   collapseExpandedComposerCursor,
   isUnresolvedStandaloneComposerSlashCommand,
@@ -57,14 +56,12 @@ import {
 import {
   derivePendingApprovals,
   derivePhase,
-  deriveTimelineEntries,
   deriveActiveWorkStartedAt,
   findLatestProposedPlan,
   deriveWorkLogEntries,
   hasActionableProposedPlan,
   isLatestTurnSettled,
   type PendingApproval,
-  type WorkLogEntry,
 } from "../../../session-logic";
 import {
   selectEnvironmentState,
@@ -134,7 +131,11 @@ import {
   workbenchTerminalThreadId,
 } from "~/components/shell/terminal/workbench-terminal";
 import { ComposerInput, type ComposerInputHandle } from "../composer/input";
-import { useSubagentPreviewStore } from "../../../stores/subagent-preview-store";
+import { useSubagentTrayStore } from "../../../stores/subagent-tray-store";
+import {
+  EMPTY_PENDING_TIMELINE_ROWS,
+  usePendingThreadSendStore,
+} from "../../../stores/pending-thread-send-store";
 import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
@@ -177,7 +178,7 @@ import {
   threadHasStarted,
 } from "./thread-lifecycle";
 import { useLocalStorage } from "~/hooks/use-local-storage";
-import { useComposerHandleContext } from "../composer/handle-context";
+import { useComposerHandleContext } from "../composer/context/handle-context";
 import {
   useServerAvailableEditors,
   useServerConfig,
@@ -200,8 +201,10 @@ import {
   containsThreadEntry,
   deriveThreadBranchView,
   filterActivitiesToBranch,
+  filterChatTimelineRowsToBranch,
   filterMessagesToBranch,
   findThreadMessageEntry,
+  materializeTimelineEntriesFromChatTimelineRows,
   type ThreadBranchView,
 } from "./thread-branch-view";
 import { useThreadBranchWorktree } from "./use-thread-branch-worktree";
@@ -213,18 +216,26 @@ import {
   ChatViewKeyboardShortcutsSync,
   MarkSettledServerThreadVisitedSync,
   MountedTerminalThreadsSync,
-  OptimisticUserMessagesServerAckSync,
-  OptimisticUserMessagesUnmountCleanup,
+  PendingTimelineRowsServerAckSync,
   RetainServerThreadDetailSync,
   TerminalLaunchActiveThreadSync,
   TerminalLaunchClosedSync,
   TerminalLaunchLocalSettledSync,
   TerminalLaunchStoredSettledSync,
   TerminalOpenFocusSync,
-  ThreadDraftResetSync,
+  ThreadMediaResetSync,
 } from "./chat-view-lifecycle-sync";
+import {
+  appendPendingTimelineRowsToMessages,
+  appendTransientTimelineEntries,
+  createPendingTimelineRow,
+  createPendingTimelineRowFromMessage,
+  filterPendingTimelineRowsToBranch,
+  pendingTimelineRowMessages,
+} from "./pending-timeline-rows";
 
 const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
+const EMPTY_CHAT_TIMELINE_ROWS: NonNullable<Thread["chatTimelineRows"]> = [];
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PENDING_APPROVALS: PendingApproval[] = [];
 const EMPTY_THREAD_MESSAGES: ChatMessage[] = [];
@@ -393,10 +404,6 @@ export default function ChatView(props: ChatViewProps) {
   );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const rawSearch = useSearch({
-    strict: false,
-    select: (params) => parseDiffRouteSearch(params),
-  });
   const { resolvedTheme } = useTheme();
   // Granular store selectors avoid subscribing to prompt changes.
   const composerInteractionMode = useComposerDraftStore(
@@ -426,11 +433,11 @@ export default function ChatView(props: ChatViewProps) {
     (store) => store.setLogicalProjectDraftThreadId,
   );
   const gitAgentActionHandoff = useGitAgentActionHandoff();
-  const subagentPreviewPresented = useSubagentPreviewStore((state) => state.presented);
-  const focusedSubagentPreviewKey = useSubagentPreviewStore((state) => state.focus?.key ?? null);
-  const closeSubagentPreview = useSubagentPreviewStore((state) => state.closePreview);
-  const updateFocusedSubagentPreview = useSubagentPreviewStore(
-    (state) => state.updatePreviewSubagent,
+  const subagentTrayPresented = useSubagentTrayStore((state) => state.presented);
+  const focusedSubagentTrayKey = useSubagentTrayStore((state) => state.focus?.key ?? null);
+  const closeSubagentTray = useSubagentTrayStore((state) => state.closeTray);
+  const updateFocusedSubagentTray = useSubagentTrayStore(
+    (state) => state.updateTraySubagent,
   );
   const draftThread = useComposerDraftStore((store) =>
     routeKind === "server"
@@ -446,9 +453,24 @@ export default function ChatView(props: ChatViewProps) {
   const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
-  const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
-  const optimisticUserMessagesRef = useRef(optimisticUserMessages);
-  optimisticUserMessagesRef.current = optimisticUserMessages;
+  const pendingTimelineRows = usePendingThreadSendStore(
+    useMemo(
+      () =>
+        (store) => store.pendingRowsByThreadKey[routeThreadKey] ?? EMPTY_PENDING_TIMELINE_ROWS,
+      [routeThreadKey],
+    ),
+  );
+  const appendPendingTimelineRow = usePendingThreadSendStore((store) => store.appendPendingRow);
+  const removePendingTimelineRows = usePendingThreadSendStore((store) => store.removePendingRows);
+  const removePendingTimelineRowsByClientSendKey = useCallback(
+    (messageId: MessageId) => {
+      const removedRows = removePendingTimelineRows(routeThreadKey, new Set([messageId]));
+      for (const message of pendingTimelineRowMessages(removedRows)) {
+        revokeUserMessagePreviewUrls(message);
+      }
+    },
+    [removePendingTimelineRows, routeThreadKey],
+  );
   const [localDraftErrorsByDraftId, setLocalDraftErrorsByDraftId] = useState<
     Record<string, string | null>
   >({});
@@ -577,7 +599,6 @@ export default function ChatView(props: ChatViewProps) {
   const interactionMode =
     composerInteractionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
   const isLocalDraftThread = !isServerThread && localDraftThread !== undefined;
-  const diffOpen = rawSearch.diff === "1";
   const activeThreadId = activeThread?.id ?? null;
   const activeThreadRef = useMemo(
     () => (activeThread ? scopeThreadRef(activeThread.environmentId, activeThread.id) : null),
@@ -698,9 +719,10 @@ export default function ChatView(props: ChatViewProps) {
     selectedProviderByThreadId ?? threadProvider ?? ProviderInstanceId.make("codex");
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
-  const activeEntryId = activeThread?.activeEntryId ?? null;
-  const branchViewEntryId = containsThreadEntry(activeThread ?? null, activeEntryId)
-    ? activeEntryId
+  const chatTimelineRows = activeThread?.chatTimelineRows ?? EMPTY_CHAT_TIMELINE_ROWS;
+  const leafId = activeThread?.leafId ?? null;
+  const branchViewEntryId = containsThreadEntry(activeThread ?? null, leafId)
+    ? leafId
     : null;
   const branchView = useMemo(
     () => deriveThreadBranchView(activeThread ?? null, branchViewEntryId),
@@ -709,6 +731,10 @@ export default function ChatView(props: ChatViewProps) {
   const visibleThreadActivities = useMemo(
     () => filterActivitiesToBranch(threadActivities, branchView),
     [branchView, threadActivities],
+  );
+  const visibleChatTimelineRows = useMemo(
+    () => filterChatTimelineRowsToBranch(chatTimelineRows, branchView),
+    [branchView, chatTimelineRows],
   );
   const activeRunningTurnId =
     activeThread?.session?.orchestrationStatus === "running"
@@ -722,14 +748,14 @@ export default function ChatView(props: ChatViewProps) {
     [activeRunningTurnId, visibleThreadActivities],
   );
   useEffect(() => {
-    if (focusedSubagentPreviewKey === null) {
+    if (focusedSubagentTrayKey === null) {
       return;
     }
 
     for (const subagent of workLogEntries.flatMap(workLogEntrySubagents)) {
-      updateFocusedSubagentPreview(subagent);
+      updateFocusedSubagentTray(subagent);
     }
-  }, [focusedSubagentPreviewKey, updateFocusedSubagentPreview, workLogEntries]);
+  }, [focusedSubagentTrayKey, updateFocusedSubagentTray, workLogEntries]);
   const pendingApprovals = useMemo(
     () =>
       latestTurnSettled
@@ -823,40 +849,68 @@ export default function ChatView(props: ChatViewProps) {
     clearAttachmentPreviewHandoffs,
     handoffAttachmentPreviews,
   } = useAttachmentPreviewHandoff({ serverMessages });
-  const timelineMessages = useMemo(() => {
-    const serverMessagesWithPreviewHandoff = applyAttachmentPreviewHandoff(serverMessages);
-
+  const localPendingTimelineRows = useMemo(() => {
     const pendingGitAgentMessage =
       gitAgentActionHandoff?.target.environmentId === environmentId &&
       gitAgentActionHandoff.target.threadId === threadId
         ? gitAgentActionHandoff.optimisticMessage
         : null;
-    const optimisticMessages =
-      pendingGitAgentMessage === null
-        ? optimisticUserMessages
-        : [...optimisticUserMessages, pendingGitAgentMessage];
-
-    if (optimisticMessages.length === 0) {
-      return serverMessagesWithPreviewHandoff;
-    }
-    const serverIds = new Set(serverMessagesWithPreviewHandoff.map((message) => message.id));
-    const pendingMessages = optimisticMessages.filter((message) => !serverIds.has(message.id));
-    if (pendingMessages.length === 0) {
-      return serverMessagesWithPreviewHandoff;
-    }
-    return [...serverMessagesWithPreviewHandoff, ...pendingMessages];
+    const pendingGitAgentUserMessage =
+      pendingGitAgentMessage?.role === "user"
+        ? ({ ...pendingGitAgentMessage, role: "user" } satisfies ChatMessage & { role: "user" })
+        : null;
+    const pendingGitAgentRow =
+      pendingGitAgentUserMessage !== null
+        ? createPendingTimelineRowFromMessage({
+            message: pendingGitAgentUserMessage,
+            parentEntryId: branchView.entryId,
+          })
+        : null;
+    return pendingGitAgentRow === null
+      ? pendingTimelineRows
+      : [...pendingTimelineRows, pendingGitAgentRow];
+  }, [branchView.entryId, environmentId, gitAgentActionHandoff, pendingTimelineRows, threadId]);
+  const visiblePendingTimelineRows = useMemo(
+    () => filterPendingTimelineRowsToBranch(localPendingTimelineRows, branchView),
+    [branchView, localPendingTimelineRows],
+  );
+  const timelineMessages = useMemo(() => {
+    const serverMessagesWithPreviewHandoff = applyAttachmentPreviewHandoff(serverMessages);
+    return appendPendingTimelineRowsToMessages(
+      serverMessagesWithPreviewHandoff,
+      visiblePendingTimelineRows,
+    );
   }, [
     applyAttachmentPreviewHandoff,
-    environmentId,
-    gitAgentActionHandoff,
-    optimisticUserMessages,
     serverMessages,
-    threadId,
+    visiblePendingTimelineRows,
   ]);
-  const timelineEntries = useMemo(
-    () => deriveTimelineEntries(timelineMessages, EMPTY_TIMELINE_PROPOSED_PLANS, workLogEntries),
-    [timelineMessages, workLogEntries],
+  const liveTimelineMessages = useMemo(
+    () => timelineMessages.filter((message) => message.streaming),
+    [timelineMessages],
   );
+  const timelineEntries = useMemo(() => {
+    const committedEntries = materializeTimelineEntriesFromChatTimelineRows({
+      rows: visibleChatTimelineRows,
+      messages: timelineMessages,
+      proposedPlans: activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS,
+      activities: threadActivities,
+      workLogOptions: { activeRunningTurnId },
+    });
+    return appendTransientTimelineEntries({
+      entries: committedEntries,
+      liveMessages: liveTimelineMessages,
+      pendingRows: visiblePendingTimelineRows,
+    });
+  }, [
+    activeRunningTurnId,
+    activeThread?.proposedPlans,
+    liveTimelineMessages,
+    threadActivities,
+    timelineMessages,
+    visiblePendingTimelineRows,
+    visibleChatTimelineRows,
+  ]);
   const editableUserMessageIds = useMemo(() => {
     if (!activeThread || activeThread.entries.length === 0) {
       return new Set<MessageId>();
@@ -963,15 +1017,6 @@ export default function ChatView(props: ChatViewProps) {
     }),
     [terminalState.terminalOpen],
   );
-  const nonTerminalShortcutLabelOptions = useMemo(
-    () => ({
-      context: {
-        terminalFocus: false,
-        terminalOpen: Boolean(terminalState.terminalOpen),
-      },
-    }),
-    [terminalState.terminalOpen],
-  );
   const terminalToggleShortcutLabel = useMemo(
     () => shortcutLabelForCommand(keybindings, "terminal.toggle"),
     [keybindings],
@@ -988,37 +1033,6 @@ export default function ChatView(props: ChatViewProps) {
     () => shortcutLabelForCommand(keybindings, "terminal.close", terminalShortcutLabelOptions),
     [keybindings, terminalShortcutLabelOptions],
   );
-  const diffPanelShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "diff.toggle", nonTerminalShortcutLabelOptions),
-    [keybindings, nonTerminalShortcutLabelOptions],
-  );
-  const openGitWorkbench = useCallback(() => {
-    if (!isElectron) {
-      return;
-    }
-    shellPanelsActions.setActiveTab("git");
-    shellPanelsActions.setMuted(false);
-  }, []);
-  const onToggleDiff = useCallback(() => {
-    if (!isServerThread) {
-      return;
-    }
-    if (!diffOpen) {
-      openGitWorkbench();
-    }
-    void navigate({
-      to: "/$environmentId/$threadId",
-      params: {
-        environmentId,
-        threadId,
-      },
-      replace: true,
-      search: (previous) => {
-        const rest = stripDiffSearchParams(previous);
-        return diffOpen ? { ...rest, diff: undefined } : { ...rest, diff: "1", workbench: "git" };
-      },
-    });
-  }, [diffOpen, environmentId, isServerThread, navigate, openGitWorkbench, threadId]);
   const activeTerminalGroup =
     terminalState.terminalGroups.find(
       (group) => group.id === terminalState.activeTerminalGroupId,
@@ -1529,20 +1543,17 @@ export default function ChatView(props: ChatViewProps) {
         setShowScrollToBottom(false);
         await messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
 
-        setOptimisticUserMessages((existing) => [
-          ...existing,
-          {
-            id: messageIdForSend,
-            role: "user",
+        appendPendingTimelineRow(
+          routeThreadKey,
+          createPendingTimelineRow({
+            messageId: messageIdForSend,
             text: compiledTurn.outgoingMessageText,
-            ...(compiledTurn.outgoingRichText !== undefined
-              ? { richText: compiledTurn.outgoingRichText }
-              : {}),
-            ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
+            richText: compiledTurn.outgoingRichText,
+            attachments: optimisticAttachments,
             createdAt: messageCreatedAt,
-            streaming: false,
-          },
-        ]);
+            parentEntryId,
+          }),
+        );
         optimisticMessageAdded = true;
         setThreadError(threadIdForSend, null);
 
@@ -1581,13 +1592,7 @@ export default function ChatView(props: ChatViewProps) {
         return true;
       } catch (err) {
         if (optimisticMessageAdded) {
-          setOptimisticUserMessages((existing) => {
-            const removed = existing.filter((message) => message.id === messageIdForSend);
-            for (const message of removed) {
-              revokeUserMessagePreviewUrls(message);
-            }
-            return existing.filter((message) => message.id !== messageIdForSend);
-          });
+          removePendingTimelineRowsByClientSendKey(messageIdForSend);
         }
         setThreadError(
           threadIdForSend,
@@ -1709,20 +1714,17 @@ export default function ChatView(props: ChatViewProps) {
     setShowScrollToBottom(false);
     await messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
 
-    setOptimisticUserMessages((existing) => [
-      ...existing,
-      {
-        id: messageIdForSend,
-        role: "user",
+    appendPendingTimelineRow(
+      routeThreadKey,
+      createPendingTimelineRow({
+        messageId: messageIdForSend,
         text: compiledTurn.outgoingMessageText,
-        ...(compiledTurn.outgoingRichText !== undefined
-          ? { richText: compiledTurn.outgoingRichText }
-          : {}),
-        ...(optimisticAttachments.length > 0 ? { attachments: optimisticAttachments } : {}),
+        richText: compiledTurn.outgoingRichText,
+        attachments: optimisticAttachments,
         createdAt: messageCreatedAt,
-        streaming: false,
-      },
-    ]);
+        parentEntryId: branchView.entryId,
+      }),
+    );
 
     setThreadError(threadIdForSend, null);
     if (clearComposerOnSubmit) {
@@ -1731,8 +1733,8 @@ export default function ChatView(props: ChatViewProps) {
       composerRef.current?.resetCursorState();
     }
 
+    let promotedDraftOptimistically = false;
     let navigatedOptimistically = false;
-
     let turnStartSucceeded = false;
     await (async () => {
       const title = compiledTurn.title;
@@ -1790,13 +1792,15 @@ export default function ChatView(props: ChatViewProps) {
           : undefined;
       beginLocalDispatch({ preparingWorktree: false });
       if (isLocalDraftThread && draftId) {
+        const promotedThreadRef = scopeThreadRef(environmentId, threadIdForSend);
+        markDraftThreadPromoting(draftId, promotedThreadRef);
+        promotedDraftOptimistically = true;
         await navigate({
           to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(scopeThreadRef(environmentId, threadIdForSend)),
+          params: buildThreadRouteParams(promotedThreadRef),
           replace: true,
         });
         navigatedOptimistically = true;
-        markDraftThreadPromoting(draftId, scopeThreadRef(environmentId, threadIdForSend));
       }
       await api.orchestration.dispatchCommand({
         type: "thread.turn.start",
@@ -1820,8 +1824,10 @@ export default function ChatView(props: ChatViewProps) {
       });
       turnStartSucceeded = true;
     })().catch(async (err: unknown) => {
-      if (navigatedOptimistically && draftId) {
+      if (promotedDraftOptimistically && draftId) {
         cancelDraftThreadPromotion(draftId);
+      }
+      if (navigatedOptimistically && draftId) {
         await navigate({
           to: "/draft/$draftId",
           params: buildDraftThreadRouteParams(draftId),
@@ -1833,14 +1839,7 @@ export default function ChatView(props: ChatViewProps) {
         promptRef.current.length === 0 &&
         composerImagesRef.current.length === 0
       ) {
-        setOptimisticUserMessages((existing) => {
-          const removed = existing.filter((message) => message.id === messageIdForSend);
-          for (const message of removed) {
-            revokeUserMessagePreviewUrls(message);
-          }
-          const next = existing.filter((message) => message.id !== messageIdForSend);
-          return next.length === existing.length ? existing : next;
-        });
+        removePendingTimelineRowsByClientSendKey(messageIdForSend);
         promptRef.current = promptForSend;
         const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
         composerImagesRef.current = retryComposerImages;
@@ -2192,16 +2191,15 @@ export default function ChatView(props: ChatViewProps) {
       setShowScrollToBottom(false);
       await messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
 
-      setOptimisticUserMessages((existing) => [
-        ...existing,
-        {
-          id: messageIdForSend,
-          role: "user",
+      appendPendingTimelineRow(
+        routeThreadKey,
+        createPendingTimelineRow({
+          messageId: messageIdForSend,
           text: outgoingMessageText,
           createdAt: messageCreatedAt,
-          streaming: false,
-        },
-      ]);
+          parentEntryId: branchView.entryId,
+        }),
+      );
 
       try {
         await persistThreadSettingsForNextTurn({
@@ -2251,9 +2249,7 @@ export default function ChatView(props: ChatViewProps) {
         }
         sendInFlightRef.current = false;
       } catch (err) {
-        setOptimisticUserMessages((existing) =>
-          existing.filter((message) => message.id !== messageIdForSend),
-        );
+        removePendingTimelineRowsByClientSendKey(messageIdForSend);
         setThreadError(
           threadIdForSend,
           err instanceof Error ? err.message : "Failed to send plan follow-up.",
@@ -2370,8 +2366,10 @@ export default function ChatView(props: ChatViewProps) {
       threadActivities,
     ],
   );
+  const localThreadHasStarted =
+    pendingTimelineRows.length > 0 || isSendBusy || Boolean(draftThread?.promotedTo);
   const isHeroComposer = activeThread
-    ? isLocalDraftThread && !threadHasStarted(activeThread)
+    ? isLocalDraftThread && !threadHasStarted(activeThread) && !localThreadHasStarted
     : false;
   const activeTimelineCacheKey = activeThread
     ? `${activeThread.id}:${branchView.entryId ?? "linear"}`
@@ -2384,7 +2382,6 @@ export default function ChatView(props: ChatViewProps) {
   const clearAttachmentPreviewHandoffsVersion = useValueIdentityVersion(
     clearAttachmentPreviewHandoffs,
   );
-  const resetLocalDispatchVersion = useValueIdentityVersion(resetLocalDispatch);
   const routeThreadRefVersion = useValueIdentityVersion(routeThreadRef);
   const storeClearTerminalLaunchContextVersion = useValueIdentityVersion(
     storeClearTerminalLaunchContext,
@@ -2399,7 +2396,6 @@ export default function ChatView(props: ChatViewProps) {
   const runProjectScriptVersion = useValueIdentityVersion(runProjectScript);
   const splitTerminalVersion = useValueIdentityVersion(splitTerminal);
   const keybindingsVersion = useValueIdentityVersion(keybindings);
-  const onToggleDiffVersion = useValueIdentityVersion(onToggleDiff);
   const toggleTerminalVisibilityVersion = useValueIdentityVersion(toggleTerminalVisibility);
   const activeProjectScriptsVersion = useValueIdentityVersion(activeProject?.scripts ?? null);
   const chatViewLifecycleSync = (
@@ -2437,7 +2433,6 @@ export default function ChatView(props: ChatViewProps) {
         markThreadVisited={markThreadVisited}
         threadId={serverThread?.id}
       />
-      <OptimisticUserMessagesUnmountCleanup optimisticUserMessagesRef={optimisticUserMessagesRef} />
       <ActiveThreadUiResetSync
         key={activeThread?.id ?? ""}
         isAtBottomRef={isAtBottomRef}
@@ -2451,30 +2446,27 @@ export default function ChatView(props: ChatViewProps) {
         focusComposer={focusComposer}
         terminalOpen={Boolean(terminalState.terminalOpen)}
       />
-      <OptimisticUserMessagesServerAckSync
+      <PendingTimelineRowsServerAckSync
         key={[
-          activeThread?.id ?? "",
           handoffAttachmentPreviewsVersion,
-          optimisticUserMessages.length,
+          pendingTimelineRows.length,
+          routeThreadKey,
           serverMessagesVersion,
         ].join("\0")}
-        activeThreadId={activeThread?.id ?? null}
         handoffAttachmentPreviews={handoffAttachmentPreviews}
-        optimisticUserMessages={optimisticUserMessages}
+        pendingTimelineRows={pendingTimelineRows}
+        removePendingTimelineRows={removePendingTimelineRows}
         serverMessages={activeThread?.messages}
-        setOptimisticUserMessages={setOptimisticUserMessages}
+        threadKey={routeThreadKey}
       />
-      <ThreadDraftResetSync
+      <ThreadMediaResetSync
         key={[
           clearAttachmentPreviewHandoffsVersion,
           draftId ?? "",
-          resetLocalDispatchVersion,
           threadId,
         ].join("\0")}
         clearAttachmentPreviewHandoffs={clearAttachmentPreviewHandoffs}
-        resetLocalDispatch={resetLocalDispatch}
         setExpandedImage={setExpandedImage}
-        setOptimisticUserMessages={setOptimisticUserMessages}
       />
       <TerminalLaunchActiveThreadSync
         key={[
@@ -2546,7 +2538,6 @@ export default function ChatView(props: ChatViewProps) {
           closeTerminalVersion,
           createNewTerminalVersion,
           keybindingsVersion,
-          onToggleDiffVersion,
           runProjectScriptVersion,
           setTerminalOpenVersion,
           splitTerminalVersion,
@@ -2559,7 +2550,6 @@ export default function ChatView(props: ChatViewProps) {
         closeTerminal={closeTerminal}
         createNewTerminal={createNewTerminal}
         keybindings={keybindings}
-        onToggleDiff={onToggleDiff}
         runProjectScript={runProjectScript}
         setTerminalOpen={setTerminalOpen}
         splitTerminal={splitTerminal}
@@ -2598,14 +2588,11 @@ export default function ChatView(props: ChatViewProps) {
           terminalAvailable={activeProject !== undefined}
           terminalOpen={terminalState.terminalOpen}
           terminalToggleShortcutLabel={terminalToggleShortcutLabel}
-          diffToggleShortcutLabel={diffPanelShortcutLabel}
-          diffOpen={diffOpen}
           onRunProjectScript={runProjectScript}
           onAddProjectScript={saveProjectScript}
           onUpdateProjectScript={updateProjectScript}
           onDeleteProjectScript={deleteProjectScript}
           onToggleTerminal={toggleTerminalVisibility}
-          onToggleDiff={onToggleDiff}
         />
       </header>
 
@@ -2624,7 +2611,7 @@ export default function ChatView(props: ChatViewProps) {
             <div
               className="relative flex min-h-0 flex-1 flex-col"
               data-subagent-conversation-shell=""
-              data-subagent-preview-open={subagentPreviewPresented ? "" : undefined}
+              data-subagent-tray-open={subagentTrayPresented ? "" : undefined}
             >
               <div data-subagent-conversation-mask="">
                 {branchView.status === "invalid" ? (
@@ -2677,12 +2664,12 @@ export default function ChatView(props: ChatViewProps) {
                   </div>
                 )}
               </div>
-              {subagentPreviewPresented ? (
+              {subagentTrayPresented ? (
                 <button
                   type="button"
-                  data-subagent-preview-click-capture=""
-                  aria-label="Close subagent preview"
-                  onClick={closeSubagentPreview}
+                  data-subagent-tray-click-capture=""
+                  aria-label="Close subagent tray"
+                  onClick={closeSubagentTray}
                 />
               ) : null}
             </div>
@@ -2699,7 +2686,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-chat-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-chat-surface-background),transparent)] *:pointer-events-auto *:relative *:z-1"
+                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background),transparent)] *:pointer-events-auto *:relative *:z-1"
                 : undefined,
             )}
             data-layout={isHeroComposer ? "wide" : undefined}

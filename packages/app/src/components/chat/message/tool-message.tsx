@@ -13,10 +13,10 @@ import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-ren
 import { cn } from "~/lib/utils";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
-  subagentPreviewKey,
-  subagentPreviewUpdateSignature,
-  useSubagentPreviewStore,
-} from "../../../stores/subagent-preview-store";
+  subagentTrayKey,
+  subagentTrayUpdateSignature,
+  useSubagentTrayStore,
+} from "../../../stores/subagent-tray-store";
 
 type ToolCallStatus = "loading" | "completed" | "error";
 
@@ -119,24 +119,24 @@ function SubagentStatusSurface({
   subagentDetailsEnabled: boolean;
   subagents: ReadonlyArray<WorkLogSubagent>;
 }) {
-  const openPreviewKey = useSubagentPreviewStore((state) => state.focus?.key ?? null);
-  const hasOpenPreview = subagents.some(
-    (subagent) => subagentPreviewKey(subagent) === openPreviewKey,
+  const openTrayKey = useSubagentTrayStore((state) => state.focus?.key ?? null);
+  const hasOpenTray = subagents.some(
+    (subagent) => subagentTrayKey(subagent) === openTrayKey,
   );
 
   return (
     <div
       data-subagent-status-container=""
-      data-subagent-open={hasOpenPreview ? "" : undefined}
+      data-subagent-open={hasOpenTray ? "" : undefined}
       className="w-full min-w-0 max-w-full px-3 py-1 text-conversation"
     >
       <div data-subagent-status-stack="" className="flex w-full min-w-0 flex-col items-start gap-1">
         {subagents.map((subagent) => (
           <SubagentStatusRow
-            key={subagentPreviewKey(subagent)}
+            key={subagentTrayKey(subagent)}
             activeThreadId={activeThreadId}
             environmentId={environmentId}
-            isPreviewOpen={openPreviewKey === subagentPreviewKey(subagent)}
+            isTrayOpen={openTrayKey === subagentTrayKey(subagent)}
             projectRoot={projectRoot}
             subagent={subagent}
             subagentDetailsEnabled={subagentDetailsEnabled}
@@ -150,21 +150,21 @@ function SubagentStatusSurface({
 function SubagentStatusRow({
   activeThreadId,
   environmentId,
-  isPreviewOpen,
+  isTrayOpen,
   projectRoot,
   subagent,
   subagentDetailsEnabled,
 }: {
   activeThreadId: ThreadId;
   environmentId: EnvironmentId;
-  isPreviewOpen: boolean;
+  isTrayOpen: boolean;
   projectRoot: string | undefined;
   subagent: WorkLogSubagent;
   subagentDetailsEnabled: boolean;
 }) {
-  const openPreview = useSubagentPreviewStore((state) => state.openPreview);
-  const updatePreviewSubagent = useSubagentPreviewStore((state) => state.updatePreviewSubagent);
-  const key = subagentPreviewKey(subagent);
+  const openTray = useSubagentTrayStore((state) => state.openTray);
+  const updateTraySubagent = useSubagentTrayStore((state) => state.updateTraySubagent);
+  const key = subagentTrayKey(subagent);
   const providerThreadId = subagent.providerThreadId?.trim() ?? "";
   const hasProviderThread = providerThreadId.length > 0;
   const hasDetails =
@@ -173,14 +173,14 @@ function SubagentStatusRow({
   const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
   const statusText = subagent.latestUpdate ?? subagent.statusLabel;
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
-  const previewUpdateSignature = isPreviewOpen ? subagentPreviewUpdateSignature(subagent) : "";
+  const trayUpdateSignature = isTrayOpen ? subagentTrayUpdateSignature(subagent) : "";
 
-  const handleOpenPreview = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleOpenTray = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (!hasDetails) {
       return;
     }
-    openPreview({
+    openTray({
       key,
       activeThreadId,
       environmentId,
@@ -189,17 +189,17 @@ function SubagentStatusRow({
     });
   };
 
-  const previewUpdateSync = isPreviewOpen ? (
-    <SubagentPreviewUpdateSync
-      key={previewUpdateSignature}
+  const trayUpdateSync = isTrayOpen ? (
+    <SubagentTrayUpdateSync
+      key={trayUpdateSignature}
       subagent={subagent}
-      updatePreviewSubagent={updatePreviewSubagent}
+      updateTraySubagent={updateTraySubagent}
     />
   ) : null;
 
   return (
     <>
-      {previewUpdateSync}
+      {trayUpdateSync}
       <button
         type="button"
         className={cn(
@@ -207,15 +207,15 @@ function SubagentStatusRow({
           "border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary",
           hasDetails &&
             "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
-          isPreviewOpen && hasDetails && "text-multi-fg-primary",
+          isTrayOpen && hasDetails && "text-multi-fg-primary",
         )}
         data-subagent-row=""
         data-subagent-state={rowState}
         data-subagent-provider-thread-id={hasProviderThread ? providerThreadId : undefined}
         disabled={!hasDetails}
         aria-label={hasDetails ? `Open ${title} details` : undefined}
-        aria-pressed={hasDetails ? isPreviewOpen : undefined}
-        onClick={handleOpenPreview}
+        aria-pressed={hasDetails ? isTrayOpen : undefined}
+        onClick={handleOpenTray}
         onKeyDown={stopSubagentStatusRowKeyDown}
       >
         <SubagentStatusIndicator subagent={subagent} />
@@ -253,7 +253,7 @@ function SubagentStatusRow({
             className={cn(
               "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
               "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
-              isPreviewOpen && "opacity-100",
+              isTrayOpen && "opacity-100",
             )}
             data-subagent-open=""
             aria-hidden="true"
@@ -266,15 +266,15 @@ function SubagentStatusRow({
   );
 }
 
-function SubagentPreviewUpdateSync({
+function SubagentTrayUpdateSync({
   subagent,
-  updatePreviewSubagent,
+  updateTraySubagent,
 }: {
   subagent: WorkLogSubagent;
-  updatePreviewSubagent: (subagent: WorkLogSubagent) => void;
+  updateTraySubagent: (subagent: WorkLogSubagent) => void;
 }) {
   useMountEffect(() => {
-    updatePreviewSubagent(subagent);
+    updateTraySubagent(subagent);
   });
 
   return null;

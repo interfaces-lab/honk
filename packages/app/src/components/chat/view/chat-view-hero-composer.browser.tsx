@@ -41,13 +41,14 @@ describe("ChatView hero composer CSS", () => {
 
       await vi.waitFor(
         () => {
-          const paragraph = editor.querySelector("p.is-editor-empty:first-child");
-          expect(paragraph?.getAttribute("data-placeholder")).toBe(
-            "Ask for follow-up changes or attach images",
-          );
-          expect(getComputedStyle(paragraph as Element, "::before").content).toContain(
-            "Ask for follow-up",
-          );
+          const placeholder = root?.querySelector<HTMLElement>("[data-prompt-editor-placeholder]");
+          expect(placeholder?.textContent).toBe("Ask for follow-up changes or attach images");
+          if (!placeholder) return;
+
+          const editorStyle = getComputedStyle(editor);
+          const placeholderStyle = getComputedStyle(placeholder);
+          expect(placeholderStyle.paddingLeft).toBe(editorStyle.paddingLeft);
+          expect(placeholderStyle.paddingTop).toBe(editorStyle.paddingTop);
         },
         { timeout: 8_000, interval: 16 },
       );

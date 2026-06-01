@@ -1,6 +1,6 @@
 import { IconCollaborationPointerRight, IconFolderAddRight } from "central-icons";
 
-import { SidebarButton } from "~/components/shell/shared/sidebar-button";
+import { SidebarButton } from "@multi/ui/sidebar";
 
 export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?: () => void }) {
   return (

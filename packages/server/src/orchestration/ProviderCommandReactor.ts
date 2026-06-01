@@ -225,7 +225,7 @@ function buildThreadEntryPath(
   };
 }
 
-function buildProviderConversationContext(input: {
+export function buildProviderConversationContext(input: {
   readonly thread: OrchestrationThread;
   readonly currentMessageId: MessageId;
   readonly userEntryId: ThreadEntryId;
@@ -442,18 +442,12 @@ const make = Effect.gen(function* () {
       const modelChanged = desiredModelSelection.model !== activeSession?.model;
       const shouldRestartForModelChange = modelChanged && sessionModelSwitch === "restart-session";
       const cwdChanged = effectiveCwd !== undefined && activeSession?.cwd !== effectiveCwd;
-      const previousModelSelection = threadModelSelections.get(threadId);
-      const shouldRestartForModelSelectionChange =
-        currentProvider === "claudeAgent" &&
-        requestedModelSelection !== undefined &&
-        !Equal.equals(previousModelSelection, requestedModelSelection);
 
       if (
         !runtimeModeChanged &&
         !providerChanged &&
         !shouldRestartForModelChange &&
         !cwdChanged &&
-        !shouldRestartForModelSelectionChange &&
         options?.discardResumeCursor !== true
       ) {
         return existingSessionThreadId;
@@ -475,7 +469,6 @@ const make = Effect.gen(function* () {
         cwdChanged,
         modelChanged,
         shouldRestartForModelChange,
-        shouldRestartForModelSelectionChange,
         hasResumeCursor: resumeCursor !== undefined,
       });
       const restartedSession = yield* startProviderSession({
@@ -518,11 +511,25 @@ const make = Effect.gen(function* () {
           input.threadId,
         );
       }
-      const conversationContext = buildProviderConversationContext({
-        thread,
-        currentMessageId: input.messageId,
-        userEntryId: input.userEntryId,
-      });
+      const requestedModelSelection =
+        input.modelSelection ?? threadModelSelections.get(input.threadId) ?? thread.modelSelection;
+      const currentProviderInstanceId =
+        thread.session?.status !== "stopped"
+          ? (thread.session?.providerInstanceId ??
+            (thread.session?.providerName
+              ? ProviderInstanceId.make(thread.session.providerName)
+              : undefined))
+          : undefined;
+      const providerChanged =
+        currentProviderInstanceId !== undefined &&
+        requestedModelSelection.instanceId !== currentProviderInstanceId;
+      const conversationContext = providerChanged
+        ? { ok: true as const, messages: [] }
+        : buildProviderConversationContext({
+            thread,
+            currentMessageId: input.messageId,
+            userEntryId: input.userEntryId,
+          });
       if (!conversationContext.ok) {
         return yield* new ProviderCommandReactorBranchPathError({
           operation: "ProviderCommandReactor.buildSendTurnRequestForThread",
@@ -548,8 +555,6 @@ const make = Effect.gen(function* () {
         activeSession === undefined
           ? "in-session"
           : (yield* providerService.getCapabilities(activeSession.provider)).sessionModelSwitch;
-      const requestedModelSelection =
-        input.modelSelection ?? threadModelSelections.get(input.threadId) ?? thread.modelSelection;
       const modelForTurn =
         sessionModelSwitch === "unsupported"
           ? activeSession?.model !== undefined
@@ -563,7 +568,7 @@ const make = Effect.gen(function* () {
       return {
         threadId: input.threadId,
         ...(normalizedInput ? { input: normalizedInput } : {}),
-        ...(conversationContext.messages.length > 0
+        ...(!providerChanged && conversationContext.messages.length > 0
           ? { context: conversationContext.messages }
           : {}),
         ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),

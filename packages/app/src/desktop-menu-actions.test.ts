@@ -5,6 +5,10 @@ import {
   __resetDesktopMenuActionBridgeForTests,
   installDesktopMenuActionBridge,
 } from "./desktop-menu-actions";
+import {
+  DEFAULT_SETTINGS_ROUTE,
+  type SettingsRoutePath,
+} from "./components/settings/settings-sections";
 
 const originalWindow = globalThis.window;
 
@@ -60,7 +64,7 @@ function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridg
 }
 
 function installBridge(
-  navigate: (options: { to: "/settings/general" }) => unknown,
+  navigate: (options: { to: SettingsRoutePath }) => unknown,
 ): (action: string) => void {
   let menuListener: (action: string) => void = () => undefined;
   getWindowForTest().desktopBridge = makeDesktopBridge({
@@ -85,16 +89,16 @@ afterEach(() => {
 
 describe("installDesktopMenuActionBridge", () => {
   it("navigates to settings for the native open-settings menu action", () => {
-    const navigate = vi.fn<(options: { to: "/settings/general" }) => void>();
+    const navigate = vi.fn<(options: { to: SettingsRoutePath }) => void>();
     const emitMenuAction = installBridge(navigate);
 
     emitMenuAction("open-settings");
 
-    expect(navigate).toHaveBeenCalledWith({ to: "/settings/general" });
+    expect(navigate).toHaveBeenCalledWith({ to: DEFAULT_SETTINGS_ROUTE });
   });
 
   it("ignores unrelated native menu actions", () => {
-    const navigate = vi.fn<(options: { to: "/settings/general" }) => void>();
+    const navigate = vi.fn<(options: { to: SettingsRoutePath }) => void>();
     const emitMenuAction = installBridge(navigate);
 
     emitMenuAction("unknown-action");

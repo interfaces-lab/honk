@@ -22,7 +22,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     interactionMode: "default",
     session: null,
     messages: [],
-    activeEntryId: null,
+    leafId: null,
     entries: [],
     proposedPlans: [],
     error: null,

@@ -1,12 +1,9 @@
 import { type EnvironmentId, type MessageId, type ThreadId } from "@multi/contracts";
 import {
-  createContext,
   memo,
   type RefObject,
-  use,
   useCallback,
   type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
   useMemo,
   useRef,
   useState,
@@ -20,9 +17,8 @@ import {
   type VirtualItem,
   type Virtualizer,
 } from "@tanstack/react-virtual";
-import { IconChevronRightMedium } from "central-icons";
 import { Spinner } from "@multi/ui/spinner";
-import { deriveTimelineEntries, formatDuration, type WorkLogEntry } from "../../../session-logic";
+import { type TimelineEntry } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
@@ -33,40 +29,25 @@ import {
   type MessagesTimelineRow,
 } from "./timeline-rows";
 import { cn } from "~/lib/utils";
-import { WorkingStatusRow } from "../message/status-row";
-import { ToolCallMessage } from "../message/tool-message";
-import { ProposedPlanMessage } from "../message/proposed-plan-message";
-import {
-  AssistantTranscriptRow,
-  HumanTranscriptRow,
-} from "../message/transcript-rows";
 import { useMountEffect } from "~/hooks/use-mount-effect";
+import {
+  GroupedStepsRenderer,
+  StepRenderer,
+  WORK_GROUP_HEADER_GAP_PX,
+  WORK_GROUP_HEADER_PX,
+  WORK_GROUP_PREVIEW_ENTRY_PX,
+  WORK_GROUP_PREVIEW_MAX_ENTRIES,
+  WORK_GROUP_PREVIEW_PX,
+  WORK_GROUP_STEP_GAP_PX,
+  type StepRendererContext,
+} from "./step-renderer";
 
 type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
-
-// Context shared by every row component via useContext.
-
-export interface TimelineRowSharedState {
-  markdownCwd: string | undefined;
-  projectRoot: string | undefined;
-  activeThreadId: ThreadId;
-  activeThreadEnvironmentId: EnvironmentId;
-  isServerThread: boolean;
-  onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
-  renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
-  onUpdateProposedPlan:
-    | ((proposedPlan: ProposedPlan, nextMarkdown: string) => Promise<boolean>)
-    | undefined;
-  onImageExpand: (preview: ExpandedImagePreview) => void;
-}
-
-export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
 
 const DEFAULT_VIRTUALIZER_RECT = { width: 0, height: 720 };
 const VIRTUAL_ROW_GAP_PX = 12;
 const VIRTUALIZER_OVERSCAN = 8;
 const TIMELINE_SCROLL_END_THRESHOLD_PX = 2;
-const WORK_GROUP_PREVIEW_MAX_ENTRIES = 6;
 const MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS = 16;
 
 interface TimelineVirtualizerSnapshot {
@@ -105,7 +86,7 @@ interface MessagesTimelineProps {
   activeTurnStartedAt: string | null;
   bottomClearancePx?: number | undefined;
   timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
-  timelineEntries: ReturnType<typeof deriveTimelineEntries>;
+  timelineEntries: TimelineEntry[];
   editableUserMessageIds: ReadonlySet<MessageId>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
@@ -117,10 +98,7 @@ interface MessagesTimelineProps {
   editingUserMessageId?: MessageId | null | undefined;
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer?: ((message: ChatMessage) => ReactNode) | undefined;
-  onUpdateProposedPlan?: (
-    proposedPlan: ProposedPlan,
-    nextMarkdown: string,
-  ) => Promise<boolean>;
+  onUpdateProposedPlan?: (proposedPlan: ProposedPlan, nextMarkdown: string) => Promise<boolean>;
   awaitingServerThreadDetail?: boolean | undefined;
   onIsAtBottomChange: (isAtBottom: boolean) => void;
 }
@@ -268,6 +246,27 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     useAnimationFrameWithResizeObserver: true,
   });
 
+  useMountEffect(() => {
+    rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) => {
+      const activeStickyIndex = findActiveStickyUserRowIndex(
+        stickyUserRowIndicesRef.current,
+        instance.range?.startIndex ?? item.index,
+      );
+      if (item.index === activeStickyIndex) {
+        return false;
+      }
+      return (
+        delta !== 0 &&
+        item.start < (instance.scrollOffset ?? 0) &&
+        instance.scrollDirection !== "backward"
+      );
+    };
+
+    return () => {
+      rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
+    };
+  });
+
   const getIsAtBottom = useCallback(
     () => rowVirtualizer.isAtEnd(TIMELINE_SCROLL_END_THRESHOLD_PX),
     [rowVirtualizer],
@@ -377,7 +376,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     [rowVirtualizer, timelineCacheKey],
   );
 
-  const sharedState = useMemo<TimelineRowSharedState>(
+  const sharedState = useMemo<StepRendererContext>(
     () => ({
       markdownCwd,
       projectRoot,
@@ -431,13 +430,21 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     stickyUserRowIndices,
     rowVirtualizer.range?.startIndex ?? virtualItems[0]?.index ?? 0,
   );
+  const floatingEditRow =
+    activeStickyUserRowIndex === null ? undefined : rows[activeStickyUserRowIndex];
+  const floatingEditUserRow =
+    floatingEditRow?.kind === "message" &&
+    floatingEditRow.message.role === "user" &&
+    floatingEditRow.message.id === editingUserMessageId
+      ? floatingEditRow
+      : null;
   const virtualContentStyle = {
     height: rowVirtualizer.getTotalSize(),
     position: "relative",
   } satisfies CSSProperties;
 
   return (
-    <TimelineRowCtx.Provider value={sharedState}>
+    <>
       {lifecycleSync}
       <div className="relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-(--chat-timeline-padding-block-start)">
         <div
@@ -456,35 +463,86 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 return null;
               }
 
+              const isEditingUserMessage =
+                row.kind === "message" &&
+                row.message.role === "user" &&
+                row.message.id === editingUserMessageId;
               const isActiveStickyUserRow = virtualRow.index === activeStickyUserRowIndex;
+              const isFloatingEditingUserMessage = isActiveStickyUserRow && isEditingUserMessage;
+
+              if (isFloatingEditingUserMessage) {
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    aria-hidden="true"
+                    className="box-border w-full px-4 pb-(--chat-timeline-row-gap) [contain:layout]"
+                    style={virtualRowStyle(
+                      virtualRow,
+                      isActiveStickyUserRow,
+                      isFloatingEditingUserMessage,
+                    )}
+                  />
+                );
+              }
 
               return (
                 <div
                   key={virtualRow.key}
                   ref={rowVirtualizer.measureElement}
                   data-index={virtualRow.index}
-                  data-sticky={isActiveStickyUserRow ? "true" : undefined}
-                  className="w-full px-4 pb-(--chat-timeline-row-gap)"
-                  style={virtualRowStyle(virtualRow, isActiveStickyUserRow)}
+                  className="flow-root w-full px-4 pb-(--chat-timeline-row-gap) [contain:layout]"
+                  style={virtualRowStyle(
+                    virtualRow,
+                    isActiveStickyUserRow,
+                    isFloatingEditingUserMessage,
+                  )}
                 >
-                  <TimelineRowContent
-                    row={row}
-                    workGroupExpanded={row.kind === "work" && expandedWorkGroupIds.has(row.id)}
-                    onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
-                    editUserMessagesDisabled={editUserMessagesDisabled}
-                    isEditingUserMessage={
-                      row.kind === "message" &&
-                      row.message.role === "user" &&
-                      row.message.id === editingUserMessageId
-                    }
-                  />
+                  <div
+                    data-sticky={isActiveStickyUserRow ? "true" : undefined}
+                    data-editing-user-message={isEditingUserMessage ? "true" : undefined}
+                    className="w-full"
+                  >
+                    <TimelineRowContent
+                      row={row}
+                      workGroupExpanded={row.kind === "work" && expandedWorkGroupIds.has(row.id)}
+                      onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
+                      editUserMessagesDisabled={editUserMessagesDisabled}
+                      isEditingUserMessage={isEditingUserMessage}
+                      ctx={sharedState}
+                    />
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
+        {floatingEditUserRow ? (
+          <div
+            data-floating-edit-row-backplate="true"
+            className="pointer-events-none absolute inset-x-0 z-[102]"
+            style={{ top: "var(--chat-timeline-padding-block-start)" }}
+          >
+            <div className="mx-auto box-border w-full max-w-agent-chat px-4 pb-(--chat-timeline-row-gap)">
+              <div
+                data-sticky="true"
+                data-editing-user-message="true"
+                className="pointer-events-auto w-full"
+              >
+                <TimelineRowContent
+                  row={floatingEditUserRow}
+                  workGroupExpanded={false}
+                  onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
+                  editUserMessagesDisabled={editUserMessagesDisabled}
+                  isEditingUserMessage
+                  ctx={sharedState}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
-    </TimelineRowCtx.Provider>
+    </>
   );
 });
 
@@ -541,11 +599,6 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
   return activeIndex;
 }
 
-const WORK_GROUP_PREVIEW_PX = 144;
-const WORK_GROUP_PREVIEW_ENTRY_PX = 28;
-const WORK_GROUP_HEADER_PX = 28;
-const WORK_GROUP_HEADER_GAP_PX = 4;
-const WORK_GROUP_STEP_GAP_PX = 6;
 const ASSISTANT_MESSAGE_MIN_PX = 156;
 const USER_MESSAGE_MIN_PX = 88;
 const MESSAGE_ROW_CHROME_PX = 40;
@@ -643,10 +696,7 @@ function estimateInitialTimelineBottomOffset(
   return Math.max(0, totalSize - DEFAULT_VIRTUALIZER_RECT.height);
 }
 
-function estimateTimelineRowSize(
-  row: MessagesTimelineRow | undefined,
-  expanded = false,
-): number {
+function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded = false): number {
   if (!row) {
     return 96 + VIRTUAL_ROW_GAP_PX;
   }
@@ -725,12 +775,17 @@ function estimateWrappedLineCount(text: string | undefined, charsPerLine: number
   return lines;
 }
 
-function virtualRowStyle(virtualRow: VirtualItem, isSticky: boolean): CSSProperties {
+function virtualRowStyle(
+  virtualRow: VirtualItem,
+  isSticky: boolean,
+  isFloatingEdit: boolean,
+): CSSProperties {
   if (isSticky) {
     return {
       position: "sticky",
       top: 0,
-      zIndex: 100,
+      zIndex: 101,
+      ...(isFloatingEdit ? { height: virtualRow.size } : null),
     };
   }
 
@@ -752,15 +807,15 @@ const TimelineRowContent = memo(function TimelineRowContent({
   onToggleWorkGroupExpanded,
   editUserMessagesDisabled,
   isEditingUserMessage = false,
+  ctx,
 }: {
   row: TimelineRow;
   workGroupExpanded: boolean;
   onToggleWorkGroupExpanded: (rowId: string) => void;
   editUserMessagesDisabled: boolean;
   isEditingUserMessage?: boolean;
+  ctx: StepRendererContext;
 }) {
-  const ctx = use(TimelineRowCtx);
-
   return (
     <div
       className={cn(
@@ -803,287 +858,29 @@ function TimelineRowBody({
   onToggleWorkGroupExpanded: (rowId: string) => void;
   editUserMessagesDisabled: boolean;
   isEditingUserMessage: boolean;
-  ctx: TimelineRowSharedState;
+  ctx: StepRendererContext;
 }) {
-  return (
-    <>
-      {row.kind === "work" && (
-        <div className="flex w-full min-w-0">
-          <WorkGroupSection
-            row={row}
-            expanded={workGroupExpanded}
-            onToggleExpanded={onToggleWorkGroupExpanded}
-          />
-        </div>
-      )}
-
-      {row.kind === "message" && row.message.role === "user" && (
-        <HumanTimelineRow
+  if (row.kind === "work") {
+    return (
+      <div className="flex w-full min-w-0">
+        <GroupedStepsRenderer
           row={row}
+          expanded={workGroupExpanded}
+          onToggleExpanded={onToggleWorkGroupExpanded}
           editUserMessagesDisabled={editUserMessagesDisabled}
-          isEditingUserMessage={isEditingUserMessage}
           ctx={ctx}
         />
-      )}
-
-      {row.kind === "message" && row.message.role === "assistant" && (
-        <AssistantTranscriptRow message={row.message} markdownCwd={ctx.markdownCwd} />
-      )}
-
-      {row.kind === "proposed-plan" && (
-        <ProposedPlanMessage
-          canEdit={ctx.isServerThread}
-          markdownCwd={ctx.markdownCwd}
-          onSave={ctx.onUpdateProposedPlan}
-          proposedPlan={row.proposedPlan}
-        />
-      )}
-
-      {row.kind === "working" && (
-        <div className="flex w-full min-w-0 opacity-75">
-          <WorkingStatusRow />
-        </div>
-      )}
-    </>
-  );
-}
-
-const HumanTimelineRow = memo(function HumanTimelineRow({
-  row,
-  editUserMessagesDisabled,
-  isEditingUserMessage,
-  ctx,
-}: {
-  row: Extract<TimelineRow, { kind: "message" }>;
-  editUserMessagesDisabled: boolean;
-  isEditingUserMessage: boolean;
-  ctx: TimelineRowSharedState;
-}) {
-  return (
-    <HumanTranscriptRow
-      message={row.message}
-      editAvailable={row.editAvailable}
-      isEditing={isEditingUserMessage}
-      editDisabled={editUserMessagesDisabled}
-      isServerThread={ctx.isServerThread}
-      editComposer={isEditingUserMessage ? (ctx.renderEditComposer?.(row.message) ?? null) : null}
-      onImageExpand={ctx.onImageExpand}
-      onBeginEditUserMessage={ctx.onBeginEditUserMessage}
-    />
-  );
-});
-
-// Collapsible group for adjacent tool activity rows.
-
-const WorkGroupSection = memo(function WorkGroupSection({
-  row,
-  expanded,
-  onToggleExpanded,
-}: {
-  row: Extract<MessagesTimelineRow, { kind: "work" }>;
-  expanded: boolean;
-  onToggleExpanded: (rowId: string) => void;
-}) {
-  const { projectRoot, activeThreadId, activeThreadEnvironmentId } = use(TimelineRowCtx);
-  const summary = row.summary;
-  const isRunning = row.isRunning;
-  const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
-  const isCommandGroup = row.groupedEntries.every(isCommandWorkEntry);
-  const headerLabel = isThinkingGroup
-    ? [summary.action, summary.details].filter(Boolean).join(" ")
-    : isRunning
-      ? summary.action
-      : `Worked for ${formatDuration(row.durationMs)}`;
-  const handleToggle = useCallback(() => {
-    onToggleExpanded(row.id);
-  }, [onToggleExpanded, row.id]);
-
-  return (
-    <div
-      className="flex min-h-0 min-w-0 max-w-agent-chat flex-1 flex-col gap-(--chat-timeline-collapsible-header-gap) py-0.5 text-conversation"
-      data-assistant-work-group=""
-      data-work-group-expanded={expanded ? "true" : "false"}
-      data-work-group-running={isRunning ? "true" : "false"}
-    >
-      <button
-        type="button"
-        className={cn(
-          "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
-          "border-0 bg-transparent p-0 text-left select-none",
-          "text-conversation text-multi-fg-tertiary",
-          "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
-        )}
-        aria-expanded={expanded}
-        onClick={handleToggle}
-        data-work-group-header=""
-      >
-        <span className="shrink-0 whitespace-nowrap tabular-nums">{headerLabel}</span>
-        {!expanded && !isThinkingGroup ? (
-          <>
-            <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
-              ·
-            </span>
-            <WorkGroupSummaryLine summary={summary} />
-          </>
-        ) : null}
-        <IconChevronRightMedium
-          className={cn(
-            "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out",
-            expanded && "rotate-90",
-          )}
-        />
-      </button>
-      {expanded ? (
-        <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
-          {!isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
-          {row.groupedEntries.map((workEntry) => (
-            <ToolCallMessage
-              key={`work-row:${workEntry.id}`}
-              workEntry={workEntry}
-              projectRoot={projectRoot}
-              activeThreadId={activeThreadId}
-              environmentId={activeThreadEnvironmentId}
-              subagentDetailsEnabled
-            />
-          ))}
-        </div>
-      ) : isRunning ? (
-        <WorkGroupPreview
-          key={`work-preview:${row.id}`}
-          row={row}
-          onExpand={handleToggle}
-          projectRoot={projectRoot}
-          activeThreadId={activeThreadId}
-          activeThreadEnvironmentId={activeThreadEnvironmentId}
-        />
-      ) : null}
-    </div>
-  );
-});
-
-function WorkGroupSummaryLine({
-  summary,
-}: {
-  summary: Extract<MessagesTimelineRow, { kind: "work" }>["summary"];
-}) {
-  return (
-    <span
-      className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-conversation"
-      data-work-group-summary=""
-    >
-      <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary">
-        {summary.action}
-      </span>
-      <span className="min-w-0 overflow-hidden text-ellipsis text-multi-fg-tertiary tabular-nums">
-        {summary.details}
-      </span>
-      <WorkGroupStats summary={summary} />
-    </span>
-  );
-}
-
-const WorkGroupPreview = memo(function WorkGroupPreview({
-  row,
-  onExpand,
-  projectRoot,
-  activeThreadId,
-  activeThreadEnvironmentId,
-}: {
-  row: Extract<MessagesTimelineRow, { kind: "work" }>;
-  onExpand: () => void;
-  projectRoot: string | undefined;
-  activeThreadId: ThreadId;
-  activeThreadEnvironmentId: EnvironmentId;
-}) {
-  const scrollHostRef = useRef<HTMLDivElement | null>(null);
-  const entries = row.groupedEntries;
-  const previewEntries = entries.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
-  const lastEntryId = entries.at(-1)?.id;
-  const previewEntryCount = previewEntries.length;
-
-  useLayoutSyncEffect(() => {
-    const host = scrollHostRef.current;
-    if (!host) return;
-    host.scrollTop = host.scrollHeight;
-    updatePreviewScrollable(host);
-  }, [lastEntryId, previewEntryCount, row.isRunning]);
-
-  useLayoutSyncEffect(() => {
-    const host = scrollHostRef.current;
-    if (!host) return;
-    if (typeof ResizeObserver === "undefined") {
-      updatePreviewScrollable(host);
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      updatePreviewScrollable(host);
-    });
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, []);
-
-  const onPreviewClick = useCallback(() => {
-    onExpand();
-  }, [onExpand]);
-  const onPreviewKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      onExpand();
-    },
-    [onExpand],
-  );
-
-  return (
-    <div
-      ref={scrollHostRef}
-      role="button"
-      tabIndex={0}
-      aria-label="Expand work group"
-      onClick={onPreviewClick}
-      onKeyDown={onPreviewKeyDown}
-      data-work-group-preview=""
-      data-work-preview-scrollable="false"
-      className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      style={{
-        maxHeight: WORK_GROUP_PREVIEW_PX,
-      }}
-    >
-      {previewEntries.map((workEntry) => (
-        <ToolCallMessage
-          key={`work-preview-row:${workEntry.id}`}
-          workEntry={workEntry}
-          projectRoot={projectRoot}
-          activeThreadId={activeThreadId}
-          environmentId={activeThreadEnvironmentId}
-          subagentDetailsEnabled
-        />
-      ))}
-    </div>
-  );
-});
-
-function updatePreviewScrollable(host: HTMLDivElement): void {
-  const scrollable = host.scrollHeight > host.clientHeight + 1;
-  host.dataset.workPreviewScrollable = scrollable ? "true" : "false";
-}
-
-function WorkGroupStats({
-  summary,
-}: {
-  summary: Extract<MessagesTimelineRow, { kind: "work" }>["summary"];
-}) {
-  const additions = summary.additions ?? 0;
-  const deletions = summary.deletions ?? 0;
-  if (additions === 0 && deletions === 0) {
-    return null;
+      </div>
+    );
   }
 
   return (
-    <span className="inline-flex shrink-0 gap-1 tabular-nums" data-work-group-stats="">
-      {additions > 0 ? <span className="text-multi-diff-addition">+{additions}</span> : null}
-      {deletions > 0 ? <span className="text-multi-diff-deletion">-{deletions}</span> : null}
-    </span>
+    <StepRenderer
+      step={row.kind === "working" ? row.step : row}
+      editUserMessagesDisabled={editUserMessagesDisabled}
+      isEditingUserMessage={isEditingUserMessage}
+      ctx={ctx}
+    />
   );
 }
 

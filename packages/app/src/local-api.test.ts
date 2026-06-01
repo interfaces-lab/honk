@@ -10,7 +10,6 @@ import {
   type ServerConfig,
   type ServerProvider,
   type TerminalEvent,
-  ThreadId,
 } from "@multi/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -88,8 +87,6 @@ const rpcClientMock = {
   },
   orchestration: {
     dispatchCommand: vi.fn(),
-    getTurnDiff: vi.fn(),
-    getFullThreadDiff: vi.fn(),
     subscribeShell: vi.fn((listener: (event: OrchestrationShellStreamItem) => void) =>
       registerListener(shellStreamListeners, listener),
     ),
@@ -436,22 +433,6 @@ describe("wsApi", () => {
     expect(rpcClientMock.filesystem.browse).toHaveBeenCalledWith({
       partialPath: "/tmp/project/",
       cwd: "/tmp/project",
-    });
-  });
-
-  it("forwards full-thread diff requests to the orchestration RPC", async () => {
-    rpcClientMock.orchestration.getFullThreadDiff.mockResolvedValue({ diff: "patch" });
-    const { createEnvironmentApi } = await import("./environment-api");
-
-    const api = createEnvironmentApi(rpcClientMock as never);
-    await api.orchestration.getFullThreadDiff({
-      threadId: ThreadId.make("thread-1"),
-      toTurnCount: 1,
-    });
-
-    expect(rpcClientMock.orchestration.getFullThreadDiff).toHaveBeenCalledWith({
-      threadId: "thread-1",
-      toTurnCount: 1,
     });
   });
 

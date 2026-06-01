@@ -1,21 +1,9 @@
-/**
- * RoutingTextGeneration – Dispatches text generation requests to either the
- * configured provider implementation based on the provider instance in each
- * request input.
- *
- * When `modelSelection.instanceId` is `"claudeAgent"` the request is forwarded to
- * the Claude layer; for any other value (including the default `undefined`) it
- * falls through to the Codex layer.
- *
- * @module RoutingTextGeneration
- */
 import { Effect, Layer, Context } from "effect";
 
 import { TextGeneration, type TextGenerationShape } from "./TextGeneration.service.ts";
-import { CodexTextGenerationLive } from "./CodexTextGeneration.ts";
 import { ClaudeTextGenerationLive } from "./ClaudeTextGeneration.ts";
+import { CodexTextGenerationLive } from "./CodexTextGeneration.ts";
 import { CursorTextGenerationLive } from "./CursorTextGeneration.ts";
-import { OpenCodeTextGenerationLive } from "./OpenCodeTextGeneration.ts";
 
 // ---------------------------------------------------------------------------
 // Internal service tags so both concrete layers can coexist.
@@ -33,10 +21,6 @@ class CursorTextGen extends Context.Service<CursorTextGen, TextGenerationShape>(
   "t3/git/RoutingTextGeneration/CursorTextGen",
 ) {}
 
-class OpenCodeTextGen extends Context.Service<OpenCodeTextGen, TextGenerationShape>()(
-  "t3/git/RoutingTextGeneration/OpenCodeTextGen",
-) {}
-
 // ---------------------------------------------------------------------------
 // Routing implementation
 // ---------------------------------------------------------------------------
@@ -46,7 +30,6 @@ const makeRoutingTextGeneration = Effect.gen(function* () {
     codex: yield* CodexTextGen,
     claudeAgent: yield* ClaudeTextGen,
     cursor: yield* CursorTextGen,
-    opencode: yield* OpenCodeTextGen,
   };
   const resolve = (instanceId: string): TextGenerationShape =>
     byInstanceId[instanceId as keyof typeof byInstanceId] ?? byInstanceId.codex;
@@ -86,14 +69,6 @@ const InternalCursorLayer = Layer.effect(
   }),
 ).pipe(Layer.provide(CursorTextGenerationLive));
 
-const InternalOpenCodeLayer = Layer.effect(
-  OpenCodeTextGen,
-  Effect.gen(function* () {
-    const svc = yield* TextGeneration;
-    return svc;
-  }),
-).pipe(Layer.provide(OpenCodeTextGenerationLive));
-
 export const RoutingTextGenerationLive = Layer.effect(
   TextGeneration,
   makeRoutingTextGeneration,
@@ -101,5 +76,4 @@ export const RoutingTextGenerationLive = Layer.effect(
   Layer.provide(InternalCodexLayer),
   Layer.provide(InternalClaudeLayer),
   Layer.provide(InternalCursorLayer),
-  Layer.provide(InternalOpenCodeLayer),
 );

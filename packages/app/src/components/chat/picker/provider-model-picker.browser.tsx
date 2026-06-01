@@ -131,9 +131,9 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
     ],
   },
   {
-    driver: ProviderDriverKind.make("claudeAgent"),
-    instanceId: ProviderInstanceId.make("claudeAgent"),
-    displayName: "Claude",
+    driver: ProviderDriverKind.make("cursor"),
+    instanceId: ProviderInstanceId.make("cursor"),
+    displayName: "Cursor",
     enabled: true,
     installed: true,
     version: "1.0.0",
@@ -144,8 +144,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
     skills: [],
     models: [
       {
-        slug: "claude-opus-4-6",
-        name: "Claude Opus 4.6",
+        slug: "composer-2",
+        name: "Composer 2",
         isCustom: false,
         capabilities: createModelCapabilities({
           optionDescriptors: [
@@ -160,8 +160,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
         }),
       },
       {
-        slug: "claude-sonnet-4-6",
-        name: "Claude Sonnet 4.6",
+        slug: "composer-1",
+        name: "Composer 1",
         isCustom: false,
         capabilities: createModelCapabilities({
           optionDescriptors: [
@@ -176,8 +176,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
         }),
       },
       {
-        slug: "claude-haiku-4-5",
-        name: "Claude Haiku 4.5",
+        slug: "composer-flash",
+        name: "Composer Flash",
         isCustom: false,
         capabilities: createModelCapabilities({
           optionDescriptors: [
@@ -195,8 +195,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
 ];
 
 const CODEX_INSTANCE_ID = ProviderInstanceId.make("codex");
-const CLAUDE_INSTANCE_ID = ProviderInstanceId.make("claudeAgent");
-const OPENCODE_INSTANCE_ID = ProviderInstanceId.make("opencode");
+const CURSOR_INSTANCE_ID = ProviderInstanceId.make("cursor");
+const CURSOR_COPILOT_INSTANCE_ID = ProviderInstanceId.make("cursor_copilot");
 
 function buildCodexProvider(models: ServerProvider["models"]): ServerProvider {
   return {
@@ -215,11 +215,11 @@ function buildCodexProvider(models: ServerProvider["models"]): ServerProvider {
   };
 }
 
-function buildOpenCodeProvider(models: ServerProvider["models"]): ServerProvider {
+function buildCursorCopilotProvider(models: ServerProvider["models"]): ServerProvider {
   return {
-    driver: ProviderDriverKind.make("opencode"),
-    instanceId: ProviderInstanceId.make("opencode"),
-    displayName: "OpenCode",
+    driver: ProviderDriverKind.make("cursor"),
+    instanceId: ProviderInstanceId.make("cursor_copilot"),
+    displayName: "Cursor Copilot",
     enabled: true,
     installed: true,
     version: "1.0.0",
@@ -387,7 +387,7 @@ describe("ProviderModelPicker", () => {
 
   it("seeds model search when opened with openSearchSeed", async () => {
     const mounted = await mountPicker({
-      model: "claude-opus-4-6",
+      model: "composer-2",
       open: true,
       openSearchSeed: "haiku",
     });
@@ -407,8 +407,8 @@ describe("ProviderModelPicker", () => {
 
   it("shows provider sidebar", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -417,8 +417,8 @@ describe("ProviderModelPicker", () => {
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
         expect(text).not.toContain("Codex");
-        expect(text).toContain("Claude");
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Cursor");
+        expect(text).toContain("Composer 2");
       });
     } finally {
       await mounted.cleanup();
@@ -427,8 +427,8 @@ describe("ProviderModelPicker", () => {
 
   it("shows favorites first in the provider sidebar", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -438,7 +438,7 @@ describe("ProviderModelPicker", () => {
         expect(getSidebarProviderOrder().slice(0, 3)).toEqual([
           "favorites",
           "codex",
-          "claudeAgent",
+          "cursor",
         ]);
       });
     } finally {
@@ -448,18 +448,18 @@ describe("ProviderModelPicker", () => {
 
   it("filters models by selected provider in sidebar", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
       await page.getByRole("button").click();
 
-      // Start with Claude models visible
+      // Start with Cursor models visible
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
         expect(text).not.toContain("GPT-5 Codex");
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Composer 2");
       });
 
       // Click on Codex provider in sidebar
@@ -472,7 +472,7 @@ describe("ProviderModelPicker", () => {
       await vi.waitFor(() => {
         const listText = getModelPickerListText();
         expect(listText).toContain("GPT-5 Codex");
-        expect(listText).not.toContain("Claude Opus 4.6");
+        expect(listText).not.toContain("Composer 2");
       });
     } finally {
       await mounted.cleanup();
@@ -481,14 +481,14 @@ describe("ProviderModelPicker", () => {
 
   it("uses client model visibility and ordering preferences", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
       settings: {
         ...DEFAULT_UNIFIED_SETTINGS,
         providerModelPreferences: {
-          [CLAUDE_INSTANCE_ID]: {
-            hiddenModels: ["claude-opus-4-6"],
-            modelOrder: ["claude-haiku-4-5", "claude-sonnet-4-6"],
+          [CURSOR_INSTANCE_ID]: {
+            hiddenModels: ["composer-2"],
+            modelOrder: ["composer-flash", "composer-1"],
           },
         },
       },
@@ -498,8 +498,8 @@ describe("ProviderModelPicker", () => {
       await page.getByRole("button").click();
 
       await vi.waitFor(() => {
-        expect(getVisibleModelNames()).toEqual(["Claude Haiku 4.5", "Claude Sonnet 4.6"]);
-        expect(getModelPickerListText()).not.toContain("Claude Opus 4.6");
+        expect(getVisibleModelNames()).toEqual(["Composer Flash", "Composer 1"]);
+        expect(getModelPickerListText()).not.toContain("Composer 2");
       });
     } finally {
       await mounted.cleanup();
@@ -508,8 +508,8 @@ describe("ProviderModelPicker", () => {
 
   it("focuses the search input after selecting a sidebar provider", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -539,20 +539,20 @@ describe("ProviderModelPicker", () => {
         ...DEFAULT_CLIENT_SETTINGS,
         favorites: [
           { provider: "codex", model: "gpt-5-codex" },
-          { provider: "claudeAgent", model: "claude-sonnet-4-6" },
+          { provider: "cursor", model: "composer-1" },
         ],
       }),
     );
 
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
       providers: [
         ...TEST_PROVIDERS,
-        buildCursorProvider([
+        buildCursorCopilotProvider([
           {
-            slug: "composer-2",
-            name: "Composer 2",
+            slug: "github-copilot/composer-2",
+            name: "Composer Copilot 2",
             isCustom: false,
             capabilities: createModelCapabilities({ optionDescriptors: [] }),
           },
@@ -565,18 +565,18 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude");
+        expect(text).toContain("Cursor");
         expect(getSidebarProviderOrder()).toEqual([
           "favorites",
           "codex",
-          "claudeAgent",
           "cursor",
-          "pi-pending",
+          "cursor_copilot",
         ]);
+        expect(document.querySelector('[data-model-picker-provider="pi-pending"]')).toBeNull();
         expect(getVisibleModelNames()).toEqual([
-          "Claude Sonnet 4.6",
-          "Claude Opus 4.6",
-          "Claude Haiku 4.5",
+          "Composer 1",
+          "Composer 2",
+          "Composer Flash",
         ]);
       });
     } finally {
@@ -587,8 +587,8 @@ describe("ProviderModelPicker", () => {
 
   it("anchors top-start placement to the trigger start edge", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
       popoverPlacement: "top-start",
     });
 
@@ -677,9 +677,9 @@ describe("ProviderModelPicker", () => {
           "codex",
           "codex_personal",
           "codex_isolated",
-          "claudeAgent",
-          "pi-pending",
+          "cursor",
         ]);
+        expect(document.querySelector('[data-model-picker-provider="pi-pending"]')).toBeNull();
         expect(
           document.querySelector<HTMLElement>('[data-model-picker-provider="codex_personal"]')
             ?.dataset.providerAccentColor,
@@ -706,7 +706,7 @@ describe("ProviderModelPicker", () => {
     const state = resolveAppProviderModelState({
       settings: DEFAULT_UNIFIED_SETTINGS,
       providers: TEST_PROVIDERS,
-      requestedInstanceId: CLAUDE_INSTANCE_ID,
+      requestedInstanceId: CURSOR_INSTANCE_ID,
       requestedModel: "gpt-5-codex",
     });
     const screen = await render(
@@ -728,7 +728,7 @@ describe("ProviderModelPicker", () => {
       expect(trigger).not.toBeNull();
       const label = trigger?.textContent ?? "";
       expect(label).not.toContain("gpt-5-codex");
-      expect(label).toContain("Claude Opus 4.6");
+      expect(label).toContain("Composer 2");
     } finally {
       await screen.unmount();
       host.remove();
@@ -761,14 +761,14 @@ describe("ProviderModelPicker", () => {
     }
 
     const missingModel = await mountPickerFromResolver({
-      requestedInstanceId: CLAUDE_INSTANCE_ID,
-      requestedModel: "retired-claude-model",
+      requestedInstanceId: CURSOR_INSTANCE_ID,
+      requestedModel: "retired-composer-model",
     });
 
     try {
       expect(missingModel.state.status.kind).toBe("missing-model");
-      expect(missingModel.state.selectedInstanceId).toBe(CLAUDE_INSTANCE_ID);
-      expect(missingModel.state.selectedModel).toBe("claude-opus-4-6");
+      expect(missingModel.state.selectedInstanceId).toBe(CURSOR_INSTANCE_ID);
+      expect(missingModel.state.selectedModel).toBe("composer-2");
 
       await page.getByRole("button").click();
 
@@ -776,8 +776,8 @@ describe("ProviderModelPicker", () => {
         const trigger = document.querySelector<HTMLElement>(
           '[data-chat-provider-model-picker="true"]',
         );
-        expect(trigger?.textContent).toContain("Claude Opus 4.6");
-        expect(trigger?.textContent).not.toContain("retired-claude-model");
+        expect(trigger?.textContent).toContain("Composer 2");
+        expect(trigger?.textContent).not.toContain("retired-composer-model");
         expect(document.body.textContent ?? "").toContain(missingModel.state.status.message);
       });
     } finally {
@@ -785,9 +785,9 @@ describe("ProviderModelPicker", () => {
     }
 
     const disabledProvider = await mountPickerFromResolver({
-      requestedInstanceId: CLAUDE_INSTANCE_ID,
-      requestedModel: "claude-opus-4-6",
-      providers: disableProvider(TEST_PROVIDERS, CLAUDE_INSTANCE_ID),
+      requestedInstanceId: CURSOR_INSTANCE_ID,
+      requestedModel: "composer-2",
+      providers: disableProvider(TEST_PROVIDERS, CURSOR_INSTANCE_ID),
     });
 
     try {
@@ -799,16 +799,16 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const disabledRailButton = document.querySelector<HTMLButtonElement>(
-          '[data-model-picker-provider="claudeAgent"]',
+          '[data-model-picker-provider="cursor"]',
         );
         expect(disabledRailButton).not.toBeNull();
         expect(disabledRailButton?.disabled).toBe(true);
         expect(disabledRailButton?.getAttribute("aria-label")).toBe(
-          "Claude — Disabled in settings.",
+          "Cursor — Disabled in settings.",
         );
         const listText = getModelPickerListText();
         expect(listText).toContain("GPT-5 Codex");
-        expect(listText).not.toContain("Claude Opus 4.6");
+        expect(listText).not.toContain("Composer 2");
         expect(document.body.textContent ?? "").toContain(disabledProvider.state.status.message);
       });
     } finally {
@@ -839,14 +839,14 @@ describe("ProviderModelPicker", () => {
     }
   });
 
-  it("uses compact model labels for opencode rows", async () => {
+  it("uses compact model labels for cursor copilot rows", async () => {
     const providers: ReadonlyArray<ServerProvider> = [
-      buildOpenCodeProvider([
+      buildCursorCopilotProvider([
         {
-          slug: "github-copilot/claude-opus-4.5",
-          name: "Claude Opus 4.5",
+          slug: "github-copilot/composer-4.5",
+          name: "Composer 4.5",
           subProvider: "GitHub Copilot",
-          shortName: "Opus 4.5",
+          shortName: "Composer 4.5",
           isCustom: false,
           capabilities: createModelCapabilities({
             optionDescriptors: [
@@ -861,8 +861,8 @@ describe("ProviderModelPicker", () => {
       ]),
     ];
     const mounted = await mountPicker({
-      activeInstanceId: OPENCODE_INSTANCE_ID,
-      model: "github-copilot/claude-opus-4.5",
+      activeInstanceId: CURSOR_COPILOT_INSTANCE_ID,
+      model: "github-copilot/composer-4.5",
       providers,
     });
 
@@ -872,13 +872,13 @@ describe("ProviderModelPicker", () => {
           '[data-chat-provider-model-picker="true"]',
         );
         expect(trigger?.textContent).toContain("GitHub Copilot");
-        expect(trigger?.textContent).toContain("Opus 4.5");
+        expect(trigger?.textContent).toContain("Composer 4.5");
       });
 
       await page.getByRole("button").click();
 
       await vi.waitFor(() => {
-        expect(getVisibleModelNames()).toEqual(["Opus 4.5"]);
+        expect(getVisibleModelNames()).toEqual(["Composer 4.5"]);
       });
     } finally {
       await mounted.cleanup();
@@ -887,8 +887,8 @@ describe("ProviderModelPicker", () => {
 
   it("searches models by name in flat list", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -896,17 +896,17 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Composer 2");
         expect(text).not.toContain("GPT-5 Codex");
       });
 
       // Find and type in search box
       const searchInput = page.getByPlaceholder("Search models...");
-      await searchInput.fill("claude");
+      await searchInput.fill("cursor");
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Composer 2");
         expect(text).not.toContain("GPT-5 Codex");
       });
     } finally {
@@ -916,8 +916,8 @@ describe("ProviderModelPicker", () => {
 
   it("supports arrow-key navigation in the model picker", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -931,7 +931,7 @@ describe("ProviderModelPicker", () => {
           '[data-slot="combobox-item"][data-highlighted]',
         );
         expect(highlightedItem).not.toBeNull();
-        expect(highlightedItem?.textContent).toContain("Claude Opus 4.6");
+        expect(highlightedItem?.textContent).toContain("Composer 2");
       });
       await userEvent.keyboard("{ArrowDown}");
       await vi.waitFor(() => {
@@ -939,13 +939,13 @@ describe("ProviderModelPicker", () => {
           '[data-slot="combobox-item"][data-highlighted]',
         );
         expect(highlightedItem).not.toBeNull();
-        expect(highlightedItem?.textContent).toContain("Claude Sonnet 4.6");
+        expect(highlightedItem?.textContent).toContain("Composer 1");
       });
       await userEvent.keyboard("{Enter}");
 
       expect(mounted.onSelectionChange).toHaveBeenCalledWith({
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "composer-1",
       });
     } finally {
       await mounted.cleanup();
@@ -954,8 +954,8 @@ describe("ProviderModelPicker", () => {
 
   it("hides the provider sidebar while searching", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -965,7 +965,7 @@ describe("ProviderModelPicker", () => {
         expect(getSidebarProviderOrder().length).toBeGreaterThan(0);
       });
 
-      await page.getByPlaceholder("Search models...").fill("cla");
+      await page.getByPlaceholder("Search models...").fill("com");
 
       await vi.waitFor(() => {
         expect(getSidebarProviderOrder()).toEqual([]);
@@ -977,8 +977,8 @@ describe("ProviderModelPicker", () => {
 
   it("closes the picker when escape is pressed in search", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -1004,8 +1004,8 @@ describe("ProviderModelPicker", () => {
 
   it("searches models by provider name", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -1013,7 +1013,7 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Composer 2");
         expect(text).not.toContain("GPT-5 Codex");
       });
 
@@ -1024,7 +1024,7 @@ describe("ProviderModelPicker", () => {
       await vi.waitFor(() => {
         const listText = getModelPickerListText();
         expect(listText).toContain("GPT-5 Codex");
-        expect(listText).not.toContain("Claude Opus 4.6");
+        expect(listText).not.toContain("Composer 2");
       });
     } finally {
       await mounted.cleanup();
@@ -1050,10 +1050,10 @@ describe("ProviderModelPicker", () => {
           }),
         },
       ]),
-      buildOpenCodeProvider([
+      buildCursorCopilotProvider([
         {
-          slug: "github-copilot/claude-opus-4.7",
-          name: "Claude Opus 4.7",
+          slug: "github-copilot/composer-4.7",
+          name: "Composer 4.7",
           subProvider: "GitHub Copilot",
           isCustom: false,
           capabilities: createModelCapabilities({
@@ -1069,18 +1069,18 @@ describe("ProviderModelPicker", () => {
       ]),
     ];
     const mounted = await mountPicker({
-      activeInstanceId: OPENCODE_INSTANCE_ID,
-      model: "github-copilot/claude-opus-4.7",
+      activeInstanceId: CURSOR_COPILOT_INSTANCE_ID,
+      model: "github-copilot/composer-4.7",
       providers,
     });
 
     try {
       await page.getByRole("button").click();
-      await page.getByPlaceholder("Search models...").fill("coplt op");
+      await page.getByPlaceholder("Search models...").fill("coplt comp");
 
       await vi.waitFor(() => {
         const listText = getModelPickerListText();
-        expect(listText).toContain("Claude Opus 4.7");
+        expect(listText).toContain("Composer 4.7");
         expect(listText).not.toContain("GPT-5 Codex");
       });
     } finally {
@@ -1090,10 +1090,10 @@ describe("ProviderModelPicker", () => {
 
   it("renders each search result with its own provider branding", async () => {
     const providers: ReadonlyArray<ServerProvider> = [
-      buildOpenCodeProvider([
+      buildCursorCopilotProvider([
         {
-          slug: "github-copilot/claude-opus-4.7",
-          name: "Claude Opus 4.7",
+          slug: "github-copilot/composer-4.7",
+          name: "Composer 4.7",
           subProvider: "GitHub Copilot",
           isCustom: false,
           capabilities: createModelCapabilities({
@@ -1111,8 +1111,8 @@ describe("ProviderModelPicker", () => {
         ...TEST_PROVIDERS[1]!,
         models: [
           {
-            slug: "claude-opus-4-6",
-            name: "Claude Opus 4.6",
+            slug: "composer-2",
+            name: "Composer 2",
             isCustom: false,
             capabilities: createModelCapabilities({
               optionDescriptors: [
@@ -1130,20 +1130,20 @@ describe("ProviderModelPicker", () => {
       },
     ];
     const mounted = await mountPicker({
-      activeInstanceId: OPENCODE_INSTANCE_ID,
-      model: "github-copilot/claude-opus-4.7",
+      activeInstanceId: CURSOR_COPILOT_INSTANCE_ID,
+      model: "github-copilot/composer-4.7",
       providers,
     });
 
     try {
       await page.getByRole("button").click();
-      await page.getByPlaceholder("Search models...").fill("opus");
+      await page.getByPlaceholder("Search models...").fill("composer");
 
       await vi.waitFor(() => {
         const listText = getModelPickerListText();
-        expect(listText).toContain("OpenCode · GitHub Copilot");
-        expect(listText).toContain("Claude");
-        expect(listText).not.toContain("OpenCodeClaude Opus 4.6");
+        expect(listText).toContain("Cursor Copilot · GitHub Copilot");
+        expect(listText).toContain("Cursor");
+        expect(listText).not.toContain("Cursor CopilotComposer 2");
       });
     } finally {
       await mounted.cleanup();
@@ -1154,8 +1154,8 @@ describe("ProviderModelPicker", () => {
     localStorage.removeItem("multi:client-settings:v1");
 
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -1163,7 +1163,7 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Composer 2");
       });
 
       const firstStar = getFirstStarButton();
@@ -1190,8 +1190,8 @@ describe("ProviderModelPicker", () => {
     localStorage.removeItem("multi:client-settings:v1");
 
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -1199,7 +1199,7 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude Opus 4.6");
+        expect(text).toContain("Composer 2");
       });
 
       const favoriteButton = page.getByRole("button", {
@@ -1210,7 +1210,7 @@ describe("ProviderModelPicker", () => {
       await vi.waitFor(async () => {
         const favoritedModelRows = Array.from(
           getModelPickerListElement().querySelectorAll<HTMLDivElement>("div.font-medium"),
-        ).filter((element) => element.textContent?.trim() === "Claude Opus 4.6");
+        ).filter((element) => element.textContent?.trim() === "Composer 2");
         expect(favoritedModelRows.length).toBe(1);
       });
     } finally {
@@ -1247,8 +1247,8 @@ describe("ProviderModelPicker", () => {
 
   it("dispatches callback with correct provider and model when selected", async () => {
     const mounted = await mountPicker({
-      activeInstanceId: CLAUDE_INSTANCE_ID,
-      model: "claude-opus-4-6",
+      activeInstanceId: CURSOR_INSTANCE_ID,
+      model: "composer-2",
     });
 
     try {
@@ -1256,17 +1256,17 @@ describe("ProviderModelPicker", () => {
 
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
-        expect(text).toContain("Claude Sonnet 4.6");
+        expect(text).toContain("Composer 1");
       });
 
       // Click on a model
-      const modelRow = page.getByText("Claude Sonnet 4.6").first();
+      const modelRow = page.getByText("Composer 1").first();
       await modelRow.click();
 
       // Verify callback was called with correct values
       expect(mounted.onSelectionChange).toHaveBeenCalledWith({
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "composer-1",
       });
     } finally {
       await mounted.cleanup();
@@ -1364,7 +1364,7 @@ describe("ProviderModelPicker", () => {
   });
 
   it("shows disabled providers grayed out in sidebar", async () => {
-    const disabledProviders = disableProvider(TEST_PROVIDERS, CLAUDE_INSTANCE_ID);
+    const disabledProviders = disableProvider(TEST_PROVIDERS, CURSOR_INSTANCE_ID);
 
     const mounted = await mountPicker({
       model: "gpt-5-codex",
@@ -1378,7 +1378,7 @@ describe("ProviderModelPicker", () => {
         const text = document.body.textContent ?? "";
         expect(text).toContain("GPT-5 Codex");
         // Disabled provider should not have its models shown
-        expect(text).not.toContain("Claude Opus 4.6");
+        expect(text).not.toContain("Composer 2");
       });
     } finally {
       await mounted.cleanup();

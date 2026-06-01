@@ -5,9 +5,11 @@ import type {
   OrchestrationThread,
   OrchestrationThreadEntry,
   ThreadEntryId,
+  ThreadId,
 } from "@multi/contracts";
 import {
   formatThreadEntryPathIssue,
+  resolveLeafIdAfterThreadNavigate,
   resolveThreadEntryPath,
   threadEntryIdForMessageId,
 } from "@multi/contracts";
@@ -55,11 +57,26 @@ function withEventBase(
   };
 }
 
-function threadLabelEntryId(input: {
-  readonly targetEntryId: ThreadEntryId;
-  readonly commandId: string;
-}): ThreadEntryId {
-  return `label:${input.targetEntryId}:${input.commandId}` as ThreadEntryId;
+function threadTreeLeafMovedEvent(input: {
+  readonly commandId: OrchestrationCommand["commandId"];
+  readonly threadId: ThreadId;
+  readonly createdAt: string;
+  readonly leafId: ThreadEntryId | null;
+}): Omit<OrchestrationEvent, "sequence"> {
+  return {
+    ...withEventBase({
+      aggregateKind: "thread",
+      aggregateId: input.threadId,
+      occurredAt: input.createdAt,
+      commandId: input.commandId,
+    }),
+    type: "thread.tree-leaf-moved",
+    payload: {
+      threadId: input.threadId,
+      leafId: input.leafId,
+      updatedAt: input.createdAt,
+    },
+  };
 }
 
 function requireNavigableThreadEntryPath(input: {
@@ -535,11 +552,10 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
               archivedAt: null,
               deletedAt: null,
               messages: [],
-              activeEntryId: null,
+              leafId: null,
               entries: [],
               proposedPlans: [],
               activities: [],
-              checkpoints: [],
               session: null,
             };
       const sourceProposedPlan = command.sourceProposedPlan;
@@ -568,7 +584,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       }
       yield* requireThreadTreeActionIdle({ commandType: command.type, thread: targetThread });
       const parentEntryId =
-        command.parentEntryId !== undefined ? command.parentEntryId : targetThread.activeEntryId;
+        command.parentEntryId !== undefined ? command.parentEntryId : targetThread.leafId;
       if (parentEntryId !== null) {
         yield* requireNavigableThreadEntryPath({
           commandType: command.type,
@@ -652,65 +668,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         : [userMessageEvent, turnStartRequestedEvent];
     }
 
-    case "thread.turn.regenerate": {
-      const thread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      yield* requireThreadTreeActionIdle({ commandType: command.type, thread });
-      const userEntry = yield* requireUserMessageThreadEntry({
-        commandType: command.type,
-        thread,
-        entryId: command.entryId,
-      });
-      const messageId = userEntry.messageId;
-      if (messageId === null) {
-        return yield* new OrchestrationCommandInvariantError({
-          commandType: command.type,
-          detail: `Thread entry '${command.entryId}' is not backed by a message.`,
-        });
-      }
-
-      const treeNavigatedEvent: Omit<OrchestrationEvent, "sequence"> = {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.tree-navigated",
-        payload: {
-          threadId: command.threadId,
-          entryId: command.entryId,
-          updatedAt: command.createdAt,
-        },
-      };
-      const turnStartRequestedEvent: Omit<OrchestrationEvent, "sequence"> = {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        causationEventId: treeNavigatedEvent.eventId,
-        type: "thread.turn-start-requested",
-        payload: {
-          threadId: command.threadId,
-          messageId,
-          userEntryId: command.entryId,
-          ...(command.modelSelection !== undefined
-            ? { modelSelection: command.modelSelection }
-            : {}),
-          ...(command.titleSeed !== undefined ? { titleSeed: command.titleSeed } : {}),
-          runtimeMode: thread.runtimeMode,
-          interactionMode: thread.interactionMode,
-          createdAt: command.createdAt,
-        },
-      };
-      return [treeNavigatedEvent, turnStartRequestedEvent];
-    }
-
     case "thread.turn.interrupt": {
       yield* requireThread({
         readModel,
@@ -785,28 +742,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
-    case "thread.checkpoint.revert": {
-      yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      return {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.checkpoint-revert-requested",
-        payload: {
-          threadId: command.threadId,
-          turnCount: command.turnCount,
-          createdAt: command.createdAt,
-        },
-      };
-    }
-
     case "thread.session.stop": {
       yield* requireThread({
         readModel,
@@ -840,62 +775,15 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         thread,
         entryId: command.entryId,
       });
-      return {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.tree-navigated",
-        payload: {
-          threadId: command.threadId,
-          entryId: command.entryId,
-          updatedAt: command.createdAt,
-        },
-      };
-    }
-
-    case "thread.tree.label.set": {
-      const thread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
+      const leafId = resolveLeafIdAfterThreadNavigate({
+        entryId: command.entryId,
       });
-      yield* requireNavigableThreadEntryPath({
-        commandType: command.type,
-        thread,
-        entryId: command.targetEntryId,
-      });
-      const labelEntryId = threadLabelEntryId({
-        targetEntryId: command.targetEntryId,
+      return threadTreeLeafMovedEvent({
         commandId: command.commandId,
+        threadId: command.threadId,
+        createdAt: command.createdAt,
+        leafId,
       });
-      return {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.tree-label-set",
-        payload: {
-          threadId: command.threadId,
-          entry: {
-            id: labelEntryId,
-            threadId: command.threadId,
-            parentEntryId: command.targetEntryId,
-            kind: "label",
-            messageId: null,
-            turnId: null,
-            targetEntryId: command.targetEntryId,
-            label: command.label,
-            summary: null,
-            createdAt: command.createdAt,
-          },
-          updatedAt: command.createdAt,
-        },
-      };
     }
 
     case "thread.session.set": {
@@ -916,42 +804,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           session: command.session,
-        },
-      };
-    }
-
-    case "thread.message.assistant.delta": {
-      const thread = yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      const assistantEntryId = threadEntryIdForMessageId(command.messageId);
-      yield* requireStableAssistantEntryParent({
-        commandType: command.type,
-        thread,
-        assistantEntryId,
-        parentEntryId: command.parentEntryId,
-      });
-      return {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.message-sent",
-        payload: {
-          threadId: command.threadId,
-          messageId: command.messageId,
-          entryId: assistantEntryId,
-          parentEntryId: command.parentEntryId,
-          role: "assistant",
-          text: command.delta,
-          turnId: command.turnId,
-          streaming: true,
-          createdAt: command.createdAt,
-          updatedAt: command.createdAt,
         },
       };
     }
@@ -983,7 +835,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           entryId: assistantEntryId,
           parentEntryId: command.parentEntryId,
           role: "assistant",
-          text: "",
+          text: command.text,
           turnId: command.turnId,
           streaming: false,
           createdAt: command.createdAt,
@@ -1041,54 +893,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
             planMarkdown: command.planMarkdown,
             updatedAt: command.createdAt,
           },
-        },
-      };
-    }
-
-    case "thread.turn.diff.complete": {
-      yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      return {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.turn-diff-completed",
-        payload: {
-          threadId: command.threadId,
-          turnId: command.turnId,
-          checkpointTurnCount: command.checkpointTurnCount,
-          checkpointRef: command.checkpointRef,
-          status: command.status,
-          files: command.files,
-          assistantMessageId: command.assistantMessageId ?? null,
-          completedAt: command.completedAt,
-        },
-      };
-    }
-
-    case "thread.revert.complete": {
-      yield* requireThread({
-        readModel,
-        command,
-        threadId: command.threadId,
-      });
-      return {
-        ...withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
-          commandId: command.commandId,
-        }),
-        type: "thread.reverted",
-        payload: {
-          threadId: command.threadId,
-          turnCount: command.turnCount,
         },
       };
     }

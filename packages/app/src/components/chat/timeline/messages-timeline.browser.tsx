@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { MessagesTimeline, type MessagesTimelineController } from "./messages-timeline";
 import type { ChatMessage } from "../../../types";
+import { useSubagentTrayStore } from "../../../stores/subagent-tray-store";
 
 const TIMELINE_SCROLL_SETTLE_MS = 40;
 let nextTimelineInstanceId = 0;
@@ -265,6 +266,7 @@ function requireElement<T extends Element>(selector: string, root: ParentNode = 
 
 describe("messages-timeline", () => {
   afterEach(() => {
+    useSubagentTrayStore.setState({ focus: null, presented: false });
     vi.restoreAllMocks();
     document.body.innerHTML = "";
   });
@@ -293,6 +295,21 @@ describe("messages-timeline", () => {
 
     try {
       await expect.element(page.getByText("Thinking - Inspecting repository state")).toBeVisible();
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("marks the waiting group busy while the assistant is working without committed rows", async () => {
+    const props = { ...buildProps(), isWorking: true };
+    const screen = await renderTimeline(props, []);
+
+    try {
+      await vi.waitFor(() => {
+        const waitingGroup = requireElement<HTMLElement>("[data-waiting-group]");
+        expect(waitingGroup.getAttribute("aria-busy")).toBe("true");
+      });
+      await expect.element(page.getByText("Thinking")).toBeVisible();
     } finally {
       await screen.unmount();
     }
@@ -376,6 +393,90 @@ describe("messages-timeline", () => {
         Math.abs(expandedHeaderHeight - collapsedHeaderHeight),
         "work group header height should remain stable after expanding",
       ).toBeLessThanOrEqual(1);
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("updates tool status data attributes when work status changes", async () => {
+    const props = buildProps();
+    const createdAt = "2026-04-13T12:00:00.000Z";
+    const workEntry = (status: "running" | "completed"): TimelineEntry => ({
+      id: "work-command-status",
+      kind: "work",
+      createdAt,
+      entry: {
+        id: "work-command-status",
+        createdAt,
+        label: status === "running" ? "running" : "ran",
+        command: "pnpm exec vitest run src/components/chat/timeline/timeline-render-items.test.ts",
+        tone: "tool",
+        status,
+        requestKind: "command",
+      },
+    });
+    const screen = await renderTimeline(props, [workEntry("running")]);
+
+    try {
+      await vi.waitFor(() => {
+        expect(document.querySelector('[data-tool-status="loading"]')).not.toBeNull();
+      });
+
+      await screen.rerender(
+        <div style={{ height: 360, width: 860 }}>
+          <MessagesTimeline {...props} timelineEntries={[workEntry("completed")]} />
+        </div>,
+      );
+
+      requireElement<HTMLElement>("[data-work-group-header]").click();
+      await vi.waitFor(() => {
+        expect(
+          requireElement<HTMLElement>("[data-assistant-work-group]").getAttribute(
+            "data-work-group-expanded",
+          ),
+        ).toBe("true");
+        expect(document.querySelector('[data-tool-status="completed"]')).not.toBeNull();
+      });
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("opens the subagent tray selection from an inline status row", async () => {
+    const props = buildProps();
+    const createdAt = "2026-04-13T12:00:00.000Z";
+    const screen = await renderTimeline(props, [
+      {
+        id: "work-subagent",
+        kind: "work",
+        createdAt,
+        entry: {
+          id: "work-subagent",
+          createdAt,
+          label: "running subagent",
+          tone: "tool",
+          status: "running",
+          itemType: "collab_agent_tool_call",
+          subagents: [
+            {
+              threadId: "provider-thread-1",
+              providerThreadId: "provider-thread-1",
+              title: "Reviewer",
+              isActive: true,
+              hasDetails: true,
+            },
+          ],
+        },
+      },
+    ]);
+
+    try {
+      await page.getByRole("button", { name: "Open Reviewer details" }).click();
+
+      await vi.waitFor(() => {
+        expect(useSubagentTrayStore.getState().focus?.key).toBe("provider-thread-1");
+        expect(document.querySelector("[data-subagent-open]")).not.toBeNull();
+      });
     } finally {
       await screen.unmount();
     }
@@ -645,6 +746,70 @@ describe("messages-timeline", () => {
     }
   });
 
+  it("absorbs sticky human-message edit growth with the active-turn spacer instead of shifting the layout", async () => {
+    const props = buildProps();
+    const baseEntries = buildConversationEntries(14);
+    const activeUserId = MessageId.make("message-user-active");
+    const timelineEntries = [
+      ...baseEntries,
+      buildMessageEntry(
+        {
+          id: activeUserId,
+          role: "user",
+          text: "Pinned prompt being edited",
+          createdAt: new Date(Date.UTC(2026, 3, 13, 12, 5, 0)).toISOString(),
+          streaming: false,
+        },
+        baseEntries.length,
+      ),
+    ];
+    const editComposerHeight = 240;
+    const editableUserMessageIds = buildEditableUserMessageIds(timelineEntries);
+    const renderTree = (editingUserMessageId: MessageId | null) => (
+      <div style={{ height: 800, width: 860 }}>
+        <MessagesTimeline
+          {...props}
+          editableUserMessageIds={editableUserMessageIds}
+          renderEditComposer={() => (
+            <div data-testid="active-edit-composer" style={{ height: editComposerHeight }} />
+          )}
+          editingUserMessageId={editingUserMessageId}
+          timelineEntries={timelineEntries}
+        />
+      </div>
+    );
+
+    const screen = await render(renderTree(null));
+
+    try {
+      const scrollElement = await waitForScrollable();
+      props.timelineControllerRef.current?.scrollToBottom({ animated: false });
+      await waitForBottom(scrollElement);
+      await waitForTimelineScrollSettle();
+      const scrollHeightBeforeEdit = scrollElement.scrollHeight;
+
+      await screen.rerender(renderTree(activeUserId));
+
+      await vi.waitFor(() => {
+        expect(requireElement('[data-testid="active-edit-composer"]')).toBeInstanceOf(HTMLElement);
+      });
+      await waitForTimelineScrollSettle();
+
+      const editedRow = requireElement<HTMLElement>('[data-editing-user-message="true"]');
+      const editComposer = requireElement<HTMLElement>('[data-testid="active-edit-composer"]');
+      expect(editComposer.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+        editComposerHeight,
+      );
+      expect(editedRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(editComposerHeight);
+
+      await vi.waitFor(() => {
+        expect(Math.abs(scrollElement.scrollHeight - scrollHeightBeforeEdit)).toBeLessThanOrEqual(4);
+      });
+    } finally {
+      await screen.unmount();
+    }
+  });
+
   it("keeps the sticky user row unique and editable while scrolling", async () => {
     const props = buildProps();
     const timelineEntries = buildConversationEntries(20);
@@ -671,6 +836,35 @@ describe("messages-timeline", () => {
       const stickyMessageId = stickyMessage.dataset.messageId;
       expect(stickyMessageId).toBeTruthy();
       expect(document.querySelectorAll(`[data-message-id="${stickyMessageId}"]`)).toHaveLength(1);
+      const buttonRect = stickyButton.getBoundingClientRect();
+      const hitX = Math.min(
+        Math.max(buttonRect.left + Math.min(16, buttonRect.width / 2), 0),
+        window.innerWidth - 1,
+      );
+      const hitY = Math.min(
+        Math.max(buttonRect.top + Math.min(16, buttonRect.height / 2), 0),
+        window.innerHeight - 1,
+      );
+      const hitTarget = document.elementFromPoint(hitX, hitY);
+      expect(
+        hitTarget instanceof Element && stickyRow.contains(hitTarget),
+        `expected sticky row to own edit hit target, got ${
+          hitTarget instanceof HTMLElement
+            ? `${hitTarget.tagName.toLowerCase()} ${hitTarget.outerHTML.slice(0, 240)}`
+            : String(hitTarget)
+        }; buttonRect=${JSON.stringify({
+          left: buttonRect.left,
+          top: buttonRect.top,
+          width: buttonRect.width,
+          height: buttonRect.height,
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight,
+          stickyTop: stickyRow.getBoundingClientRect().top,
+          stickyStyleTop: stickyRow.style.top,
+          stickyStyleTransform: stickyRow.style.transform,
+          scrollTop: scrollElement.scrollTop,
+        })}`,
+      ).toBe(true);
 
       stickyButton.click();
       await vi.waitFor(() => {

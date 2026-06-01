@@ -52,6 +52,7 @@ import {
 import { compareCliVersions } from "./cliVersion.ts";
 import { makeManagedServerProvider } from "./make-managed-server-provider.ts";
 import { ClaudeProvider } from "./ClaudeProvider.service.ts";
+import { makeClaudeCapabilitiesCacheKey, makeClaudeEnvironment } from "./claude-home.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { ServerSettingsError } from "@multi/contracts";
 import { resolveClaudeSettings } from "./provider-settings.ts";
@@ -65,8 +66,40 @@ const CLAUDE_PRESENTATION = {
   displayName: "Claude",
   showInteractionModeToggle: true,
 } as const;
+const MINIMUM_CLAUDE_OPUS_4_8_VERSION = "2.1.154";
 const MINIMUM_CLAUDE_OPUS_4_7_VERSION = "2.1.111";
 const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
+  {
+    slug: "claude-opus-4-8",
+    name: "Claude Opus 4.8",
+    isCustom: false,
+    capabilities: createModelCapabilities({
+      optionDescriptors: [
+        buildSelectOptionDescriptor({
+          id: "effort",
+          label: "Reasoning",
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "xhigh", label: "Extra High" },
+            { value: "max", label: "Max" },
+            { value: "ultracode", label: "Ultracode" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
+          promptInjectedValues: ["ultrathink"],
+        }),
+        buildSelectOptionDescriptor({
+          id: "contextWindow",
+          label: "Context Window",
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
+        }),
+      ],
+    }),
+  },
   {
     slug: "claude-opus-4-7",
     name: "Claude Opus 4.7",
@@ -166,6 +199,7 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
             { value: "low", label: "Low" },
             { value: "medium", label: "Medium" },
             { value: "high", label: "High", isDefault: true },
+            { value: "max", label: "Max" },
             { value: "ultrathink", label: "Ultrathink" },
           ],
           promptInjectedValues: ["ultrathink"],
@@ -196,6 +230,10 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
   },
 ];
 
+function supportsClaudeOpus48(version: string | null | undefined): boolean {
+  return version ? compareCliVersions(version, MINIMUM_CLAUDE_OPUS_4_8_VERSION) >= 0 : false;
+}
+
 function supportsClaudeOpus47(version: string | null | undefined): boolean {
   return version ? compareCliVersions(version, MINIMUM_CLAUDE_OPUS_4_7_VERSION) >= 0 : false;
 }
@@ -203,10 +241,20 @@ function supportsClaudeOpus47(version: string | null | undefined): boolean {
 function getBuiltInClaudeModelsForVersion(
   version: string | null | undefined,
 ): ReadonlyArray<ServerProviderModel> {
-  if (supportsClaudeOpus47(version)) {
-    return BUILT_IN_MODELS;
-  }
-  return BUILT_IN_MODELS.filter((model) => model.slug !== "claude-opus-4-7");
+  return BUILT_IN_MODELS.filter((model) => {
+    if (model.slug === "claude-opus-4-8") {
+      return supportsClaudeOpus48(version);
+    }
+    if (model.slug === "claude-opus-4-7") {
+      return supportsClaudeOpus47(version);
+    }
+    return true;
+  });
+}
+
+function formatClaudeOpus48UpgradeMessage(version: string | null): string {
+  const versionLabel = version ? `v${version}` : "the installed version";
+  return `Claude Code ${versionLabel} is too old for Claude Opus 4.8. Upgrade to v${MINIMUM_CLAUDE_OPUS_4_8_VERSION} or newer to access it.`;
 }
 
 function formatClaudeOpus47UpgradeMessage(version: string | null): string {
@@ -236,23 +284,35 @@ export function resolveClaudeEffort(
 }
 
 /**
- * Normalize a resolved Claude effort value into one suitable for the Claude
- * CLI's `--effort` flag.
+ * Resolve the product-facing Claude effort into the value accepted by Claude
+ * Code's CLI and Agent SDK for the selected model.
  *
  * Mirrors the mapping used when invoking the Claude Agent SDK
- * ({@link getEffectiveClaudeAgentEffort} in ClaudeAdapter): the Opus 4.7
- * capability `"xhigh"` is rewritten to the accepted CLI value `"max"`, and
- * `"ultrathink"` is filtered out because it is a prompt-prefix mode rather
- * than a CLI-effort value. Returns `undefined` when no flag should be passed.
+ * ({@link getEffectiveClaudeAgentEffort} in ClaudeAdapter): `ultracode` is a
+ * Claude Code setting paired with `xhigh`, `ultrathink` is a prompt-prefix
+ * mode, and older model compatibility mappings are kept explicit.
  */
-export function normalizeClaudeCliEffort(effort: string | null | undefined): string | undefined {
+export function resolveClaudeExecutableEffort(
+  effort: string | null | undefined,
+  model: string | null | undefined,
+): string | undefined {
   if (!effort || effort === "ultrathink") {
     return undefined;
   }
-  if (effort === "xhigh") {
+  if (effort === "ultracode") {
+    return "xhigh";
+  }
+  if (effort === "xhigh" && model !== "claude-opus-4-8") {
     return "max";
   }
+  if (effort === "max" && model === "claude-sonnet-4-6") {
+    return "high";
+  }
   return effort;
+}
+
+export function isClaudeUltracodeEffort(effort: string | null | undefined): boolean {
+  return effort === "ultracode";
 }
 
 export function resolveClaudeApiModelId(modelSelection: ModelSelection): string {
@@ -591,8 +651,9 @@ function waitForAbortSignal(signal: AbortSignal): Promise<void> {
  * This is used as a fallback when `claude auth status` does not include
  * subscription type information.
  */
-const probeClaudeCapabilities = (binaryPath: string) => {
+const probeClaudeCapabilities = (claudeSettings: ClaudeSettings) => {
   const abort = new AbortController();
+  const claudeEnvironment = makeClaudeEnvironment(claudeSettings);
   return Effect.tryPromise(async () => {
     const q = claudeQuery({
       // Never yield — we only need initialization data, not a conversation.
@@ -603,10 +664,11 @@ const probeClaudeCapabilities = (binaryPath: string) => {
       })(),
       options: {
         persistSession: false,
-        pathToClaudeCodeExecutable: binaryPath,
+        pathToClaudeCodeExecutable: claudeSettings.binaryPath,
         abortController: abort,
         settingSources: ["user", "project", "local"],
         allowedTools: [],
+        env: claudeEnvironment,
         stderr: () => {},
       },
     });
@@ -635,16 +697,18 @@ const runClaudeCommand = Effect.fn("runClaudeCommand")(function* (args: Readonly
     Effect.flatMap((service) => service.getSettings),
     Effect.map(resolveClaudeSettings),
   );
+  const claudeEnvironment = makeClaudeEnvironment(claudeSettings);
   const command = ChildProcess.make(claudeSettings.binaryPath, [...args], {
+    env: claudeEnvironment,
     shell: process.platform === "win32",
   });
   return yield* spawnAndCollect(claudeSettings.binaryPath, command);
 });
 
 export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(function* (
-  resolveSubscriptionType?: (binaryPath: string) => Effect.Effect<string | undefined>,
+  resolveSubscriptionType?: (claudeSettings: ClaudeSettings) => Effect.Effect<string | undefined>,
   resolveSlashCommands?: (
-    binaryPath: string,
+    claudeSettings: ClaudeSettings,
   ) => Effect.Effect<ReadonlyArray<ServerProviderSlashCommand> | undefined>,
 ): Effect.fn.Return<
   ServerProvider,
@@ -751,13 +815,15 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     claudeSettings.customModels,
     DEFAULT_CLAUDE_MODEL_CAPABILITIES,
   );
-  const opus47UpgradeMessage = supportsClaudeOpus47(parsedVersion)
+  const versionUpgradeMessage = supportsClaudeOpus48(parsedVersion)
     ? undefined
-    : formatClaudeOpus47UpgradeMessage(parsedVersion);
+    : supportsClaudeOpus47(parsedVersion)
+      ? formatClaudeOpus48UpgradeMessage(parsedVersion)
+      : formatClaudeOpus47UpgradeMessage(parsedVersion);
 
   const slashCommands =
     (resolveSlashCommands
-      ? yield* resolveSlashCommands(claudeSettings.binaryPath).pipe(
+      ? yield* resolveSlashCommands(claudeSettings).pipe(
           Effect.orElseSucceed(() => undefined),
         )
       : undefined) ?? [];
@@ -785,7 +851,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   }
 
   if (!subscriptionType && resolveSubscriptionType) {
-    subscriptionType = yield* resolveSubscriptionType(claudeSettings.binaryPath);
+    subscriptionType = yield* resolveSubscriptionType(claudeSettings);
   }
 
   // ── Handle auth results (same logic as before, adjusted models) ──
@@ -849,8 +915,8 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       },
       ...(parsed.message
         ? { message: parsed.message }
-        : opus47UpgradeMessage
-          ? { message: opus47UpgradeMessage }
+        : versionUpgradeMessage
+          ? { message: versionUpgradeMessage }
           : {}),
     },
   });
@@ -904,19 +970,31 @@ export const ClaudeProviderLive = Layer.effect(
     const serverSettings = yield* ServerSettingsService;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
+    const capabilitySettingsByKey = new Map<string, ClaudeSettings>();
     const subscriptionProbeCache = yield* Cache.make({
-      capacity: 1,
+      capacity: 8,
       timeToLive: Duration.minutes(5),
-      lookup: (binaryPath: string) => probeClaudeCapabilities(binaryPath),
+      lookup: (cacheKey: string) => {
+        const claudeSettings = capabilitySettingsByKey.get(cacheKey);
+        if (!claudeSettings) {
+          return Effect.sync(() => undefined);
+        }
+        return probeClaudeCapabilities(claudeSettings);
+      },
     });
+    const getCachedCapabilities = (claudeSettings: ClaudeSettings) => {
+      const cacheKey = makeClaudeCapabilitiesCacheKey(claudeSettings);
+      capabilitySettingsByKey.set(cacheKey, claudeSettings);
+      return Cache.get(subscriptionProbeCache, cacheKey);
+    };
 
     const checkProvider = checkClaudeProviderStatus(
-      (binaryPath) =>
-        Cache.get(subscriptionProbeCache, binaryPath).pipe(
+      (claudeSettings) =>
+        getCachedCapabilities(claudeSettings).pipe(
           Effect.map((probe) => probe?.subscriptionType),
         ),
-      (binaryPath) =>
-        Cache.get(subscriptionProbeCache, binaryPath).pipe(
+      (claudeSettings) =>
+        getCachedCapabilities(claudeSettings).pipe(
           Effect.map((probe) => probe?.slashCommands),
         ),
     ).pipe(

@@ -16,7 +16,7 @@ import { isTerminalFocused } from "../../../lib/terminal-focus";
 import { projectScriptIdFromCommand } from "~/lib/project-scripts";
 import { resolveShortcutCommand } from "../../../keybindings";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
-import type { ChatMessage } from "../../../types";
+import type { ChatMessage, PendingTimelineRow } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
   collectUserMessageBlobPreviewUrls,
@@ -31,6 +31,10 @@ import {
   type ThreadTerminalLaunchContext,
 } from "../../../terminal-state-store";
 import { type TerminalLaunchContext } from "./persistent-thread-terminal-drawer";
+import {
+  acknowledgedPendingTimelineRows,
+  pendingTimelineRowMessages,
+} from "./pending-timeline-rows";
 
 /**
  * Lifecycle effect components used by `ChatView`. Each component runs a single
@@ -118,22 +122,6 @@ export function MarkSettledServerThreadVisitedSync({
   return null;
 }
 
-export function OptimisticUserMessagesUnmountCleanup({
-  optimisticUserMessagesRef,
-}: {
-  optimisticUserMessagesRef: RefObject<ChatMessage[]>;
-}) {
-  useMountEffect(() => {
-    return () => {
-      for (const message of optimisticUserMessagesRef.current) {
-        revokeUserMessagePreviewUrls(message);
-      }
-    };
-  });
-
-  return null;
-}
-
 export function ActiveThreadUiResetSync({
   isAtBottomRef,
   setPullRequestDialogState,
@@ -177,35 +165,36 @@ export function ActiveThreadComposerFocusSync({
   return null;
 }
 
-export function OptimisticUserMessagesServerAckSync({
-  activeThreadId,
+export function PendingTimelineRowsServerAckSync({
   handoffAttachmentPreviews,
-  optimisticUserMessages,
+  pendingTimelineRows,
+  removePendingTimelineRows,
   serverMessages,
-  setOptimisticUserMessages,
+  threadKey,
 }: {
-  activeThreadId: ThreadId | null;
   handoffAttachmentPreviews: (messageId: MessageId, previewUrls: string[]) => void;
-  optimisticUserMessages: ChatMessage[];
+  pendingTimelineRows: ReadonlyArray<PendingTimelineRow>;
+  removePendingTimelineRows: (
+    threadKey: string,
+    clientSendKeys: ReadonlySet<MessageId>,
+  ) => PendingTimelineRow[];
   serverMessages: readonly ChatMessage[] | undefined;
-  setOptimisticUserMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  threadKey: string;
 }) {
   useMountEffect(() => {
-    if (!activeThreadId) return;
     if (!serverMessages || serverMessages.length === 0) {
       return;
     }
-    const serverIds = new Set(serverMessages.map((message) => message.id));
-    const removedMessages = optimisticUserMessages.filter((message) => serverIds.has(message.id));
-    if (removedMessages.length === 0) {
+    const removedRows = acknowledgedPendingTimelineRows({
+      pendingRows: pendingTimelineRows,
+      committedMessages: serverMessages,
+    });
+    if (removedRows.length === 0) {
       return;
     }
-    const timer = window.setTimeout(() => {
-      setOptimisticUserMessages((existing) =>
-        existing.filter((message) => !serverIds.has(message.id)),
-      );
-    }, 0);
-    for (const removedMessage of removedMessages) {
+    const removedClientSendKeys = new Set(removedRows.map((row) => row.clientSendKey));
+    const storedRemovedRows = removePendingTimelineRows(threadKey, removedClientSendKeys);
+    for (const removedMessage of pendingTimelineRowMessages(storedRemovedRows)) {
       const previewUrls = collectUserMessageBlobPreviewUrls(removedMessage);
       if (previewUrls.length > 0) {
         handoffAttachmentPreviews(removedMessage.id, previewUrls);
@@ -213,34 +202,20 @@ export function OptimisticUserMessagesServerAckSync({
       }
       revokeUserMessagePreviewUrls(removedMessage);
     }
-    return () => {
-      window.clearTimeout(timer);
-    };
   });
 
   return null;
 }
 
-export function ThreadDraftResetSync({
+export function ThreadMediaResetSync({
   clearAttachmentPreviewHandoffs,
-  resetLocalDispatch,
   setExpandedImage,
-  setOptimisticUserMessages,
 }: {
   clearAttachmentPreviewHandoffs: () => void;
-  resetLocalDispatch: () => void;
   setExpandedImage: Dispatch<SetStateAction<ExpandedImagePreview | null>>;
-  setOptimisticUserMessages: Dispatch<SetStateAction<ChatMessage[]>>;
 }) {
   useMountEffect(() => {
-    setOptimisticUserMessages((existing) => {
-      for (const message of existing) {
-        revokeUserMessagePreviewUrls(message);
-      }
-      return [];
-    });
     clearAttachmentPreviewHandoffs();
-    resetLocalDispatch();
     setExpandedImage(null);
   });
 
@@ -420,7 +395,6 @@ export function ChatViewKeyboardShortcutsSync({
   closeTerminal,
   createNewTerminal,
   keybindings,
-  onToggleDiff,
   runProjectScript,
   setTerminalOpen,
   splitTerminal,
@@ -433,7 +407,6 @@ export function ChatViewKeyboardShortcutsSync({
   closeTerminal: (terminalId: string) => void;
   createNewTerminal: () => void;
   keybindings: ResolvedKeybindingsConfig;
-  onToggleDiff: () => void;
   runProjectScript: (script: ProjectScript) => void | Promise<void>;
   setTerminalOpen: (open: boolean) => void;
   splitTerminal: () => void;
@@ -488,13 +461,6 @@ export function ChatViewKeyboardShortcutsSync({
           setTerminalOpen(true);
         }
         createNewTerminal();
-        return;
-      }
-
-      if (command === "diff.toggle") {
-        event.preventDefault();
-        event.stopPropagation();
-        onToggleDiff();
         return;
       }
 

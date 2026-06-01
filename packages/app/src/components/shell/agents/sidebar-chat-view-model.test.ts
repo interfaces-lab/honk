@@ -1,10 +1,8 @@
 import { EnvironmentId } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
-import {
-  buildProjectChatSections,
-  type SidebarDraftSummary,
-} from "./sidebar-chat-view-model";
+import type { SidebarDraftSummary } from "./sidebar/types";
+import { buildProjectChatSections } from "./sidebar/view-model";
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
 

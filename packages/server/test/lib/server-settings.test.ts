@@ -2,7 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { DEFAULT_SERVER_SETTINGS, ServerSettingsPatch } from "@multi/contracts";
 import { createModelSelection } from "@multi/shared/model";
 import { assert, it } from "@effect/vitest";
-import { Effect, FileSystem, Layer, Schema } from "effect";
+import { Effect, FileSystem, Layer, Path, Schema } from "effect";
 import { ServerConfig } from "../../src/config.ts";
 import { ServerSettingsLive, ServerSettingsService } from "../../src/server-settings.ts";
 
@@ -51,9 +51,9 @@ it.layer(NodeServices.layer)("server settings", (it) => {
             binaryPath: "/usr/local/bin/codex",
             homePath: "/Users/julius/.codex",
           },
-          claudeAgent: {
-            binaryPath: "/usr/local/bin/claude",
-            customModels: ["claude-custom"],
+          cursor: {
+            binaryPath: "/usr/local/bin/agent",
+            customModels: ["cursor-custom"],
           },
         },
         textGenerationModelSelection: {
@@ -88,12 +88,11 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         shadowHomePath: "",
         customModels: [],
       });
-      assert.deepEqual(next.providers.claudeAgent, {
+      assert.deepEqual(next.providers.cursor, {
         enabled: true,
-        binaryPath: "/usr/local/bin/claude",
-        homePath: "",
-        customModels: ["claude-custom"],
-        launchArgs: "",
+        binaryPath: "/usr/local/bin/agent",
+        apiEndpoint: "",
+        customModels: ["cursor-custom"],
       });
       assert.deepEqual(
         next.textGenerationModelSelection,
@@ -109,18 +108,18 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsService;
 
-      // Start with Claude text generation selection
+      // Start with Cursor text generation selection
       yield* serverSettings.updateSettings({
         textGenerationModelSelection: {
-          instanceId: "claudeAgent",
-          model: "claude-sonnet-4-6",
-          options: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
-            { id: "effort", value: "high" },
+          instanceId: "cursor",
+          model: "composer-1",
+          options: createModelSelection("cursor", "composer-1", [
+            { id: "fastMode", value: false },
           ]).options!,
         },
       });
 
-      // Switch to Codex — the stale Claude "effort" in options must not
+      // Switch to Codex — stale Cursor options must not
       // cause the update to lose the selected model.
       const next = yield* serverSettings.updateSettings({
         textGenerationModelSelection: {
@@ -182,13 +181,9 @@ it.layer(NodeServices.layer)("server settings", (it) => {
             binaryPath: "  /opt/homebrew/bin/codex  ",
             homePath: "   ",
           },
-          claudeAgent: {
-            binaryPath: "  /opt/homebrew/bin/claude  ",
-          },
-          opencode: {
-            binaryPath: "  /opt/homebrew/bin/opencode  ",
-            serverUrl: "  http://127.0.0.1:4096  ",
-            serverPassword: "  secret-password  ",
+          cursor: {
+            binaryPath: "  /opt/homebrew/bin/agent  ",
+            apiEndpoint: "  https://cursor.example.test  ",
           },
         },
       });
@@ -200,18 +195,10 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         shadowHomePath: "",
         customModels: [],
       });
-      assert.deepEqual(next.providers.claudeAgent, {
+      assert.deepEqual(next.providers.cursor, {
         enabled: true,
-        binaryPath: "/opt/homebrew/bin/claude",
-        homePath: "",
-        customModels: [],
-        launchArgs: "",
-      });
-      assert.deepEqual(next.providers.opencode, {
-        enabled: true,
-        binaryPath: "/opt/homebrew/bin/opencode",
-        serverUrl: "http://127.0.0.1:4096",
-        serverPassword: "secret-password",
+        binaryPath: "/opt/homebrew/bin/agent",
+        apiEndpoint: "https://cursor.example.test",
         customModels: [],
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),
@@ -246,14 +233,14 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           codex: {
             binaryPath: "   ",
           },
-          claudeAgent: {
+          cursor: {
             binaryPath: "",
           },
         },
       });
 
       assert.equal(next.providers.codex.binaryPath, "codex");
-      assert.equal(next.providers.claudeAgent.binaryPath, "claude");
+      assert.equal(next.providers.cursor.binaryPath, "agent");
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
@@ -272,9 +259,8 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           codex: {
             binaryPath: "/opt/homebrew/bin/codex",
           },
-          opencode: {
-            serverUrl: "http://127.0.0.1:4096",
-            serverPassword: "secret-password",
+          cursor: {
+            apiEndpoint: "https://cursor.example.test",
           },
         },
       });
@@ -292,9 +278,63 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           codex: {
             binaryPath: "/opt/homebrew/bin/codex",
           },
-          opencode: {
-            serverUrl: "http://127.0.0.1:4096",
-            serverPassword: "secret-password",
+          cursor: {
+            apiEndpoint: "https://cursor.example.test",
+          },
+        },
+      });
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
+  it.effect("prunes removed provider instances without dropping valid settings", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsService;
+      const serverConfig = yield* ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const removedProviderId = `${"open"}code`;
+
+      yield* fileSystem.makeDirectory(path.dirname(serverConfig.settingsPath), {
+        recursive: true,
+      });
+      yield* fileSystem.writeFileString(
+        serverConfig.settingsPath,
+        `${JSON.stringify(
+          {
+            addProjectBaseDirectory: "~/Development",
+            providerInstances: {
+              codex_personal: {
+                driver: "codex",
+                displayName: "Personal Codex",
+              },
+              [removedProviderId]: {
+                driver: removedProviderId,
+                displayName: "Removed Provider",
+              },
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+
+      const next = yield* serverSettings.getSettings;
+
+      assert.equal(next.addProjectBaseDirectory, "~/Development");
+      assert.deepEqual(next.providerInstances, {
+        codex_personal: {
+          driver: "codex",
+          displayName: "Personal Codex",
+        },
+      });
+
+      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+      assert.deepEqual(JSON.parse(raw), {
+        addProjectBaseDirectory: "~/Development",
+        providerInstances: {
+          codex_personal: {
+            driver: "codex",
+            displayName: "Personal Codex",
           },
         },
       });

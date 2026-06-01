@@ -1,6 +1,5 @@
 import { scopeThreadRef } from "@multi/client-runtime";
 import {
-  CheckpointRef,
   DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   EnvironmentId,
   EventId,
@@ -73,7 +72,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     interactionMode: DEFAULT_INTERACTION_MODE,
     session: null,
     messages: [],
-    activeEntryId: null,
+    leafId: null,
     entries: [],
     turnDiffSummaries: [],
     activities: [],
@@ -151,6 +150,8 @@ function makeState(thread: Thread): AppState {
         thread.messages.map((message) => [message.id, message] as const),
       ) as EnvironmentState["messageByThreadId"][ThreadId],
     },
+    liveAssistantTurnIdsByThreadId: {},
+    liveAssistantTurnByThreadId: {},
     activityIdsByThreadId: {
       [thread.id]: thread.activities.map((activity) => activity.id),
     },
@@ -196,6 +197,8 @@ function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): A
     threadTurnStateById: {},
     messageIdsByThreadId: {},
     messageByThreadId: {},
+    liveAssistantTurnIdsByThreadId: {},
+    liveAssistantTurnByThreadId: {},
     activityIdsByThreadId: {},
     activityByThreadId: {},
     proposedPlanIdsByThreadId: {},
@@ -702,17 +705,17 @@ describe("incremental orchestration updates", () => {
         entryId: ThreadEntryId.make("entry-message-1"),
         parentEntryId: null,
         role: "assistant",
-        text: " world",
+        text: "hello final",
         turnId: TurnId.make("turn-1"),
-        streaming: true,
+        streaming: false,
         createdAt: "2026-02-27T00:00:01.000Z",
         updatedAt: "2026-02-27T00:00:01.000Z",
       }),
       localEnvironmentId,
     );
 
-    expect(threadsOf(next)[0]?.messages[0]?.text).toBe("hello world");
-    expect(threadsOf(next)[0]?.latestTurn?.state).toBe("running");
+    expect(threadsOf(next)[0]?.messages[0]?.text).toBe("hello final");
+    expect(threadsOf(next)[0]?.latestTurn?.state).toBe("completed");
     const nextEnvironmentState = next.environmentStateById[localEnvironmentId];
     const previousEnvironmentState = state.environmentStateById[localEnvironmentId];
     expect(nextEnvironmentState?.threadShellById[thread2.id]).toBe(
@@ -784,285 +787,5 @@ describe("incremental orchestration updates", () => {
     expect(threadsOf(next)[0]?.session?.status).toBe("running");
     expect(threadsOf(next)[0]?.latestTurn?.state).toBe("completed");
     expect(threadsOf(next)[0]?.messages).toHaveLength(1);
-  });
-
-  it("does not regress latestTurn when an older turn diff completes late", () => {
-    const state = makeState(
-      makeThread({
-        latestTurn: {
-          turnId: TurnId.make("turn-2"),
-          state: "running",
-          requestedAt: "2026-02-27T00:00:02.000Z",
-          startedAt: "2026-02-27T00:00:03.000Z",
-          completedAt: null,
-          assistantMessageId: null,
-        },
-      }),
-    );
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.turn-diff-completed", {
-        threadId: ThreadId.make("thread-1"),
-        turnId: TurnId.make("turn-1"),
-        checkpointTurnCount: 1,
-        checkpointRef: CheckpointRef.make("checkpoint-1"),
-        status: "ready",
-        files: [],
-        assistantMessageId: MessageId.make("assistant-1"),
-        completedAt: "2026-02-27T00:00:04.000Z",
-      }),
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(next)[0]?.turnDiffSummaries).toHaveLength(1);
-    expect(threadsOf(next)[0]?.latestTurn).toEqual(threadsOf(state)[0]?.latestTurn);
-  });
-
-  it("rebinds live turn diffs to the authoritative assistant message when it arrives later", () => {
-    const turnId = TurnId.make("turn-1");
-    const state = makeState(
-      makeThread({
-        latestTurn: {
-          turnId,
-          state: "completed",
-          requestedAt: "2026-02-27T00:00:00.000Z",
-          startedAt: "2026-02-27T00:00:00.000Z",
-          completedAt: "2026-02-27T00:00:02.000Z",
-          assistantMessageId: MessageId.make("assistant:turn-1"),
-        },
-        turnDiffSummaries: [
-          {
-            turnId,
-            completedAt: "2026-02-27T00:00:02.000Z",
-            status: "ready",
-            checkpointTurnCount: 1,
-            checkpointRef: CheckpointRef.make("checkpoint-1"),
-            assistantMessageId: MessageId.make("assistant:turn-1"),
-            files: [{ path: "src/app.ts", additions: 1, deletions: 0 }],
-          },
-        ],
-      }),
-    );
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.message-sent", {
-        threadId: ThreadId.make("thread-1"),
-        messageId: MessageId.make("assistant-real"),
-        entryId: ThreadEntryId.make("entry-assistant-real"),
-        parentEntryId: null,
-        role: "assistant",
-        text: "final answer",
-        turnId,
-        streaming: false,
-        createdAt: "2026-02-27T00:00:03.000Z",
-        updatedAt: "2026-02-27T00:00:03.000Z",
-      }),
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(next)[0]?.turnDiffSummaries[0]?.assistantMessageId).toBe(
-      MessageId.make("assistant-real"),
-    );
-    expect(threadsOf(next)[0]?.latestTurn?.assistantMessageId).toBe(
-      MessageId.make("assistant-real"),
-    );
-  });
-
-  it("leaves thread detail unchanged for server-owned revert events", () => {
-    const state = makeState(
-      makeThread({
-        messages: [
-          {
-            id: MessageId.make("user-1"),
-            role: "user",
-            text: "first",
-            turnId: TurnId.make("turn-1"),
-            createdAt: "2026-02-27T00:00:00.000Z",
-            completedAt: "2026-02-27T00:00:00.000Z",
-            streaming: false,
-          },
-          {
-            id: MessageId.make("assistant-1"),
-            role: "assistant",
-            text: "first reply",
-            turnId: TurnId.make("turn-1"),
-            createdAt: "2026-02-27T00:00:01.000Z",
-            completedAt: "2026-02-27T00:00:01.000Z",
-            streaming: false,
-          },
-          {
-            id: MessageId.make("user-2"),
-            role: "user",
-            text: "second",
-            turnId: TurnId.make("turn-2"),
-            createdAt: "2026-02-27T00:00:02.000Z",
-            completedAt: "2026-02-27T00:00:02.000Z",
-            streaming: false,
-          },
-        ],
-        proposedPlans: [
-          {
-            id: "plan-1",
-            turnId: TurnId.make("turn-1"),
-            planMarkdown: "plan 1",
-            implementedAt: null,
-            implementationThreadId: null,
-            createdAt: "2026-02-27T00:00:00.000Z",
-            updatedAt: "2026-02-27T00:00:00.000Z",
-          },
-          {
-            id: "plan-2",
-            turnId: TurnId.make("turn-2"),
-            planMarkdown: "plan 2",
-            implementedAt: null,
-            implementationThreadId: null,
-            createdAt: "2026-02-27T00:00:02.000Z",
-            updatedAt: "2026-02-27T00:00:02.000Z",
-          },
-        ],
-        activities: [
-          {
-            id: EventId.make("activity-1"),
-            tone: "info",
-            kind: "tool.started",
-            summary: "one",
-            payload: {},
-            turnId: TurnId.make("turn-1"),
-            createdAt: "2026-02-27T00:00:00.000Z",
-          },
-          {
-            id: EventId.make("activity-2"),
-            tone: "info",
-            kind: "tool.started",
-            summary: "two",
-            payload: {},
-            turnId: TurnId.make("turn-2"),
-            createdAt: "2026-02-27T00:00:02.000Z",
-          },
-        ],
-        turnDiffSummaries: [
-          {
-            turnId: TurnId.make("turn-1"),
-            completedAt: "2026-02-27T00:00:01.000Z",
-            status: "ready",
-            checkpointTurnCount: 1,
-            checkpointRef: CheckpointRef.make("ref-1"),
-            files: [],
-          },
-          {
-            turnId: TurnId.make("turn-2"),
-            completedAt: "2026-02-27T00:00:03.000Z",
-            status: "ready",
-            checkpointTurnCount: 2,
-            checkpointRef: CheckpointRef.make("ref-2"),
-            files: [],
-          },
-        ],
-      }),
-    );
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.reverted", {
-        threadId: ThreadId.make("thread-1"),
-        turnCount: 1,
-      }),
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(next)[0]?.messages.map((message) => message.id)).toEqual([
-      "user-1",
-      "assistant-1",
-      "user-2",
-    ]);
-    expect(threadsOf(next)[0]?.proposedPlans.map((plan) => plan.id)).toEqual(["plan-1", "plan-2"]);
-    expect(threadsOf(next)[0]?.activities.map((activity) => activity.id)).toEqual([
-      EventId.make("activity-1"),
-      EventId.make("activity-2"),
-    ]);
-    expect(threadsOf(next)[0]?.turnDiffSummaries.map((summary) => summary.turnId)).toEqual([
-      TurnId.make("turn-1"),
-      TurnId.make("turn-2"),
-    ]);
-  });
-
-  it("waits for server detail snapshot after revert before clearing pending proposed plans", () => {
-    const thread = makeThread({
-      latestTurn: {
-        turnId: TurnId.make("turn-2"),
-        state: "completed",
-        requestedAt: "2026-02-27T00:00:02.000Z",
-        startedAt: "2026-02-27T00:00:02.000Z",
-        completedAt: "2026-02-27T00:00:03.000Z",
-        assistantMessageId: MessageId.make("assistant-2"),
-        sourceProposedPlan: {
-          threadId: ThreadId.make("thread-source"),
-          planId: "plan-2" as never,
-        },
-      },
-      pendingSourceProposedPlan: {
-        threadId: ThreadId.make("thread-source"),
-        planId: "plan-2" as never,
-      },
-      turnDiffSummaries: [
-        {
-          turnId: TurnId.make("turn-1"),
-          completedAt: "2026-02-27T00:00:01.000Z",
-          status: "ready",
-          checkpointTurnCount: 1,
-          checkpointRef: CheckpointRef.make("ref-1"),
-          files: [],
-        },
-        {
-          turnId: TurnId.make("turn-2"),
-          completedAt: "2026-02-27T00:00:03.000Z",
-          status: "ready",
-          checkpointTurnCount: 2,
-          checkpointRef: CheckpointRef.make("ref-2"),
-          files: [],
-        },
-      ],
-    });
-    const reverted = applyOrchestrationEvent(
-      makeState(thread),
-      makeEvent("thread.reverted", {
-        threadId: thread.id,
-        turnCount: 1,
-      }),
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(reverted)[0]?.pendingSourceProposedPlan).toEqual({
-      threadId: ThreadId.make("thread-source"),
-      planId: "plan-2",
-    });
-
-    const next = applyOrchestrationEvent(
-      reverted,
-      makeEvent("thread.session-set", {
-        threadId: thread.id,
-        session: {
-          threadId: thread.id,
-          status: "running",
-          providerName: "codex",
-          runtimeMode: "full-access",
-          activeTurnId: TurnId.make("turn-3"),
-          lastError: null,
-          updatedAt: "2026-02-27T00:00:04.000Z",
-        },
-      }),
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(next)[0]?.latestTurn).toMatchObject({
-      turnId: TurnId.make("turn-3"),
-      state: "running",
-    });
-    expect(threadsOf(next)[0]?.latestTurn?.sourceProposedPlan).toEqual({
-      threadId: ThreadId.make("thread-source"),
-      planId: "plan-2",
-    });
   });
 });

@@ -11,9 +11,8 @@ import {
   type OrchestrationEvent,
   type OrchestrationShellStreamEvent,
   type OrchestrationThreadStreamItem,
-  OrchestrationGetFullThreadDiffError,
+  type ProviderRuntimeEvent,
   OrchestrationGetSnapshotError,
-  OrchestrationGetTurnDiffError,
   ORCHESTRATION_WS_METHODS,
   ProjectListDirectoryError,
   ProjectReadFileError,
@@ -31,7 +30,6 @@ import { clamp } from "effect/Number";
 import { HttpRouter, HttpServerRequest } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
 
-import { CheckpointDiffQuery } from "./checkpointing/CheckpointDiffQuery.service";
 import { ServerConfig } from "./config";
 import { GitCore } from "./git/GitCore.service";
 import { GitManager } from "./git/GitManager.service";
@@ -79,10 +77,7 @@ function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
       | "thread.message-sent"
       | "thread.proposed-plan-upserted"
       | "thread.activity-appended"
-      | "thread.turn-diff-completed"
-      | "thread.reverted"
-      | "thread.tree-navigated"
-      | "thread.tree-label-set"
+      | "thread.tree-leaf-moved"
       | "thread.session-set";
   }
 > {
@@ -90,10 +85,7 @@ function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
     event.type === "thread.message-sent" ||
     event.type === "thread.proposed-plan-upserted" ||
     event.type === "thread.activity-appended" ||
-    event.type === "thread.turn-diff-completed" ||
-    event.type === "thread.reverted" ||
-    event.type === "thread.tree-navigated" ||
-    event.type === "thread.tree-label-set" ||
+    event.type === "thread.tree-leaf-moved" ||
     event.type === "thread.session-set"
   );
 }
@@ -147,7 +139,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
     Effect.gen(function* () {
       const threadProjection = yield* ThreadProjection;
       const orchestrationEngine = yield* OrchestrationEngineService;
-      const checkpointDiffQuery = yield* CheckpointDiffQuery;
       const keybindings = yield* Keybindings;
       const open = yield* Open;
       const gitManager = yield* GitManager;
@@ -619,34 +610,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             ),
             { "rpc.aggregate": "orchestration" },
           ),
-        [ORCHESTRATION_WS_METHODS.getTurnDiff]: (input) =>
-          observeRpcEffect(
-            ORCHESTRATION_WS_METHODS.getTurnDiff,
-            checkpointDiffQuery.getTurnDiff(input).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new OrchestrationGetTurnDiffError({
-                    message: "Failed to load turn diff",
-                    cause,
-                  }),
-              ),
-            ),
-            { "rpc.aggregate": "orchestration" },
-          ),
-        [ORCHESTRATION_WS_METHODS.getFullThreadDiff]: (input) =>
-          observeRpcEffect(
-            ORCHESTRATION_WS_METHODS.getFullThreadDiff,
-            checkpointDiffQuery.getFullThreadDiff(input).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new OrchestrationGetFullThreadDiffError({
-                    message: "Failed to load full thread diff",
-                    cause,
-                  }),
-              ),
-            ),
-            { "rpc.aggregate": "orchestration" },
-          ),
         [ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot]: (input) =>
           observeRpcEffect(
             ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot,
@@ -747,53 +710,32 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                   .pipe(Effect.map((readModel) => readModel.snapshotSequence)),
               ]);
 
-              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
+              const domainEventStream = orchestrationEngine.streamDomainEvents.pipe(
                 Stream.filter(
                   (event) =>
                     event.aggregateKind === "thread" &&
                     event.aggregateId === input.threadId &&
                     isThreadDetailEvent(event),
                 ),
-                Stream.mapEffect(
-                  (
-                    event,
-                  ): Effect.Effect<
-                    OrchestrationThreadStreamItem,
-                    OrchestrationGetSnapshotError
-                  > => {
-                    if (event.type !== "thread.reverted") {
-                      return Effect.succeed({
-                        kind: "event" as const,
-                        event,
-                      });
-                    }
-                    return threadProjection.getThreadDetailById(input.threadId).pipe(
-                      Effect.mapError(
-                        (cause) =>
-                          new OrchestrationGetSnapshotError({
-                            message: `Failed to load thread ${input.threadId}`,
-                            cause,
-                          }),
-                      ),
-                      Effect.map((thread) =>
-                        Option.match(thread, {
-                          onNone: () => ({
-                            kind: "event" as const,
-                            event,
-                          }),
-                          onSome: (nextThread) => ({
-                            kind: "snapshot" as const,
-                            snapshot: {
-                              snapshotSequence: event.sequence,
-                              thread: nextThread,
-                            },
-                          }),
+                Stream.map((event): OrchestrationThreadStreamItem => ({ kind: "event", event })),
+              );
+              const providerRuntimeStream = Option.match(
+                yield* Effect.serviceOption(ProviderService),
+                {
+                  onNone: () => Stream.empty,
+                  onSome: (providerService) =>
+                    providerService.streamEvents.pipe(
+                      Stream.filter((event) => event.threadId === input.threadId),
+                      Stream.map(
+                        (event: ProviderRuntimeEvent): OrchestrationThreadStreamItem => ({
+                          kind: "runtime-event",
+                          event,
                         }),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                },
               );
+              const liveStream = Stream.merge(domainEventStream, providerRuntimeStream);
 
               if (Option.isNone(threadDetail)) {
                 return liveStream;
@@ -1094,6 +1036,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                 [
                   providerRegistry.refresh(ProviderDriverKind.make("codex")),
                   providerRegistry.refresh(ProviderDriverKind.make("claudeAgent")),
+                  providerRegistry.refresh(ProviderDriverKind.make("cursor")),
                 ],
                 {
                   concurrency: "unbounded",

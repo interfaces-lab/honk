@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import type { PendingUserInput } from "../../../session-logic";
-import { ComposerPendingUserInputPanel } from "./pending-user-input-panel";
+import { ComposerPendingUserInputPanel } from "./pending/user-input-panel";
 
 function pendingInput(input?: { multiSelect?: boolean }): PendingUserInput {
   return {

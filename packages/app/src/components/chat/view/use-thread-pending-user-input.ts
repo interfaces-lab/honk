@@ -17,7 +17,7 @@ import {
   togglePendingUserInputOptionSelection,
   type PendingUserInputDraftAnswer,
   type PendingUserInputProgress,
-} from "../composer/pending-user-input";
+} from "../composer/pending/user-input";
 import type { ComposerInputHandle } from "../composer/input";
 
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};

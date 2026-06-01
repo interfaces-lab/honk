@@ -316,6 +316,10 @@ function attachThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry): b
         useStore.getState().syncServerThreadDetail(item.snapshot.thread, entry.environmentId);
         return;
       }
+      if (item.kind === "runtime-event") {
+        useStore.getState().applyProviderRuntimeEvent(item.event, entry.environmentId);
+        return;
+      }
       enqueueThreadDetailEvent(item.event, entry.environmentId);
     },
   );
@@ -634,10 +638,6 @@ function collectQueueDrainThreadIds(events: ReadonlyArray<OrchestrationEvent>): 
         ) {
           threadIds.add(event.payload.threadId);
         }
-        break;
-      }
-      case "thread.turn-diff-completed": {
-        threadIds.add(event.payload.threadId);
         break;
       }
     }

@@ -11,9 +11,8 @@ import {
   IconStop,
 } from "central-icons";
 import { Virtualizer } from "@pierre/diffs/react";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useNavigate, useSearch } from "@tanstack/react-router";
 
 import { Button } from "@multi/ui/button";
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@multi/ui/menu";
@@ -42,24 +41,15 @@ import {
 } from "~/lib/git-agent-actions";
 import { toastManager } from "~/app/toast";
 import { useGitViewed } from "~/hooks/use-git-viewed-state";
-import { parseDiffRouteSearch, stripDiffSearchParams } from "~/app/routes/chat-shell-search";
 import { cn } from "~/lib/utils";
-import ReviewDiffPanel from "~/components/diff-panel";
-import { DiffWorkerPoolProvider } from "~/components/diff-worker-pool-provider";
 import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
 import { GitChangesFileTree } from "./git-changes-file-tree";
 import { GitDiffCard } from "./git-diff-card";
 import { WorkbenchChromeRow } from "../shell/workbench-chrome-row";
-import { WorkbenchIconButton, WorkbenchTextButton } from "../shell/workbench-icon-button";
+import { WorkbenchIconButton } from "@multi/ui/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 type GitChangesFilter = "uncommitted" | "unstaged" | "staged" | "branch";
-type GitPanelSelectionState = {
-  readonly filesKey: string;
-  readonly focusId: string | null;
-  readonly selectedId: string | null;
-};
-
 const GIT_CHANGES_FILTERS: readonly GitChangesFilter[] = [
   "uncommitted",
   "unstaged",
@@ -103,6 +93,7 @@ function resolveGitPanelSelectedId(input: {
 }
 
 export function GitPanel(props: {
+  active: boolean;
   git: GitPanelModel;
   onAgentAction: (action: GitAgentAction) => void;
   onStopAgentAction: (() => void) | null;
@@ -110,8 +101,22 @@ export function GitPanel(props: {
   pendingAgentAction: GitAgentAction | null;
 }) {
   const git = props.git;
-  const reviewingTurnDiff =
-    useSearch({ strict: false, select: (search) => parseDiffRouteSearch(search).diff }) === "1";
+  const [contentReady, setContentReady] = useState(false);
+
+  useEffect(() => {
+    if (git.view.kind !== "changed") {
+      setContentReady(false);
+      return;
+    }
+    if (!props.active || contentReady) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setContentReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [contentReady, props.active, git.view.kind]);
 
   if (!isElectron) {
     return (
@@ -122,10 +127,6 @@ export function GitPanel(props: {
         </p>
       </div>
     );
-  }
-
-  if (reviewingTurnDiff && git.view.kind !== "changed") {
-    return <GitReviewOnlyPanel />;
   }
 
   switch (git.view.kind) {
@@ -179,10 +180,18 @@ export function GitPanel(props: {
         </div>
       );
     case "changed":
+      if (!contentReady) {
+        return (
+          <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+            <div className="h-3 w-24 animate-pulse rounded bg-muted/40" />
+            <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
+            <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
+          </div>
+        );
+      }
       return (
         <GitPanelInner
           git={git}
-          reviewingTurnDiff={reviewingTurnDiff}
           onAgentAction={props.onAgentAction}
           onStopAgentAction={props.onStopAgentAction}
           stoppingAgentAction={props.stoppingAgentAction}
@@ -194,7 +203,6 @@ export function GitPanel(props: {
 
 function GitPanelInner(props: {
   git: GitPanelModel;
-  reviewingTurnDiff: boolean;
   onAgentAction: (action: GitAgentAction) => void;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
@@ -203,7 +211,6 @@ function GitPanelInner(props: {
   const git = props.git;
   const files = git.rows;
   const viewed = useGitViewed(git.cwd);
-  const navigate = useNavigate();
   const { open: gitRailOpen, width: gitRailWidth } = useSecondaryRail(git.cwd, "git");
   const [diffStyle, setDiffStyle] = useDiffStylePreference();
   const [pending, setPending] = useState<DiffRow | null>(null);
@@ -228,28 +235,23 @@ function GitPanelInner(props: {
     [visibleFiles],
   );
   const filesKey = useMemo(() => visibleFiles.map((row) => row.id).join("\n"), [visibleFiles]);
-  const [selectionState, setSelectionState] = useState<GitPanelSelectionState>(() => ({
-    filesKey,
-    focusId: git.focusId,
-    selectedId: resolveGitPanelSelectedId({
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    resolveGitPanelSelectedId({
       visibleFiles,
       previousSelectedId: null,
       focusId: git.focusId,
     }),
-  }));
-  let selectedId = selectionState.selectedId;
-  if (selectionState.filesKey !== filesKey || selectionState.focusId !== git.focusId) {
-    selectedId = resolveGitPanelSelectedId({
-      visibleFiles,
-      previousSelectedId: selectionState.selectedId,
-      focusId: git.focusId,
-    });
-    setSelectionState({
-      filesKey,
-      focusId: git.focusId,
-      selectedId,
-    });
-  }
+  );
+
+  useEffect(() => {
+    setSelectedId((current) =>
+      resolveGitPanelSelectedId({
+        visibleFiles,
+        previousSelectedId: current,
+        focusId: git.focusId,
+      }),
+    );
+  }, [filesKey, git.focusId, visibleFiles]);
   const allDiffCardsCollapsed =
     visibleFiles.length > 0 && visibleFiles.every((row) => !git.expandedIds.has(row.id));
   const diffLayoutKey = gitRailOpen ? `rail:${gitRailWidth}` : "rail:closed";
@@ -287,15 +289,8 @@ function GitPanelInner(props: {
   }, [onAgentAction, props.pendingAgentAction]);
 
   const handleSelectFile = useCallback((file: DiffRow) => {
-    setSelectionState((current) => ({ ...current, selectedId: file.id }));
+    setSelectedId(file.id);
   }, []);
-  const closeReview = useCallback(() => {
-    void navigate({
-      to: ".",
-      replace: true,
-      search: (previous) => stripDiffSearchParams(previous),
-    });
-  }, [navigate]);
 
   return (
     <>
@@ -328,7 +323,6 @@ function GitPanelInner(props: {
           onDiscardAll={() => setDiscardAllPending(true)}
           onRefresh={() => void git.refresh()}
         />
-        {props.reviewingTurnDiff ? <ReviewModeHeader onClose={closeReview} /> : null}
         <RightWorkbenchLayout
           cwd={git.cwd}
           tab="git"
@@ -354,9 +348,7 @@ function GitPanelInner(props: {
                 gitRef={gitRef}
               />
             ) : null}
-            {props.reviewingTurnDiff ? (
-              <GitReviewDiffSurface layoutKey={diffLayoutKey} />
-            ) : visibleFiles.length === 0 ? (
+            {visibleFiles.length === 0 ? (
               <div className="flex flex-1 items-center justify-center text-detail text-muted-foreground/60">
                 {changesFilter === "staged"
                   ? "No staged changes."
@@ -420,11 +412,11 @@ function SelectedGitDiffSync(props: {
   readonly gitRef: { readonly current: GitPanelModel };
 }) {
   useMountEffect(() => {
-    props.gitRef.current.toggleExpand(props.selectedId, true);
-    const root = props.deckRootRef.current;
-    if (!root) return;
-
     const frame = requestAnimationFrame(() => {
+      props.gitRef.current.toggleExpand(props.selectedId, true);
+      const root = props.deckRootRef.current;
+      if (!root) return;
+
       const escaped = CSS.escape(props.selectedId);
       root.querySelector(`[data-diff-card-id="${escaped}"]`)?.scrollIntoView({
         block: "nearest",
@@ -436,53 +428,6 @@ function SelectedGitDiffSync(props: {
   });
 
   return null;
-}
-
-function GitReviewOnlyPanel() {
-  const navigate = useNavigate();
-  const closeReview = useCallback(() => {
-    void navigate({
-      to: ".",
-      replace: true,
-      search: (previous) => stripDiffSearchParams(previous),
-    });
-  }, [navigate]);
-
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ReviewModeHeader onClose={closeReview} />
-      <GitReviewDiffSurface />
-    </div>
-  );
-}
-
-function ReviewModeHeader(props: { onClose: () => void }) {
-  return (
-    <WorkbenchChromeRow
-      variant="panel"
-      gap="loose"
-      trailing={
-        <WorkbenchTextButton onClick={props.onClose} className="max-w-24" title="Close Review">
-          Close
-        </WorkbenchTextButton>
-      }
-    >
-      <span className="no-drag shrink-0 text-detail font-medium text-multi-fg-secondary">
-        Review
-      </span>
-      <span className="min-w-0 truncate text-detail text-multi-fg-primary">
-        Turn checkpoint diff
-      </span>
-    </WorkbenchChromeRow>
-  );
-}
-
-function GitReviewDiffSurface(props: { layoutKey?: string }) {
-  return (
-    <DiffWorkerPoolProvider>
-      <ReviewDiffPanel key={props.layoutKey} mode="sheet" />
-    </DiffWorkerPoolProvider>
-  );
 }
 
 function LocalBranchBar(props: {

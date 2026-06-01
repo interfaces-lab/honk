@@ -2,11 +2,20 @@
 
 import { IconSidebar, IconSidebarHiddenLeftWide, IconSidebarHiddenRightWide } from "central-icons";
 import { TabsPanel, TabsRoot } from "@multi/ui/tabs";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
-import { type CSSProperties, type ReactNode, useCallback, useMemo, useRef } from "react";
+import {
+  createContext,
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { isElectron, isElectronHost } from "~/env";
+import { isElectronHost } from "~/env";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
@@ -26,8 +35,6 @@ import {
 import { cn } from "~/lib/utils";
 import { RightWorkbenchHeader, type WorkbenchTabMeta } from "./right-workbench-header";
 import { useColumnResize } from "./use-column-resize";
-
-const chatLayoutRouteApi = getRouteApi("/_chat");
 
 const LEFT_LIMITS = SHELL_LEFT_PANEL_WIDTH_LIMITS;
 const RIGHT_LIMITS = RIGHT_WORKBENCH_WIDTH_LIMITS;
@@ -52,6 +59,20 @@ function isWorkbenchTab(value: unknown): value is WorkbenchTab {
 export interface RightWorkbenchDefinition {
   tabs: readonly WorkbenchTabMeta[];
   panels: Partial<Record<WorkbenchTab, ReactNode>>;
+}
+
+interface RightWorkbenchPanelRuntime {
+  activeTab: WorkbenchTab;
+  open: boolean;
+}
+
+const RightWorkbenchPanelRuntimeContext = createContext<RightWorkbenchPanelRuntime>({
+  activeTab: FALLBACK_WORKBENCH_TAB,
+  open: false,
+});
+
+export function useRightWorkbenchPanelRuntime(): RightWorkbenchPanelRuntime {
+  return useContext(RightWorkbenchPanelRuntimeContext);
 }
 
 type ShellRootStyle = CSSProperties & Record<`--${string}`, string>;
@@ -102,7 +123,7 @@ function LeftAside(props: { children: ReactNode }) {
   return (
     <aside
       className={cn(
-        "agent-window__sidebar multi-shell-sidebar relative flex h-full shrink-0 select-none flex-col overflow-hidden border-r border-multi-stroke-quaternary",
+        "agent-window__sidebar multi-shell-sidebar relative flex h-full shrink-0 select-none flex-col overflow-hidden border-r border-multi-stroke-tertiary",
         resize.dragging
           ? "transition-none"
           : "transition-[width] duration-150 ease-out motion-reduce:transition-none",
@@ -176,9 +197,7 @@ function RightAside(props: {
   const rightWidth = useRightWidth();
   const activeTab = useActiveTab();
   const muted = useIsMuted();
-  const search = chatLayoutRouteApi.useSearch();
-  const navigate = useNavigate();
-  const visibleTabs = props.right.tabs.map((tab) => tab.id);
+  const visibleTabs = useMemo(() => props.right.tabs.map((tab) => tab.id), [props.right.tabs]);
   const effectiveActiveTab = visibleTabs.includes(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
@@ -186,6 +205,8 @@ function RightAside(props: {
     gitFocusId: props.gitFocusId,
     muted,
   });
+  const [snapTransition, setSnapTransition] = useState(false);
+  const previousRightOpenRef = useRef(rightOpen);
 
   const handleWorkbenchTabChange = useCallback(
     (value: unknown) => {
@@ -195,20 +216,13 @@ function RightAside(props: {
       if (!visibleTabs.includes(value)) {
         return;
       }
+      if (activeTab === value && !muted) {
+        return;
+      }
       shellPanelsActions.setActiveTab(value);
       shellPanelsActions.setMuted(false);
-      if (isElectron) {
-        navigate({
-          to: ".",
-          search: {
-            ...search,
-            workbench: value,
-          },
-          replace: true,
-        });
-      }
     },
-    [navigate, search, visibleTabs],
+    [activeTab, muted, visibleTabs],
   );
 
   const asideRef = useRef<HTMLElement | null>(null);
@@ -220,11 +234,28 @@ function RightAside(props: {
     onCommit: (nextWidth) => shellPanelsActions.setRightWidth(nextWidth),
   });
 
+  useEffect(() => {
+    if (previousRightOpenRef.current === rightOpen) {
+      return;
+    }
+    previousRightOpenRef.current = rightOpen;
+    setSnapTransition(true);
+    const frame = window.requestAnimationFrame(() => {
+      setSnapTransition(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [rightOpen]);
+
+  const runtimeValue = useMemo<RightWorkbenchPanelRuntime>(
+    () => ({ activeTab: effectiveActiveTab, open: rightOpen }),
+    [effectiveActiveTab, rightOpen],
+  );
+
   return (
     <aside
       className={cn(
         "agent-window__workbench editor-panel-container multi-shell-surface relative flex min-w-0 shrink-0 flex-col overflow-hidden border-l border-multi-workbench-panel-border-faint",
-        resize.dragging
+        resize.dragging || snapTransition
           ? "transition-none"
           : "transition-[width] duration-100 ease-[cubic-bezier(0.19,1,0.22,1)] motion-reduce:transition-none",
       )}
@@ -233,23 +264,20 @@ function RightAside(props: {
       data-side="right"
       data-state={rightOpen ? "expanded" : "collapsed"}
       data-resizing={resize.dragging ? "true" : "false"}
+      data-transition-snap={snapTransition ? "true" : "false"}
       ref={asideRef}
       aria-hidden={!rightOpen ? true : undefined}
       inert={!rightOpen}
     >
-      <RightAsideRouteSearchSync
-        key={`${search.diff ?? ""}:${search.workbench ?? ""}:${activeTab}:${muted}`}
-        activeTab={activeTab}
-        muted={muted}
-        searchDiff={search.diff}
-        searchWorkbench={search.workbench}
-      />
-      {rightOpen ? (
+      <RightWorkbenchPanelRuntimeContext.Provider value={runtimeValue}>
         <>
           <TabsRoot
             value={effectiveActiveTab}
             onValueChange={handleWorkbenchTabChange}
-            className="relative z-10 flex h-full min-h-0 w-full flex-col bg-(--multi-workbench-editor-surface-background) opacity-100"
+            className={cn(
+              "relative z-10 flex h-full min-h-0 w-full flex-col bg-(--multi-workbench-editor-surface-background)",
+              rightOpen ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
           >
             <RightAsideHeader
               cwd={props.cwd}
@@ -258,55 +286,42 @@ function RightAside(props: {
             />
             <RightAsidePanels activeTab={effectiveActiveTab} right={props.right} />
           </TabsRoot>
-          <div
-            aria-label="Resize project panel width"
-            aria-orientation="vertical"
-            className="pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--multi-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--multi-shell-sash-hover-shade) focus-visible:after:bg-(--multi-shell-sash-hover-shade) data-[active=true]:after:bg-(--multi-shell-sash-hover-shade) motion-reduce:after:transition-none"
-            data-active={resize.dragging ? "true" : undefined}
-            {...resize.sashProps}
-            role="separator"
-          />
+          {rightOpen ? (
+            <div
+              aria-label="Resize project panel width"
+              aria-orientation="vertical"
+              className="pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--multi-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--multi-shell-sash-hover-shade) focus-visible:after:bg-(--multi-shell-sash-hover-shade) data-[active=true]:after:bg-(--multi-shell-sash-hover-shade) motion-reduce:after:transition-none"
+              data-active={resize.dragging ? "true" : undefined}
+              {...resize.sashProps}
+              role="separator"
+            />
+          ) : null}
         </>
-      ) : null}
+      </RightWorkbenchPanelRuntimeContext.Provider>
     </aside>
   );
 }
 
-function RightAsideRouteSearchSync(props: {
-  readonly activeTab: WorkbenchTab;
-  readonly muted: boolean;
-  readonly searchDiff: string | undefined;
-  readonly searchWorkbench: WorkbenchTab | undefined;
-}) {
-  useMountEffect(() => {
-    if (!isElectronHost()) {
-      return;
-    }
-    if (props.searchDiff === "1") {
-      if (props.activeTab !== "git") {
-        shellPanelsActions.setActiveTab("git");
-      }
-      if (props.muted) {
-        shellPanelsActions.setMuted(false);
-      }
-      return;
-    }
-    if (props.searchWorkbench === undefined) {
-      return;
-    }
-    if (props.searchWorkbench !== props.activeTab) {
-      shellPanelsActions.setActiveTab(props.searchWorkbench);
-    }
-  });
-
-  return null;
-}
-
 function RightAsidePanels(props: { activeTab: WorkbenchTab; right: RightWorkbenchDefinition }) {
+  const [mountedTabs, setMountedTabs] = useState<ReadonlySet<WorkbenchTab>>(
+    () => new Set([props.activeTab]),
+  );
+
+  useEffect(() => {
+    setMountedTabs((current) => {
+      if (current.has(props.activeTab)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(props.activeTab);
+      return next;
+    });
+  }, [props.activeTab]);
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {props.right.tabs.map((tab) => {
-        const panel = tab.id === props.activeTab ? (props.right.panels[tab.id] ?? null) : null;
+        const panel = mountedTabs.has(tab.id) ? (props.right.panels[tab.id] ?? null) : null;
         return (
           <TabsPanel
             key={tab.id}
@@ -384,6 +399,7 @@ export function AppShell(props: {
   left: ReactNode;
   center: ReactNode;
   right: RightWorkbenchDefinition | null;
+  centerSurface?: "chat" | "editor";
   routeThreadId?: string | null;
   gitFocusId?: string | null;
 }) {
@@ -447,6 +463,7 @@ export function AppShell(props: {
       data-shell-right-intent={shellRightOpen ? "expanded" : "collapsed"}
       data-shell-right-panel={showRight ? "true" : "false"}
       data-shell-right-open={shellRightOpen ? "true" : "false"}
+      data-shell-center-surface={props.centerSurface ?? "chat"}
       data-shell-platform={electron ? "electron" : "web"}
       data-shell-chrome="surface"
       data-agent-window-font-smoothing={
@@ -459,7 +476,7 @@ export function AppShell(props: {
       <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col">
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-row">
           <main
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-chat-surface-background,var(--multi-color-chat)) outline-hidden"
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-shell-center-surface-background) outline-hidden"
             data-component="chat-panel"
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden outline-hidden">

@@ -17,7 +17,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   QueuedComposerEditBanner,
   QueuedComposerItemsPanel,
-} from "~/components/chat/composer/queued-items-panel";
+} from "~/components/chat/composer/queue/queued-items-panel";
 import { ChatMessageBubble, MessageMeta } from "~/components/chat/message/message-surface";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";

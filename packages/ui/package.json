@@ -28,6 +28,10 @@
       "types": "./src/combobox.tsx",
       "import": "./src/combobox.tsx"
     },
+    "./context-menu": {
+      "types": "./src/context-menu.tsx",
+      "import": "./src/context-menu.tsx"
+    },
     "./command": {
       "types": "./src/command.tsx",
       "import": "./src/command.tsx"
@@ -84,6 +88,10 @@
       "types": "./src/skeleton.tsx",
       "import": "./src/skeleton.tsx"
     },
+    "./sidebar": {
+      "types": "./src/sidebar.tsx",
+      "import": "./src/sidebar.tsx"
+    },
     "./spinner": {
       "types": "./src/spinner.tsx",
       "import": "./src/spinner.tsx"
@@ -115,6 +123,10 @@
     "./tooltip": {
       "types": "./src/tooltip.tsx",
       "import": "./src/tooltip.tsx"
+    },
+    "./workbench-button": {
+      "types": "./src/workbench-button.tsx",
+      "import": "./src/workbench-button.tsx"
     }
   },
   "scripts": {

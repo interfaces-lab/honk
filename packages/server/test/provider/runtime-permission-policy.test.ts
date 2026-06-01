@@ -5,7 +5,6 @@ import {
   actionFromAcpPermissionKind,
   actionFromCanonicalRequestType,
   actionFromPermissionKey,
-  buildOpenCodePermissionRuleset,
   isEnvFileReference,
   shouldPromptForAction,
   type RuntimePermissionAction,
@@ -62,36 +61,5 @@ describe("runtime permission policy", () => {
     assert.equal(isEnvFileReference({ path: "/repo/.env.local" }), true);
     assert.equal(isEnvFileReference("/repo/.env.example"), false);
     assert.equal(isEnvFileReference("/repo/src/index.ts"), false);
-  });
-
-  it("builds OpenCode rules that allow safe reads and ask on edits", () => {
-    const supervised = buildOpenCodePermissionRuleset("approval-required");
-    assert.deepEqual(
-      supervised.find((rule) => rule.permission === "*"),
-      {
-        permission: "*",
-        pattern: "*",
-        action: "ask",
-      },
-    );
-    assert.deepEqual(
-      supervised.find((rule) => rule.permission === "read" && rule.pattern === "*"),
-      {
-        permission: "read",
-        pattern: "*",
-        action: "allow",
-      },
-    );
-    assert.deepEqual(
-      supervised.find((rule) => rule.permission === "edit"),
-      {
-        permission: "edit",
-        pattern: "*",
-        action: "ask",
-      },
-    );
-    assert.deepEqual(buildOpenCodePermissionRuleset("full-access"), [
-      { permission: "*", pattern: "*", action: "allow" },
-    ]);
   });
 });

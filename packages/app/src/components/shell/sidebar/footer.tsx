@@ -3,8 +3,9 @@
 import { Link } from "@tanstack/react-router";
 import { IconSettingsGear2 } from "central-icons";
 
-import { cn } from "~/lib/utils";
+import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 import { UpdatePill } from "~/components/shell/shared/update-pill";
+import { cn } from "~/lib/utils";
 
 type ShellSidebarFooterProps =
   | { settings?: false }
@@ -33,7 +34,7 @@ export function ShellSidebarFooter(props: ShellSidebarFooterProps) {
           </button>
         ) : (
           <Link
-            to="/settings/general"
+            to={DEFAULT_SETTINGS_ROUTE}
             className={cn(
               "flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent text-muted-foreground/60 transition-colors hover:bg-multi-hover hover:text-foreground",
             )}

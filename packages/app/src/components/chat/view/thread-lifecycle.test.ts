@@ -1,5 +1,5 @@
 import { scopeThreadRef } from "@multi/client-runtime";
-import { EnvironmentId, ProjectId, ThreadId, TurnId } from "@multi/contracts";
+import { EnvironmentId, MessageId, ProjectId, ThreadId, TurnId } from "@multi/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type EnvironmentState, useStore } from "../../../stores/thread-store";
 import { type Thread } from "../../../types";
@@ -12,6 +12,7 @@ import {
   hasServerAcknowledgedLocalDispatch,
   reconcileMountedTerminalThreadIds,
   shouldWriteThreadErrorToCurrentServerThread,
+  threadHasStarted,
   waitForStartedServerThread,
 } from "./thread-lifecycle";
 
@@ -163,6 +164,7 @@ describe("shouldWriteThreadErrorToCurrentServerThread", () => {
 
 const makeThread = (input?: {
   id?: ThreadId;
+  chatTimelineRows?: Thread["chatTimelineRows"];
   latestTurn?: {
     turnId: TurnId;
     state: "running" | "completed";
@@ -181,7 +183,7 @@ const makeThread = (input?: {
   interactionMode: "default",
   session: null,
   messages: [],
-  activeEntryId: null,
+  leafId: null,
   entries: [],
   proposedPlans: [],
   error: null,
@@ -198,6 +200,7 @@ const makeThread = (input?: {
   worktreePath: null,
   turnDiffSummaries: [],
   activities: [],
+  chatTimelineRows: input?.chatTimelineRows ?? [],
 });
 
 function setStoreThreads(threads: ReadonlyArray<ReturnType<typeof makeThread>>) {
@@ -266,6 +269,8 @@ function setStoreThreads(threads: ReadonlyArray<ReturnType<typeof makeThread>>) 
         Object.fromEntries(thread.messages.map((message) => [message.id, message])),
       ]),
     ),
+    liveAssistantTurnIdsByThreadId: {},
+    liveAssistantTurnByThreadId: {},
     activityIdsByThreadId: Object.fromEntries(
       threads.map((thread) => [thread.id, thread.activities.map((activity) => activity.id)]),
     ),
@@ -315,6 +320,28 @@ afterEach(() => {
 });
 
 describe("waitForStartedServerThread", () => {
+  it("treats canonical timeline rows as started state", () => {
+    const messageId = MessageId.make("message-started");
+
+    expect(
+      threadHasStarted(
+        makeThread({
+          chatTimelineRows: [
+            {
+              kind: "message",
+              id: `message:${messageId}`,
+              orderKey: `2026-03-29T00:00:01.000Z:message:${messageId}`,
+              createdAt: "2026-03-29T00:00:01.000Z",
+              messageId,
+              turnId: null,
+              entryId: null,
+            },
+          ],
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("resolves immediately when the thread is already started", async () => {
     const threadId = ThreadId.make("thread-started");
     setStoreThreads([
@@ -432,7 +459,7 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
       interactionMode: "default",
       session: previousSession,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       proposedPlans: [],
       error: null,
@@ -471,7 +498,7 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
       interactionMode: "default",
       session: previousSession,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       proposedPlans: [],
       error: null,
@@ -519,7 +546,7 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
       interactionMode: "default",
       session: previousSession,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       proposedPlans: [],
       error: null,
@@ -564,7 +591,7 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
       interactionMode: "default",
       session: previousSession,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       proposedPlans: [],
       error: null,
@@ -609,7 +636,7 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
       interactionMode: "default",
       session: previousSession,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       proposedPlans: [],
       error: null,
@@ -661,7 +688,7 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
       interactionMode: "default",
       session: previousSession,
       messages: [],
-      activeEntryId: null,
+      leafId: null,
       entries: [],
       proposedPlans: [],
       error: null,

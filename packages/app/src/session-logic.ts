@@ -25,7 +25,6 @@ import type {
   SessionPhase,
   Thread,
   ThreadSession,
-  TurnDiffSummary,
 } from "./types";
 import {
   decodeSubagentAgentStates,
@@ -42,9 +41,7 @@ export const PROVIDER_OPTIONS: Array<{
 }> = [
   { value: ProviderDriverKind.make("codex"), label: "Codex", available: true },
   { value: ProviderDriverKind.make("claudeAgent"), label: "Claude", available: true },
-  { value: ProviderDriverKind.make("opencode"), label: "OpenCode", available: true },
   { value: ProviderDriverKind.make("cursor"), label: "Cursor", available: true },
-  { value: ProviderDriverKind.make("pi"), label: "Pi", available: false },
 ];
 
 export interface WorkLogSubagent {
@@ -770,7 +767,6 @@ export function deriveWorkLogEntries(
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
     .filter((activity) => activity.kind !== "context-window.updated")
     .filter((activity) => !isSubagentRuntimeActivity(activity))
-    .filter((activity) => activity.summary !== "Checkpoint captured")
     .filter((activity) => !isPlanBoundaryToolActivity(activity))
     .map((activity) => toDerivedWorkLogEntry(activity, completedAtByTaskKey));
   const workLogEntries: WorkLogEntry[] = [];
@@ -3474,47 +3470,6 @@ function compareActivityLifecycleRank(kind: string): number {
     return 2;
   }
   return 1;
-}
-
-export function deriveTimelineEntries(
-  messages: ChatMessage[],
-  proposedPlans: ProposedPlan[],
-  workEntries: WorkLogEntry[],
-): TimelineEntry[] {
-  const messageRows: TimelineEntry[] = messages.map((message) => ({
-    id: message.id,
-    kind: "message",
-    createdAt: message.createdAt,
-    message,
-  }));
-  const proposedPlanRows: TimelineEntry[] = proposedPlans.map((proposedPlan) => ({
-    id: proposedPlan.id,
-    kind: "proposed-plan",
-    createdAt: proposedPlan.createdAt,
-    proposedPlan,
-  }));
-  const workRows: TimelineEntry[] = workEntries.map((entry) => ({
-    id: `work:${entry.id}`,
-    kind: "work",
-    createdAt: entry.createdAt,
-    entry,
-  }));
-  return [...messageRows, ...proposedPlanRows, ...workRows].toSorted((a, b) =>
-    a.createdAt.localeCompare(b.createdAt),
-  );
-}
-
-export function inferCheckpointTurnCountByTurnId(
-  summaries: TurnDiffSummary[],
-): Record<TurnId, number> {
-  const sorted = [...summaries].toSorted((a, b) => a.completedAt.localeCompare(b.completedAt));
-  const result: Record<TurnId, number> = {};
-  for (let index = 0; index < sorted.length; index += 1) {
-    const summary = sorted[index];
-    if (!summary) continue;
-    result[summary.turnId] = index + 1;
-  }
-  return result;
 }
 
 export function derivePhase(session: ThreadSession | null): SessionPhase {

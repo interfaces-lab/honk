@@ -8,17 +8,17 @@ import { Effect } from "effect";
 import { describe, expect } from "vitest";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { AcpSessionRuntime } from "../../../src/provider/acp/AcpSessionRuntime.ts";
+import { AcpRuntime, type AcpRequestLogEvent } from "../../../src/provider/acp/AcpRuntime.ts";
 
 describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", () => {
   it.effect("initialize and authenticate against real agent acp", () =>
     Effect.gen(function* () {
-      const runtime = yield* AcpSessionRuntime;
+      const runtime = yield* AcpRuntime;
       const started = yield* runtime.start();
       expect(started.initializeResult).toBeDefined();
     }).pipe(
       Effect.provide(
-        AcpSessionRuntime.layer({
+        AcpRuntime.layer({
           spawn: {
             command: "agent",
             args: ["acp"],
@@ -41,7 +41,7 @@ describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", 
 
   it.effect("session/new returns configOptions with a model selector", () =>
     Effect.gen(function* () {
-      const runtime = yield* AcpSessionRuntime;
+      const runtime = yield* AcpRuntime;
       const started = yield* runtime.start();
       const result = started.sessionSetupResult;
       console.log("session/new result:", JSON.stringify(result, null, 2));
@@ -69,7 +69,7 @@ describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", 
       }
     }).pipe(
       Effect.provide(
-        AcpSessionRuntime.layer({
+        AcpRuntime.layer({
           authMethodId: "cursor_login",
           spawn: {
             command: "agent",
@@ -90,15 +90,91 @@ describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", 
     ),
   );
 
+  it.effect("session/set_model and session/set_mode succeed through typed ACP methods", () => {
+    const requestEvents: Array<AcpRequestLogEvent> = [];
+    return Effect.gen(function* () {
+      const runtime = yield* AcpRuntime;
+      const started = yield* runtime.start();
+      const modelConfig = started.sessionSetupResult.configOptions?.find(
+        (opt) => opt.category === "model",
+      );
+      const modelValues =
+        modelConfig?.type === "select"
+          ? modelConfig.options.flatMap((entry) =>
+              "value" in entry ? [entry.value] : entry.options.map((option) => option.value),
+            )
+          : [];
+      const modelId = modelValues[0];
+      if (!modelId) {
+        throw new Error("Cursor ACP probe did not expose a model config option value");
+      }
+      yield* runtime.setModel(modelId);
+
+      const modeState = yield* runtime.getModeState;
+      const modeId = modeState?.availableModes.find(
+        (mode) => mode.id !== modeState.currentModeId,
+      )?.id;
+      if (!modeId) {
+        throw new Error("Cursor ACP probe did not expose a second mode to switch to");
+      }
+      yield* runtime.setMode(modeId);
+
+      expect(
+        requestEvents.some(
+          (event) => event.method === "session/set_model" && event.status === "succeeded",
+        ),
+      ).toBe(true);
+      expect(
+        requestEvents.some(
+          (event) => event.method === "session/set_model" && event.status === "failed",
+        ),
+      ).toBe(false);
+      expect(
+        requestEvents.some(
+          (event) => event.method === "session/set_mode" && event.status === "succeeded",
+        ),
+      ).toBe(true);
+      expect(
+        requestEvents.some(
+          (event) => event.method === "session/set_mode" && event.status === "failed",
+        ),
+      ).toBe(false);
+    }).pipe(
+      Effect.provide(
+        AcpRuntime.layer({
+          authMethodId: "cursor_login",
+          spawn: {
+            command: "agent",
+            args: ["acp"],
+            cwd: process.cwd(),
+          },
+          cwd: process.cwd(),
+          clientCapabilities: {
+            _meta: {
+              parameterizedModelPicker: true,
+            },
+          },
+          clientInfo: { name: "t3-probe", version: "0.0.0" },
+          requestLogger: (event) =>
+            Effect.sync(() => {
+              requestEvents.push(event);
+            }),
+        }),
+      ),
+      Effect.scoped,
+      Effect.provide(NodeServices.layer),
+    );
+  });
+
   it.effect("agent --model binds the billed model at session/new", () =>
     Effect.gen(function* () {
-      const runtime = yield* AcpSessionRuntime;
+      const runtime = yield* AcpRuntime;
       const started = yield* runtime.start();
       const models = started.sessionSetupResult.models;
       expect(models?.currentModelId).toBe("composer-2.5");
     }).pipe(
       Effect.provide(
-        AcpSessionRuntime.layer({
+        AcpRuntime.layer({
           authMethodId: "cursor_login",
           spawn: {
             command: "agent",
@@ -123,7 +199,7 @@ describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", 
     "session/set_config_option alone may not switch the billed model (known Cursor CLI limitation)",
     () =>
       Effect.gen(function* () {
-        const runtime = yield* AcpSessionRuntime;
+        const runtime = yield* AcpRuntime;
         const started = yield* runtime.start();
         const newResult = started.sessionSetupResult;
 
@@ -156,7 +232,7 @@ describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", 
         }
       }).pipe(
         Effect.provide(
-          AcpSessionRuntime.layer({
+          AcpRuntime.layer({
             authMethodId: "cursor_login",
             spawn: {
               command: "agent",

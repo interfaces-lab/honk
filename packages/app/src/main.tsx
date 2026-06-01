@@ -1,12 +1,9 @@
-if (import.meta.env.DEV) {
-  void import("./dev/react-grab");
-}
-
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { createHashHistory, createBrowserHistory } from "@tanstack/react-router";
 
+import "./dev/react-grab";
 import "./app/appearance-boot";
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";

@@ -60,7 +60,7 @@
 
 .multi-shell-sidebar {
   --multi-interactive-surface: var(--multi-base-sidebar);
-  background: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
+  background-color: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
 }
 
 .multi-shell-surface {
@@ -87,6 +87,10 @@ body {
       transparent 58%
     ),
     var(--multi-color-surface);
+}
+
+html[data-electron] body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) {
+  background: transparent;
 }
 
 body.multi-reduce-transparency {
@@ -138,6 +142,54 @@ body.multi-reduce-transparency {
   white-space: nowrap;
 }
 
+.plan-editor-prosemirror .ProseMirror {
+  min-height: 12rem;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.plan-editor-prosemirror .ProseMirror:focus {
+  outline: none;
+}
+
+.plan-editor-prosemirror .ProseMirror > * + * {
+  margin-top: 0.75rem;
+}
+
+.plan-editor-prosemirror .ProseMirror p {
+  margin: 0;
+}
+
+.plan-editor-prosemirror .ProseMirror h1,
+.plan-editor-prosemirror .ProseMirror h2,
+.plan-editor-prosemirror .ProseMirror h3,
+.plan-editor-prosemirror .ProseMirror h4,
+.plan-editor-prosemirror .ProseMirror h5,
+.plan-editor-prosemirror .ProseMirror h6 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.plan-editor-prosemirror .ProseMirror ul,
+.plan-editor-prosemirror .ProseMirror ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.plan-editor-prosemirror .ProseMirror pre {
+  margin: 0;
+  overflow-x: auto;
+  border-radius: var(--multi-radius-control);
+  background: var(--multi-bg-tertiary);
+  padding: 0.75rem;
+}
+
+.plan-editor-prosemirror .ProseMirror code {
+  font-family: var(--multi-font-mono, ui-monospace, monospace);
+}
+
 /* Shell utility classes */
 .thread-rail-pad {
   padding-top: var(
@@ -155,6 +207,10 @@ body.multi-reduce-transparency {
   --multi-shell-right-workbench-header-end-space: calc(
     var(--multi-shell-titlebar-control-size) + var(--multi-shell-titlebar-gutter)
   );
+  --multi-shell-center-surface-background: var(
+    --multi-chat-surface-background,
+    var(--multi-color-chat)
+  );
   background: var(--multi-color-surface);
   container-type: inline-size;
   overflow-x: clip;
@@ -168,6 +224,14 @@ body.multi-reduce-transparency {
   -moz-osx-font-smoothing: var(--multi-agent-window-font-smoothing-moz);
   --multi-shell-sash-stripe-width: 4px;
   --multi-shell-sash-hover-shade: color-mix(in srgb, var(--multi-stroke-focused) 38%, transparent);
+}
+
+.agent-window[data-shell-center-surface="editor"] {
+  --multi-shell-center-surface-background: var(--multi-workbench-editor-surface-background);
+}
+
+body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) .agent-window {
+  background: var(--multi-glass-surface-background);
 }
 
 .agent-window[data-agent-window-font-smoothing="antialiased"] {
@@ -191,7 +255,6 @@ body.multi-reduce-transparency {
 
 .agent-window__sidebar {
   --multi-interactive-surface: var(--multi-base-sidebar);
-  background: var(--multi-sidebar-surface-background, var(--multi-shell-sidebar-bg));
   box-shadow: none;
   width: var(--multi-shell-left-effective-width);
   min-width: min(var(--multi-shell-left-effective-width), var(--multi-shell-left-min-width));
@@ -398,7 +461,7 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] .editor-panel-tab-r
 }
 
 .agent-window-chat-header {
-  background: var(--multi-chat-surface-background);
+  background: transparent;
   color: var(--multi-fg-secondary);
 }
 

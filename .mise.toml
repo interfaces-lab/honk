@@ -1,6 +1,6 @@
 [tools]
-node = "25.8.1"
-pnpm = "11.0.9"
+node = "latest"
+pnpm = "11.5.0"
 
 [settings]
 node.corepack = true

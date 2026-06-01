@@ -1,11 +1,8 @@
 import {
-  CheckpointRef,
   EventId,
-  MessageId,
   OrchestrationThreadActivity,
   ProjectId,
   ThreadId,
-  TurnId,
   type OrchestrationEvent,
 } from "@multi/contracts";
 import { Schema } from "effect";
@@ -113,23 +110,13 @@ describe("deriveOrchestrationBatchEffects", () => {
         createdAt: "2026-02-27T00:00:02.000Z",
         updatedAt: "2026-02-27T00:00:02.000Z",
       }),
-      makeEvent("thread.turn-diff-completed", {
-        threadId,
-        turnId: TurnId.make("turn-1"),
-        checkpointTurnCount: 1,
-        checkpointRef: CheckpointRef.make("checkpoint-1"),
-        status: "ready",
-        files: [],
-        assistantMessageId: MessageId.make("assistant-1"),
-        completedAt: "2026-02-27T00:00:03.000Z",
-      }),
     ]);
 
     expect(effects.promoteDraftThreadIds).toEqual([threadId]);
     expect(effects.clearDeletedThreadIds).toEqual([]);
     expect(effects.removeTerminalStateThreadIds).toEqual([]);
     expect(effects.gitRefreshThreadIds).toEqual([]);
-    expect(effects.needsProviderInvalidation).toBe(true);
+    expect(effects.needsProviderInvalidation).toBe(false);
   });
 
   it("does not retain archive cleanup when a thread is unarchived later in the same batch", () => {

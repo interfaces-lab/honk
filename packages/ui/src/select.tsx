@@ -12,12 +12,15 @@ import {
   workbenchMenuPopupClassName,
   workbenchMenuViewportClassName,
 } from "./menu";
-import { cn } from "./utils";
+import { cn, controlTransitionClassName } from "./utils";
 
 const Select = SelectPrimitive.Root;
 
 const selectTriggerVariants = cva(
-  "relative inline-flex cursor-pointer select-none items-center justify-between gap-2 border rounded-lg text-left text-base outline-none transition-[color,box-shadow,background-color] data-disabled:pointer-events-none data-disabled:opacity-64 sm:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4",
+  cn(
+    "relative inline-flex cursor-pointer select-none items-center justify-between gap-2 border rounded-lg text-left text-base outline-none transition-[color,box-shadow,background-color] data-disabled:pointer-events-none data-disabled:opacity-64 sm:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4",
+    controlTransitionClassName,
+  ),
   {
     defaultVariants: {
       size: "default",
@@ -197,6 +200,7 @@ function SelectItem({
         <SelectPrimitive.ItemIndicator
           className={cn(
             "col-start-1 inline-flex size-4 items-center justify-center text-multi-fg-primary opacity-0 transition-opacity in-data-selected:opacity-100 [&_svg:not([class*='size-'])]:size-3",
+            controlTransitionClassName,
           )}
           data-slot="select-item-indicator"
           keepMounted

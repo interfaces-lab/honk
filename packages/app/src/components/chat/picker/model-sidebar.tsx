@@ -1,7 +1,6 @@
 import { type ProviderInstanceId } from "@multi/contracts";
 import { memo, useMemo, type ReactNode } from "react";
-import { IconClock3OClock, IconSparklesThree, IconStar } from "central-icons";
-import { IconRobot } from "central-icons";
+import { IconSparklesThree, IconStar } from "central-icons";
 import { ProviderInstanceIcon } from "./instance-icon";
 import { ScrollArea } from "@multi/ui/scroll-area";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
@@ -41,17 +40,12 @@ function SelectedProviderIndicator() {
 
 function ProviderRailBadge({
   children,
-  variant,
 }: {
   children: ReactNode;
-  variant: "new" | "soon";
 }) {
   return (
     <span
-      className={cn(
-        "pointer-events-none absolute -right-0.5 top-0.5 z-10 flex size-3.5 items-center justify-center rounded-full bg-transparent shadow-sm",
-        variant === "new" ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground",
-      )}
+      className="pointer-events-none absolute -right-0.5 top-0.5 z-10 flex size-3.5 items-center justify-center rounded-full bg-transparent text-amber-600 shadow-sm dark:text-amber-300"
       aria-hidden
     >
       {children}
@@ -83,8 +77,6 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
   instanceEntries: ReadonlyArray<ProviderInstanceEntry>;
   /** Render the favorites rail entry. */
   showFavorites?: boolean;
-  /** Render unsupported pending provider entries. */
-  showPendingProviders?: boolean;
   /**
    * Instance id values that should render the "new" sparkle badge. Callers
    * pass the subset of default built-in ids they want flagged (custom
@@ -96,7 +88,6 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
     props.onSelectInstance(instanceId);
   };
   const showFavorites = props.showFavorites ?? true;
-  const showPendingProviders = props.showPendingProviders ?? true;
   const duplicateDriverCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const entry of props.instanceEntries) {
@@ -185,7 +176,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                 iconClassName="size-5"
               />
               {showNewBadge ? (
-                <ProviderRailBadge variant="new">
+                <ProviderRailBadge>
                   <IconSparklesThree className="size-2" />
                 </ProviderRailBadge>
               ) : null}
@@ -208,32 +199,6 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
             </div>
           );
         })}
-
-        {showPendingProviders ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="relative block w-full">
-                  <button
-                    className={cn(
-                      "relative isolate flex aspect-square w-full cursor-not-allowed items-center justify-center rounded-multi-control opacity-50 transition-colors hover:bg-transparent",
-                    )}
-                    disabled
-                    type="button"
-                    data-model-picker-provider="pi-pending"
-                    aria-label="Pi — pending"
-                  >
-                    <IconRobot className="size-5 text-muted-foreground/85" aria-hidden />
-                    <ProviderRailBadge variant="soon">
-                      <IconClock3OClock className="size-2" />
-                    </ProviderRailBadge>
-                  </button>
-                </span>
-              }
-            />
-            <ModelPickerTooltipPopup>Pi — Pending</ModelPickerTooltipPopup>
-          </Tooltip>
-        ) : null}
       </div>
     </ScrollArea>
   );

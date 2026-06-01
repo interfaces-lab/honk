@@ -26,8 +26,13 @@ const desktopChromeSource = readFileSync(
   resolve(shellDir, "../../../lib/desktop-chrome.ts"),
   "utf8",
 );
+const useThemeSource = readFileSync(resolve(shellDir, "../../../hooks/use-theme.ts"), "utf8");
 const desktopWindowSource = readFileSync(
   resolve(__dirname, "../../../../../desktop/src/window/DesktopWindow.ts"),
+  "utf8",
+);
+const desktopIpcWindowSource = readFileSync(
+  resolve(__dirname, "../../../../../desktop/src/ipc/methods/window.ts"),
   "utf8",
 );
 const chatViewSource = readFileSync(resolve(shellDir, "../../chat/view/chat-view.tsx"), "utf8");
@@ -159,8 +164,12 @@ describe("AppShell CSS root contract", () => {
       "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center",
     );
     expect(chatViewSource).toContain("px-(--multi-workbench-chrome-padding-inline)");
+    expect(chatViewSource).toContain("before:bg-(--multi-shell-center-surface-background)");
+    expect(chatViewSource).toContain(
+      "linear-gradient(to_top,var(--multi-shell-center-surface-background),transparent)",
+    );
     expect(shellCssSource).toMatch(
-      /\.agent-window-chat-header \{[\s\S]*background:\s*var\(--multi-chat-surface-background\)/,
+      /\.agent-window-chat-header \{[\s\S]*background:\s*transparent/,
     );
     expect(shellCssSource).not.toMatch(/\.agent-window-chat-header \{[\s\S]*border-bottom:/);
     expect(shellCssSource).toContain(
@@ -204,7 +213,10 @@ describe("AppShell CSS root contract", () => {
     expect(appShellSource).toContain('data-component="root"');
     expect(appShellSource).toContain('setAttribute("data-multi-glass-mode", "true")');
     expect(appShellSource).toContain("syncAppearanceVibrancy");
-    expect(appShellSource).toContain("bg-(--multi-chat-surface-background");
+    expect(appShellSource).toContain('data-shell-center-surface={props.centerSurface ?? "chat"}');
+    expect(appShellSource).toContain("bg-(--multi-shell-center-surface-background)");
+    expect(shellCssSource).toContain("--multi-shell-center-surface-background");
+    expect(shellCssSource).toContain('.agent-window[data-shell-center-surface="editor"]');
   });
 
   it("keeps transparent document backgrounds Electron-only", () => {
@@ -213,6 +225,40 @@ describe("AppShell CSS root contract", () => {
     );
     expect(indexCssSource).toContain(
       'html[data-electron] body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency)',
+    );
+    expect(useThemeSource).toContain('const ELECTRON_GLASS_BACKGROUND_COLOR_LIGHT = "#00FFFFFF";');
+    expect(useThemeSource).toContain('const ELECTRON_GLASS_BACKGROUND_COLOR_DARK = "#40000000";');
+    expect(useThemeSource).toContain("wantsElectronGlassBackground()");
+    expect(useThemeSource).toContain("getElectronGlassBackgroundColor()");
+    expect(useThemeSource).toContain('const rendererBackgroundColor = wantsGlassBackground');
+    expect(useThemeSource).toContain('? "transparent"');
+    expect(useThemeSource).toContain("const desktopBackgroundColor = wantsGlassBackground");
+    expect(useThemeSource).toContain("syncDesktopBackgroundColor(desktopBackgroundColor)");
+    expect(shellCssSource).toContain(
+      'html[data-electron] body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency)',
+    );
+    expect(shellCssSource).toContain(
+      'body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) .agent-window',
+    );
+    expect(shellCssSource).toContain("background: var(--multi-glass-surface-background);");
+    expect(shellCssSource).not.toContain(
+      "body.multi-os-vibrancy-on[data-multi-glass-mode=\"true\"] .agent-window",
+    );
+    expect(appShellSource).toContain('centerSurface?: "chat" | "editor";');
+    expect(appShellSource).toContain('data-shell-center-surface={props.centerSurface ?? "chat"}');
+    expect(shellCssSource).toContain('.agent-window[data-shell-center-surface="editor"]');
+    expect(shellCssSource).toContain(
+      "--multi-shell-center-surface-background: var(--multi-workbench-editor-surface-background)",
+    );
+    expect(appShellHostSource).toContain('centerSurface="editor"');
+    expect(appShellSource).toContain("border-r border-multi-stroke-tertiary");
+    expect(desktopIpcWindowSource).toContain("getMacGlassWindowBackgroundColor");
+    expect(desktopIpcWindowSource).toContain('return shouldUseDarkColors ? "#40000000" : "#00FFFFFF";');
+    expect(desktopWindowSource).toContain("getInitialWindowGlassOptions");
+    expect(desktopWindowSource).toContain('vibrancy: "sidebar"');
+    expect(desktopWindowSource).toContain('visualEffectState: "active"');
+    expect(desktopWindowSource).not.toContain(
+      "window.setBackgroundColor(getInitialWindowBackgroundColor(shouldUseDarkColors));",
     );
   });
 });

@@ -1,4 +1,10 @@
 import { isElectron } from "../env";
+import {
+  DEFAULT_APPEARANCE_TINT_HUE,
+  DEFAULT_APPEARANCE_TINT_INTENSITY,
+  applyAppearanceBaseColors,
+  getAppearanceThemeMode,
+} from "./appearance-colors";
 
 export const STORAGE_REDUCE_TRANSPARENCY = "multi:reduce-transparency";
 export const STORAGE_TINT_HUE = "multi:accent-hue";
@@ -46,7 +52,12 @@ function parseIntStored(raw: string | null, fallback: number, min: number, max: 
 }
 
 function readTintSaturation() {
-  return parseIntStored(localStorage.getItem(STORAGE_TINT_SATURATION), 33, 0, 100);
+  return parseIntStored(
+    localStorage.getItem(STORAGE_TINT_SATURATION),
+    DEFAULT_APPEARANCE_TINT_INTENSITY,
+    0,
+    100,
+  );
 }
 
 function emitAppearanceSettingsChanged() {
@@ -103,9 +114,16 @@ function applyChromeRoot() {
     root.style.removeProperty("--multi-font-mono");
   }
 
-  const hue = parseIntStored(localStorage.getItem(STORAGE_TINT_HUE), 247, 0, 360);
+  const hue = parseIntStored(
+    localStorage.getItem(STORAGE_TINT_HUE),
+    DEFAULT_APPEARANCE_TINT_HUE,
+    0,
+    360,
+  );
+  const intensity = readTintSaturation();
   root.style.setProperty("--multi-user-hue", String(hue));
-  root.style.setProperty("--multi-intensity", String(readTintSaturation()));
+  root.style.setProperty("--multi-intensity", String(intensity));
+  applyAppearanceBaseColors(root, getAppearanceThemeMode(root), hue, intensity);
 }
 
 export function applyAppearanceBoot() {
@@ -186,7 +204,12 @@ export type AppearanceSnapshot = {
 function buildSnapshot(): AppearanceSnapshot {
   return {
     reduceTransparency: localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1",
-    hue: parseIntStored(localStorage.getItem(STORAGE_TINT_HUE), 247, 0, 360),
+    hue: parseIntStored(
+      localStorage.getItem(STORAGE_TINT_HUE),
+      DEFAULT_APPEARANCE_TINT_HUE,
+      0,
+      360,
+    ),
     saturation: readTintSaturation(),
     uiFontSize: parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16),
     codeFontSize: parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18),

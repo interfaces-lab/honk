@@ -107,6 +107,66 @@ describe("HumanMessage rich text rendering", () => {
     expect(markup).toContain("$ui");
   });
 
+  it("does not render trailing empty Lexical paragraphs from composer state", () => {
+    const markup = renderHumanMessage({
+      id: MessageId.make("message-lexical-trailing-empty-rich-text"),
+      role: "user",
+      text: "Build plan",
+      richText: {
+        root: {
+          type: "root",
+          children: [
+            {
+              type: "paragraph",
+              children: [{ type: "text", text: "Build plan" }],
+            },
+            {
+              type: "paragraph",
+              children: [],
+            },
+          ],
+        },
+      },
+      createdAt: "2026-02-23T00:00:01.000Z",
+      streaming: false,
+    });
+
+    expect(markup).toContain("data-rich-text-message");
+    expect(markup).toContain("Build plan");
+    expect(markup).not.toContain("<br/>");
+  });
+
+  it("does not render boundary empty TipTap paragraphs from composer state", () => {
+    const markup = renderHumanMessage({
+      id: MessageId.make("message-tiptap-boundary-empty-rich-text"),
+      role: "user",
+      text: "Ship it",
+      richText: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [],
+          },
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Ship it" }],
+          },
+          {
+            type: "paragraph",
+            content: [],
+          },
+        ],
+      },
+      createdAt: "2026-02-23T00:00:01.000Z",
+      streaming: false,
+    });
+
+    expect(markup).toContain("data-rich-text-message");
+    expect(markup).toContain("Ship it");
+    expect(markup).not.toContain("<br/>");
+  });
+
   it("falls back to plain text for unknown richText shapes", () => {
     const markup = renderHumanMessage({
       id: MessageId.make("message-unknown-rich-text"),

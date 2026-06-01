@@ -53,6 +53,7 @@ const program = Effect.gen(function* () {
       ],
     }),
   );
+  yield* agent.handleSetSessionMode(() => Effect.succeed({}));
 
   yield* agent.handlePrompt(() =>
     Effect.gen(function* () {

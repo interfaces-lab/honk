@@ -90,6 +90,7 @@ function RerenderingGitPanel() {
       </button>
       <ToastProvider>
         <GitPanel
+          active
           git={gitPanelModel({ branch: `main-${renderCount}` })}
           onAgentAction={vi.fn()}
           onStopAgentAction={null}
@@ -145,6 +146,7 @@ describe("GitPanel", () => {
     const screen = await render(
       <ToastProvider>
         <GitPanel
+          active
           git={gitPanelModel({ discard })}
           onAgentAction={vi.fn()}
           onStopAgentAction={null}

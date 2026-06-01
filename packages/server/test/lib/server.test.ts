@@ -36,10 +36,6 @@ import { ServerConfigShape } from "../../src/config.ts";
 import { deriveServerPaths, ServerConfig } from "../../src/config.ts";
 import { makeRoutesLayer } from "../../src/server-runtime.ts";
 import { resolveAttachmentRelativePath } from "../../src/attachment-paths.ts";
-import {
-  CheckpointDiffQuery,
-  type CheckpointDiffQueryShape,
-} from "../../src/checkpointing/CheckpointDiffQuery.service.ts";
 import { GitCore, type GitCoreShape } from "../../src/git/GitCore.service.ts";
 import { GitManager, type GitManagerShape } from "../../src/git/GitManager.service.ts";
 import { GitStatusBroadcasterLive } from "../../src/git/GitStatusBroadcaster.ts";
@@ -143,12 +139,12 @@ const makeDefaultOrchestrationReadModel = (): OrchestrationReadModel => {
         archivedAt: null,
         latestTurn: null,
         messages: [],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         session: null,
         activities: [],
+        chatTimelineRows: [],
         proposedPlans: [],
-        checkpoints: [],
         deletedAt: null,
       },
     ],
@@ -184,7 +180,6 @@ const buildAppUnderTest = (options?: {
     terminalManager?: Partial<TerminalManagerShape>;
     orchestrationEngine?: Partial<OrchestrationEngineShape>;
     threadProjection?: Partial<ThreadProjectionShape>;
-    checkpointDiffQuery?: Partial<CheckpointDiffQueryShape>;
     serverLifecycleEvents?: Partial<ServerLifecycleEventsShape>;
     serverRuntimeStartup?: Partial<ServerRuntimeStartupShape>;
     serverEnvironment?: Partial<ServerEnvironmentShape>;
@@ -313,27 +308,7 @@ const buildAppUnderTest = (options?: {
           getCounts: () => Effect.succeed({ projectCount: 0, threadCount: 0 }),
           getActiveProjectByProjectRoot: () => Effect.succeed(Option.none()),
           getFirstActiveThreadIdByProjectId: () => Effect.succeed(Option.none()),
-          getThreadCheckpointContext: () => Effect.succeed(Option.none()),
           ...options?.layers?.threadProjection,
-        }),
-      ),
-      Layer.provide(
-        Layer.mock(CheckpointDiffQuery)({
-          getTurnDiff: () =>
-            Effect.succeed({
-              threadId: defaultThreadId,
-              fromTurnCount: 0,
-              toTurnCount: 0,
-              diff: "",
-            }),
-          getFullThreadDiff: () =>
-            Effect.succeed({
-              threadId: defaultThreadId,
-              fromTurnCount: 0,
-              toTurnCount: 0,
-              diff: "",
-            }),
-          ...options?.layers?.checkpointDiffQuery,
         }),
       ),
     );
@@ -2431,12 +2406,12 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             archivedAt: null,
             latestTurn: null,
             messages: [],
-            activeEntryId: null,
+            leafId: null,
             entries: [],
             session: null,
             activities: [],
+            chatTimelineRows: [],
             proposedPlans: [],
-            checkpoints: [],
             deletedAt: null,
           },
         ],
@@ -2450,22 +2425,6 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           orchestrationEngine: {
             dispatch: () => Effect.succeed({ sequence: 7 }),
             readEvents: () => Stream.empty,
-          },
-          checkpointDiffQuery: {
-            getTurnDiff: () =>
-              Effect.succeed({
-                threadId: ThreadId.make("thread-1"),
-                fromTurnCount: 0,
-                toTurnCount: 1,
-                diff: "turn-diff",
-              }),
-            getFullThreadDiff: () =>
-              Effect.succeed({
-                threadId: ThreadId.make("thread-1"),
-                fromTurnCount: 0,
-                toTurnCount: 1,
-                diff: "full-diff",
-              }),
           },
         },
       });
@@ -2482,27 +2441,6 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         ),
       );
       assert.equal(dispatchResult.sequence, 7);
-
-      const turnDiffResult = yield* Effect.scoped(
-        withWsRpcClient(wsUrl, (client) =>
-          client[ORCHESTRATION_WS_METHODS.getTurnDiff]({
-            threadId: ThreadId.make("thread-1"),
-            fromTurnCount: 0,
-            toTurnCount: 1,
-          }),
-        ),
-      );
-      assert.equal(turnDiffResult.diff, "turn-diff");
-
-      const fullDiffResult = yield* Effect.scoped(
-        withWsRpcClient(wsUrl, (client) =>
-          client[ORCHESTRATION_WS_METHODS.getFullThreadDiff]({
-            threadId: ThreadId.make("thread-1"),
-            toTurnCount: 1,
-          }),
-        ),
-      );
-      assert.equal(fullDiffResult.diff, "full-diff");
 
       const replayResult = yield* Effect.scoped(
         withWsRpcClient(wsUrl, (client) =>

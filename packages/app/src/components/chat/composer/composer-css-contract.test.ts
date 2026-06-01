@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,12 +8,42 @@ const stylesDir = resolve(composerDir, "../../../styles");
 const conversationCss = readFileSync(resolve(stylesDir, "conversation.css"), "utf8");
 const inputSource = readFileSync(resolve(composerDir, "input.tsx"), "utf8");
 const contextUsageBarSource = readFileSync(
-  resolve(composerDir, "composer-context-usage-bar.tsx"),
+  resolve(composerDir, "context/context-usage-bar.tsx"),
   "utf8",
 );
-const promptEditorSource = readFileSync(resolve(composerDir, "prompt-editor.tsx"), "utf8");
-const queuedItemsPanelSource = readFileSync(resolve(composerDir, "queued-items-panel.tsx"), "utf8");
-const slashMenuSource = readFileSync(resolve(composerDir, "slash-menu.tsx"), "utf8");
+const promptEditorSource = readFileSync(resolve(composerDir, "prompt-editor/index.tsx"), "utf8");
+const queuedItemsPanelSource = readFileSync(resolve(composerDir, "queue/queued-items-panel.tsx"), "utf8");
+const slashMenuSource = readFileSync(resolve(composerDir, "command-menu/menu.tsx"), "utf8");
+const planFollowUpTraySource = readFileSync(
+  resolve(composerDir, "plan-follow-up/plan-follow-up-tray.tsx"),
+  "utf8",
+);
+const promptEditorChipsSource = readFileSync(resolve(composerDir, "prompt-editor/chips.tsx"), "utf8");
+
+function readComposerSources(): string[] {
+  const sources: string[] = [];
+
+  function walk(directory: string): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+        continue;
+      }
+      if (
+        entry.isFile() &&
+        (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) &&
+        !entry.name.endsWith(".test.ts") &&
+        !entry.name.endsWith(".browser.tsx")
+      ) {
+        sources.push(readFileSync(entryPath, "utf8"));
+      }
+    }
+  }
+
+  walk(composerDir);
+  return sources;
+}
 
 describe("Composer CSS contract", () => {
   it("stores shared composer typography in conversation.css vars", () => {
@@ -73,6 +103,13 @@ describe("Composer CSS contract", () => {
     expect(promptEditorSource).toContain('data-prompt-editor-root="true"');
     expect(promptEditorSource).toContain("editor.update");
   });
+
+  it("keeps TipTap out of the chat composer folder", () => {
+    for (const source of readComposerSources()) {
+      expect(source).not.toContain("@tiptap");
+      expect(source).not.toContain("ProseMirror");
+    }
+  });
 });
 
 describe("Composer queue contract", () => {
@@ -113,12 +150,12 @@ describe("Composer queue contract", () => {
   });
 });
 
-describe("Composer subagent preview contract", () => {
+describe("Composer subagent tray contract", () => {
   it("keeps tray presentation tied to the expanded dock instead of inline row mounting", () => {
     expect(inputSource).toMatch(
-      /const subagentPreviewVisible =\s*!isInlineEditComposer && \(composerVariant !== "compact" \|\| isDockComposerExpanded\);/,
+      /const subagentTrayVisible =\s*!isInlineEditComposer && \(composerVariant !== "compact" \|\| isDockComposerExpanded\);/,
     );
-    expect(inputSource).toContain("visible={subagentPreviewVisible}");
+    expect(inputSource).toContain("visible={subagentTrayVisible}");
   });
 });
 
@@ -209,7 +246,7 @@ describe("Composer surface contract", () => {
   it("applies composer blur via conversation.css in translucent mode", () => {
     expect(conversationCss).toContain("--multi-composer-blur: 10px");
     expect(conversationCss.replace(/\s+/g, " ")).toContain(
-      'body[data-multi-glass-mode="true"] :is([data-message-bubble-surface], [data-multi-composer-surface])',
+      'body[data-multi-glass-mode="true"] :is( [data-message-bubble-surface], [data-multi-composer-surface]:not([data-layout="inline-edit"]) )',
     );
     expect(conversationCss).toMatch(/blur\(var\(--multi-composer-blur/);
   });
@@ -251,11 +288,13 @@ describe("Composer surface contract", () => {
     expect(conversationCss).toContain("--multi-composer-chip-max-width:");
   });
 
-  it("styles prompt chips via cva in prompt-editor.tsx", () => {
-    expect(promptEditorSource).toContain("composerPromptChipVariants");
-    expect(promptEditorSource).toContain('kind: "mention"');
-    expect(promptEditorSource).toContain('kind: "command"');
-    expect(promptEditorSource).not.toContain("border-multi-stroke-tertiary bg-multi-bg-quaternary");
+  it("styles prompt chips via cva in the prompt editor boundary", () => {
+    expect(promptEditorChipsSource).toContain("composerPromptChipVariants");
+    expect(promptEditorChipsSource).toContain('kind: "mention"');
+    expect(promptEditorChipsSource).toContain('kind: "command"');
+    expect(promptEditorChipsSource).not.toContain(
+      "border-multi-stroke-tertiary bg-multi-bg-quaternary",
+    );
   });
 
   it("moves slash menu blur to conversation.css", () => {
@@ -270,8 +309,9 @@ describe("Composer surface contract", () => {
       "--multi-composer-plan-tray-radius: var(--multi-composer-radius-expanded)",
     );
     expect(conversationCss).toContain(".plan-tray__markdown");
-    expect(inputSource).toContain("ChatMarkdown");
-    expect(inputSource).toContain("plan-tray__markdown");
+    expect(inputSource).toContain("PlanFollowUpTray");
+    expect(planFollowUpTraySource).toContain("ChatMarkdown");
+    expect(planFollowUpTraySource).toContain("plan-tray__markdown");
     expect(inputSource).not.toContain("buildPlanTrayPreview");
     expect(inputSource).not.toContain("REVIEW PLAN");
   });

@@ -28,6 +28,7 @@ import {
   EventId,
   type ProviderApprovalDecision,
   type ProviderThreadSnapshotItem,
+  type ProviderInstanceId,
   ProviderDriverKind,
   ProviderItemId,
   type ProviderRuntimeEvent,
@@ -44,7 +45,7 @@ import {
   TurnId,
   type UserInputQuestion,
 } from "@multi/contracts";
-import { resolveClaudeSettings } from "./provider-settings.ts";
+import { buildProviderInstanceEnvironment, resolveClaudeSettings } from "./provider-settings.ts";
 import {
   applyClaudePromptEffortPrefix,
   getModelSelectionBooleanOptionValue,
@@ -72,10 +73,12 @@ import { ServerConfig } from "../config.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import {
   getClaudeModelCapabilities,
-  normalizeClaudeCliEffort,
+  isClaudeUltracodeEffort,
+  resolveClaudeExecutableEffort,
   resolveClaudeApiModelId,
   resolveClaudeEffort,
 } from "./ClaudeProvider.ts";
+import { makeClaudeEnvironment } from "./claude-home.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
@@ -194,10 +197,12 @@ interface ClaudeQueryRuntime extends AsyncIterable<SDKMessage> {
 }
 
 export interface ClaudeAdapterLiveOptions {
+  readonly instanceId?: ProviderInstanceId | undefined;
   readonly createQuery?: (input: {
     readonly prompt: AsyncIterable<SDKUserMessage>;
     readonly options: ClaudeQueryOptions;
   }) => ClaudeQueryRuntime;
+  readonly environment?: NodeJS.ProcessEnv;
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
 }
@@ -245,9 +250,12 @@ function normalizeClaudeStreamMessages(cause: Cause.Cause<Error>): ReadonlyArray
   return squashed.length > 0 ? [squashed] : [];
 }
 
-function getEffectiveClaudeAgentEffort(effort: string | null | undefined): ClaudeSdkEffort | null {
-  const normalized = normalizeClaudeCliEffort(effort);
-  return normalized ? (normalized as ClaudeSdkEffort) : null;
+function getEffectiveClaudeAgentEffort(
+  effort: string | null | undefined,
+  model: string | null | undefined,
+): ClaudeSdkEffort | null {
+  const executableEffort = resolveClaudeExecutableEffort(effort, model);
+  return executableEffort ? (executableEffort as ClaudeSdkEffort) : null;
 }
 
 function isClaudeInterruptedMessage(message: string): boolean {
@@ -1019,7 +1027,7 @@ function sdkNativeItemId(message: SDKMessage): string | undefined {
   return undefined;
 }
 
-const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
+export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   options?: ClaudeAdapterLiveOptions,
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -1031,6 +1039,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           stream: "native",
         })
       : undefined);
+  const providerInstanceId = options?.instanceId ?? PROVIDER_INSTANCE_ID;
 
   const createQuery =
     options?.createQuery ??
@@ -1058,7 +1067,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   ): Effect.Effect<void> =>
     Queue.offer(runtimeEventQueue, {
       ...event,
-      providerInstanceId: event.providerInstanceId ?? PROVIDER_INSTANCE_ID,
+      providerInstanceId: event.providerInstanceId ?? providerInstanceId,
     } as ProviderRuntimeEvent).pipe(Effect.asVoid);
 
   const logNativeSdkMessage = Effect.fn("logNativeSdkMessage")(function* (
@@ -2916,8 +2925,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       const canUseTool: CanUseTool = (toolName, toolInput, callbackOptions) =>
         runPromise(canUseToolEffect(toolName, toolInput, callbackOptions));
 
-      const claudeSettings = yield* serverSettingsService.getSettings.pipe(
-        Effect.map((settings) => resolveClaudeSettings(settings, input.providerInstanceId)),
+      const settingsSnapshot = yield* serverSettingsService.getSettings.pipe(
         Effect.mapError(
           (error) =>
             new ProviderAdapterProcessError({
@@ -2928,6 +2936,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
             }),
         ),
       );
+      const claudeSettings = resolveClaudeSettings(settingsSnapshot, input.providerInstanceId);
       const claudeBinaryPath = claudeSettings.binaryPath;
       const extraArgs = parseCliArgs(claudeSettings.launchArgs).flags;
       const modelSelection = input.modelSelection;
@@ -2948,24 +2957,33 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       const thinking = thinkingSupported
         ? getModelSelectionBooleanOptionValue(modelSelection, "thinking")
         : undefined;
-      const effectiveEffort = getEffectiveClaudeAgentEffort(effort);
+      const ultracode = isClaudeUltracodeEffort(effort);
+      const effectiveEffort = getEffectiveClaudeAgentEffort(effort, modelSelection?.model);
       const runtimeModeToPermission: Record<string, PermissionMode> = {
         "auto-accept-edits": "acceptEdits",
         "full-access": "bypassPermissions",
       };
       const permissionMode = runtimeModeToPermission[input.runtimeMode];
+      const providerEnvironment = buildProviderInstanceEnvironment(
+        settingsSnapshot,
+        input.providerInstanceId,
+        options?.environment,
+      );
+      const claudeEnvironment = makeClaudeEnvironment(claudeSettings, providerEnvironment);
       const settings = {
         ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
         ...(fastMode ? { fastMode: true } : {}),
+        ...(ultracode ? { ultracode: true } : {}),
       };
 
       const queryOptions: ClaudeQueryOptions = {
         ...(input.cwd ? { cwd: input.cwd } : {}),
         ...(apiModelId ? { model: apiModelId } : {}),
         pathToClaudeCodeExecutable: claudeBinaryPath,
+        systemPrompt: { type: "preset", preset: "claude_code" },
         settingSources: [...CLAUDE_SETTING_SOURCES],
-        // The SDK type lags the CLI here: Opus 4.7 accepts `xhigh` even though
-        // the published `Options["effort"]` union currently stops at `max`.
+        // `ultracode` is a Claude Code setting, not an API effort level. It is
+        // normalized to `xhigh` and paired with `settings.ultracode`.
         ...(effectiveEffort
           ? {
               effort: effectiveEffort as unknown as NonNullable<ClaudeQueryOptions["effort"]>,
@@ -2980,7 +2998,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         ...(newSessionId ? { sessionId: newSessionId } : {}),
         includePartialMessages: true,
         canUseTool,
-        env: process.env,
+        env: claudeEnvironment,
         ...(input.cwd ? { additionalDirectories: [input.cwd] } : {}),
         ...(Object.keys(extraArgs).length > 0 ? { extraArgs } : {}),
       };

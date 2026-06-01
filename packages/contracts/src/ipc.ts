@@ -50,12 +50,8 @@ import type {
 import type { ServerUpsertKeybindingInput } from "./server";
 import type {
   ClientOrchestrationCommand,
-  OrchestrationGetFullThreadDiffInput,
-  OrchestrationGetFullThreadDiffResult,
   OrchestrationGetProviderThreadSnapshotInput,
   OrchestrationGetProviderThreadSnapshotResult,
-  OrchestrationGetTurnDiffInput,
-  OrchestrationGetTurnDiffResult,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
@@ -376,10 +372,6 @@ export interface EnvironmentApi {
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
-    getTurnDiff: (input: OrchestrationGetTurnDiffInput) => Promise<OrchestrationGetTurnDiffResult>;
-    getFullThreadDiff: (
-      input: OrchestrationGetFullThreadDiffInput,
-    ) => Promise<OrchestrationGetFullThreadDiffResult>;
     getProviderThreadSnapshot: (
       input: OrchestrationGetProviderThreadSnapshotInput,
     ) => Promise<OrchestrationGetProviderThreadSnapshotResult>;

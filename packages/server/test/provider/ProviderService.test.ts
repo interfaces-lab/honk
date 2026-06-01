@@ -61,12 +61,12 @@ const ensureExistingDirectory = (cwd: string): string => {
 for (const cwd of [
   "/tmp/project",
   "/tmp/project-reap-preserve",
-  "/tmp/project-claude",
+  "/tmp/project-cursor",
   "/tmp/project-provider-replacement",
   "/tmp/project-send-turn",
-  "/tmp/project-claude-send-turn",
-  "/tmp/project-claude-start",
-  "/tmp/project-claude-cwd",
+  "/tmp/project-cursor-send-turn",
+  "/tmp/project-cursor-start",
+  "/tmp/project-cursor-cwd",
   "/tmp/project-send-metrics",
 ]) {
   ensureExistingDirectory(cwd);
@@ -299,11 +299,9 @@ const hasMetricSnapshot = (
 
 function makeProviderServiceLayer() {
   const codex = makeFakeCodexAdapter();
-  const claude = makeFakeCodexAdapter("claudeAgent");
   const cursor = makeFakeCodexAdapter("cursor");
   const registry = makeRegistry({
     codex: codex.adapter,
-    claudeAgent: claude.adapter,
     cursor: cursor.adapter,
   });
 
@@ -330,8 +328,57 @@ function makeProviderServiceLayer() {
 
   return {
     codex,
-    claude,
     cursor,
+    layer,
+  };
+}
+
+function makeSharedAdapterProviderServiceLayer() {
+  const codex = makeFakeCodexAdapter();
+  const changes = Effect.runSync(PubSub.unbounded<void>());
+  const defaultInstanceId = ProviderInstanceId.make("codex");
+  const customInstanceId = ProviderInstanceId.make("codex_personal");
+  const registry: typeof ProviderAdapterRegistry.Service = {
+    getByInstance: (instanceId) =>
+      instanceId === defaultInstanceId || instanceId === customInstanceId
+        ? Effect.succeed(codex.adapter)
+        : Effect.fail(new ProviderUnsupportedError({ provider: instanceId })),
+    getInstanceInfo: (instanceId) =>
+      instanceId === defaultInstanceId || instanceId === customInstanceId
+        ? Effect.succeed({
+            instanceId,
+            driverKind: "codex",
+            enabled: true,
+          })
+        : Effect.fail(new ProviderUnsupportedError({ provider: instanceId })),
+    listInstances: () => Effect.succeed([defaultInstanceId, customInstanceId]),
+    streamChanges: Stream.fromPubSub(changes),
+    subscribeChanges: PubSub.subscribe(changes),
+  };
+
+  const providerAdapterLayer = Layer.succeed(ProviderAdapterRegistry, registry);
+  const runtimeRepositoryLayer = ProviderSessionRuntimeRepositoryLive.pipe(
+    Layer.provide(SqlitePersistenceMemory),
+  );
+  const directoryLayer = ProviderSessionDirectoryLive.pipe(Layer.provide(runtimeRepositoryLayer));
+
+  const layer = it.layer(
+    Layer.mergeAll(
+      makeProviderServiceLive().pipe(
+        Layer.provide(providerAdapterLayer),
+        Layer.provide(directoryLayer),
+        Layer.provide(defaultServerSettingsLayer),
+        Layer.provideMerge(AnalyticsService.layerTest),
+      ),
+      directoryLayer,
+      runtimeRepositoryLayer,
+      NodeServices.layer,
+    ),
+  );
+
+  return {
+    codex,
+    customInstanceId,
     layer,
   };
 }
@@ -339,18 +386,18 @@ function makeProviderServiceLayer() {
 it.effect("ProviderServiceLive rejects new sessions for disabled providers", () =>
   Effect.gen(function* () {
     const codex = makeFakeCodexAdapter();
-    const claude = makeFakeCodexAdapter("claudeAgent");
+    const cursor = makeFakeCodexAdapter("cursor");
     const registry = makeRegistry(
       {
         codex: codex.adapter,
-        claudeAgent: claude.adapter,
+        cursor: cursor.adapter,
       },
-      ["claudeAgent"],
+      ["cursor"],
     );
     const providerAdapterLayer = Layer.succeed(ProviderAdapterRegistry, registry);
     const serverSettingsLayer = ServerSettingsService.layerTest({
       providers: {
-        claudeAgent: {
+        cursor: {
           enabled: false,
         },
       },
@@ -370,8 +417,8 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
       Effect.gen(function* () {
         const provider = yield* ProviderService;
         return yield* provider.startSession(asThreadId("thread-disabled"), {
-          provider: "claudeAgent",
-          providerInstanceId: "claudeAgent",
+          provider: "cursor",
+          providerInstanceId: "cursor",
           threadId: asThreadId("thread-disabled"),
           runtimeMode: "full-access",
         });
@@ -379,8 +426,8 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
     );
 
     assert.instanceOf(failure, ProviderValidationError);
-    assert.include(failure.issue, "Provider instance 'claudeAgent' is disabled in Multi settings.");
-    assert.equal(claude.startSession.mock.calls.length, 0);
+    assert.include(failure.issue, "Provider instance 'cursor' is disabled in Multi settings.");
+    assert.equal(cursor.startSession.mock.calls.length, 0);
   }).pipe(Effect.provide(NodeServices.layer)),
 );
 
@@ -877,26 +924,26 @@ routing.layer("ProviderServiceLive routing", (it) => {
     }),
   );
 
-  it.effect("routes explicit claudeAgent provider session starts to the claude adapter", () =>
+  it.effect("routes explicit cursor provider session starts to the cursor adapter", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService;
 
-      const session = yield* provider.startSession(asThreadId("thread-claude"), {
-        provider: "claudeAgent",
-        providerInstanceId: "claudeAgent",
-        threadId: asThreadId("thread-claude"),
-        cwd: "/tmp/project-claude",
+      const session = yield* provider.startSession(asThreadId("thread-cursor"), {
+        provider: "cursor",
+        providerInstanceId: "cursor",
+        threadId: asThreadId("thread-cursor"),
+        cwd: "/tmp/project-cursor",
         runtimeMode: "full-access",
       });
 
-      assert.equal(session.provider, "claudeAgent");
-      assert.equal(routing.claude.startSession.mock.calls.length, 1);
-      const startInput = routing.claude.startSession.mock.calls[0]?.[0];
+      assert.equal(session.provider, "cursor");
+      assert.equal(routing.cursor.startSession.mock.calls.length, 1);
+      const startInput = routing.cursor.startSession.mock.calls[0]?.[0];
       assert.equal(typeof startInput === "object" && startInput !== null, true);
       if (startInput && typeof startInput === "object") {
         const startPayload = startInput as { provider?: string; cwd?: string };
-        assert.equal(startPayload.provider, "claudeAgent");
-        assert.equal(startPayload.cwd, "/tmp/project-claude");
+        assert.equal(startPayload.provider, "cursor");
+        assert.equal(startPayload.cwd, "/tmp/project-cursor");
       }
     }),
   );
@@ -915,27 +962,27 @@ routing.layer("ProviderServiceLive routing", (it) => {
       });
 
       routing.codex.stopSession.mockClear();
-      routing.claude.stopSession.mockClear();
+      routing.cursor.stopSession.mockClear();
 
-      const claudeSession = yield* provider.startSession(threadId, {
-        provider: "claudeAgent",
-        providerInstanceId: "claudeAgent",
+      const cursorSession = yield* provider.startSession(threadId, {
+        provider: "cursor",
+        providerInstanceId: "cursor",
         threadId,
         cwd: "/tmp/project-provider-replacement",
         runtimeMode: "full-access",
       });
 
       assert.equal(codexSession.provider, "codex");
-      assert.equal(claudeSession.provider, "claudeAgent");
+      assert.equal(cursorSession.provider, "cursor");
       assert.deepEqual(routing.codex.stopSession.mock.calls, [[threadId]]);
-      assert.equal(routing.claude.stopSession.mock.calls.length, 0);
+      assert.equal(routing.cursor.stopSession.mock.calls.length, 0);
 
       const sessions = yield* provider.listSessions();
       assert.deepEqual(
         sessions
           .filter((session) => session.threadId === threadId)
           .map((session) => session.provider),
-        ["claudeAgent"],
+        ["cursor"],
       );
     }),
   );
@@ -981,33 +1028,33 @@ routing.layer("ProviderServiceLive routing", (it) => {
     }),
   );
 
-  it.effect("recovers stale claudeAgent sessions for sendTurn using persisted cwd", () =>
+  it.effect("recovers stale cursor sessions for sendTurn using persisted cwd", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService;
 
-      const initial = yield* provider.startSession(asThreadId("thread-claude-send-turn"), {
-        provider: "claudeAgent",
-        providerInstanceId: "claudeAgent",
-        threadId: asThreadId("thread-claude-send-turn"),
-        cwd: "/tmp/project-claude-send-turn",
-        modelSelection: createModelSelection("claudeAgent", "claude-opus-4-6", [
+      const initial = yield* provider.startSession(asThreadId("thread-cursor-send-turn"), {
+        provider: "cursor",
+        providerInstanceId: "cursor",
+        threadId: asThreadId("thread-cursor-send-turn"),
+        cwd: "/tmp/project-cursor-send-turn",
+        modelSelection: createModelSelection("cursor", "cursor-opus-4-6", [
           { id: "effort", value: "max" },
         ]),
         runtimeMode: "full-access",
       });
 
-      yield* routing.claude.stopAll();
-      routing.claude.startSession.mockClear();
-      routing.claude.sendTurn.mockClear();
+      yield* routing.cursor.stopAll();
+      routing.cursor.startSession.mockClear();
+      routing.cursor.sendTurn.mockClear();
 
       yield* provider.sendTurn({
         threadId: initial.threadId,
-        input: "resume with claude",
+        input: "resume with cursor",
         attachments: [],
       });
 
-      assert.equal(routing.claude.startSession.mock.calls.length, 1);
-      const resumedStartInput = routing.claude.startSession.mock.calls[0]?.[0];
+      assert.equal(routing.cursor.startSession.mock.calls.length, 1);
+      const resumedStartInput = routing.cursor.startSession.mock.calls[0]?.[0];
       assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
       if (resumedStartInput && typeof resumedStartInput === "object") {
         const startPayload = resumedStartInput as {
@@ -1017,16 +1064,16 @@ routing.layer("ProviderServiceLive routing", (it) => {
           resumeCursor?: unknown;
           threadId?: string;
         };
-        assert.equal(startPayload.provider, "claudeAgent");
-        assert.equal(startPayload.cwd, "/tmp/project-claude-send-turn");
+        assert.equal(startPayload.provider, "cursor");
+        assert.equal(startPayload.cwd, "/tmp/project-cursor-send-turn");
         assert.deepEqual(
           startPayload.modelSelection,
-          createModelSelection("claudeAgent", "claude-opus-4-6", [{ id: "effort", value: "max" }]),
+          createModelSelection("cursor", "cursor-opus-4-6", [{ id: "effort", value: "max" }]),
         );
         assert.deepEqual(startPayload.resumeCursor, initial.resumeCursor);
         assert.equal(startPayload.threadId, initial.threadId);
       }
-      assert.equal(routing.claude.sendTurn.mock.calls.length, 1);
+      assert.equal(routing.cursor.sendTurn.mock.calls.length, 1);
     }),
   );
 
@@ -1048,7 +1095,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
       });
 
       yield* routing.codex.stopAll();
-      yield* routing.claude.stopAll();
+      yield* routing.cursor.stopAll();
 
       const remaining = yield* provider.listSessions();
       assert.equal(remaining.length, 0);
@@ -1109,9 +1156,9 @@ routing.layer("ProviderServiceLive routing", (it) => {
         Layer.provide(persistenceLayer),
       );
 
-      const firstClaude = makeFakeCodexAdapter("claudeAgent");
+      const firstCursor = makeFakeCodexAdapter("cursor");
       const firstRegistry = makeRegistry({
-        claudeAgent: firstClaude.adapter,
+        cursor: firstCursor.adapter,
       });
       const firstDirectoryLayer = ProviderSessionDirectoryLive.pipe(
         Layer.provide(runtimeRepositoryLayer),
@@ -1125,11 +1172,11 @@ routing.layer("ProviderServiceLive routing", (it) => {
 
       const initial = yield* Effect.gen(function* () {
         const provider = yield* ProviderService;
-        return yield* provider.startSession(asThreadId("thread-claude-start"), {
-          provider: "claudeAgent",
-          providerInstanceId: "claudeAgent",
-          threadId: asThreadId("thread-claude-start"),
-          cwd: "/tmp/project-claude-start",
+        return yield* provider.startSession(asThreadId("thread-cursor-start"), {
+          provider: "cursor",
+          providerInstanceId: "cursor",
+          threadId: asThreadId("thread-cursor-start"),
+          cwd: "/tmp/project-cursor-start",
           runtimeMode: "full-access",
         });
       }).pipe(Effect.provide(firstProviderLayer));
@@ -1139,9 +1186,9 @@ routing.layer("ProviderServiceLive routing", (it) => {
         yield* provider.listSessions();
       }).pipe(Effect.provide(firstProviderLayer));
 
-      const secondClaude = makeFakeCodexAdapter("claudeAgent");
+      const secondCursor = makeFakeCodexAdapter("cursor");
       const secondRegistry = makeRegistry({
-        claudeAgent: secondClaude.adapter,
+        cursor: secondCursor.adapter,
       });
       const secondDirectoryLayer = ProviderSessionDirectoryLive.pipe(
         Layer.provide(runtimeRepositoryLayer),
@@ -1153,21 +1200,21 @@ routing.layer("ProviderServiceLive routing", (it) => {
         Layer.provide(AnalyticsService.layerTest),
       );
 
-      secondClaude.startSession.mockClear();
+      secondCursor.startSession.mockClear();
 
       yield* Effect.gen(function* () {
         const provider = yield* ProviderService;
         yield* provider.startSession(initial.threadId, {
-          provider: "claudeAgent",
-          providerInstanceId: "claudeAgent",
+          provider: "cursor",
+          providerInstanceId: "cursor",
           threadId: initial.threadId,
-          cwd: "/tmp/project-claude-start",
+          cwd: "/tmp/project-cursor-start",
           runtimeMode: "full-access",
         });
       }).pipe(Effect.provide(secondProviderLayer));
 
-      assert.equal(secondClaude.startSession.mock.calls.length, 1);
-      const resumedStartInput = secondClaude.startSession.mock.calls[0]?.[0];
+      assert.equal(secondCursor.startSession.mock.calls.length, 1);
+      const resumedStartInput = secondCursor.startSession.mock.calls[0]?.[0];
       assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
       if (resumedStartInput && typeof resumedStartInput === "object") {
         const startPayload = resumedStartInput as {
@@ -1176,8 +1223,8 @@ routing.layer("ProviderServiceLive routing", (it) => {
           resumeCursor?: unknown;
           threadId?: string;
         };
-        assert.equal(startPayload.provider, "claudeAgent");
-        assert.equal(startPayload.cwd, "/tmp/project-claude-start");
+        assert.equal(startPayload.provider, "cursor");
+        assert.equal(startPayload.cwd, "/tmp/project-cursor-start");
         assert.deepEqual(startPayload.resumeCursor, initial.resumeCursor);
         assert.equal(startPayload.threadId, initial.threadId);
       }
@@ -1187,7 +1234,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
   );
 
   it.effect(
-    "reuses persisted cwd when startSession resumes a claude session without cwd input",
+    "reuses persisted cwd when startSession resumes a cursor session without cwd input",
     () =>
       Effect.gen(function* () {
         const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "t3-provider-service-cwd-"));
@@ -1197,9 +1244,9 @@ routing.layer("ProviderServiceLive routing", (it) => {
           Layer.provide(persistenceLayer),
         );
 
-        const firstClaude = makeFakeCodexAdapter("claudeAgent");
+        const firstCursor = makeFakeCodexAdapter("cursor");
         const firstRegistry = makeRegistry({
-          claudeAgent: firstClaude.adapter,
+          cursor: firstCursor.adapter,
         });
         const firstDirectoryLayer = ProviderSessionDirectoryLive.pipe(
           Layer.provide(runtimeRepositoryLayer),
@@ -1213,18 +1260,18 @@ routing.layer("ProviderServiceLive routing", (it) => {
 
         const initial = yield* Effect.gen(function* () {
           const provider = yield* ProviderService;
-          return yield* provider.startSession(asThreadId("thread-claude-cwd"), {
-            provider: "claudeAgent",
-            providerInstanceId: "claudeAgent",
-            threadId: asThreadId("thread-claude-cwd"),
-            cwd: "/tmp/project-claude-cwd",
+          return yield* provider.startSession(asThreadId("thread-cursor-cwd"), {
+            provider: "cursor",
+            providerInstanceId: "cursor",
+            threadId: asThreadId("thread-cursor-cwd"),
+            cwd: "/tmp/project-cursor-cwd",
             runtimeMode: "full-access",
           });
         }).pipe(Effect.provide(firstProviderLayer));
 
-        const secondClaude = makeFakeCodexAdapter("claudeAgent");
+        const secondCursor = makeFakeCodexAdapter("cursor");
         const secondRegistry = makeRegistry({
-          claudeAgent: secondClaude.adapter,
+          cursor: secondCursor.adapter,
         });
         const secondDirectoryLayer = ProviderSessionDirectoryLive.pipe(
           Layer.provide(runtimeRepositoryLayer),
@@ -1236,20 +1283,20 @@ routing.layer("ProviderServiceLive routing", (it) => {
           Layer.provide(AnalyticsService.layerTest),
         );
 
-        secondClaude.startSession.mockClear();
+        secondCursor.startSession.mockClear();
 
         yield* Effect.gen(function* () {
           const provider = yield* ProviderService;
           yield* provider.startSession(initial.threadId, {
-            provider: "claudeAgent",
-            providerInstanceId: "claudeAgent",
+            provider: "cursor",
+            providerInstanceId: "cursor",
             threadId: initial.threadId,
             runtimeMode: "full-access",
           });
         }).pipe(Effect.provide(secondProviderLayer));
 
-        assert.equal(secondClaude.startSession.mock.calls.length, 1);
-        const resumedStartInput = secondClaude.startSession.mock.calls[0]?.[0];
+        assert.equal(secondCursor.startSession.mock.calls.length, 1);
+        const resumedStartInput = secondCursor.startSession.mock.calls[0]?.[0];
         assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
         if (resumedStartInput && typeof resumedStartInput === "object") {
           const startPayload = resumedStartInput as {
@@ -1258,8 +1305,8 @@ routing.layer("ProviderServiceLive routing", (it) => {
             resumeCursor?: unknown;
             threadId?: string;
           };
-          assert.equal(startPayload.provider, "claudeAgent");
-          assert.equal(startPayload.cwd, "/tmp/project-claude-cwd");
+          assert.equal(startPayload.provider, "cursor");
+          assert.equal(startPayload.cwd, "/tmp/project-cursor-cwd");
           assert.deepEqual(startPayload.resumeCursor, initial.resumeCursor);
           assert.equal(startPayload.threadId, initial.threadId);
         }
@@ -1450,8 +1497,8 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
       const provider = yield* ProviderService;
 
       const session = yield* provider.startSession(asThreadId("thread-metrics"), {
-        provider: "claudeAgent",
-        providerInstanceId: "claudeAgent",
+        provider: "cursor",
+        providerInstanceId: "cursor",
         threadId: asThreadId("thread-metrics"),
         cwd: "/tmp/project",
         runtimeMode: "full-access",
@@ -1480,7 +1527,7 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
 
       assert.equal(
         hasMetricSnapshot(snapshots, "t3_provider_turns_total", {
-          provider: "claudeAgent",
+          provider: "cursor",
           operation: "interrupt",
           outcome: "success",
         }),
@@ -1488,7 +1535,7 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
       );
       assert.equal(
         hasMetricSnapshot(snapshots, "t3_provider_turns_total", {
-          provider: "claudeAgent",
+          provider: "cursor",
           operation: "approval-response",
           outcome: "success",
         }),
@@ -1496,7 +1543,7 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
       );
       assert.equal(
         hasMetricSnapshot(snapshots, "t3_provider_turns_total", {
-          provider: "claudeAgent",
+          provider: "cursor",
           operation: "user-input-response",
           outcome: "success",
         }),
@@ -1504,7 +1551,7 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
       );
       assert.equal(
         hasMetricSnapshot(snapshots, "t3_provider_turns_total", {
-          provider: "claudeAgent",
+          provider: "cursor",
           operation: "rollback",
           outcome: "success",
         }),
@@ -1512,7 +1559,7 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
       );
       assert.equal(
         hasMetricSnapshot(snapshots, "t3_provider_sessions_total", {
-          provider: "claudeAgent",
+          provider: "cursor",
           operation: "stop",
           outcome: "success",
         }),
@@ -1528,8 +1575,8 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
         const provider = yield* ProviderService;
 
         const session = yield* provider.startSession(asThreadId("thread-send-metrics"), {
-          provider: "claudeAgent",
-          providerInstanceId: "claudeAgent",
+          provider: "cursor",
+          providerInstanceId: "cursor",
           threadId: asThreadId("thread-send-metrics"),
           cwd: "/tmp/project-send-metrics",
           runtimeMode: "full-access",
@@ -1545,7 +1592,7 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
 
         assert.equal(
           hasMetricSnapshot(snapshots, "t3_provider_turns_total", {
-            provider: "claudeAgent",
+            provider: "cursor",
             operation: "send",
             outcome: "success",
           }),
@@ -1553,12 +1600,58 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
         );
         assert.equal(
           hasMetricSnapshot(snapshots, "t3_provider_turn_duration", {
-            provider: "claudeAgent",
+            provider: "cursor",
             operation: "send",
           }),
           true,
         );
       }),
+  );
+});
+
+const sharedAdapterFanout = makeSharedAdapterProviderServiceLayer();
+sharedAdapterFanout.layer("ProviderServiceLive shared adapter fanout", (it) => {
+  it.effect("publishes only events for the matching provider instance", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService;
+      const session = yield* provider.startSession(asThreadId("thread-custom-instance"), {
+        provider: "codex",
+        providerInstanceId: sharedAdapterFanout.customInstanceId,
+        threadId: asThreadId("thread-custom-instance"),
+        runtimeMode: "full-access",
+      });
+      assert.equal(yield* sharedAdapterFanout.codex.hasSession(session.threadId), true);
+
+      const receivedRef = yield* Ref.make<Array<ProviderRuntimeEvent>>([]);
+      const consumer = yield* Stream.runForEach(provider.streamEvents, (event) =>
+        Ref.update(receivedRef, (current) => [...current, event]),
+      ).pipe(Effect.forkChild);
+      yield* sleep(50);
+
+      sharedAdapterFanout.codex.emit({
+        type: "turn.completed",
+        eventId: asEventId("evt-custom-instance"),
+        provider: "codex",
+        providerInstanceId: sharedAdapterFanout.customInstanceId,
+        createdAt: new Date().toISOString(),
+        threadId: session.threadId,
+        turnId: asTurnId("turn-custom-instance"),
+        status: "completed",
+      });
+      yield* sleep(50);
+
+      const received = yield* Ref.get(receivedRef);
+      yield* Fiber.interrupt(consumer);
+
+      assert.deepEqual(
+        received.map((event) => event.providerInstanceId),
+        [sharedAdapterFanout.customInstanceId],
+      );
+      assert.deepEqual(
+        received.map((event) => event.eventId),
+        [asEventId("evt-custom-instance")],
+      );
+    }),
   );
 });
 
@@ -1571,7 +1664,7 @@ validation.layer("ProviderServiceLive validation", (it) => {
       const failure = yield* Effect.result(
         provider.startSession(asThreadId("thread-validation"), {
           threadId: asThreadId("thread-validation"),
-          provider: "invalid-provider",
+          provider: "codex",
           runtimeMode: "full-access",
         } as never),
       );

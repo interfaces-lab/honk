@@ -21,13 +21,8 @@ import { ProviderSessionRuntimeRepositoryLive } from "./persistence/ProviderSess
 import { makeCodexAdapterLive } from "./provider/CodexAdapter.ts";
 import { makeClaudeAdapterLive } from "./provider/ClaudeAdapter.ts";
 import { makeCursorAdapterLive } from "./provider/CursorAdapter.ts";
-import { makeCursorSdkAdapterLive } from "./provider/CursorSdkAdapter.ts";
-import { makeOpenCodeAdapterLive } from "./provider/OpenCodeAdapter.ts";
 import { ProviderAdapterRegistryLive } from "./provider/ProviderAdapterRegistry.ts";
 import { makeProviderServiceLive } from "./provider/ProviderService.ts";
-import { OpenCodeRuntimeLive } from "./provider/opencodeRuntime.ts";
-import { CheckpointDiffQueryLive } from "./checkpointing/CheckpointDiffQuery.ts";
-import { CheckpointStoreLive } from "./checkpointing/CheckpointStore.ts";
 import { GitCoreLive } from "./git/GitCore.ts";
 import { GitHubCliLive } from "./git/GitHubCli.ts";
 import { GitStatusBroadcasterLive } from "./git/GitStatusBroadcaster.ts";
@@ -37,10 +32,8 @@ import { GitManagerLive } from "./git/GitManager.ts";
 import { KeybindingsLive } from "./keybindings.ts";
 import { ServerRuntimeStartupLive } from "./server-runtime-startup.ts";
 import { OrchestrationReactorLive } from "./orchestration/OrchestrationReactor.ts";
-import { RuntimeReceiptBusLive } from "./orchestration/RuntimeReceiptBus.ts";
 import { ProviderRuntimeIngestionLive } from "./orchestration/ProviderRuntimeIngestion.ts";
 import { ProviderCommandReactorLive } from "./orchestration/ProviderCommandReactor.ts";
-import { CheckpointReactorLive } from "./orchestration/CheckpointReactor.ts";
 import { ProviderRegistryLive } from "./provider/ProviderRegistry.ts";
 import { ServerSettingsLive } from "./server-settings.ts";
 import { ProjectFaviconResolverLive } from "./project/ProjectFaviconResolver.ts";
@@ -121,13 +114,6 @@ const ReactorLayerLive = Layer.empty.pipe(
   Layer.provideMerge(OrchestrationReactorLive),
   Layer.provideMerge(ProviderRuntimeIngestionLive),
   Layer.provideMerge(ProviderCommandReactorLive),
-  Layer.provideMerge(CheckpointReactorLive),
-  Layer.provideMerge(RuntimeReceiptBusLive),
-);
-
-const CheckpointingLayerLive = Layer.empty.pipe(
-  Layer.provideMerge(CheckpointDiffQueryLive),
-  Layer.provideMerge(CheckpointStoreLive),
 );
 
 const ProviderSessionDirectoryLayerLive = ProviderSessionDirectoryLive.pipe(
@@ -149,21 +135,13 @@ const ProviderLayerLive = Layer.unwrap(
     const claudeAdapterLayer = makeClaudeAdapterLive(
       nativeEventLogger ? { nativeEventLogger } : undefined,
     );
-    const openCodeAdapterLayer = makeOpenCodeAdapterLive(
-      nativeEventLogger ? { nativeEventLogger } : undefined,
-    );
     const cursorAdapterLayer = makeCursorAdapterLive(
-      nativeEventLogger ? { nativeEventLogger } : undefined,
-    );
-    const cursorSdkAdapterLayer = makeCursorSdkAdapterLive(
       nativeEventLogger ? { nativeEventLogger } : undefined,
     );
     const adapterRegistryLayer = ProviderAdapterRegistryLive.pipe(
       Layer.provide(codexAdapterLayer),
       Layer.provide(claudeAdapterLayer),
-      Layer.provide(openCodeAdapterLayer),
       Layer.provide(cursorAdapterLayer),
-      Layer.provide(cursorSdkAdapterLayer),
       Layer.provideMerge(ProviderSessionDirectoryLayerLive),
     );
     return makeProviderServiceLive(
@@ -212,7 +190,6 @@ const ProviderRuntimeLayerLive = ProviderSessionReaperLive.pipe(
 );
 
 const RuntimeDependenciesLive = ReactorLayerLive.pipe(
-  Layer.provideMerge(CheckpointingLayerLive),
   Layer.provideMerge(GitLayerLive),
   Layer.provideMerge(ProviderRuntimeLayerLive),
   Layer.provideMerge(TerminalLayerLive),
@@ -227,7 +204,6 @@ const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(AuthLayerLive),
   Layer.provideMerge(AnalyticsServiceLayerLive),
   Layer.provideMerge(OpenLive),
-  Layer.provideMerge(OpenCodeRuntimeLive),
   Layer.provideMerge(ServerLifecycleEventsLive),
 );
 

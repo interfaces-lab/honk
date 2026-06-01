@@ -10,8 +10,10 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   EventId,
   MessageId,
+  type OrchestrationThread,
   ProjectId,
   ProviderDriverKind,
+  ThreadEntryId,
   ThreadId,
   TurnId,
 } from "@multi/contracts";
@@ -41,7 +43,10 @@ import { RepositoryIdentityResolverLive } from "../../src/project/RepositoryIden
 import { OrchestrationEngineLive } from "../../src/orchestration/OrchestrationEngine.ts";
 import { OrchestrationProjectionPipelineLive } from "../../src/orchestration/ProjectionPipeline.ts";
 import { ThreadProjectionLive } from "../../src/orchestration/ThreadProjection.ts";
-import { ProviderCommandReactorLive } from "../../src/orchestration/ProviderCommandReactor.ts";
+import {
+  buildProviderConversationContext,
+  ProviderCommandReactorLive,
+} from "../../src/orchestration/ProviderCommandReactor.ts";
 import { OrchestrationEngineService } from "../../src/orchestration/OrchestrationEngine.service.ts";
 import { ProviderCommandReactor } from "../../src/orchestration/ProviderCommandReactor.service.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -114,6 +119,128 @@ describe("ProviderCommandReactor", () => {
     createdBaseDirs.clear();
   });
 
+  it("builds provider context from the selected branch only", () => {
+    const threadId = ThreadId.make("thread-branch-context");
+    const userMessageId = asMessageId("user-1");
+    const assistantMessageId = asMessageId("assistant-1");
+    const siblingMessageId = asMessageId("assistant-sibling");
+    const nextUserMessageId = asMessageId("user-2");
+    const userEntryId = ThreadEntryId.make("message:user-1");
+    const assistantEntryId = ThreadEntryId.make("message:assistant-1");
+    const siblingEntryId = ThreadEntryId.make("message:assistant-sibling");
+    const nextUserEntryId = ThreadEntryId.make("message:user-2");
+    const thread = {
+      id: threadId,
+      projectId: asProjectId("project-1"),
+      title: "Branch context",
+      modelSelection: createModelSelection("codex", "gpt-5-codex"),
+      interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+      runtimeMode: "full-access",
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      archivedAt: null,
+      deletedAt: null,
+      messages: [
+        {
+          id: userMessageId,
+          role: "user",
+          text: "root",
+          turnId: null,
+          streaming: false,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: assistantMessageId,
+          role: "assistant",
+          text: "kept assistant",
+          turnId: asTurnId("turn-1"),
+          streaming: false,
+          createdAt: "2026-01-01T00:00:01.000Z",
+          updatedAt: "2026-01-01T00:00:01.000Z",
+        },
+        {
+          id: siblingMessageId,
+          role: "assistant",
+          text: "sibling assistant",
+          turnId: asTurnId("turn-sibling"),
+          streaming: false,
+          createdAt: "2026-01-01T00:00:02.000Z",
+          updatedAt: "2026-01-01T00:00:02.000Z",
+        },
+        {
+          id: nextUserMessageId,
+          role: "user",
+          text: "current input",
+          turnId: null,
+          streaming: false,
+          createdAt: "2026-01-01T00:00:03.000Z",
+          updatedAt: "2026-01-01T00:00:03.000Z",
+        },
+      ],
+      leafId: nextUserEntryId,
+      entries: [
+        {
+          id: userEntryId,
+          threadId,
+          parentEntryId: null,
+          kind: "message",
+          messageId: userMessageId,
+          turnId: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: assistantEntryId,
+          threadId,
+          parentEntryId: userEntryId,
+          kind: "message",
+          messageId: assistantMessageId,
+          turnId: asTurnId("turn-1"),
+          createdAt: "2026-01-01T00:00:01.000Z",
+        },
+        {
+          id: siblingEntryId,
+          threadId,
+          parentEntryId: userEntryId,
+          kind: "message",
+          messageId: siblingMessageId,
+          turnId: asTurnId("turn-sibling"),
+          createdAt: "2026-01-01T00:00:02.000Z",
+        },
+        {
+          id: nextUserEntryId,
+          threadId,
+          parentEntryId: assistantEntryId,
+          kind: "message",
+          messageId: nextUserMessageId,
+          turnId: null,
+          createdAt: "2026-01-01T00:00:03.000Z",
+        },
+      ],
+      proposedPlans: [],
+      activities: [],
+      chatTimelineRows: [],
+      session: null,
+    } satisfies OrchestrationThread;
+
+    const context = buildProviderConversationContext({
+      thread,
+      currentMessageId: nextUserMessageId,
+      userEntryId: nextUserEntryId,
+    });
+
+    expect(context).toEqual({
+      ok: true,
+      messages: [
+        { role: "user", text: "root" },
+        { role: "assistant", text: "kept assistant" },
+      ],
+    });
+  });
+
   async function createHarness(input?: {
     readonly baseDir?: string;
     readonly projectProjectRoot?: string;
@@ -152,7 +279,9 @@ describe("ProviderCommandReactor", () => {
           ? ThreadId.make(input.threadId)
           : ThreadId.make(`thread-${sessionIndex}`);
       const session: ProviderSession = {
-        provider: ProviderDriverKind.make(requestedModelSelection.instanceId),
+        provider: ProviderDriverKind.make(
+          requestedModelSelection.instanceId === "cursor" ? "cursor" : "codex",
+        ),
         providerInstanceId: requestedModelSelection.instanceId,
         status: "ready",
         runtimeMode:
@@ -664,11 +793,11 @@ describe("ProviderCommandReactor", () => {
     });
   });
 
-  it("forwards claude effort options through session start and turn send", async () => {
+  it("forwards cursor effort options through session start and turn send", async () => {
     const harness = await createHarness({
       threadModelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "cursor-sonnet-4-6",
       },
     });
     const now = new Date().toISOString();
@@ -676,15 +805,15 @@ describe("ProviderCommandReactor", () => {
     await Effect.runPromise(
       harness.engine.dispatch({
         type: "thread.turn.start",
-        commandId: CommandId.make("cmd-turn-start-claude-effort"),
+        commandId: CommandId.make("cmd-turn-start-cursor-effort"),
         threadId: ThreadId.make("thread-1"),
         message: {
-          messageId: asMessageId("user-message-claude-effort"),
+          messageId: asMessageId("user-message-cursor-effort"),
           role: "user",
           text: "hello with effort",
           attachments: [],
         },
-        modelSelection: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
+        modelSelection: createModelSelection("cursor", "cursor-sonnet-4-6", [
           { id: "effort", value: "max" },
         ]),
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
@@ -696,23 +825,23 @@ describe("ProviderCommandReactor", () => {
     await waitFor(() => harness.startSession.mock.calls.length === 1);
     await waitFor(() => harness.sendTurn.mock.calls.length === 1);
     expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
-      modelSelection: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
+      modelSelection: createModelSelection("cursor", "cursor-sonnet-4-6", [
         { id: "effort", value: "max" },
       ]),
     });
     expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
       threadId: ThreadId.make("thread-1"),
-      modelSelection: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
+      modelSelection: createModelSelection("cursor", "cursor-sonnet-4-6", [
         { id: "effort", value: "max" },
       ]),
     });
   });
 
-  it("forwards claude fast mode options through session start and turn send", async () => {
+  it("forwards cursor fast mode options through session start and turn send", async () => {
     const harness = await createHarness({
       threadModelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-opus-4-6",
+        instanceId: "cursor",
+        model: "cursor-opus-4-6",
       },
     });
     const now = new Date().toISOString();
@@ -720,15 +849,15 @@ describe("ProviderCommandReactor", () => {
     await Effect.runPromise(
       harness.engine.dispatch({
         type: "thread.turn.start",
-        commandId: CommandId.make("cmd-turn-start-claude-fast-mode"),
+        commandId: CommandId.make("cmd-turn-start-cursor-fast-mode"),
         threadId: ThreadId.make("thread-1"),
         message: {
-          messageId: asMessageId("user-message-claude-fast-mode"),
+          messageId: asMessageId("user-message-cursor-fast-mode"),
           role: "user",
           text: "hello with fast mode",
           attachments: [],
         },
-        modelSelection: createModelSelection("claudeAgent", "claude-opus-4-6", [
+        modelSelection: createModelSelection("cursor", "cursor-opus-4-6", [
           { id: "fastMode", value: true },
         ]),
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
@@ -740,13 +869,13 @@ describe("ProviderCommandReactor", () => {
     await waitFor(() => harness.startSession.mock.calls.length === 1);
     await waitFor(() => harness.sendTurn.mock.calls.length === 1);
     expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
-      modelSelection: createModelSelection("claudeAgent", "claude-opus-4-6", [
+      modelSelection: createModelSelection("cursor", "cursor-opus-4-6", [
         { id: "fastMode", value: true },
       ]),
     });
     expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
       threadId: ThreadId.make("thread-1"),
-      modelSelection: createModelSelection("claudeAgent", "claude-opus-4-6", [
+      modelSelection: createModelSelection("cursor", "cursor-opus-4-6", [
         { id: "fastMode", value: true },
       ]),
     });
@@ -877,8 +1006,8 @@ describe("ProviderCommandReactor", () => {
         commandId: CommandId.make("cmd-thread-provider-switch"),
         threadId: ThreadId.make("thread-1"),
         modelSelection: {
-          instanceId: "claudeAgent",
-          model: "claude-opus-4-6",
+          instanceId: "cursor",
+          model: "cursor-opus-4-6",
         },
       }),
     );
@@ -891,12 +1020,12 @@ describe("ProviderCommandReactor", () => {
         message: {
           messageId: asMessageId("user-message-provider-switch-2"),
           role: "user",
-          text: "second claude turn",
+          text: "second cursor turn",
           attachments: [],
         },
         modelSelection: {
-          instanceId: "claudeAgent",
-          model: "claude-opus-4-6",
+          instanceId: "cursor",
+          model: "cursor-opus-4-6",
         },
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         runtimeMode: "approval-required",
@@ -909,10 +1038,10 @@ describe("ProviderCommandReactor", () => {
 
     expect(harness.startSession.mock.calls[1]?.[1]).toMatchObject({
       threadId: ThreadId.make("thread-1"),
-      providerInstanceId: "claudeAgent",
+      providerInstanceId: "cursor",
       modelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-opus-4-6",
+        instanceId: "cursor",
+        model: "cursor-opus-4-6",
       },
       runtimeMode: "approval-required",
     });
@@ -921,12 +1050,12 @@ describe("ProviderCommandReactor", () => {
     const readModel = await Effect.runPromise(harness.engine.getReadModel());
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.modelSelection).toMatchObject({
-      instanceId: "claudeAgent",
-      model: "claude-opus-4-6",
+      instanceId: "cursor",
+      model: "cursor-opus-4-6",
     });
     expect(thread?.session).toMatchObject({
-      providerName: "claudeAgent",
-      providerInstanceId: "claudeAgent",
+      providerName: "cursor",
+      providerInstanceId: "cursor",
     });
   });
 
@@ -979,8 +1108,8 @@ describe("ProviderCommandReactor", () => {
   it("restarts the provider session when the thread project changes", async () => {
     const harness = await createHarness({
       threadModelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "cursor-sonnet-4-6",
       },
     });
     const now = new Date().toISOString();
@@ -1044,18 +1173,18 @@ describe("ProviderCommandReactor", () => {
       cwd: worktreePath,
       resumeCursor: { opaque: "resume-1" },
       modelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "cursor-sonnet-4-6",
       },
       runtimeMode: "approval-required",
     });
   });
 
-  it("restarts claude sessions when claude effort changes", async () => {
+  it("restarts cursor sessions when cursor effort changes", async () => {
     const harness = await createHarness({
       threadModelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "cursor-sonnet-4-6",
       },
     });
     const now = new Date().toISOString();
@@ -1063,15 +1192,15 @@ describe("ProviderCommandReactor", () => {
     await Effect.runPromise(
       harness.engine.dispatch({
         type: "thread.turn.start",
-        commandId: CommandId.make("cmd-turn-start-claude-effort-1"),
+        commandId: CommandId.make("cmd-turn-start-cursor-effort-1"),
         threadId: ThreadId.make("thread-1"),
         message: {
-          messageId: asMessageId("user-message-claude-effort-1"),
+          messageId: asMessageId("user-message-cursor-effort-1"),
           role: "user",
-          text: "first claude turn",
+          text: "first cursor turn",
           attachments: [],
         },
-        modelSelection: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
+        modelSelection: createModelSelection("cursor", "cursor-sonnet-4-6", [
           { id: "effort", value: "medium" },
         ]),
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
@@ -1086,15 +1215,15 @@ describe("ProviderCommandReactor", () => {
     await Effect.runPromise(
       harness.engine.dispatch({
         type: "thread.turn.start",
-        commandId: CommandId.make("cmd-turn-start-claude-effort-2"),
+        commandId: CommandId.make("cmd-turn-start-cursor-effort-2"),
         threadId: ThreadId.make("thread-1"),
         message: {
-          messageId: asMessageId("user-message-claude-effort-2"),
+          messageId: asMessageId("user-message-cursor-effort-2"),
           role: "user",
-          text: "second claude turn",
+          text: "second cursor turn",
           attachments: [],
         },
-        modelSelection: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
+        modelSelection: createModelSelection("cursor", "cursor-sonnet-4-6", [
           { id: "effort", value: "max" },
         ]),
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
@@ -1107,7 +1236,7 @@ describe("ProviderCommandReactor", () => {
     await waitFor(() => harness.sendTurn.mock.calls.length === 2);
     expect(harness.startSession.mock.calls[1]?.[1]).toMatchObject({
       resumeCursor: { opaque: "resume-1" },
-      modelSelection: createModelSelection("claudeAgent", "claude-sonnet-4-6", [
+      modelSelection: createModelSelection("cursor", "cursor-sonnet-4-6", [
         { id: "effort", value: "max" },
       ]),
     });
@@ -1198,11 +1327,11 @@ describe("ProviderCommandReactor", () => {
     expect(thread?.session?.runtimeMode).toBe("approval-required");
   });
 
-  it("does not inject derived model options when restarting claude on runtime mode changes", async () => {
+  it("does not inject derived model options when restarting cursor on runtime mode changes", async () => {
     const harness = await createHarness({
       threadModelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-opus-4-6",
+        instanceId: "cursor",
+        model: "cursor-opus-4-6",
       },
     });
     const now = new Date().toISOString();
@@ -1210,12 +1339,12 @@ describe("ProviderCommandReactor", () => {
     await Effect.runPromise(
       harness.engine.dispatch({
         type: "thread.session.set",
-        commandId: CommandId.make("cmd-session-set-runtime-mode-claude"),
+        commandId: CommandId.make("cmd-session-set-runtime-mode-cursor"),
         threadId: ThreadId.make("thread-1"),
         session: {
           threadId: ThreadId.make("thread-1"),
           status: "ready",
-          providerName: "claudeAgent",
+          providerName: "cursor",
           runtimeMode: "full-access",
           activeTurnId: null,
           lastError: null,
@@ -1228,7 +1357,7 @@ describe("ProviderCommandReactor", () => {
     await Effect.runPromise(
       harness.engine.dispatch({
         type: "thread.runtime-mode.set",
-        commandId: CommandId.make("cmd-runtime-mode-set-claude-no-options"),
+        commandId: CommandId.make("cmd-runtime-mode-set-cursor-no-options"),
         threadId: ThreadId.make("thread-1"),
         runtimeMode: "approval-required",
         createdAt: now,
@@ -1239,8 +1368,8 @@ describe("ProviderCommandReactor", () => {
 
     expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
       modelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-opus-4-6",
+        instanceId: "cursor",
+        model: "cursor-opus-4-6",
       },
       runtimeMode: "approval-required",
     });
@@ -1347,8 +1476,8 @@ describe("ProviderCommandReactor", () => {
           attachments: [],
         },
         modelSelection: {
-          instanceId: "claudeAgent",
-          model: "claude-opus-4-6",
+          instanceId: "cursor",
+          model: "cursor-opus-4-6",
         },
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         runtimeMode: "approval-required",
@@ -1361,21 +1490,30 @@ describe("ProviderCommandReactor", () => {
 
     expect(harness.startSession.mock.calls[1]?.[1]).toMatchObject({
       threadId: ThreadId.make("thread-1"),
-      providerInstanceId: "claudeAgent",
+      providerInstanceId: "cursor",
       modelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-opus-4-6",
+        instanceId: "cursor",
+        model: "cursor-opus-4-6",
       },
       runtimeMode: "approval-required",
     });
     expect(harness.startSession.mock.calls[1]?.[1]).not.toHaveProperty("resumeCursor");
     expect(harness.stopSession.mock.calls.length).toBe(0);
+    expect(harness.sendTurn.mock.calls[1]?.[0]).toMatchObject({
+      threadId: ThreadId.make("thread-1"),
+      input: "second",
+      modelSelection: {
+        instanceId: "cursor",
+        model: "cursor-opus-4-6",
+      },
+    });
+    expect(harness.sendTurn.mock.calls[1]?.[0]).not.toHaveProperty("context");
 
     const readModel = await Effect.runPromise(harness.engine.getReadModel());
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.session?.threadId).toBe("thread-1");
-    expect(thread?.session?.providerName).toBe("claudeAgent");
-    expect(thread?.session?.providerInstanceId).toBe("claudeAgent");
+    expect(thread?.session?.providerName).toBe("cursor");
+    expect(thread?.session?.providerInstanceId).toBe("cursor");
     expect(thread?.session?.runtimeMode).toBe("approval-required");
     expect(
       thread?.activities.find((activity) => activity.kind === "provider.turn.start.failed"),
@@ -1841,7 +1979,7 @@ describe("ProviderCommandReactor", () => {
     harness.respondToUserInput.mockImplementation(() =>
       Effect.fail(
         new ProviderAdapterRequestError({
-          provider: "claudeAgent",
+          provider: "cursor",
           method: "item/tool/respondToUserInput",
           detail: "Unknown pending user-input request: user-input-request-1",
         }),
@@ -1856,7 +1994,7 @@ describe("ProviderCommandReactor", () => {
         session: {
           threadId: ThreadId.make("thread-1"),
           status: "running",
-          providerName: "claudeAgent",
+          providerName: "cursor",
           runtimeMode: "approval-required",
           activeTurnId: null,
           lastError: null,

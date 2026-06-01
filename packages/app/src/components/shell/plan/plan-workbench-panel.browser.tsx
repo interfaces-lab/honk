@@ -1,7 +1,7 @@
 import { EnvironmentId, ThreadId, TurnId, type EnvironmentApi } from "@multi/contracts";
 import "../../../index.css";
 
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
@@ -80,13 +80,22 @@ function createProjectWriteApi(writeFile: EnvironmentApi["projects"]["writeFile"
     },
     orchestration: {
       dispatchCommand: unexpectedEnvironmentApiCall,
-      getTurnDiff: unexpectedEnvironmentApiCall,
-      getFullThreadDiff: unexpectedEnvironmentApiCall,
       getProviderThreadSnapshot: unexpectedEnvironmentApiCall,
       subscribeShell: () => () => undefined,
       subscribeThread: () => () => undefined,
     },
   };
+}
+
+async function appendPlanEditorLine(text: string): Promise<void> {
+  const surface = document.querySelector<HTMLElement>(
+    '[data-testid="plan-editor-input"] .ProseMirror',
+  );
+  if (!surface) {
+    throw new Error("Plan editor surface not found.");
+  }
+  await userEvent.click(surface);
+  await userEvent.keyboard(`{End}{Enter}${text}`);
 }
 
 describe("PlanWorkbenchPanel", () => {
@@ -152,6 +161,57 @@ describe("PlanWorkbenchPanel", () => {
       await expect.element(page.getByText("Save plan")).toBeVisible();
       await expect.element(page.getByText("Enter a path relative to /tmp/project.")).toBeVisible();
       await expect.element(page.getByPlaceholder("docs/plan.md")).toHaveValue("proposed-plan.md");
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("supports plan edit save and cancel dirty state", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const onSaveProposedPlan = vi.fn<(nextMarkdown: string) => Promise<boolean>>(async () => true);
+
+    const screen = await render(
+      <PlanWorkbenchPanel
+        activePlan={activePlan()}
+        activeProposedPlan={proposedPlan()}
+        environmentId={EnvironmentId.make("local")}
+        label="Plan"
+        markdownCwd="/tmp/project"
+        timestampFormat="24-hour"
+        onSaveProposedPlan={onSaveProposedPlan}
+      />,
+      { container: host },
+    );
+
+    try {
+      await page.getByRole("button", { name: "Edit plan" }).click();
+      await expect.element(page.getByTestId("plan-editor-input")).toBeVisible();
+      await expect.element(page.getByRole("button", { name: "Save" })).toBeDisabled();
+
+      await appendPlanEditorLine("3. Updated.");
+
+      await vi.waitFor(async () => {
+        await expect.element(page.getByRole("button", { name: "Save" })).toBeEnabled();
+      });
+
+      await page.getByRole("button", { name: "Cancel" }).click();
+      await expect.element(page.getByTestId("plan-editor-input")).not.toBeInTheDocument();
+      await expect.element(page.getByText("Render markdown.")).toBeVisible();
+      expect(onSaveProposedPlan).not.toHaveBeenCalled();
+
+      await page.getByRole("button", { name: "Edit plan" }).click();
+      await appendPlanEditorLine("3. Updated.");
+      await vi.waitFor(async () => {
+        await expect.element(page.getByRole("button", { name: "Save" })).toBeEnabled();
+      });
+      await page.getByRole("button", { name: "Save" }).click();
+
+      await vi.waitFor(() => {
+        expect(onSaveProposedPlan).toHaveBeenCalledOnce();
+      });
+      expect(onSaveProposedPlan.mock.calls[0]?.[0]).toContain("3. Updated.");
+      await expect.element(page.getByTestId("plan-editor-input")).not.toBeInTheDocument();
     } finally {
       await screen.unmount();
     }

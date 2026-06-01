@@ -7,7 +7,6 @@
  * @module ThreadProjection
  */
 import type {
-  OrchestrationCheckpointSummary,
   OrchestrationProject,
   OrchestrationProjectShell,
   OrchestrationReadModel,
@@ -26,14 +25,6 @@ import type { ProjectionRepositoryError } from "../persistence/Errors.ts";
 export interface ThreadProjectionCounts {
   readonly projectCount: number;
   readonly threadCount: number;
-}
-
-export interface ThreadCheckpointContext {
-  readonly threadId: ThreadId;
-  readonly projectId: ProjectId;
-  readonly projectRoot: string;
-  readonly worktreePath: string | null;
-  readonly checkpoints: ReadonlyArray<OrchestrationCheckpointSummary>;
 }
 
 /**
@@ -84,13 +75,6 @@ export interface ThreadProjectionShape {
   readonly getFirstActiveThreadIdByProjectId: (
     projectId: ProjectId,
   ) => Effect.Effect<Option.Option<ThreadId>, ProjectionRepositoryError>;
-
-  /**
-   * Read the checkpoint context needed to resolve a single thread diff.
-   */
-  readonly getThreadCheckpointContext: (
-    threadId: ThreadId,
-  ) => Effect.Effect<Option.Option<ThreadCheckpointContext>, ProjectionRepositoryError>;
 
   /**
    * Read a single active thread shell row by id.

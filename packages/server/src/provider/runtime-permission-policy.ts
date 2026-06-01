@@ -1,5 +1,4 @@
 import type { CanonicalRequestType, RuntimeMode } from "@multi/contracts";
-import type { PermissionRuleset } from "@opencode-ai/sdk/v2";
 import { Predicate } from "effect";
 
 export type RuntimePermissionAction =
@@ -127,42 +126,4 @@ export function shouldPromptForAction(
     case "unknown":
       return true;
   }
-}
-
-const allow = (permission: string, pattern = "*") => ({
-  permission,
-  pattern,
-  action: "allow" as const,
-});
-const ask = (permission: string, pattern = "*") => ({
-  permission,
-  pattern,
-  action: "ask" as const,
-});
-
-export function buildOpenCodePermissionRuleset(runtimeMode: RuntimeMode): PermissionRuleset {
-  if (runtimeMode === "full-access") {
-    return [allow("*")];
-  }
-
-  return [
-    ask("*"),
-    allow("read"),
-    ask("read", "*.env"),
-    ask("read", "*.env.*"),
-    allow("read", "*.env.example"),
-    allow("grep"),
-    allow("glob"),
-    allow("list"),
-    allow("lsp"),
-    allow("codesearch"),
-    allow("repo_overview"),
-    allow("webfetch"),
-    allow("websearch"),
-    allow("question"),
-    ask("bash"),
-    ask("edit"),
-    ask("external_directory"),
-    ask("doom_loop"),
-  ];
 }

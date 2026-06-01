@@ -42,6 +42,7 @@ import {
   deriveSidebarProjectStateKey,
 } from "~/stores/project-identity";
 import { useSettings } from "~/hooks/use-settings";
+import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
 
 const routeApi = getRouteApi("__root__");
 type ServerEnvironmentDescriptor = NonNullable<ReturnType<typeof useServerEnvironment>>;
@@ -111,11 +112,14 @@ function RootMountPerformanceMark() {
 
 function BrowserChromeThemeSync() {
   useMountEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
+    const sync = () => {
       syncBrowserChromeTheme();
-    });
+    };
+    const frame = window.requestAnimationFrame(sync);
+    window.addEventListener(APPEARANCE_SETTINGS_CHANGED, sync);
     return () => {
       window.cancelAnimationFrame(frame);
+      window.removeEventListener(APPEARANCE_SETTINGS_CHANGED, sync);
     };
   });
 

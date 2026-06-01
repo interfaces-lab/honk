@@ -13,6 +13,7 @@ import {
   ProviderDriverKind,
   type ProviderEvent,
   type ProviderRefs,
+  type ProviderInstanceId,
   type ProviderRuntimeEvent,
   type ProviderRequestKind,
   type RuntimeSubagentRef,
@@ -46,7 +47,7 @@ import { CodexAdapter, type CodexAdapterShape } from "./CodexAdapter.service.ts"
 import { resolveAttachmentPath } from "../attachment-store.ts";
 import { ServerConfig } from "../config.ts";
 import { ServerSettingsService } from "../server-settings.ts";
-import { resolveCodexSettings } from "./provider-settings.ts";
+import { buildProviderInstanceEnvironment, resolveCodexSettings } from "./provider-settings.ts";
 import {
   CodexResumeCursorSchema,
   CodexSessionRuntimeThreadIdMissingError,
@@ -75,6 +76,8 @@ export interface CodexAdapterLiveOptions {
     CodexSessionRuntimeError,
     ChildProcessSpawner.ChildProcessSpawner | Scope.Scope
   >;
+  readonly instanceId?: ProviderInstanceId | undefined;
+  readonly environment?: NodeJS.ProcessEnv | undefined;
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
 }
@@ -1627,7 +1630,7 @@ function mapToRuntimeEvents(
   return [];
 }
 
-const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
+export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
   options?: CodexAdapterLiveOptions,
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -1662,8 +1665,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           yield* Effect.suspend(() => stopSessionInternal(existing));
         }
 
-        const codexSettings = yield* serverSettingsService.getSettings.pipe(
-          Effect.map((settings) => resolveCodexSettings(settings, input.providerInstanceId)),
+        const settings = yield* serverSettingsService.getSettings.pipe(
           Effect.mapError(
             (error) =>
               new ProviderAdapterProcessError({
@@ -1673,6 +1675,12 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
                 cause: error,
               }),
           ),
+        );
+        const codexSettings = resolveCodexSettings(settings, input.providerInstanceId);
+        const environment = buildProviderInstanceEnvironment(
+          settings,
+          input.providerInstanceId,
+          options?.environment,
         );
         const configuredServiceTier = parseCodexServiceTier(
           getModelSelectionStringOptionValue(input.modelSelection, "serviceTier"),
@@ -1684,8 +1692,10 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
             : undefined);
         const runtimeInput: CodexSessionRuntimeOptions = {
           threadId: input.threadId,
+          providerInstanceId: options?.instanceId ?? input.providerInstanceId,
           cwd: input.cwd ?? serverConfig.cwd,
           binaryPath: codexSettings.binaryPath,
+          ...(environment !== undefined ? { environment } : {}),
           ...(codexSettings.homePath ? { homePath: codexSettings.homePath } : {}),
           ...(isCodexResumeCursor(input.resumeCursor) ? { resumeCursor: input.resumeCursor } : {}),
           runtimeMode: input.runtimeMode,

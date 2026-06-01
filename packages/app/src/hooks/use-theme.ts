@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 
+import { isElectron } from "../env";
 import { applyAppearanceBoot } from "../lib/appearance-settings";
 
 type Theme = "light" | "dark" | "system";
@@ -14,6 +15,8 @@ const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
   theme: "system",
   systemDark: false,
 };
+const ELECTRON_GLASS_BACKGROUND_COLOR_LIGHT = "#00FFFFFF";
+const ELECTRON_GLASS_BACKGROUND_COLOR_DARK = "#40000000";
 const THEME_COLOR_META_NAME = "theme-color";
 const DYNAMIC_THEME_COLOR_SELECTOR = `meta[name="${THEME_COLOR_META_NAME}"][data-dynamic-theme-color="true"]`;
 
@@ -76,19 +79,43 @@ function resolveBrowserChromeSurface(): HTMLElement {
   );
 }
 
+function wantsElectronGlassBackground() {
+  return (
+    isElectron &&
+    document.body.getAttribute("data-multi-glass-mode") === "true" &&
+    !document.body.classList.contains("multi-reduce-transparency")
+  );
+}
+
+function getElectronGlassBackgroundColor() {
+  return document.documentElement.classList.contains("dark")
+    ? ELECTRON_GLASS_BACKGROUND_COLOR_DARK
+    : ELECTRON_GLASS_BACKGROUND_COLOR_LIGHT;
+}
+
 export function syncBrowserChromeTheme() {
   if (typeof document === "undefined" || typeof getComputedStyle === "undefined") return;
+  const wantsGlassBackground = wantsElectronGlassBackground();
   const surfaceColor = normalizeThemeColor(
     getComputedStyle(resolveBrowserChromeSurface()).backgroundColor,
   );
   const fallbackColor = normalizeThemeColor(getComputedStyle(document.body).backgroundColor);
   const backgroundColor = surfaceColor ?? fallbackColor;
-  if (!backgroundColor) return;
+  if (!backgroundColor && !wantsGlassBackground) return;
 
-  document.documentElement.style.backgroundColor = backgroundColor;
-  document.body.style.backgroundColor = backgroundColor;
-  ensureThemeColorMetaTag().setAttribute("content", backgroundColor);
-  syncDesktopBackgroundColor(backgroundColor);
+  const rendererBackgroundColor = wantsGlassBackground
+    ? "transparent"
+    : (backgroundColor ?? "");
+  if (!rendererBackgroundColor) return;
+  const desktopBackgroundColor = wantsGlassBackground
+    ? getElectronGlassBackgroundColor()
+    : rendererBackgroundColor;
+  document.documentElement.style.backgroundColor = rendererBackgroundColor;
+  document.body.style.backgroundColor = rendererBackgroundColor;
+  if (backgroundColor) {
+    ensureThemeColorMetaTag().setAttribute("content", backgroundColor);
+  }
+  syncDesktopBackgroundColor(desktopBackgroundColor);
 }
 
 function applyTheme(theme: Theme, suppressTransitions = false) {

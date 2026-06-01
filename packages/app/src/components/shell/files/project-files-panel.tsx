@@ -16,9 +16,10 @@ import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import { projectReadFileQueryOptions } from "~/lib/project-react-query";
 import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
 import { useTheme } from "~/hooks/use-theme";
-import { shellPanelsActions, useActiveTab, useSecondaryRail } from "~/stores/shell-panels-store";
+import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
 import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
-import { WorkbenchIconButton } from "../shell/workbench-icon-button";
+import { WorkbenchIconButton } from "@multi/ui/workbench-button";
+import { useRightWorkbenchPanelRuntime } from "../shell/app";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 type PreviewHistory = {
@@ -210,9 +211,9 @@ function ProjectFilesPanelContent(props: {
 }) {
   const [history, setHistory] = useState<PreviewHistory>(EMPTY_PREVIEW_HISTORY);
   const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
-  const activeTab = useActiveTab();
+  const runtime = useRightWorkbenchPanelRuntime();
   const { open: fileRailOpen } = useSecondaryRail(props.cwd, "files");
-  const isFilesPanelActive = activeTab === "files";
+  const isFilesPanelActive = runtime.open && runtime.activeTab === "files";
   const isFileTreeActive = isFilesPanelActive && fileRailOpen;
   const selectedPath = history.index >= 0 ? (history.paths[history.index] ?? null) : null;
   const canGoBack = history.index > 0;

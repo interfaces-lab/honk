@@ -3,22 +3,27 @@ import {
   EnvironmentId,
   EventId,
   MessageId,
+  RuntimeItemId,
+  ThreadEntryId,
   ThreadId,
   TurnId,
   ProjectId,
   type OrchestrationEvent,
   type OrchestrationShellSnapshot,
+  type ProviderRuntimeEvent,
 } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
   applyOrchestrationEvent,
+  applyProviderRuntimeEvent,
   applyShellEvent,
   syncServerShellSnapshot,
   syncServerThreadDetail,
 } from "./thread-sync";
 import { initialState } from "./thread-store";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
+import { getThreadFromEnvironmentState } from "../thread-derivation";
 
 const environmentId = EnvironmentId.make("environment-thread-sync");
 const projectId = ProjectId.make("project-1");
@@ -111,11 +116,11 @@ describe("thread sync", () => {
             updatedAt: "2026-01-01T00:00:01.000Z",
           },
         ],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         proposedPlans: [],
         activities: [],
-        checkpoints: [],
+        chatTimelineRows: [],
         session: null,
       },
       environmentId,
@@ -125,6 +130,187 @@ describe("thread sync", () => {
     expect(environmentState?.messageIdsByThreadId[threadId]).toEqual([messageId]);
     expect(environmentState?.messageByThreadId[threadId]?.[messageId]?.text).toBe("hello");
     expect(environmentState?.sidebarThreadSummaryById[threadId]?.title).toBe("Thread");
+  });
+
+  it("keeps assistant runtime deltas transient until the committed message arrives", () => {
+    const turnId = TurnId.make("turn-live");
+    const assistantMessageId = MessageId.make("assistant:item-live");
+    const bootstrapped = syncServerShellSnapshot(initialState, shellSnapshot(), environmentId);
+    const runtimeDelta: ProviderRuntimeEvent = {
+      type: "content.delta",
+      eventId: EventId.make("event-live-delta"),
+      provider: "codex",
+      providerInstanceId: "codex",
+      threadId,
+      turnId,
+      itemId: RuntimeItemId.make("item-live"),
+      createdAt: "2026-01-01T00:00:02.000Z",
+      payload: {
+        streamKind: "assistant_text",
+        delta: "hello live",
+      },
+    };
+
+    const live = applyProviderRuntimeEvent(bootstrapped, runtimeDelta, environmentId);
+    const liveEnvironmentState = live.environmentStateById[environmentId];
+    const liveThread = liveEnvironmentState
+      ? getThreadFromEnvironmentState(liveEnvironmentState, threadId)
+      : undefined;
+
+    expect(liveEnvironmentState?.messageByThreadId[threadId]).toBeUndefined();
+    expect(liveEnvironmentState?.liveAssistantTurnByThreadId[threadId]?.[turnId]?.text).toBe(
+      "hello live",
+    );
+    expect(liveThread?.messages).toEqual([
+      expect.objectContaining({
+        id: assistantMessageId,
+        text: "hello live",
+        streaming: true,
+        turnId,
+      }),
+    ]);
+
+    const committed = applyOrchestrationEvent(
+      live,
+      {
+        sequence: 2,
+        eventId: EventId.make("event-live-commit"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        occurredAt: "2026-01-01T00:00:03.000Z",
+        commandId: CommandId.make("command-live-commit"),
+        causationEventId: null,
+        correlationId: CommandId.make("command-live-commit"),
+        metadata: {},
+        type: "thread.message-sent",
+        payload: {
+          threadId,
+          messageId: assistantMessageId,
+          entryId: ThreadEntryId.make("entry-assistant-live"),
+          parentEntryId: null,
+          role: "assistant",
+          text: "hello live",
+          turnId,
+          streaming: false,
+          createdAt: "2026-01-01T00:00:03.000Z",
+          updatedAt: "2026-01-01T00:00:03.000Z",
+        },
+      } satisfies OrchestrationEvent,
+      environmentId,
+    );
+    const committedEnvironmentState = committed.environmentStateById[environmentId];
+    const committedThread = committedEnvironmentState
+      ? getThreadFromEnvironmentState(committedEnvironmentState, threadId)
+      : undefined;
+
+    expect(committedEnvironmentState?.liveAssistantTurnByThreadId[threadId]).toEqual({});
+    expect(committedThread?.messages).toEqual([
+      expect.objectContaining({
+        id: assistantMessageId,
+        text: "hello live",
+        streaming: false,
+        turnId,
+      }),
+    ]);
+    expect(committedThread?.chatTimelineRows).toEqual([
+      expect.objectContaining({
+        kind: "message",
+        messageId: assistantMessageId,
+        turnId,
+        entryId: "entry-assistant-live",
+      }),
+    ]);
+  });
+
+  it("derives live timeline rows when thread activities arrive", () => {
+    const turnId = TurnId.make("turn-work");
+    const bootstrapped = syncServerThreadDetail(
+      syncServerShellSnapshot(initialState, shellSnapshot(), environmentId),
+      {
+        id: threadId,
+        projectId,
+        title: "Thread",
+        modelSelection,
+        runtimeMode: DEFAULT_RUNTIME_MODE,
+        interactionMode: DEFAULT_INTERACTION_MODE,
+        branch: null,
+        worktreePath: null,
+        latestTurn: {
+          turnId,
+          state: "running",
+          requestedAt: "2026-01-01T00:00:01.000Z",
+          startedAt: "2026-01-01T00:00:02.000Z",
+          completedAt: null,
+          assistantMessageId: null,
+        },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:02.000Z",
+        archivedAt: null,
+        deletedAt: null,
+        messages: [],
+        leafId: null,
+        entries: [],
+        proposedPlans: [],
+        activities: [],
+        chatTimelineRows: [],
+        session: {
+          threadId,
+          status: "running",
+          providerName: "codex",
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          activeTurnId: turnId,
+          lastError: null,
+          updatedAt: "2026-01-01T00:00:02.000Z",
+        },
+      },
+      environmentId,
+    );
+
+    const updated = applyOrchestrationEvent(
+      bootstrapped,
+      {
+        sequence: 2,
+        eventId: EventId.make("event-tool-completed"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        occurredAt: "2026-01-01T00:00:03.000Z",
+        commandId: CommandId.make("command-tool-completed"),
+        causationEventId: null,
+        correlationId: CommandId.make("command-tool-completed"),
+        metadata: {},
+        type: "thread.activity-appended",
+        payload: {
+          threadId,
+          activity: {
+            id: EventId.make("activity-tool-completed"),
+            tone: "tool",
+            kind: "tool.completed",
+            summary: "Ran command",
+            payload: {
+              itemId: "tool-1",
+              itemType: "command_execution",
+              status: "completed",
+            },
+            turnId,
+            createdAt: "2026-01-01T00:00:03.000Z",
+          },
+        },
+      } satisfies OrchestrationEvent,
+      environmentId,
+    );
+    const environmentState = updated.environmentStateById[environmentId];
+    const thread = environmentState
+      ? getThreadFromEnvironmentState(environmentState, threadId)
+      : undefined;
+
+    expect(thread?.chatTimelineRows).toEqual([
+      expect.objectContaining({
+        kind: "work",
+        activityIds: ["activity-tool-completed"],
+        turnId,
+        toolCallId: "tool-1",
+      }),
+    ]);
   });
 
   it("interrupts the active running turn when the interrupt event omits a turn id", () => {
@@ -164,11 +350,11 @@ describe("thread sync", () => {
             updatedAt: "2026-01-01T00:00:03.000Z",
           },
         ],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         proposedPlans: [],
         activities: [],
-        checkpoints: [],
+        chatTimelineRows: [],
         session: {
           threadId,
           status: "running",
@@ -241,11 +427,11 @@ describe("thread sync", () => {
             updatedAt: "2026-01-01T00:00:01.000Z",
           },
         ],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         proposedPlans: [],
         activities: [],
-        checkpoints: [],
+        chatTimelineRows: [],
         session: null,
       },
       environmentId,

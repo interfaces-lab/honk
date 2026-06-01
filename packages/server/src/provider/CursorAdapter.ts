@@ -14,6 +14,7 @@ import {
   EventId,
   type ProviderApprovalDecision,
   type ProviderInteractionMode,
+  type ProviderInstanceId,
   type ProviderRuntimeEvent,
   type ProviderSession,
   type ProviderThreadSnapshotItem,
@@ -47,18 +48,20 @@ import type * as EffectAcpSchema from "effect-acp/schema";
 import { resolveAttachmentPath } from "../attachment-store.ts";
 import { ServerConfig } from "../config.ts";
 import { ServerSettingsService } from "../server-settings.ts";
-import { resolveCursorSettings } from "./provider-settings.ts";
+import { buildProviderInstanceEnvironment, resolveCursorSettings } from "./provider-settings.ts";
+import {
+  compactAcpContentBlocks,
+  imageBytesToAcpContentBlock,
+  textToAcpContentBlock,
+} from "./acp/AcpContent.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
 } from "./Errors.ts";
-import { acpPermissionOutcome, mapAcpToAdapterError } from "./acp/AcpAdapterSupport.ts";
-import {
-  type AcpSessionRuntimeShape,
-  type AcpSessionRuntimeStartResult,
-} from "./acp/AcpSessionRuntime.ts";
+import { mapAcpToAdapterError } from "./acp/AcpError.ts";
+import { type AcpRuntimeShape, type AcpRuntimeStartResult } from "./acp/AcpRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
   makeAcpContentDeltaEvent,
@@ -66,18 +69,15 @@ import {
   makeAcpRequestOpenedEvent,
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
-} from "./acp/AcpCoreRuntimeEvents.ts";
-import {
-  type AcpSessionMode,
-  type AcpSessionModeState,
-  parsePermissionRequest,
-} from "./acp/AcpRuntimeModel.ts";
-import { makeAcpNativeLoggers } from "./acp/AcpNativeLogging.ts";
+} from "./acp/AcpProviderEvent.ts";
+import { acpPermissionOutcome, parsePermissionRequest } from "./acp/AcpPermission.ts";
+import { type AcpSessionMode, type AcpSessionModeState } from "./acp/AcpSession.ts";
+import { makeAcpNativeLoggers } from "./acp/AcpLogging.ts";
+import { makeCursorAcpRuntime } from "./acp/CursorAcp.ts";
 import {
   applyCursorAcpModelSelection,
-  makeCursorAcpRuntime,
   resolveCursorAcpSpawnCliModelId,
-} from "./acp/CursorAcpSupport.ts";
+} from "./acp/CursorAcpModel.ts";
 import {
   CursorAskQuestionRequest,
   CursorCreatePlanRequest,
@@ -88,7 +88,7 @@ import {
   toCursorAskQuestionAnswers,
 } from "./acp/CursorAcpExtension.ts";
 import { CursorAdapter, type CursorAdapterShape } from "./CursorAdapter.service.ts";
-import { resolveCursorAcpBaseModelId } from "./CursorProvider.ts";
+import { resolveCursorAcpBaseModelId } from "./acp/CursorAcpModel.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import { formatProviderTurnInputText } from "./ProviderConversationContext.ts";
 import { actionFromAcpPermissionKind, shouldPromptForAction } from "./runtime-permission-policy.ts";
@@ -101,6 +101,8 @@ const ACP_ASK_MODE_ALIASES = ["chat", "ask"];
 const ACP_IMPLEMENT_MODE_ALIASES = ["code", "agent", "default", "implement"];
 
 export interface CursorAdapterLiveOptions {
+  readonly instanceId?: ProviderInstanceId | undefined;
+  readonly environment?: NodeJS.ProcessEnv | undefined;
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
 }
@@ -118,7 +120,7 @@ interface CursorSessionContext {
   readonly threadId: ThreadId;
   session: ProviderSession;
   scope: Scope.Closeable;
-  acp: AcpSessionRuntimeShape;
+  acp: AcpRuntimeShape;
   notificationFiber: Fiber.Fiber<void, never> | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
@@ -130,6 +132,7 @@ interface CursorSessionContext {
   cliModelSlug: string | undefined;
   modelOptions: ReadonlyArray<ProviderOptionSelection> | undefined;
   cursorSettings: CursorSettings;
+  environment: NodeJS.ProcessEnv | undefined;
 }
 
 function settlePendingApprovalsAsCancelled(
@@ -291,7 +294,7 @@ function resolveRequestedModeId(input: {
 }
 
 function applyRequestedSessionConfiguration<E>(input: {
-  readonly runtime: AcpSessionRuntimeShape;
+  readonly runtime: AcpRuntimeShape;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode | undefined;
   readonly modelSelection:
@@ -355,7 +358,7 @@ function selectAutoApprovedPermissionOption(
   return undefined;
 }
 
-function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
+export function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -370,6 +373,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         : undefined);
     const managedNativeEventLogger =
       options?.nativeEventLogger === undefined ? nativeEventLogger : undefined;
+    const providerInstanceId = options?.instanceId ?? PROVIDER_INSTANCE_ID;
 
     const sessions = new Map<ThreadId, CursorSessionContext>();
     const threadLocksRef = yield* SynchronizedRef.make(new Map<string, Semaphore.Semaphore>());
@@ -386,7 +390,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
     ) =>
       PubSub.publish(runtimeEventPubSub, {
         ...event,
-        providerInstanceId: event.providerInstanceId ?? PROVIDER_INSTANCE_ID,
+        providerInstanceId: event.providerInstanceId ?? providerInstanceId,
       } as ProviderRuntimeEvent).pipe(Effect.asVoid);
 
     const getThreadSemaphore = (threadId: string) =>
@@ -469,10 +473,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         );
       });
 
-    const forkCursorAcpNotificationStream = (
-      ctx: CursorSessionContext,
-      acp: AcpSessionRuntimeShape,
-    ) =>
+    const forkCursorAcpNotificationStream = (ctx: CursorSessionContext, acp: AcpRuntimeShape) =>
       Stream.runDrain(
         Stream.mapEffect(acp.getEvents(), (event) =>
           Effect.gen(function* () {
@@ -561,13 +562,13 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
       ).pipe(Effect.forkChild);
 
     const registerCursorAcpHandlersAndStart = (params: {
-      readonly acp: AcpSessionRuntimeShape;
+      readonly acp: AcpRuntimeShape;
       readonly threadId: ThreadId;
       readonly runtimeMode: RuntimeMode;
       readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
       readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
       readonly activeTurnId: () => TurnId | undefined;
-    }): Effect.Effect<AcpSessionRuntimeStartResult, EffectAcpErrors.AcpError> =>
+    }): Effect.Effect<AcpRuntimeStartResult, EffectAcpErrors.AcpError> =>
       Effect.gen(function* () {
         yield* params.acp.handleExtRequest(
           "cursor/ask_question",
@@ -810,6 +811,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
           cursorSettings: ctx.cursorSettings,
           childProcessSpawner,
           cwd: sessionCwd,
+          ...(ctx.environment !== undefined ? { environment: ctx.environment } : {}),
           ...(resumeSessionId ? { resumeSessionId } : {}),
           ...(params.spawnModel !== undefined ? { spawnModel: params.spawnModel } : {}),
           ...(params.spawnSelections !== undefined
@@ -934,8 +936,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
             yield* stopSessionInternal(existing);
           }
 
-          const cursorSettings = yield* serverSettingsService.getSettings.pipe(
-            Effect.map((settings) => resolveCursorSettings(settings, input.providerInstanceId)),
+          const settingsSnapshot = yield* serverSettingsService.getSettings.pipe(
             Effect.mapError(
               (error) =>
                 new ProviderAdapterProcessError({
@@ -945,6 +946,12 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
                   cause: error,
                 }),
             ),
+          );
+          const cursorSettings = resolveCursorSettings(settingsSnapshot, input.providerInstanceId);
+          const providerEnvironment = buildProviderInstanceEnvironment(
+            settingsSnapshot,
+            input.providerInstanceId,
+            options?.environment,
           );
 
           const pendingApprovals = new Map<ApprovalRequestId, PendingApproval>();
@@ -968,6 +975,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
             cursorSettings,
             childProcessSpawner,
             cwd,
+            ...(providerEnvironment !== undefined ? { environment: providerEnvironment } : {}),
             ...(resumeSessionId ? { resumeSessionId } : {}),
             ...(cursorModelSelection?.model !== undefined
               ? { spawnModel: cursorModelSelection.model }
@@ -1045,6 +1053,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
             }),
             modelOptions: spawnSelections,
             cursorSettings,
+            environment: providerEnvironment,
           };
 
           ctx.notificationFiber = yield* forkCursorAcpNotificationStream(ctx, acp);
@@ -1139,11 +1148,8 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
           payload: { model: resolvedModel },
         });
 
-        const promptParts: Array<EffectAcpSchema.ContentBlock> = [];
         const promptText = formatProviderTurnInputText(input);
-        if (promptText) {
-          promptParts.push({ type: "text", text: promptText });
-        }
+        const promptParts = compactAcpContentBlocks([textToAcpContentBlock(promptText ?? "")]);
         if (input.attachments && input.attachments.length > 0) {
           for (const attachment of input.attachments) {
             const attachmentPath = resolveAttachmentPath({
@@ -1168,11 +1174,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
                   }),
               ),
             );
-            promptParts.push({
-              type: "image",
-              data: Buffer.from(bytes).toString("base64"),
-              mimeType: attachment.mimeType,
-            });
+            promptParts.push(imageBytesToAcpContentBlock({ bytes, mimeType: attachment.mimeType }));
           }
         }
 

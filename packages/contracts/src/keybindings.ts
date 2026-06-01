@@ -52,7 +52,6 @@ const STATIC_KEYBINDING_COMMANDS = [
   "terminal.split",
   "terminal.new",
   "terminal.close",
-  "diff.toggle",
   "threadTree.toggle",
   "commandPalette.toggle",
   "composer.cycleInteractionMode",

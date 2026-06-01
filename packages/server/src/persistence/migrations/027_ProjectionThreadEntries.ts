@@ -12,9 +12,6 @@ export default Effect.gen(function* () {
       kind TEXT NOT NULL,
       message_id TEXT,
       turn_id TEXT,
-      target_entry_id TEXT,
-      label TEXT,
-      summary TEXT,
       created_at TEXT NOT NULL
     )
   `;
@@ -32,10 +29,10 @@ export default Effect.gen(function* () {
   const projectionThreadColumns = yield* sql<{ readonly name: string }>`
     PRAGMA table_info(projection_threads)
   `;
-  if (!projectionThreadColumns.some((column) => column.name === "active_entry_id")) {
+  if (!projectionThreadColumns.some((column) => column.name === "leaf_id")) {
     yield* sql`
       ALTER TABLE projection_threads
-      ADD COLUMN active_entry_id TEXT
+      ADD COLUMN leaf_id TEXT
     `;
   }
 
@@ -57,9 +54,6 @@ export default Effect.gen(function* () {
       kind,
       message_id,
       turn_id,
-      target_entry_id,
-      label,
-      summary,
       created_at
     )
     SELECT
@@ -72,9 +66,6 @@ export default Effect.gen(function* () {
       'message' AS kind,
       message_id,
       turn_id,
-      NULL AS target_entry_id,
-      NULL AS label,
-      NULL AS summary,
       created_at
     FROM projection_thread_messages
   `;
@@ -88,7 +79,7 @@ export default Effect.gen(function* () {
 
   yield* sql`
     UPDATE projection_threads
-    SET active_entry_id = (
+    SET leaf_id = (
       SELECT entry.entry_id
       FROM projection_thread_entries AS entry
       WHERE entry.thread_id = projection_threads.thread_id
@@ -96,6 +87,6 @@ export default Effect.gen(function* () {
       ORDER BY entry.created_at DESC, entry.entry_id DESC
       LIMIT 1
     )
-    WHERE active_entry_id IS NULL
+    WHERE leaf_id IS NULL
   `;
 });

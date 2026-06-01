@@ -15,7 +15,6 @@ import * as Effect from "effect/Effect";
 // Import all migrations statically
 import Migration0001 from "./migrations/001_OrchestrationEvents.ts";
 import Migration0002 from "./migrations/002_OrchestrationCommandReceipts.ts";
-import Migration0003 from "./migrations/003_CheckpointDiffBlobs.ts";
 import Migration0004 from "./migrations/004_ProviderSessionRuntime.ts";
 import Migration0005 from "./migrations/005_Projections.ts";
 import Migration0006 from "./migrations/006_ProjectionThreadSessionRuntimeModeColumns.ts";
@@ -41,6 +40,9 @@ import Migration0025 from "./migrations/025_ProviderInstanceIdColumns.ts";
 import Migration0026 from "./migrations/026_NormalizeCanonicalModelSelectionJson.ts";
 import Migration0027 from "./migrations/027_ProjectionThreadEntries.ts";
 import Migration0028 from "./migrations/028_ProjectionThreadMessageRichText.ts";
+import Migration0030 from "./migrations/030-drop-projection-thread-entry-metadata.ts";
+import Migration0031 from "./migrations/031-prune-legacy-thread-activities.ts";
+import Migration0032 from "./migrations/032-drop-legacy-projection-columns.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -55,7 +57,6 @@ import Migration0028 from "./migrations/028_ProjectionThreadMessageRichText.ts";
 export const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
   [2, "OrchestrationCommandReceipts", Migration0002],
-  [3, "CheckpointDiffBlobs", Migration0003],
   [4, "ProviderSessionRuntime", Migration0004],
   [5, "Projections", Migration0005],
   [6, "ProjectionThreadSessionRuntimeModeColumns", Migration0006],
@@ -81,6 +82,9 @@ export const migrationEntries = [
   [26, "NormalizeCanonicalModelSelectionJson", Migration0026],
   [27, "ProjectionThreadEntries", Migration0027],
   [28, "ProjectionThreadMessageRichText", Migration0028],
+  [30, "DropProjectionThreadEntryMetadata", Migration0030],
+  [31, "PruneLegacyThreadActivities", Migration0031],
+  [32, "DropLegacyProjectionColumns", Migration0032],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

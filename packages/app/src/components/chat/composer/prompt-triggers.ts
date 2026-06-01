@@ -305,3 +305,19 @@ export function replaceTextRange(
   const nextText = `${text.slice(0, safeStart)}${replacement}${text.slice(safeEnd)}`;
   return { text: nextText, cursor: safeStart + replacement.length };
 }
+
+export function slashCommandRemovalRange(
+  text: string,
+  trigger: Pick<ComposerTrigger, "rangeStart" | "rangeEnd">,
+): { rangeStart: number; rangeEnd: number } {
+  const rangeStart = Math.max(0, Math.min(text.length, trigger.rangeStart));
+  const rangeEnd = Math.max(rangeStart, Math.min(text.length, trigger.rangeEnd));
+  const prefix = text.slice(0, rangeStart);
+  const suffix = text.slice(rangeEnd);
+
+  if (prefix.trim().length === 0 && suffix.trim().length === 0) {
+    return { rangeStart: 0, rangeEnd: text.length };
+  }
+
+  return { rangeStart, rangeEnd };
+}

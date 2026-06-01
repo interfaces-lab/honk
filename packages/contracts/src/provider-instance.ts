@@ -11,8 +11,11 @@ const slugSchema = TrimmedNonEmptyString.check(
   Schema.isPattern(PROVIDER_SLUG_PATTERN),
 );
 
-export const ProviderDriverKind = slugSchema;
-export type ProviderDriverKind = typeof ProviderDriverKind.Type;
+export const ProviderSurface = Schema.Literals(["codex", "claudeAgent", "cursor"]);
+export type ProviderSurface = typeof ProviderSurface.Type;
+
+export const ProviderDriverKind = ProviderSurface;
+export type ProviderDriverKind = ProviderSurface;
 
 const isProviderDriverKindValue = Schema.is(ProviderDriverKind);
 export const isProviderDriverKind = (value: unknown): value is ProviderDriverKind =>

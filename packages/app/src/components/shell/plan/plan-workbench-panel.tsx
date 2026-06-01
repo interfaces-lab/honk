@@ -22,8 +22,10 @@ import {
   IconFileDownload,
   IconFileText,
   IconLoader,
+  IconPencilLine,
 } from "central-icons";
-import { memo, type FormEvent, useId, useState } from "react";
+import { WorkbenchIconButton } from "@multi/ui/workbench-button";
+import { memo, type FormEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { toastManager } from "~/app/toast";
@@ -38,7 +40,9 @@ import {
   stripDisplayedPlanMarkdown,
 } from "~/plan/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
-import { workbenchIconButtonVariants, WorkbenchTextButton } from "../shell/workbench-icon-button";
+import { WorkbenchTextButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";
+import { PlanEditor } from "./editor/plan-editor";
+import { planEditorMarkdownMatches } from "./editor/markdown";
 
 function stepStatusIcon(status: ActivePlanState["steps"][number]["status"]): React.ReactNode {
   if (status === "completed") {
@@ -68,6 +72,7 @@ export interface PlanWorkbenchPanelProps {
   canImplementPlan?: boolean | undefined;
   isImplementingPlan?: boolean | undefined;
   onImplementPlan?: (() => void) | undefined;
+  onSaveProposedPlan?: ((nextMarkdown: string) => Promise<boolean>) | undefined;
 }
 
 export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
@@ -79,11 +84,61 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
   canImplementPlan = false,
   isImplementingPlan = false,
   onImplementPlan,
+  onSaveProposedPlan,
 }: PlanWorkbenchPanelProps) {
   const planMarkdown = activeProposedPlan?.planMarkdown ?? null;
   const displayedPlanMarkdown = planMarkdown ? stripDisplayedPlanMarkdown(planMarkdown) : null;
   const planTitle = planMarkdown ? proposedPlanTitle(planMarkdown) : null;
   const title = planTitle ?? label;
+  const canEditPlan = planMarkdown !== null && onSaveProposedPlan !== undefined;
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [draftPlanMarkdown, setDraftPlanMarkdown] = useState("");
+  const [savingPlan, setSavingPlan] = useState(false);
+
+  useEffect(() => {
+    setEditingPlan(false);
+    setDraftPlanMarkdown("");
+    setSavingPlan(false);
+  }, [activeProposedPlan?.id]);
+
+  useEffect(() => {
+    if (!editingPlan && planMarkdown) {
+      setDraftPlanMarkdown(planMarkdown);
+    }
+  }, [editingPlan, planMarkdown]);
+
+  const planDirty =
+    planMarkdown !== null && !planEditorMarkdownMatches(draftPlanMarkdown, planMarkdown);
+
+  const startEditingPlan = (): void => {
+    if (!planMarkdown) {
+      return;
+    }
+    setDraftPlanMarkdown(planMarkdown);
+    setEditingPlan(true);
+  };
+
+  const cancelEditingPlan = (): void => {
+    if (planMarkdown) {
+      setDraftPlanMarkdown(planMarkdown);
+    }
+    setEditingPlan(false);
+  };
+
+  const saveEditingPlan = async (): Promise<void> => {
+    if (!onSaveProposedPlan || !planDirty || savingPlan) {
+      return;
+    }
+    setSavingPlan(true);
+    try {
+      const saved = await onSaveProposedPlan(draftPlanMarkdown);
+      if (saved) {
+        setEditingPlan(false);
+      }
+    } finally {
+      setSavingPlan(false);
+    }
+  };
 
   return (
     <div className="plan-tab-content min-h-0 min-w-0 flex-1 text-title">
@@ -97,6 +152,16 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
 
         {planMarkdown ? (
           <div className="plan-breadcrumb-controls breadcrumbs-extra-actions flex shrink-0 items-center gap-(--multi-workbench-chrome-action-gap)">
+            {canEditPlan && !editingPlan ? (
+              <WorkbenchIconButton
+                aria-label="Edit plan"
+                chrome="panel"
+                title="Edit plan"
+                onClick={startEditingPlan}
+              >
+                <IconPencilLine className="size-4" aria-hidden />
+              </WorkbenchIconButton>
+            ) : null}
             <PlanActions
               key={activeProposedPlan?.id ?? planMarkdown}
               environmentId={environmentId}
@@ -128,14 +193,28 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
           <div className="composer-plan-container">
             <div className="composer-plan-content mx-auto flex w-full max-w-[840px] flex-col px-3 py-3">
               {planMarkdown ? (
-                <div className="composer-plan-markdown-container mb-4 px-1.5">
-                  <ChatMarkdown
-                    text={displayedPlanMarkdown ?? ""}
-                    cwd={markdownCwd}
-                    isStreaming={false}
-                    className="chat-markdown--plan-panel"
+                editingPlan ? (
+                  <PlanEditor
+                    value={draftPlanMarkdown}
+                    onChange={setDraftPlanMarkdown}
+                    onSave={() => {
+                      void saveEditingPlan();
+                    }}
+                    onCancel={cancelEditingPlan}
+                    dirty={planDirty}
+                    disabled={savingPlan}
+                    markdownCwd={markdownCwd}
                   />
-                </div>
+                ) : (
+                  <div className="composer-plan-markdown-container mb-4 px-1.5">
+                    <ChatMarkdown
+                      text={displayedPlanMarkdown ?? ""}
+                      cwd={markdownCwd}
+                      isStreaming={false}
+                      className="chat-markdown--plan-panel"
+                    />
+                  </div>
+                )
               ) : null}
 
               {activePlan ? (

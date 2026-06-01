@@ -1,13 +1,12 @@
 import { ProviderDriverKind } from "@multi/contracts";
 
-import { IconOpenaiCodex, IconCursor, IconClaudeai, IconOpencode } from "central-icons";
+import { IconClaudeai, IconOpenaiCodex, IconCursor } from "central-icons";
 
 export const PROVIDER_ICON_BY_PROVIDER: Partial<
   Record<ProviderDriverKind, typeof IconOpenaiCodex>
 > = {
   [ProviderDriverKind.make("codex")]: IconOpenaiCodex,
   [ProviderDriverKind.make("claudeAgent")]: IconClaudeai,
-  [ProviderDriverKind.make("opencode")]: IconOpencode,
   [ProviderDriverKind.make("cursor")]: IconCursor,
 };
 

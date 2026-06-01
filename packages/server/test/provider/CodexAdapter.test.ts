@@ -222,8 +222,8 @@ validationLayer("CodexAdapterLive validation", (it) => {
       const adapter = yield* CodexAdapter;
       const result = yield* adapter
         .startSession({
-          provider: "claudeAgent",
-          providerInstanceId: "claudeAgent",
+          provider: "cursor",
+          providerInstanceId: "cursor",
           threadId: asThreadId("thread-1"),
           runtimeMode: "full-access",
         })
@@ -235,7 +235,7 @@ validationLayer("CodexAdapterLive validation", (it) => {
         new ProviderAdapterValidationError({
           provider: "codex",
           operation: "startSession",
-          issue: "Expected provider 'codex' but received 'claudeAgent'.",
+          issue: "Expected provider 'codex' but received 'cursor'.",
         }),
       );
       assert.equal(validationRuntimeFactory.factory.mock.calls.length, 0);

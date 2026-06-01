@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildCursorCapabilitiesForModelConfigResponse,
   buildCursorDiscoveredModelsFromConfigOptions,
-  resolveCursorAgentCliModelId,
 } from "../../src/provider/CursorProvider.ts";
+import { resolveCursorAgentCliModelId } from "../../src/provider/acp/CursorAcpModel.ts";
 
 const modelConfigOptions = [
   {

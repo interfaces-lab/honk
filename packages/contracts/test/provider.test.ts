@@ -58,17 +58,16 @@ describe("ProviderSessionStartInput", () => {
     ).toThrow();
   });
 
-  it("accepts claude runtime knobs", () => {
+  it("accepts cursor runtime knobs", () => {
     const parsed = decodeProviderSessionStartInput({
       threadId: "thread-1",
-      provider: "claudeAgent",
-      providerInstanceId: "claudeAgent",
+      provider: "cursor",
+      providerInstanceId: "cursor",
       cwd: "/tmp/project",
       modelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor",
+        model: "composer-2",
         options: [
-          { id: "thinking", value: true },
           { id: "effort", value: "max" },
           { id: "fastMode", value: true },
         ],
@@ -79,11 +78,10 @@ describe("ProviderSessionStartInput", () => {
     if (!selection) {
       throw new Error("Expected modelSelection");
     }
-    expect(parsed.provider).toBe("claudeAgent");
-    expect(parsed.providerInstanceId).toBe("claudeAgent");
-    expect(selection.instanceId).toBe("claudeAgent");
-    expect(selection.model).toBe("claude-sonnet-4-6");
-    expect(getOptionValue(selection.options, "thinking")).toBe(true);
+    expect(parsed.provider).toBe("cursor");
+    expect(parsed.providerInstanceId).toBe("cursor");
+    expect(selection.instanceId).toBe("cursor");
+    expect(selection.model).toBe("composer-2");
     expect(getOptionValue(selection.options, "effort")).toBe("max");
     expect(getOptionValue(selection.options, "fastMode")).toBe(true);
     expect(parsed.runtimeMode).toBe("full-access");
@@ -113,22 +111,20 @@ describe("ProviderSessionStartInput", () => {
     expect(getOptionValue(selection.options, "fastMode")).toBe(true);
   });
 
-  it("accepts fork-provided driver kinds as branded slugs", () => {
-    const parsed = decodeProviderSessionStartInput({
-      threadId: "thread-1",
-      provider: "ollama",
-      providerInstanceId: "ollama_local",
-      cwd: "/tmp/project",
-      runtimeMode: "full-access",
-      modelSelection: {
-        instanceId: "ollama_local",
-        model: "llama3.3",
-      },
-    });
-
-    expect(parsed.provider).toBe("ollama");
-    expect(parsed.providerInstanceId).toBe("ollama_local");
-    expect(parsed.modelSelection?.instanceId).toBe("ollama_local");
+  it("rejects unsupported provider driver kinds", () => {
+    expect(() =>
+      decodeProviderSessionStartInput({
+        threadId: "thread-1",
+        provider: "ollama",
+        providerInstanceId: "ollama_local",
+        cwd: "/tmp/project",
+        runtimeMode: "full-access",
+        modelSelection: {
+          instanceId: "ollama_local",
+          model: "llama3.3",
+        },
+      }),
+    ).toThrow();
   });
 });
 
@@ -156,14 +152,14 @@ describe("ProviderSendTurnInput", () => {
     expect(getOptionValue(selection.options, "fastMode")).toBe(true);
   });
 
-  it("accepts claude modelSelection including ultrathink", () => {
+  it("accepts custom cursor instance modelSelection options", () => {
     const parsed = decodeProviderSendTurnInput({
       threadId: "thread-1",
       modelSelection: {
-        instanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
+        instanceId: "cursor_work",
+        model: "composer-2",
         options: [
-          { id: "effort", value: "ultrathink" },
+          { id: "effort", value: "max" },
           { id: "fastMode", value: true },
         ],
       },
@@ -173,8 +169,8 @@ describe("ProviderSendTurnInput", () => {
     if (!selection) {
       throw new Error("Expected modelSelection");
     }
-    expect(selection.instanceId).toBe("claudeAgent");
-    expect(getOptionValue(selection.options, "effort")).toBe("ultrathink");
+    expect(selection.instanceId).toBe("cursor_work");
+    expect(getOptionValue(selection.options, "effort")).toBe("max");
     expect(getOptionValue(selection.options, "fastMode")).toBe(true);
   });
 });
@@ -203,10 +199,10 @@ describe("providerInstanceId routing key", () => {
     expect(session.providerInstanceId).toBe("codex_work");
   });
 
-  it("decodes ProviderSession for fork-provided driver kinds", () => {
+  it("decodes ProviderSession for custom cursor instances", () => {
     const session = decodeProviderSession({
-      provider: "ollama",
-      providerInstanceId: "ollama_local",
+      provider: "cursor",
+      providerInstanceId: "cursor_work",
       status: "ready",
       runtimeMode: "full-access",
       threadId: "thread-1",
@@ -214,8 +210,8 @@ describe("providerInstanceId routing key", () => {
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    expect(session.provider).toBe("ollama");
-    expect(session.providerInstanceId).toBe("ollama_local");
+    expect(session.provider).toBe("cursor");
+    expect(session.providerInstanceId).toBe("cursor_work");
   });
 
   it("decodes a ProviderEvent carrying driver metadata and instance routing", () => {

@@ -304,7 +304,7 @@ export const ProjectFileTree = forwardRef<
   );
   const gitStatus = useGitStatus({
     environmentId: props.environmentId,
-    cwd: props.cwd,
+    cwd: props.active ? props.cwd : null,
   });
 
   const filePathSet = useMemo(

@@ -1,4 +1,4 @@
-import { CheckpointRef, EventId, MessageId, ProjectId, ThreadId, TurnId } from "@multi/contracts";
+import { EventId, MessageId, ProjectId, ThreadId, TurnId } from "@multi/contracts";
 import { assert, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -13,7 +13,6 @@ const asProjectId = (value: string): ProjectId => ProjectId.make(value);
 const asTurnId = (value: string): TurnId => TurnId.make(value);
 const asMessageId = (value: string): MessageId => MessageId.make(value);
 const asEventId = (value: string): EventId => EventId.make(value);
-const asCheckpointRef = (value: string): CheckpointRef => CheckpointRef.make(value);
 
 const threadProjectionLayer = it.layer(
   ThreadProjectionLive.pipe(
@@ -202,11 +201,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           state,
           requested_at,
           started_at,
-          completed_at,
-          checkpoint_turn_count,
-          checkpoint_ref,
-          checkpoint_status,
-          checkpoint_files_json
+          completed_at
         )
         VALUES (
           'thread-1',
@@ -218,11 +213,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           'completed',
           '2026-02-24T00:00:08.000Z',
           '2026-02-24T00:00:08.000Z',
-          '2026-02-24T00:00:08.000Z',
-          1,
-          'checkpoint-1',
-          'ready',
-          '[{"path":"README.md","kind":"modified","additions":2,"deletions":1}]'
+          '2026-02-24T00:00:08.000Z'
         )
       `;
 
@@ -320,7 +311,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
               updatedAt: "2026-02-24T00:00:05.000Z",
             },
           ],
-          activeEntryId: null,
+          leafId: null,
           entries: [],
           proposedPlans: [
             {
@@ -344,15 +335,32 @@ threadProjectionLayer("ThreadProjection", (it) => {
               createdAt: "2026-02-24T00:00:06.000Z",
             },
           ],
-          checkpoints: [
+          chatTimelineRows: [
             {
+              id: "message:message-1",
+              kind: "message",
+              orderKey: "2026-02-24T00:00:04.000Z:message:message-1",
+              createdAt: "2026-02-24T00:00:04.000Z",
+              messageId: asMessageId("message-1"),
               turnId: asTurnId("turn-1"),
-              checkpointTurnCount: 1,
-              checkpointRef: asCheckpointRef("checkpoint-1"),
-              status: "ready",
-              files: [{ path: "README.md", kind: "modified", additions: 2, deletions: 1 }],
-              assistantMessageId: asMessageId("message-1"),
-              completedAt: "2026-02-24T00:00:08.000Z",
+              entryId: null,
+            },
+            {
+              id: "proposed-plan:plan-1",
+              kind: "proposed-plan",
+              orderKey: "2026-02-24T00:00:05.000Z:proposed-plan:plan-1",
+              createdAt: "2026-02-24T00:00:05.000Z",
+              planId: "plan-1",
+              turnId: asTurnId("turn-1"),
+            },
+            {
+              id: "work:activity:activity-1",
+              kind: "work",
+              orderKey: "2026-02-24T00:00:06.000Z:000000000000:activity-1",
+              createdAt: "2026-02-24T00:00:06.000Z",
+              workId: "activity:activity-1",
+              activityIds: [asEventId("activity-1")],
+              turnId: asTurnId("turn-1"),
             },
           ],
           session: {
@@ -633,158 +641,6 @@ threadProjectionLayer("ThreadProjection", (it) => {
       }),
   );
 
-  it.effect("reads single-thread checkpoint context without hydrating unrelated threads", () =>
-    Effect.gen(function* () {
-      const threadProjection = yield* ThreadProjection;
-      const sql = yield* SqlClient.SqlClient;
-
-      yield* sql`DELETE FROM projection_projects`;
-      yield* sql`DELETE FROM projection_threads`;
-      yield* sql`DELETE FROM projection_turns`;
-
-      yield* sql`
-        INSERT INTO projection_projects (
-          project_id,
-          title,
-          project_root,
-          default_model_selection_json,
-          scripts_json,
-          created_at,
-          updated_at,
-          deleted_at
-        )
-        VALUES (
-          'project-context',
-          'Context Project',
-          '/tmp/context-project',
-          NULL,
-          '[]',
-          '2026-03-02T00:00:00.000Z',
-          '2026-03-02T00:00:01.000Z',
-          NULL
-        )
-      `;
-
-      yield* sql`
-        INSERT INTO projection_threads (
-          thread_id,
-          project_id,
-          title,
-          model_selection_json,
-          runtime_mode,
-          interaction_mode,
-          branch,
-          worktree_path,
-          latest_turn_id,
-          created_at,
-          updated_at,
-          archived_at,
-          deleted_at
-        )
-        VALUES (
-          'thread-context',
-          'project-context',
-          'Context Thread',
-          '{"instanceId":"codex","model":"gpt-5-codex"}',
-          'full-access',
-          'default',
-          'feature/perf',
-          '/tmp/context-worktree',
-          NULL,
-          '2026-03-02T00:00:02.000Z',
-          '2026-03-02T00:00:03.000Z',
-          NULL,
-          NULL
-        )
-      `;
-
-      yield* sql`
-        INSERT INTO projection_turns (
-          thread_id,
-          turn_id,
-          pending_message_id,
-          source_proposed_plan_thread_id,
-          source_proposed_plan_id,
-          assistant_message_id,
-          state,
-          requested_at,
-          started_at,
-          completed_at,
-          checkpoint_turn_count,
-          checkpoint_ref,
-          checkpoint_status,
-          checkpoint_files_json
-        )
-        VALUES
-          (
-            'thread-context',
-            'turn-1',
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            'completed',
-            '2026-03-02T00:00:04.000Z',
-            '2026-03-02T00:00:04.000Z',
-            '2026-03-02T00:00:04.000Z',
-            1,
-            'checkpoint-a',
-            'ready',
-            '[]'
-          ),
-          (
-            'thread-context',
-            'turn-2',
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            'completed',
-            '2026-03-02T00:00:05.000Z',
-            '2026-03-02T00:00:05.000Z',
-            '2026-03-02T00:00:05.000Z',
-            2,
-            'checkpoint-b',
-            'ready',
-            '[]'
-          )
-      `;
-
-      const context = yield* threadProjection.getThreadCheckpointContext(
-        ThreadId.make("thread-context"),
-      );
-      assert.equal(context._tag, "Some");
-      if (context._tag === "Some") {
-        assert.deepEqual(context.value, {
-          threadId: ThreadId.make("thread-context"),
-          projectId: asProjectId("project-context"),
-          projectRoot: "/tmp/context-project",
-          worktreePath: "/tmp/context-worktree",
-          checkpoints: [
-            {
-              turnId: asTurnId("turn-1"),
-              checkpointTurnCount: 1,
-              checkpointRef: asCheckpointRef("checkpoint-a"),
-              status: "ready",
-              files: [],
-              assistantMessageId: null,
-              completedAt: "2026-03-02T00:00:04.000Z",
-            },
-            {
-              turnId: asTurnId("turn-2"),
-              checkpointTurnCount: 2,
-              checkpointRef: asCheckpointRef("checkpoint-b"),
-              status: "ready",
-              files: [],
-              assistantMessageId: null,
-              completedAt: "2026-03-02T00:00:05.000Z",
-            },
-          ],
-        });
-      }
-    }),
-  );
-
   it.effect("keeps thread detail activity ordering consistent with shell snapshot ordering", () =>
     Effect.gen(function* () {
       const threadProjection = yield* ThreadProjection;
@@ -1031,11 +887,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
           state,
           requested_at,
           started_at,
-          completed_at,
-          checkpoint_turn_count,
-          checkpoint_ref,
-          checkpoint_status,
-          checkpoint_files_json
+          completed_at
         )
         VALUES
           (
@@ -1048,11 +900,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
             'completed',
             '2026-04-02T00:00:05.000Z',
             '2026-04-02T00:00:06.000Z',
-            '2026-04-02T00:00:20.000Z',
-            5,
-            'checkpoint-5',
-            'ready',
-            '[]'
+            '2026-04-02T00:00:20.000Z'
           ),
           (
             'thread-1',
@@ -1064,11 +912,7 @@ threadProjectionLayer("ThreadProjection", (it) => {
             'running',
             '2026-04-02T00:00:30.000Z',
             '2026-04-02T00:00:30.000Z',
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            '[]'
+            NULL
           )
       `;
 

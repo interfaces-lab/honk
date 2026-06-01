@@ -112,13 +112,6 @@ function createBaseServerConfig(): ServerConfig {
           shadowHomePath: "",
           customModels: [],
         },
-        claudeAgent: {
-          enabled: true,
-          binaryPath: "",
-          homePath: "",
-          customModels: [],
-          launchArgs: "",
-        },
       },
     },
   };
@@ -171,11 +164,11 @@ function createMinimalSnapshot(): OrchestrationReadModel {
             updatedAt: NOW_ISO,
           },
         ],
-        activeEntryId: null,
+        leafId: null,
         entries: [],
         activities: [],
+        chatTimelineRows: [],
         proposedPlans: [],
-        checkpoints: [],
         session: {
           threadId: THREAD_ID,
           status: "ready",

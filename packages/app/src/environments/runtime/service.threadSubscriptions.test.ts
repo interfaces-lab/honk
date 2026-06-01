@@ -166,11 +166,11 @@ function makeThreadDetail(threadId: ThreadId): OrchestrationThread {
     archivedAt: null,
     deletedAt: null,
     messages: [],
-    activeEntryId: null,
+    leafId: null,
     entries: [],
     proposedPlans: [],
     activities: [],
-    checkpoints: [],
+    chatTimelineRows: [],
     session: null,
   };
 }
@@ -641,7 +641,7 @@ describe("projection version guards", () => {
 });
 
 describe("coalesceOrchestrationUiEvents", () => {
-  it("keeps final empty assistant messages separate from streaming chunks", async () => {
+  it("does not merge assistant message events in the orchestration stream", async () => {
     const { coalesceOrchestrationUiEvents } = await import("./coalesce-orchestration-events");
     const threadId = ThreadId.make("thread-stream");
     const messageId = MessageId.make("assistant-stream");
@@ -677,14 +677,14 @@ describe("coalesceOrchestrationUiEvents", () => {
     });
 
     const events = coalesceOrchestrationUiEvents([
-      makeMessageEvent(1, "hello", true),
-      makeMessageEvent(2, "", false),
+      makeMessageEvent(1, "hello", false),
+      makeMessageEvent(2, "hello final", false),
     ]);
     const messageEvents = events as MessageSentEvent[];
 
     expect(events).toHaveLength(2);
-    expect(messageEvents.map((event) => event.payload.text)).toEqual(["hello", ""]);
-    expect(messageEvents.map((event) => event.payload.streaming)).toEqual([true, false]);
+    expect(messageEvents.map((event) => event.payload.text)).toEqual(["hello", "hello final"]);
+    expect(messageEvents.map((event) => event.payload.streaming)).toEqual([false, false]);
   });
 
   it("coalesces stable tool lifecycle activities for UI application", async () => {

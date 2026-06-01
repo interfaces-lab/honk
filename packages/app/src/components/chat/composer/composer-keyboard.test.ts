@@ -18,6 +18,21 @@ const COMPOSER_SEND: ResolvedKeybindingsConfig = [
   },
 ];
 
+const COMPOSER_CYCLE_MODE: ResolvedKeybindingsConfig = [
+  {
+    command: "composer.cycleInteractionMode",
+    shortcut: {
+      key: "tab",
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: true,
+      altKey: false,
+      modKey: false,
+    },
+    whenAst: { type: "not", node: { type: "identifier", name: "terminalFocus" } },
+  },
+];
+
 describe("Composer send keybinding", () => {
   it("maps Enter to composer.send when the composer is focused", () => {
     expect(
@@ -35,6 +50,28 @@ describe("Composer send keybinding", () => {
         { key: "Enter", metaKey: false, ctrlKey: false, shiftKey: true, altKey: false },
         COMPOSER_SEND,
         { context: { composerFocus: true } },
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("Composer interaction mode keybinding", () => {
+  it("maps Shift+Tab to composer.cycleInteractionMode when the composer is focused", () => {
+    expect(
+      resolveShortcutCommand(
+        { key: "Tab", metaKey: false, ctrlKey: false, shiftKey: true, altKey: false },
+        COMPOSER_CYCLE_MODE,
+        { context: { composerFocus: true, terminalFocus: false } },
+      ),
+    ).toBe("composer.cycleInteractionMode");
+  });
+
+  it("does not cycle interaction mode while the terminal is focused", () => {
+    expect(
+      resolveShortcutCommand(
+        { key: "Tab", metaKey: false, ctrlKey: false, shiftKey: true, altKey: false },
+        COMPOSER_CYCLE_MODE,
+        { context: { composerFocus: true, terminalFocus: true } },
       ),
     ).toBeNull();
   });

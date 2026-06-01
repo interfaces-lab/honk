@@ -98,6 +98,25 @@ function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
   return shouldUseDarkColors ? "#161616" : "#ffffff";
 }
 
+function getMacGlassWindowBackgroundColor(shouldUseDarkColors: boolean): string {
+  return shouldUseDarkColors ? "#40000000" : "#00FFFFFF";
+}
+
+function getInitialWindowGlassOptions(
+  shouldUseDarkColors: boolean,
+): Electron.BrowserWindowConstructorOptions {
+  if (process.platform !== "darwin") {
+    return {};
+  }
+
+  return {
+    backgroundColor: getMacGlassWindowBackgroundColor(shouldUseDarkColors),
+    hasShadow: true,
+    vibrancy: "sidebar",
+    visualEffectState: "active",
+  };
+}
+
 function getMacOSTrafficLightPosition(): { x: number; y: number } {
   return { x: 14, y: MACOS_TRAFFIC_LIGHT_Y_PX };
 }
@@ -198,7 +217,6 @@ function syncWindowAppearance(
       return;
     }
 
-    window.setBackgroundColor(getInitialWindowBackgroundColor(shouldUseDarkColors));
     const { titleBarOverlay } = getWindowTitleBarOptions(shouldUseDarkColors);
     if (typeof titleBarOverlay === "object") {
       window.setTitleBarOverlay(titleBarOverlay);
@@ -253,6 +271,7 @@ const make = Effect.gen(function* () {
       show: false,
       autoHideMenuBar: true,
       backgroundColor: getInitialWindowBackgroundColor(shouldUseDarkColors),
+      ...getInitialWindowGlassOptions(shouldUseDarkColors),
       ...iconOption,
       title: environment.displayName,
       ...getWindowTitleBarOptions(shouldUseDarkColors),

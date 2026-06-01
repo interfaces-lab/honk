@@ -1,11 +1,8 @@
 import {
   ClaudeSettings,
   CodexSettings,
-  CursorSdkSettings,
   CursorSettings,
   DEFAULT_SERVER_SETTINGS,
-  OpenCodeSettings,
-  type ProviderInstanceEnvironment,
   ProviderDriverKind,
   type ProviderInstanceConfig,
   type ProviderInstanceId,
@@ -15,33 +12,19 @@ import {
 import { Predicate, Schema } from "effect";
 
 const CODEX_PROVIDER = ProviderDriverKind.make("codex");
-const CLAUDE_AGENT_PROVIDER = ProviderDriverKind.make("claudeAgent");
+const CLAUDE_PROVIDER = ProviderDriverKind.make("claudeAgent");
 const CURSOR_PROVIDER = ProviderDriverKind.make("cursor");
-const CURSOR_SDK_PROVIDER = ProviderDriverKind.make("cursorSdk");
-const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
 const decodeCodexSettings = Schema.decodeUnknownSync(CodexSettings);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 const decodeCursorSettings = Schema.decodeUnknownSync(CursorSettings);
-const decodeCursorSdkSettings = Schema.decodeUnknownSync(CursorSdkSettings);
-const decodeOpenCodeSettings = Schema.decodeUnknownSync(OpenCodeSettings);
+const DEFAULT_CLAUDE_SETTINGS = decodeClaudeSettings({});
 const DEFAULT_CURSOR_SETTINGS = decodeCursorSettings({});
-const DEFAULT_CURSOR_SDK_SETTINGS = decodeCursorSdkSettings({});
 
 export const CANONICAL_PROVIDER_DRIVER_ORDER = [
   CODEX_PROVIDER,
-  CLAUDE_AGENT_PROVIDER,
-  OPENCODE_PROVIDER,
+  CLAUDE_PROVIDER,
   CURSOR_PROVIDER,
-  CURSOR_SDK_PROVIDER,
 ] as const satisfies ReadonlyArray<ProviderDriverKind>;
-
-export type ResolvedOpenCodeSettings = typeof OpenCodeSettings.Type & {
-  readonly environment: ProviderInstanceEnvironment;
-};
-
-export type ResolvedCursorSdkSettings = typeof CursorSdkSettings.Type & {
-  readonly environment: ProviderInstanceEnvironment;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Predicate.isObject(value);
@@ -88,28 +71,16 @@ function fallbackCodexSettings(settings: ServerSettings, instanceId: ProviderIns
     : DEFAULT_SERVER_SETTINGS.providers.codex;
 }
 
-function fallbackClaudeSettings(settings: ServerSettings, instanceId: ProviderInstanceId) {
-  return isDefaultProviderInstance(CLAUDE_AGENT_PROVIDER, instanceId)
-    ? settings.providers.claudeAgent
-    : DEFAULT_SERVER_SETTINGS.providers.claudeAgent;
-}
-
 function fallbackCursorSettings(settings: ServerSettings, instanceId: ProviderInstanceId) {
   return isDefaultProviderInstance(CURSOR_PROVIDER, instanceId)
     ? settings.providers.cursor
     : DEFAULT_CURSOR_SETTINGS;
 }
 
-function fallbackCursorSdkSettings(settings: ServerSettings, instanceId: ProviderInstanceId) {
-  return isDefaultProviderInstance(CURSOR_SDK_PROVIDER, instanceId)
-    ? settings.providers.cursorSdk
-    : DEFAULT_CURSOR_SDK_SETTINGS;
-}
-
-function fallbackOpenCodeSettings(settings: ServerSettings, instanceId: ProviderInstanceId) {
-  return isDefaultProviderInstance(OPENCODE_PROVIDER, instanceId)
-    ? settings.providers.opencode
-    : DEFAULT_SERVER_SETTINGS.providers.opencode;
+function fallbackClaudeSettings(settings: ServerSettings, instanceId: ProviderInstanceId) {
+  return isDefaultProviderInstance(CLAUDE_PROVIDER, instanceId)
+    ? settings.providers.claudeAgent
+    : DEFAULT_CLAUDE_SETTINGS;
 }
 
 export function resolveCodexSettings(
@@ -122,22 +93,6 @@ export function resolveCodexSettings(
       instance: resolveProviderInstanceConfig({
         settings,
         driver: CODEX_PROVIDER,
-        instanceId,
-      }),
-    }),
-  );
-}
-
-export function resolveClaudeSettings(
-  settings: ServerSettings,
-  instanceId: ProviderInstanceId = defaultInstanceIdForDriver(CLAUDE_AGENT_PROVIDER),
-): typeof ClaudeSettings.Type {
-  return decodeClaudeSettings(
-    resolveSettingsRecord({
-      fallback: fallbackClaudeSettings(settings, instanceId),
-      instance: resolveProviderInstanceConfig({
-        settings,
-        driver: CLAUDE_AGENT_PROVIDER,
         instanceId,
       }),
     }),
@@ -160,46 +115,20 @@ export function resolveCursorSettings(
   );
 }
 
-export function resolveCursorSdkSettings(
+export function resolveClaudeSettings(
   settings: ServerSettings,
-  instanceId: ProviderInstanceId = defaultInstanceIdForDriver(CURSOR_SDK_PROVIDER),
-): ResolvedCursorSdkSettings {
-  const instance = resolveProviderInstanceConfig({
-    settings,
-    driver: CURSOR_SDK_PROVIDER,
-    instanceId,
-  });
-  const resolved = decodeCursorSdkSettings(
+  instanceId: ProviderInstanceId = defaultInstanceIdForDriver(CLAUDE_PROVIDER),
+): typeof ClaudeSettings.Type {
+  return decodeClaudeSettings(
     resolveSettingsRecord({
-      fallback: fallbackCursorSdkSettings(settings, instanceId),
-      instance,
+      fallback: fallbackClaudeSettings(settings, instanceId),
+      instance: resolveProviderInstanceConfig({
+        settings,
+        driver: CLAUDE_PROVIDER,
+        instanceId,
+      }),
     }),
   );
-  return {
-    ...resolved,
-    environment: instance?.environment ?? [],
-  };
-}
-
-export function resolveOpenCodeSettings(
-  settings: ServerSettings,
-  instanceId: ProviderInstanceId = defaultInstanceIdForDriver(OPENCODE_PROVIDER),
-): ResolvedOpenCodeSettings {
-  const instance = resolveProviderInstanceConfig({
-    settings,
-    driver: OPENCODE_PROVIDER,
-    instanceId,
-  });
-  const resolved = decodeOpenCodeSettings(
-    resolveSettingsRecord({
-      fallback: fallbackOpenCodeSettings(settings, instanceId),
-      instance,
-    }),
-  );
-  return {
-    ...resolved,
-    environment: instance?.environment ?? [],
-  };
 }
 
 export function resolveProviderEnabled(input: {
@@ -211,15 +140,33 @@ export function resolveProviderEnabled(input: {
   switch (input.driver) {
     case CODEX_PROVIDER:
       return resolveCodexSettings(input.settings, instanceId).enabled;
-    case CLAUDE_AGENT_PROVIDER:
+    case CLAUDE_PROVIDER:
       return resolveClaudeSettings(input.settings, instanceId).enabled;
-    case OPENCODE_PROVIDER:
-      return resolveOpenCodeSettings(input.settings, instanceId).enabled;
     case CURSOR_PROVIDER:
       return resolveCursorSettings(input.settings, instanceId).enabled;
-    case CURSOR_SDK_PROVIDER:
-      return resolveCursorSdkSettings(input.settings, instanceId).enabled;
-    default:
-      return input.settings.providerInstances[instanceId]?.enabled ?? true;
   }
+  return true;
+}
+
+export function buildProviderInstanceEnvironment(
+  settings: ServerSettings,
+  instanceId: ProviderInstanceId,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv | undefined {
+  const variables = settings.providerInstances[instanceId]?.environment;
+  if (!variables || variables.length === 0) {
+    return undefined;
+  }
+
+  const environment: NodeJS.ProcessEnv = { ...baseEnv };
+  let applied = false;
+  for (const variable of variables) {
+    if (variable.valueRedacted === true) {
+      continue;
+    }
+    environment[variable.name] = variable.value;
+    applied = true;
+  }
+
+  return applied ? environment : undefined;
 }

@@ -9,6 +9,7 @@ import {
   isUnresolvedStandaloneComposerSlashCommand,
   parseStandaloneComposerSlashCommand,
   replaceTextRange,
+  slashCommandRemovalRange,
 } from "./prompt-triggers";
 
 describe("detectComposerTrigger", () => {
@@ -191,6 +192,32 @@ describe("replaceTextRange", () => {
     expect(replaced).toEqual({
       text: "hello ",
       cursor: 6,
+    });
+  });
+});
+
+describe("slashCommandRemovalRange", () => {
+  it("clears surrounding whitespace for standalone slash commands", () => {
+    const text = "  /plan\n";
+    const trigger = detectComposerTrigger(text, "  /plan".length);
+
+    expect(trigger).not.toBeNull();
+    if (!trigger) throw new Error("Expected slash command trigger");
+    expect(slashCommandRemovalRange(text, trigger)).toEqual({
+      rangeStart: 0,
+      rangeEnd: text.length,
+    });
+  });
+
+  it("keeps the token range when other prompt text remains", () => {
+    const text = "before /plan";
+    const trigger = detectComposerTrigger(text, text.length);
+
+    expect(trigger).not.toBeNull();
+    if (!trigger) throw new Error("Expected slash command trigger");
+    expect(slashCommandRemovalRange(text, trigger)).toEqual({
+      rangeStart: "before ".length,
+      rangeEnd: text.length,
     });
   });
 });

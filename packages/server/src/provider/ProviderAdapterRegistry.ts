@@ -1,17 +1,18 @@
 /**
  * ProviderAdapterRegistryLive - In-memory provider adapter lookup layer.
  *
- * Binds provider instance ids to concrete adapter services. Built-in provider
- * instances use the same slug as their driver (`codex`, `claudeAgent`, ...),
- * while custom instances are resolved through their configured driver.
+ * Binds provider instance ids to the single adapter for their provider driver.
+ * Built-in provider instances use the same slug as their driver (`codex`,
+ * `claudeAgent`, `cursor`), while custom instances are resolved through their
+ * configured driver.
  *
  * @module ProviderAdapterRegistryLive
  */
-import { Effect, Layer } from "effect";
-import { PubSub, Stream } from "effect";
+import { Effect, Layer, PubSub, Stream } from "effect";
 import {
   DEFAULT_SERVER_SETTINGS,
   defaultInstanceIdForDriver,
+  isProviderDriverKind,
   ProviderDriverKind,
   ProviderInstanceId,
   type ProviderInstanceConfig,
@@ -26,8 +27,6 @@ import {
 import { ClaudeAdapter } from "./ClaudeAdapter.service.ts";
 import { CodexAdapter } from "./CodexAdapter.service.ts";
 import { CursorAdapter } from "./CursorAdapter.service.ts";
-import { CursorSdkAdapter } from "./CursorSdkAdapter.service.ts";
-import { OpenCodeAdapter } from "./OpenCodeAdapter.service.ts";
 import { createBuiltInAdapterList } from "./builtInProviderCatalog.ts";
 import { ServerSettingsService } from "../server-settings.ts";
 import { resolveProviderEnabled } from "./provider-settings.ts";
@@ -46,9 +45,7 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
       : createBuiltInAdapterList({
           codex: yield* CodexAdapter,
           claudeAgent: yield* ClaudeAdapter,
-          opencode: yield* OpenCodeAdapter,
           cursor: yield* CursorAdapter,
-          cursorSdk: yield* CursorSdkAdapter,
         });
   const byProvider = new Map(
     adapters.map((adapter) => [ProviderDriverKind.make(adapter.provider), adapter] as const),
@@ -67,10 +64,15 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
 
   const resolveDriverForInstance = (instanceId: ProviderInstanceId) =>
     getProviderInstanceConfig(instanceId).pipe(
-      Effect.map(
-        (instanceConfig) =>
-          instanceConfig?.driver ?? (ProviderDriverKind.make(instanceId) as ProviderDriverKind),
-      ),
+      Effect.flatMap((instanceConfig) => {
+        if (instanceConfig) {
+          return Effect.succeed(instanceConfig.driver);
+        }
+        if (isProviderDriverKind(instanceId)) {
+          return Effect.succeed(instanceId);
+        }
+        return Effect.fail(new ProviderUnsupportedError({ provider: instanceId }));
+      }),
     );
 
   const getByDriver = (driver: ProviderDriverKind) => {
@@ -88,7 +90,7 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
     Effect.gen(function* () {
       const settings = yield* getSettingsOrDefault;
       const instanceConfig = yield* getProviderInstanceConfig(instanceId);
-      const driverKind = instanceConfig?.driver ?? ProviderDriverKind.make(instanceId);
+      const driverKind = yield* resolveDriverForInstance(instanceId);
       yield* getByDriver(driverKind);
       return {
         instanceId,
@@ -115,7 +117,7 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
       }),
     );
 
-  const changesPubSub = yield* PubSub.unbounded<void>();
+  const changesPubSub = yield* Effect.acquireRelease(PubSub.unbounded<void>(), PubSub.shutdown);
   yield* Stream.runForEach(serverSettings.streamChanges, () =>
     PubSub.publish(changesPubSub, undefined),
   ).pipe(Effect.forkScoped);
@@ -129,7 +131,8 @@ const makeProviderAdapterRegistry = Effect.fn("makeProviderAdapterRegistry")(fun
   } satisfies ProviderAdapterRegistryShape;
 });
 
-export const ProviderAdapterRegistryLive = Layer.effect(
-  ProviderAdapterRegistry,
-  makeProviderAdapterRegistry(),
-);
+export function makeProviderAdapterRegistryLive(options?: ProviderAdapterRegistryLiveOptions) {
+  return Layer.effect(ProviderAdapterRegistry, makeProviderAdapterRegistry(options));
+}
+
+export const ProviderAdapterRegistryLive = makeProviderAdapterRegistryLive();

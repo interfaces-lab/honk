@@ -1,12 +1,14 @@
 import type {
   EnvironmentId,
   MessageId,
+  OrchestrationChatTimelineRow,
   OrchestrationThreadActivity,
   ThreadEntryId,
   OrchestrationEvent,
   OrchestrationShellSnapshot,
   OrchestrationShellStreamEvent,
   OrchestrationThread,
+  ProviderRuntimeEvent,
   ProjectId,
   ScopedProjectRef,
   ScopedThreadRef,
@@ -16,6 +18,7 @@ import type {
 import { create } from "zustand";
 import type {
   ChatMessage,
+  LiveAssistantTurn,
   Project,
   ProposedPlan,
   SidebarThreadSummary,
@@ -30,6 +33,7 @@ import { getThreadFromEnvironmentState } from "../thread-derivation";
 import {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
+  applyProviderRuntimeEvent,
   applyShellEvent,
   setActiveEnvironmentId,
   setError,
@@ -42,6 +46,7 @@ import {
 export {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
+  applyProviderRuntimeEvent,
   applyShellEvent,
   setActiveEnvironmentId,
   setError,
@@ -64,7 +69,9 @@ export interface EnvironmentState {
   threadTurnStateById: Record<ThreadId, ThreadTurnState>;
   messageIdsByThreadId: Record<ThreadId, MessageId[]>;
   messageByThreadId: Record<ThreadId, Record<MessageId, ChatMessage>>;
-  activeEntryIdByThreadId?: Record<ThreadId, ThreadEntryId | null>;
+  liveAssistantTurnIdsByThreadId: Record<ThreadId, TurnId[]>;
+  liveAssistantTurnByThreadId: Record<ThreadId, Record<TurnId, LiveAssistantTurn>>;
+  leafIdByThreadId?: Record<ThreadId, ThreadEntryId | null>;
   entryIdsByThreadId?: Record<ThreadId, ThreadEntryId[]>;
   entryByThreadId?: Record<ThreadId, Record<ThreadEntryId, ThreadTreeEntry>>;
   activityIdsByThreadId: Record<ThreadId, string[]>;
@@ -73,6 +80,7 @@ export interface EnvironmentState {
   proposedPlanByThreadId: Record<ThreadId, Record<string, ProposedPlan>>;
   turnDiffIdsByThreadId: Record<ThreadId, TurnId[]>;
   turnDiffSummaryByThreadId: Record<ThreadId, Record<TurnId, TurnDiffSummary>>;
+  chatTimelineRowsByThreadId?: Record<ThreadId, OrchestrationChatTimelineRow[]>;
   sidebarThreadSummaryById: Record<ThreadId, SidebarThreadSummary>;
   snapshotSource: EnvironmentSnapshotSource;
   bootstrapComplete: boolean;
@@ -94,7 +102,9 @@ export const initialEnvironmentState: EnvironmentState = {
   threadTurnStateById: {},
   messageIdsByThreadId: {},
   messageByThreadId: {},
-  activeEntryIdByThreadId: {},
+  liveAssistantTurnIdsByThreadId: {},
+  liveAssistantTurnByThreadId: {},
+  leafIdByThreadId: {},
   entryIdsByThreadId: {},
   entryByThreadId: {},
   activityIdsByThreadId: {},
@@ -103,6 +113,7 @@ export const initialEnvironmentState: EnvironmentState = {
   proposedPlanByThreadId: {},
   turnDiffIdsByThreadId: {},
   turnDiffSummaryByThreadId: {},
+  chatTimelineRowsByThreadId: {},
   sidebarThreadSummaryById: {},
   snapshotSource: "none",
   bootstrapComplete: false,
@@ -294,6 +305,10 @@ interface AppStore extends AppState {
     events: ReadonlyArray<OrchestrationEvent>,
     environmentId: EnvironmentId,
   ) => void;
+  applyProviderRuntimeEvent: (
+    event: ProviderRuntimeEvent,
+    environmentId: EnvironmentId,
+  ) => void;
   applyShellEvent: (event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) => void;
   setError: (threadId: ThreadId, error: string | null) => void;
   setThreadBranch: (
@@ -317,6 +332,8 @@ export const useStore = create<AppStore>((set) => ({
     set((state) => applyOrchestrationEvent(state, event, environmentId)),
   applyOrchestrationEvents: (events, environmentId) =>
     set((state) => applyOrchestrationEvents(state, events, environmentId)),
+  applyProviderRuntimeEvent: (event, environmentId) =>
+    set((state) => applyProviderRuntimeEvent(state, event, environmentId)),
   applyShellEvent: (event, environmentId) =>
     set((state) => applyShellEvent(state, event, environmentId)),
   setError: (threadId, error) => set((state) => setError(state, threadId, error)),

@@ -69,11 +69,6 @@ html.dark {
   min-width: 0;
 }
 
-/* Diff panel surfaces */
-.diff-panel-viewport {
-  background: color-mix(in srgb, var(--background) 94%, var(--card));
-}
-
 .diff-render-file {
   border: 1px solid var(--border);
   border-radius: 0.5rem;

@@ -38,7 +38,7 @@ export function buildLocalDraftThread(
     interactionMode: draftThread.interactionMode,
     session: null,
     messages: [],
-    activeEntryId: null,
+    leafId: null,
     entries: [],
     error,
     createdAt: draftThread.createdAt,
@@ -48,6 +48,7 @@ export function buildLocalDraftThread(
     worktreePath: draftThread.worktreePath,
     turnDiffSummaries: [],
     activities: [],
+    chatTimelineRows: [],
     proposedPlans: [],
   };
 }
@@ -104,7 +105,11 @@ export function reconcileMountedTerminalThreadIds(input: {
 
 export function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(
-    thread && (thread.latestTurn !== null || thread.messages.length > 0 || thread.session !== null),
+    thread &&
+      (thread.latestTurn !== null ||
+        thread.messages.length > 0 ||
+        thread.session !== null ||
+        (thread.chatTimelineRows?.length ?? 0) > 0),
   );
 }
 

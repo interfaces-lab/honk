@@ -3,7 +3,6 @@
 import {
   IconCheckmark1 as CheckIcon,
   type CentralIconBaseProps,
-  IconRobot as PiIcon,
 } from "central-icons";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import type { ComponentType } from "react";
@@ -74,13 +73,7 @@ interface PendingDriverOption {
   readonly icon: ComponentType<CentralIconBaseProps>;
 }
 
-const PENDING_DRIVER_OPTIONS: readonly PendingDriverOption[] = [
-  {
-    value: ProviderDriverKind.make("pi"),
-    label: "Pi",
-    icon: PiIcon,
-  },
-];
+const PENDING_DRIVER_OPTIONS: readonly PendingDriverOption[] = [];
 
 /**
  * Validate an instance id against the same slug rules the server applies in

@@ -23,7 +23,7 @@
 .multi-appearance-intensity-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   background: hsl(
-    var(--multi-appearance-slider-hue, 247) var(--multi-appearance-slider-sat, 0%)
+    var(--multi-appearance-slider-hue, 261) var(--multi-appearance-slider-sat, 20%)
       var(--multi-appearance-slider-light, 50%)
   );
   border: 2px solid var(--card, hsl(0 0% 100%));
@@ -45,7 +45,7 @@
 .multi-appearance-intensity-slider::-moz-range-thumb {
   appearance: none;
   background: hsl(
-    var(--multi-appearance-slider-hue, 247) var(--multi-appearance-slider-sat, 0%)
+    var(--multi-appearance-slider-hue, 261) var(--multi-appearance-slider-sat, 20%)
       var(--multi-appearance-slider-light, 50%)
   );
   border: 2px solid var(--card, hsl(0 0% 100%));
