@@ -2,13 +2,29 @@ import {
   type KeybindingCommand,
   type KeybindingShortcut,
   type KeybindingWhenNode,
-  MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
-  type ModelPickerJumpKeybindingCommand,
   type ResolvedKeybindingsConfig,
   THREAD_JUMP_KEYBINDING_COMMANDS,
   type ThreadJumpKeybindingCommand,
 } from "@multi/contracts";
 import { isMacPlatform } from "./lib/utils";
+
+export const COMMAND_PALETTE_FALLBACK_KEYBINDINGS: ResolvedKeybindingsConfig = [
+  {
+    command: "commandPalette.toggle",
+    shortcut: {
+      key: "k",
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      modKey: true,
+    },
+    whenAst: {
+      type: "not",
+      node: { type: "identifier", name: "terminalFocus" },
+    },
+  },
+];
 
 export interface ShortcutEventLike {
   type?: string;
@@ -121,6 +137,8 @@ function evaluateWhenNode(node: KeybindingWhenNode, context: ShortcutMatchContex
       return evaluateWhenNode(node.left, context) && evaluateWhenNode(node.right, context);
     case "or":
       return evaluateWhenNode(node.left, context) || evaluateWhenNode(node.right, context);
+    default:
+      return false;
   }
 }
 
@@ -264,19 +282,6 @@ export function threadJumpCommandForIndex(index: number): ThreadJumpKeybindingCo
 
 export function threadJumpIndexFromCommand(command: string): number | null {
   const index = THREAD_JUMP_KEYBINDING_COMMANDS.indexOf(command as ThreadJumpKeybindingCommand);
-  return index === -1 ? null : index;
-}
-
-export function modelPickerJumpCommandForIndex(
-  index: number,
-): ModelPickerJumpKeybindingCommand | null {
-  return MODEL_PICKER_JUMP_KEYBINDING_COMMANDS[index] ?? null;
-}
-
-export function modelPickerJumpIndexFromCommand(command: string): number | null {
-  const index = MODEL_PICKER_JUMP_KEYBINDING_COMMANDS.indexOf(
-    command as ModelPickerJumpKeybindingCommand,
-  );
   return index === -1 ? null : index;
 }
 

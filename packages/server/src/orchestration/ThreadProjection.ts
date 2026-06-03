@@ -223,9 +223,6 @@ const makeThreadProjection = Effect.gen(function* () {
         SELECT
           thread_id AS "threadId",
           status,
-          provider_name AS "providerName",
-          provider_session_id AS "providerSessionId",
-          provider_thread_id AS "providerThreadId",
           runtime_mode AS "runtimeMode",
           active_turn_id AS "activeTurnId",
           last_error AS "lastError",
@@ -463,7 +460,6 @@ const makeThreadProjection = Effect.gen(function* () {
         SELECT
           thread_id AS "threadId",
           status,
-          provider_name AS "providerName",
           runtime_mode AS "runtimeMode",
           active_turn_id AS "activeTurnId",
           last_error AS "lastError",
@@ -714,7 +710,6 @@ const makeThreadProjection = Effect.gen(function* () {
                 sessionsByThread.set(row.threadId, {
                   threadId: row.threadId,
                   status: row.status,
-                  providerName: row.providerName,
                   runtimeMode: row.runtimeMode,
                   activeTurnId: row.activeTurnId,
                   lastError: row.lastError,

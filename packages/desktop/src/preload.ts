@@ -1,5 +1,17 @@
-import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopBridge } from "@multi/contracts";
+import {
+  contextBridge,
+  ipcRenderer,
+  type IpcRendererEvent,
+} from "electron";
+import type {
+  DesktopAppBranding,
+  DesktopBridge,
+  DesktopEnvironmentBootstrap,
+  DesktopUpdateState,
+  DesktopWindowChromeState,
+  MultiRuntimeHostEvent,
+  MultiRuntimeApi,
+} from "@multi/contracts";
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CONFIRM_CHANNEL = "desktop:confirm";
@@ -23,33 +35,67 @@ const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";
 const SET_CLIENT_SETTINGS_CHANNEL = "desktop:set-client-settings";
 const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";
 const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
+const RUNTIME_GET_HOST_SNAPSHOT_CHANNEL = "desktop:runtime-get-host-snapshot";
+const RUNTIME_GET_PREFERENCES_CHANNEL = "desktop:runtime-get-preferences";
+const RUNTIME_UPDATE_PREFERENCES_CHANNEL = "desktop:runtime-update-preferences";
+const RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL = "desktop:runtime-configure-credential";
+const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
+const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
+const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
+const RUNTIME_HOST_EVENT_CHANNEL = "desktop:runtime-host-event";
+
+const desktopRuntimeApi = {
+  getHostSnapshot: () => ipcRenderer.invoke(RUNTIME_GET_HOST_SNAPSHOT_CHANNEL),
+  getPreferences: () => ipcRenderer.invoke(RUNTIME_GET_PREFERENCES_CHANNEL),
+  updatePreferences: (patch) => ipcRenderer.invoke(RUNTIME_UPDATE_PREFERENCES_CHANNEL, patch),
+  configureCredential: (input) => ipcRenderer.invoke(RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL, input),
+  sendTurn: (input) => ipcRenderer.invoke(RUNTIME_SEND_TURN_CHANNEL, input),
+  abort: (input) => ipcRenderer.invoke(RUNTIME_ABORT_CHANNEL, input),
+  respondToExtensionUiRequest: (input) =>
+    ipcRenderer.invoke(RUNTIME_RESPOND_EXTENSION_UI_CHANNEL, input),
+  onHostEvent: (listener) => {
+    const wrappedListener = (_event: IpcRendererEvent, hostEvent: MultiRuntimeHostEvent) => {
+      listener(hostEvent);
+    };
+
+    ipcRenderer.on(RUNTIME_HOST_EVENT_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(RUNTIME_HOST_EVENT_CHANNEL, wrappedListener);
+    };
+  },
+} satisfies MultiRuntimeApi;
+
+function readWindowChromeState(): DesktopWindowChromeState {
+  const state: unknown = ipcRenderer.sendSync(GET_WINDOW_CHROME_STATE_CHANNEL);
+  if (
+    typeof state === "object" &&
+    state !== null &&
+    typeof Reflect.get(state, "fullscreen") === "boolean"
+  ) {
+    return state as DesktopWindowChromeState;
+  }
+  return { fullscreen: false };
+}
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   getAppBranding: () => {
-    const result = ipcRenderer.sendSync(GET_APP_BRANDING_CHANNEL);
+    const result: unknown = ipcRenderer.sendSync(GET_APP_BRANDING_CHANNEL);
     if (typeof result !== "object" || result === null) {
       return null;
     }
-    return result as ReturnType<DesktopBridge["getAppBranding"]>;
+    return result as DesktopAppBranding;
   },
   getLocalEnvironmentBootstrap: () => {
-    const result = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL);
+    const result: unknown = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL);
     if (typeof result !== "object" || result === null) {
       return null;
     }
-    return result as ReturnType<DesktopBridge["getLocalEnvironmentBootstrap"]>;
+    return result as DesktopEnvironmentBootstrap;
   },
-  getWindowChromeState: () => {
-    const result = ipcRenderer.sendSync(GET_WINDOW_CHROME_STATE_CHANNEL);
-    if (typeof result !== "object" || result === null) {
-      return { fullscreen: false };
-    }
-    return result as ReturnType<DesktopBridge["getWindowChromeState"]>;
-  },
+  getWindowChromeState: readWindowChromeState,
   onWindowChromeState: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
-      if (typeof state !== "object" || state === null) return;
-      listener(state as Parameters<typeof listener>[0]);
+    const wrappedListener = (_event: IpcRendererEvent, state: DesktopWindowChromeState) => {
+      listener(state);
     };
 
     ipcRenderer.on(WINDOW_CHROME_STATE_CHANNEL, wrappedListener);
@@ -70,7 +116,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
   onMenuAction: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, action: unknown) => {
+    const wrappedListener = (_event: IpcRendererEvent, action: unknown) => {
       if (typeof action !== "string") return;
       listener(action);
     };
@@ -85,9 +131,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
   installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),
   onUpdateState: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
-      if (typeof state !== "object" || state === null) return;
-      listener(state as Parameters<typeof listener>[0]);
+    const wrappedListener = (_event: IpcRendererEvent, state: DesktopUpdateState) => {
+      listener(state);
     };
 
     ipcRenderer.on(UPDATE_STATE_CHANNEL, wrappedListener);
@@ -95,4 +140,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
     };
   },
+  runtime: desktopRuntimeApi,
 } satisfies DesktopBridge);
+
+contextBridge.exposeInMainWorld("multiRuntime", desktopRuntimeApi);

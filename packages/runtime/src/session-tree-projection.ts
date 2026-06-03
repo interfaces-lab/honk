@@ -1,4 +1,5 @@
 import type {
+  MessageId,
   RuntimeItemId,
   SessionMessageRole,
   SessionTreeEntry,
@@ -7,6 +8,7 @@ import type {
   SessionTreeProjection,
   ThreadEntryId,
   ThreadId,
+  TurnId,
 } from "@multi/contracts";
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
@@ -14,7 +16,7 @@ import {
   makeRuntimeSessionId,
   makeThreadEntryIdForRuntimeEntry,
 } from "./ids";
-import { extractMessageText, toUnknownRecord } from "./message-text";
+import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
 
 type RuntimeTreeNode = ReturnType<SessionManager["getTree"]>[number];
 
@@ -38,6 +40,8 @@ function entryKind(entry: SessionEntry): SessionTreeEntryKind {
       return "label";
     case "session_info":
       return "session-info";
+    default:
+      return "custom";
   }
 }
 
@@ -45,17 +49,15 @@ function messageRole(entry: SessionEntry): SessionMessageRole | undefined {
   if (entry.type !== "message") {
     return undefined;
   }
-  const role = String(entry.message.role);
-  if (
-    role === "user" ||
-    role === "assistant" ||
-    role === "system" ||
-    role === "toolResult" ||
-    role === "custom"
-  ) {
-    return role;
+  switch (entry.message.role) {
+    case "user":
+    case "assistant":
+    case "toolResult":
+    case "custom":
+      return entry.message.role;
+    default:
+      return undefined;
   }
-  return undefined;
 }
 
 function entryText(entry: SessionEntry): string | undefined {
@@ -76,6 +78,14 @@ function entryText(entry: SessionEntry): string | undefined {
   return undefined;
 }
 
+function entryThinking(entry: SessionEntry): string | undefined {
+  if (entry.type !== "message") {
+    return undefined;
+  }
+  const thinking = extractMessageThinking(entry.message);
+  return thinking ? thinking : undefined;
+}
+
 function parentEntryId(entry: SessionEntry): RuntimeItemId | null {
   return entry.parentId ? makeRuntimeItemId(entry.parentId) : null;
 }
@@ -84,7 +94,17 @@ function parentThreadEntryId(entry: SessionEntry): ThreadEntryId | null {
   return entry.parentId ? makeThreadEntryIdForRuntimeEntry(entry.parentId) : null;
 }
 
-export function projectRuntimeSessionEntry(entry: SessionEntry): SessionTreeEntry {
+export function projectRuntimeSessionEntry(
+  entry: SessionEntry,
+  input?: {
+    readonly clientMessageIdByEntryId?: ReadonlyMap<string, MessageId>;
+    readonly turnIdByEntryId?: ReadonlyMap<string, TurnId>;
+  },
+): SessionTreeEntry {
+  const clientMessageId = input?.clientMessageIdByEntryId?.get(entry.id);
+  const turnId = input?.turnIdByEntryId?.get(entry.id);
+  const text = entryText(entry);
+  const thinking = entryThinking(entry);
   return {
     id: makeRuntimeItemId(entry.id),
     threadEntryId: makeThreadEntryIdForRuntimeEntry(entry.id),
@@ -92,7 +112,10 @@ export function projectRuntimeSessionEntry(entry: SessionEntry): SessionTreeEntr
     parentThreadEntryId: parentThreadEntryId(entry),
     kind: entryKind(entry),
     ...(messageRole(entry) ? { role: messageRole(entry) } : {}),
-    ...(entryText(entry) ? { text: entryText(entry) } : {}),
+    ...(clientMessageId ? { clientMessageId } : {}),
+    ...(turnId ? { turnId } : {}),
+    ...(text ? { text } : {}),
+    ...(thinking ? { thinking } : {}),
     createdAt: entry.timestamp,
     rawEntry: toUnknownRecord(entry),
   };
@@ -132,6 +155,8 @@ function pushProjectedNode(input: {
 export function projectRuntimeSessionTree(input: {
   readonly threadId: ThreadId;
   readonly sessionManager: SessionManager;
+  readonly clientMessageIdByEntryId?: ReadonlyMap<string, MessageId>;
+  readonly turnIdByEntryId?: ReadonlyMap<string, TurnId>;
 }): SessionTreeProjection {
   const entries = input.sessionManager.getEntries();
   const leafId = input.sessionManager.getLeafId();
@@ -153,7 +178,19 @@ export function projectRuntimeSessionTree(input: {
     threadId: input.threadId,
     runtimeSessionId: makeRuntimeSessionId(input.sessionManager.getSessionId()),
     leafEntryId: leafId ? makeRuntimeItemId(leafId) : null,
-    entries: entries.map(projectRuntimeSessionEntry),
+    entries: entries.map((entry) =>
+      projectRuntimeSessionEntry(
+        entry,
+        input.clientMessageIdByEntryId || input.turnIdByEntryId
+          ? {
+              ...(input.clientMessageIdByEntryId
+                ? { clientMessageIdByEntryId: input.clientMessageIdByEntryId }
+                : {}),
+              ...(input.turnIdByEntryId ? { turnIdByEntryId: input.turnIdByEntryId } : {}),
+            }
+          : undefined,
+      ),
+    ),
     nodes,
   };
 }

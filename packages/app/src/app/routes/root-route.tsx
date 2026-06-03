@@ -1,56 +1,26 @@
-import { type ServerLifecycleWelcomePayload } from "@multi/contracts";
-import { scopedProjectKey, scopeProjectRef } from "@multi/client-runtime";
 import { getRouteApi, Outlet, type ErrorComponentProps, useNavigate } from "@tanstack/react-router";
-import { useEffectEvent, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { APP_DISPLAY_NAME } from "~/app/branding";
 import { CommandPalette } from "~/components/command-palette";
 import { TaskCompletionNotifications } from "~/notifications/taskCompletion";
-import {
-  SlowRpcAckToastCoordinator,
-  WebSocketConnectionCoordinator,
-  WebSocketConnectionSurface,
-} from "~/components/web-socket-connection-surface";
 import { Button } from "@multi/ui/button";
-import { AnchoredToastProvider, ToastProvider, toastManager } from "~/app/toast";
-import { resolveAndPersistPreferredEditor } from "~/editor/preferences";
-import { readLocalApi } from "~/local-api";
-import { formatSchemaBackedTransportErrorDescription } from "~/rpc/transport-error";
-import {
-  getServerConfigUpdatedNotification,
-  ServerConfigUpdatedNotification,
-  startServerStateSync,
-  useServerConfig,
-  useServerEnvironment,
-  useServerConfigUpdatedSubscription,
-  useServerWelcomeSubscription,
-} from "~/rpc/server-state";
-import { selectEnvironmentState, selectProjectByRef, useStore } from "~/stores/thread-store";
-import { useUiStateStore } from "~/stores/ui-state-store";
+import { AnchoredToastProvider, ToastProvider } from "~/app/toast";
 import { syncBrowserChromeTheme } from "~/hooks/use-theme";
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import {
-  ensureEnvironmentConnectionBootstrapped,
-  getPrimaryEnvironmentConnection,
-  startEnvironmentConnectionService,
-} from "~/environments/runtime";
-import { updatePrimaryEnvironmentDescriptor } from "~/environments/primary";
 import { DevDevtoolsPanel } from "~/dev/devtools-panel";
-import {
-  derivePhysicalProjectKeyFromPath,
-  deriveSidebarProjectStateKey,
-} from "~/stores/project-identity";
 import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
 import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
+import { debugLog } from "~/lib/debug-log";
 
 const routeApi = getRouteApi("__root__");
-type ServerEnvironmentDescriptor = NonNullable<ReturnType<typeof useServerEnvironment>>;
-type SetActiveEnvironmentId = (environmentId: ServerEnvironmentDescriptor["environmentId"]) => void;
 
 export function RootRouteView() {
   const { authGateState, devStandalone } = routeApi.useRouteContext();
+  debugLog("root.render", {
+    authStatus: authGateState.status,
+    devStandalone,
+  });
 
   if (devStandalone) {
     return (
@@ -58,7 +28,9 @@ export function RootRouteView() {
         <RootMountPerformanceMark />
         <BrowserChromeThemeSync key="dev-standalone" />
         <AnchoredToastProvider>
-          <Outlet />
+          <CommandPalette>
+            <Outlet />
+          </CommandPalette>
           <DevDevtoolsPanel />
         </AnchoredToastProvider>
       </ToastProvider>
@@ -148,6 +120,10 @@ function CursorPreferenceDomSync(props: { readonly cursorPointerOnButtons: boole
 export function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   const message = errorMessage(error);
   const details = errorDetails(error);
+  debugLog("root.error", {
+    message,
+    details,
+  });
 
   return (
     <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
@@ -260,175 +236,8 @@ function errorDetails(error: unknown): string {
   }
 }
 
-function ServerStateBootstrap() {
-  useMountEffect(() => startServerStateSync(getPrimaryEnvironmentConnection().client.server));
-
-  return null;
-}
-
 function DesktopRuntimeHostBootstrap() {
   useMountEffect(() => startDesktopRuntimeHostSync());
-
-  return null;
-}
-
-function EnvironmentConnectionManagerBootstrap() {
-  const queryClient = useQueryClient();
-
-  useMountEffect(() => startEnvironmentConnectionService(queryClient));
-
-  return null;
-}
-
-function EventRouter() {
-  const setActiveEnvironmentId = useStore((store) => store.setActiveEnvironmentId);
-  const seenServerConfigUpdateIdRef = useRef(getServerConfigUpdatedNotification()?.id ?? 0);
-  const disposedRef = useRef(false);
-  const serverEnvironment = useServerEnvironment();
-  const serverConfig = useServerConfig();
-
-  const handleWelcome = useEffectEvent((payload: ServerLifecycleWelcomePayload | null) => {
-    if (!payload) return;
-
-    updatePrimaryEnvironmentDescriptor(payload.environment);
-    setActiveEnvironmentId(payload.environment.environmentId);
-    void (async () => {
-      await ensureEnvironmentConnectionBootstrapped(payload.environment.environmentId);
-      if (disposedRef.current) {
-        return;
-      }
-
-      if (!payload.bootstrapProjectId || !payload.bootstrapThreadId) {
-        return;
-      }
-      const bootstrapProjectRef = scopeProjectRef(
-        payload.environment.environmentId,
-        payload.bootstrapProjectId,
-      );
-      const bootstrapProject = selectProjectByRef(useStore.getState(), bootstrapProjectRef);
-      const bootstrapProjectKey =
-        (bootstrapProject ? deriveSidebarProjectStateKey(bootstrapProject) : null) ??
-        (serverConfig?.cwd
-          ? derivePhysicalProjectKeyFromPath(payload.environment.environmentId, serverConfig.cwd)
-          : scopedProjectKey(bootstrapProjectRef));
-      useUiStateStore.getState().setProjectExpanded(bootstrapProjectKey, true);
-    })().catch((error) => {
-      console.error("Failed to handle server lifecycle welcome.", error);
-    });
-  });
-
-  const handleServerConfigUpdated = useEffectEvent(
-    (notification: ServerConfigUpdatedNotification | null) => {
-      if (!notification) return;
-
-      const { id, payload, source } = notification;
-      if (id <= seenServerConfigUpdateIdRef.current) {
-        return;
-      }
-      seenServerConfigUpdateIdRef.current = id;
-      if (source !== "keybindingsUpdated") {
-        return;
-      }
-
-      const issue = payload.issues.find((entry) => entry.kind.startsWith("keybindings."));
-      if (!issue) {
-        toastManager.add({
-          type: "success",
-          title: "Keybindings updated",
-          description: "Keybindings configuration reloaded successfully.",
-        });
-        return;
-      }
-
-      toastManager.add({
-        type: "warning",
-        title: "Invalid keybindings configuration",
-        description: issue.message,
-        actionProps: {
-          children: "Open keybindings.json",
-          onClick: () => {
-            const api = readLocalApi();
-            if (!api) {
-              return;
-            }
-
-            void api.server
-              .getConfig()
-              .then((config) => {
-                const editor = resolveAndPersistPreferredEditor(config.availableEditors);
-                if (!editor) {
-                  throw new Error("No available editors found.");
-                }
-                return api.shell.openInEditor(config.keybindingsConfigPath, editor);
-              })
-              .catch((error) => {
-                toastManager.add({
-                  type: "error",
-                  title: "Unable to open keybindings file",
-                  description: formatSchemaBackedTransportErrorDescription(
-                    error,
-                    "Unknown error opening file.",
-                  ),
-                });
-              });
-          },
-        },
-      });
-    },
-  );
-
-  useMountEffect(() => {
-    disposedRef.current = false;
-    return () => {
-      disposedRef.current = true;
-    };
-  });
-
-  useServerWelcomeSubscription(handleWelcome);
-  useServerConfigUpdatedSubscription(handleServerConfigUpdated);
-
-  return serverEnvironment ? (
-    <ServerEnvironmentBootstrap
-      key={serverEnvironmentKey(serverEnvironment)}
-      serverEnvironment={serverEnvironment}
-      setActiveEnvironmentId={setActiveEnvironmentId}
-    />
-  ) : null;
-}
-
-function serverEnvironmentKey(serverEnvironment: ServerEnvironmentDescriptor): string {
-  return JSON.stringify(serverEnvironment);
-}
-
-function ServerEnvironmentBootstrap(props: {
-  readonly serverEnvironment: ServerEnvironmentDescriptor;
-  readonly setActiveEnvironmentId: SetActiveEnvironmentId;
-}) {
-  useMountEffect(() => {
-    updatePrimaryEnvironmentDescriptor(props.serverEnvironment);
-    props.setActiveEnvironmentId(props.serverEnvironment.environmentId);
-
-    if (
-      selectEnvironmentState(useStore.getState(), props.serverEnvironment.environmentId)
-        .bootstrapComplete
-    ) {
-      return;
-    }
-
-    let disposed = false;
-    void (async () => {
-      await ensureEnvironmentConnectionBootstrapped(props.serverEnvironment.environmentId);
-      if (disposed) {
-        return;
-      }
-    })().catch((error) => {
-      console.error("Failed to bootstrap server environment connection.", error);
-    });
-
-    return () => {
-      disposed = true;
-    };
-  });
 
   return null;
 }

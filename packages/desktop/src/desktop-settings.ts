@@ -43,18 +43,24 @@ export function readDesktopSettings(settingsPath: string): DesktopSettings {
     }
 
     const raw = FS.readFileSync(settingsPath, "utf8");
-    const parsed = JSON.parse(raw) as {
-      readonly serverExposureMode?: unknown;
-      readonly themeSource?: unknown;
-    };
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) {
+      return DEFAULT_DESKTOP_SETTINGS;
+    }
+
+    const serverExposureMode =
+      "serverExposureMode" in parsed && parsed.serverExposureMode === "network-accessible"
+        ? "network-accessible"
+        : "local-only";
+    const themeSource =
+      "themeSource" in parsed &&
+      (parsed.themeSource === "light" || parsed.themeSource === "dark")
+        ? parsed.themeSource
+        : "system";
 
     return {
-      serverExposureMode:
-        parsed.serverExposureMode === "network-accessible" ? "network-accessible" : "local-only",
-      themeSource:
-        parsed.themeSource === "light" || parsed.themeSource === "dark"
-          ? parsed.themeSource
-          : "system",
+      serverExposureMode,
+      themeSource,
     };
   } catch {
     return DEFAULT_DESKTOP_SETTINGS;

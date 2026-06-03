@@ -29,21 +29,36 @@ import {
   toJsonSchemaObject,
 } from "./Utils.ts";
 import {
+  getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
-  getProviderOptionDescriptors,
 } from "@multi/shared/model";
-import {
-  getClaudeModelCapabilities,
-  isClaudeUltracodeEffort,
-  resolveClaudeExecutableEffort,
-  resolveClaudeApiModelId,
-  resolveClaudeEffort,
-} from "../provider/ClaudeProvider.ts";
-import { ServerSettingsService } from "../server-settings.ts";
-import { resolveClaudeSettings } from "../provider/provider-settings.ts";
-import { makeClaudeEnvironment } from "../provider/claude-home.ts";
 
 const CLAUDE_TIMEOUT_MS = 180_000;
+
+function resolveClaudeExecutableEffort(
+  effort: string | null | undefined,
+  model: string | null | undefined,
+): string | undefined {
+  if (!effort || effort === "ultrathink") {
+    return undefined;
+  }
+  if (effort === "ultracode") {
+    return "xhigh";
+  }
+  if (effort === "xhigh" && model !== "claude-opus-4-8") {
+    return "max";
+  }
+  if (effort === "max" && model === "claude-sonnet-4-6") {
+    return "high";
+  }
+  return effort;
+}
+
+function resolveClaudeApiModelId(modelSelection: ModelSelection): string {
+  return getModelSelectionStringOptionValue(modelSelection, "contextWindow") === "1m"
+    ? `${modelSelection.model}[1m]`
+    : modelSelection.model;
+}
 
 const readClaudeStreamAsString = <E>(
   operation: string,
@@ -73,7 +88,6 @@ const decodeClaudeOutputEnvelopeJson = Schema.decodeEffect(
 
 const makeClaudeTextGeneration = Effect.gen(function* () {
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  const serverSettingsService = yield* Effect.service(ServerSettingsService);
 
   /**
    * Spawn the Claude CLI with structured JSON output and return the parsed,
@@ -97,36 +111,20 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
     modelSelection: ModelSelection;
   }): Effect.fn.Return<S["Type"], TextGenerationError, S["DecodingServices"]> {
     const jsonSchemaStr = JSON.stringify(toJsonSchemaObject(outputSchemaJson));
-    const caps = getClaudeModelCapabilities(modelSelection.model);
-    const descriptors = getProviderOptionDescriptors({
-      caps,
-      selections: modelSelection.options,
-    });
-    const findDescriptor = (id: string) => descriptors.find((descriptor) => descriptor.id === id);
     const rawEffortSelection = getModelSelectionStringOptionValue(modelSelection, "effort");
-    const resolvedEffort = resolveClaudeEffort(caps, rawEffortSelection);
-    const cliEffort = resolveClaudeExecutableEffort(resolvedEffort, modelSelection.model);
-    const ultracode = isClaudeUltracodeEffort(resolvedEffort);
-    const thinkingDescriptor = findDescriptor("thinking");
-    const fastModeDescriptor = findDescriptor("fastMode");
-    const thinking =
-      thinkingDescriptor?.type === "boolean" ? thinkingDescriptor.currentValue : undefined;
-    const fastMode =
-      fastModeDescriptor?.type === "boolean" ? fastModeDescriptor.currentValue : undefined;
+    const cliEffort = resolveClaudeExecutableEffort(rawEffortSelection, modelSelection.model);
+    const ultracode = rawEffortSelection === "ultracode";
+    const thinking = getModelSelectionBooleanOptionValue(modelSelection, "thinking");
+    const fastMode = getModelSelectionBooleanOptionValue(modelSelection, "fastMode");
     const settings = {
       ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
       ...(fastMode ? { fastMode: true } : {}),
       ...(ultracode ? { ultracode: true } : {}),
     };
 
-    const claudeSettings = yield* Effect.map(serverSettingsService.getSettings, (settings) =>
-      resolveClaudeSettings(settings, modelSelection.instanceId),
-    ).pipe(Effect.catch(() => Effect.undefined));
-    const claudeEnvironment = makeClaudeEnvironment(claudeSettings ?? { homePath: "" });
-
     const runClaudeCommand = Effect.fn("runClaudeJson.runClaudeCommand")(function* () {
       const command = ChildProcess.make(
-        claudeSettings?.binaryPath || "claude",
+        "claude",
         [
           "-p",
           "--output-format",
@@ -140,7 +138,7 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
           "--dangerously-skip-permissions",
         ],
         {
-          env: claudeEnvironment,
+          env: process.env,
           cwd,
           shell: process.platform === "win32",
           stdin: {

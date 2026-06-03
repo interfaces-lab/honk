@@ -1,8 +1,8 @@
-import { Fragment, memo, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 type RichTextRecord = Record<string, unknown>;
 
-export const ReadonlyRichTextMessage = memo(function ReadonlyRichTextMessage({
+export function ReadonlyRichTextMessage({
   fallbackText,
   richText,
 }: {
@@ -24,7 +24,7 @@ export const ReadonlyRichTextMessage = memo(function ReadonlyRichTextMessage({
       {body}
     </div>
   );
-});
+}
 
 export function hasRenderableRichText(richText: unknown): boolean {
   return renderRichTextBody(richText) !== null;

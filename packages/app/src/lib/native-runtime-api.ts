@@ -1,8 +1,10 @@
 import type { EnvironmentApi, EnvironmentId, LocalApi } from "@multi/contracts";
 
 import { getEnvironmentWsRpcClient } from "~/environments/runtime";
+import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";
 import { createEnvironmentApi, readEnvironmentApi } from "~/environment-api";
 import { ensureLocalApi, readLocalApi } from "~/local-api";
+import { isDesktopRuntimeApiAvailable } from "~/lib/multi-runtime-api";
 
 export { readLocalApi as readNativeApi, ensureLocalApi as ensureNativeApi };
 
@@ -11,17 +13,25 @@ export interface ReadNativeRuntimeApiOptions {
 }
 
 export type NativeRuntimeApi = LocalApi &
-  Partial<Pick<EnvironmentApi, "terminal" | "projects" | "filesystem" | "git" | "orchestration">>;
+  Partial<Pick<EnvironmentApi, "terminal" | "projects" | "filesystem" | "orchestration">>;
 
 function readEnvironmentApiWithFallback(
   environmentId: EnvironmentId | null | undefined,
   options?: ReadNativeRuntimeApiOptions,
 ): EnvironmentApi | undefined {
+  if (environmentId === DESKTOP_RUNTIME_ENVIRONMENT_ID) {
+    return undefined;
+  }
+
   if (environmentId) {
     return readEnvironmentApi(environmentId);
   }
 
   if (!options?.allowPrimaryEnvironmentFallback) {
+    return undefined;
+  }
+
+  if (isDesktopRuntimeApiAvailable()) {
     return undefined;
   }
 
@@ -71,7 +81,6 @@ function getMergedRuntimeApi(localApi: LocalApi, environmentApi: EnvironmentApi)
     terminal: environmentApi.terminal,
     projects: environmentApi.projects,
     filesystem: environmentApi.filesystem,
-    git: environmentApi.git,
     orchestration: environmentApi.orchestration,
   };
   byEnvironmentApi.set(environmentApi, merged);

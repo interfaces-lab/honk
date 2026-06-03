@@ -1,13 +1,11 @@
 import { Effect } from "effect";
 import * as Schema from "effect/Schema";
-import * as SchemaTransformation from "effect/SchemaTransformation";
 import { TrimmedNonEmptyString, TrimmedString } from "./base-schemas";
-import { ProviderOptionSelections } from "./model";
-import { DEFAULT_RUNTIME_MODE, ModelSelection, RuntimeMode } from "./orchestration";
-import { ProviderInstanceConfig, ProviderInstanceId } from "./provider-instance";
+import { ModelOptionSelections } from "./model";
+import { ModelSelection, ModelSelectionInstanceId } from "./orchestration";
 
 export const DEFAULT_TEXT_GENERATION_MODEL_SELECTION: ModelSelection = {
-  instanceId: ProviderInstanceId.make("codex"),
+  instanceId: "codex",
   model: "gpt-5.5",
 };
 
@@ -73,21 +71,6 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CURSOR_POINTER_ON_BUTTONS)),
   ),
   diffWordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  favorites: Schema.Array(
-    Schema.Struct({
-      provider: ProviderInstanceId,
-      model: TrimmedNonEmptyString,
-    }),
-  ).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-  providerModelPreferences: Schema.Record(
-    ProviderInstanceId,
-    Schema.Struct({
-      hiddenModels: Schema.Array(Schema.String).pipe(
-        Schema.withDecodingDefault(Effect.succeed([])),
-      ),
-      modelOrder: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-    }),
-  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   sidebarProjectGroupingMode: SidebarProjectGroupingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE)),
   ),
@@ -114,188 +97,6 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = Schema.decodeSync(ClientS
 export const ThreadEnvMode = Schema.Literals(["local", "worktree"]);
 export type ThreadEnvMode = typeof ThreadEnvMode.Type;
 
-const makeBinaryPathSetting = (fallback: string) =>
-  TrimmedString.pipe(
-    Schema.decodeTo(
-      Schema.String,
-      SchemaTransformation.transformOrFail({
-        decode: (value) => Effect.succeed(value || fallback),
-        encode: (value) => Effect.succeed(value),
-      }),
-    ),
-    Schema.withDecodingDefault(Effect.succeed(fallback)),
-  );
-
-export type ProviderSettingsFormControl = "text" | "password" | "textarea" | "switch";
-
-export interface ProviderSettingsFormAnnotation {
-  readonly control?: ProviderSettingsFormControl | undefined;
-  readonly placeholder?: string | undefined;
-  readonly hidden?: boolean | undefined;
-  readonly clearWhenEmpty?: "omit" | "persist" | undefined;
-}
-
-export interface ProviderSettingsFormSchemaAnnotation {
-  readonly order?: readonly string[] | undefined;
-}
-
-declare module "effect/Schema" {
-  namespace Annotations {
-    interface Annotations {
-      readonly providerSettingsForm?: ProviderSettingsFormAnnotation | undefined;
-      readonly providerSettingsFormSchema?: ProviderSettingsFormSchemaAnnotation | undefined;
-    }
-  }
-}
-
-export type ProviderSettingsOrder<Fields extends Schema.Struct.Fields> = readonly Extract<
-  keyof Fields,
-  string
->[];
-
-export function makeProviderSettingsSchema<const Fields extends Schema.Struct.Fields>(
-  fields: Fields,
-  options?: {
-    readonly order?: ProviderSettingsOrder<Fields> | undefined;
-  },
-): Schema.Struct<Fields> {
-  return Schema.Struct(fields).pipe(
-    Schema.annotate({
-      providerSettingsFormSchema:
-        options?.order === undefined ? undefined : { order: options.order },
-    }),
-  );
-}
-
-export const CodexSettings = makeProviderSettingsSchema(
-  {
-    enabled: Schema.Boolean.pipe(
-      Schema.withDecodingDefault(Effect.succeed(true)),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-    binaryPath: makeBinaryPathSetting("codex").pipe(
-      Schema.annotateKey({
-        title: "Binary path",
-        description: "Path to the Codex binary used by this instance.",
-        providerSettingsForm: { placeholder: "codex", clearWhenEmpty: "omit" },
-      }),
-    ),
-    homePath: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("")),
-      Schema.annotateKey({
-        title: "CODEX_HOME path",
-        description: "Custom Codex home and config directory.",
-        providerSettingsForm: {
-          placeholder: "~/.codex",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    shadowHomePath: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("")),
-      Schema.annotateKey({
-        title: "Shadow home path",
-        description:
-          "Account-specific Codex home. Keeps auth.json separate while sharing state from CODEX_HOME.",
-        providerSettingsForm: {
-          placeholder: "~/.codex-multi/personal",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    customModels: Schema.Array(Schema.String).pipe(
-      Schema.withDecodingDefault(Effect.succeed([])),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-  },
-  {
-    order: ["binaryPath", "homePath", "shadowHomePath"],
-  },
-);
-export type CodexSettings = typeof CodexSettings.Type;
-
-export const ClaudeSettings = makeProviderSettingsSchema(
-  {
-    enabled: Schema.Boolean.pipe(
-      Schema.withDecodingDefault(Effect.succeed(true)),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-    binaryPath: makeBinaryPathSetting("claude").pipe(
-      Schema.annotateKey({
-        title: "Binary path",
-        description: "Path to the Claude Code binary used by this instance.",
-        providerSettingsForm: { placeholder: "claude", clearWhenEmpty: "omit" },
-      }),
-    ),
-    homePath: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("")),
-      Schema.annotateKey({
-        title: "CLAUDE_CONFIG_DIR path",
-        description: "Custom Claude config directory.",
-        providerSettingsForm: {
-          placeholder: "~/.claude",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    launchArgs: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("")),
-      Schema.annotateKey({
-        title: "Launch arguments",
-        description: "Additional flags passed to Claude Code when starting a session.",
-        providerSettingsForm: {
-          control: "textarea",
-          placeholder: "--flag value",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    customModels: Schema.Array(Schema.String).pipe(
-      Schema.withDecodingDefault(Effect.succeed([])),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-  },
-  {
-    order: ["binaryPath", "homePath", "launchArgs"],
-  },
-);
-export type ClaudeSettings = typeof ClaudeSettings.Type;
-
-export const CursorSettings = makeProviderSettingsSchema(
-  {
-    enabled: Schema.Boolean.pipe(
-      Schema.withDecodingDefault(Effect.succeed(true)),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-    binaryPath: makeBinaryPathSetting("agent").pipe(
-      Schema.annotateKey({
-        title: "Binary path",
-        description: "Path to the Cursor agent binary.",
-        providerSettingsForm: { placeholder: "agent", clearWhenEmpty: "omit" },
-      }),
-    ),
-    apiEndpoint: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("")),
-      Schema.annotateKey({
-        title: "API endpoint",
-        description: "Override the Cursor API endpoint for this instance.",
-        providerSettingsForm: {
-          placeholder: "https://...",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    customModels: Schema.Array(Schema.String).pipe(
-      Schema.withDecodingDefault(Effect.succeed([])),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-  },
-  {
-    order: ["binaryPath", "apiEndpoint"],
-  },
-);
-export type CursorSettings = typeof CursorSettings.Type;
-
 export const ObservabilitySettings = Schema.Struct({
   otlpTracesUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   otlpMetricsUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -304,25 +105,12 @@ export type ObservabilitySettings = typeof ObservabilitySettings.Type;
 
 export const ServerSettings = Schema.Struct({
   enableAssistantStreaming: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  defaultRuntimeMode: RuntimeMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
-  ),
   defaultThreadEnvMode: ThreadEnvMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("local" as const satisfies ThreadEnvMode)),
   ),
   addProjectBaseDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   textGenerationModelSelection: ModelSelection.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TEXT_GENERATION_MODEL_SELECTION)),
-  ),
-
-  // Provider specific settings
-  providers: Schema.Struct({
-    codex: CodexSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-    claudeAgent: ClaudeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-    cursor: CursorSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-  }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-  providerInstances: Schema.Record(ProviderInstanceId, ProviderInstanceConfig).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
   ),
   observability: ObservabilitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
 });
@@ -354,38 +142,14 @@ export const DEFAULT_UNIFIED_SETTINGS: UnifiedSettings = {
 // ── Server Settings Patch (replace with a Schema.deepPartial if available) ──────────────────────────────────────────
 
 const ModelSelectionPatch = Schema.Struct({
-  instanceId: Schema.optionalKey(ProviderInstanceId),
+  instanceId: Schema.optionalKey(ModelSelectionInstanceId),
   model: Schema.optionalKey(TrimmedNonEmptyString),
-  options: Schema.optionalKey(ProviderOptionSelections),
-});
-
-const CodexSettingsPatch = Schema.Struct({
-  enabled: Schema.optionalKey(Schema.Boolean),
-  binaryPath: Schema.optionalKey(Schema.String),
-  homePath: Schema.optionalKey(Schema.String),
-  shadowHomePath: Schema.optionalKey(Schema.String),
-  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
-});
-
-const ClaudeSettingsPatch = Schema.Struct({
-  enabled: Schema.optionalKey(Schema.Boolean),
-  binaryPath: Schema.optionalKey(Schema.String),
-  homePath: Schema.optionalKey(Schema.String),
-  launchArgs: Schema.optionalKey(Schema.String),
-  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
-});
-
-const CursorSettingsPatch = Schema.Struct({
-  enabled: Schema.optionalKey(Schema.Boolean),
-  binaryPath: Schema.optionalKey(Schema.String),
-  apiEndpoint: Schema.optionalKey(Schema.String),
-  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+  options: Schema.optionalKey(ModelOptionSelections),
 });
 
 export const ServerSettingsPatch = Schema.Struct({
   // Server settings
   enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
-  defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
   addProjectBaseDirectory: Schema.optionalKey(Schema.String),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
@@ -395,14 +159,6 @@ export const ServerSettingsPatch = Schema.Struct({
       otlpMetricsUrl: Schema.optionalKey(Schema.String),
     }),
   ),
-  providers: Schema.optionalKey(
-    Schema.Struct({
-      codex: Schema.optionalKey(CodexSettingsPatch),
-      claudeAgent: Schema.optionalKey(ClaudeSettingsPatch),
-      cursor: Schema.optionalKey(CursorSettingsPatch),
-    }),
-  ),
-  providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
 });
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 
@@ -416,27 +172,6 @@ export const ClientSettingsPatch = Schema.Struct({
   confirmThreadDelete: Schema.optionalKey(Schema.Boolean),
   cursorPointerOnButtons: Schema.optionalKey(Schema.Boolean),
   diffWordWrap: Schema.optionalKey(Schema.Boolean),
-  favorites: Schema.optionalKey(
-    Schema.Array(
-      Schema.Struct({
-        provider: ProviderInstanceId,
-        model: TrimmedNonEmptyString,
-      }),
-    ),
-  ),
-  providerModelPreferences: Schema.optionalKey(
-    Schema.Record(
-      ProviderInstanceId,
-      Schema.Struct({
-        hiddenModels: Schema.Array(Schema.String).pipe(
-          Schema.withDecodingDefault(Effect.succeed([])),
-        ),
-        modelOrder: Schema.Array(Schema.String).pipe(
-          Schema.withDecodingDefault(Effect.succeed([])),
-        ),
-      }),
-    ),
-  ),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
   sidebarProjectGroupingOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, SidebarProjectGroupingMode),

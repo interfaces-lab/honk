@@ -1,5 +1,5 @@
 import { type ApprovalRequestId } from "@multi/contracts";
-import { memo, type KeyboardEvent } from "react";
+import { type KeyboardEvent } from "react";
 import { type PendingUserInput } from "../../../../session-logic";
 import {
   derivePendingUserInputProgress,
@@ -16,7 +16,7 @@ interface PendingUserInputPanelProps {
   onToggleOption: (questionId: string, optionLabel: string, advanceAfterSelect?: boolean) => void;
 }
 
-export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserInputPanel({
+export function ComposerPendingUserInputPanel({
   pendingUserInputs,
   respondingRequestIds,
   answers,
@@ -37,9 +37,9 @@ export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserIn
       onToggleOption={onToggleOption}
     />
   );
-});
+}
 
-const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard({
+function ComposerPendingUserInputCard({
   prompt,
   isResponding,
   answers,
@@ -163,4 +163,4 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
       </div>
     </div>
   );
-});
+}

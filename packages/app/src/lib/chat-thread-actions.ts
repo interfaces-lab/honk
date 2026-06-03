@@ -1,4 +1,4 @@
-import { scopeProjectRef } from "@multi/client-runtime";
+import { scopeProjectRef } from "~/lib/environment-scope";
 import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
 import type { DraftThreadEnvMode } from "../stores/chat-drafts";
 

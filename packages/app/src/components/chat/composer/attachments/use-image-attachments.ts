@@ -1,13 +1,11 @@
 import {
-  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
-  PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+  RUNTIME_SEND_TURN_MAX_ATTACHMENTS,
+  RUNTIME_SEND_TURN_MAX_IMAGE_BYTES,
   type ScopedThreadRef,
   type ThreadId,
 } from "@multi/contracts";
 import {
   createElement,
-  useCallback,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -28,7 +26,7 @@ import { toastManager } from "~/app/toast";
 import { readFileAsDataUrl } from "../../composer-submit";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
-const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;
+const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(RUNTIME_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;
 
 interface ComposerImageDragState {
   readonly composerDraftTarget: ScopedThreadRef | DraftId;
@@ -117,10 +115,7 @@ export function useComposerImageAttachments(input: {
   );
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
 
-  const nonPersistedComposerImageIdSet = useMemo(
-    () => new Set(nonPersistedComposerImageIds),
-    [nonPersistedComposerImageIds],
-  );
+  const nonPersistedComposerImageIdSet = new Set(nonPersistedComposerImageIds);
 
   const composerDraftTargetVersion = useValueIdentityVersion(composerDraftTarget);
   const composerImagesVersion = useValueIdentityVersion(composerImages);
@@ -149,166 +144,134 @@ export function useComposerImageAttachments(input: {
     },
   );
 
-  const addComposerImages = useCallback(
-    (files: File[]) => {
-      if (!activeThreadId || files.length === 0) return;
-      if (pendingUserInputCount > 0) {
-        toastManager.add({
-          type: "error",
-          title: "Attach images after answering plan questions.",
-        });
-        return;
-      }
-      const nextImages: ComposerImageAttachment[] = [];
-      let nextImageCount = composerImagesRef.current.length;
-      let error: string | null = null;
-      for (const file of files) {
-        if (!file.type.startsWith("image/")) {
-          error = `Unsupported file type for '${file.name}'. Please attach image files only.`;
-          continue;
-        }
-        if (file.size > PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) {
-          error = `'${file.name}' exceeds the ${IMAGE_SIZE_LIMIT_LABEL} attachment limit.`;
-          continue;
-        }
-        if (nextImageCount >= PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
-          error = `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} images per message.`;
-          break;
-        }
-        const previewUrl = URL.createObjectURL(file);
-        nextImages.push({
-          type: "image",
-          id: randomUUID(),
-          name: file.name || "image",
-          mimeType: file.type,
-          sizeBytes: file.size,
-          previewUrl,
-          file,
-        });
-        nextImageCount += 1;
-      }
-      if (nextImages.length === 1 && nextImages[0]) {
-        addComposerDraftImage(composerDraftTarget, nextImages[0]);
-      } else if (nextImages.length > 1) {
-        addComposerDraftImages(composerDraftTarget, nextImages);
-      }
-      setThreadError(activeThreadId, error);
-    },
-    [
-      activeThreadId,
-      addComposerDraftImage,
-      addComposerDraftImages,
-      composerDraftTarget,
-      composerImagesRef,
-      pendingUserInputCount,
-      setThreadError,
-    ],
-  );
-
-  const removeComposerImage = useCallback(
-    (imageId: string) => {
-      removeComposerDraftImage(composerDraftTarget, imageId);
-    },
-    [composerDraftTarget, removeComposerDraftImage],
-  );
-
-  const onComposerPaste = useCallback(
-    (event: ClipboardEvent<HTMLElement>) => {
-      const files = Array.from(event.clipboardData.files);
-      if (files.length === 0) return;
-      const imageFiles = files.filter((file) => file.type.startsWith("image/"));
-      if (imageFiles.length === 0) return;
-      event.preventDefault();
-      addComposerImages(imageFiles);
-    },
-    [addComposerImages],
-  );
-
-  const onComposerDragEnter = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      if (!event.dataTransfer.types.includes("Files")) return;
-      event.preventDefault();
-      setDragState((current) => {
-        const base = isCurrentComposerImageDragState(current, {
-          composerDraftTarget,
-          activeThreadId,
-        })
-          ? current
-          : createComposerImageDragState({ composerDraftTarget, activeThreadId });
-        return {
-          ...base,
-          depth: base.depth + 1,
-          isOver: true,
-        };
+  const addComposerImages = (files: File[]) => {
+    if (!activeThreadId || files.length === 0) return;
+    if (pendingUserInputCount > 0) {
+      toastManager.add({
+        type: "error",
+        title: "Attach images after answering plan questions.",
       });
-    },
-    [activeThreadId, composerDraftTarget],
-  );
-
-  const onComposerDragOver = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      if (!event.dataTransfer.types.includes("Files")) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-      setDragState((current) => {
-        const base = isCurrentComposerImageDragState(current, {
-          composerDraftTarget,
-          activeThreadId,
-        })
-          ? current
-          : createComposerImageDragState({ composerDraftTarget, activeThreadId });
-        return base.isOver ? base : { ...base, isOver: true };
+      return;
+    }
+    const nextImages: ComposerImageAttachment[] = [];
+    let nextImageCount = composerImagesRef.current.length;
+    let error: string | null = null;
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        error = `Unsupported file type for '${file.name}'. Please attach image files only.`;
+        continue;
+      }
+      if (file.size > RUNTIME_SEND_TURN_MAX_IMAGE_BYTES) {
+        error = `'${file.name}' exceeds the ${IMAGE_SIZE_LIMIT_LABEL} attachment limit.`;
+        continue;
+      }
+      if (nextImageCount >= RUNTIME_SEND_TURN_MAX_ATTACHMENTS) {
+        error = `You can attach up to ${RUNTIME_SEND_TURN_MAX_ATTACHMENTS} images per message.`;
+        break;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      nextImages.push({
+        type: "image",
+        id: randomUUID(),
+        name: file.name || "image",
+        mimeType: file.type,
+        sizeBytes: file.size,
+        previewUrl,
+        file,
       });
-    },
-    [activeThreadId, composerDraftTarget],
-  );
+      nextImageCount += 1;
+    }
+    if (nextImages.length === 1 && nextImages[0]) {
+      addComposerDraftImage(composerDraftTarget, nextImages[0]);
+    } else if (nextImages.length > 1) {
+      addComposerDraftImages(composerDraftTarget, nextImages);
+    }
+    setThreadError(activeThreadId, error);
+  };
 
-  const onComposerDragLeave = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      if (!event.dataTransfer.types.includes("Files")) return;
-      event.preventDefault();
-      const nextTarget = event.relatedTarget;
-      if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
-      setDragState((current) => {
-        const base = isCurrentComposerImageDragState(current, {
-          composerDraftTarget,
-          activeThreadId,
-        })
-          ? current
-          : createComposerImageDragState({ composerDraftTarget, activeThreadId });
-        const depth = Math.max(0, base.depth - 1);
-        return {
-          ...base,
-          depth,
-          isOver: depth > 0,
-        };
-      });
-    },
-    [activeThreadId, composerDraftTarget],
-  );
+  const removeComposerImage = (imageId: string) => {
+    removeComposerDraftImage(composerDraftTarget, imageId);
+  };
 
-  const onComposerDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      if (!event.dataTransfer.types.includes("Files")) return;
-      event.preventDefault();
-      setDragState(createComposerImageDragState({ composerDraftTarget, activeThreadId }));
-      const files = Array.from(event.dataTransfer.files);
-      addComposerImages(files);
-      focusComposer();
-    },
-    [activeThreadId, addComposerImages, composerDraftTarget, focusComposer],
-  );
+  const onComposerPaste = (event: ClipboardEvent<HTMLElement>) => {
+    const files = Array.from(event.clipboardData.files);
+    if (files.length === 0) return;
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    addComposerImages(imageFiles);
+  };
 
-  const onComposerImageInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.currentTarget.files ?? []);
-      event.currentTarget.value = "";
-      if (files.length === 0) return;
-      addComposerImages(files);
-      focusComposer();
-    },
-    [addComposerImages, focusComposer],
-  );
+  const onComposerDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setDragState((current) => {
+      const base = isCurrentComposerImageDragState(current, {
+        composerDraftTarget,
+        activeThreadId,
+      })
+        ? current
+        : createComposerImageDragState({ composerDraftTarget, activeThreadId });
+      return {
+        ...base,
+        depth: base.depth + 1,
+        isOver: true,
+      };
+    });
+  };
+
+  const onComposerDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragState((current) => {
+      const base = isCurrentComposerImageDragState(current, {
+        composerDraftTarget,
+        activeThreadId,
+      })
+        ? current
+        : createComposerImageDragState({ composerDraftTarget, activeThreadId });
+      return base.isOver ? base : { ...base, isOver: true };
+    });
+  };
+
+  const onComposerDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+    setDragState((current) => {
+      const base = isCurrentComposerImageDragState(current, {
+        composerDraftTarget,
+        activeThreadId,
+      })
+        ? current
+        : createComposerImageDragState({ composerDraftTarget, activeThreadId });
+      const depth = Math.max(0, base.depth - 1);
+      return {
+        ...base,
+        depth,
+        isOver: depth > 0,
+      };
+    });
+  };
+
+  const onComposerDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setDragState(createComposerImageDragState({ composerDraftTarget, activeThreadId }));
+    const files = Array.from(event.dataTransfer.files);
+    addComposerImages(files);
+    focusComposer();
+  };
+
+  const onComposerImageInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length === 0) return;
+    addComposerImages(files);
+    focusComposer();
+  };
 
   return {
     composerImageInputRef,

@@ -1,11 +1,11 @@
-import { scopedThreadKey, scopeProjectRef } from "@multi/client-runtime";
+import { scopedThreadKey, scopeProjectRef } from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@multi/contracts";
 import { SidebarItem } from "@multi/ui/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
-import { type DragEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type DragEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { resolveAndPersistPreferredEditor } from "~/editor/preferences";
+import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
 import { useThreadActions } from "~/hooks/use-thread-actions";
 import { readLocalApi } from "~/local-api";
 import { cn } from "~/lib/utils";
@@ -74,23 +74,20 @@ export function AgentSidebarSection(props: {
     : localOpen;
   const labelId = `agent-section-label-${section.id}`;
   const panelId = `agent-section-panel-${section.id}`;
-  const minVisible = useMemo(
-    () => minVisibleForSelection(section.items, props.selectedId),
-    [section.items, props.selectedId],
-  );
+  const minVisible = minVisibleForSelection(section.items, props.selectedId);
   const neededForSelection = Math.max(0, minVisible - initialMaxVisible);
   const minimumExtraForSelection =
     neededForSelection === 0 ? 0 : Math.ceil(neededForSelection / pageStep);
   const effectiveExtra = Math.max(extra, minimumExtraForSelection);
 
-  const visible = useMemo(() => {
+  const visible = (() => {
     const items = section.items;
     const firstPage = Math.min(items.length, initialMaxVisible);
     const rawVisible = Math.min(items.length, initialMaxVisible + effectiveExtra * pageStep);
     let next = Math.max(rawVisible, minVisible);
     if (items.length - next === 1 && next < items.length) next = items.length;
     return Math.max(next, firstPage);
-  }, [effectiveExtra, minVisible, section.items]);
+  })();
 
   const showMore =
     section.items.length > Math.min(section.items.length, initialMaxVisible) &&
@@ -106,26 +103,16 @@ export function AgentSidebarSection(props: {
     section.environmentId !== undefined &&
     section.projectId !== undefined &&
     section.projectCwd !== undefined;
-  const visibleThreadRefs = useMemo(
-    () =>
-      open
-        ? section.items
-            .slice(0, visible)
-            .flatMap((item) => (item.kind === "thread" ? [item.threadRef] : []))
-        : EMPTY_VISIBLE_THREAD_REFS,
-    [open, section.items, visible],
-  );
-  const visibleThreadRefsKey = useMemo(
-    () => createThreadRefsKey(visibleThreadRefs),
-    [visibleThreadRefs],
-  );
-  const prefetchItems = useMemo(
-    () => (open ? section.items.slice(0, visible + nearViewportPrefetchLimit) : []),
-    [open, section.items, visible],
-  );
-  const prefetchItemsKey = useMemo(() => createSectionItemIdsKey(prefetchItems), [prefetchItems]);
+  const visibleThreadRefs = open
+    ? section.items
+        .slice(0, visible)
+        .flatMap((item) => (item.kind === "thread" ? [item.threadRef] : []))
+    : EMPTY_VISIBLE_THREAD_REFS;
+  const visibleThreadRefsKey = createThreadRefsKey(visibleThreadRefs);
+  const prefetchItems = open ? section.items.slice(0, visible + nearViewportPrefetchLimit) : [];
+  const prefetchItemsKey = createSectionItemIdsKey(prefetchItems);
 
-  const openSectionInEditor = useCallback(() => {
+  const openSectionInEditor = () => {
     const localApi = readLocalApi();
     if (!localApi) {
       toast.error("Local API unavailable.");
@@ -148,23 +135,23 @@ export function AgentSidebarSection(props: {
           description: error instanceof Error ? error.message : "An error occurred.",
         });
       });
-  }, [section.cwd, section.projectCwd]);
+  };
 
-  const markSectionRead = useCallback(() => {
+  const markSectionRead = () => {
     for (const threadRef of section.threadRefs) {
       markThreadVisited(scopedThreadKey(threadRef));
     }
-  }, [markThreadVisited, section.threadRefs]);
+  };
 
-  const archiveSectionThreads = useCallback(() => {
+  const archiveSectionThreads = () => {
     void archiveThreads(section.threadRefs).catch((error) => {
       toast.error("Failed to archive threads", {
         description: error instanceof Error ? error.message : "An error occurred.",
       });
     });
-  }, [archiveThreads, section.threadRefs]);
+  };
 
-  const removeSectionProject = useCallback(() => {
+  const removeSectionProject = () => {
     if (!section.environmentId || !section.projectId) {
       return;
     }
@@ -175,16 +162,16 @@ export function AgentSidebarSection(props: {
         });
       },
     );
-  }, [removeProjectFromSidebar, section.environmentId, section.projectId]);
+  };
 
   const { onVisibleThreadRefsChange } = props;
-  const toggleOpen = useCallback(() => {
+  const toggleOpen = () => {
     if (section.projectStateKey) {
       setProjectExpanded(section.projectStateKey, !open);
       return;
     }
     setLocalOpen(!open);
-  }, [open, section.projectStateKey, setProjectExpanded]);
+  };
 
   return (
     <section
@@ -347,4 +334,3 @@ export function AgentSidebarSection(props: {
     </section>
   );
 }
-

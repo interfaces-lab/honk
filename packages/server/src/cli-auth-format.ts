@@ -61,6 +61,7 @@ export function formatIssuedPairingCredential(
       `Issued client pairing token ${credential.id}.`,
       `Token: ${credential.credential}`,
       ...(bootstrapUrl ? [`Bootstrap URL: ${bootstrapUrl}`] : []),
+      // oxlint-disable-next-line typescript/restrict-template-expressions
       `Expires at: ${credential.expiresAt}`,
     ].join(newline) + newline
   );

@@ -7,7 +7,7 @@ import {
   IconPush,
   type CentralIconBaseProps,
 } from "central-icons";
-import { memo, type ComponentType, type ReactNode } from "react";
+import { type ComponentType, type ReactNode } from "react";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./expanded-image-preview";
 import { TerminalContextInlineChip } from "./terminal-context-chip";
 import {
@@ -42,7 +42,7 @@ interface HumanMessageProps {
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
 }
 
-export const HumanMessage = memo(function HumanMessage({
+export function HumanMessage({
   message,
   editAvailable,
   isEditing,
@@ -144,8 +144,8 @@ export const HumanMessage = memo(function HumanMessage({
     );
   }
 
-  return <ChatMessageBubble role="user" body={body} media={media} />;
-});
+  return <ChatMessageBubble messageRole="user" body={body} media={media} />;
+}
 
 type GitAgentActionIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -164,7 +164,7 @@ function getGitAgentActionIcon(action: GitAgentAction): GitAgentActionIconCompon
   }
 }
 
-const GitAgentActionMessage = memo(function GitAgentActionMessage(props: {
+function GitAgentActionMessage(props: {
   action: GitAgentAction;
   label: string;
 }) {
@@ -176,18 +176,16 @@ const GitAgentActionMessage = memo(function GitAgentActionMessage(props: {
       <span className="min-w-0 truncate">{props.label}</span>
     </div>
   );
-});
+}
 
-const UserMessageTerminalContextInlineLabel = memo(
-  function UserMessageTerminalContextInlineLabel(props: { context: ParsedTerminalContextEntry }) {
+function UserMessageTerminalContextInlineLabel(props: { context: ParsedTerminalContextEntry }) {
     const tooltipText =
       props.context.body.length > 0
         ? `${props.context.header}\n${props.context.body}`
         : props.context.header;
 
     return <TerminalContextInlineChip label={props.context.header} tooltipText={tooltipText} />;
-  },
-);
+}
 
 function buildInlineTerminalContextText(
   contexts: ReadonlyArray<{
@@ -221,6 +219,10 @@ function formatInlineTerminalContextLabel(header: string): string {
   });
 }
 
+function findTextFrom(text: string, search: string, fromIndex: number): number {
+  return text.indexOf(search, fromIndex);
+}
+
 function textContainsInlineTerminalContextLabels(
   text: string,
   contexts: ReadonlyArray<{
@@ -231,7 +233,7 @@ function textContainsInlineTerminalContextLabels(
 
   for (const context of contexts) {
     const label = formatInlineTerminalContextLabel(context.header);
-    const matchIndex = text.indexOf(label, searchStartIndex);
+    const matchIndex = findTextFrom(text, label, searchStartIndex);
     if (matchIndex === -1) {
       return false;
     }
@@ -241,7 +243,7 @@ function textContainsInlineTerminalContextLabels(
   return true;
 }
 
-const UserMessageBody = memo(function UserMessageBody(props: {
+function UserMessageBody(props: {
   text: string;
   terminalContexts: ParsedTerminalContextEntry[];
 }) {
@@ -258,7 +260,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
 
       for (const context of props.terminalContexts) {
         const label = formatInlineTerminalContextLabel(context.header);
-        const matchIndex = props.text.indexOf(label, cursor);
+        const matchIndex = findTextFrom(props.text, label, cursor);
         if (matchIndex === -1) {
           inlineNodes.length = 0;
           break;
@@ -320,4 +322,4 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   }
 
   return <div className="max-w-full min-w-0 break-words wrap-anywhere">{props.text}</div>;
-});
+}

@@ -10,7 +10,7 @@ import {
   IconPlusLarge,
   IconSidebarHiddenRightWide,
 } from "central-icons";
-import { useMemo, useState, type ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 
 import type { WorkbenchTab } from "~/stores/shell-panels-store";
 import { cn } from "~/lib/utils";
@@ -66,13 +66,12 @@ export function WorkbenchTabBar(props: {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const active = tabs.find((tab) => tab.id === props.active) ?? tabs[0]!;
-  const filteredOpenItems = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return openMenuItems;
-    return openMenuItems.filter((item) =>
-      `${item.menuLabel} ${item.label}`.toLowerCase().includes(needle),
-    );
-  }, [query]);
+  const needle = query.trim().toLowerCase();
+  const filteredOpenItems = !needle
+    ? openMenuItems
+    : openMenuItems.filter((item) =>
+        `${item.menuLabel} ${item.label}`.toLowerCase().includes(needle),
+      );
 
   return (
     <div className="ui-tab-system editor-panel-tab-root editor-panel-tab-root--simple-tabs no-drag flex h-(--multi-workbench-chrome-row-height) flex-none shrink-0 items-stretch bg-(--multi-workbench-editor-panel-tab-background) px-1.5 [--tab-system-bar-background:transparent]">
@@ -142,6 +141,7 @@ export function WorkbenchTabBar(props: {
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={stopMenuSearchBubbling}
                   placeholder="Open any file, URL, ..."
+                  aria-label="Search new tab menu"
                   className="h-6 min-w-0 flex-1 bg-transparent text-body text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
                 />
               </div>
@@ -155,7 +155,7 @@ export function WorkbenchTabBar(props: {
                       disabled={item.disabled}
                       onClick={() => {
                         if (item.disabled) return;
-                        props.onTab(item.id as WorkbenchTab);
+                        props.onTab(item.id);
                         setOpen(false);
                       }}
                       className={cn(workbenchMenuItemClassName, "gap-2")}

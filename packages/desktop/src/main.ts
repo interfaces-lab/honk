@@ -2,6 +2,8 @@ import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
+import * as NodeUrl from "node:url";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
@@ -9,33 +11,35 @@ import * as Electron from "electron";
 
 import { NetService } from "@multi/shared/Net";
 
-import * as DesktopIpc from "./ipc/DesktopIpc";
-import * as ElectronApp from "./electron/ElectronApp";
-import * as ElectronDialog from "./electron/ElectronDialog";
-import * as ElectronMenu from "./electron/ElectronMenu";
-import * as ElectronProtocol from "./electron/ElectronProtocol";
-import * as ElectronShell from "./electron/ElectronShell";
-import * as ElectronTheme from "./electron/ElectronTheme";
-import * as ElectronUpdater from "./electron/ElectronUpdater";
-import * as ElectronWindow from "./electron/ElectronWindow";
-import * as DesktopApp from "./app/DesktopApp";
-import * as DesktopActiveWork from "./app/DesktopActiveWork";
-import * as DesktopAppIdentity from "./app/DesktopAppIdentity";
-import * as DesktopApplicationMenu from "./window/DesktopApplicationMenu";
-import * as DesktopAssets from "./app/DesktopAssets";
-import * as DesktopBackendConfiguration from "./backend/DesktopBackendConfiguration";
-import * as DesktopBackendManager from "./backend/DesktopBackendManager";
-import * as DesktopEnvironment from "./app/DesktopEnvironment";
-import * as DesktopLifecycle from "./app/DesktopLifecycle";
-import * as DesktopObservability from "./app/DesktopObservability";
-import * as DesktopQuitGuard from "./app/DesktopQuitGuard";
-import * as DesktopServerExposure from "./backend/DesktopServerExposure";
-import * as DesktopClientSettings from "./settings/DesktopClientSettings";
-import * as DesktopAppSettings from "./settings/DesktopAppSettings";
-import * as DesktopShellEnvironment from "./shell/DesktopShellEnvironment";
-import * as DesktopState from "./app/DesktopState";
-import * as DesktopUpdates from "./updates/DesktopUpdates";
-import * as DesktopWindow from "./window/DesktopWindow";
+import * as DesktopIpc from "./ipc/desktop-ipc";
+import * as ElectronApp from "./electron/electron-app";
+import * as ElectronDialog from "./electron/electron-dialog";
+import * as ElectronMenu from "./electron/electron-menu";
+import * as ElectronProtocol from "./electron/electron-protocol";
+import * as ElectronShell from "./electron/electron-shell";
+import * as ElectronTheme from "./electron/electron-theme";
+import * as ElectronUpdater from "./electron/electron-updater";
+import * as ElectronWindow from "./electron/electron-window";
+import * as DesktopApp from "./app/desktop-app";
+import * as DesktopActiveWork from "./app/desktop-active-work";
+import * as DesktopAppIdentity from "./app/desktop-app-identity";
+import * as DesktopApplicationMenu from "./window/desktop-application-menu";
+import * as DesktopAssets from "./app/desktop-assets";
+import * as DesktopBackendConfiguration from "./backend/desktop-backend-configuration";
+import * as DesktopBackendManager from "./backend/desktop-backend-manager";
+import * as DesktopEnvironment from "./app/desktop-environment";
+import * as DesktopLifecycle from "./app/desktop-lifecycle";
+import * as DesktopObservability from "./app/desktop-observability";
+import * as DesktopQuitGuard from "./app/desktop-quit-guard";
+import * as DesktopServerExposure from "./backend/desktop-server-exposure";
+import * as DesktopClientSettings from "./settings/desktop-client-settings";
+import * as DesktopAppSettings from "./settings/desktop-app-settings";
+import * as DesktopShellEnvironment from "./shell/desktop-shell-environment";
+import * as DesktopState from "./app/desktop-state";
+import * as DesktopUpdates from "./updates/desktop-updates";
+import * as DesktopWindow from "./window/desktop-window";
+
+const currentDirname = NodePath.dirname(NodeUrl.fileURLToPath(import.meta.url));
 
 const desktopEnvironmentLayer = Layer.unwrap(
   Effect.gen(function* () {
@@ -43,7 +47,7 @@ const desktopEnvironmentLayer = Layer.unwrap(
       Effect.flatMap((app) => app.metadata),
     );
     return DesktopEnvironment.layer({
-      dirname: __dirname,
+      dirname: currentDirname,
       homeDirectory: NodeOS.homedir(),
       platform: process.platform,
       processArch: process.arch,

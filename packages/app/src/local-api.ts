@@ -3,22 +3,29 @@ import {
   type ClientSettings,
   type ContextMenuItem,
   type LocalApi,
+  type MultiRuntimeApi,
 } from "@multi/contracts";
 
 import { resetGitStatusStateForTests } from "./lib/git-status-state";
 import { resetRequestLatencyStateForTests } from "./rpc/request-latency-state";
 import { resetServerStateForTests } from "./rpc/server-state";
 import { resetWsConnectionStateForTests } from "./rpc/ws-connection-state";
-import {
-  getPrimaryEnvironmentConnection,
-  resetEnvironmentServiceForTests,
-} from "./environments/runtime";
+import { resetEnvironmentServiceForTests } from "./environments/runtime";
 import { type WsRpcClient } from "./rpc/ws-rpc-client";
 import { showContextMenuFallback } from "./browser/context-menu-fallback";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/use-local-storage";
 
 let cachedApi: LocalApi | undefined;
 const CLIENT_SETTINGS_STORAGE_KEY = "multi:client-settings:v1";
+
+function readDesktopRuntimeApi(): MultiRuntimeApi | undefined {
+  return window.desktopBridge?.runtime ?? window.multiRuntime;
+}
+
+function attachDesktopRuntimeApi(api: Omit<LocalApi, "runtime">): LocalApi {
+  const runtime = readDesktopRuntimeApi();
+  return runtime ? { ...api, runtime } : api;
+}
 
 function readBrowserClientSettings(): ClientSettings | null {
   if (typeof window === "undefined") {
@@ -37,7 +44,7 @@ function writeBrowserClientSettings(settings: ClientSettings): void {
 }
 
 export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
-  return {
+  return attachDesktopRuntimeApi({
     dialogs: {
       pickFolder: async (options) => {
         if (!window.desktopBridge) return null;
@@ -70,7 +77,7 @@ export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
         position?: { x: number; y: number },
       ): Promise<T | null> => {
         if (window.desktopBridge) {
-          return window.desktopBridge.showContextMenu(items, position) as Promise<T | null>;
+          return window.desktopBridge.showContextMenu(items, position);
         }
         return showContextMenuFallback(items, position);
       },
@@ -91,12 +98,81 @@ export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
     },
     server: {
       getConfig: rpcClient.server.getConfig,
-      refreshProviders: rpcClient.server.refreshProviders,
       upsertKeybinding: rpcClient.server.upsertKeybinding,
       getSettings: rpcClient.server.getSettings,
       updateSettings: rpcClient.server.updateSettings,
     },
-  };
+  });
+}
+
+function unavailableDesktopRuntimeMethod(label: string): Error {
+  return new Error(`${label} is unavailable through the desktop runtime IPC bridge.`);
+}
+
+function createDesktopLocalApi(): LocalApi {
+  return attachDesktopRuntimeApi({
+    dialogs: {
+      pickFolder: async (options) => window.desktopBridge?.pickFolder(options) ?? null,
+      confirm: async (message) => {
+        if (window.desktopBridge) {
+          return window.desktopBridge.confirm(message);
+        }
+        return window.confirm(message);
+      },
+    },
+    shell: {
+      openInEditor: async () => {
+        throw unavailableDesktopRuntimeMethod("Open in editor");
+      },
+      openExternal: async (url) => {
+        if (window.desktopBridge) {
+          const opened = await window.desktopBridge.openExternal(url);
+          if (!opened) {
+            throw new Error("Unable to open link.");
+          }
+          return;
+        }
+
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+    },
+    contextMenu: {
+      show: async (items, position) => {
+        if (window.desktopBridge) {
+          return window.desktopBridge.showContextMenu(items, position);
+        }
+        return showContextMenuFallback(items, position);
+      },
+    },
+    persistence: {
+      getClientSettings: async () => {
+        if (window.desktopBridge) {
+          return window.desktopBridge.getClientSettings();
+        }
+        return readBrowserClientSettings();
+      },
+      setClientSettings: async (settings) => {
+        if (window.desktopBridge) {
+          return window.desktopBridge.setClientSettings(settings);
+        }
+        writeBrowserClientSettings(settings);
+      },
+    },
+    server: {
+      getConfig: async () => {
+        throw unavailableDesktopRuntimeMethod("Server config");
+      },
+      upsertKeybinding: async () => {
+        throw unavailableDesktopRuntimeMethod("Server keybinding update");
+      },
+      getSettings: async () => {
+        throw unavailableDesktopRuntimeMethod("Server settings");
+      },
+      updateSettings: async () => {
+        throw unavailableDesktopRuntimeMethod("Server settings update");
+      },
+    },
+  });
 }
 
 export function readLocalApi(): LocalApi | undefined {
@@ -104,12 +180,19 @@ export function readLocalApi(): LocalApi | undefined {
   if (cachedApi) return cachedApi;
 
   if (window.nativeApi) {
-    cachedApi = window.nativeApi;
+    const runtime = window.nativeApi.runtime ?? readDesktopRuntimeApi();
+    cachedApi = runtime && window.nativeApi.runtime !== runtime
+      ? { ...window.nativeApi, runtime }
+      : window.nativeApi;
     return cachedApi;
   }
 
-  cachedApi = createLocalApi(getPrimaryEnvironmentConnection().client);
-  return cachedApi;
+  if (window.desktopBridge) {
+    cachedApi = createDesktopLocalApi();
+    return cachedApi;
+  }
+
+  return undefined;
 }
 
 export function ensureLocalApi(): LocalApi {

@@ -5,7 +5,7 @@ import {
   type ThreadId,
   type TurnId,
 } from "@multi/contracts";
-import { useCallback, useMemo, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 
 import { readEnvironmentApi } from "../../../environment-api";
 import { newCommandId } from "~/lib/utils";
@@ -89,211 +89,178 @@ export function useThreadPendingUserInput(
   const [pendingUserInputQuestionIndexByRequestId, setPendingUserInputQuestionIndexByRequestId] =
     useState<Record<string, number>>({});
 
-  const pendingUserInputs = useMemo(
-    () =>
-      latestTurnSettled || !activeThreadId
-        ? EMPTY_PENDING_USER_INPUTS
-        : derivePendingUserInputs(threadActivities, activeLatestTurnTurnId),
-    [activeLatestTurnTurnId, activeThreadId, latestTurnSettled, threadActivities],
-  );
+  const pendingUserInputs =
+    latestTurnSettled || !activeThreadId
+      ? EMPTY_PENDING_USER_INPUTS
+      : derivePendingUserInputs(threadActivities, activeLatestTurnTurnId);
 
   const activePendingUserInput = pendingUserInputs[0] ?? null;
-  const activePendingDraftAnswers = useMemo(
-    () =>
-      activePendingUserInput
-        ? (pendingUserInputAnswersByRequestId[activePendingUserInput.requestId] ??
-          EMPTY_PENDING_USER_INPUT_ANSWERS)
-        : EMPTY_PENDING_USER_INPUT_ANSWERS,
-    [activePendingUserInput, pendingUserInputAnswersByRequestId],
-  );
+  const activePendingDraftAnswers = activePendingUserInput
+    ? (pendingUserInputAnswersByRequestId[activePendingUserInput.requestId] ??
+      EMPTY_PENDING_USER_INPUT_ANSWERS)
+    : EMPTY_PENDING_USER_INPUT_ANSWERS;
   const activePendingQuestionIndex = activePendingUserInput
     ? (pendingUserInputQuestionIndexByRequestId[activePendingUserInput.requestId] ?? 0)
     : 0;
-  const activePendingProgress = useMemo(
-    () =>
-      activePendingUserInput
-        ? derivePendingUserInputProgress(
-            activePendingUserInput.questions,
-            activePendingDraftAnswers,
-            activePendingQuestionIndex,
-          )
-        : null,
-    [activePendingDraftAnswers, activePendingQuestionIndex, activePendingUserInput],
-  );
-  const activePendingResolvedAnswers = useMemo(
-    () =>
-      activePendingUserInput
-        ? buildPendingUserInputAnswers(activePendingUserInput.questions, activePendingDraftAnswers)
-        : null,
-    [activePendingDraftAnswers, activePendingUserInput],
-  );
+  const activePendingProgress = activePendingUserInput
+    ? derivePendingUserInputProgress(
+        activePendingUserInput.questions,
+        activePendingDraftAnswers,
+        activePendingQuestionIndex,
+      )
+    : null;
+  const activePendingResolvedAnswers = activePendingUserInput
+    ? buildPendingUserInputAnswers(activePendingUserInput.questions, activePendingDraftAnswers)
+    : null;
   const activePendingIsResponding = activePendingUserInput
     ? respondingUserInputRequestIds.includes(activePendingUserInput.requestId)
     : false;
 
-  const onRespondToUserInput = useCallback(
-    async (requestId: ApprovalRequestId, answers: Record<string, unknown>) => {
-      const api = readEnvironmentApi(environmentId);
-      if (!api || !activeThreadId) {
-        return;
-      }
+  async function onRespondToUserInput(
+    requestId: ApprovalRequestId,
+    answers: Record<string, unknown>,
+  ) {
+    const api = readEnvironmentApi(environmentId);
+    if (!api || !activeThreadId) {
+      return;
+    }
 
-      setRespondingUserInputRequestIds((existing) =>
-        existing.includes(requestId) ? existing : [...existing, requestId],
-      );
-      await api.orchestration
-        .dispatchCommand({
-          type: "thread.user-input.respond",
-          commandId: newCommandId(),
-          threadId: activeThreadId,
-          requestId,
-          answers,
-          createdAt: new Date().toISOString(),
-        })
-        .catch((err: unknown) => {
-          setThreadError(
-            activeThreadId,
-            err instanceof Error ? err.message : "Failed to submit user input.",
-          );
-        });
-      setRespondingUserInputRequestIds((existing) => existing.filter((id) => id !== requestId));
-    },
-    [activeThreadId, environmentId, setThreadError],
-  );
+    setRespondingUserInputRequestIds((existing) =>
+      existing.includes(requestId) ? existing : [...existing, requestId],
+    );
+    await api.orchestration
+      .dispatchCommand({
+        type: "thread.user-input.respond",
+        commandId: newCommandId(),
+        threadId: activeThreadId,
+        requestId,
+        answers,
+        createdAt: new Date().toISOString(),
+      })
+      .catch((err: unknown) => {
+        setThreadError(
+          activeThreadId,
+          err instanceof Error ? err.message : "Failed to submit user input.",
+        );
+      });
+    setRespondingUserInputRequestIds((existing) => existing.filter((id) => id !== requestId));
+  }
 
-  const setActivePendingUserInputQuestionIndex = useCallback(
-    (nextQuestionIndex: number) => {
-      if (!activePendingUserInput) {
-        return;
-      }
-      setPendingUserInputQuestionIndexByRequestId((existing) => ({
-        ...existing,
-        [activePendingUserInput.requestId]: nextQuestionIndex,
-      }));
-    },
-    [activePendingUserInput],
-  );
+  function setActivePendingUserInputQuestionIndex(nextQuestionIndex: number) {
+    if (!activePendingUserInput) {
+      return;
+    }
+    setPendingUserInputQuestionIndexByRequestId((existing) => ({
+      ...existing,
+      [activePendingUserInput.requestId]: nextQuestionIndex,
+    }));
+  }
 
-  const onAdvanceActivePendingUserInput = useCallback(
-    (draftAnswersOverride?: Record<string, PendingUserInputDraftAnswer>) => {
-      if (!activePendingUserInput) {
-        return;
-      }
+  function onAdvanceActivePendingUserInput(
+    draftAnswersOverride?: Record<string, PendingUserInputDraftAnswer>,
+  ) {
+    if (!activePendingUserInput) {
+      return;
+    }
 
-      const draftAnswers = draftAnswersOverride ?? activePendingDraftAnswers;
-      const progress = derivePendingUserInputProgress(
+    const draftAnswers = draftAnswersOverride ?? activePendingDraftAnswers;
+    const progress = derivePendingUserInputProgress(
+      activePendingUserInput.questions,
+      draftAnswers,
+      activePendingQuestionIndex,
+    );
+
+    if (!progress.canAdvance) {
+      return;
+    }
+    if (progress.isLastQuestion) {
+      const resolvedAnswers = buildPendingUserInputAnswers(
         activePendingUserInput.questions,
         draftAnswers,
-        activePendingQuestionIndex,
       );
-
-      if (!progress.canAdvance) {
-        return;
+      if (resolvedAnswers) {
+        void onRespondToUserInput(activePendingUserInput.requestId, resolvedAnswers);
       }
-      if (progress.isLastQuestion) {
-        const resolvedAnswers = buildPendingUserInputAnswers(
-          activePendingUserInput.questions,
-          draftAnswers,
-        );
-        if (resolvedAnswers) {
-          void onRespondToUserInput(activePendingUserInput.requestId, resolvedAnswers);
-        }
-        return;
-      }
+      return;
+    }
 
-      setActivePendingUserInputQuestionIndex(progress.questionIndex + 1);
-    },
-    [
-      activePendingDraftAnswers,
-      activePendingQuestionIndex,
-      activePendingUserInput,
-      onRespondToUserInput,
-      setActivePendingUserInputQuestionIndex,
-    ],
-  );
+    setActivePendingUserInputQuestionIndex(progress.questionIndex + 1);
+  }
 
-  const onSelectActivePendingUserInputOption = useCallback(
-    (questionId: string, optionLabel: string, advanceAfterSelect = false) => {
-      if (!activePendingUserInput) {
-        return;
-      }
-      const question = activePendingUserInput.questions.find((entry) => entry.id === questionId);
-      if (!question) {
-        return;
-      }
+  function onSelectActivePendingUserInputOption(
+    questionId: string,
+    optionLabel: string,
+    advanceAfterSelect = false,
+  ) {
+    if (!activePendingUserInput) {
+      return;
+    }
+    const question = activePendingUserInput.questions.find((entry) => entry.id === questionId);
+    if (!question) {
+      return;
+    }
 
-      const requestDraftAnswers =
-        pendingUserInputAnswersByRequestId[activePendingUserInput.requestId] ?? {};
-      const nextRequestDraftAnswers = {
-        ...requestDraftAnswers,
-        [questionId]: togglePendingUserInputOptionSelection(
-          question,
-          requestDraftAnswers[questionId],
-          optionLabel,
-        ),
-      };
-      setPendingUserInputAnswersByRequestId((existing) => {
-        return {
-          ...existing,
-          [activePendingUserInput.requestId]: nextRequestDraftAnswers,
-        };
-      });
-      promptRef.current = "";
-      composerRef.current?.resetCursorState({ cursor: 0 });
-
-      if (advanceAfterSelect) {
-        onAdvanceActivePendingUserInput(nextRequestDraftAnswers);
-      }
-    },
-    [
-      activePendingUserInput,
-      composerRef,
-      onAdvanceActivePendingUserInput,
-      pendingUserInputAnswersByRequestId,
-      promptRef,
-    ],
-  );
-
-  const onChangeActivePendingUserInputCustomAnswer = useCallback(
-    (
-      questionId: string,
-      value: string,
-      nextCursor: number,
-      expandedCursor: number,
-      _cursorAdjacentToMention: boolean,
-    ) => {
-      if (!activePendingUserInput) {
-        return;
-      }
-      promptRef.current = value;
-      setPendingUserInputAnswersByRequestId((existing) => ({
+    const requestDraftAnswers =
+      pendingUserInputAnswersByRequestId[activePendingUserInput.requestId] ?? {};
+    const nextRequestDraftAnswers = {
+      ...requestDraftAnswers,
+      [questionId]: togglePendingUserInputOptionSelection(
+        question,
+        requestDraftAnswers[questionId],
+        optionLabel,
+      ),
+    };
+    setPendingUserInputAnswersByRequestId((existing) => {
+      return {
         ...existing,
-        [activePendingUserInput.requestId]: {
-          ...existing[activePendingUserInput.requestId],
-          [questionId]: setPendingUserInputCustomAnswer(
-            existing[activePendingUserInput.requestId]?.[questionId],
-            value,
-          ),
-        },
-      }));
-      const snapshot = composerRef.current?.readSnapshot();
-      if (
-        snapshot?.value !== value ||
-        snapshot.cursor !== nextCursor ||
-        snapshot.expandedCursor !== expandedCursor
-      ) {
-        composerRef.current?.focusAt(nextCursor);
-      }
-    },
-    [activePendingUserInput, composerRef, promptRef],
-  );
+        [activePendingUserInput.requestId]: nextRequestDraftAnswers,
+      };
+    });
+    promptRef.current = "";
+    composerRef.current?.resetCursorState({ cursor: 0 });
 
-  const onPreviousActivePendingUserInputQuestion = useCallback(() => {
+    if (advanceAfterSelect) {
+      onAdvanceActivePendingUserInput(nextRequestDraftAnswers);
+    }
+  }
+
+  function onChangeActivePendingUserInputCustomAnswer(
+    questionId: string,
+    value: string,
+    nextCursor: number,
+    expandedCursor: number,
+    _cursorAdjacentToMention: boolean,
+  ) {
+    if (!activePendingUserInput) {
+      return;
+    }
+    promptRef.current = value;
+    setPendingUserInputAnswersByRequestId((existing) => ({
+      ...existing,
+      [activePendingUserInput.requestId]: {
+        ...existing[activePendingUserInput.requestId],
+        [questionId]: setPendingUserInputCustomAnswer(
+          existing[activePendingUserInput.requestId]?.[questionId],
+          value,
+        ),
+      },
+    }));
+    const snapshot = composerRef.current?.readSnapshot();
+    if (
+      snapshot?.value !== value ||
+      snapshot.cursor !== nextCursor ||
+      snapshot.expandedCursor !== expandedCursor
+    ) {
+      composerRef.current?.focusAt(nextCursor);
+    }
+  }
+
+  function onPreviousActivePendingUserInputQuestion() {
     if (!activePendingProgress) {
       return;
     }
     setActivePendingUserInputQuestionIndex(Math.max(activePendingProgress.questionIndex - 1, 0));
-  }, [activePendingProgress, setActivePendingUserInputQuestionIndex]);
+  }
 
   return {
     pendingUserInputs,

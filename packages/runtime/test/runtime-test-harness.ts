@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ThreadId } from "@multi/contracts";
+import { ThreadId, type AgentModelPolicy, type AgentRuntimeEvent } from "@multi/contracts";
 import { AuthStorage, type ExtensionFactory, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
   type FauxModelDefinition,
@@ -10,7 +10,53 @@ import {
   type Model,
   registerFauxProvider,
 } from "@earendil-works/pi-ai";
-import { ThreadAgentRuntime } from "../src/thread-agent-runtime";
+import { ThreadAgentRuntime, type SendMessageOptions } from "../src/thread-agent-runtime";
+
+export const EMPTY_SEND_MESSAGE_OPTIONS = {
+  clientMessageId: null,
+  interactionMode: "agent",
+  sourceProposedPlan: null,
+  images: [],
+  expandPromptTemplates: null,
+  source: null,
+  streamingBehavior: null,
+} satisfies SendMessageOptions;
+
+export function waitForEvent(
+  runtime: ThreadAgentRuntime,
+  type: AgentRuntimeEvent["type"],
+  action: () => void | Promise<void>,
+): Promise<void>;
+export function waitForEvent<T>(
+  runtime: ThreadAgentRuntime,
+  type: AgentRuntimeEvent["type"],
+  action: () => T | Promise<T>,
+): Promise<T>;
+export function waitForEvent<T>(
+  runtime: ThreadAgentRuntime,
+  type: AgentRuntimeEvent["type"],
+  action: () => T | Promise<T>,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let actionResult: Promise<T> | null = null;
+    const unsubscribe = runtime.subscribe((event) => {
+      if (event.type === type) {
+        unsubscribe();
+        if (actionResult === null) {
+          reject(new Error(`Runtime event ${type} fired before the test action started.`));
+          return;
+        }
+        actionResult.then(resolve, reject);
+      }
+    });
+
+    actionResult = Promise.resolve().then(action);
+    actionResult.catch((error: unknown) => {
+      unsubscribe();
+      reject(error);
+    });
+  });
+}
 
 export interface RuntimeHarness {
   readonly runtime: ThreadAgentRuntime;
@@ -28,6 +74,7 @@ export async function createRuntimeHarness(options: {
   readonly excludeTools?: readonly string[];
   readonly extensionFactories?: readonly ExtensionFactory[];
   readonly withConfiguredAuth?: boolean;
+  readonly policy?: AgentModelPolicy;
 } = {}): Promise<RuntimeHarness> {
   const tempDir = join(tmpdir(), `multi-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(tempDir, { recursive: true });
@@ -49,7 +96,8 @@ export async function createRuntimeHarness(options: {
     ...(options.customTools ? { customTools: options.customTools } : {}),
     ...(options.tools ? { tools: options.tools } : {}),
     ...(options.excludeTools ? { excludeTools: options.excludeTools } : {}),
-    ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
+    extensionFactories: options.extensionFactories ? [...options.extensionFactories] : [],
+    ...(options.policy ? { policy: options.policy } : {}),
   });
 
   return {

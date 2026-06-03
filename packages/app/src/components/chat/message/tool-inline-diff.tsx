@@ -1,7 +1,6 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata, Virtualizer } from "@pierre/diffs/react";
 import { Data, Effect, Option } from "effect";
-import { memo, useMemo } from "react";
 import type { ToolDiffArtifact } from "../../../session-logic";
 import { useTheme } from "../../../hooks/use-theme";
 import {
@@ -30,13 +29,10 @@ class InlineToolPatchParseError extends Data.TaggedError("InlineToolPatchParseEr
   cause: unknown;
 }> {}
 
-export const InlineToolDiff = memo(function InlineToolDiff({ artifact }: InlineToolDiffProps) {
+export function InlineToolDiff({ artifact }: InlineToolDiffProps) {
   const { resolvedTheme } = useTheme();
   const diffTheme = resolveDiffThemeName(resolvedTheme);
-  const renderablePatch = useMemo(
-    () => getRenderableToolPatch(artifact.unifiedDiff),
-    [artifact.unifiedDiff],
-  );
+  const renderablePatch = getRenderableToolPatch(artifact.unifiedDiff);
 
   if (!renderablePatch) {
     return null;
@@ -92,7 +88,7 @@ export const InlineToolDiff = memo(function InlineToolDiff({ artifact }: InlineT
       </Virtualizer>
     </div>
   );
-});
+}
 
 function getRenderableToolPatch(patch: string): RenderableToolPatch | null {
   const normalizedPatch = patch.trim();

@@ -1,4 +1,4 @@
-import { memo, useCallback, type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import {
   IconChevronLeftMedium,
   IconChevronRightMedium,
@@ -12,23 +12,19 @@ interface ExpandedImageDialogProps {
   onClose: () => void;
 }
 
-export const ExpandedImageDialog = memo(function ExpandedImageDialog({
+export function ExpandedImageDialog({
   preview,
   onClose,
 }: ExpandedImageDialogProps) {
-  const [index, setIndex] = useState(preview.index);
+  const [index, setIndex] = useState(() => preview.index);
 
-  const navigateImage = useCallback(
-    (direction: -1 | 1) => {
-      setIndex((existingIndex) => {
-        if (preview.images.length <= 1) return existingIndex;
-        const nextIndex =
-          (existingIndex + direction + preview.images.length) % preview.images.length;
-        return nextIndex === existingIndex ? existingIndex : nextIndex;
-      });
-    },
-    [preview.images.length],
-  );
+  const navigateImage = (direction: -1 | 1) => {
+    setIndex((existingIndex) => {
+      if (preview.images.length <= 1) return existingIndex;
+      const nextIndex = (existingIndex + direction + preview.images.length) % preview.images.length;
+      return nextIndex === existingIndex ? existingIndex : nextIndex;
+    });
+  };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -115,4 +111,4 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
       )}
     </div>
   );
-});
+}

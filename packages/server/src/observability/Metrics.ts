@@ -34,22 +34,6 @@ export const orchestrationEventsProcessedTotal = Metric.counter(
   },
 );
 
-export const providerSessionsTotal = Metric.counter("t3_provider_sessions_total", {
-  description: "Total provider session lifecycle operations.",
-});
-
-export const providerTurnsTotal = Metric.counter("t3_provider_turns_total", {
-  description: "Total provider turn lifecycle operations.",
-});
-
-export const providerTurnDuration = Metric.timer("t3_provider_turn_duration", {
-  description: "Provider turn request duration.",
-});
-
-export const providerRuntimeEventsTotal = Metric.counter("t3_provider_runtime_events_total", {
-  description: "Total canonical provider runtime events processed.",
-});
-
 export const gitCommandsTotal = Metric.counter("t3_git_commands_total", {
   description: "Total git commands executed by the server runtime.",
 });
@@ -132,42 +116,3 @@ export const withMetrics: {
   ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
   <A, E, R>(effect: Effect.Effect<A, E, R>, options: WithMetricsOptions): Effect.Effect<A, E, R>;
 } = dual(2, withMetricsImpl);
-
-export const providerMetricAttributes = (
-  provider: string,
-  extra?: Readonly<Record<string, unknown>>,
-) =>
-  compactMetricAttributes({
-    provider,
-    ...extra,
-  });
-
-export function normalizeModelMetricLabel(model: string | null | undefined): string | undefined {
-  const normalized = model?.trim().toLowerCase();
-  if (!normalized) {
-    return undefined;
-  }
-  if (normalized.includes("gpt")) {
-    return "gpt";
-  }
-  if (normalized.includes("claude")) {
-    return "claude";
-  }
-  if (normalized.includes("gemini")) {
-    return "gemini";
-  }
-  return "other";
-}
-
-export const providerTurnMetricAttributes = (input: {
-  readonly provider: string;
-  readonly model: string | null | undefined;
-  readonly extra?: Readonly<Record<string, unknown>>;
-}) => {
-  const modelFamily = normalizeModelMetricLabel(input.model);
-  return compactMetricAttributes({
-    provider: input.provider,
-    ...(modelFamily ? { modelFamily } : {}),
-    ...input.extra,
-  });
-};

@@ -9,7 +9,12 @@ import {
 import { Schema } from "effect";
 import { type DraftThreadState } from "../../../stores/chat-drafts";
 import { selectThreadByRef, useStore } from "../../../stores/thread-store";
-import { type SessionPhase, type Thread, type ThreadSession } from "../../../types";
+import {
+  DEFAULT_RUNTIME_MODE,
+  type SessionPhase,
+  type Thread,
+  type ThreadSession,
+} from "../../../types";
 
 export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "multi:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
@@ -34,7 +39,7 @@ export function buildLocalDraftThread(
     projectId: draftThread.projectId,
     title: "New thread",
     modelSelection: fallbackModelSelection,
-    runtimeMode: draftThread.runtimeMode,
+    runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: draftThread.interactionMode,
     session: null,
     messages: [],

@@ -7,7 +7,6 @@ import { themeToTreeStyles } from "@pierre/trees";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type { FileTreeProps as PierreFileTreeProps } from "@pierre/trees/react";
 import type { CSSProperties } from "react";
-import { useMemo } from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -129,10 +128,7 @@ export function useTreeModel(options: FileTreeOptions): ReturnType<typeof useFil
 }
 
 export function Tree({ className, resolvedTheme, style, ...props }: TreeProps) {
-  const hostStyle = useMemo(
-    () => treeHostStyle(getPierreTreeThemeStyles(resolvedTheme), resolvedTheme, style),
-    [resolvedTheme, style],
-  );
+  const hostStyle = treeHostStyle(getPierreTreeThemeStyles(resolvedTheme), resolvedTheme, style);
 
   return (
     <PierreFileTree {...props} className={cn("block h-full w-full", className)} style={hostStyle} />

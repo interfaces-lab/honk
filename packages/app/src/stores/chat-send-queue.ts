@@ -1,8 +1,7 @@
 import type {
   MessageId,
   OrchestrationProposedPlanId,
-  ProviderInteractionMode,
-  RuntimeMode,
+  AgentInteractionMode,
   ThreadId,
 } from "@multi/contracts";
 import { create } from "zustand";
@@ -19,8 +18,7 @@ export interface QueuedComposerItem {
   id: MessageId;
   threadKey: string;
   sendContext: ComposerSubmitContext;
-  runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   planFollowUp: QueuedComposerPlanFollowUp | null;
   createdAt: string;
 }

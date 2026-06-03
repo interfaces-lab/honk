@@ -22,6 +22,10 @@ interface QuestionDetails {
 	wasCustom?: boolean;
 }
 
+function isQuestionDetails(value: unknown): value is QuestionDetails {
+	return typeof value === "object" && value !== null && "question" in value && "options" in value;
+}
+
 // Options with labels and optional descriptions
 const OptionSchema = Type.Object({
 	label: Type.String({ description: "Display label for the option" }),
@@ -239,7 +243,7 @@ export default function question(pi: ExtensionAPI) {
 		},
 
 		renderResult(result, _options, theme, _context) {
-			const details = result.details as QuestionDetails | undefined;
+			const details = isQuestionDetails(result.details) ? result.details : undefined;
 			if (!details) {
 				const text = result.content[0];
 				return new Text(text?.type === "text" ? text.text : "", 0, 0);

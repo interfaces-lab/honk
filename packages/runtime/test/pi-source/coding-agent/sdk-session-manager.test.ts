@@ -27,12 +27,12 @@ describe("createAgentSession session manager defaults", () => {
 
 	it("uses agentDir for the default persisted session path", async () => {
 		const model = getModel("anthropic", "claude-sonnet-4-5");
-		expect(model).toBeTruthy();
+		if (!model) throw new Error("Expected anthropic model");
 
 		const { session } = await createAgentSession({
 			cwd,
 			agentDir,
-			model: model!,
+			model,
 		});
 
 		const safePath = `--${cwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
@@ -48,13 +48,13 @@ describe("createAgentSession session manager defaults", () => {
 
 	it("keeps an explicit sessionManager override", async () => {
 		const model = getModel("anthropic", "claude-sonnet-4-5");
-		expect(model).toBeTruthy();
+		if (!model) throw new Error("Expected anthropic model");
 
 		const sessionManager = SessionManager.inMemory(cwd);
 		const { session } = await createAgentSession({
 			cwd,
 			agentDir,
-			model: model!,
+			model,
 			sessionManager,
 		});
 
@@ -66,14 +66,14 @@ describe("createAgentSession session manager defaults", () => {
 
 	it("derives cwd from an explicit sessionManager when cwd is omitted", async () => {
 		const model = getModel("anthropic", "claude-sonnet-4-5");
-		expect(model).toBeTruthy();
+		if (!model) throw new Error("Expected anthropic model");
 
 		const sessionCwd = join(tempDir, "session-project");
 		mkdirSync(sessionCwd, { recursive: true });
 		const sessionManager = SessionManager.inMemory(sessionCwd);
 		const { session } = await createAgentSession({
 			agentDir,
-			model: model!,
+			model,
 			sessionManager,
 		});
 

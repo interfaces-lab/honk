@@ -18,6 +18,7 @@ import {
 } from "~/app/routes/chat-route-persistence";
 import { resolveThreadRouteRef } from "~/app/routes/thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
+import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";
 
 const routeApi = getRouteApi("/_chat/$environmentId/$threadId");
 type ThreadRouteRef = NonNullable<ReturnType<typeof resolveThreadRouteRef>>;
@@ -41,15 +42,22 @@ function threadRouteRefKey(threadRef: ThreadRouteRef): string {
   return `${threadRef.environmentId}:${threadRef.threadId}`;
 }
 
+function isDesktopRuntimeThreadRoute(threadRef: ThreadRouteRef): boolean {
+  return threadRef.environmentId === DESKTOP_RUNTIME_ENVIRONMENT_ID;
+}
+
 export function ChatThreadRouteView() {
-  const threadRef = routeApi.useParams({
-    select: (params) => resolveThreadRouteRef(params),
-  });
+  const routeParams = routeApi.useParams();
+  const threadRef = resolveThreadRouteRef(routeParams);
   const navigate = useNavigate();
   const snapshotSource = useStore((store) =>
     selectEnvironmentSnapshotSource(store, threadRef?.environmentId ?? null),
   );
-  const serverThread = useStore(useMemo(() => createThreadSelectorByRef(threadRef), [threadRef]));
+  const serverThreadSelector = useMemo(
+    () => createThreadSelectorByRef(threadRef),
+    [threadRef?.environmentId, threadRef?.threadId],
+  );
+  const serverThread = useStore(serverThreadSelector);
   const threadExists = useStore((store) => selectThreadExistsByRef(store, threadRef));
   const environmentHasServerThreads = useStore(
     (store) => selectEnvironmentState(store, threadRef?.environmentId ?? null).threadIds.length > 0,
@@ -69,7 +77,8 @@ export function ChatThreadRouteView() {
   const routeThreadExists = threadExists || draftThreadExists;
   const serverThreadStarted = threadHasStarted(serverThread);
   const environmentHasAnyThreads = environmentHasServerThreads || environmentHasDraftThreads;
-  const hasRenderableSnapshot = snapshotSource !== "none";
+  const desktopRuntimeRoute = threadRef ? isDesktopRuntimeThreadRoute(threadRef) : false;
+  const hasRenderableSnapshot = snapshotSource !== "none" || desktopRuntimeRoute;
 
   if (!threadRef) {
     throw new Error("Thread route rendered without thread route params.");
@@ -131,7 +140,8 @@ function ChatThreadRouteSync(props: {
   readonly threadRef: ThreadRouteRef;
 }) {
   useMountEffect(() => {
-    if (props.snapshotSource === "none") {
+    const desktopRuntimeRoute = isDesktopRuntimeThreadRoute(props.threadRef);
+    if (props.snapshotSource === "none" && !desktopRuntimeRoute) {
       return;
     }
 
@@ -140,7 +150,7 @@ function ChatThreadRouteSync(props: {
       return;
     }
 
-    if (props.snapshotSource !== "server") {
+    if (props.snapshotSource !== "server" && !desktopRuntimeRoute) {
       return;
     }
 

@@ -1,5 +1,11 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": [
+    {
+      "name": "react-doctor",
+      "specifier": "oxlint-plugin-react-doctor"
+    }
+  ],
   "ignorePatterns": [
     "dist",
     "dist-electron",
@@ -14,10 +20,16 @@
     "suspicious": "warn",
     "perf": "warn"
   },
+  "options": {
+    "typeAware": true
+  },
   "rules": {
     "react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
-    "eslint/no-underscore-dangle": "off"
+    "eslint/no-underscore-dangle": "off",
+    "react-doctor/no-set-state-in-render": "error",
+    "react-doctor/react-compiler-no-manual-memoization": "warn",
+    "typescript/consistent-return": "off"
   }
 }

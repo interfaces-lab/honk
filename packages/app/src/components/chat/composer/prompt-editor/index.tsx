@@ -4,7 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { type OrchestrationMessageRichText, type ServerProviderSkill } from "@multi/contracts";
+import { type OrchestrationMessageRichText } from "@multi/contracts";
 import {
   $applyNodeReplacement,
   $createLineBreakNode,
@@ -20,7 +20,6 @@ import {
   $nodesOfType,
   $setSelection,
   DecoratorNode,
-  type EditorConfig,
   type EditorState,
   type ElementNode,
   type InitialEditorStateType,
@@ -32,10 +31,7 @@ import {
 } from "lexical";
 import {
   forwardRef,
-  memo,
-  useCallback,
   useImperativeHandle,
-  useMemo,
   useRef,
   type ClipboardEventHandler,
   type FormEvent,
@@ -58,7 +54,6 @@ import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { cn } from "~/lib/utils";
 import { basenameOfPath } from "../../shared/vscode-entry-icons";
-import { formatProviderSkillDisplayName } from "../command-menu/provider-skills";
 import {
   ComposerCommandChip,
   ComposerInlineTokenChip,
@@ -69,7 +64,6 @@ import {
   commandText,
   composerSegmentCollapsedLength,
   composerSegmentExpandedText,
-  composerSegmentExpandedLength,
   composerSegmentsExpandedText,
   inlineTokenText,
   mentionText,
@@ -85,9 +79,6 @@ import type {
   ComposerPromptEditorHandle,
   ComposerPromptEditorProps,
   ComposerPromptEditorSnapshot,
-  ComposerPromptSubmitData,
-  ComposerSkillData,
-  ComposerSkillMetadata,
   ComposerSkillPayload,
   LexicalSelectionPoint,
   SerializedComposerCommandNode,
@@ -103,7 +94,6 @@ export type {
   ComposerPromptEditorHandle,
   ComposerPromptEditorSnapshot,
   ComposerPromptSubmitData,
-  ComposerSkillData,
 } from "./types";
 
 const SURROUND_SYMBOLS: [string, string][] = [
@@ -121,59 +111,6 @@ const SURROUND_SYMBOLS: [string, string][] = [
 ];
 const SURROUND_SYMBOLS_MAP = new Map<string, string>(SURROUND_SYMBOLS);
 const EMPTY_DOC: ComposerDocSegment[] = [];
-
-function resolveSkillDescription(
-  skill: Pick<ServerProviderSkill, "shortDescription" | "description">,
-): string | null {
-  const shortDescription = skill.shortDescription?.trim();
-  if (shortDescription) {
-    return shortDescription;
-  }
-  const description = skill.description?.trim();
-  return description || null;
-}
-
-function skillMetadataByName(
-  skills: ReadonlyArray<ServerProviderSkill>,
-): ReadonlyMap<string, ComposerSkillMetadata> {
-  return new Map(
-    skills.map((skill) => [
-      skill.name,
-      {
-        label: formatProviderSkillDisplayName(skill),
-        description: resolveSkillDescription(skill),
-      },
-    ]),
-  );
-}
-
-function skillSignature(skills: ReadonlyArray<ServerProviderSkill>): string {
-  return skills
-    .map((skill) =>
-      [
-        skill.name,
-        skill.displayName ?? "",
-        skill.shortDescription ?? "",
-        skill.description ?? "",
-        skill.path,
-        skill.scope ?? "",
-        skill.enabled ? "1" : "0",
-      ].join("\u001f"),
-    )
-    .join("\u001e");
-}
-
-function stringAttr(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function nullableStringAttr(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function nullableNumberAttr(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
 
 class ComposerMentionNode extends DecoratorNode<ReactElement> {
   __payload: ComposerMentionPayload;
@@ -487,10 +424,7 @@ function atomNodeToSegment(node: ComposerAtomNode): ComposerDocSegment {
   return { type: "inline-token", payload: node.__payload };
 }
 
-function promptToComposerSegments(
-  prompt: string,
-  skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
-): ComposerDocSegment[] {
+function promptToComposerSegments(prompt: string): ComposerDocSegment[] {
   if (!prompt) {
     return EMPTY_DOC;
   }
@@ -514,13 +448,12 @@ function promptToComposerSegments(
       continue;
     }
     if (segment.type === "skill") {
-      const metadata = skillMetadata.get(segment.name);
       segments.push({
         type: "skill",
         payload: {
           name: segment.name,
-          label: metadata?.label ?? formatProviderSkillDisplayName({ name: segment.name }),
-          description: metadata?.description ?? null,
+          label: segment.name,
+          description: null,
           path: segment.path ?? null,
         },
       });
@@ -583,11 +516,8 @@ function setRootFromSegments(segments: ReadonlyArray<ComposerDocSegment>): void 
   root.append(paragraph);
 }
 
-function setRootFromPrompt(
-  prompt: string,
-  skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
-): void {
-  setRootFromSegments(promptToComposerSegments(prompt, skillMetadata));
+function setRootFromPrompt(prompt: string): void {
+  setRootFromSegments(promptToComposerSegments(prompt));
 }
 
 function collectSegmentsFromNode(node: LexicalNode, segments: ComposerDocSegment[]): void {
@@ -873,9 +803,6 @@ function updateEditorFromControlledState({
   isApplyingControlledUpdateRef,
   measuredMultilineRef,
   onMeasuredMultilineChangeRef,
-  skillsSignature,
-  skillsSignatureRef,
-  skillMetadataRef,
   snapshotRef,
   syncRevision,
   syncRevisionRef,
@@ -886,9 +813,6 @@ function updateEditorFromControlledState({
   isApplyingControlledUpdateRef: RefObject<boolean>;
   measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
-  skillsSignature: string;
-  skillsSignatureRef: RefObject<string>;
-  skillMetadataRef: RefObject<ReadonlyMap<string, ComposerSkillMetadata>>;
   snapshotRef: RefObject<ComposerPromptEditorSnapshot>;
   syncRevision: number;
   syncRevisionRef: RefObject<number>;
@@ -896,31 +820,25 @@ function updateEditorFromControlledState({
 }) {
   const previousSnapshot = snapshotRef.current;
   const syncRevisionChanged = syncRevisionRef.current !== syncRevision;
-  const skillsChanged = skillsSignatureRef.current !== skillsSignature;
-  if (!syncRevisionChanged && !skillsChanged) {
+  if (!syncRevisionChanged) {
     return;
   }
 
-  const nextValue = syncRevisionChanged ? value : previousSnapshot.value;
-  const normalizedCursor = syncRevisionChanged
-    ? clampCollapsedComposerCursor(nextValue, cursor)
-    : previousSnapshot.cursor;
+  const nextValue = value;
+  const normalizedCursor = clampCollapsedComposerCursor(nextValue, cursor);
 
   snapshotRef.current = {
     value: nextValue,
     cursor: normalizedCursor,
     expandedCursor: expandCollapsedComposerCursor(nextValue, normalizedCursor),
   };
-  skillsSignatureRef.current = skillsSignature;
   syncRevisionRef.current = syncRevision;
 
   isApplyingControlledUpdateRef.current = true;
-  const shouldRewriteEditorState = syncRevisionChanged
-    ? previousSnapshot.value !== nextValue || skillsChanged
-    : skillsChanged;
+  const shouldRewriteEditorState = previousSnapshot.value !== nextValue;
   editor.update(() => {
     if (shouldRewriteEditorState) {
-      setRootFromPrompt(nextValue, skillMetadataRef.current);
+      setRootFromPrompt(nextValue);
     }
     setSelectionAtTextOffset(normalizedCursor, "collapsed");
   });
@@ -936,9 +854,6 @@ function usePromptEditorControlledStateSync({
   isApplyingControlledUpdateRef,
   measuredMultilineRef,
   onMeasuredMultilineChangeRef,
-  skillsSignature,
-  skillsSignatureRef,
-  skillMetadataRef,
   snapshotRef,
   syncRevision,
   syncRevisionRef,
@@ -949,9 +864,6 @@ function usePromptEditorControlledStateSync({
   isApplyingControlledUpdateRef: RefObject<boolean>;
   measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
-  skillsSignature: string;
-  skillsSignatureRef: RefObject<string>;
-  skillMetadataRef: RefObject<ReadonlyMap<string, ComposerSkillMetadata>>;
   snapshotRef: RefObject<ComposerPromptEditorSnapshot>;
   syncRevision: number;
   syncRevisionRef: RefObject<number>;
@@ -964,15 +876,12 @@ function usePromptEditorControlledStateSync({
       isApplyingControlledUpdateRef,
       measuredMultilineRef,
       onMeasuredMultilineChangeRef,
-      skillsSignature,
-      skillsSignatureRef,
-      skillMetadataRef,
       snapshotRef,
       syncRevision,
       syncRevisionRef,
       value,
     });
-  }, [editor, measuredMultilineRef, skillsSignature, syncRevision]);
+  }, [editor, measuredMultilineRef, syncRevision]);
 }
 
 function usePromptEditorMultilineMeasurement({
@@ -1267,66 +1176,6 @@ function insertTextAtSelection(editor: LexicalEditor, text: string): void {
   });
 }
 
-function replaceExpandedRangeWithCommand(
-  editor: LexicalEditor,
-  rangeStart: number,
-  rangeEnd: number,
-  command: ComposerCommandData,
-): boolean {
-  let applied = false;
-  editor.update(() => {
-    const current = readSnapshotFromEditorState();
-    const safeStart = Math.max(0, Math.min(current.value.length, rangeStart));
-    const safeEnd = Math.max(safeStart, Math.min(current.value.length, rangeEnd));
-    const segments = replaceSegmentsInExpandedRange(
-      collectComposerSegmentsFromRoot(),
-      safeStart,
-      safeEnd,
-      [
-        { type: "command", payload: command },
-        { type: "text", text: " " },
-      ],
-    );
-    setRootFromSegments(segments);
-    setSelectionAtTextOffset(safeStart + commandText(command).length + 1, "expanded");
-    applied = true;
-  });
-  return applied;
-}
-
-function replaceExpandedRangeWithSkill(
-  editor: LexicalEditor,
-  rangeStart: number,
-  rangeEnd: number,
-  skill: ComposerSkillData,
-): boolean {
-  let applied = false;
-  editor.update(() => {
-    const current = readSnapshotFromEditorState();
-    const safeStart = Math.max(0, Math.min(current.value.length, rangeStart));
-    const safeEnd = Math.max(safeStart, Math.min(current.value.length, rangeEnd));
-    const payload: ComposerSkillPayload = {
-      name: skill.name,
-      label: skill.label,
-      description: skill.description,
-      path: skill.path,
-    };
-    const segments = replaceSegmentsInExpandedRange(
-      collectComposerSegmentsFromRoot(),
-      safeStart,
-      safeEnd,
-      [
-        { type: "skill", payload },
-        { type: "text", text: " " },
-      ],
-    );
-    setRootFromSegments(segments);
-    setSelectionAtTextOffset(safeStart + skillText(payload).length + 1, "expanded");
-    applied = true;
-  });
-  return applied;
-}
-
 function collectCommands(editor: LexicalEditor): ComposerCommandData[] {
   const commands: ComposerCommandData[] = [];
   editor.getEditorState().read(() => {
@@ -1367,12 +1216,9 @@ function readRichText(editorState: EditorState): OrchestrationMessageRichText {
   return editorState.toJSON() as unknown as OrchestrationMessageRichText;
 }
 
-function lexicalEditorStateFromPrompt(
-  value: string,
-  skillMetadata: ReadonlyMap<string, ComposerSkillMetadata>,
-): InitialEditorStateType {
+function lexicalEditorStateFromPrompt(value: string): InitialEditorStateType {
   return () => {
-    setRootFromPrompt(value, skillMetadata);
+    setRootFromPrompt(value);
     const collapsedCursor = clampCollapsedComposerCursor(value, value.length);
     setSelectionAtTextOffset(collapsedCursor, "collapsed");
   };
@@ -1385,26 +1231,22 @@ const composerTheme = {
 export const ComposerPromptEditor = forwardRef<
   ComposerPromptEditorHandle,
   ComposerPromptEditorProps
->(function ComposerPromptEditor({ value, skills, disabled, ...props }, ref) {
-  const initialSkillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
-  const initialConfig = useMemo<InitialConfigType>(
-    () => ({
-      namespace: "multi-composer-prompt-editor",
-      editable: !disabled,
-      nodes: [
-        ComposerMentionNode,
-        ComposerCommandNode,
-        ComposerSkillNode,
-        ComposerInlineTokenNode,
-      ],
-      editorState: lexicalEditorStateFromPrompt(value, initialSkillMetadata),
-      theme: composerTheme,
-      onError: (error) => {
-        throw error;
-      },
-    }),
-    [],
-  );
+>(function ComposerPromptEditor({ value, disabled, ...props }, ref) {
+  const initialConfig: InitialConfigType = {
+    namespace: "multi-composer-prompt-editor",
+    editable: !disabled,
+    nodes: [
+      ComposerMentionNode,
+      ComposerCommandNode,
+      ComposerSkillNode,
+      ComposerInlineTokenNode,
+    ],
+    editorState: lexicalEditorStateFromPrompt(value),
+    theme: composerTheme,
+    onError: (error) => {
+      throw error;
+    },
+  };
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
@@ -1412,7 +1254,6 @@ export const ComposerPromptEditor = forwardRef<
         {...props}
         ref={ref}
         disabled={disabled}
-        skills={skills}
         value={value}
         syncRevision={props.syncRevision}
       />
@@ -1428,7 +1269,6 @@ const ComposerPromptEditorInner = forwardRef<
     value,
     cursor,
     syncRevision,
-    skills,
     disabled,
     placeholder,
     className,
@@ -1448,27 +1288,21 @@ const ComposerPromptEditorInner = forwardRef<
   const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
   const onPasteRef = useRef(onPaste);
   const commandMenuOpenRef = useRef(commandMenuOpen);
-  const skillMetadata = useMemo(() => skillMetadataByName(skills), [skills]);
   onChangeRef.current = onChange;
   onCommandKeyDownRef.current = onCommandKeyDown;
   onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
   onPasteRef.current = onPaste;
   commandMenuOpenRef.current = commandMenuOpen;
   const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
-  const setCaretAnchor = useCallback(
-    (element: HTMLSpanElement | null) => {
-      localCaretAnchorRef.current = element;
-      if (caretAnchorRef) {
-        caretAnchorRef.current = element;
-      }
-    },
-    [caretAnchorRef],
-  );
+  const setCaretAnchor = (element: HTMLSpanElement | null) => {
+    localCaretAnchorRef.current = element;
+    if (caretAnchorRef) {
+      caretAnchorRef.current = element;
+    }
+  };
   const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
   const isApplyingControlledUpdateRef = useRef(false);
   const measuredMultilineRef = useRef(false);
-  const skillMetadataRef = useRef(skillMetadata);
-  skillMetadataRef.current = skillMetadata;
   const initialCursor = clampCollapsedComposerCursor(value, cursor);
   const initialSnapshotRef = useRef<ComposerPromptEditorSnapshot>({
     value,
@@ -1476,8 +1310,6 @@ const ComposerPromptEditorInner = forwardRef<
     expandedCursor: expandCollapsedComposerCursor(value, initialCursor),
   });
   const snapshotRef = useRef(initialSnapshotRef.current);
-  const skillsSignature = useMemo(() => skillSignature(skills), [skills]);
-  const skillsSignatureRef = useRef(skillsSignature);
   const syncRevisionRef = useRef(syncRevision);
 
   usePromptEditorControlledStateSync({
@@ -1486,9 +1318,6 @@ const ComposerPromptEditorInner = forwardRef<
     isApplyingControlledUpdateRef,
     measuredMultilineRef,
     onMeasuredMultilineChangeRef,
-    skillsSignature,
-    skillsSignatureRef,
-    skillMetadataRef,
     snapshotRef,
     syncRevision,
     syncRevisionRef,
@@ -1507,83 +1336,62 @@ const ComposerPromptEditorInner = forwardRef<
     anchorElementRef: localCaretAnchorRef,
   });
 
-  const emitSnapshot = useCallback(
-    (editorState: EditorState, nextEditor: LexicalEditor) => {
-      if (isApplyingControlledUpdateRef.current) {
-        return;
-      }
-      const nextSnapshot = readSnapshotFromLexicalState(editorState);
-      const previous = snapshotRef.current;
+  const emitSnapshot = (editorState: EditorState, nextEditor: LexicalEditor) => {
+    if (isApplyingControlledUpdateRef.current) {
+      return;
+    }
+    const nextSnapshot = readSnapshotFromLexicalState(editorState);
+    const previous = snapshotRef.current;
+    snapshotRef.current = nextSnapshot;
+    if (snapshotsEqual(previous, nextSnapshot)) {
+      return;
+    }
+    const cursorAdjacentToMention =
+      isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "left") ||
+      isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "right");
+    onChangeRef.current(
+      nextSnapshot.value,
+      nextSnapshot.cursor,
+      nextSnapshot.expandedCursor,
+      cursorAdjacentToMention,
+    );
+    emitMeasuredMultiline(
+      nextEditor,
+      onMeasuredMultilineChangeRef.current,
+      measuredMultilineRef,
+    );
+  };
+
+  const focusAt = (nextCursor: number) => {
+    const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);
+    editor.focus(() => {
+      editor.update(() => {
+        setSelectionAtTextOffset(boundedCursor, "collapsed");
+      });
+      const nextSnapshot = readSnapshot(editor);
       snapshotRef.current = nextSnapshot;
-      if (snapshotsEqual(previous, nextSnapshot)) {
-        return;
-      }
-      const cursorAdjacentToMention =
-        isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "left") ||
-        isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "right");
       onChangeRef.current(
         nextSnapshot.value,
         nextSnapshot.cursor,
         nextSnapshot.expandedCursor,
-        cursorAdjacentToMention,
+        false,
       );
-      emitMeasuredMultiline(
-        nextEditor,
-        onMeasuredMultilineChangeRef.current,
-        measuredMultilineRef,
-      );
-    },
-    [],
-  );
+    });
+  };
 
-  const focusAt = useCallback(
-    (nextCursor: number) => {
-      const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);
-      editor.focus(() => {
-        editor.update(() => {
-          setSelectionAtTextOffset(boundedCursor, "collapsed");
-        });
-        const nextSnapshot = readSnapshot(editor);
-        snapshotRef.current = nextSnapshot;
-        onChangeRef.current(
-          nextSnapshot.value,
-          nextSnapshot.cursor,
-          nextSnapshot.expandedCursor,
-          false,
-        );
-      });
-    },
-    [editor],
-  );
+  const insertText = (text: string) => {
+    if (!text) return;
+    editor.focus(() => {
+      insertTextAtSelection(editor, text);
+    });
+  };
 
-  const insertText = useCallback(
-    (text: string) => {
-      if (!text) return;
-      editor.focus(() => {
-        insertTextAtSelection(editor, text);
-      });
-    },
-    [editor],
-  );
+  const focusAtRef = useRef(focusAt);
+  const insertTextRef = useRef(insertText);
+  focusAtRef.current = focusAt;
+  insertTextRef.current = insertText;
 
-  const replaceRangeWithCommand = useCallback(
-    (rangeStart: number, rangeEnd: number, command: ComposerCommandData): boolean => {
-      editor.focus();
-      return replaceExpandedRangeWithCommand(editor, rangeStart, rangeEnd, command);
-    },
-    [editor],
-  );
-
-  const replaceRangeWithSkill = useCallback(
-    (rangeStart: number, rangeEnd: number, skill: ComposerSkillData): boolean => {
-      editor.focus();
-      return replaceExpandedRangeWithSkill(editor, rangeStart, rangeEnd, skill);
-    },
-    [editor],
-  );
-
-  const handleKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
       const menuOpen = commandMenuOpenRef.current;
       const isAlwaysMenuKey = event.key === "Escape" || event.key === "Enter";
       const isInteractionModeShortcutKey = event.key === "Tab" && event.shiftKey;
@@ -1624,14 +1432,11 @@ const ComposerPromptEditorInner = forwardRef<
       ) {
         event.preventDefault();
         event.stopPropagation();
-        pendingSurroundSelectionRef.current = null;
-      }
-    },
-    [editor],
-  );
+      pendingSurroundSelectionRef.current = null;
+    }
+  };
 
-  const handleBeforeInput = useCallback(
-    (event: FormEvent<HTMLDivElement>) => {
+  const handleBeforeInput = (event: FormEvent<HTMLDivElement>) => {
       const inputEvent = event.nativeEvent;
       if (!(inputEvent instanceof InputEvent)) {
         pendingSurroundSelectionRef.current = null;
@@ -1659,33 +1464,28 @@ const ComposerPromptEditorInner = forwardRef<
       }
       event.preventDefault();
       event.stopPropagation();
-      pendingSurroundSelectionRef.current = null;
-    },
-    [editor],
-  );
+    pendingSurroundSelectionRef.current = null;
+  };
 
-  const handlePaste: ClipboardEventHandler<HTMLDivElement> = useCallback(
-    (event) => {
-      onPasteRef.current(event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0]);
-      if (!event.defaultPrevented) {
-        const pastedText = event.clipboardData?.getData("text/plain") ?? "";
-        if (pastedText.includes("\n")) {
-          notifyComposerEditorMultiline(
-            onMeasuredMultilineChangeRef.current,
-            measuredMultilineRef,
-            true,
-          );
-        }
+  const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
+    onPasteRef.current(event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0]);
+    if (!event.defaultPrevented) {
+      const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+      if (pastedText.includes("\n")) {
+        notifyComposerEditorMultiline(
+          onMeasuredMultilineChangeRef.current,
+          measuredMultilineRef,
+          true,
+        );
       }
-    },
-    [],
-  );
+    }
+  };
 
   useImperativeHandle(
     ref,
     () => ({
       focus: () => {
-        focusAt(snapshotRef.current.cursor);
+        focusAtRef.current(snapshotRef.current.cursor);
       },
       blur: () => {
         editor.blur();
@@ -1699,18 +1499,20 @@ const ComposerPromptEditorInner = forwardRef<
         snapshotRef.current = nextSnapshot;
         onChangeRef.current("", 0, 0, false);
       },
-      focusAt,
+      focusAt: (cursor: number) => {
+        focusAtRef.current(cursor);
+      },
       focusAtEnd: () => {
-        focusAt(
+        focusAtRef.current(
           collapseExpandedComposerCursor(
             snapshotRef.current.value,
             snapshotRef.current.value.length,
           ),
         );
       },
-      insertText,
-      replaceRangeWithCommand,
-      replaceRangeWithSkill,
+      insertText: (text: string) => {
+        insertTextRef.current(text);
+      },
       getText: () => readSnapshot(editor).value,
       getCommands: () => collectCommands(editor),
       getMentions: () => collectMentions(editor),
@@ -1726,7 +1528,7 @@ const ComposerPromptEditorInner = forwardRef<
       readSnapshot: () => readSnapshot(editor),
       editor,
     }),
-    [editor, focusAt, insertText, replaceRangeWithCommand, replaceRangeWithSkill],
+    [editor],
   );
 
   return (
@@ -1766,7 +1568,7 @@ const ComposerPromptEditorInner = forwardRef<
   );
 });
 
-const PromptEditorPlaceholder = memo(function PromptEditorPlaceholder({
+const PromptEditorPlaceholder = function PromptEditorPlaceholder({
   className,
   placeholder,
 }: {
@@ -1782,7 +1584,7 @@ const PromptEditorPlaceholder = memo(function PromptEditorPlaceholder({
       {placeholder}
     </div>
   );
-});
+};
 
 function PromptEditorEditableSync({
   disabled,

@@ -1,0 +1,78 @@
+import type { EnvironmentApi, EnvironmentId } from "@multi/contracts";
+
+import { readEnvironmentApi, createEnvironmentApi } from "~/environment-api";
+import { getPrimaryKnownEnvironment } from "~/environments/primary";
+import {
+  getPrimaryEnvironmentConnection,
+  readEnvironmentConnection,
+} from "~/environments/runtime";
+
+export type EnvironmentGitApi = EnvironmentApi["git"];
+
+export interface ResolvedEnvironmentGitApi {
+  readonly environmentId: EnvironmentId;
+  readonly clientIdentity: string;
+  readonly git: EnvironmentGitApi;
+}
+
+function readPrimaryEnvironmentGitApi(
+  environmentId: EnvironmentId,
+): ResolvedEnvironmentGitApi | null {
+  const primaryEnvironment = getPrimaryKnownEnvironment();
+  if (primaryEnvironment?.environmentId !== environmentId) {
+    return null;
+  }
+
+  try {
+    const connection = getPrimaryEnvironmentConnection();
+    return {
+      environmentId: connection.environmentId,
+      clientIdentity: connection.environmentId,
+      git: createEnvironmentApi(connection.client).git,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function readResolvedEnvironmentGitApi(
+  environmentId: EnvironmentId | null | undefined,
+): ResolvedEnvironmentGitApi | null {
+  if (!environmentId || typeof window === "undefined") {
+    return null;
+  }
+
+  const api = readEnvironmentApi(environmentId);
+  if (api) {
+    return {
+      environmentId,
+      clientIdentity: environmentId,
+      git: api.git,
+    };
+  }
+
+  const connection = readEnvironmentConnection(environmentId);
+  if (connection) {
+    return {
+      environmentId: connection.environmentId,
+      clientIdentity: connection.environmentId,
+      git: createEnvironmentApi(connection.client).git,
+    };
+  }
+
+  return readPrimaryEnvironmentGitApi(environmentId);
+}
+
+export function readEnvironmentGitApi(
+  environmentId: EnvironmentId | null | undefined,
+): EnvironmentGitApi | null {
+  return readResolvedEnvironmentGitApi(environmentId)?.git ?? null;
+}
+
+export function ensureEnvironmentGitApi(environmentId: EnvironmentId): EnvironmentGitApi {
+  const api = readEnvironmentGitApi(environmentId);
+  if (!api) {
+    throw new Error(`Git API not found for environment ${environmentId}`);
+  }
+  return api;
+}

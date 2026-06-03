@@ -1,96 +1,84 @@
 import type { EnvironmentId } from "@multi/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { useComposerDraftStore } from "~/stores/chat-drafts";
+import { useEffect, useState } from "react";
+
+import ChatView from "~/components/chat/view/chat-view";
+import {
+  ensureProjectEmptyStateDraftSession,
+  ensureProjectlessEmptyStateDraftSession,
+} from "~/stores/chat-drafts";
 import { useStore } from "~/stores/thread-store";
 import {
   selectEnvironmentSnapshotSource,
   type EnvironmentSnapshotSource,
 } from "~/stores/thread-store";
-import { newDraftId, newThreadId } from "~/lib/utils";
 import { readLastChatRouteTarget } from "~/app/routes/chat-route-persistence";
-import { buildDraftThreadRouteParams } from "~/app/routes/thread-route-targets";
-import { DEFAULT_INTERACTION_MODE } from "~/types";
-import { useMountEffect } from "~/hooks/use-mount-effect";
-import { useSettings } from "~/hooks/use-settings";
+import { useHandleNewThread } from "~/hooks/use-handle-new-thread";
 
 export function ChatIndexRouteView() {
-  const navigate = useNavigate();
   const activeEnvironmentId = useStore((state) => state.activeEnvironmentId);
   const snapshotSource = useStore((state) =>
     selectEnvironmentSnapshotSource(state, activeEnvironmentId),
   );
+  const canUseEnvironment = activeEnvironmentId !== null;
 
-  if (!activeEnvironmentId || snapshotSource === "none") {
+  if (!canUseEnvironment) {
     return null;
   }
 
   return (
-    <ChatIndexRouteSync
+    <ChatIndexAgentPanel
       key={`${activeEnvironmentId}:${snapshotSource}`}
       activeEnvironmentId={activeEnvironmentId}
-      navigate={navigate}
       snapshotSource={snapshotSource}
     />
   );
 }
 
-function ChatIndexRouteSync(props: {
+function ChatIndexAgentPanel(props: {
   readonly activeEnvironmentId: EnvironmentId;
-  readonly navigate: ReturnType<typeof useNavigate>;
   readonly snapshotSource: EnvironmentSnapshotSource;
 }) {
-  const getProjectlessDraftSession = useComposerDraftStore(
-    (store) => store.getProjectlessDraftSession,
-  );
-  const setProjectlessDraftThreadId = useComposerDraftStore(
-    (store) => store.setProjectlessDraftThreadId,
-  );
-  const applyStickyState = useComposerDraftStore((store) => store.applyStickyState);
-  const defaultRuntimeMode = useSettings((settings) => settings.defaultRuntimeMode);
+  const navigate = useNavigate();
+  const [initialRouteTarget] = useState(() => readLastChatRouteTarget());
+  const { defaultProjectRef } = useHandleNewThread();
 
-  useMountEffect(() => {
-    const lastChatRouteTarget = readLastChatRouteTarget();
-    if (lastChatRouteTarget?.kind === "draft") {
-      void props.navigate({
-        to: "/draft/$draftId",
-        params: { draftId: lastChatRouteTarget.draftId },
-        replace: true,
-      });
+  const shouldRestoreServerThread =
+    initialRouteTarget?.kind === "server" &&
+    props.snapshotSource === "server" &&
+    initialRouteTarget.threadRef.environmentId === props.activeEnvironmentId;
+
+  useEffect(() => {
+    if (!shouldRestoreServerThread) {
       return;
     }
-    if (lastChatRouteTarget?.kind === "server") {
-      void props.navigate({
-        to: "/$environmentId/$threadId",
-        params: {
-          environmentId: lastChatRouteTarget.threadRef.environmentId,
-          threadId: lastChatRouteTarget.threadRef.threadId,
-        },
-        replace: true,
-      });
-      return;
-    }
-
-    if (props.snapshotSource !== "server") {
-      return;
-    }
-
-    const existingDraft = getProjectlessDraftSession(props.activeEnvironmentId);
-    const draftId = existingDraft?.draftId ?? newDraftId();
-    if (!existingDraft) {
-      setProjectlessDraftThreadId(props.activeEnvironmentId, draftId, {
-        threadId: newThreadId(),
-        createdAt: new Date().toISOString(),
-        runtimeMode: defaultRuntimeMode,
-        interactionMode: DEFAULT_INTERACTION_MODE,
-      });
-      applyStickyState(draftId);
-    }
-    void props.navigate({
-      to: "/draft/$draftId",
-      params: buildDraftThreadRouteParams(draftId),
+    void navigate({
+      to: "/$environmentId/$threadId",
+      params: {
+        environmentId: initialRouteTarget.threadRef.environmentId,
+        threadId: initialRouteTarget.threadRef.threadId,
+      },
       replace: true,
     });
-  });
+  }, [initialRouteTarget, navigate, shouldRestoreServerThread]);
 
-  return null;
+  if (shouldRestoreServerThread) {
+    return null;
+  }
+
+  const draftSession = defaultProjectRef
+    ? ensureProjectEmptyStateDraftSession(defaultProjectRef)
+    : ensureProjectlessEmptyStateDraftSession(props.activeEnvironmentId);
+
+  return (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <ChatView
+        draftId={draftSession.draftId}
+        environmentId={draftSession.environmentId}
+        threadId={draftSession.threadId}
+        reserveTitleBarControlInset={false}
+        routeKind="draft"
+      />
+    </div>
+  );
 }

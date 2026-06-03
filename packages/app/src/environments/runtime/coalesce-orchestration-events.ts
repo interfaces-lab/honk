@@ -21,7 +21,7 @@ type SubagentItemLifecycleActivity = Extract<
 >;
 
 /**
- * Activity bursts with a stable provider key are reduced to the latest visible
+ * Activity bursts with a stable runtime key are reduced to the latest visible
  * row state while preserving raw events for side effects.
  */
 export function coalesceOrchestrationUiEvents(
@@ -75,15 +75,15 @@ function stableActivityUiKey(event: ThreadActivityAppendedEvent): string | null 
         : [event.payload.threadId, "tool", itemId].join("\u001f");
     }
     case "subagent.content.delta": {
-      const providerThreadId = activity.payload.providerThreadId;
+      const subagentThreadId = activity.payload.subagentThreadId;
       const itemId = activity.payload.itemId;
-      if (!providerThreadId || !itemId) {
+      if (!subagentThreadId || !itemId) {
         return null;
       }
       return [
         event.payload.threadId,
         "subagent-delta",
-        providerThreadId,
+        subagentThreadId,
         itemId,
         activity.payload.streamKind,
         activity.payload.contentIndex ?? "",
@@ -93,12 +93,12 @@ function stableActivityUiKey(event: ThreadActivityAppendedEvent): string | null 
     case "subagent.item.started":
     case "subagent.item.updated":
     case "subagent.item.completed": {
-      const providerThreadId = activity.payload.providerThreadId;
+      const subagentThreadId = activity.payload.subagentThreadId;
       const itemId = activity.payload.itemId;
-      if (!providerThreadId || !itemId) {
+      if (!subagentThreadId || !itemId) {
         return null;
       }
-      return [event.payload.threadId, "subagent-item", providerThreadId, itemId].join("\u001f");
+      return [event.payload.threadId, "subagent-item", subagentThreadId, itemId].join("\u001f");
     }
     default:
       return null;
@@ -260,10 +260,12 @@ function mergeText(previous: string | undefined, next: string | undefined): stri
   return `${previous}${next}`;
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function recordPayloadField(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return isPlainRecord(value) ? value : undefined;
 }
 
 function stringPayloadField(value: unknown): string | undefined {

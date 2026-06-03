@@ -2,17 +2,13 @@ import {
   type AgentWindowSendWhileStreamingBehavior,
   MessageId,
   type OrchestrationProposedPlanId,
-  ProviderDriverKind,
-  ProviderInstanceId,
   ThreadId,
-  type ProviderInteractionMode,
-  type RuntimeMode,
+  type AgentInteractionMode,
 } from "@multi/contracts";
-import { createModelSelection } from "@multi/shared/model";
 import { Button } from "@multi/ui/button";
 import { Text } from "@multi/ui/text";
 import { Textarea } from "@multi/ui/textarea";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   QueuedComposerEditBanner,
@@ -23,24 +19,17 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { cn } from "~/lib/utils";
 import type { QueuedComposerItem } from "~/stores/chat-send-queue";
-import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
+import { DEFAULT_INTERACTION_MODE } from "~/types";
 
 const DEMO_THREAD_KEY = "dev:queued-message-demo";
 const DEMO_IMAGE_PREVIEW =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='16' fill='%23242a38'/%3E%3Cpath d='M18 68 38 44l13 15 9-11 18 20H18Z' fill='%2391c7ff'/%3E%3Ccircle cx='67' cy='30' r='9' fill='%23ffd27a'/%3E%3C/svg%3E";
-const DEMO_MODEL_SELECTION = createModelSelection(ProviderInstanceId.make("codex"), "gpt-5.5");
 
 const INTERACTION_MODE_OPTIONS = [
-  { mode: "default", label: "Build" },
+  { mode: "agent", label: "Build" },
   { mode: "ask", label: "Ask" },
   { mode: "plan", label: "Plan" },
-] as const satisfies readonly { mode: ProviderInteractionMode; label: string }[];
-
-const RUNTIME_MODE_OPTIONS = [
-  { mode: "full-access", label: "Full access" },
-  { mode: "auto-accept-edits", label: "Auto-accept" },
-  { mode: "approval-required", label: "Supervised" },
-] as const satisfies readonly { mode: RuntimeMode; label: string }[];
+] as const satisfies readonly { mode: AgentInteractionMode; label: string }[];
 
 const SEND_WHILE_RUNNING_OPTIONS = [
   { mode: "queue", label: "Queue" },
@@ -49,7 +38,7 @@ const SEND_WHILE_RUNNING_OPTIONS = [
 ] as const satisfies readonly { mode: AgentWindowSendWhileStreamingBehavior; label: string }[];
 
 const DEBUG_RESPONSE_SEQUENCE = [
-  "Captured locally. No provider request was started.",
+  "Captured locally. No runtime request was started.",
   "Stored as a faux assistant response for queue layout inspection.",
   "Recorded with the selected message mode for visual debugging.",
 ] as const;
@@ -60,8 +49,7 @@ type DemoTranscriptEntry = {
   id: string;
   role: DemoTranscriptRole;
   text: string;
-  runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   createdAt: string;
 };
 
@@ -72,41 +60,30 @@ function createDemoFile(): File {
   return { name: "queue-preview.svg", size: 4, type: "image/svg+xml" } as File;
 }
 
-function formatInteractionModeLabel(mode: ProviderInteractionMode): string {
+function formatInteractionModeLabel(mode: AgentInteractionMode): string {
   return INTERACTION_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? mode;
-}
-
-function formatRuntimeModeLabel(mode: RuntimeMode): string {
-  return RUNTIME_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? mode;
 }
 
 function formatSendWhileRunningBehaviorLabel(mode: AgentWindowSendWhileStreamingBehavior): string {
   return SEND_WHILE_RUNNING_OPTIONS.find((option) => option.mode === mode)?.label ?? mode;
 }
 
-function formatModePair(input: {
-  runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
-}): string {
-  return `${formatInteractionModeLabel(input.interactionMode)} · ${formatRuntimeModeLabel(input.runtimeMode)}`;
+function formatModeLabel(mode: AgentInteractionMode): string {
+  return formatInteractionModeLabel(mode);
 }
 
 function createDemoQueueItem(input: {
   id: string;
   prompt: string;
-  runtimeMode?: RuntimeMode;
-  interactionMode?: ProviderInteractionMode;
+  interactionMode?: AgentInteractionMode;
   images?: boolean;
   planFollowUp?: boolean;
   createdAtOffsetMs?: number;
 }): QueuedComposerItem {
-  const runtimeMode = input.runtimeMode ?? DEFAULT_RUNTIME_MODE;
-  const interactionMode = input.interactionMode ?? DEFAULT_INTERACTION_MODE;
   return {
     id: MessageId.make(input.id),
     threadKey: DEMO_THREAD_KEY,
-    runtimeMode,
-    interactionMode,
+    interactionMode: input.interactionMode ?? DEFAULT_INTERACTION_MODE,
     createdAt: new Date(Date.now() - (input.createdAtOffsetMs ?? 60_000)).toISOString(),
     planFollowUp: input.planFollowUp
       ? {
@@ -130,11 +107,6 @@ function createDemoQueueItem(input: {
             },
           ]
         : [],
-      selectedProvider: ProviderDriverKind.make("codex"),
-      selectedModel: "gpt-5.5",
-      selectedProviderModels: [],
-      selectedPromptEffort: "medium",
-      selectedModelSelection: DEMO_MODEL_SELECTION,
     },
   };
 }
@@ -144,15 +116,13 @@ function createInitialQueueItems(): QueuedComposerItem[] {
     createDemoQueueItem({
       id: "demo-queued-1",
       prompt: "Tighten the queue tray spacing and keep the next follow-up easy to scan.",
-      runtimeMode: "full-access",
-      interactionMode: "default",
+      interactionMode: "agent",
       createdAtOffsetMs: 180_000,
     }),
     createDemoQueueItem({
       id: "demo-queued-2",
       prompt:
         "Long queued plan-mode message with enough text to verify truncation, hover actions, narrow widths, and stable row height while the panel stays above the composer.",
-      runtimeMode: "auto-accept-edits",
       interactionMode: "plan",
       planFollowUp: true,
       createdAtOffsetMs: 120_000,
@@ -160,7 +130,6 @@ function createInitialQueueItems(): QueuedComposerItem[] {
     createDemoQueueItem({
       id: "demo-queued-3",
       prompt: "Ask a clarifying question while an image-only follow-up is queued.",
-      runtimeMode: "approval-required",
       interactionMode: "ask",
       images: true,
       createdAtOffsetMs: 60_000,
@@ -174,23 +143,20 @@ function createInitialTranscriptEntries(): DemoTranscriptEntry[] {
       id: "transcript-1",
       role: "user",
       text: "Can you make the queued follow-up panel easier to evaluate?",
-      runtimeMode: "full-access",
-      interactionMode: "default",
+      interactionMode: "agent",
       createdAt: new Date(Date.now() - 240_000).toISOString(),
     },
     {
       id: "transcript-2",
       role: "assistant",
-      text: "I am checking tray placement, row density, edit state, and all queued message modes without touching the real provider send path.",
-      runtimeMode: "full-access",
-      interactionMode: "default",
+      text: "I am checking tray placement, row density, edit state, and all queued message modes without touching the real runtime send path.",
+      interactionMode: "agent",
       createdAt: new Date(Date.now() - 180_000).toISOString(),
     },
     {
       id: "transcript-3",
       role: "user",
       text: "Queue these follow-ups while the current turn is in progress.",
-      runtimeMode: "approval-required",
       interactionMode: "ask",
       createdAt: new Date(Date.now() - 120_000).toISOString(),
     },
@@ -232,7 +198,7 @@ function formatQueuedItemDebugText(item: QueuedComposerItem): string {
 }
 
 function DemoModeButtonGroup<
-  TMode extends RuntimeMode | ProviderInteractionMode | AgentWindowSendWhileStreamingBehavior,
+  TMode extends AgentInteractionMode | AgentWindowSendWhileStreamingBehavior,
 >(props: {
   label: string;
   options: readonly { mode: TMode; label: string }[];
@@ -258,12 +224,12 @@ function DemoModeButtonGroup<
 }
 
 function DemoTranscriptEntry(props: { entry: DemoTranscriptEntry }) {
-  const modeLabel = formatModePair(props.entry);
+  const modeLabel = formatModeLabel(props.entry.interactionMode);
 
   if (props.entry.role === "user") {
     return (
       <ChatMessageBubble
-        role="user"
+        messageRole="user"
         body={
           <>
             {props.entry.text}
@@ -278,7 +244,7 @@ function DemoTranscriptEntry(props: { entry: DemoTranscriptEntry }) {
     return (
       <div className="box-border flex w-full min-w-0 pt-(--chat-timeline-assistant-top-inset)">
         <ChatMessageBubble
-          role="assistant"
+          messageRole="assistant"
           body={
             <>
               {props.entry.text}
@@ -324,23 +290,19 @@ export function QueuedMessageDemoPage() {
   const [pendingUserInput, setPendingUserInput] = useState(false);
   const [compact, setCompact] = useState(true);
   const [inlineEdit, setInlineEdit] = useState(false);
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(DEFAULT_RUNTIME_MODE);
   const [interactionMode, setInteractionMode] =
-    useState<ProviderInteractionMode>(DEFAULT_INTERACTION_MODE);
+    useState<AgentInteractionMode>(DEFAULT_INTERACTION_MODE);
   const [sendWhileRunningBehavior, setSendWhileRunningBehavior] =
     useState<AgentWindowSendWhileStreamingBehavior>("queue");
   const [draftPrompt, setDraftPrompt] = useState(
-    "Check the queue panel in this message mode without starting a provider request.",
+    "Check the queue panel in this message mode without starting a runtime request.",
   );
   const [debugResponseIndex, setDebugResponseIndex] = useState(0);
 
   const showQueue = items.length > 0 && !pendingApproval && !pendingUserInput && !inlineEdit;
   const composerVariant = compact ? "compact" : "expanded";
   const composerExpanded = !compact || draftPrompt.includes("\n") || draftPrompt.length > 96;
-  const editingItem = useMemo(
-    () => items.find((item) => item.id === editingItemId) ?? null,
-    [editingItemId, items],
-  );
+  const editingItem = items.find((item) => item.id === editingItemId) ?? null;
   const toggles: Array<{
     label: string;
     value: boolean;
@@ -361,14 +323,12 @@ export function QueuedMessageDemoPage() {
 
   const appendQueuedDebugEntry = (
     text: string,
-    entryRuntimeMode: RuntimeMode,
-    entryInteractionMode: ProviderInteractionMode,
+    entryInteractionMode: AgentInteractionMode,
   ) => {
     const entry = {
       id: createDebugId("queued-transcript"),
       role: "queued",
       text,
-      runtimeMode: entryRuntimeMode,
       interactionMode: entryInteractionMode,
       createdAt: new Date().toISOString(),
     } satisfies DemoTranscriptEntry;
@@ -377,14 +337,12 @@ export function QueuedMessageDemoPage() {
 
   const appendSteerDebugEntry = (
     text: string,
-    entryRuntimeMode: RuntimeMode,
-    entryInteractionMode: ProviderInteractionMode,
+    entryInteractionMode: AgentInteractionMode,
   ) => {
     const entry = {
       id: createDebugId("steer-transcript"),
       role: "steer",
       text,
-      runtimeMode: entryRuntimeMode,
       interactionMode: entryInteractionMode,
       createdAt: new Date().toISOString(),
     } satisfies DemoTranscriptEntry;
@@ -393,8 +351,7 @@ export function QueuedMessageDemoPage() {
 
   const appendCapturedSend = (
     text: string,
-    entryRuntimeMode: RuntimeMode,
-    entryInteractionMode: ProviderInteractionMode,
+    entryInteractionMode: AgentInteractionMode,
   ) => {
     const responseText =
       DEBUG_RESPONSE_SEQUENCE[debugResponseIndex % DEBUG_RESPONSE_SEQUENCE.length] ??
@@ -404,7 +361,6 @@ export function QueuedMessageDemoPage() {
       id: createDebugId("user-transcript"),
       role: "user",
       text,
-      runtimeMode: entryRuntimeMode,
       interactionMode: entryInteractionMode,
       createdAt,
     } satisfies DemoTranscriptEntry;
@@ -412,7 +368,6 @@ export function QueuedMessageDemoPage() {
       id: createDebugId("assistant-transcript"),
       role: "assistant",
       text: responseText,
-      runtimeMode: entryRuntimeMode,
       interactionMode: entryInteractionMode,
       createdAt,
     } satisfies DemoTranscriptEntry;
@@ -424,14 +379,12 @@ export function QueuedMessageDemoPage() {
     const item = createDemoQueueItem({
       id: createDebugId("demo-queued"),
       prompt,
-      runtimeMode,
       interactionMode,
     });
     setItems((existing) => [...existing, item]);
     setExpanded(true);
     appendQueuedDebugEntry(
       source === "stop-and-send" ? `Stopped and queued: ${prompt}` : `Queued message: ${prompt}`,
-      runtimeMode,
       interactionMode,
     );
   };
@@ -469,11 +422,7 @@ export function QueuedMessageDemoPage() {
           : candidate,
       ),
     );
-    appendQueuedDebugEntry(
-      `Saved queued message: ${prompt}`,
-      item.runtimeMode,
-      item.interactionMode,
-    );
+    appendQueuedDebugEntry(`Saved queued message: ${prompt}`, item.interactionMode);
     setEditingItemId(null);
     setDraftPrompt("");
   };
@@ -492,20 +441,20 @@ export function QueuedMessageDemoPage() {
     if (action === "queue") {
       queueDraft(prompt);
     } else if (!busy) {
-      appendCapturedSend(prompt, runtimeMode, interactionMode);
+      appendCapturedSend(prompt, interactionMode);
     } else if (sendWhileRunningBehavior === "queue") {
       queueDraft(prompt);
     } else if (sendWhileRunningBehavior === "stop-and-send") {
       queueDraft(prompt, "stop-and-send");
       setBusy(false);
     } else {
-      appendSteerDebugEntry(`Steered active turn: ${prompt}`, runtimeMode, interactionMode);
+      appendSteerDebugEntry(`Steered active turn: ${prompt}`, interactionMode);
     }
     setDraftPrompt("");
   };
 
   const captureQueuedItem = (item: QueuedComposerItem) => {
-    appendCapturedSend(formatQueuedItemDebugText(item), item.runtimeMode, item.interactionMode);
+    appendCapturedSend(formatQueuedItemDebugText(item), item.interactionMode);
   };
 
   const removeQueuedItem = (itemId: MessageId) => {
@@ -568,11 +517,10 @@ export function QueuedMessageDemoPage() {
                   setPendingUserInput(false);
                   setCompact(true);
                   setInlineEdit(false);
-                  setRuntimeMode(DEFAULT_RUNTIME_MODE);
                   setInteractionMode(DEFAULT_INTERACTION_MODE);
                   setSendWhileRunningBehavior("queue");
                   setDraftPrompt(
-                    "Check the queue panel in this message mode without starting a provider request.",
+                    "Check the queue panel in this message mode without starting a runtime request.",
                   );
                 }}
               >
@@ -586,12 +534,6 @@ export function QueuedMessageDemoPage() {
               options={INTERACTION_MODE_OPTIONS}
               value={interactionMode}
               onChange={setInteractionMode}
-            />
-            <DemoModeButtonGroup
-              label="Runtime"
-              options={RUNTIME_MODE_OPTIONS}
-              value={runtimeMode}
-              onChange={setRuntimeMode}
             />
             <DemoModeButtonGroup
               label="While running"
@@ -684,7 +626,7 @@ export function QueuedMessageDemoPage() {
                       {busy
                         ? `Running · ${formatSendWhileRunningBehaviorLabel(sendWhileRunningBehavior)}`
                         : "Ready"}{" "}
-                      · {formatModePair({ runtimeMode, interactionMode })}
+                      · {formatModeLabel(interactionMode)}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button

@@ -20,13 +20,12 @@ import {
   type Dispatch,
   type MouseEvent as ReactMouseEvent,
   isValidElement,
-  useCallback,
   useId,
-  memo,
-  useMemo,
   type SetStateAction,
   useState,
   type ReactNode,
+  createContext,
+  useContext,
 } from "react";
 import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
@@ -34,7 +33,7 @@ import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
 import { Dialog, DialogPopup } from "@multi/ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { toastManager } from "~/app/toast";
-import { openInPreferredEditor } from "../../../editor/preferences";
+import { openInPreferredEditor } from "../../../editor-preferences";
 import { resolveDiffThemeName, type DiffThemeName } from "../../../lib/diff-rendering";
 import { fnv1a32 } from "../../../lib/diff-rendering";
 import { useTheme } from "../../../hooks/use-theme";
@@ -54,6 +53,7 @@ interface ChatMarkdownProps {
 const CODE_FENCE_LANGUAGE_REGEX = /(?:^|\s)language-([^\s]+)/;
 const CODE_FENCE_LANGUAGE_NAME_REGEX = /^[\w.+#-]+$/;
 const CODE_FENCE_LINE_REFERENCE_REGEX = /^\d+(?::\d+)*$/;
+const PATH_SEPARATOR_REGEX = /[\\/]/;
 const MARKDOWN_CODE_FENCE_BOUNDARY_REGEX = /^[ \t]{0,3}(`{3,}|~{3,})/;
 const MERMAID_BLOCK_HEADER_REGEX =
   /^[ \t]{0,3}(?:(?:graph|flowchart)[ \t]+(?:TD|TB|LR|BT|RL)|stateDiagram(?:-v2)?)[ \t]*$/i;
@@ -103,7 +103,7 @@ function extractFenceLanguage(className: string | undefined): string {
 function inferFenceLanguageFromFilename(raw: string): string | undefined {
   const candidates = [raw, ...raw.split(":")].filter((candidate) => candidate.length > 0);
   for (const candidate of candidates) {
-    if (!candidate.includes("/") && !candidate.includes("\\") && !candidate.startsWith(".")) {
+    if (!PATH_SEPARATOR_REGEX.test(candidate) && !candidate.startsWith(".")) {
       continue;
     }
 
@@ -304,6 +304,9 @@ function MermaidSvgView({
   fullscreen?: boolean | undefined;
   zoom?: number | undefined;
 }) {
+  const zoomStyle = { transform: `scale(${zoom})` };
+  const svgMarkup = { __html: svg };
+
   return (
     <div
       className={cn(
@@ -317,8 +320,8 @@ function MermaidSvgView({
     >
       <div
         className="origin-center transition-transform duration-150 ease-out"
-        style={{ transform: `scale(${zoom})` }}
-        dangerouslySetInnerHTML={{ __html: svg }}
+        style={zoomStyle}
+        dangerouslySetInnerHTML={svgMarkup}
       />
     </div>
   );
@@ -352,15 +355,13 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
   const [rendered, setRendered] = useState<MermaidBlockState | null>(null);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [fullscreenZoom, setFullscreenZoom] = useState(1);
-  const zoomIn = useCallback(
-    () => setFullscreenZoom((current) => clampMermaidZoom(current + MERMAID_ZOOM_STEP)),
-    [],
-  );
-  const zoomOut = useCallback(
-    () => setFullscreenZoom((current) => clampMermaidZoom(current - MERMAID_ZOOM_STEP)),
-    [],
-  );
-  const resetZoom = useCallback(() => setFullscreenZoom(1), []);
+  const zoomIn = () =>
+    setFullscreenZoom((current) => clampMermaidZoom(current + MERMAID_ZOOM_STEP));
+  const zoomOut = () =>
+    setFullscreenZoom((current) => clampMermaidZoom(current - MERMAID_ZOOM_STEP));
+  const resetZoom = () => setFullscreenZoom(1);
+  const openFullscreen = () => setFullscreenOpen(true);
+  const closeFullscreen = () => setFullscreenOpen(false);
 
   if (rendered?.cacheKey === cacheKey && rendered.svg) {
     return (
@@ -370,7 +371,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
           data-renderer="mermaid"
         >
           <div className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-[4px] bg-(--vscode-editor-background) p-1">
-            <MermaidIconButton label="Expand diagram" onClick={() => setFullscreenOpen(true)}>
+            <MermaidIconButton label="Expand diagram" onClick={openFullscreen}>
               <IconExpandSimple className="size-3.5" aria-hidden />
             </MermaidIconButton>
           </div>
@@ -392,7 +393,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
             <MermaidIconButton label="Zoom in" onClick={zoomIn}>
               <IconZoomIn className="size-3.5" aria-hidden />
             </MermaidIconButton>
-            <MermaidIconButton label="Close" onClick={() => setFullscreenOpen(false)}>
+            <MermaidIconButton label="Close" onClick={closeFullscreen}>
               <IconCrossMediumDefault className="size-3.5" aria-hidden />
             </MermaidIconButton>
           </div>
@@ -492,7 +493,7 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
   const resetCopied = useDebouncedCallback(() => setCopied(false), {
     wait: 1200,
   });
-  const handleCopy = useCallback(() => {
+  const handleCopy = () => {
     if (typeof navigator === "undefined" || navigator.clipboard == null) {
       return;
     }
@@ -503,7 +504,7 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
         resetCopied();
       })
       .catch(() => undefined);
-  }, [code, resetCopied]);
+  };
 
   return (
     <div className="chat-markdown-codeblock relative my-[0.625em] mb-[0.85em] text-sm/5">
@@ -552,22 +553,19 @@ function ShikiCodeBlock({ className, code, codeProps, themeName }: ShikiCodeBloc
   const cachedHighlightedHtml = highlightedCodeCache.get(cacheKey);
   const [highlightedCode, setHighlightedCode] = useState<HighlightedCodeState | null>(null);
 
-  if (cachedHighlightedHtml != null) {
+  const cachedHighlightedMarkup =
+    cachedHighlightedHtml != null ? { __html: cachedHighlightedHtml } : null;
+  const highlightedMarkup =
+    highlightedCode?.cacheKey === cacheKey ? { __html: highlightedCode.html } : null;
+
+  if (cachedHighlightedMarkup != null) {
     return (
-      <div
-        className="chat-markdown-shiki"
-        dangerouslySetInnerHTML={{ __html: cachedHighlightedHtml }}
-      />
+      <div className="chat-markdown-shiki" dangerouslySetInnerHTML={cachedHighlightedMarkup} />
     );
   }
 
-  if (highlightedCode?.cacheKey === cacheKey) {
-    return (
-      <div
-        className="chat-markdown-shiki"
-        dangerouslySetInnerHTML={{ __html: highlightedCode.html }}
-      />
-    );
+  if (highlightedMarkup != null) {
+    return <div className="chat-markdown-shiki" dangerouslySetInnerHTML={highlightedMarkup} />;
   }
 
   return (
@@ -726,7 +724,35 @@ function rewriteMarkdownFileUriLinks(text: string): string {
   );
 }
 
-const MarkdownFileLink = memo(function MarkdownFileLink({
+function copyMarkdownPathValue(value: string, title: string) {
+  if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
+    toastManager.add({
+      type: "error",
+      title: `Failed to copy ${title.toLowerCase()}`,
+      description: "Clipboard API unavailable.",
+    });
+    return;
+  }
+
+  void navigator.clipboard.writeText(value).then(
+    () => {
+      toastManager.add({
+        type: "success",
+        title: `${title} copied`,
+        description: value,
+      });
+    },
+    (error) => {
+      toastManager.add({
+        type: "error",
+        title: `Failed to copy ${title.toLowerCase()}`,
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    },
+  );
+}
+
+function MarkdownFileLinkAnchor({
   href,
   targetPath,
   displayPath,
@@ -735,7 +761,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
   theme,
   className,
 }: MarkdownFileLinkProps) {
-  const handleOpen = useCallback(() => {
+  const handleOpen = () => {
     const api = readLocalApi();
     if (!api) {
       toastManager.add({
@@ -752,127 +778,496 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
         description: error instanceof Error ? error.message : "An error occurred.",
       });
     });
-  }, [targetPath]);
+  };
 
-  const handleCopy = useCallback((value: string, title: string) => {
-    if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
-      toastManager.add({
-        type: "error",
-        title: `Failed to copy ${title.toLowerCase()}`,
-        description: "Clipboard API unavailable.",
-      });
+  const handleClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    handleOpen();
+  };
+
+  const handleContextMenu = async (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const api = readLocalApi();
+    if (!api) return;
+
+    const clicked = await api.contextMenu.show(
+      [
+        { id: "open", label: "Open in editor" },
+        { id: "copy-relative", label: "Copy relative path" },
+        { id: "copy-full", label: "Copy full path" },
+      ] as const,
+      { x: event.clientX, y: event.clientY },
+    );
+
+    if (clicked === "open") {
+      handleOpen();
       return;
     }
-
-    void navigator.clipboard.writeText(value).then(
-      () => {
-        toastManager.add({
-          type: "success",
-          title: `${title} copied`,
-          description: value,
-        });
-      },
-      (error) => {
-        toastManager.add({
-          type: "error",
-          title: `Failed to copy ${title.toLowerCase()}`,
-          description: error instanceof Error ? error.message : "An error occurred.",
-        });
-      },
-    );
-  }, []);
-
-  const handleContextMenu = useCallback(
-    async (event: ReactMouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const api = readLocalApi();
-      if (!api) return;
-
-      const clicked = await api.contextMenu.show(
-        [
-          { id: "open", label: "Open in editor" },
-          { id: "copy-relative", label: "Copy relative path" },
-          { id: "copy-full", label: "Copy full path" },
-        ] as const,
-        { x: event.clientX, y: event.clientY },
-      );
-
-      if (clicked === "open") {
-        handleOpen();
-        return;
-      }
-      if (clicked === "copy-relative") {
-        handleCopy(displayPath, "Relative path");
-        return;
-      }
-      if (clicked === "copy-full") {
-        handleCopy(targetPath, "Full path");
-      }
-    },
-    [displayPath, handleCopy, handleOpen, targetPath],
-  );
+    if (clicked === "copy-relative") {
+      copyMarkdownPathValue(displayPath, "Relative path");
+      return;
+    }
+    if (clicked === "copy-full") {
+      copyMarkdownPathValue(targetPath, "Full path");
+    }
+  };
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <a
-            href={href}
-            className={cn(
-              "chat-markdown-file-link inline-flex max-w-full min-w-0 items-center gap-1 align-middle text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground)",
-              className,
-            )}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              handleOpen();
-            }}
-            onContextMenu={handleContextMenu}
-          >
-            <VscodeEntryIcon
-              pathValue={filePath}
-              kind="file"
-              theme={theme}
-              className="chat-markdown-file-link-icon size-3.5 shrink-0 text-current"
-            />
-            <span className="chat-markdown-file-link-label min-w-0 truncate">{label}</span>
-          </a>
-        }
+    <a
+      href={href}
+      className={cn(
+        "chat-markdown-file-link inline-flex max-w-full min-w-0 items-center gap-1 align-middle text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground)",
+        className,
+      )}
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+    >
+      <VscodeEntryIcon
+        pathValue={filePath}
+        kind="file"
+        theme={theme}
+        className="chat-markdown-file-link-icon size-3.5 shrink-0 text-current"
       />
+      <span className="chat-markdown-file-link-label min-w-0 truncate">{label}</span>
+    </a>
+  );
+}
+
+function MarkdownFileLink(props: MarkdownFileLinkProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <MarkdownFileLinkAnchor {...props} />
+      </TooltipTrigger>
       <TooltipPopup side="top" className="max-w-2xl font-mono text-detail">
         <div className="markdown-file-link-tooltip-scroll overflow-x-auto whitespace-nowrap">
-          {displayPath}
+          {props.displayPath}
         </div>
       </TooltipPopup>
     </Tooltip>
   );
-}, areMarkdownFileLinkPropsEqual);
+}
 
-function areMarkdownFileLinkPropsEqual(
-  previous: Readonly<MarkdownFileLinkProps>,
-  next: Readonly<MarkdownFileLinkProps>,
-): boolean {
+type MarkdownFileLinkMeta = NonNullable<ReturnType<typeof resolveMarkdownFileLinkMeta>>;
+
+interface ChatMarkdownRenderContextValue {
+  markdownFileLinkMetaByHref: ReadonlyMap<string, MarkdownFileLinkMeta>;
+  fileLinkParentSuffixByPath: ReadonlyMap<string, string>;
+  resolvedTheme: "light" | "dark";
+  isStreaming: boolean;
+  diffThemeName: DiffThemeName;
+}
+
+const ChatMarkdownRenderContext = createContext<ChatMarkdownRenderContextValue | null>(null);
+
+function useChatMarkdownRenderContext(): ChatMarkdownRenderContextValue {
+  const context = useContext(ChatMarkdownRenderContext);
+  if (context === null) {
+    throw new Error("Chat markdown render components require ChatMarkdownRenderContext.");
+  }
+  return context;
+}
+
+const markdownUrlTransform: UrlTransform = (href, key, node) => {
+  return rewriteMarkdownFileUriHref(href) ?? defaultUrlTransform(href, key, node);
+};
+
+function ChatMarkdownAnchor({
+  node: _node,
+  href,
+  ...props
+}: ComponentProps<"a"> & { node?: unknown }) {
+  const { markdownFileLinkMetaByHref, fileLinkParentSuffixByPath, resolvedTheme } =
+    useChatMarkdownRenderContext();
+  const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
+  const fileLinkMeta = normalizedHref ? markdownFileLinkMetaByHref.get(normalizedHref) : null;
+  if (!fileLinkMeta) {
+    return (
+      <a
+        {...props}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground) [&_code]:text-(--multi-markdown-link-foreground)",
+          props.className,
+        )}
+      />
+    );
+  }
+
+  const parentSuffix = fileLinkParentSuffixByPath.get(fileLinkMeta.filePath);
+  const labelParts = [fileLinkMeta.basename];
+  if (typeof parentSuffix === "string" && parentSuffix.length > 0) {
+    labelParts.push(parentSuffix);
+  }
+  if (fileLinkMeta.line) {
+    labelParts.push(
+      `L${fileLinkMeta.line}${fileLinkMeta.column ? `:C${fileLinkMeta.column}` : ""}`,
+    );
+  }
+
   return (
-    previous.href === next.href &&
-    previous.targetPath === next.targetPath &&
-    previous.displayPath === next.displayPath &&
-    previous.filePath === next.filePath &&
-    previous.label === next.label &&
-    previous.theme === next.theme &&
-    previous.className === next.className
+    <MarkdownFileLink
+      href={href ?? fileLinkMeta.targetPath}
+      targetPath={fileLinkMeta.targetPath}
+      displayPath={fileLinkMeta.displayPath}
+      filePath={fileLinkMeta.filePath}
+      label={labelParts.join(" · ")}
+      theme={resolvedTheme}
+      className={props.className}
+    />
   );
 }
+
+function ChatMarkdownCode({
+  node: _node,
+  className,
+  children,
+  "data-block": dataBlock,
+  ...props
+}: ComponentProps<"code"> & {
+  node?: unknown;
+  "data-block"?: string | boolean | undefined;
+}) {
+  const { isStreaming, diffThemeName } = useChatMarkdownRenderContext();
+  const code = nodeToPlainText(children);
+  const language = extractFenceLanguage(className);
+  if (dataBlock == null) {
+    return (
+      <code {...props} className={cn("chat-markdown-inline-code", className)}>
+        {children}
+      </code>
+    );
+  }
+
+  if (isStreaming) {
+    return (
+      <MarkdownCodeBlock code={code}>
+        <PlainCodeBlock className={className} code={code} codeProps={props} />
+      </MarkdownCodeBlock>
+    );
+  }
+
+  if (isMermaidFenceLanguage(language)) {
+    return <MermaidCodeBlock code={code} themeName={diffThemeName} />;
+  }
+
+  return (
+    <MarkdownCodeBlock code={code}>
+      <ShikiCodeBlock
+        className={className}
+        code={code}
+        codeProps={props}
+        themeName={diffThemeName}
+      />
+    </MarkdownCodeBlock>
+  );
+}
+
+function ChatMarkdownParagraph({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"p"> & { node?: unknown }) {
+  return <p {...props} className={cn("mt-0 mb-[0.85em] text-pretty", className)} />;
+}
+
+function ChatMarkdownHeading1({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"h1"> & { node?: unknown }) {
+  return (
+    <h1
+      {...props}
+      className={cn(
+        "mt-4 mb-1.5 text-[clamp(18px,calc(var(--conversation-text-font-size)*1.45),22px)]/[1.25] font-semibold text-foreground text-balance",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownHeading2({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"h2"> & { node?: unknown }) {
+  return (
+    <h2
+      {...props}
+      className={cn(
+        "mt-4 mb-2 flex items-center gap-3 text-[max(13px,calc(var(--conversation-text-font-size)*1.02))]/[1.35] font-semibold text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] text-balance after:h-px after:min-w-6 after:flex-1 after:bg-(--multi-markdown-rule-color) after:content-['']",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownHeading3({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"h3"> & { node?: unknown }) {
+  return (
+    <h3
+      {...props}
+      className={cn(
+        "mt-3 mb-1 text-[max(13px,var(--conversation-text-font-size))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_74%,transparent)] text-balance",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownHeading4({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"h4"> & { node?: unknown }) {
+  return (
+    <h4
+      {...props}
+      className={cn(
+        "mt-2.5 mb-1 text-conversation font-[550] text-[color-mix(in_srgb,var(--foreground)_72%,transparent)] text-balance",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownHeading5({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"h5"> & { node?: unknown }) {
+  return (
+    <h5
+      {...props}
+      className={cn(
+        "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] text-balance",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownHeading6({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"h6"> & { node?: unknown }) {
+  return (
+    <h6
+      {...props}
+      className={cn(
+        "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] text-balance",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownUnorderedList({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"ul"> & { node?: unknown }) {
+  return (
+    <ul
+      {...props}
+      className={cn("mt-0 mb-[0.85em] flex list-disc flex-col gap-[0.25em] pl-[1.15em]", className)}
+    />
+  );
+}
+
+function ChatMarkdownOrderedList({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"ol"> & { node?: unknown }) {
+  return (
+    <ol
+      {...props}
+      className={cn(
+        "mt-0 mb-[0.85em] flex list-decimal flex-col gap-[0.25em] pl-[1.15em]",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownListItem({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"li"> & { node?: unknown }) {
+  return (
+    <li
+      {...props}
+      className={cn("mb-0 pl-[0.1em] marker:text-(--multi-markdown-marker-foreground)", className)}
+    />
+  );
+}
+
+function ChatMarkdownHorizontalRule({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"hr"> & { node?: unknown }) {
+  return (
+    <hr
+      {...props}
+      className={cn(
+        "my-4 max-w-full border-0 border-t border-(--multi-markdown-rule-color)",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownBlockquote({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"blockquote"> & { node?: unknown }) {
+  return (
+    <blockquote
+      {...props}
+      className={cn(
+        "mt-1 mb-[0.85em] border-l-2 border-(--multi-markdown-blockquote-border) bg-(--multi-markdown-blockquote-background) py-0 pr-0 pl-4 text-(--multi-markdown-blockquote-foreground) italic",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownKbd({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"kbd"> & { node?: unknown }) {
+  return (
+    <kbd
+      {...props}
+      className={cn(
+        "rounded-[3px] border border-(--multi-markdown-kbd-border) border-b-(--multi-markdown-kbd-bottom-border) bg-(--multi-markdown-kbd-background) px-[3px] py-px align-middle font-mono text-[0.85em] text-(--multi-markdown-kbd-foreground) shadow-[inset_0_-1px_0_var(--multi-markdown-widget-shadow)]",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownStrong({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"strong"> & { node?: unknown }) {
+  return <strong {...props} className={cn("font-semibold", className)} />;
+}
+
+function ChatMarkdownBold({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"b"> & { node?: unknown }) {
+  return <b {...props} className={cn("font-semibold", className)} />;
+}
+
+function ChatMarkdownDeleted({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"del"> & { node?: unknown }) {
+  return <del {...props} className={cn("text-muted-foreground line-through", className)} />;
+}
+
+function ChatMarkdownImage({
+  node: _node,
+  className,
+  alt,
+  ...props
+}: ComponentProps<"img"> & { node?: unknown }) {
+  return (
+    <img
+      {...props}
+      alt={typeof alt === "string" ? alt : ""}
+      className={cn(
+        "h-auto max-w-full rounded-lg align-middle shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]",
+        className,
+      )}
+    />
+  );
+}
+
+function ChatMarkdownTable({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"table"> & { node?: unknown }) {
+  return <table {...props} className={cn("mb-3 w-full border-collapse text-left", className)} />;
+}
+
+function ChatMarkdownTableHeaderCell({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"th"> & { node?: unknown }) {
+  return (
+    <th
+      {...props}
+      className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
+    />
+  );
+}
+
+function ChatMarkdownTableDataCell({
+  node: _node,
+  className,
+  ...props
+}: ComponentProps<"td"> & { node?: unknown }) {
+  return (
+    <td
+      {...props}
+      className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
+    />
+  );
+}
+
+const CHAT_MARKDOWN_COMPONENTS: Components = {
+  a: ChatMarkdownAnchor,
+  code: ChatMarkdownCode,
+  p: ChatMarkdownParagraph,
+  h1: ChatMarkdownHeading1,
+  h2: ChatMarkdownHeading2,
+  h3: ChatMarkdownHeading3,
+  h4: ChatMarkdownHeading4,
+  h5: ChatMarkdownHeading5,
+  h6: ChatMarkdownHeading6,
+  ul: ChatMarkdownUnorderedList,
+  ol: ChatMarkdownOrderedList,
+  li: ChatMarkdownListItem,
+  hr: ChatMarkdownHorizontalRule,
+  blockquote: ChatMarkdownBlockquote,
+  kbd: ChatMarkdownKbd,
+  strong: ChatMarkdownStrong,
+  b: ChatMarkdownBold,
+  del: ChatMarkdownDeleted,
+  img: ChatMarkdownImage,
+  table: ChatMarkdownTable,
+  th: ChatMarkdownTableHeaderCell,
+  td: ChatMarkdownTableDataCell,
+};
 
 function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
-  const markdownText = useMemo(
-    () => rewriteMarkdownFileUriLinks(normalizeStandaloneMermaidBlocks(text)),
-    [text],
-  );
-  const markdownFileLinkMetaByHref = useMemo(() => {
+  const markdownText = rewriteMarkdownFileUriLinks(normalizeStandaloneMermaidBlocks(text));
+  const markdownFileLinkMetaByHref = (() => {
     const metaByHref = new Map<
       string,
       NonNullable<ReturnType<typeof resolveMarkdownFileLinkMeta>>
@@ -886,308 +1281,43 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
       }
     }
     return metaByHref;
-  }, [cwd, markdownText]);
-  const fileLinkParentSuffixByPath = useMemo(() => {
-    const filePaths = [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath);
-    return buildFileLinkParentSuffixByPath(filePaths);
-  }, [markdownFileLinkMetaByHref]);
-  const markdownUrlTransform = useCallback<UrlTransform>((href, key, node) => {
-    return rewriteMarkdownFileUriHref(href) ?? defaultUrlTransform(href, key, node);
-  }, []);
-  const markdownComponents = useMemo<Components>(
-    () => ({
-      a({ node: _node, href, ...props }) {
-        const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
-        const fileLinkMeta = normalizedHref ? markdownFileLinkMetaByHref.get(normalizedHref) : null;
-        if (!fileLinkMeta) {
-          return (
-            <a
-              {...props}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground) [&_code]:text-(--multi-markdown-link-foreground)",
-                props.className,
-              )}
-            />
-          );
-        }
-
-        const parentSuffix = fileLinkParentSuffixByPath.get(fileLinkMeta.filePath);
-        const labelParts = [fileLinkMeta.basename];
-        if (typeof parentSuffix === "string" && parentSuffix.length > 0) {
-          labelParts.push(parentSuffix);
-        }
-        if (fileLinkMeta.line) {
-          labelParts.push(
-            `L${fileLinkMeta.line}${fileLinkMeta.column ? `:C${fileLinkMeta.column}` : ""}`,
-          );
-        }
-
-        return (
-          <MarkdownFileLink
-            href={href ?? fileLinkMeta.targetPath}
-            targetPath={fileLinkMeta.targetPath}
-            displayPath={fileLinkMeta.displayPath}
-            filePath={fileLinkMeta.filePath}
-            label={labelParts.join(" · ")}
-            theme={resolvedTheme}
-            className={props.className}
-          />
-        );
-      },
-      code({
-        node: _node,
-        className,
-        children,
-        "data-block": dataBlock,
-        ...props
-      }: ComponentProps<"code"> & {
-        node?: unknown;
-        "data-block"?: string | boolean | undefined;
-      }) {
-        const code = nodeToPlainText(children);
-        const language = extractFenceLanguage(className);
-        if (dataBlock == null) {
-          return (
-            <code {...props} className={cn("chat-markdown-inline-code", className)}>
-              {children}
-            </code>
-          );
-        }
-
-        if (isStreaming) {
-          return (
-            <MarkdownCodeBlock code={code}>
-              <PlainCodeBlock className={className} code={code} codeProps={props} />
-            </MarkdownCodeBlock>
-          );
-        }
-
-        if (isMermaidFenceLanguage(language)) {
-          return <MermaidCodeBlock code={code} themeName={diffThemeName} />;
-        }
-
-        return (
-          <MarkdownCodeBlock code={code}>
-            <ShikiCodeBlock
-              className={className}
-              code={code}
-              codeProps={props}
-              themeName={diffThemeName}
-            />
-          </MarkdownCodeBlock>
-        );
-      },
-      p({ node: _node, className, ...props }) {
-        return <p {...props} className={cn("mt-0 mb-[0.85em] text-pretty", className)} />;
-      },
-      h1({ node: _node, className, ...props }) {
-        return (
-          <h1
-            {...props}
-            className={cn(
-              "mt-4 mb-1.5 text-[clamp(18px,calc(var(--conversation-text-font-size)*1.45),22px)]/[1.25] font-semibold text-foreground text-balance",
-              className,
-            )}
-          />
-        );
-      },
-      h2({ node: _node, className, ...props }) {
-        return (
-          <h2
-            {...props}
-            className={cn(
-              "mt-4 mb-2 flex items-center gap-3 text-[max(13px,calc(var(--conversation-text-font-size)*1.02))]/[1.35] font-semibold text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] text-balance after:h-px after:min-w-6 after:flex-1 after:bg-(--multi-markdown-rule-color) after:content-['']",
-              className,
-            )}
-          />
-        );
-      },
-      h3({ node: _node, className, ...props }) {
-        return (
-          <h3
-            {...props}
-            className={cn(
-              "mt-3 mb-1 text-[max(13px,var(--conversation-text-font-size))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_74%,transparent)] text-balance",
-              className,
-            )}
-          />
-        );
-      },
-      h4({ node: _node, className, ...props }) {
-        return (
-          <h4
-            {...props}
-            className={cn(
-              "mt-2.5 mb-1 text-conversation font-[550] text-[color-mix(in_srgb,var(--foreground)_72%,transparent)] text-balance",
-              className,
-            )}
-          />
-        );
-      },
-      h5({ node: _node, className, ...props }) {
-        return (
-          <h5
-            {...props}
-            className={cn(
-              "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] text-balance",
-              className,
-            )}
-          />
-        );
-      },
-      h6({ node: _node, className, ...props }) {
-        return (
-          <h6
-            {...props}
-            className={cn(
-              "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] text-balance",
-              className,
-            )}
-          />
-        );
-      },
-      ul({ node: _node, className, ...props }) {
-        return (
-          <ul
-            {...props}
-            className={cn(
-              "mt-0 mb-[0.85em] flex list-disc flex-col gap-[0.25em] pl-[1.15em]",
-              className,
-            )}
-          />
-        );
-      },
-      ol({ node: _node, className, ...props }) {
-        return (
-          <ol
-            {...props}
-            className={cn(
-              "mt-0 mb-[0.85em] flex list-decimal flex-col gap-[0.25em] pl-[1.15em]",
-              className,
-            )}
-          />
-        );
-      },
-      li({ node: _node, className, ...props }) {
-        return (
-          <li
-            {...props}
-            className={cn(
-              "mb-0 pl-[0.1em] marker:text-(--multi-markdown-marker-foreground)",
-              className,
-            )}
-          />
-        );
-      },
-      hr({ node: _node, className, ...props }) {
-        return (
-          <hr
-            {...props}
-            className={cn(
-              "my-4 max-w-full border-0 border-t border-(--multi-markdown-rule-color)",
-              className,
-            )}
-          />
-        );
-      },
-      blockquote({ node: _node, className, ...props }) {
-        return (
-          <blockquote
-            {...props}
-            className={cn(
-              "mt-1 mb-[0.85em] border-l-2 border-(--multi-markdown-blockquote-border) bg-(--multi-markdown-blockquote-background) py-0 pr-0 pl-4 text-(--multi-markdown-blockquote-foreground) italic",
-              className,
-            )}
-          />
-        );
-      },
-      kbd({ node: _node, className, ...props }) {
-        return (
-          <kbd
-            {...props}
-            className={cn(
-              "rounded-[3px] border border-(--multi-markdown-kbd-border) border-b-(--multi-markdown-kbd-bottom-border) bg-(--multi-markdown-kbd-background) px-[3px] py-px align-middle font-mono text-[0.85em] text-(--multi-markdown-kbd-foreground) shadow-[inset_0_-1px_0_var(--multi-markdown-widget-shadow)]",
-              className,
-            )}
-          />
-        );
-      },
-      strong({ node: _node, className, ...props }) {
-        return <strong {...props} className={cn("font-semibold", className)} />;
-      },
-      b({ node: _node, className, ...props }) {
-        return <b {...props} className={cn("font-semibold", className)} />;
-      },
-      del({ node: _node, className, ...props }) {
-        return <del {...props} className={cn("text-muted-foreground line-through", className)} />;
-      },
-      img({ node: _node, className, ...props }) {
-        return (
-          <img
-            {...props}
-            className={cn(
-              "h-auto max-w-full rounded-lg align-middle shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]",
-              className,
-            )}
-          />
-        );
-      },
-      table({ node: _node, className, ...props }) {
-        return (
-          <table {...props} className={cn("mb-3 w-full border-collapse text-left", className)} />
-        );
-      },
-      th({ node: _node, className, ...props }) {
-        return (
-          <th
-            {...props}
-            className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
-          />
-        );
-      },
-      td({ node: _node, className, ...props }) {
-        return (
-          <td
-            {...props}
-            className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
-          />
-        );
-      },
-    }),
-    [
-      diffThemeName,
-      fileLinkParentSuffixByPath,
-      isStreaming,
-      markdownFileLinkMetaByHref,
-      resolvedTheme,
-    ],
+  })();
+  const fileLinkParentSuffixByPath = buildFileLinkParentSuffixByPath(
+    [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath),
   );
+  const renderContext: ChatMarkdownRenderContextValue = {
+    markdownFileLinkMetaByHref,
+    fileLinkParentSuffixByPath,
+    resolvedTheme,
+    isStreaming,
+    diffThemeName,
+  };
 
   return (
-    <div
-      className={cn(
-        "chat-markdown w-full min-w-0 whitespace-normal",
-        "text-conversation",
-        "text-multi-fg-primary",
-        className,
-      )}
-    >
-      <Streamdown
-        mode={isStreaming ? "streaming" : "static"}
-        parseIncompleteMarkdown={isStreaming}
-        components={markdownComponents}
-        urlTransform={markdownUrlTransform}
-        animated={false}
-        controls={false}
-        className="chat-markdown-streamdown space-y-0"
+    // oxlint-disable-next-line react/jsx-no-constructed-context-values -- React Compiler memoizes context values
+    <ChatMarkdownRenderContext.Provider value={renderContext}>
+      <div
+        className={cn(
+          "chat-markdown w-full min-w-0 whitespace-normal",
+          "text-conversation",
+          "text-multi-fg-primary",
+          className,
+        )}
       >
-        {markdownText}
-      </Streamdown>
-    </div>
+        <Streamdown
+          mode={isStreaming ? "streaming" : "static"}
+          parseIncompleteMarkdown={isStreaming}
+          components={CHAT_MARKDOWN_COMPONENTS}
+          urlTransform={markdownUrlTransform}
+          animated={false}
+          controls={false}
+          className="chat-markdown-streamdown space-y-0"
+        >
+          {markdownText}
+        </Streamdown>
+      </div>
+    </ChatMarkdownRenderContext.Provider>
   );
 }
 
-export default memo(ChatMarkdown);
+export default ChatMarkdown;

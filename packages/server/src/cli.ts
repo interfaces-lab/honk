@@ -765,7 +765,7 @@ const sharedServerCommandFlags = {
   baseDir: baseDirFlag,
   cwd: Argument.string("cwd").pipe(
     Argument.withDescription(
-      "Working directory for provider sessions (defaults to the current directory).",
+      "Working directory for runtime sessions (defaults to the current directory).",
     ),
     Argument.optional,
   ),

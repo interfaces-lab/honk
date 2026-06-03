@@ -38,7 +38,7 @@ export type ServerAuthPolicy = typeof ServerAuthPolicy.Type;
  *
  * Bootstrap methods are for establishing trust at the start of a connection or
  * pairing flow. They are not the long-lived credential used for ordinary
- * authenticated HTTP / WebSocket traffic after pairing succeeds.
+ * authenticated HTTP traffic after pairing succeeds.
  *
  * Current methods:
  * - `desktop-bootstrap`: a trusted local desktop handoff, used so the desktop
@@ -54,19 +54,14 @@ export type ServerAuthBootstrapMethod = typeof ServerAuthBootstrapMethod.Type;
  * client has already paired.
  *
  * These methods are used by the server-wide auth layer for privileged HTTP and
- * WebSocket access. They are distinct from bootstrap methods so clients can
+ * API access. They are distinct from bootstrap methods so clients can
  * reason clearly about "pair first, then use session auth".
  *
  * Current methods:
- * - `browser-session-cookie`: cookie-backed browser session, used by the web
- *   app after bootstrap/pairing
  * - `bearer-session-token`: token-based session suitable for non-cookie or
  *   non-browser clients
  */
-export const ServerAuthSessionMethod = Schema.Literals([
-  "browser-session-cookie",
-  "bearer-session-token",
-]);
+export const ServerAuthSessionMethod = Schema.Literal("bearer-session-token");
 export type ServerAuthSessionMethod = typeof ServerAuthSessionMethod.Type;
 
 export const AuthSessionRole = Schema.Literals(["owner", "client"]);
@@ -85,9 +80,6 @@ export type AuthSessionRole = typeof AuthSessionRole.Type;
  *   willing to accept
  * - `sessionMethods`: authenticated request/session methods the server supports
  *   once pairing is complete
- * - `sessionCookieName`: cookie name clients should expect when
- *   `browser-session-cookie` is in use
- *
  * This descriptor is intentionally capability-oriented. It lets clients choose
  * the right UX without embedding server-specific auth logic or assuming a
  * single access method.
@@ -96,7 +88,6 @@ export const ServerAuthDescriptor = Schema.Struct({
   policy: ServerAuthPolicy,
   bootstrapMethods: Schema.Array(ServerAuthBootstrapMethod),
   sessionMethods: Schema.Array(ServerAuthSessionMethod),
-  sessionCookieName: TrimmedNonEmptyString,
 });
 export type ServerAuthDescriptor = typeof ServerAuthDescriptor.Type;
 
@@ -108,25 +99,11 @@ export type AuthBootstrapInput = typeof AuthBootstrapInput.Type;
 export const AuthBootstrapResult = Schema.Struct({
   authenticated: Schema.Literal(true),
   role: AuthSessionRole,
-  sessionMethod: ServerAuthSessionMethod,
-  expiresAt: Schema.DateTimeUtc,
-});
-export type AuthBootstrapResult = typeof AuthBootstrapResult.Type;
-
-export const AuthBearerBootstrapResult = Schema.Struct({
-  authenticated: Schema.Literal(true),
-  role: AuthSessionRole,
   sessionMethod: Schema.Literal("bearer-session-token"),
   expiresAt: Schema.DateTimeUtc,
   sessionToken: TrimmedNonEmptyString,
 });
-export type AuthBearerBootstrapResult = typeof AuthBearerBootstrapResult.Type;
-
-export const AuthWebSocketTokenResult = Schema.Struct({
-  token: TrimmedNonEmptyString,
-  expiresAt: Schema.DateTimeUtc,
-});
-export type AuthWebSocketTokenResult = typeof AuthWebSocketTokenResult.Type;
+export type AuthBootstrapResult = typeof AuthBootstrapResult.Type;
 
 export const AuthPairingCredentialResult = Schema.Struct({
   id: TrimmedNonEmptyString,

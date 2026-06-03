@@ -15,7 +15,7 @@ import {
   IconTestTube,
   IconToolbox,
 } from "central-icons";
-import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
+import React, { type FormEvent, type KeyboardEvent, useState } from "react";
 
 import {
   commandForProjectScript,
@@ -210,13 +210,13 @@ export default function ProjectScriptsControl({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const primaryScript = useMemo(() => {
+  const primaryScript = (() => {
     if (preferredScriptId) {
       const preferred = scripts.find((script) => script.id === preferredScriptId);
       if (preferred) return preferred;
     }
     return primaryProjectScript(scripts);
-  }, [preferredScriptId, scripts]);
+  })();
   const isEditing = editingScriptId !== null;
 
   const captureKeybinding = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -299,12 +299,12 @@ export default function ProjectScriptsControl({
     setDialogOpen(true);
   };
 
-  const confirmDeleteScript = useCallback(() => {
+  function confirmDeleteScript() {
     if (!editingScriptId) return;
     setDeleteConfirmOpen(false);
     setDialogOpen(false);
     void onDeleteScript(editingScriptId);
-  }, [editingScriptId, onDeleteScript]);
+  }
 
   return (
     <>

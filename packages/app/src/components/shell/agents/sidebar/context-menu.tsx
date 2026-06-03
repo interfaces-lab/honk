@@ -14,16 +14,16 @@ import {
   IconEditSmall1,
   IconTrashCan,
 } from "central-icons";
-import { useCallback, useRef, type ReactElement } from "react";
+import { useRef, type ReactElement } from "react";
 
 function useContextMenuTriggerFocus() {
   const triggerRef = useRef<HTMLDivElement | null>(null);
 
-  const setTriggerRef = useCallback((element: HTMLDivElement | null) => {
+  const setTriggerRef = (element: HTMLDivElement | null) => {
     triggerRef.current = element;
-  }, []);
+  };
 
-  const handleOpenChange = useCallback((open: boolean) => {
+  const handleOpenChange = (open: boolean) => {
     const trigger = triggerRef.current;
     if (!trigger) return;
 
@@ -41,7 +41,7 @@ function useContextMenuTriggerFocus() {
         : (trigger.querySelector<HTMLElement>("[tabindex]:not([tabindex='-1'])") ??
           trigger.querySelector<HTMLElement>("[tabindex]"));
     focusTarget?.focus({ preventScroll: true });
-  }, []);
+  };
 
   return { handleOpenChange, setTriggerRef };
 }

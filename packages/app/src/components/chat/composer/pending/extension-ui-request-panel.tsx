@@ -1,7 +1,7 @@
 import { type DesktopExtensionUiRequest } from "@multi/contracts";
 import { Button } from "@multi/ui/button";
 import { Input } from "@multi/ui/input";
-import { memo, useState } from "react";
+import { useState } from "react";
 
 interface ComposerPendingExtensionUiRequestPanelProps {
   readonly request: DesktopExtensionUiRequest | null;
@@ -10,18 +10,47 @@ interface ComposerPendingExtensionUiRequestPanelProps {
   readonly onRespond: (request: DesktopExtensionUiRequest, value: unknown) => void;
 }
 
-export const ComposerPendingExtensionUiRequestPanel = memo(
-  function ComposerPendingExtensionUiRequestPanel({
-    request,
-    pendingCount,
-    isResponding,
-    onRespond,
-  }: ComposerPendingExtensionUiRequestPanelProps) {
+export interface PendingExtensionUiRequestResponseAction {
+  readonly label: string;
+  readonly value: unknown;
+}
+
+export function pendingExtensionUiRequestResponseActions(
+  request: DesktopExtensionUiRequest,
+  draftValue: string,
+): readonly PendingExtensionUiRequestResponseAction[] {
+  switch (request.kind) {
+    case "select":
+      return (request.options ?? []).map((option) => ({
+        label: option,
+        value: option,
+      }));
+    case "confirm":
+      return [
+        { label: "Confirm", value: true },
+        { label: "Cancel", value: false },
+      ];
+    case "input":
+    case "editor":
+    case "custom":
+      return [{ label: "Send", value: draftValue }];
+    default:
+      return [];
+  }
+}
+
+export function ComposerPendingExtensionUiRequestPanel({
+  request,
+  pendingCount,
+  isResponding,
+  onRespond,
+}: ComposerPendingExtensionUiRequestPanelProps) {
     const [draftValue, setDraftValue] = useState("");
 
     if (!request) {
       return null;
     }
+    const responseActions = pendingExtensionUiRequestResponseActions(request, draftValue);
 
     return (
       <div className="px-4 py-3.5 sm:px-5 sm:py-4">
@@ -37,32 +66,32 @@ export const ComposerPendingExtensionUiRequestPanel = memo(
         ) : null}
         {request.kind === "select" ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {(request.options ?? []).map((option) => (
+            {responseActions.map((action) => (
               <Button
-                key={option}
+                key={action.label}
                 size="sm"
                 variant="outline"
                 disabled={isResponding}
-                onClick={() => onRespond(request, option)}
+                onClick={() => onRespond(request, action.value)}
               >
-                {option}
+                {action.label}
               </Button>
             ))}
           </div>
         ) : null}
         {request.kind === "confirm" ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <Button size="sm" disabled={isResponding} onClick={() => onRespond(request, true)}>
-              Confirm
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isResponding}
-              onClick={() => onRespond(request, false)}
-            >
-              Cancel
-            </Button>
+            {responseActions.map((action, index) => (
+              <Button
+                key={action.label}
+                size="sm"
+                variant={index === 0 ? undefined : "outline"}
+                disabled={isResponding}
+                onClick={() => onRespond(request, action.value)}
+              >
+                {action.label}
+              </Button>
+            ))}
           </div>
         ) : null}
         {request.kind === "input" || request.kind === "editor" || request.kind === "custom" ? (
@@ -74,12 +103,15 @@ export const ComposerPendingExtensionUiRequestPanel = memo(
               disabled={isResponding}
               onChange={(event) => setDraftValue(event.target.value)}
             />
-            <Button size="sm" disabled={isResponding} onClick={() => onRespond(request, draftValue)}>
-              Send
+            <Button
+              size="sm"
+              disabled={isResponding}
+              onClick={() => onRespond(request, responseActions[0]?.value ?? "")}
+            >
+              {responseActions[0]?.label ?? "Send"}
             </Button>
           </div>
         ) : null}
       </div>
     );
-  },
-);
+}

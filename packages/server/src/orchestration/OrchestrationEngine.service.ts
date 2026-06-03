@@ -2,7 +2,7 @@
  * OrchestrationEngineService - Service interface for orchestration command handling.
  *
  * Owns command validation/dispatch and in-memory read-model updates backed by
- * `OrchestrationEventStore` persistence. It does not own provider process
+ * `OrchestrationEventStore` persistence. It does not own runtime process
  * management or transport concerns (e.g. websocket request parsing).
  *
  * Uses Effect `Context.Service` for dependency injection. Command dispatch,

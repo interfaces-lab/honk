@@ -11,18 +11,18 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import * as DesktopBackendManager from "../../backend/DesktopBackendManager";
-import * as DesktopActiveWork from "../../app/DesktopActiveWork";
-import * as DesktopEnvironment from "../../app/DesktopEnvironment";
-import * as DesktopAppSettings from "../../settings/DesktopAppSettings";
-import * as DesktopWindow from "../../window/DesktopWindow";
-import * as ElectronDialog from "../../electron/ElectronDialog";
-import * as ElectronMenu from "../../electron/ElectronMenu";
-import * as ElectronShell from "../../electron/ElectronShell";
-import * as ElectronTheme from "../../electron/ElectronTheme";
-import * as ElectronWindow from "../../electron/ElectronWindow";
+import * as DesktopBackendManager from "../../backend/desktop-backend-manager";
+import * as DesktopActiveWork from "../../app/desktop-active-work";
+import * as DesktopEnvironment from "../../app/desktop-environment";
+import * as DesktopAppSettings from "../../settings/desktop-app-settings";
+import * as DesktopWindow from "../../window/desktop-window";
+import * as ElectronDialog from "../../electron/electron-dialog";
+import * as ElectronMenu from "../../electron/electron-menu";
+import * as ElectronShell from "../../electron/electron-shell";
+import * as ElectronTheme from "../../electron/electron-theme";
+import * as ElectronWindow from "../../electron/electron-window";
 import * as IpcChannels from "../channels";
-import { makeIpcMethod, makeSyncIpcMethod } from "../DesktopIpc";
+import { makeIpcMethod, makeSyncIpcMethod } from "../desktop-ipc";
 
 const ContextMenuPosition = Schema.Struct({
   x: Schema.Number,
@@ -33,12 +33,6 @@ const ContextMenuInput = Schema.Struct({
   items: Schema.Array(ContextMenuItemSchema),
   position: Schema.optionalKey(ContextMenuPosition),
 });
-
-function toWebSocketBaseUrl(httpBaseUrl: URL): string {
-  const url = new URL(httpBaseUrl.href);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  return url.href;
-}
 
 export const getAppBranding = makeSyncIpcMethod({
   channel: IpcChannels.GET_APP_BRANDING_CHANNEL,
@@ -60,10 +54,7 @@ export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
       onSome: ({ bootstrap, httpBaseUrl }) => ({
         label: "Local environment",
         httpBaseUrl: httpBaseUrl.href,
-        wsBaseUrl: toWebSocketBaseUrl(httpBaseUrl),
-        ...(bootstrap.desktopBootstrapToken
-          ? { bootstrapToken: bootstrap.desktopBootstrapToken }
-          : {}),
+        bootstrapToken: bootstrap.desktopBootstrapToken,
       }),
     });
   }),

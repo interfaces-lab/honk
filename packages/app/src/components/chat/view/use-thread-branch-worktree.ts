@@ -1,5 +1,5 @@
 import type { GitBranch } from "@multi/contracts";
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { toastManager } from "~/app/toast";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
@@ -61,87 +61,65 @@ export function useThreadBranchWorktree(
 
   const [unavailableBaseBranch, setUnavailableBaseBranch] = useState<string | null>(null);
 
-  const handleStoredBranchAvailabilityChange = useCallback((missingBranch: string | null) => {
+  function handleStoredBranchAvailabilityChange(missingBranch: string | null) {
     setUnavailableBaseBranch(missingBranch);
-  }, []);
+  }
 
-  const handleBranchEnvModeChange = useCallback(
-    (mode: DraftThreadEnvMode, branch: string | null) => {
-      const nextBranch = mode === "worktree" ? (branch ?? activeThreadBranch) : activeThreadBranch;
-      if (!isLocalDraftThread || !draftId) {
-        return;
-      }
-      setDraftThreadContext(draftId, {
-        envMode: mode,
-        branch: nextBranch,
-        worktreePath: activeThreadWorktreePath,
-      });
-    },
-    [
-      activeThreadBranch,
-      activeThreadWorktreePath,
-      draftId,
-      isLocalDraftThread,
-      setDraftThreadContext,
-    ],
-  );
+  function handleBranchEnvModeChange(mode: DraftThreadEnvMode, branch: string | null) {
+    const nextBranch = mode === "worktree" ? (branch ?? activeThreadBranch) : activeThreadBranch;
+    if (!isLocalDraftThread || !draftId) {
+      return;
+    }
+    setDraftThreadContext(draftId, {
+      envMode: mode,
+      branch: nextBranch,
+      worktreePath: activeThreadWorktreePath,
+    });
+  }
 
-  const handleBranchSelect = useCallback(
-    async (branch: GitBranch) => {
-      if (!activeProjectCwd) {
-        return;
-      }
-      const reuseExistingWorktree = Boolean(branch.worktreePath);
-      const nextWorktreePath =
-        branch.worktreePath && branch.worktreePath !== activeProjectCwd
-          ? branch.worktreePath
-          : null;
-      const nextEnvMode: DraftThreadEnvMode = nextWorktreePath
+  async function handleBranchSelect(branch: GitBranch) {
+    if (!activeProjectCwd) {
+      return;
+    }
+    const reuseExistingWorktree = Boolean(branch.worktreePath);
+    const nextWorktreePath =
+      branch.worktreePath && branch.worktreePath !== activeProjectCwd
+        ? branch.worktreePath
+        : null;
+    const nextEnvMode: DraftThreadEnvMode = nextWorktreePath
+      ? "worktree"
+      : envMode === "worktree"
         ? "worktree"
-        : envMode === "worktree"
-          ? "worktree"
-          : "local";
+        : "local";
 
-      try {
-        if (nextEnvMode === "local" && !reuseExistingWorktree) {
-          await checkoutBranchMutation.mutateAsync(branch.name);
-        }
-      } catch (error) {
-        toastManager.add({
-          type: "error",
-          title: `Could not checkout ${branch.name}`,
-          description: formatGitActionErrorDescription(error, "Git checkout failed."),
-        });
-        return;
+    try {
+      if (nextEnvMode === "local" && !reuseExistingWorktree) {
+        await checkoutBranchMutation.mutateAsync(branch.name);
       }
-
-      if (isLocalDraftThread && draftId) {
-        setDraftThreadContext(draftId, {
-          branch: branch.name,
-          worktreePath: nextWorktreePath,
-          envMode: nextEnvMode,
-        });
-      }
-    },
-    [
-      activeProjectCwd,
-      checkoutBranchMutation,
-      draftId,
-      envMode,
-      isLocalDraftThread,
-      setDraftThreadContext,
-    ],
-  );
-
-  const openPullRequestBranchDialog = useCallback(
-    (reference: string) => {
-      setPullRequestDialogState({
-        initialReference: reference,
-        key: Date.now(),
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: `Could not checkout ${branch.name}`,
+        description: formatGitActionErrorDescription(error, "Git checkout failed."),
       });
-    },
-    [setPullRequestDialogState],
-  );
+      return;
+    }
+
+    if (isLocalDraftThread && draftId) {
+      setDraftThreadContext(draftId, {
+        branch: branch.name,
+        worktreePath: nextWorktreePath,
+        envMode: nextEnvMode,
+      });
+    }
+  }
+
+  function openPullRequestBranchDialog(reference: string) {
+    setPullRequestDialogState({
+      initialReference: reference,
+      key: Date.now(),
+    });
+  }
 
   return {
     unavailableBaseBranch,

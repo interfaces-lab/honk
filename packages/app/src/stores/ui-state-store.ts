@@ -102,9 +102,11 @@ function hydratePersistedProjectState(parsed: PersistedUiState): void {
       persistedExpandedProjectCwds.add(cwd);
     }
   }
+  const persistedProjectOrderCwdSet = new Set(persistedProjectOrderCwds);
   for (const cwd of parsed.projectOrderCwds ?? []) {
-    if (typeof cwd === "string" && cwd.length > 0 && !persistedProjectOrderCwds.includes(cwd)) {
+    if (typeof cwd === "string" && cwd.length > 0 && !persistedProjectOrderCwdSet.has(cwd)) {
       persistedProjectOrderCwds.push(cwd);
+      persistedProjectOrderCwdSet.add(cwd);
     }
   }
 }
@@ -177,14 +179,19 @@ export function syncProjects(state: UiState, projects: readonly SyncProjectInput
     currentLogicalKeyByPhysicalKey.set(project.key, project.logicalKey);
   }
   currentProjectCwdsByLogicalKey.clear();
+  const currentProjectCwdSetsByLogicalKey = new Map<string, Set<string>>();
   for (const project of projects) {
     const cwds = currentProjectCwdsByLogicalKey.get(project.logicalKey);
     if (cwds) {
-      if (!cwds.includes(project.cwd)) {
+      const cwdSet = currentProjectCwdSetsByLogicalKey.get(project.logicalKey) ?? new Set(cwds);
+      if (!cwdSet.has(project.cwd)) {
         cwds.push(project.cwd);
+        cwdSet.add(project.cwd);
       }
+      currentProjectCwdSetsByLogicalKey.set(project.logicalKey, cwdSet);
     } else {
       currentProjectCwdsByLogicalKey.set(project.logicalKey, [project.cwd]);
+      currentProjectCwdSetsByLogicalKey.set(project.logicalKey, new Set([project.cwd]));
     }
   }
 

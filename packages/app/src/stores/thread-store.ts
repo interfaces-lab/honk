@@ -1,5 +1,6 @@
 import type {
   EnvironmentId,
+  AgentRuntimeEvent,
   MessageId,
   OrchestrationChatTimelineRow,
   OrchestrationThreadActivity,
@@ -8,7 +9,7 @@ import type {
   OrchestrationShellSnapshot,
   OrchestrationShellStreamEvent,
   OrchestrationThread,
-  ProviderRuntimeEvent,
+  DesktopExtensionUiRequest,
   ProjectId,
   SessionTreeProjection,
   ScopedProjectRef,
@@ -34,7 +35,8 @@ import { getThreadFromEnvironmentState } from "../thread-derivation";
 import {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
-  applyProviderRuntimeEvent,
+  applyAgentRuntimeEvent,
+  clearAgentRuntimeThreadSession,
   applyRuntimeSessionTreeProjection,
   applyShellEvent,
   setActiveEnvironmentId,
@@ -42,13 +44,15 @@ import {
   setThreadBranch,
   syncServerShellSnapshot,
   syncCachedShellSnapshot,
+  syncPendingExtensionUiRequests,
   syncServerThreadDetail,
 } from "./thread-sync";
 
 export {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
-  applyProviderRuntimeEvent,
+  applyAgentRuntimeEvent,
+  clearAgentRuntimeThreadSession,
   applyRuntimeSessionTreeProjection,
   applyShellEvent,
   setActiveEnvironmentId,
@@ -56,6 +60,7 @@ export {
   setThreadBranch,
   syncServerShellSnapshot,
   syncCachedShellSnapshot,
+  syncPendingExtensionUiRequests,
   syncServerThreadDetail,
 } from "./thread-sync";
 
@@ -308,12 +313,14 @@ interface AppStore extends AppState {
     events: ReadonlyArray<OrchestrationEvent>,
     environmentId: EnvironmentId,
   ) => void;
-  applyProviderRuntimeEvent: (
-    event: ProviderRuntimeEvent,
-    environmentId: EnvironmentId,
-  ) => void;
+  applyAgentRuntimeEvent: (event: AgentRuntimeEvent, environmentId: EnvironmentId) => void;
+  clearAgentRuntimeThreadSession: (threadId: ThreadId, environmentId: EnvironmentId) => void;
   applyRuntimeSessionTreeProjection: (
     tree: SessionTreeProjection,
+    environmentId: EnvironmentId,
+  ) => void;
+  syncPendingExtensionUiRequests: (
+    requests: ReadonlyArray<DesktopExtensionUiRequest>,
     environmentId: EnvironmentId,
   ) => void;
   applyShellEvent: (event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) => void;
@@ -339,10 +346,14 @@ export const useStore = create<AppStore>((set) => ({
     set((state) => applyOrchestrationEvent(state, event, environmentId)),
   applyOrchestrationEvents: (events, environmentId) =>
     set((state) => applyOrchestrationEvents(state, events, environmentId)),
-  applyProviderRuntimeEvent: (event, environmentId) =>
-    set((state) => applyProviderRuntimeEvent(state, event, environmentId)),
+  applyAgentRuntimeEvent: (event, environmentId) =>
+    set((state) => applyAgentRuntimeEvent(state, event, environmentId)),
+  clearAgentRuntimeThreadSession: (threadId, environmentId) =>
+    set((state) => clearAgentRuntimeThreadSession(state, threadId, environmentId)),
   applyRuntimeSessionTreeProjection: (tree, environmentId) =>
     set((state) => applyRuntimeSessionTreeProjection(state, tree, environmentId)),
+  syncPendingExtensionUiRequests: (requests, environmentId) =>
+    set((state) => syncPendingExtensionUiRequests(state, requests, environmentId)),
   applyShellEvent: (event, environmentId) =>
     set((state) => applyShellEvent(state, event, environmentId)),
   setError: (threadId, error) => set((state) => setError(state, threadId, error)),

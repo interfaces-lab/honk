@@ -64,7 +64,17 @@ function normalizeJsonValue(value: unknown, seen: WeakSet<object> = new WeakSet(
     return Array.from(value.values(), (entry) => normalizeJsonValue(entry, seen));
   }
   if (!isPlainObject(value)) {
-    return String(value);
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint" ||
+      value === null ||
+      value === undefined
+    ) {
+      return String(value);
+    }
+    return JSON.stringify(value);
   }
   if (markSeen(value, seen)) {
     return "[Circular]";

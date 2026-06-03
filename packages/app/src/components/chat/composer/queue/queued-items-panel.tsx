@@ -1,6 +1,6 @@
 import { IconArrowUp, IconChevronDownMedium, IconPencilLine, IconTrashCan } from "central-icons";
 import type { MessageId } from "@multi/contracts";
-import { memo, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";
 import { SidebarButton, SidebarItem } from "@multi/ui/sidebar";
@@ -53,7 +53,7 @@ type QueuedComposerItemActionsProps = {
   onReorder: (itemId: MessageId, targetItemId: MessageId | null, insertAfter: boolean) => void;
 };
 
-const QueuedComposerItemRowActions = memo(function QueuedComposerItemRowActions(props: {
+function QueuedComposerItemRowActions(props: {
   itemId: MessageId;
   isBusy: boolean;
   onBeginEdit: (itemId: MessageId) => void;
@@ -107,9 +107,9 @@ const QueuedComposerItemRowActions = memo(function QueuedComposerItemRowActions(
       </button>
     </div>
   );
-});
+}
 
-const QueuedComposerItemThumbnails = memo(function QueuedComposerItemThumbnails(props: {
+function QueuedComposerItemThumbnails(props: {
   item: QueuedComposerItem;
 }) {
   const visibleImages = props.item.sendContext.images.slice(0, QUEUE_ROW_THUMBNAIL_LIMIT);
@@ -135,9 +135,9 @@ const QueuedComposerItemThumbnails = memo(function QueuedComposerItemThumbnails(
       ) : null}
     </span>
   );
-});
+}
 
-const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
+function QueuedComposerItemRow(props: {
   item: QueuedComposerItem;
   index: number;
   itemCount: number;
@@ -254,9 +254,9 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
       ) : null}
     </div>
   );
-});
+}
 
-const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
+function QueuedComposerItemsList(
   props: QueuedComposerItemActionsProps,
 ) {
   const [draggingItemId, setDraggingItemId] = useState<MessageId | null>(null);
@@ -336,9 +336,9 @@ const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
       ))}
     </div>
   );
-});
+}
 
-export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
+export function QueuedComposerItemsPanel(
   props: QueuedComposerItemActionsProps & {
     compact: boolean;
     expanded: boolean;
@@ -405,9 +405,9 @@ export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
       </div>
     </div>
   );
-});
+}
 
-export const QueuedComposerEditBanner = memo(function QueuedComposerEditBanner(props: {
+export function QueuedComposerEditBanner(props: {
   onCancelEdit: () => void;
 }) {
   return (
@@ -425,4 +425,4 @@ export const QueuedComposerEditBanner = memo(function QueuedComposerEditBanner(p
       </button>
     </div>
   );
-});
+}

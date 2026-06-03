@@ -5,7 +5,6 @@ export interface OrchestrationBatchEffects {
   clearDeletedThreadIds: ThreadId[];
   removeTerminalStateThreadIds: ThreadId[];
   gitRefreshThreadIds: ThreadId[];
-  needsProviderInvalidation: boolean;
 }
 
 const GIT_REFRESH_ACTIVITY_ITEM_TYPE = "file_change";
@@ -32,7 +31,6 @@ export function deriveOrchestrationBatchEffects(
     }
   >();
   const gitRefreshThreadIds = new Set<ThreadId>();
-  let needsProviderInvalidation = false;
 
   for (const event of events) {
     switch (event.type) {
@@ -110,6 +108,5 @@ export function deriveOrchestrationBatchEffects(
     clearDeletedThreadIds,
     removeTerminalStateThreadIds,
     gitRefreshThreadIds: [...gitRefreshThreadIds],
-    needsProviderInvalidation,
   };
 }

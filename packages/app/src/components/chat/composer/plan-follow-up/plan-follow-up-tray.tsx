@@ -1,13 +1,13 @@
 import { Button } from "@multi/ui/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
-import { memo, useMemo, useState } from "react";
+import { useState } from "react";
 
 import ChatMarkdown from "../../markdown/chat-markdown";
 import type { ComposerInputProps } from "../input-contract";
 import { cn } from "~/lib/utils";
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
-export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
+export function PlanFollowUpTray(props: {
   plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
   compact: boolean;
   gitCwd: string | undefined;
@@ -18,11 +18,8 @@ export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
 }) {
   const planKey = String(props.plan.id);
   const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
-  const title = useMemo(() => proposedPlanTitle(props.plan.planMarkdown) ?? "Plan", [props.plan]);
-  const previewMarkdown = useMemo(
-    () => stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim(),
-    [props.plan],
-  );
+  const title = proposedPlanTitle(props.plan.planMarkdown) ?? "Plan";
+  const previewMarkdown = stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim();
   const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
 
   if (dismissedPlanId === planKey) {
@@ -96,4 +93,4 @@ export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
       </div>
     </div>
   );
-});
+}

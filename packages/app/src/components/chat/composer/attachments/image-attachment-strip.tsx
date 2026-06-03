@@ -1,15 +1,13 @@
 import { Button } from "@multi/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
-import { memo } from "react";
-
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {
   buildExpandedImagePreview,
   type ExpandedImagePreview,
 } from "../../message/expanded-image-preview";
 
-export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmentStrip(props: {
+export function ComposerImageAttachmentStrip(props: {
   images: readonly ComposerImageAttachment[];
   nonPersistedImageIds: ReadonlySet<string>;
   onExpandImage: (preview: ExpandedImagePreview) => void;
@@ -75,4 +73,4 @@ export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmen
       ))}
     </div>
   );
-});
+}

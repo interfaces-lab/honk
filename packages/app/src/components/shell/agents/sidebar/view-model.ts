@@ -3,7 +3,7 @@ import {
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
-} from "@multi/client-runtime";
+} from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@multi/contracts";
 
 import { formatCompactRelativeTimeLabel } from "~/lib/timestamp-format";

@@ -6,7 +6,7 @@ import type {
   TurnId,
 } from "@multi/contracts";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { extractMessageText, toUnknownRecord } from "./message-text";
+import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
 import { makeRuntimeEventId } from "./ids";
 
 export interface RuntimeEventProjectionContext {
@@ -20,8 +20,12 @@ export interface RuntimeEventProjectionContext {
 function eventTypeForPiEvent(event: AgentSessionEvent): AgentRuntimeEventType {
   switch (event.type) {
     case "agent_start":
-      return "turn.started";
+      return "agent.started";
     case "agent_end":
+      return "agent.completed";
+    case "turn_start":
+      return "turn.started";
+    case "turn_end":
       return "turn.completed";
     case "message_start":
       return "message.started";
@@ -57,6 +61,12 @@ function summarizePiEvent(event: AgentSessionEvent): string | undefined {
   switch (event.type) {
     case "queue_update":
       return `${event.steering.length} steering, ${event.followUp.length} follow-up`;
+    case "tool_execution_start":
+      return `Started ${event.toolName}`;
+    case "tool_execution_update":
+      return `Running ${event.toolName}`;
+    case "tool_execution_end":
+      return event.isError ? `${event.toolName} failed` : `Completed ${event.toolName}`;
     case "thinking_level_changed":
       return `Thinking ${event.level}`;
     case "session_info_changed":
@@ -82,10 +92,21 @@ function textForPiEvent(event: AgentSessionEvent): string | undefined {
   return undefined;
 }
 
+function thinkingForPiEvent(event: AgentSessionEvent): string | undefined {
+  if ("message" in event) {
+    const thinking = extractMessageThinking(event.message);
+    return thinking ? thinking : undefined;
+  }
+  return undefined;
+}
+
 export function projectPiAgentSessionEvent(
   event: AgentSessionEvent,
   context: RuntimeEventProjectionContext,
 ): AgentRuntimeEvent {
+  const summary = summarizePiEvent(event);
+  const text = textForPiEvent(event);
+  const thinking = thinkingForPiEvent(event);
   return {
     id: makeRuntimeEventId(context.sequence),
     type: eventTypeForPiEvent(event),
@@ -94,8 +115,9 @@ export function projectPiAgentSessionEvent(
     runtimeSessionId: context.runtimeSessionId,
     ...(context.turnId ? { turnId: context.turnId } : {}),
     createdAt: (context.now ?? new Date()).toISOString(),
-    ...(summarizePiEvent(event) ? { summary: summarizePiEvent(event) } : {}),
-    ...(textForPiEvent(event) ? { text: textForPiEvent(event) } : {}),
+    ...(summary ? { summary } : {}),
+    ...(text ? { text } : {}),
+    ...(thinking ? { thinking } : {}),
     data: toUnknownRecord(event),
     raw: event,
   };

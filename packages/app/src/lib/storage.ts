@@ -95,7 +95,11 @@ export function createDebouncedJSONStorage<S>(
         if (value === null) {
           return null;
         }
-        return JSON.parse(value, options?.reviver) as StorageValue<S>;
+        const parsed: unknown = JSON.parse(value, options?.reviver);
+        if (parsed === null || typeof parsed !== "object") {
+          return null;
+        }
+        return parsed as StorageValue<S>;
       };
       const value = resolvedStorage.getItem(name);
       if (value instanceof Promise) {

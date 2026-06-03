@@ -2,15 +2,14 @@
 
 import { IconSidebar, IconSidebarHiddenLeftWide, IconSidebarHiddenRightWide } from "central-icons";
 import { TabsPanel, TabsRoot } from "@multi/ui/tabs";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
   createContext,
   type CSSProperties,
   type ReactNode,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -23,6 +22,7 @@ import {
   type WorkbenchTab,
   RIGHT_WORKBENCH_WIDTH_LIMITS,
   SHELL_LEFT_PANEL_WIDTH_LIMITS,
+  isWorkbenchTab,
   shellPanelsActions,
   useActiveTab,
   useIsMuted,
@@ -52,8 +52,14 @@ const workbenchPanelSlotVariants = cva(
   },
 );
 
-function isWorkbenchTab(value: unknown): value is WorkbenchTab {
-  return value === "plan" || value === "git" || value === "terminal" || value === "files";
+export function addVisitedWorkbenchTab(
+  current: ReadonlySet<WorkbenchTab>,
+  activeTab: WorkbenchTab,
+): ReadonlySet<WorkbenchTab> {
+  if (current.has(activeTab)) {
+    return current;
+  }
+  return new Set([...current, activeTab]);
 }
 
 export interface RightWorkbenchDefinition {
@@ -107,6 +113,12 @@ function setRightPanelOpen(open: boolean): void {
 }
 
 const SHOW_RIGHT_WORKBENCH_LABEL = "Show project panel — files, Git changes, terminal.";
+
+function selectWorkbenchPanelSearch(
+  search: Partial<Record<"panel", unknown>>,
+): WorkbenchTab | undefined {
+  return isWorkbenchTab(search.panel) ? search.panel : undefined;
+}
 
 function LeftAside(props: { children: ReactNode }) {
   const leftOpen = useLeftOpen();
@@ -195,10 +207,15 @@ function RightAside(props: {
 }) {
   const storedRightOpen = useRightOpen();
   const rightWidth = useRightWidth();
-  const activeTab = useActiveTab();
+  const storedActiveTab = useActiveTab();
+  const searchActiveTab = useRouterState({
+    select: (state) => selectWorkbenchPanelSearch(state.location.search),
+  });
+  const navigate = useNavigate();
+  const activeTab = searchActiveTab ?? storedActiveTab;
   const muted = useIsMuted();
-  const visibleTabs = useMemo(() => props.right.tabs.map((tab) => tab.id), [props.right.tabs]);
-  const effectiveActiveTab = visibleTabs.includes(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
+  const visibleTabs = new Set(props.right.tabs.map((tab) => tab.id));
+  const effectiveActiveTab = visibleTabs.has(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
     routeThreadId: props.routeThreadId,
@@ -208,22 +225,27 @@ function RightAside(props: {
   const [snapTransition, setSnapTransition] = useState(false);
   const previousRightOpenRef = useRef(rightOpen);
 
-  const handleWorkbenchTabChange = useCallback(
-    (value: unknown) => {
-      if (!isWorkbenchTab(value)) {
-        return;
-      }
-      if (!visibleTabs.includes(value)) {
-        return;
-      }
-      if (activeTab === value && !muted) {
-        return;
-      }
-      shellPanelsActions.setActiveTab(value);
-      shellPanelsActions.setMuted(false);
-    },
-    [activeTab, muted, visibleTabs],
-  );
+  const handleWorkbenchTabChange = (value: unknown) => {
+    if (!isWorkbenchTab(value)) {
+      return;
+    }
+    if (!visibleTabs.has(value)) {
+      return;
+    }
+    if (activeTab === value && !muted) {
+      return;
+    }
+    shellPanelsActions.setActiveTab(value);
+    shellPanelsActions.setMuted(false);
+    void navigate({
+      replace: true,
+      to: ".",
+      search: (search) => ({
+        ...search,
+        panel: value,
+      }),
+    });
+  };
 
   const asideRef = useRef<HTMLElement | null>(null);
   const resize = useColumnResize({
@@ -236,7 +258,7 @@ function RightAside(props: {
 
   useEffect(() => {
     if (previousRightOpenRef.current === rightOpen) {
-      return;
+      return undefined;
     }
     previousRightOpenRef.current = rightOpen;
     setSnapTransition(true);
@@ -246,10 +268,10 @@ function RightAside(props: {
     return () => window.cancelAnimationFrame(frame);
   }, [rightOpen]);
 
-  const runtimeValue = useMemo<RightWorkbenchPanelRuntime>(
-    () => ({ activeTab: effectiveActiveTab, open: rightOpen }),
-    [effectiveActiveTab, rightOpen],
-  );
+  const runtimeValue: RightWorkbenchPanelRuntime = {
+    activeTab: effectiveActiveTab,
+    open: rightOpen,
+  };
 
   return (
     <aside
@@ -269,7 +291,10 @@ function RightAside(props: {
       aria-hidden={!rightOpen ? true : undefined}
       inert={!rightOpen}
     >
-      <RightWorkbenchPanelRuntimeContext.Provider value={runtimeValue}>
+      <RightWorkbenchPanelRuntimeContext.Provider
+        // oxlint-disable-next-line react/jsx-no-constructed-context-values -- React Compiler memoizes context values
+        value={runtimeValue}
+      >
         <>
           <TabsRoot
             value={effectiveActiveTab}
@@ -284,7 +309,12 @@ function RightAside(props: {
               activeTab={effectiveActiveTab}
               tabs={props.right.tabs}
             />
-            <RightAsidePanels activeTab={effectiveActiveTab} right={props.right} />
+            <RightAsidePanels
+              key={props.cwd ?? "none"}
+              activeTab={effectiveActiveTab}
+              right={props.right}
+              workspaceKey={props.cwd ?? "none"}
+            />
           </TabsRoot>
           {rightOpen ? (
             <div
@@ -302,20 +332,17 @@ function RightAside(props: {
   );
 }
 
-function RightAsidePanels(props: { activeTab: WorkbenchTab; right: RightWorkbenchDefinition }) {
+function RightAsidePanels(props: {
+  activeTab: WorkbenchTab;
+  right: RightWorkbenchDefinition;
+  workspaceKey: string;
+}) {
   const [mountedTabs, setMountedTabs] = useState<ReadonlySet<WorkbenchTab>>(
     () => new Set([props.activeTab]),
   );
 
   useEffect(() => {
-    setMountedTabs((current) => {
-      if (current.has(props.activeTab)) {
-        return current;
-      }
-      const next = new Set(current);
-      next.add(props.activeTab);
-      return next;
-    });
+    setMountedTabs((current) => addVisitedWorkbenchTab(current, props.activeTab));
   }, [props.activeTab]);
 
   return (
@@ -324,7 +351,7 @@ function RightAsidePanels(props: { activeTab: WorkbenchTab; right: RightWorkbenc
         const panel = mountedTabs.has(tab.id) ? (props.right.panels[tab.id] ?? null) : null;
         return (
           <TabsPanel
-            key={tab.id}
+            key={`${tab.id}:${props.workspaceKey}`}
             value={tab.id}
             keepMounted
             className={(state) => workbenchPanelSlotVariants({ active: !state.hidden })}
@@ -422,23 +449,20 @@ export function AppShell(props: {
       gitFocusId: props.gitFocusId ?? null,
       muted,
     });
-  const shellStyle = useMemo<ShellRootStyle>(
-    () => ({
-      "--multi-shell-left-width": `${leftWidth}px`,
-      "--multi-shell-left-collapsed-width": "0px",
-      "--multi-shell-left-min-width": `${LEFT_LIMITS.min}px`,
-      "--multi-shell-left-max-width": `${LEFT_LIMITS.max}px`,
-      "--multi-shell-right-workbench-width": `${rightWidth}px`,
-      "--multi-shell-right-workbench-collapsed-width": "0px",
-      "--multi-shell-right-workbench-min-width": `${RIGHT_LIMITS.min}px`,
-      "--multi-shell-right-workbench-max-width": `${RIGHT_LIMITS.max}px`,
-      "--multi-shell-titlebar-control-size": "var(--multi-titlebar-control-height)",
-      "--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)",
-      "--multi-shell-titlebar-gutter": "8px",
-      "--agent-window-chat-max-width": `${agentWindowChatMaxWidth}px`,
-    }),
-    [leftWidth, rightWidth, agentWindowChatMaxWidth],
-  );
+  const shellStyle: ShellRootStyle = {
+    "--multi-shell-left-width": `${leftWidth}px`,
+    "--multi-shell-left-collapsed-width": "0px",
+    "--multi-shell-left-min-width": `${LEFT_LIMITS.min}px`,
+    "--multi-shell-left-max-width": `${LEFT_LIMITS.max}px`,
+    "--multi-shell-right-workbench-width": `${rightWidth}px`,
+    "--multi-shell-right-workbench-collapsed-width": "0px",
+    "--multi-shell-right-workbench-min-width": `${RIGHT_LIMITS.min}px`,
+    "--multi-shell-right-workbench-max-width": `${RIGHT_LIMITS.max}px`,
+    "--multi-shell-titlebar-control-size": "var(--multi-titlebar-control-height)",
+    "--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)",
+    "--multi-shell-titlebar-gutter": "8px",
+    "--agent-window-chat-max-width": `${agentWindowChatMaxWidth}px`,
+  };
 
   useMountEffect(() => {
     const previousValue = document.body.getAttribute("data-multi-glass-mode");

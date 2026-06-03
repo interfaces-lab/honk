@@ -1,5 +1,5 @@
 import type { MessageId } from "@multi/contracts";
-import { memo, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import type { ChatMessage } from "../../../types";
 import type { ExpandedImagePreview } from "./expanded-image-preview";
@@ -11,7 +11,7 @@ import { HumanMessage } from "./human-message";
  * Grouping, virtualization, and scroll behavior stay with their callers.
  */
 
-export const AssistantTranscriptRow = memo(function AssistantTranscriptRow({
+export function AssistantTranscriptRow({
   message,
   markdownCwd,
 }: {
@@ -23,7 +23,7 @@ export const AssistantTranscriptRow = memo(function AssistantTranscriptRow({
       <AssistantMessage message={message} markdownCwd={markdownCwd} />
     </div>
   );
-});
+}
 
 export interface HumanTranscriptRowProps {
   message: ChatMessage;
@@ -36,9 +36,7 @@ export interface HumanTranscriptRowProps {
   onBeginEditUserMessage?: ((messageId: MessageId) => void) | undefined;
 }
 
-export const HumanTranscriptRow = memo(function HumanTranscriptRow(
-  props: HumanTranscriptRowProps,
-) {
+export function HumanTranscriptRow(props: HumanTranscriptRowProps) {
   return (
     <div className="box-border flex w-full min-w-0 px-0">
       <HumanMessage
@@ -53,4 +51,4 @@ export const HumanTranscriptRow = memo(function HumanTranscriptRow(
       />
     </div>
   );
-});
+}

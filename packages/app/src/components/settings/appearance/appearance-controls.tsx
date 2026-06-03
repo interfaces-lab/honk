@@ -5,7 +5,6 @@ import { useThrottler } from "@tanstack/react-pacer";
 import {
   type CSSProperties,
   type KeyboardEvent,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -166,10 +165,10 @@ export function FontFamilyInput(props: {
   onChange: (value: string) => void;
   onDraftValueChange?: (value: string) => void;
 }) {
-  const [draftValue, setDraftValue] = useState(props.value);
-  const draftValueRef = useRef(props.value);
-  const focusedRef = useRef(false);
-  const displayedValue = focusedRef.current ? draftValue : props.value;
+  const [draftValue, setDraftValue] = useState("");
+  const [focused, setFocused] = useState(false);
+  const draftValueRef = useRef("");
+  const displayedValue = focused ? draftValue : props.value;
 
   const updateDraftValue = (nextValue: string) => {
     draftValueRef.current = nextValue;
@@ -193,11 +192,11 @@ export function FontFamilyInput(props: {
       placeholder={props.placeholder}
       aria-label={props.label}
       onFocus={() => {
-        focusedRef.current = true;
+        setFocused(true);
         updateDraftValue(props.value);
       }}
       onBlur={() => {
-        focusedRef.current = false;
+        setFocused(false);
         commitDraftValue();
       }}
       onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
@@ -214,15 +213,12 @@ export function FontFamilyInput(props: {
 }
 
 export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
-  const [codeFontDraft, setCodeFontDraft] = useState(props.codeFont);
-  const codePreviewStyle = useMemo<CSSProperties>(
-    () => ({
-      fontFamily: codeFontDraft.trim() || "var(--multi-font-mono)",
-      fontSize: "var(--multi-code-font-size-user, 12px)",
-      lineHeight: "calc(var(--multi-code-font-size-user, 12px) * 1.45)",
-    }),
-    [codeFontDraft],
-  );
+  const [codeFontDraft, setCodeFontDraft] = useState(() => props.codeFont);
+  const codePreviewStyle: CSSProperties = {
+    fontFamily: codeFontDraft.trim() || "var(--multi-font-mono)",
+    fontSize: "var(--multi-code-font-size-user, 12px)",
+    lineHeight: "calc(var(--multi-code-font-size-user, 12px) * 1.45)",
+  };
 
   return (
     <SettingsRow

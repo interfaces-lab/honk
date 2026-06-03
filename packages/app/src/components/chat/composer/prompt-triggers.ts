@@ -1,7 +1,7 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
 
 export type ComposerTriggerKind = "path" | "slash-command";
-export type ComposerSlashCommand = "model" | "ask" | "plan" | "default";
+export type ComposerSlashCommand = "agent" | "ask" | "plan" | "debug";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -47,8 +47,7 @@ function recognizeStandaloneSlashCommand(textBeforeCursor: string): {
 
   const lead = match[1] ?? "";
   const query = match[3] ?? "";
-  const firstQueryToken = query.trimStart().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
-  if (/\s/.test(query) && firstQueryToken !== "model") {
+  if (/\s/.test(query)) {
     return null;
   }
   return {
@@ -265,14 +264,14 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 
 export function parseStandaloneComposerSlashCommand(
   text: string,
-): Exclude<ComposerSlashCommand, "model"> | null {
-  const match = /^\/(ask|plan|default|build)\s*$/i.exec(text.trim());
+): ComposerSlashCommand | null {
+  const match = /^\/(agent|ask|plan|debug|build)\s*$/i.exec(text.trim());
   if (!match) {
     return null;
   }
   const command = match[1]?.toLowerCase();
-  if (command === "ask" || command === "plan") return command;
-  return "default";
+  if (command === "ask" || command === "plan" || command === "debug") return command;
+  return "agent";
 }
 
 export function isUnresolvedStandaloneComposerSlashCommand(

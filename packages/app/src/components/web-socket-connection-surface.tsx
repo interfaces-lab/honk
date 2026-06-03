@@ -23,7 +23,7 @@ type ToastIdRef = RefObject<ToastId | null>;
 type TimeoutIdRef = RefObject<number | null>;
 
 function syncBrowserOnlineStatus() {
-  setBrowserOnlineStatus(navigator.onLine !== false);
+  setBrowserOnlineStatus(navigator.onLine);
 }
 
 const connectionTimeFormatter = new Intl.DateTimeFormat(undefined, {

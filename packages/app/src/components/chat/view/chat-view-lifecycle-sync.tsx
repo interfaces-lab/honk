@@ -6,7 +6,7 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@multi/contracts";
-import { scopedThreadKey, scopeThreadRef } from "@multi/client-runtime";
+import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 import { projectScriptCwd } from "@multi/shared/project-scripts";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 

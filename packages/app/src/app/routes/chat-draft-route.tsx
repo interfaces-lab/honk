@@ -12,6 +12,7 @@ import {
 } from "~/app/routes/chat-route-persistence";
 import { buildThreadRouteParams } from "~/app/routes/thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
+import { debugLog } from "~/lib/debug-log";
 
 const routeApi = getRouteApi("/_chat/draft/$draftId");
 
@@ -24,27 +25,30 @@ export function DraftChatThreadRouteView() {
   const { draftId: rawDraftId } = routeApi.useParams();
   const draftId = DraftId.make(rawDraftId);
   const draftSession = useComposerDraftStore((store) => store.getDraftSession(draftId));
-  const serverThread = useStore(
-    useMemo(
-      () => createThreadSelectorAcrossEnvironments(draftSession?.threadId ?? null),
-      [draftSession?.threadId],
-    ),
+  const serverThreadSelector = useMemo(
+    () => createThreadSelectorAcrossEnvironments(draftSession?.threadId ?? null),
+    [draftSession?.threadId],
   );
+  const serverThread = useStore(serverThreadSelector);
   const serverThreadStarted = threadHasStarted(serverThread);
-  const canonicalThreadRef = useMemo(
-    () =>
-      draftSession?.promotedTo
-        ? serverThreadStarted
-          ? draftSession.promotedTo
-          : null
-        : serverThread
-          ? {
-              environmentId: serverThread.environmentId,
-              threadId: serverThread.id,
-            }
-          : null,
-    [draftSession?.promotedTo, serverThread, serverThreadStarted],
-  );
+  const canonicalThreadRef = draftSession?.promotedTo
+    ? serverThreadStarted
+      ? draftSession.promotedTo
+      : null
+    : serverThread
+      ? {
+          environmentId: serverThread.environmentId,
+          threadId: serverThread.id,
+        }
+      : null;
+  debugLog("draft-route.render", {
+    draftId,
+    hasDraftSession: draftSession !== null,
+    draftThreadId: draftSession?.threadId ?? null,
+    hasServerThread: serverThread !== undefined,
+    serverThreadStarted,
+    canonicalThreadRef,
+  });
 
   if (canonicalThreadRef) {
     return (

@@ -13,17 +13,18 @@ import { AuthStorage } from "../src/core/auth-storage.ts";
 import { SessionManager } from "../src/core/session-manager.ts";
 import type {
 	ExtensionFactory,
-	SessionBeforeForkEvent,
-	SessionBeforeSwitchEvent,
-	SessionShutdownEvent,
-	SessionStartEvent,
 } from "../src/index.ts";
 
-type RecordedSessionEvent =
-	| SessionBeforeSwitchEvent
-	| SessionBeforeForkEvent
-	| SessionShutdownEvent
-	| SessionStartEvent;
+type RecordedSessionEvent = {
+	readonly type:
+		| "session_before_switch"
+		| "session_before_fork"
+		| "session_shutdown"
+		| "session_start";
+	readonly reason?: string;
+	readonly targetSessionFile?: string | undefined;
+	readonly previousSessionFile?: string | undefined;
+};
 
 describe("AgentSessionRuntime session lifecycle events", () => {
 	const cleanups: Array<() => Promise<void> | void> = [];
@@ -122,8 +123,11 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 
 		events.length = 0;
 		expect(secondSessionFile).toBeTruthy();
+		if (!secondSessionFile || !originalSessionFile) {
+			throw new Error("Expected session files");
+		}
 
-		const switchResult = await runtimeHost.switchSession(originalSessionFile!);
+		const switchResult = await runtimeHost.switchSession(originalSessionFile);
 		expect(switchResult.cancelled).toBe(false);
 		await runtimeHost.session.bindExtensions({});
 		expect(events).toEqual([
@@ -193,6 +197,7 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 					cancelNextFork = false;
 					return { cancel: true };
 				}
+				return undefined;
 			});
 			pi.on("session_shutdown", (event) => {
 				events.push(event);

@@ -1,5 +1,5 @@
 import type { ProjectId } from "@multi/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@multi/contracts/settings";
+import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
 import type { Thread } from "../types";
 
 export type ThreadSortInput = Pick<Thread, "createdAt" | "updatedAt"> & {
@@ -39,7 +39,7 @@ function getLatestUserMessageTimestamp(thread: ThreadSortInput): number {
 
 function getThreadSortTimestamp(
   thread: ThreadSortInput,
-  sortOrder: SidebarThreadSortOrder | Exclude<SidebarProjectSortOrder, "manual">,
+  sortOrder: SidebarThreadSortOrder,
 ): number {
   if (sortOrder === "created_at") {
     return toSortableTimestamp(thread.createdAt) ?? Number.NEGATIVE_INFINITY;

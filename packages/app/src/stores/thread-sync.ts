@@ -1,5 +1,7 @@
 import type {
+  DesktopExtensionUiRequest,
   EnvironmentId,
+  AgentRuntimeEvent,
   OrchestrationChatTimelineRow,
   OrchestrationEvent,
   OrchestrationLatestTurn,
@@ -12,23 +14,25 @@ import type {
   OrchestrationSessionStatus,
   OrchestrationThread,
   OrchestrationThreadShell,
+  SourceProposedPlanReference,
   SessionTreeProjection,
-  ProviderRuntimeEvent,
   OrchestrationThreadActivity,
   ScopedThreadRef,
   ProjectId,
   ThreadEntryId,
-  ThreadId,
+  CanonicalItemType,
+  ToolLifecycleItemType,
 } from "@multi/contracts";
 import {
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_AGENT_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
   DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  isProviderDriverKind,
+  EventId,
+  ThreadId,
   MessageId,
-  ProviderDriverKind,
-  ProviderInstanceId,
+  RuntimeItemId,
   resolveLeafIdAfterThreadMessage,
+  RuntimeTaskId,
   TurnId,
 } from "@multi/contracts";
 import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
@@ -58,14 +62,21 @@ import {
 
 const MAX_THREAD_PROPOSED_PLANS = 200;
 const MAX_THREAD_ACTIVITIES = 500;
+type RuntimeSessionTreeEntry = SessionTreeProjection["entries"][number];
+type ProjectedRuntimeMessageEntry = RuntimeSessionTreeEntry & {
+  readonly role: "user" | "assistant" | "system";
+};
+type ToolActivityPhase = "started" | "updated" | "completed";
+type ToolActivityKind = Extract<
+  OrchestrationThreadActivity["kind"],
+  "tool.started" | "tool.updated" | "tool.completed"
+>;
+
 function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function normalizeModelSelection<T extends { instanceId: string; model: string }>(selection: T): T {
-  if (!isProviderDriverKind(selection.instanceId)) {
-    return selection;
-  }
   return {
     ...selection,
     model: normalizeModelSlug(selection.model) ?? selection.model,
@@ -76,10 +87,44 @@ function mapProjectScripts(scripts: ReadonlyArray<Project["scripts"][number]>): 
   return scripts.map((script) => ({ ...script }));
 }
 
+function agentRuntimeProposedPlanData(
+  data: unknown,
+): { readonly planId: string; readonly planMarkdown: string } | null {
+  if (!isIndexableRecord(data)) {
+    return null;
+  }
+  return typeof data.planId === "string" &&
+    data.planId.trim().length > 0 &&
+    typeof data.planMarkdown === "string" &&
+    data.planMarkdown.trim().length > 0
+    ? { planId: data.planId, planMarkdown: data.planMarkdown }
+    : null;
+}
+
+function agentRuntimeSourceProposedPlanData(
+  data: unknown,
+): SourceProposedPlanReference | undefined {
+  if (!isIndexableRecord(data)) {
+    return undefined;
+  }
+  const sourceProposedPlan = data.sourceProposedPlan;
+  if (!isIndexableRecord(sourceProposedPlan)) {
+    return undefined;
+  }
+  const source = sourceProposedPlan;
+  return typeof source.threadId === "string" &&
+    source.threadId.trim().length > 0 &&
+    typeof source.planId === "string" &&
+    source.planId.trim().length > 0
+    ? {
+        threadId: ThreadId.make(source.threadId),
+        planId: source.planId,
+      }
+    : undefined;
+}
+
 function mapSession(session: OrchestrationSession): ThreadSession {
   return {
-    provider: resolveProviderDriverForThreadState(session.providerName),
-    providerInstanceId: session.providerInstanceId ?? undefined,
     status: mapSessionStatusForThreadState(session.status),
     orchestrationStatus: session.status,
     activeTurnId: session.activeTurnId ?? undefined,
@@ -293,27 +338,84 @@ function deriveClientChatTimelineRows(thread: Thread): OrchestrationChatTimeline
   });
 }
 
-function titleForSessionTree(tree: SessionTreeProjection): string {
-  const firstUserText = tree.entries.find((entry) => entry.role === "user")?.text?.trim();
-  if (!firstUserText) {
-    return "Agent thread";
-  }
-  return firstUserText.length > 64 ? `${firstUserText.slice(0, 61)}...` : firstUserText;
-}
-
 function createRuntimeSession(input: {
   readonly threadId: ThreadId;
   readonly createdAt: string;
   readonly updatedAt: string;
 }): ThreadSession {
   return {
-    provider: ProviderDriverKind.make("codex"),
-    providerInstanceId: ProviderInstanceId.make("pi"),
     status: "ready",
     orchestrationStatus: "ready",
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };
+}
+
+function completedThinkingActivityForSessionEntry(
+  entry: SessionTreeProjection["entries"][number],
+): OrchestrationThreadActivity | null {
+  const thinking = entry.thinking?.trim();
+  if (!thinking || entry.role !== "assistant" || entry.turnId === undefined) {
+    return null;
+  }
+  const turnId = TurnId.make(entry.turnId);
+  const taskId = thinkingTaskIdForTurn(turnId);
+  return {
+    id: thinkingActivityId(turnId, "completed"),
+    kind: "task.completed",
+    tone: "info",
+    summary: "Task completed",
+    turnId,
+    sequence: 2,
+    createdAt: entry.createdAt,
+    payload: {
+      taskId,
+      taskType: "thinking",
+      status: "completed",
+      detail: thinking,
+    },
+  };
+}
+
+function isDisplayableRuntimeMessageEntry(
+  entry: RuntimeSessionTreeEntry,
+): entry is ProjectedRuntimeMessageEntry {
+  if (entry.role !== "user" && entry.role !== "assistant" && entry.role !== "system") {
+    return false;
+  }
+  return entry.role !== "assistant" || (entry.text?.trim().length ?? 0) > 0;
+}
+
+function resolveNearestProjectedRuntimeThreadEntryId(input: {
+  readonly runtimeEntryId: RuntimeSessionTreeEntry["id"] | null;
+  readonly entryByRuntimeId: ReadonlyMap<RuntimeSessionTreeEntry["id"], RuntimeSessionTreeEntry>;
+  readonly projectedThreadEntryIdByRuntimeId: ReadonlyMap<
+    RuntimeSessionTreeEntry["id"],
+    ThreadEntryId
+  >;
+}): ThreadEntryId | null {
+  const seen = new Set<RuntimeSessionTreeEntry["id"]>();
+  let cursor = input.runtimeEntryId;
+
+  while (cursor !== null) {
+    if (seen.has(cursor)) {
+      return null;
+    }
+    seen.add(cursor);
+
+    const projectedThreadEntryId = input.projectedThreadEntryIdByRuntimeId.get(cursor);
+    if (projectedThreadEntryId !== undefined) {
+      return projectedThreadEntryId;
+    }
+
+    const entry = input.entryByRuntimeId.get(cursor);
+    if (!entry) {
+      return null;
+    }
+    cursor = entry.parentId;
+  }
+
+  return null;
 }
 
 function threadFromRuntimeSessionTree(
@@ -323,51 +425,75 @@ function threadFromRuntimeSessionTree(
 ): Thread {
   const messages: ChatMessage[] = [];
   const entries: ThreadTreeEntry[] = [];
-  const sessionEntryIdToThreadEntryId = new Map<string, ThreadEntryId>();
+  const sessionTreeActivities: OrchestrationThreadActivity[] = [];
+  const entryByRuntimeId = new Map(tree.entries.map((entry) => [entry.id, entry] as const));
+  const projectedThreadEntryIdByRuntimeId = new Map(
+    tree.entries
+      .filter(isDisplayableRuntimeMessageEntry)
+      .map((entry) => [entry.id, entry.threadEntryId] as const),
+  );
 
   for (const entry of tree.entries) {
-    if (entry.role !== "user" && entry.role !== "assistant" && entry.role !== "system") {
-      continue;
+    const thinkingActivity = completedThinkingActivityForSessionEntry(entry);
+    if (thinkingActivity) {
+      sessionTreeActivities.push(thinkingActivity);
+    }
+    sessionTreeActivities.push(...startedToolActivitiesForSessionEntry(entry));
+    const completedToolActivity = completedToolActivityForSessionEntry(entry);
+    if (completedToolActivity) {
+      sessionTreeActivities.push(completedToolActivity);
     }
 
-    const messageId = MessageId.make(entry.threadEntryId);
-    sessionEntryIdToThreadEntryId.set(entry.id, entry.threadEntryId);
-    messages.push({
-      id: messageId,
-      role: entry.role,
-      text: entry.text ?? "",
-      turnId: null,
-      createdAt: entry.createdAt,
-      completedAt: entry.createdAt,
-      streaming: false,
-    });
-    entries.push({
-      id: entry.threadEntryId,
-      threadId: tree.threadId,
-      parentEntryId: entry.parentThreadEntryId,
-      kind: "message",
-      messageId,
-      turnId: null,
-      createdAt: entry.createdAt,
-    });
+    if (isDisplayableRuntimeMessageEntry(entry)) {
+      const messageId = entry.clientMessageId ?? MessageId.make(entry.threadEntryId);
+      messages.push({
+        id: messageId,
+        role: entry.role,
+        text: entry.text ?? "",
+        turnId: entry.turnId ?? null,
+        createdAt: entry.createdAt,
+        completedAt: entry.createdAt,
+        streaming: false,
+      });
+      entries.push({
+        id: entry.threadEntryId,
+        threadId: tree.threadId,
+        parentEntryId: resolveNearestProjectedRuntimeThreadEntryId({
+          runtimeEntryId: entry.parentId,
+          entryByRuntimeId,
+          projectedThreadEntryIdByRuntimeId,
+        }),
+        kind: "message",
+        messageId,
+        turnId: entry.turnId ?? null,
+        createdAt: entry.createdAt,
+      });
+    }
   }
 
   const createdAt = messages[0]?.createdAt ?? new Date().toISOString();
   const updatedAt = messages.at(-1)?.createdAt ?? createdAt;
-  const session = createRuntimeSession({ threadId: tree.threadId, createdAt, updatedAt });
+  const session =
+    previousThread?.session ?? createRuntimeSession({ threadId: tree.threadId, createdAt, updatedAt });
   const leafId = tree.leafEntryId
-    ? (sessionEntryIdToThreadEntryId.get(tree.leafEntryId) ?? null)
+    ? resolveNearestProjectedRuntimeThreadEntryId({
+        runtimeEntryId: tree.leafEntryId,
+        entryByRuntimeId,
+        projectedThreadEntryIdByRuntimeId,
+      })
     : null;
+  const piSessionTitle =
+    tree.entries.findLast((entry) => entry.kind === "session-info")?.text?.trim() || null;
 
   return {
     id: tree.threadId,
     environmentId,
     codexThreadId: null,
     projectId: previousThread?.projectId ?? null,
-    title: previousThread?.title ?? titleForSessionTree(tree),
+    title: piSessionTitle ?? previousThread?.title ?? "Agent thread",
     modelSelection: previousThread?.modelSelection ?? DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
     runtimeMode: previousThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE,
-    interactionMode: previousThread?.interactionMode ?? DEFAULT_PROVIDER_INTERACTION_MODE,
+    interactionMode: previousThread?.interactionMode ?? DEFAULT_AGENT_INTERACTION_MODE,
     session,
     messages,
     leafId,
@@ -382,7 +508,7 @@ function threadFromRuntimeSessionTree(
     branch: previousThread?.branch ?? null,
     worktreePath: previousThread?.worktreePath ?? null,
     turnDiffSummaries: previousThread?.turnDiffSummaries ?? [],
-    activities: previousThread?.activities ?? [],
+    activities: replaceActivities(previousThread?.activities ?? [], sessionTreeActivities),
     chatTimelineRows: [],
   };
 }
@@ -442,7 +568,6 @@ function threadSessionsEqual(
   if (left === right) return true;
   if (left == null || right == null) return false;
   return (
-    left.provider === right.provider &&
     left.status === right.status &&
     left.orchestrationStatus === right.orchestrationStatus &&
     left.activeTurnId === right.activeTurnId &&
@@ -523,8 +648,510 @@ function buildMessageSlice(thread: Thread): {
   };
 }
 
-function assistantMessageIdForRuntimeEvent(event: ProviderRuntimeEvent): MessageId {
-  return MessageId.make(`assistant:${event.itemId ?? event.turnId ?? event.eventId}`);
+function assistantMessageIdForAgentRuntimeEvent(event: AgentRuntimeEvent): MessageId {
+  return MessageId.make(`assistant:${event.turnId ?? event.id}`);
+}
+
+function thinkingTaskIdForTurn(turnId: TurnId): RuntimeTaskId {
+  return RuntimeTaskId.make(`pi-thinking:${turnId}`);
+}
+
+function thinkingActivityId(turnId: TurnId, phase: "started" | "progress" | "completed"): EventId {
+  return EventId.make(`runtime-thinking:${turnId}:${phase}`);
+}
+
+function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
+  switch (toolName) {
+    case "bash":
+      return "command_execution";
+    case "read":
+      return "file_read";
+    case "grep":
+    case "find":
+    case "ls":
+      return "file_search";
+    case "edit":
+    case "write":
+      return "file_change";
+    default:
+      return "dynamic_tool_call";
+  }
+}
+
+function toolActivityId(
+  toolCallId: string,
+  phase: ToolActivityPhase,
+): EventId {
+  return EventId.make(`runtime-tool:${toolCallId}:${phase}`);
+}
+
+function toolActivityKindForPhase(phase: ToolActivityPhase): ToolActivityKind {
+  switch (phase) {
+    case "started":
+      return "tool.started";
+    case "updated":
+      return "tool.updated";
+    case "completed":
+      return "tool.completed";
+  }
+}
+
+function defaultToolActivitySummary(input: {
+  readonly phase: ToolActivityPhase;
+  readonly toolName: string;
+  readonly isError: boolean;
+}): string {
+  switch (input.phase) {
+    case "started":
+      return `Started ${input.toolName}`;
+    case "updated":
+      return `Running ${input.toolName}`;
+    case "completed":
+      return input.isError ? `${input.toolName} failed` : `Completed ${input.toolName}`;
+  }
+}
+
+function buildToolLifecycleActivity(input: {
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly phase: ToolActivityPhase;
+  readonly turnId: TurnId | null;
+  readonly createdAt: string;
+  readonly args?: unknown;
+  readonly result?: unknown;
+  readonly isError?: boolean;
+  readonly summary?: string;
+  readonly runtimeEvent: unknown;
+}): OrchestrationThreadActivity {
+  const itemType = toolItemTypeForName(input.toolName);
+  const detail = toolResultText(input.result);
+  const command = asTrimmedString(asRecord(input.args)?.command);
+  const isError = input.isError === true;
+  return {
+    id: toolActivityId(input.toolCallId, input.phase),
+    kind: toolActivityKindForPhase(input.phase),
+    tone: isError ? "error" : "tool",
+    summary:
+      asTrimmedString(input.summary) ??
+      defaultToolActivitySummary({ phase: input.phase, toolName: input.toolName, isError }),
+    turnId: input.turnId,
+    createdAt: input.createdAt,
+    payload: {
+      itemType,
+      itemId: input.toolCallId,
+      status: input.phase === "completed" ? (isError ? "failed" : "completed") : "running",
+      title: input.toolName,
+      ...(detail ? { detail } : {}),
+      data: {
+        ...(input.args !== undefined ? { args: input.args } : {}),
+        ...(command ? { command } : {}),
+        ...(input.result !== undefined ? { result: input.result, rawOutput: input.result } : {}),
+        runtimeEvent: input.runtimeEvent,
+      },
+    },
+  };
+}
+
+function startedToolActivitiesForSessionEntry(
+  entry: RuntimeSessionTreeEntry,
+): OrchestrationThreadActivity[] {
+  if (entry.role !== "assistant") {
+    return [];
+  }
+  const rawEntry = asRecord(entry.rawEntry);
+  const message = asRecord(rawEntry?.message);
+  const content = Array.isArray(message?.content) ? message.content : [];
+  return content.flatMap((part) => {
+    const toolCall = asRecord(part);
+    if (toolCall?.type !== "toolCall") {
+      return [];
+    }
+    const toolCallId = asTrimmedString(toolCall.id ?? toolCall.toolCallId);
+    const toolName = asTrimmedString(toolCall.name ?? toolCall.toolName);
+    if (!toolCallId || !toolName) {
+      return [];
+    }
+    return [
+      buildToolLifecycleActivity({
+        toolCallId,
+        toolName,
+        phase: "started",
+        turnId: entry.turnId ?? null,
+        createdAt: entry.createdAt,
+        ...(toolCall.arguments !== undefined ? { args: toolCall.arguments } : {}),
+        runtimeEvent: toolCall,
+      }),
+    ];
+  });
+}
+
+function completedToolActivityForSessionEntry(
+  entry: RuntimeSessionTreeEntry,
+): OrchestrationThreadActivity | null {
+  if (entry.role !== "toolResult") {
+    return null;
+  }
+  const rawEntry = asRecord(entry.rawEntry);
+  const message = asRecord(rawEntry?.message);
+  const toolCallId = asTrimmedString(message?.toolCallId);
+  const toolName = asTrimmedString(message?.toolName);
+  if (!toolCallId || !toolName) {
+    return null;
+  }
+  return buildToolLifecycleActivity({
+    toolCallId,
+    toolName,
+    phase: "completed",
+    turnId: entry.turnId ?? null,
+    createdAt: entry.createdAt,
+    ...(message?.content !== undefined ? { result: message.content } : {}),
+    isError: message?.isError === true,
+    runtimeEvent: message,
+  });
+}
+
+function extensionUiActivityId(requestId: string): EventId {
+  return EventId.make(`runtime-extension-ui:${requestId}`);
+}
+
+function isExtensionUiRequestKind(value: unknown): value is DesktopExtensionUiRequest["kind"] {
+  switch (value) {
+    case "select":
+    case "confirm":
+    case "input":
+    case "editor":
+    case "custom":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function extensionUiRequestTurnId(thread: Thread): TurnId | null {
+  return thread.session?.activeTurnId ?? thread.latestTurn?.turnId ?? null;
+}
+
+function buildExtensionUiRequestedActivity(
+  request: DesktopExtensionUiRequest,
+  turnId: TurnId | null,
+): OrchestrationThreadActivity {
+  const detail = asTrimmedString(request.message);
+  return {
+    id: extensionUiActivityId(request.id),
+    kind: "extension-ui.requested",
+    tone: "info",
+    summary: `Waiting for ${request.title}`,
+    turnId,
+    createdAt: request.createdAt,
+    payload: {
+      requestId: request.id,
+      requestKind: request.kind,
+      title: request.title,
+      detail,
+      placeholder: request.placeholder ?? null,
+      options: request.options ? [...request.options] : null,
+    },
+  };
+}
+
+function buildExtensionUiResolvedActivity(
+  activity: OrchestrationThreadActivity,
+  requestId: string,
+  resolvedAt: string,
+): OrchestrationThreadActivity {
+  const payload = asRecord(activity.payload);
+  const title = asTrimmedString(payload?.title) ?? "Extension prompt";
+  const requestKind = isExtensionUiRequestKind(payload?.requestKind)
+    ? payload.requestKind
+    : "custom";
+  return {
+    id: extensionUiActivityId(requestId),
+    kind: "extension-ui.resolved",
+    tone: "info",
+    summary: `Answered ${title}`,
+    turnId: activity.turnId,
+    createdAt: resolvedAt,
+    payload: {
+      requestId,
+      requestKind,
+      title,
+      detail: typeof payload?.detail === "string" ? payload.detail : null,
+      value: null,
+    },
+  };
+}
+
+function isIndexableRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return isIndexableRecord(value) ? value : null;
+}
+
+function asTrimmedString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function toolResultText(value: unknown): string | null {
+  const direct = asTrimmedString(value);
+  if (direct) {
+    return direct;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => toolResultText(entry))
+      .filter((entry): entry is string => entry !== null);
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const keys = ["stdout", "stderr", "output", "content", "text", "message", "result"];
+  for (const key of keys) {
+    const text = toolResultText(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+  return null;
+}
+
+type RuntimeSubagentActivityKind = Extract<
+  OrchestrationThreadActivity["kind"],
+  | "subagent.thread.started"
+  | "subagent.thread.state.changed"
+  | "subagent.item.started"
+  | "subagent.item.updated"
+  | "subagent.item.completed"
+>;
+
+function isRuntimeSubagentActivityKind(value: unknown): value is RuntimeSubagentActivityKind {
+  switch (value) {
+    case "subagent.thread.started":
+    case "subagent.thread.state.changed":
+    case "subagent.item.started":
+    case "subagent.item.updated":
+    case "subagent.item.completed":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function compactRuntimeSubagentIdentityPayload(
+  payload: Record<string, unknown> | null,
+  parentTurnId: TurnId | undefined,
+) {
+  const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
+  if (!subagentThreadId) {
+    return null;
+  }
+  const parentThreadId = asTrimmedString(payload?.parentThreadId);
+  const parentItemId = asTrimmedString(payload?.parentItemId);
+  const agentId = asTrimmedString(payload?.agentId);
+  const nickname = asTrimmedString(payload?.nickname);
+  const role = asTrimmedString(payload?.role);
+  const model = asTrimmedString(payload?.model);
+  const prompt = asTrimmedString(payload?.prompt);
+  return {
+    subagentThreadId,
+    ...(parentThreadId ? { parentThreadId } : {}),
+    ...(parentTurnId ? { parentTurnId } : {}),
+    ...(parentItemId ? { parentItemId: RuntimeItemId.make(parentItemId) } : {}),
+    ...(agentId ? { agentId } : {}),
+    ...(nickname ? { nickname } : {}),
+    ...(role ? { role } : {}),
+    ...(model ? { model } : {}),
+    ...(prompt ? { prompt } : {}),
+  };
+}
+
+function compactRuntimeSubagentItemPayload(
+  payload: Record<string, unknown> | null,
+  parentTurnId: TurnId | undefined,
+) {
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  if (!identity) {
+    return null;
+  }
+  const itemType = asTrimmedString(payload?.itemType);
+  const itemId = asTrimmedString(payload?.itemId);
+  const status = asTrimmedString(payload?.status);
+  const title = asTrimmedString(payload?.title);
+  const detail = asTrimmedString(payload?.detail);
+  const data = payload?.data;
+  return {
+    ...identity,
+    ...(itemType && isCanonicalItemType(itemType) ? { itemType } : {}),
+    ...(itemId ? { itemId } : {}),
+    ...(status ? { status } : {}),
+    ...(title ? { title } : {}),
+    ...(detail ? { detail } : {}),
+    ...(data !== undefined && data !== null ? { data } : {}),
+  };
+}
+
+function isCanonicalItemType(value: string): value is CanonicalItemType {
+  switch (value) {
+    case "user_message":
+    case "assistant_message":
+    case "reasoning":
+    case "plan":
+    case "command_execution":
+    case "file_read":
+    case "file_search":
+    case "file_change":
+    case "mcp_tool_call":
+    case "dynamic_tool_call":
+    case "collab_agent_tool_call":
+    case "web_search":
+    case "web_fetch":
+    case "image_view":
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+    case "unknown":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function normalizeRuntimeSubagentThreadState(
+  value: unknown,
+): "active" | "idle" | "archived" | "closed" | "compacted" | "error" | null {
+  switch (value) {
+    case "running":
+    case "active":
+      return "active";
+    case "completed":
+    case "idle":
+      return "idle";
+    case "failed":
+    case "aborted":
+    case "error":
+      return "error";
+    case "archived":
+    case "closed":
+    case "compacted":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function runtimeSubagentActivitiesForToolEvent(
+  event: AgentRuntimeEvent,
+): OrchestrationThreadActivity[] {
+  const data = asRecord(event.data);
+  if (data?.toolName !== "subagent") {
+    return [];
+  }
+  const result = asRecord(event.type === "tool.completed" ? data.result : data?.partialResult);
+  const details = asRecord(result?.details);
+  const rawActivities = Array.isArray(details?.activities) ? details.activities : [];
+  const turnId = event.turnId ? TurnId.make(event.turnId) : undefined;
+  const activities: OrchestrationThreadActivity[] = [];
+
+  for (const rawActivity of rawActivities) {
+    const activity = asRecord(rawActivity);
+    if (!activity) {
+      continue;
+    }
+    const kind = activity?.kind;
+    if (!isRuntimeSubagentActivityKind(kind)) {
+      continue;
+    }
+
+    const id = EventId.make(asTrimmedString(activity.id) ?? `runtime-subagent:${event.id}`);
+    const summary = asTrimmedString(activity.summary) ?? "Subagent update";
+    const createdAt = asTrimmedString(activity.createdAt) ?? event.createdAt;
+    const payload = asRecord(activity.payload);
+    const sequence =
+      typeof activity.sequence === "number" && Number.isInteger(activity.sequence)
+        ? activity.sequence
+        : undefined;
+
+    switch (kind) {
+      case "subagent.thread.started": {
+        const identity = compactRuntimeSubagentIdentityPayload(payload, turnId);
+        if (!identity) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: identity,
+        });
+        break;
+      }
+      case "subagent.thread.state.changed": {
+        const identity = compactRuntimeSubagentIdentityPayload(payload, turnId);
+        const state = normalizeRuntimeSubagentThreadState(payload?.state);
+        if (!identity || !state) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: state === "error" ? "error" : "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: {
+            ...identity,
+            state,
+            ...(payload?.detail !== undefined ? { detail: payload.detail } : {}),
+          },
+        });
+        break;
+      }
+      case "subagent.item.started":
+      case "subagent.item.updated":
+      case "subagent.item.completed": {
+        const itemPayload = compactRuntimeSubagentItemPayload(payload, turnId);
+        if (!itemPayload) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: itemPayload,
+        });
+        break;
+      }
+    }
+  }
+
+  return activities;
+}
+
+function replaceActivities(
+  current: ReadonlyArray<OrchestrationThreadActivity>,
+  replacements: ReadonlyArray<OrchestrationThreadActivity>,
+): OrchestrationThreadActivity[] {
+  if (replacements.length === 0) {
+    return [...current];
+  }
+  const replacementIds = new Set(replacements.map((activity) => activity.id));
+  return [
+    ...current.filter((activity) => !replacementIds.has(activity.id)),
+    ...replacements,
+  ];
 }
 
 function clearLiveAssistantTurn(
@@ -569,15 +1196,11 @@ function clearLiveAssistantTurnsForThread(
   };
 }
 
-function upsertLiveAssistantTurn(
+function upsertLiveAgentAssistantTurn(
   state: EnvironmentState,
-  event: Extract<ProviderRuntimeEvent, { type: "content.delta" }>,
+  event: AgentRuntimeEvent,
 ): EnvironmentState {
-  if (
-    event.turnId === undefined ||
-    event.payload.streamKind !== "assistant_text" ||
-    event.payload.delta.length === 0
-  ) {
+  if (event.turnId === undefined || event.text === undefined || event.text.length === 0) {
     return state;
   }
   const threadId = event.threadId;
@@ -589,8 +1212,8 @@ function upsertLiveAssistantTurn(
   const previousTurn = currentByTurnId[turnId];
   const nextTurn: LiveAssistantTurn = {
     turnId,
-    messageId: previousTurn?.messageId ?? assistantMessageIdForRuntimeEvent(event),
-    text: `${previousTurn?.text ?? ""}${event.payload.delta}`,
+    messageId: previousTurn?.messageId ?? assistantMessageIdForAgentRuntimeEvent(event),
+    text: event.text,
     createdAt: previousTurn?.createdAt ?? event.createdAt,
     updatedAt: event.createdAt,
   };
@@ -608,6 +1231,177 @@ function upsertLiveAssistantTurn(
       },
     },
   };
+}
+
+function upsertAgentThinkingActivities(
+  state: EnvironmentState,
+  event: AgentRuntimeEvent,
+): EnvironmentState {
+  const thinking = event.thinking?.trim();
+  if (!thinking || event.turnId === undefined) {
+    return state;
+  }
+  const turnId = TurnId.make(event.turnId);
+  const taskId = thinkingTaskIdForTurn(turnId);
+  return updateThreadState(state, event.threadId, (thread) => {
+    const startedId = thinkingActivityId(turnId, "started");
+    const existingStarted = thread.activities.find((activity) => activity.id === startedId);
+    const startedActivity: OrchestrationThreadActivity =
+      existingStarted ??
+      {
+        id: startedId,
+        kind: "task.started",
+        tone: "info",
+        summary: "Thinking",
+        turnId,
+        sequence: 0,
+        createdAt: event.createdAt,
+        payload: {
+          taskId,
+          taskType: "thinking",
+          detail: "Thinking",
+        },
+      };
+    const nextActivity: OrchestrationThreadActivity =
+      event.type === "message.completed"
+        ? {
+            id: thinkingActivityId(turnId, "completed"),
+            kind: "task.completed",
+            tone: "info",
+            summary: "Task completed",
+            turnId,
+            sequence: 2,
+            createdAt: event.createdAt,
+            payload: {
+              taskId,
+              taskType: "thinking",
+              status: "completed",
+              detail: thinking,
+            },
+          }
+        : {
+            id: thinkingActivityId(turnId, "progress"),
+            kind: "task.progress",
+            tone: "info",
+            summary: "Thinking",
+            turnId,
+            sequence: 1,
+            createdAt: event.createdAt,
+            payload: {
+              taskId,
+              detail: thinking,
+              summary: "Thinking",
+            },
+          };
+    return {
+      ...thread,
+      activities: replaceActivities(thread.activities, [startedActivity, nextActivity]),
+      updatedAt: event.createdAt,
+    };
+  });
+}
+
+function upsertAgentToolActivity(
+  state: EnvironmentState,
+  event: AgentRuntimeEvent,
+): EnvironmentState {
+  const data = asRecord(event.data);
+  const toolCallId = asTrimmedString(data?.toolCallId);
+  const toolName = asTrimmedString(data?.toolName);
+  if (!toolCallId || !toolName || event.turnId === undefined) {
+    return state;
+  }
+  const args = data?.args;
+  const result = event.type === "tool.completed" ? data?.result : data?.partialResult;
+  const phase =
+    event.type === "tool.started"
+      ? "started"
+      : event.type === "tool.completed"
+        ? "completed"
+        : "updated";
+  const activity = buildToolLifecycleActivity({
+    toolCallId,
+    toolName,
+    phase,
+    turnId: TurnId.make(event.turnId),
+    createdAt: event.createdAt,
+    ...(args !== undefined ? { args } : {}),
+    ...(result !== undefined ? { result } : {}),
+    isError: data?.isError === true,
+    ...(event.summary !== undefined ? { summary: event.summary } : {}),
+    runtimeEvent: data,
+  });
+  return updateThreadState(state, event.threadId, (thread) => ({
+    ...thread,
+    activities: replaceActivities(thread.activities, [activity]),
+    updatedAt: event.createdAt,
+  }));
+}
+
+function upsertAgentSubagentActivities(
+  state: EnvironmentState,
+  event: AgentRuntimeEvent,
+): EnvironmentState {
+  const activities = runtimeSubagentActivitiesForToolEvent(event);
+  if (activities.length === 0) {
+    return state;
+  }
+  return updateThreadState(state, event.threadId, (thread) => ({
+    ...thread,
+    activities: replaceActivities(thread.activities, activities)
+      .toSorted(compareActivities)
+      .slice(-MAX_THREAD_ACTIVITIES),
+    updatedAt: latestTimestamp(
+      [thread.updatedAt, ...activities.map((activity) => activity.createdAt)],
+      thread.updatedAt,
+    ),
+  }));
+}
+
+function syncPendingExtensionUiRequestsForThread(
+  state: EnvironmentState,
+  threadId: ThreadId,
+  requests: ReadonlyArray<DesktopExtensionUiRequest>,
+): EnvironmentState {
+  const requestIds = new Set(requests.map((request) => request.id));
+  const resolvedAt = new Date().toISOString();
+  return updateThreadState(state, threadId, (thread) => {
+    const requestedActivities = requests.map((request) =>
+      buildExtensionUiRequestedActivity(request, extensionUiRequestTurnId(thread)),
+    );
+    const resolvedActivities = thread.activities.flatMap((activity) => {
+      if (activity.kind !== "extension-ui.requested") {
+        return [];
+      }
+      const requestId = asTrimmedString(asRecord(activity.payload)?.requestId);
+      if (!requestId || requestIds.has(requestId)) {
+        return [];
+      }
+      return [buildExtensionUiResolvedActivity(activity, requestId, resolvedAt)];
+    });
+    const replacements = [...requestedActivities, ...resolvedActivities];
+    if (replacements.length === 0) {
+      return thread;
+    }
+    return {
+      ...thread,
+      activities: replaceActivities(thread.activities, replacements)
+        .toSorted(compareActivities)
+        .slice(-MAX_THREAD_ACTIVITIES),
+      updatedAt: latestTimestamp(
+        [thread.updatedAt, ...replacements.map((activity) => activity.createdAt)],
+        thread.updatedAt,
+      ),
+    };
+  });
+}
+
+function latestTimestamp(
+  candidates: readonly (string | undefined)[],
+  fallback: string | undefined,
+): string {
+  const timestamps = candidates.filter((value): value is string => typeof value === "string");
+  return timestamps.toSorted((left, right) => left.localeCompare(right)).at(-1) ?? fallback ?? "";
 }
 
 function buildEntrySlice(thread: Thread): {
@@ -1160,14 +1954,9 @@ function mapSessionStatusForThreadState(
     case "idle":
     case "stopped":
       return "closed";
+    default:
+      return "closed";
   }
-}
-
-function resolveProviderDriverForThreadState(providerName: string | null): ProviderDriverKind {
-  if (isProviderDriverKind(providerName)) {
-    return providerName;
-  }
-  return ProviderDriverKind.make("codex");
 }
 
 function attachmentPreviewRoutePath(attachmentId: string): string {
@@ -1861,35 +2650,273 @@ export function applyShellEventToEnvironment(
       return writeThreadShellState(state, mapThreadShell(event.thread, environmentId));
     case "thread-removed":
       return removeThreadState(state, event.threadId);
+    default: {
+      const _exhaustive: never = event;
+      return _exhaustive;
+    }
   }
 }
 
-export function applyProviderRuntimeEventToEnvironment(
+function applyAgentRuntimeEventToEnvironment(
   state: EnvironmentState,
-  event: ProviderRuntimeEvent,
+  event: AgentRuntimeEvent,
 ): EnvironmentState {
   switch (event.type) {
-    case "content.delta":
-      return upsertLiveAssistantTurn(state, event);
+    case "message.started":
+    case "message.updated":
+    case "message.completed":
+      return upsertAgentThinkingActivities(upsertLiveAgentAssistantTurn(state, event), event);
 
-    case "turn.aborted":
-      return event.turnId === undefined
-        ? state
-        : clearLiveAssistantTurn(state, event.threadId, TurnId.make(event.turnId));
+    case "tool.started":
+    case "tool.updated":
+    case "tool.completed":
+      return upsertAgentSubagentActivities(upsertAgentToolActivity(state, event), event);
 
-    case "turn.completed":
-      if (event.turnId === undefined || event.payload.state === "completed") {
+    case "session.started":
+    case "session.ready":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const session: ThreadSession = {
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          error: null,
+          updatedAt: now,
+        };
+      });
+
+    case "agent.started":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const session: ThreadSession = {
+          status: "running",
+          orchestrationStatus: "running",
+          activeTurnId: thread.session?.activeTurnId,
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          error: null,
+          updatedAt: now,
+        };
+      });
+
+    case "agent.completed":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const session: ThreadSession = {
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          error: null,
+          updatedAt: now,
+        };
+      });
+
+    case "turn.started": {
+      const startedTurnId = event.turnId;
+      if (!startedTurnId) {
         return state;
       }
-      return clearLiveAssistantTurn(state, event.threadId, TurnId.make(event.turnId));
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const latestTurn = thread.latestTurn;
+        const session: ThreadSession = {
+          status: "running",
+          orchestrationStatus: "running",
+          activeTurnId: startedTurnId,
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          latestTurn: buildLatestTurn({
+            previous: latestTurn,
+            turnId: startedTurnId,
+            state: "running",
+            requestedAt: latestTurn?.turnId === startedTurnId ? latestTurn.requestedAt : now,
+            startedAt: now,
+            completedAt: null,
+            assistantMessageId:
+              latestTurn?.turnId === startedTurnId ? latestTurn.assistantMessageId : null,
+            sourceProposedPlan:
+              agentRuntimeSourceProposedPlanData(event.data) ?? thread.pendingSourceProposedPlan,
+          }),
+          error: null,
+          updatedAt: now,
+        };
+      });
+    }
+
+    case "turn.interrupted": {
+      const interruptedTurnId = event.turnId;
+      if (!interruptedTurnId) {
+        return state;
+      }
+      const clearedState = clearLiveAssistantTurn(state, event.threadId, interruptedTurnId);
+      return updateThreadState(clearedState, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const latestTurn = thread.latestTurn;
+        const session: ThreadSession = {
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          latestTurn: buildLatestTurn({
+            previous: latestTurn,
+            turnId: interruptedTurnId,
+            state: "interrupted",
+            requestedAt: latestTurn?.turnId === interruptedTurnId ? latestTurn.requestedAt : now,
+            startedAt:
+              latestTurn?.turnId === interruptedTurnId ? (latestTurn.startedAt ?? now) : now,
+            completedAt: now,
+            assistantMessageId:
+              latestTurn?.turnId === interruptedTurnId ? latestTurn.assistantMessageId : null,
+            sourceProposedPlan: thread.pendingSourceProposedPlan,
+          }),
+          error: null,
+          updatedAt: now,
+        };
+      });
+    }
+
+    case "turn.completed": {
+      const completedTurnId = event.turnId;
+      if (!completedTurnId) {
+        return state;
+      }
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const latestTurn = thread.latestTurn;
+        const preservesTerminalState =
+          latestTurn?.turnId === completedTurnId &&
+          (latestTurn.state === "interrupted" || latestTurn.state === "error");
+        const piTurnEnded =
+          event.agentRuntime === "pi" &&
+          isIndexableRecord(event.data) &&
+          event.data.type === "turn_end";
+        const agentStillRunning =
+          piTurnEnded && thread.session?.orchestrationStatus === "running";
+        const activeTurnId =
+          agentStillRunning && thread.session?.activeTurnId !== completedTurnId
+            ? thread.session?.activeTurnId
+            : undefined;
+        const session: ThreadSession = {
+          status: agentStillRunning ? "running" : "ready",
+          orchestrationStatus: agentStillRunning ? "running" : "ready",
+          ...(activeTurnId ? { activeTurnId } : {}),
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          latestTurn: buildLatestTurn({
+            previous: latestTurn,
+            turnId: completedTurnId,
+            state: preservesTerminalState ? latestTurn.state : "completed",
+            requestedAt: latestTurn?.turnId === completedTurnId ? latestTurn.requestedAt : now,
+            startedAt:
+              latestTurn?.turnId === completedTurnId ? (latestTurn.startedAt ?? now) : now,
+            completedAt: preservesTerminalState ? (latestTurn.completedAt ?? now) : now,
+            assistantMessageId:
+              latestTurn?.turnId === completedTurnId ? latestTurn.assistantMessageId : null,
+            sourceProposedPlan: thread.pendingSourceProposedPlan,
+          }),
+          updatedAt: now,
+        };
+      });
+    }
+
+    case "turn.proposed.completed": {
+      const planData = agentRuntimeProposedPlanData(event.data);
+      if (!planData) {
+        return state;
+      }
+      return updateThreadState(state, event.threadId, (thread) => {
+        const existingPlan = thread.proposedPlans.find((entry) => entry.id === planData.planId);
+        const proposedPlan: ProposedPlan = {
+          id: planData.planId,
+          turnId: event.turnId ?? null,
+          planMarkdown: `${planData.planMarkdown.trim()}\n`,
+          implementedAt: existingPlan?.implementedAt ?? null,
+          implementationThreadId: existingPlan?.implementationThreadId ?? null,
+          createdAt: existingPlan?.createdAt ?? event.createdAt,
+          updatedAt: event.createdAt,
+        };
+        const proposedPlans = [
+          ...thread.proposedPlans.filter((entry) => entry.id !== proposedPlan.id),
+          proposedPlan,
+        ]
+          .toSorted(
+            (left, right) =>
+              left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+          )
+          .slice(-MAX_THREAD_PROPOSED_PLANS);
+        return {
+          ...thread,
+          proposedPlans,
+          updatedAt: event.createdAt,
+        };
+      });
+    }
 
     case "runtime.error":
-      return event.turnId === undefined
-        ? state
-        : clearLiveAssistantTurn(state, event.threadId, TurnId.make(event.turnId));
-
-    case "session.exited":
-      return clearLiveAssistantTurnsForThread(state, event.threadId);
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const turnId = event.turnId ?? thread.session?.activeTurnId ?? thread.latestTurn?.turnId;
+        const session: ThreadSession = {
+          status: "error",
+          orchestrationStatus: "error",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+          lastError: event.summary ?? event.text ?? "Runtime error",
+        };
+        return {
+          ...thread,
+          session,
+          ...(turnId
+            ? {
+                latestTurn: buildLatestTurn({
+                  previous: thread.latestTurn,
+                  turnId,
+                  state: "error",
+                  requestedAt:
+                    thread.latestTurn?.turnId === turnId ? thread.latestTurn.requestedAt : now,
+                  startedAt:
+                    thread.latestTurn?.turnId === turnId
+                      ? (thread.latestTurn.startedAt ?? now)
+                      : now,
+                  completedAt: now,
+                  assistantMessageId:
+                    thread.latestTurn?.turnId === turnId
+                      ? thread.latestTurn.assistantMessageId
+                      : null,
+                  sourceProposedPlan: thread.pendingSourceProposedPlan,
+                }),
+              }
+            : {}),
+          error: sanitizeThreadErrorMessage(session.lastError),
+          updatedAt: now,
+        };
+      });
 
     default:
       return state;
@@ -1912,16 +2939,50 @@ export function applyOrchestrationEvents(
   return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
-export function applyProviderRuntimeEvent(
+export function applyAgentRuntimeEvent(
   state: AppState,
-  event: ProviderRuntimeEvent,
+  event: AgentRuntimeEvent,
   environmentId: EnvironmentId,
 ): AppState {
   return commitEnvironmentState(
     state,
     environmentId,
-    applyProviderRuntimeEventToEnvironment(getStoredEnvironmentState(state, environmentId), event),
+    applyAgentRuntimeEventToEnvironment(getStoredEnvironmentState(state, environmentId), event),
   );
+}
+
+export function syncPendingExtensionUiRequests(
+  state: AppState,
+  requests: ReadonlyArray<DesktopExtensionUiRequest>,
+  environmentId: EnvironmentId,
+): AppState {
+  const currentEnvironmentState = getStoredEnvironmentState(state, environmentId);
+  const threadIds = new Set<ThreadId>();
+  for (const request of requests) {
+    threadIds.add(request.threadId);
+  }
+  for (const [threadId, activitiesById] of Object.entries(
+    currentEnvironmentState.activityByThreadId,
+  )) {
+    const hasPendingExtensionUi = Object.values(activitiesById).some(
+      (activity) => activity.kind === "extension-ui.requested",
+    );
+    if (hasPendingExtensionUi) {
+      threadIds.add(threadId as ThreadId);
+    }
+  }
+  if (threadIds.size === 0) {
+    return state;
+  }
+  let nextEnvironmentState = currentEnvironmentState;
+  for (const threadId of threadIds) {
+    nextEnvironmentState = syncPendingExtensionUiRequestsForThread(
+      nextEnvironmentState,
+      threadId,
+      requests.filter((request) => request.threadId === threadId),
+    );
+  }
+  return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
 export function applyRuntimeSessionTreeProjection(
@@ -1946,6 +3007,52 @@ export function applyRuntimeSessionTreeProjection(
     snapshotSource: "server",
     bootstrapComplete: true,
   });
+}
+
+export function clearAgentRuntimeThreadSession(
+  state: AppState,
+  threadId: ThreadId,
+  environmentId: EnvironmentId,
+): AppState {
+  const currentEnvironmentState = getStoredEnvironmentState(state, environmentId);
+  const currentThread = getThreadFromEnvironmentState(currentEnvironmentState, threadId);
+  if (!currentThread?.session) {
+    return state;
+  }
+
+  const now = new Date().toISOString();
+  const latestTurn =
+    currentThread.latestTurn && currentThread.latestTurn.completedAt === null
+      ? buildLatestTurn({
+          previous: currentThread.latestTurn,
+          turnId: currentThread.latestTurn.turnId,
+          state: "interrupted",
+          requestedAt: currentThread.latestTurn.requestedAt,
+          startedAt: currentThread.latestTurn.startedAt ?? now,
+          completedAt: now,
+          assistantMessageId: currentThread.latestTurn.assistantMessageId,
+          sourceProposedPlan: currentThread.pendingSourceProposedPlan,
+        })
+      : currentThread.latestTurn;
+  const nextThread: Thread = {
+    ...currentThread,
+    session: {
+      ...currentThread.session,
+      status: "closed",
+      orchestrationStatus: "stopped",
+      activeTurnId: undefined,
+      updatedAt: now,
+    },
+    latestTurn,
+    error: null,
+    updatedAt: now,
+  };
+  const nextEnvironmentState = writeThreadState(
+    clearLiveAssistantTurnsForThread(currentEnvironmentState, threadId),
+    nextThread,
+    currentThread,
+  );
+  return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
 export function setError(state: AppState, threadId: ThreadId, error: string | null): AppState {

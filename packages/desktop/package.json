@@ -3,22 +3,27 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "main": "dist-electron/main.cjs",
+  "main": "dist-electron/main.mjs",
   "scripts": {
-    "dev": "pnpm run \"/^dev:(bundle|electron)$/\"",
+    "dev": "pnpm --stream --reporter=append-only run \"/^dev:(bundle|electron)$/\"",
     "dev:bundle": "tsdown --watch",
     "dev:electron": "node scripts/dev-electron.mjs",
     "build": "tsdown",
     "start": "node scripts/start-electron.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "test": "vitest run --passWithNoTests",
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
+    "@earendil-works/pi-agent-core": "^0.78.0",
+    "@earendil-works/pi-ai": "^0.78.0",
+    "@earendil-works/pi-coding-agent": "^0.78.0",
     "@effect/platform-node": "catalog:",
+    "@multi/runtime": "workspace:*",
     "effect": "catalog:",
     "electron": "40.6.0",
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.3",
+    "typebox": "^1.1.39"
   },
   "devDependencies": {
     "@multi/contracts": "workspace:*",

@@ -16,6 +16,8 @@ import {
   AutocompleteSeparator,
 } from "./autocomplete";
 
+const commandSearchAddon = <IconMagnifyingGlass />;
+
 const CommandDialog = CommandDialogPrimitive.Root;
 
 const CommandDialogPortal = CommandDialogPrimitive.Portal;
@@ -91,7 +93,7 @@ function Command({
 function CommandInput({
   className,
   wrapperClassName,
-  placeholder = undefined,
+  placeholder,
   ...props
 }: React.ComponentProps<typeof AutocompleteInput> & {
   wrapperClassName?: string | undefined;
@@ -106,7 +108,7 @@ function CommandInput({
         )}
         placeholder={placeholder}
         size="lg"
-        startAddon={<IconMagnifyingGlass />}
+        startAddon={commandSearchAddon}
         {...props}
       />
     </div>

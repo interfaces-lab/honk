@@ -1,7 +1,6 @@
 import type { GitFilePatchResult } from "@multi/contracts";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
-import { memo } from "react";
 
 import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
 import { cn } from "~/lib/utils";
@@ -17,7 +16,7 @@ interface Props {
   layoutKey?: string;
 }
 
-export const DiffViewer = memo(function DiffViewer(props: Props) {
+export function DiffViewer(props: Props) {
   const { resolvedTheme } = useTheme();
   const theme = resolveDiffThemeName(resolvedTheme);
   const patch =
@@ -92,4 +91,4 @@ export const DiffViewer = memo(function DiffViewer(props: Props) {
       <p className="text-body text-muted-foreground/60">No patch available</p>
     </div>
   );
-});
+}

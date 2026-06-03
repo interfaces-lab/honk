@@ -15,16 +15,14 @@ import type {
   ProjectId,
   TurnId,
   MessageId,
-  ProviderDriverKind,
-  ProviderInstanceId,
-  ProviderInteractionMode,
+  AgentInteractionMode,
   RuntimeMode,
 } from "@multi/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 
-export const DEFAULT_INTERACTION_MODE: ProviderInteractionMode = "default";
+export const DEFAULT_INTERACTION_MODE: AgentInteractionMode = "agent";
 export const DEFAULT_THREAD_TERMINAL_HEIGHT = 280;
 export const DEFAULT_THREAD_TERMINAL_ID = "default";
 export const MAX_TERMINALS_PER_GROUP = 4;
@@ -120,7 +118,7 @@ export interface Thread {
   title: string;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
   leafId: OrchestrationThreadEntry["id"] | null;
@@ -147,7 +145,7 @@ export interface ThreadShell {
   title: string;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   error: string | null;
   createdAt: string;
   archivedAt: string | null;
@@ -166,7 +164,7 @@ export interface SidebarThreadSummary {
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
   title: string;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   session: ThreadSession | null;
   createdAt: string;
   archivedAt: string | null;
@@ -181,8 +179,6 @@ export interface SidebarThreadSummary {
 }
 
 export interface ThreadSession {
-  provider: ProviderDriverKind;
-  providerInstanceId?: ProviderInstanceId | undefined;
   status: SessionPhase | "error" | "closed";
   activeTurnId?: TurnId | undefined;
   createdAt: string;

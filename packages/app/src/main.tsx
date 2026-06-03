@@ -15,6 +15,7 @@ import { installDesktopActiveWorkBridge } from "./desktop-active-work";
 import { installDesktopMenuActionBridge } from "./desktop-menu-actions";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./app/branding";
+import { debugLog } from "./lib/debug-log";
 
 interface WindowControlsOverlayLike {
   readonly visible: boolean;
@@ -41,8 +42,14 @@ if (isElectron && typeof navigator !== "undefined") {
 document.title = APP_DISPLAY_NAME;
 installDesktopActiveWorkBridge();
 installDesktopMenuActionBridge(router);
+debugLog("main.before-render", { isElectron, path: window.location.hash || window.location.pathname });
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("Root element #root not found.");
+}
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <RouterProvider router={router} />
   </React.StrictMode>,

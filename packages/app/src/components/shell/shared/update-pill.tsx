@@ -1,6 +1,6 @@
 import { IconChevronRightMedium, IconCloudDownload } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { isElectron } from "~/env";
 import {
@@ -23,7 +23,7 @@ export function UpdatePill() {
   const disabled = state?.status === "downloading";
   const action = state ? resolveDesktopUpdateButtonAction(state) : "none";
 
-  const handle = useCallback(() => {
+  const handle = () => {
     const bridge = window.desktopBridge;
     if (!bridge || !state || disabled || action === "none") return;
 
@@ -45,7 +45,7 @@ export function UpdatePill() {
         setDesktopUpdateStateQueryData(qc, result.state);
       });
     }
-  }, [action, disabled, qc, state]);
+  };
 
   if (!isElectron || !shouldShowDesktopUpdateButton(state) || dismissed) return null;
 

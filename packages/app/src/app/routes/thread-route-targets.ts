@@ -1,6 +1,7 @@
-import { scopeThreadRef } from "@multi/client-runtime";
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@multi/contracts";
-import type { DraftId } from "~/stores/chat-drafts";
+import { scopeThreadRef } from "~/lib/environment-scope";
+import { EnvironmentId, ThreadId } from "@multi/contracts";
+import type { ScopedThreadRef } from "@multi/contracts";
+import { DraftId, type DraftId as DraftIdType } from "~/stores/chat-drafts";
 
 export type ThreadRouteTarget =
   | {
@@ -9,7 +10,7 @@ export type ThreadRouteTarget =
     }
   | {
       kind: "draft";
-      draftId: DraftId;
+      draftId: DraftIdType;
     };
 
 export function buildThreadRouteParams(ref: ScopedThreadRef): {
@@ -22,8 +23,8 @@ export function buildThreadRouteParams(ref: ScopedThreadRef): {
   };
 }
 
-export function buildDraftThreadRouteParams(draftId: DraftId): {
-  draftId: DraftId;
+export function buildDraftThreadRouteParams(draftId: DraftIdType): {
+  draftId: DraftIdType;
 } {
   return { draftId };
 }
@@ -35,7 +36,7 @@ export function resolveThreadRouteRef(
     return null;
   }
 
-  return scopeThreadRef(params.environmentId as EnvironmentId, params.threadId as ThreadId);
+  return scopeThreadRef(EnvironmentId.make(params.environmentId), ThreadId.make(params.threadId));
 }
 
 export function resolveThreadRouteTarget(
@@ -44,7 +45,10 @@ export function resolveThreadRouteTarget(
   if (params.environmentId && params.threadId) {
     return {
       kind: "server",
-      threadRef: scopeThreadRef(params.environmentId as EnvironmentId, params.threadId as ThreadId),
+      threadRef: scopeThreadRef(
+        EnvironmentId.make(params.environmentId),
+        ThreadId.make(params.threadId),
+      ),
     };
   }
 
@@ -54,6 +58,6 @@ export function resolveThreadRouteTarget(
 
   return {
     kind: "draft",
-    draftId: params.draftId as DraftId,
+    draftId: DraftId.make(params.draftId),
   };
 }

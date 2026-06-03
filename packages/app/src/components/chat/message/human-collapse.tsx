@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 const COLLAPSED_MAX_PX = 72;
@@ -7,15 +7,11 @@ function measureOverflow(el: HTMLElement): boolean {
   return el.scrollHeight > COLLAPSED_MAX_PX + 1;
 }
 
-export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
   const [overflows, setOverflows] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const measureElement = useCallback((el: HTMLDivElement | null) => {
+  const measureElement = (el: HTMLDivElement | null) => {
     if (!el) {
       return;
     }
@@ -32,7 +28,7 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  };
 
   const collapsed = overflows && !expanded;
 
@@ -64,4 +60,4 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
       ) : null}
     </div>
   );
-});
+}

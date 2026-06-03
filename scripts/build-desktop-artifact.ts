@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 
 import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../packages/desktop/package.json" with { type: "json" };
+import runtimePackageJson from "../packages/runtime/package.json" with { type: "json" };
 import serverPackageJson from "../packages/server/package.json" with { type: "json" };
 
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
@@ -373,9 +374,11 @@ function validateBundledClientAssets(clientDir: string) {
   });
 }
 
-export function resolveDesktopRuntimeDependencies(
+export function resolvePackageRuntimeDependencies(
   dependencies: Record<string, string> | undefined,
   catalog: Record<string, string>,
+  packageDir: string,
+  excludedDependencies: ReadonlySet<string> = new Set(),
 ): Record<string, string> {
   if (!dependencies || Object.keys(dependencies).length === 0) {
     return {};
@@ -384,11 +387,23 @@ export function resolveDesktopRuntimeDependencies(
   const runtimeDependencies = Object.fromEntries(
     Object.entries(dependencies).filter(
       ([dependencyName, dependencySpec]) =>
-        dependencyName !== "electron" && !dependencySpec.startsWith("workspace:"),
+        !excludedDependencies.has(dependencyName) && !dependencySpec.startsWith("workspace:"),
     ),
   );
 
-  return resolveCatalogDependencies(runtimeDependencies, catalog, "packages/desktop");
+  return resolveCatalogDependencies(runtimeDependencies, catalog, packageDir);
+}
+
+export function resolveDesktopRuntimeDependencies(
+  dependencies: Record<string, string> | undefined,
+  catalog: Record<string, string>,
+): Record<string, string> {
+  return resolvePackageRuntimeDependencies(
+    dependencies,
+    catalog,
+    "packages/desktop",
+    new Set(["electron"]),
+  );
 }
 
 function resolveBunInstallTarget(
@@ -503,6 +518,14 @@ function createBuildConfig(
     directories: {
       buildResources: "packages/desktop/resources",
     },
+    files: [
+      "package.json",
+      "node_modules/**/*",
+      "packages/desktop/dist-electron/**/*",
+      "packages/desktop/resources/**/*",
+      "packages/desktop/prod-resources/**/*",
+      "packages/server/dist/**/*",
+    ],
   };
   const publishConfig = resolveGitHubPublishConfig();
   if (publishConfig) {
@@ -592,7 +615,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   });
 
   const resolvedServerDependencies = yield* Effect.try({
-    try: () => resolveCatalogDependencies(serverDependencies, workspaceCatalog, "packages/server"),
+    try: () =>
+      resolvePackageRuntimeDependencies(serverDependencies, workspaceCatalog, "packages/server"),
     catch: (cause) =>
       new BuildScriptError({
         message: "Could not resolve production dependencies from packages/server/package.json.",
@@ -605,6 +629,19 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       new BuildScriptError({
         message:
           "Could not resolve desktop runtime dependencies from packages/desktop/package.json.",
+        cause,
+      }),
+  });
+  const resolvedAgentRuntimeDependencies = yield* Effect.try({
+    try: () =>
+      resolvePackageRuntimeDependencies(
+        runtimePackageJson.dependencies,
+        workspaceCatalog,
+        "packages/runtime",
+      ),
+    catch: (cause) =>
+      new BuildScriptError({
+        message: "Could not resolve agent runtime dependencies from packages/runtime/package.json.",
         cause,
       }),
   });
@@ -684,7 +721,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     private: true,
     description: "Multi desktop build",
     author: "Interfaces Co",
-    main: "packages/desktop/dist-electron/main.cjs",
+    main: "packages/desktop/dist-electron/main.mjs",
     build: createBuildConfig(
       options.platform,
       options.target,
@@ -694,6 +731,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     ),
     dependencies: {
       ...resolvedServerDependencies,
+      ...resolvedAgentRuntimeDependencies,
       ...resolvedDesktopRuntimeDependencies,
     },
     devDependencies: {

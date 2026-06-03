@@ -1,6 +1,12 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { IconChevronRightMedium, IconClock, IconRobot, IconSummary } from "central-icons";
-import { memo, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  IconBubbleQuestion,
+  IconChevronRightMedium,
+  IconClock,
+  IconRobot,
+  IconSummary,
+} from "central-icons";
+import { type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
@@ -12,6 +18,7 @@ import { formatContextWindowTokens } from "~/lib/context-window";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 import { cn } from "~/lib/utils";
 import { useMountEffect } from "~/hooks/use-mount-effect";
+import ChatMarkdown from "../markdown/chat-markdown";
 import {
   subagentTrayKey,
   subagentTrayUpdateSignature,
@@ -32,7 +39,7 @@ interface ToolCallMessageProps {
   subagentDetailsEnabled?: boolean | undefined;
 }
 
-export const ToolCallMessage = memo(function ToolCallMessage({
+export function ToolCallMessage({
   workEntry,
   projectRoot,
   activeThreadId,
@@ -47,8 +54,17 @@ export const ToolCallMessage = memo(function ToolCallMessage({
     return <ToolSummaryRow text={workEntry.label} />;
   }
 
+  if (workEntry.extensionUiRequestKind) {
+    return <ExtensionUiRequestRow workEntry={workEntry} active={isLoading} />;
+  }
+
   if (workEntry.tone === "thinking" && !isToolLikeWorkEntry(workEntry)) {
-    return <ThinkingStatus task={resolveThinkingTask(workEntry, isLoading)} active={isLoading} />;
+    const thinkingMarkdown = resolveThinkingMarkdown(workEntry);
+    return thinkingMarkdown ? (
+      <ThinkingMarkdown text={thinkingMarkdown} cwd={projectRoot} isStreaming={isLoading} />
+    ) : (
+      <ThinkingStatus task={resolveThinkingTask(workEntry, isLoading)} active={isLoading} />
+    );
   }
 
   const toolCall = toToolCall(workEntry, projectRoot);
@@ -85,7 +101,48 @@ export const ToolCallMessage = memo(function ToolCallMessage({
       {subagentStatusSurface}
     </div>
   );
-});
+}
+
+function ExtensionUiRequestRow({
+  workEntry,
+  active,
+}: {
+  workEntry: WorkLogEntry;
+  active: boolean;
+}) {
+  const detail = workEntry.detail?.trim();
+  return (
+    <div
+      data-extension-ui-request=""
+      data-extension-ui-request-kind={workEntry.extensionUiRequestKind}
+      data-extension-ui-request-active={active ? "true" : undefined}
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
+    >
+      <IconBubbleQuestion
+        className={cn(
+          "mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary",
+          active && "tool-call-shimmer text-multi-icon-accent-primary",
+        )}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <div
+          className={cn(
+            "min-w-0 break-words font-medium text-multi-fg-primary wrap-anywhere",
+            active && "tool-call-shimmer",
+          )}
+        >
+          {workEntry.label}
+        </div>
+        {detail ? (
+          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary wrap-anywhere">
+            {detail}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function ToolSummaryRow({ text }: { text: string }) {
   const trimmed = text.trim();
@@ -165,11 +222,11 @@ function SubagentStatusRow({
   const openTray = useSubagentTrayStore((state) => state.openTray);
   const updateTraySubagent = useSubagentTrayStore((state) => state.updateTraySubagent);
   const key = subagentTrayKey(subagent);
-  const providerThreadId = subagent.providerThreadId?.trim() ?? "";
-  const hasProviderThread = providerThreadId.length > 0;
+  const subagentThreadId = subagent.subagentThreadId?.trim() ?? "";
+  const hasSubagentThread = subagentThreadId.length > 0;
   const hasDetails =
     subagentDetailsEnabled &&
-    ((subagent.logs?.length ?? 0) > 0 || subagent.hasDetails === true || hasProviderThread);
+    ((subagent.logs?.length ?? 0) > 0 || subagent.hasDetails === true || hasSubagentThread);
   const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
   const statusText = subagent.latestUpdate ?? subagent.statusLabel;
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
@@ -211,7 +268,7 @@ function SubagentStatusRow({
         )}
         data-subagent-row=""
         data-subagent-state={rowState}
-        data-subagent-provider-thread-id={hasProviderThread ? providerThreadId : undefined}
+        data-subagent-thread-id={hasSubagentThread ? subagentThreadId : undefined}
         disabled={!hasDetails}
         aria-label={hasDetails ? `Open ${title} details` : undefined}
         aria-pressed={hasDetails ? isTrayOpen : undefined}
@@ -332,6 +389,40 @@ function resolveThinkingTask(workEntry: WorkLogEntry, isLoading: boolean): strin
   if (detail && detail !== title) return `${action} - ${detail}`;
   if (title !== "Thinking" && title !== "Thought") return `${action} - ${title}`;
   return action;
+}
+
+function resolveThinkingMarkdown(workEntry: WorkLogEntry): string | null {
+  const detail = workEntry.detail?.trim();
+  if (detail) return detail;
+  const output = workEntry.output?.trim();
+  if (output) return output;
+  const label = workEntry.label.trim();
+  if (label && label !== "Thinking" && label !== "Thought") return label;
+  return null;
+}
+
+function ThinkingMarkdown({
+  text,
+  cwd,
+  isStreaming,
+}: {
+  text: string;
+  cwd: string | undefined;
+  isStreaming: boolean;
+}) {
+  return (
+    <div
+      className="min-w-0 py-0.5 text-conversation text-multi-fg-secondary"
+      data-thinking-markdown=""
+    >
+      <ChatMarkdown
+        text={text}
+        cwd={cwd}
+        isStreaming={isStreaming}
+        className="text-multi-fg-secondary"
+      />
+    </div>
+  );
 }
 
 function toToolCall(workEntry: WorkLogEntry, projectRoot: string | undefined): ToolCallModel {

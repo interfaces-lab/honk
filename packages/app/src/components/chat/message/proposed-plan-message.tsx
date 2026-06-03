@@ -1,12 +1,12 @@
 import { Button } from "@multi/ui/button";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
-import { memo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import type { ProposedPlan } from "../../../types";
 import ChatMarkdown from "../markdown/chat-markdown";
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
-export const ProposedPlanMessage = memo(function ProposedPlanMessage({
+export function ProposedPlanMessage({
   canEdit,
   markdownCwd,
   onSave,
@@ -19,7 +19,7 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState(proposedPlan.planMarkdown);
+  const [draft, setDraft] = useState("");
   const title = proposedPlanTitle(proposedPlan.planMarkdown) ?? "Plan";
   const displayedMarkdown = stripDisplayedPlanMarkdown(proposedPlan.planMarkdown);
   const canSave = canEdit && onSave !== undefined && draft.trim().length > 0 && !saving;
@@ -71,6 +71,7 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
               onChange={(event) => setDraft(event.currentTarget.value)}
               className="min-h-48 w-full resize-y rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-primary px-2 py-2 font-mono text-detail leading-relaxed text-multi-fg-primary outline-none focus:border-multi-stroke-focused"
               data-proposed-plan-editor=""
+              aria-label="Edit plan"
               spellCheck={false}
             />
             <div className="flex justify-end gap-2">
@@ -112,4 +113,4 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
       </div>
     </div>
   );
-});
+}

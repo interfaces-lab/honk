@@ -80,7 +80,6 @@ export function mapSessionRow(
   return {
     threadId: row.threadId,
     status: row.status,
-    providerName: row.providerName,
     runtimeMode: row.runtimeMode,
     activeTurnId: row.activeTurnId,
     lastError: row.lastError,

@@ -77,7 +77,11 @@ function TerminalPanelSession({
   useMountEffect(() => {
     const el = ref.current;
     const api = readWorkbenchTerminalApi(environmentId);
-    if (!el || !api) {
+    if (!el) {
+      return;
+    }
+    if (!api) {
+      setBootErr("Terminal API unavailable for this workspace.");
       return;
     }
 

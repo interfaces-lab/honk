@@ -139,7 +139,7 @@ describe.skipIf(!API_KEY)("AgentSession tree navigation e2e", () => {
 		const children = sessionManager.getChildren(a1!.id);
 		expect(children.length).toBe(2);
 
-		const childTypes = children.map((c) => c.type).sort();
+		const childTypes = children.map((c) => c.type).toSorted();
 		expect(childTypes).toContain("branch_summary");
 		expect(childTypes).toContain("message");
 	}, 120000);
@@ -155,8 +155,11 @@ describe.skipIf(!API_KEY)("AgentSession tree navigation e2e", () => {
 
 		// Get the first assistant message (a1)
 		const entries = sessionManager.getEntries();
-		const assistantEntries = entries.filter((e) => e.type === "message" && e.message.role === "assistant");
-		const a1 = assistantEntries[0];
+		const a1 = entries.find((e) => e.type === "message" && e.message.role === "assistant");
+		expect(a1).toBeDefined();
+		if (!a1) {
+			throw new Error("Expected assistant entry");
+		}
 
 		// Navigate to a1 with summarization
 		const result = await session.navigateTree(a1.id, { summarize: true });
@@ -244,10 +247,13 @@ describe.skipIf(!API_KEY)("AgentSession tree navigation e2e", () => {
 
 		const leafBefore = sessionManager.getLeafId();
 		expect(leafBefore).toBeTruthy();
+		if (!leafBefore) {
+			throw new Error("Expected leaf id");
+		}
 		const entriesBefore = sessionManager.getEntries().length;
 
 		// Navigate to current leaf
-		const result = await session.navigateTree(leafBefore!, { summarize: false });
+		const result = await session.navigateTree(leafBefore, { summarize: false });
 
 		expect(result.cancelled).toBe(false);
 		expect(sessionManager.getLeafId()).toBe(leafBefore);

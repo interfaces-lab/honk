@@ -18,12 +18,12 @@ if (!Number.isInteger(port) || port <= 0) {
 }
 
 const requiredFiles = [
-  "dist-electron/main.cjs",
+  "dist-electron/main.mjs",
   "dist-electron/preload.cjs",
   "../server/dist/bin.mjs",
 ];
 const watchedDirectories = [
-  { directory: "dist-electron", files: new Set(["main.cjs", "preload.cjs"]) },
+  { directory: "dist-electron", files: new Set(["main.mjs", "preload.cjs"]), extensions: [".mjs", ".cjs"] },
   { directory: "../server/dist", files: new Set(["bin.mjs"]) },
 ];
 const forcedShutdownTimeoutMs = 1_500;
@@ -223,9 +223,10 @@ function startApp() {
   const app = spawn(
     resolveElectronPath(),
     [
+      "--trace-warnings",
       `--user-data-dir=${devUserDataDir}`,
       `--multi-dev-root=${desktopDir}`,
-      "dist-electron/main.cjs",
+      "dist-electron/main.mjs",
     ],
     {
       cwd: desktopDir,
@@ -318,12 +319,15 @@ function scheduleRestart() {
 }
 
 function startWatchers() {
-  for (const { directory, files } of watchedDirectories) {
+  for (const { directory, files, extensions = [] } of watchedDirectories) {
     const watcher = watch(
       join(desktopDir, directory),
       { persistent: true },
       (_eventType, filename) => {
-        if (typeof filename !== "string" || !files.has(filename)) {
+        if (
+          typeof filename !== "string" ||
+          (!files.has(filename) && !extensions.some((extension) => filename.endsWith(extension)))
+        ) {
           return;
         }
 

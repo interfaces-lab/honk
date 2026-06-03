@@ -3,7 +3,6 @@ import {
   type ProjectScript,
   type ResolvedKeybindingsConfig,
 } from "@multi/contracts";
-import { memo } from "react";
 import { IconSidebar } from "central-icons";
 import { Button } from "@multi/ui/button";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../../project-scripts-control";
@@ -27,7 +26,7 @@ interface ChatHeaderProps {
   onToggleTerminal: () => void;
 }
 
-export const ChatHeader = memo(function ChatHeader({
+export function ChatHeader({
   activeThreadTitle,
   activeProjectScripts,
   preferredScriptId,
@@ -80,4 +79,4 @@ export const ChatHeader = memo(function ChatHeader({
       ) : null}
     </div>
   );
-});
+}

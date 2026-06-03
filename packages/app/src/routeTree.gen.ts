@@ -12,11 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
-import { Route as SettingsModelsRouteImport } from './routes/settings.models'
 import { Route as SettingsGeneralRouteImport } from './routes/settings.general'
 import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
+import { Route as DevTomeitoRouteImport } from './routes/dev.tomeito'
 import { Route as DevQueuedMessageDemoRouteImport } from './routes/dev.queued-message-demo'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
 import { Route as ChatDevBranchingUiPrototypesRouteImport } from './routes/_chat.dev.branching-ui-prototypes'
@@ -37,11 +37,6 @@ const ChatIndexRoute = ChatIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ChatRoute,
 } as any)
-const SettingsModelsRoute = SettingsModelsRouteImport.update({
-  id: '/models',
-  path: '/models',
-  getParentRoute: () => SettingsRoute,
-} as any)
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -61,6 +56,11 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
   getParentRoute: () => SettingsRoute,
+} as any)
+const DevTomeitoRoute = DevTomeitoRouteImport.update({
+  id: '/dev/tomeito',
+  path: '/dev/tomeito',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DevQueuedMessageDemoRoute = DevQueuedMessageDemoRouteImport.update({
   id: '/dev/queued-message-demo',
@@ -94,11 +94,11 @@ export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/settings': typeof SettingsRouteWithChildren
   '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
+  '/dev/tomeito': typeof DevTomeitoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/models': typeof SettingsModelsRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
   '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
@@ -107,11 +107,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteWithChildren
   '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
+  '/dev/tomeito': typeof DevTomeitoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/models': typeof SettingsModelsRoute
   '/': typeof ChatIndexRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
@@ -123,11 +123,11 @@ export interface FileRoutesById {
   '/_chat': typeof ChatRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
+  '/dev/tomeito': typeof DevTomeitoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/models': typeof SettingsModelsRoute
   '/_chat/': typeof ChatIndexRoute
   '/_chat/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/_chat/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
@@ -140,11 +140,11 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/dev/queued-message-demo'
+    | '/dev/tomeito'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
     | '/settings/general'
-    | '/settings/models'
     | '/$environmentId/$threadId'
     | '/dev/archive-ui-example'
     | '/dev/branching-ui-prototypes'
@@ -153,11 +153,11 @@ export interface FileRouteTypes {
   to:
     | '/settings'
     | '/dev/queued-message-demo'
+    | '/dev/tomeito'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
     | '/settings/general'
-    | '/settings/models'
     | '/'
     | '/$environmentId/$threadId'
     | '/dev/archive-ui-example'
@@ -168,11 +168,11 @@ export interface FileRouteTypes {
     | '/_chat'
     | '/settings'
     | '/dev/queued-message-demo'
+    | '/dev/tomeito'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
     | '/settings/general'
-    | '/settings/models'
     | '/_chat/'
     | '/_chat/$environmentId/$threadId'
     | '/_chat/dev/archive-ui-example'
@@ -184,6 +184,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
   DevQueuedMessageDemoRoute: typeof DevQueuedMessageDemoRoute
+  DevTomeitoRoute: typeof DevTomeitoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -208,13 +209,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof ChatIndexRouteImport
       parentRoute: typeof ChatRoute
-    }
-    '/settings/models': {
-      id: '/settings/models'
-      path: '/models'
-      fullPath: '/settings/models'
-      preLoaderRoute: typeof SettingsModelsRouteImport
-      parentRoute: typeof SettingsRoute
     }
     '/settings/general': {
       id: '/settings/general'
@@ -243,6 +237,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/agents'
       preLoaderRoute: typeof SettingsAgentsRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/dev/tomeito': {
+      id: '/dev/tomeito'
+      path: '/dev/tomeito'
+      fullPath: '/dev/tomeito'
+      preLoaderRoute: typeof DevTomeitoRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dev/queued-message-demo': {
       id: '/dev/queued-message-demo'
@@ -305,7 +306,6 @@ interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsArchivedRoute: typeof SettingsArchivedRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
-  SettingsModelsRoute: typeof SettingsModelsRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
@@ -313,7 +313,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsArchivedRoute: SettingsArchivedRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
-  SettingsModelsRoute: SettingsModelsRoute,
 }
 
 const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
@@ -324,6 +323,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
   DevQueuedMessageDemoRoute: DevQueuedMessageDemoRoute,
+  DevTomeitoRoute: DevTomeitoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

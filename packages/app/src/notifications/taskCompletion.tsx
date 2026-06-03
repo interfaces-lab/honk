@@ -1,6 +1,6 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { toastManager } from "~/app/toast";
 import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
@@ -277,23 +277,19 @@ function collectInputNeededSummaryCandidates(
 }
 
 function useVisibleThreadIdsFromRoute(): ReadonlySet<ThreadId> {
-  const routeTarget = useParams({
-    strict: false,
-    select: (params) => resolveThreadRouteTarget(params),
-  });
+  const routeParams = useParams({ strict: false });
+  const routeTarget = resolveThreadRouteTarget(routeParams);
   const activeDraftSession = useComposerDraftStore((store) =>
     routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );
 
-  return useMemo(() => {
-    if (routeTarget?.kind === "server") {
-      return new Set([routeTarget.threadRef.threadId]);
-    }
-    if (routeTarget?.kind === "draft" && activeDraftSession) {
-      return new Set([activeDraftSession.threadId]);
-    }
-    return new Set<ThreadId>();
-  }, [activeDraftSession, routeTarget]);
+  if (routeTarget?.kind === "server") {
+    return new Set([routeTarget.threadRef.threadId]);
+  }
+  if (routeTarget?.kind === "draft" && activeDraftSession) {
+    return new Set([activeDraftSession.threadId]);
+  }
+  return new Set<ThreadId>();
 }
 
 export function TaskCompletionNotifications() {

@@ -7,13 +7,12 @@ import {
   ThreadId,
 } from "@multi/contracts";
 import { type QueryClient } from "@tanstack/react-query";
-import { Throttler } from "@tanstack/react-pacer";
 import {
   getKnownEnvironmentWsBaseUrl,
   scopeProjectRef,
   scopedThreadKey,
   scopeThreadRef,
-} from "@multi/client-runtime";
+} from "~/lib/environment-scope";
 
 import {
   markPromotedDraftThreadByRef,
@@ -23,9 +22,7 @@ import {
 import { coalesceOrchestrationUiEvents } from "./coalesce-orchestration-events";
 import { deriveOrchestrationBatchEffects } from "./orchestration-event-effects";
 import { refreshGitStatus } from "~/lib/git-status-state";
-import { invalidateGitPatchQueries } from "~/lib/native-git-react-query";
-import { projectQueryKeys } from "~/lib/project-react-query";
-import { providerQueryKeys } from "~/lib/provider-react-query";
+import { invalidateGitPatchQueries } from "~/lib/environment-git-react-query";
 import { getPrimaryKnownEnvironment } from "../primary";
 import { createEnvironmentConnection, type EnvironmentConnection } from "./connection";
 import {
@@ -52,7 +49,6 @@ import { dispatchNextQueuedComposerItemForThread } from "~/stores/chat-send-queu
 
 type EnvironmentServiceState = {
   readonly queryClient: QueryClient;
-  readonly queryInvalidationThrottler: Throttler<() => void>;
   refCount: number;
   stop: () => void;
 };
@@ -80,7 +76,6 @@ const lastAppliedProjectionVersionByEnvironment = new Map<
 >();
 
 let activeService: EnvironmentServiceState | null = null;
-let needsProviderInvalidation = false;
 
 interface TerminalRetentionThread {
   key: string;
@@ -314,10 +309,6 @@ function attachThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry): b
       if (item.kind === "snapshot") {
         flushThreadDetailEventBatch(entry.environmentId);
         useStore.getState().syncServerThreadDetail(item.snapshot.thread, entry.environmentId);
-        return;
-      }
-      if (item.kind === "runtime-event") {
-        useStore.getState().applyProviderRuntimeEvent(item.event, entry.environmentId);
         return;
       }
       enqueueThreadDetailEvent(item.event, entry.environmentId);
@@ -663,11 +654,6 @@ function applyRecoveredEventBatch(
       event.type === "project.deleted",
   );
 
-  if (batchEffects.needsProviderInvalidation) {
-    needsProviderInvalidation = true;
-    void activeService?.queryInvalidationThrottler.maybeExecute();
-  }
-
   useStore.getState().applyOrchestrationEvents(uiEvents, environmentId);
   for (const threadId of queueDrainThreadIds) {
     void dispatchNextQueuedComposerItemForThread(environmentId, threadId);
@@ -944,33 +930,14 @@ export function startEnvironmentConnectionService(queryClient: QueryClient): () 
   }
 
   stopActiveService();
-  needsProviderInvalidation = false;
-  const queryInvalidationThrottler = new Throttler(
-    () => {
-      if (!needsProviderInvalidation) {
-        return;
-      }
-      needsProviderInvalidation = false;
-      void queryClient.invalidateQueries({ queryKey: providerQueryKeys.all });
-      void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
-    },
-    {
-      wait: 100,
-      leading: false,
-      trailing: true,
-    },
-  );
 
   const connection = createPrimaryEnvironmentConnection();
   hydrateCachedShellSnapshot(connection.environmentId);
 
   activeService = {
     queryClient,
-    queryInvalidationThrottler,
     refCount: 1,
-    stop: () => {
-      queryInvalidationThrottler.cancel();
-    },
+    stop: NOOP,
   };
 
   return () => {

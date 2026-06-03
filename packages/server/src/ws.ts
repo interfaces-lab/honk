@@ -1,4 +1,4 @@
-import { Cause, Duration, Effect, Layer, Option, Queue, Ref, Schema, Stream } from "effect";
+import { Cause, Effect, Layer, Option, Queue, Ref, Schema, Stream } from "effect";
 import {
   type AuthAccessStreamEvent,
   AuthSessionId,
@@ -11,7 +11,6 @@ import {
   type OrchestrationEvent,
   type OrchestrationShellStreamEvent,
   type OrchestrationThreadStreamItem,
-  type ProviderRuntimeEvent,
   OrchestrationGetSnapshotError,
   ORCHESTRATION_WS_METHODS,
   ProjectListDirectoryError,
@@ -20,7 +19,6 @@ import {
   ProjectWriteFileError,
   OrchestrationReplayEventsError,
   FilesystemBrowseError,
-  ProviderDriverKind,
   ThreadId,
   type TerminalEvent,
   WS_METHODS,
@@ -44,8 +42,6 @@ import {
   observeRpcStream,
   observeRpcStreamEffect,
 } from "./observability/RpcInstrumentation";
-import { ProviderRegistry } from "./provider/ProviderRegistry.service";
-import { ProviderService } from "./provider/ProviderService.service";
 import { ServerLifecycleEvents } from "./server-lifecycle-events";
 import { ServerRuntimeStartup } from "./server-runtime-startup";
 import { ServerSettingsService } from "./server-settings";
@@ -90,7 +86,6 @@ function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
   );
 }
 
-const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchCommandError);
 const isProjectPathOutsideRootError = Schema.is(ProjectPathOutsideRootError);
 
@@ -145,7 +140,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
       const git = yield* GitCore;
       const gitStatusBroadcaster = yield* GitStatusBroadcaster;
       const terminalManager = yield* TerminalManager;
-      const providerRegistry = yield* ProviderRegistry;
       const config = yield* ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents;
       const serverSettings = yield* ServerSettingsService;
@@ -512,7 +506,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
 
       const loadServerConfig = Effect.gen(function* () {
         const keybindingsConfig = yield* keybindings.loadConfigState;
-        const providers = yield* providerRegistry.getProviders;
         const settings = yield* serverSettings.getSettings;
         const environment = yield* serverEnvironment.getDescriptor;
         const auth = yield* serverAuth.getDescriptor();
@@ -524,7 +517,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
           keybindingsConfigPath: config.keybindingsConfigPath,
           keybindings: keybindingsConfig.keybindings,
           issues: keybindingsConfig.issues,
-          providers,
           availableEditors: resolveAvailableEditors(),
           observability: {
             logsDirectoryPath: config.logsDir,
@@ -580,7 +572,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                     yield* dispatchNormalizedCommand(stopCommand);
                   }).pipe(
                     Effect.catchCause((cause) =>
-                      Effect.logWarning("failed to stop provider session during archive", {
+                      Effect.logWarning("failed to stop runtime session during archive", {
                         threadId: normalizedCommand.threadId,
                         cause,
                       }),
@@ -606,33 +598,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                       message: "Failed to dispatch orchestration command",
                       cause,
                     }),
-              ),
-            ),
-            { "rpc.aggregate": "orchestration" },
-          ),
-        [ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot]: (input) =>
-          observeRpcEffect(
-            ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot,
-            Effect.serviceOption(ProviderService).pipe(
-              Effect.flatMap(
-                Option.match({
-                  onNone: () =>
-                    Effect.fail(
-                      new OrchestrationGetSnapshotError({
-                        message: "Provider thread snapshots are unavailable in this environment",
-                      }),
-                    ),
-                  onSome: (providerService) =>
-                    providerService.readThread(input).pipe(
-                      Effect.mapError(
-                        (cause) =>
-                          new OrchestrationGetSnapshotError({
-                            message: "Failed to load provider thread snapshot",
-                            cause,
-                          }),
-                      ),
-                    ),
-                }),
               ),
             ),
             { "rpc.aggregate": "orchestration" },
@@ -719,23 +684,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                 ),
                 Stream.map((event): OrchestrationThreadStreamItem => ({ kind: "event", event })),
               );
-              const providerRuntimeStream = Option.match(
-                yield* Effect.serviceOption(ProviderService),
-                {
-                  onNone: () => Stream.empty,
-                  onSome: (providerService) =>
-                    providerService.streamEvents.pipe(
-                      Stream.filter((event) => event.threadId === input.threadId),
-                      Stream.map(
-                        (event: ProviderRuntimeEvent): OrchestrationThreadStreamItem => ({
-                          kind: "runtime-event",
-                          event,
-                        }),
-                      ),
-                    ),
-                },
-              );
-              const liveStream = Stream.merge(domainEventStream, providerRuntimeStream);
+              const liveStream = domainEventStream;
 
               if (Option.isNone(threadDetail)) {
                 return liveStream;
@@ -758,12 +707,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
           observeRpcEffect(WS_METHODS.serverGetConfig, loadServerConfig, {
             "rpc.aggregate": "server",
           }),
-        [WS_METHODS.serverRefreshProviders]: (_input) =>
-          observeRpcEffect(
-            WS_METHODS.serverRefreshProviders,
-            providerRegistry.refresh().pipe(Effect.map((providers) => ({ providers }))),
-            { "rpc.aggregate": "server" },
-          ),
         [WS_METHODS.serverUpsertKeybinding]: (rule) =>
           observeRpcEffect(
             WS_METHODS.serverUpsertKeybinding,
@@ -1016,14 +959,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                   },
                 })),
               );
-              const providerStatuses = providerRegistry.streamChanges.pipe(
-                Stream.map((providers) => ({
-                  version: 1 as const,
-                  type: "providerStatuses" as const,
-                  payload: { providers },
-                })),
-                Stream.debounce(Duration.millis(PROVIDER_STATUS_DEBOUNCE_MS)),
-              );
               const settingsUpdates = serverSettings.streamChanges.pipe(
                 Stream.map((settings) => ({
                   version: 1 as const,
@@ -1032,22 +967,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                 })),
               );
 
-              yield* Effect.all(
-                [
-                  providerRegistry.refresh(ProviderDriverKind.make("codex")),
-                  providerRegistry.refresh(ProviderDriverKind.make("claudeAgent")),
-                  providerRegistry.refresh(ProviderDriverKind.make("cursor")),
-                ],
-                {
-                  concurrency: "unbounded",
-                  discard: true,
-                },
-              ).pipe(Effect.ignoreCause({ log: true }), Effect.forkScoped);
-
-              const liveUpdates = Stream.merge(
-                keybindingsUpdates,
-                Stream.merge(providerStatuses, settingsUpdates),
-              );
+              const liveUpdates = Stream.merge(keybindingsUpdates, settingsUpdates);
 
               return Stream.concat(
                 Stream.make({

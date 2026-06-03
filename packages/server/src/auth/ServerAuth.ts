@@ -1,12 +1,10 @@
 import {
-  type AuthBearerBootstrapResult,
-  type AuthClientSession,
   type AuthBootstrapResult,
+  type AuthClientSession,
   type AuthPairingCredentialResult,
   type AuthSessionState,
-  type AuthWebSocketTokenResult,
 } from "@multi/contracts";
-import { DateTime, Effect, Layer, Option } from "effect";
+import { DateTime, Effect, Layer } from "effect";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 
 import { AuthControlPlane } from "./AuthControlPlane.service.ts";
@@ -26,13 +24,7 @@ import {
 } from "./SessionCredentialService.service.ts";
 import { AuthControlPlaneLive, AuthCoreLive } from "./AuthControlPlane.ts";
 
-type BootstrapExchangeResult = {
-  readonly response: AuthBootstrapResult;
-  readonly sessionToken: string;
-};
-
 const AUTHORIZATION_PREFIX = "Bearer ";
-const WEBSOCKET_TOKEN_QUERY_PARAM = "wsToken";
 
 export function toBootstrapExchangeAuthError(cause: BootstrapCredentialError): AuthError {
   if (cause.status === 500) {
@@ -93,10 +85,8 @@ export const makeServerAuth = Effect.gen(function* () {
     );
 
   const authenticateRequest = (request: HttpServerRequest.HttpServerRequest) => {
-    const cookieToken = request.cookies[sessions.cookieName];
     const bearerToken = parseBearerToken(request);
-    const credential = cookieToken ?? bearerToken;
-    if (!credential) {
+    if (!bearerToken) {
       return Effect.fail(
         new AuthError({
           message: "Authentication required.",
@@ -104,7 +94,7 @@ export const makeServerAuth = Effect.gen(function* () {
         }),
       );
     }
-    return authenticateToken(credential);
+    return authenticateToken(bearerToken);
   };
 
   const getSessionState: ServerAuthShape["getSessionState"] = (request) =>
@@ -136,7 +126,6 @@ export const makeServerAuth = Effect.gen(function* () {
       Effect.flatMap((grant) =>
         sessions
           .issue({
-            method: "browser-session-cookie",
             subject: grant.subject,
             role: grant.role,
             client: {
@@ -157,53 +146,14 @@ export const makeServerAuth = Effect.gen(function* () {
       Effect.map(
         (session) =>
           ({
-            response: {
-              authenticated: true,
-              role: session.role,
-              sessionMethod: session.method,
-              expiresAt: DateTime.toUtc(session.expiresAt),
-            } satisfies AuthBootstrapResult,
+            authenticated: true,
+            role: session.role,
+            sessionMethod: "bearer-session-token",
+            expiresAt: DateTime.toUtc(session.expiresAt),
             sessionToken: session.token,
-          }) satisfies BootstrapExchangeResult,
+          }) satisfies AuthBootstrapResult,
       ),
     );
-
-  const exchangeBootstrapCredentialForBearerSession: ServerAuthShape["exchangeBootstrapCredentialForBearerSession"] =
-    (credential, requestMetadata) =>
-      bootstrapCredentials.consume(credential).pipe(
-        Effect.mapError(toBootstrapExchangeAuthError),
-        Effect.flatMap((grant) =>
-          sessions
-            .issue({
-              method: "bearer-session-token",
-              subject: grant.subject,
-              role: grant.role,
-              client: {
-                ...requestMetadata,
-                ...(grant.label ? { label: grant.label } : {}),
-              },
-            })
-            .pipe(
-              Effect.mapError(
-                (cause) =>
-                  new AuthError({
-                    message: "Failed to issue authenticated session.",
-                    cause,
-                  }),
-              ),
-            ),
-        ),
-        Effect.map(
-          (session) =>
-            ({
-              authenticated: true,
-              role: session.role,
-              sessionMethod: "bearer-session-token",
-              expiresAt: DateTime.toUtc(session.expiresAt),
-              sessionToken: session.token,
-            }) satisfies AuthBearerBootstrapResult,
-        ),
-      );
 
   const issuePairingCredential: ServerAuthShape["issuePairingCredential"] = (input) =>
     authControlPlane
@@ -323,58 +273,13 @@ export const makeServerAuth = Effect.gen(function* () {
       }),
     );
 
-  const issueWebSocketToken: ServerAuthShape["issueWebSocketToken"] = (session) =>
-    sessions.issueWebSocketToken(session.sessionId).pipe(
-      Effect.mapError(
-        (cause) =>
-          new AuthError({
-            message: "Failed to issue websocket token.",
-            cause,
-          }),
-      ),
-      Effect.map(
-        (issued) =>
-          ({
-            token: issued.token,
-            expiresAt: DateTime.toUtc(issued.expiresAt),
-          }) satisfies AuthWebSocketTokenResult,
-      ),
-    );
-
-  const authenticateWebSocketUpgrade: ServerAuthShape["authenticateWebSocketUpgrade"] = (request) =>
-    Effect.gen(function* () {
-      const requestUrl = HttpServerRequest.toURL(request);
-      if (Option.isSome(requestUrl)) {
-        const websocketToken = requestUrl.value.searchParams.get(WEBSOCKET_TOKEN_QUERY_PARAM);
-        if (websocketToken && websocketToken.trim().length > 0) {
-          return yield* sessions.verifyWebSocketToken(websocketToken).pipe(
-            Effect.map((session) => ({
-              sessionId: session.sessionId,
-              subject: session.subject,
-              method: session.method,
-              role: session.role,
-              ...(session.expiresAt ? { expiresAt: session.expiresAt } : {}),
-            })),
-            Effect.mapError(
-              (cause) =>
-                new AuthError({
-                  message: "Unauthorized request.",
-                  status: 401,
-                  cause,
-                }),
-            ),
-          );
-        }
-      }
-
-      return yield* authenticateRequest(request);
-    });
+  const authenticateWebSocketUpgrade: ServerAuthShape["authenticateWebSocketUpgrade"] =
+    authenticateRequest;
 
   return {
     getDescriptor: () => Effect.succeed(descriptor),
     getSessionState,
     exchangeBootstrapCredential,
-    exchangeBootstrapCredentialForBearerSession,
     issuePairingCredential,
     listPairingLinks,
     revokePairingLink,
@@ -383,7 +288,6 @@ export const makeServerAuth = Effect.gen(function* () {
     revokeOtherClientSessions,
     authenticateHttpRequest: authenticateRequest,
     authenticateWebSocketUpgrade,
-    issueWebSocketToken,
     issueStartupPairingUrl,
   } satisfies ServerAuthShape;
 });

@@ -14,14 +14,24 @@ import { revokeBlobPreviewUrl } from "../message/preview-url-lifecycle";
 
 type PreviewHandoffByMessageId = Record<string, string[]>;
 
-function useValueIdentityVersion<TValue>(value: TValue): number {
-  const valueRef = useRef(value);
-  const versionRef = useRef(0);
-  if (valueRef.current !== value) {
-    valueRef.current = value;
-    versionRef.current += 1;
-  }
-  return versionRef.current;
+function serverPreviewPromotionKey(messages: readonly ChatMessage[] | undefined): string {
+  return JSON.stringify(
+    messages?.map((message) => [
+      message.id,
+      message.role,
+      message.attachments?.map((attachment) =>
+        attachment.type === "image" ? attachment.previewUrl ?? "" : "",
+      ) ?? [],
+    ]) ?? [],
+  );
+}
+
+function previewHandoffKey(previewsByMessageId: PreviewHandoffByMessageId): string {
+  return JSON.stringify(
+    Object.entries(previewsByMessageId).toSorted(([leftMessageId], [rightMessageId]) =>
+      leftMessageId.localeCompare(rightMessageId),
+    ),
+  );
 }
 
 export function useAttachmentPreviewHandoff(input: {
@@ -32,26 +42,26 @@ export function useAttachmentPreviewHandoff(input: {
   const attachmentPreviewHandoffByMessageIdRef = useRef<PreviewHandoffByMessageId>({});
   const attachmentPreviewPromotionInFlightByMessageIdRef = useRef<Record<string, true>>({});
 
-  const clearAttachmentPreviewHandoff = useCallback(
-    (messageId: MessageId, previewUrls?: ReadonlyArray<string>) => {
-      delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-      const currentPreviewUrls =
-        previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
-      setAttachmentPreviewHandoffByMessageId((existing) => {
-        if (!(messageId in existing)) {
-          return existing;
-        }
-        const next = { ...existing };
-        delete next[messageId];
-        attachmentPreviewHandoffByMessageIdRef.current = next;
-        return next;
-      });
-      for (const previewUrl of currentPreviewUrls) {
-        revokeBlobPreviewUrl(previewUrl);
+  const clearAttachmentPreviewHandoff = useCallback((
+    messageId: MessageId,
+    previewUrls?: ReadonlyArray<string>,
+  ) => {
+    delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
+    const currentPreviewUrls =
+      previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
+    setAttachmentPreviewHandoffByMessageId((existing) => {
+      if (!(messageId in existing)) {
+        return existing;
       }
-    },
-    [],
-  );
+      const next = { ...existing };
+      delete next[messageId];
+      attachmentPreviewHandoffByMessageIdRef.current = next;
+      return next;
+    });
+    for (const previewUrl of currentPreviewUrls) {
+      revokeBlobPreviewUrl(previewUrl);
+    }
+  }, []);
 
   const clearAttachmentPreviewHandoffs = useCallback(() => {
     attachmentPreviewPromotionInFlightByMessageIdRef.current = {};
@@ -61,15 +71,18 @@ export function useAttachmentPreviewHandoff(input: {
       }
     }
     attachmentPreviewHandoffByMessageIdRef.current = {};
-    setAttachmentPreviewHandoffByMessageId({});
+    setAttachmentPreviewHandoffByMessageId((existing) =>
+      Object.keys(existing).length === 0 ? existing : {},
+    );
   }, []);
 
   const handoffAttachmentPreviews = useCallback((messageId: MessageId, previewUrls: string[]) => {
     if (previewUrls.length === 0) return;
 
     const previousPreviewUrls = attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
+    const previewUrlSet = new Set(previewUrls);
     for (const previewUrl of previousPreviewUrls) {
-      if (!previewUrls.includes(previewUrl)) {
+      if (!previewUrlSet.has(previewUrl)) {
         revokeBlobPreviewUrl(previewUrl);
       }
     }
@@ -83,14 +96,12 @@ export function useAttachmentPreviewHandoff(input: {
     });
   }, []);
 
-  const serverMessagesVersion = useValueIdentityVersion(input.serverMessages);
-  const attachmentPreviewHandoffVersion = useValueIdentityVersion(
-    attachmentPreviewHandoffByMessageId,
-  );
   const attachmentPreviewHandoffSync: ReactNode = createElement(
     AttachmentPreviewHandoffPromotionSync,
     {
-      key: `${serverMessagesVersion}:${attachmentPreviewHandoffVersion}`,
+      key: `${serverPreviewPromotionKey(input.serverMessages)}:${previewHandoffKey(
+        attachmentPreviewHandoffByMessageId,
+      )}`,
       attachmentPreviewHandoffByMessageId,
       attachmentPreviewPromotionInFlightByMessageIdRef,
       clearAttachmentPreviewHandoff,

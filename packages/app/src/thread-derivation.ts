@@ -1,5 +1,4 @@
-import type { EnvironmentId, MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
-import type { OrchestrationChatTimelineRow } from "@multi/contracts";
+import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,
@@ -12,6 +11,7 @@ import type {
   ThreadTurnState,
   TurnDiffSummary,
 } from "./types";
+import { debugLog } from "./lib/debug-log";
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
 const EMPTY_LIVE_ASSISTANT_TURNS: LiveAssistantTurn[] = [];
@@ -26,7 +26,6 @@ const EMPTY_ACTIVITY_MAP: Record<string, Thread["activities"][number]> = {};
 const EMPTY_PROPOSED_PLAN_MAP: Record<string, ProposedPlan> = {};
 const EMPTY_TURN_DIFF_MAP: Record<TurnId, TurnDiffSummary> = {};
 
-const collectedByIdsCache = new WeakMap<readonly string[], WeakMap<object, readonly unknown[]>>();
 const threadCache = new WeakMap<
   ThreadShell,
   {
@@ -53,22 +52,10 @@ function collectByIds<TKey extends string, TValue>(
     return emptyValue;
   }
 
-  const cachedByRecord = collectedByIdsCache.get(ids);
-  const cached = cachedByRecord?.get(byId);
-  if (cached) {
-    return cached as TValue[];
-  }
-
-  const nextValues = ids.flatMap((id) => {
+  return ids.flatMap((id) => {
     const value = byId[id];
     return value ? [value] : [];
   });
-  const nextCachedByRecord = cachedByRecord ?? new WeakMap<object, readonly unknown[]>();
-  nextCachedByRecord.set(byId, nextValues);
-  if (!cachedByRecord) {
-    collectedByIdsCache.set(ids, nextCachedByRecord);
-  }
-  return nextValues;
 }
 
 function selectThreadMessages(state: EnvironmentState, threadId: ThreadId): Thread["messages"] {
@@ -188,6 +175,12 @@ export function getThreadFromEnvironmentState(
     cached.turnDiffSummaries === turnDiffSummaries &&
     cached.chatTimelineRows === chatTimelineRows
   ) {
+    debugLog("thread-derivation.hit", {
+      threadId,
+      messageCount: messages.length,
+      entryCount: entries.length,
+      activityCount: activities.length,
+    });
     return cached.thread;
   }
 
@@ -217,6 +210,16 @@ export function getThreadFromEnvironmentState(
     turnDiffSummaries,
     chatTimelineRows,
     thread,
+  });
+  debugLog("thread-derivation.miss", {
+    threadId,
+    hadCached: cached !== undefined,
+    messageCount: messages.length,
+    entryCount: entries.length,
+    activityCount: activities.length,
+    committedMessageIdsLength: state.messageIdsByThreadId[threadId]?.length ?? 0,
+    entryIdsLength: state.entryIdsByThreadId?.[threadId]?.length ?? 0,
+    activityIdsLength: state.activityIdsByThreadId[threadId]?.length ?? 0,
   });
 
   return thread;

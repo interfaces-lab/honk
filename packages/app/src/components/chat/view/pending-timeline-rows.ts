@@ -129,6 +129,14 @@ export function acknowledgedPendingTimelineRows(input: {
   return input.pendingRows.filter((row) => committedMessageIds.has(row.clientSendKey));
 }
 
+export function unacknowledgedPendingTimelineRows(input: {
+  pendingRows: ReadonlyArray<PendingTimelineRow>;
+  committedMessages: ReadonlyArray<ChatMessage>;
+}): PendingTimelineRow[] {
+  const acknowledgedRows = new Set(acknowledgedPendingTimelineRows(input));
+  return input.pendingRows.filter((row) => !acknowledgedRows.has(row));
+}
+
 export function pendingTimelineRowMessages(
   rows: ReadonlyArray<PendingTimelineRow>,
 ): ChatMessage[] {

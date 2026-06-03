@@ -10,8 +10,6 @@ import { version } from "../package.json" with { type: "json" };
 
 const CliRuntimeLayer = Layer.mergeAll(NodeServices.layer, NetService.layer);
 
-Command.run(cli, { version }).pipe(
-  Effect.scoped,
-  Effect.provide(CliRuntimeLayer),
-  NodeRuntime.runMain,
+NodeRuntime.runMain(
+  Command.run(cli, { version }).pipe(Effect.scoped, Effect.provide(CliRuntimeLayer)),
 );

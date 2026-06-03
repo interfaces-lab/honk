@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
-import { ProviderOptionSelections } from "./model";
+import { ModelOptionSelections } from "./model";
 import { RepositoryIdentity } from "./environment";
+import { AgentInteractionMode, DEFAULT_AGENT_INTERACTION_MODE } from "./interaction-mode";
 import {
   ApprovalRequestId,
   CommandId,
@@ -9,49 +10,48 @@ import {
   MessageId,
   NonNegativeInt,
   ProjectId,
-  ProviderItemId,
+  RuntimeItemId,
   ThreadEntryId,
   ThreadId,
   TrimmedNonEmptyString,
   RuntimeTaskId,
   TurnId,
 } from "./base-schemas";
-import { ProviderInstanceId } from "./provider-instance";
 import {
   CanonicalItemType,
-  ProviderRuntimeEvent,
-  ProviderThreadSnapshotItem,
   ThreadTokenUsageSnapshot,
   ToolLifecycleItemType,
   UserInputQuestion,
-} from "./provider-runtime";
+} from "./runtime-events";
 
 export const ORCHESTRATION_WS_METHODS = {
   dispatchCommand: "orchestration.dispatchCommand",
-  getProviderThreadSnapshot: "orchestration.getProviderThreadSnapshot",
   replayEvents: "orchestration.replayEvents",
   subscribeShell: "orchestration.subscribeShell",
   subscribeThread: "orchestration.subscribeThread",
 } as const;
 
-export const ProviderApprovalPolicy = Schema.Literals([
+export const RuntimeApprovalPolicy = Schema.Literals([
   "untrusted",
   "on-failure",
   "on-request",
   "never",
 ]);
-export type ProviderApprovalPolicy = typeof ProviderApprovalPolicy.Type;
-export const ProviderSandboxMode = Schema.Literals([
+export type RuntimeApprovalPolicy = typeof RuntimeApprovalPolicy.Type;
+export const RuntimeSandboxMode = Schema.Literals([
   "read-only",
   "project-write",
   "danger-full-access",
 ]);
-export type ProviderSandboxMode = typeof ProviderSandboxMode.Type;
+export type RuntimeSandboxMode = typeof RuntimeSandboxMode.Type;
+
+export const ModelSelectionInstanceId = TrimmedNonEmptyString;
+export type ModelSelectionInstanceId = typeof ModelSelectionInstanceId.Type;
 
 export const ModelSelection = Schema.Struct({
-  instanceId: ProviderInstanceId,
+  instanceId: ModelSelectionInstanceId,
   model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(ProviderOptionSelections),
+  options: Schema.optionalKey(ModelOptionSelections),
 });
 export type ModelSelection = typeof ModelSelection.Type;
 
@@ -62,10 +62,7 @@ export const RuntimeMode = Schema.Literals([
 ]);
 export type RuntimeMode = typeof RuntimeMode.Type;
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
-export const ProviderInteractionMode = Schema.Literals(["default", "ask", "plan"]);
-export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
-export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";
-export const ProviderRequestKind = Schema.Literals([
+export const RuntimeRequestKind = Schema.Literals([
   "command",
   "file-read",
   "file-change",
@@ -74,21 +71,21 @@ export const ProviderRequestKind = Schema.Literals([
   "dynamic-tool",
   "auth-refresh",
 ]);
-export type ProviderRequestKind = typeof ProviderRequestKind.Type;
-export const ProviderApprovalDecision = Schema.Literals([
+export type RuntimeRequestKind = typeof RuntimeRequestKind.Type;
+export const RuntimeApprovalDecision = Schema.Literals([
   "accept",
   "acceptForSession",
   "decline",
   "cancel",
 ]);
-export type ProviderApprovalDecision = typeof ProviderApprovalDecision.Type;
-export const ProviderUserInputAnswers = Schema.Record(Schema.String, Schema.Unknown);
-export type ProviderUserInputAnswers = typeof ProviderUserInputAnswers.Type;
+export type RuntimeApprovalDecision = typeof RuntimeApprovalDecision.Type;
+export const UserInputAnswers = Schema.Record(Schema.String, Schema.Unknown);
+export type UserInputAnswers = typeof UserInputAnswers.Type;
 
-export const PROVIDER_SEND_TURN_MAX_INPUT_CHARS = 120_000;
-export const PROVIDER_SEND_TURN_MAX_ATTACHMENTS = 8;
-export const PROVIDER_SEND_TURN_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS = 14_000_000;
+export const RUNTIME_SEND_TURN_MAX_INPUT_CHARS = 120_000;
+export const RUNTIME_SEND_TURN_MAX_ATTACHMENTS = 8;
+export const RUNTIME_SEND_TURN_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const RUNTIME_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS = 14_000_000;
 const CHAT_ATTACHMENT_ID_MAX_CHARS = 128;
 // Correlation id is command id by design in this model.
 export const CorrelationId = CommandId;
@@ -105,7 +102,7 @@ export const ChatImageAttachment = Schema.Struct({
   id: ChatAttachmentId,
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
   mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^image\//i)),
-  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES)),
+  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(RUNTIME_SEND_TURN_MAX_IMAGE_BYTES)),
 });
 export type ChatImageAttachment = typeof ChatImageAttachment.Type;
 
@@ -113,9 +110,9 @@ const UploadChatImageAttachment = Schema.Struct({
   type: Schema.Literal("image"),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
   mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^image\//i)),
-  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES)),
+  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(RUNTIME_SEND_TURN_MAX_IMAGE_BYTES)),
   dataUrl: TrimmedNonEmptyString.check(
-    Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS),
+    Schema.isMaxLength(RUNTIME_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS),
   ),
 });
 export type UploadChatImageAttachment = typeof UploadChatImageAttachment.Type;
@@ -205,10 +202,11 @@ export const OrchestrationProposedPlan = Schema.Struct({
 });
 export type OrchestrationProposedPlan = typeof OrchestrationProposedPlan.Type;
 
-const SourceProposedPlanReference = Schema.Struct({
+export const SourceProposedPlanReference = Schema.Struct({
   threadId: ThreadId,
   planId: OrchestrationProposedPlanId,
 });
+export type SourceProposedPlanReference = typeof SourceProposedPlanReference.Type;
 
 export const OrchestrationSessionStatus = Schema.Literals([
   "idle",
@@ -224,8 +222,6 @@ export type OrchestrationSessionStatus = typeof OrchestrationSessionStatus.Type;
 export const OrchestrationSession = Schema.Struct({
   threadId: ThreadId,
   status: OrchestrationSessionStatus,
-  providerName: Schema.NullOr(TrimmedNonEmptyString),
-  providerInstanceId: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
   activeTurnId: Schema.NullOr(TurnId),
   lastError: Schema.NullOr(TrimmedNonEmptyString),
@@ -246,6 +242,8 @@ export const OrchestrationThreadActivityKind = Schema.Literals([
   "approval.resolved",
   "user-input.requested",
   "user-input.resolved",
+  "extension-ui.requested",
+  "extension-ui.resolved",
   "runtime.error",
   "runtime.warning",
   "turn.plan.updated",
@@ -265,11 +263,11 @@ export const OrchestrationThreadActivityKind = Schema.Literals([
   "subagent.item.completed",
   "subagent.content.delta",
   "subagent.usage.updated",
-  "provider.turn.start.failed",
-  "provider.turn.interrupt.failed",
-  "provider.approval.respond.failed",
-  "provider.user-input.respond.failed",
-  "provider.session.stop.failed",
+  "runtime.turn.start.failed",
+  "runtime.turn.interrupt.failed",
+  "runtime.approval.respond.failed",
+  "runtime.user-input.respond.failed",
+  "runtime.session.stop.failed",
   "setup-script.requested",
   "setup-script.started",
   "setup-script.failed",
@@ -280,14 +278,14 @@ const ActivityUnknownRecord = Schema.Record(Schema.String, Schema.Unknown);
 
 const ApprovalRequestedActivityPayload = Schema.Struct({
   requestId: Schema.optional(TrimmedNonEmptyString),
-  requestKind: Schema.optional(ProviderRequestKind),
+  requestKind: Schema.optional(RuntimeRequestKind),
   requestType: Schema.optional(TrimmedNonEmptyString),
   detail: Schema.optional(TrimmedNonEmptyString),
 });
 
 const ApprovalResolvedActivityPayload = Schema.Struct({
   requestId: Schema.optional(TrimmedNonEmptyString),
-  requestKind: Schema.optional(ProviderRequestKind),
+  requestKind: Schema.optional(RuntimeRequestKind),
   requestType: Schema.optional(TrimmedNonEmptyString),
   decision: Schema.optional(TrimmedNonEmptyString),
 });
@@ -300,6 +298,31 @@ const UserInputRequestedActivityPayload = Schema.Struct({
 const UserInputResolvedActivityPayload = Schema.Struct({
   requestId: Schema.optional(TrimmedNonEmptyString),
   answers: ActivityUnknownRecord,
+});
+
+const ExtensionUiActivityRequestKind = Schema.Literals([
+  "select",
+  "confirm",
+  "input",
+  "editor",
+  "custom",
+]);
+
+const ExtensionUiRequestedActivityPayload = Schema.Struct({
+  requestId: TrimmedNonEmptyString,
+  requestKind: ExtensionUiActivityRequestKind,
+  title: TrimmedNonEmptyString,
+  detail: Schema.NullOr(Schema.String),
+  placeholder: Schema.NullOr(Schema.String),
+  options: Schema.NullOr(Schema.Array(Schema.String)),
+});
+
+const ExtensionUiResolvedActivityPayload = Schema.Struct({
+  requestId: TrimmedNonEmptyString,
+  requestKind: ExtensionUiActivityRequestKind,
+  title: TrimmedNonEmptyString,
+  detail: Schema.NullOr(Schema.String),
+  value: Schema.NullOr(Schema.Unknown),
 });
 
 const RuntimeMessageActivityPayload = Schema.Struct({
@@ -333,6 +356,7 @@ const TaskProgressActivityPayload = Schema.Struct({
 
 const TaskCompletedActivityPayload = Schema.Struct({
   taskId: RuntimeTaskId,
+  taskType: Schema.optional(TrimmedNonEmptyString),
   status: Schema.Literals(["completed", "failed", "stopped"]),
   detail: Schema.optional(TrimmedNonEmptyString),
   usage: Schema.optional(Schema.Unknown),
@@ -371,10 +395,10 @@ const ActivityContentStreamKind = Schema.Literals([
 ]);
 
 const SubagentIdentityActivityPayloadFields = {
-  providerThreadId: TrimmedNonEmptyString,
-  parentProviderThreadId: Schema.optional(TrimmedNonEmptyString),
+  subagentThreadId: TrimmedNonEmptyString,
+  parentThreadId: Schema.optional(TrimmedNonEmptyString),
   parentTurnId: Schema.optional(TurnId),
-  parentItemId: Schema.optional(ProviderItemId),
+  parentItemId: Schema.optional(RuntimeItemId),
   agentId: Schema.optional(TrimmedNonEmptyString),
   nickname: Schema.optional(TrimmedNonEmptyString),
   role: Schema.optional(TrimmedNonEmptyString),
@@ -414,7 +438,7 @@ const SubagentUsageUpdatedActivityPayload = Schema.Struct({
   ...ThreadTokenUsageSnapshot.fields,
 });
 
-const ProviderFailureActivityPayload = Schema.Struct({
+const RuntimeFailureActivityPayload = Schema.Struct({
   detail: TrimmedNonEmptyString,
   messageId: Schema.optional(MessageId),
   requestId: Schema.optional(TrimmedNonEmptyString),
@@ -451,6 +475,16 @@ export const OrchestrationThreadActivity = Schema.Union([
     ...OrchestrationThreadActivityBaseFields,
     kind: Schema.Literal("user-input.resolved"),
     payload: UserInputResolvedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("extension-ui.requested"),
+    payload: ExtensionUiRequestedActivityPayload,
+  }),
+  Schema.Struct({
+    ...OrchestrationThreadActivityBaseFields,
+    kind: Schema.Literal("extension-ui.resolved"),
+    payload: ExtensionUiResolvedActivityPayload,
   }),
   Schema.Struct({
     ...OrchestrationThreadActivityBaseFields,
@@ -529,13 +563,13 @@ export const OrchestrationThreadActivity = Schema.Union([
   Schema.Struct({
     ...OrchestrationThreadActivityBaseFields,
     kind: Schema.Literals([
-      "provider.turn.start.failed",
-      "provider.turn.interrupt.failed",
-      "provider.approval.respond.failed",
-      "provider.user-input.respond.failed",
-      "provider.session.stop.failed",
+      "runtime.turn.start.failed",
+      "runtime.turn.interrupt.failed",
+      "runtime.approval.respond.failed",
+      "runtime.user-input.respond.failed",
+      "runtime.session.stop.failed",
     ]),
-    payload: ProviderFailureActivityPayload,
+    payload: RuntimeFailureActivityPayload,
   }),
   Schema.Struct({
     ...OrchestrationThreadActivityBaseFields,
@@ -612,8 +646,8 @@ export const OrchestrationThread = Schema.Struct({
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
@@ -662,8 +696,8 @@ export const OrchestrationThreadShell = Schema.Struct({
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
@@ -767,8 +801,8 @@ const ThreadCreateCommand = Schema.Struct({
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
@@ -815,7 +849,7 @@ const ThreadInteractionModeSetCommand = Schema.Struct({
   type: Schema.Literal("thread.interaction-mode.set"),
   commandId: CommandId,
   threadId: ThreadId,
-  interactionMode: ProviderInteractionMode,
+  interactionMode: AgentInteractionMode,
   createdAt: IsoDateTime,
 });
 
@@ -824,7 +858,7 @@ const ThreadTurnStartBootstrapCreateThread = Schema.Struct({
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode,
+  interactionMode: AgentInteractionMode,
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   createdAt: IsoDateTime,
@@ -858,8 +892,8 @@ export const ThreadTurnStartCommand = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
@@ -881,7 +915,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode,
+  interactionMode: AgentInteractionMode,
   parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
@@ -901,7 +935,7 @@ const ThreadApprovalRespondCommand = Schema.Struct({
   commandId: CommandId,
   threadId: ThreadId,
   requestId: ApprovalRequestId,
-  decision: ProviderApprovalDecision,
+  decision: RuntimeApprovalDecision,
   createdAt: IsoDateTime,
 });
 
@@ -910,7 +944,7 @@ const ThreadUserInputRespondCommand = Schema.Struct({
   commandId: CommandId,
   threadId: ThreadId,
   requestId: ApprovalRequestId,
-  answers: ProviderUserInputAnswers,
+  answers: UserInputAnswers,
   createdAt: IsoDateTime,
 });
 
@@ -1056,7 +1090,7 @@ export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
 export const OrchestrationAggregateKind = Schema.Literals(["project", "thread"]);
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type;
-export const OrchestrationActorKind = Schema.Literals(["client", "server", "provider"]);
+export const OrchestrationActorKind = Schema.Literals(["client", "server"]);
 
 export const ProjectCreatedPayload = Schema.Struct({
   projectId: ProjectId,
@@ -1090,8 +1124,8 @@ export const ThreadCreatedPayload = Schema.Struct({
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
@@ -1132,8 +1166,8 @@ export const ThreadRuntimeModeSetPayload = Schema.Struct({
 
 export const ThreadInteractionModeSetPayload = Schema.Struct({
   threadId: ThreadId,
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   updatedAt: IsoDateTime,
 });
@@ -1160,8 +1194,8 @@ export const ThreadTurnStartRequestedPayload = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
-  interactionMode: ProviderInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  interactionMode: AgentInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
   ),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
   createdAt: IsoDateTime,
@@ -1176,14 +1210,14 @@ export const ThreadTurnInterruptRequestedPayload = Schema.Struct({
 export const ThreadApprovalResponseRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   requestId: ApprovalRequestId,
-  decision: ProviderApprovalDecision,
+  decision: RuntimeApprovalDecision,
   createdAt: IsoDateTime,
 });
 
 const ThreadUserInputResponseRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   requestId: ApprovalRequestId,
-  answers: ProviderUserInputAnswers,
+  answers: UserInputAnswers,
   createdAt: IsoDateTime,
 });
 
@@ -1214,9 +1248,6 @@ export const ThreadActivityAppendedPayload = Schema.Struct({
 });
 
 export const OrchestrationEventMetadata = Schema.Struct({
-  providerTurnId: Schema.optional(TrimmedNonEmptyString),
-  providerItemId: Schema.optional(ProviderItemId),
-  adapterKey: Schema.optional(TrimmedNonEmptyString),
   requestId: Schema.optional(ApprovalRequestId),
   ingestedAt: Schema.optional(IsoDateTime),
 });
@@ -1347,23 +1378,11 @@ export const OrchestrationThreadStreamItem = Schema.Union([
     kind: Schema.Literal("event"),
     event: OrchestrationEvent,
   }),
-  Schema.Struct({
-    kind: Schema.Literal("runtime-event"),
-    event: ProviderRuntimeEvent,
-  }),
 ]);
 export type OrchestrationThreadStreamItem = typeof OrchestrationThreadStreamItem.Type;
 
 export const OrchestrationCommandReceiptStatus = Schema.Literals(["accepted", "rejected"]);
 export type OrchestrationCommandReceiptStatus = typeof OrchestrationCommandReceiptStatus.Type;
-
-export const ProviderSessionRuntimeStatus = Schema.Literals([
-  "starting",
-  "running",
-  "stopped",
-  "error",
-]);
-export type ProviderSessionRuntimeStatus = typeof ProviderSessionRuntimeStatus.Type;
 
 const ProjectionThreadTurnStatus = Schema.Literals([
   "running",
@@ -1376,35 +1395,13 @@ export type ProjectionThreadTurnStatus = typeof ProjectionThreadTurnStatus.Type;
 export const ProjectionPendingApprovalStatus = Schema.Literals(["pending", "resolved"]);
 export type ProjectionPendingApprovalStatus = typeof ProjectionPendingApprovalStatus.Type;
 
-export const ProjectionPendingApprovalDecision = Schema.NullOr(ProviderApprovalDecision);
+export const ProjectionPendingApprovalDecision = Schema.NullOr(RuntimeApprovalDecision);
 export type ProjectionPendingApprovalDecision = typeof ProjectionPendingApprovalDecision.Type;
 
 export const DispatchResult = Schema.Struct({
   sequence: NonNegativeInt,
 });
 export type DispatchResult = typeof DispatchResult.Type;
-
-export const OrchestrationGetProviderThreadSnapshotInput = Schema.Struct({
-  threadId: ThreadId,
-  providerThreadId: Schema.optional(TrimmedNonEmptyString),
-  includeTurns: Schema.optional(Schema.Boolean),
-});
-export type OrchestrationGetProviderThreadSnapshotInput =
-  typeof OrchestrationGetProviderThreadSnapshotInput.Type;
-
-const OrchestrationProviderThreadTurnSnapshot = Schema.Struct({
-  id: TurnId,
-  providerTurnId: Schema.optional(TrimmedNonEmptyString),
-  items: Schema.Array(ProviderThreadSnapshotItem),
-});
-
-export const OrchestrationGetProviderThreadSnapshotResult = Schema.Struct({
-  threadId: ThreadId,
-  providerThreadId: Schema.optional(TrimmedNonEmptyString),
-  turns: Schema.Array(OrchestrationProviderThreadTurnSnapshot),
-});
-export type OrchestrationGetProviderThreadSnapshotResult =
-  typeof OrchestrationGetProviderThreadSnapshotResult.Type;
 
 export const OrchestrationReplayEventsInput = Schema.Struct({
   fromSequenceExclusive: NonNegativeInt,
@@ -1418,10 +1415,6 @@ export const OrchestrationRpcSchemas = {
   dispatchCommand: {
     input: ClientOrchestrationCommand,
     output: DispatchResult,
-  },
-  getProviderThreadSnapshot: {
-    input: OrchestrationGetProviderThreadSnapshotInput,
-    output: OrchestrationGetProviderThreadSnapshotResult,
   },
   replayEvents: {
     input: OrchestrationReplayEventsInput,

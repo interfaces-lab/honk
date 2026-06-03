@@ -9,6 +9,14 @@ import { createAgentSession } from "../src/core/sdk.ts";
 import { SessionManager } from "../src/core/session-manager.ts";
 import { SettingsManager } from "../src/core/settings-manager.ts";
 
+function requireAnthropicModel() {
+	const model = getModel("anthropic", "claude-sonnet-4-5");
+	if (!model) {
+		throw new Error("Expected anthropic model");
+	}
+	return model;
+}
+
 describe("AgentSession dynamic tool registration", () => {
 	let tempDir: string;
 	let agentDir: string;
@@ -57,7 +65,7 @@ describe("AgentSession dynamic tool registration", () => {
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir,
-			model: getModel("anthropic", "claude-sonnet-4-5")!,
+			model: requireAnthropicModel(),
 			settingsManager,
 			sessionManager,
 			resourceLoader,
@@ -107,7 +115,7 @@ describe("AgentSession dynamic tool registration", () => {
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir,
-			model: getModel("anthropic", "claude-sonnet-4-5")!,
+			model: requireAnthropicModel(),
 			settingsManager,
 			sessionManager,
 			resourceLoader,
@@ -167,7 +175,7 @@ describe("AgentSession dynamic tool registration", () => {
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir,
-			model: getModel("anthropic", "claude-sonnet-4-5")!,
+			model: requireAnthropicModel(),
 			settingsManager,
 			sessionManager,
 			resourceLoader,

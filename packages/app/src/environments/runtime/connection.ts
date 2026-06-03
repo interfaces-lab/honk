@@ -6,7 +6,7 @@ import type {
   ServerLifecycleWelcomePayload,
   TerminalEvent,
 } from "@multi/contracts";
-import type { KnownEnvironment } from "@multi/client-runtime";
+import type { KnownEnvironment } from "~/lib/environment-scope";
 
 import type { WsRpcClient } from "~/rpc/ws-rpc-client";
 

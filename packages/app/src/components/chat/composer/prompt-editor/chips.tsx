@@ -1,7 +1,7 @@
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
 import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
-import { memo, type ComponentType } from "react";
+import { type ComponentType } from "react";
 
 import { cn } from "~/lib/utils";
 import {
@@ -41,7 +41,7 @@ const composerPromptChipVariants = cva(
 
 const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
 
-export const ComposerMentionChip = memo(function ComposerMentionChip({
+export function ComposerMentionChip({
   label,
   lineEnd,
   lineStart,
@@ -81,9 +81,9 @@ export const ComposerMentionChip = memo(function ComposerMentionChip({
       </TooltipPopup>
     </Tooltip>
   );
-});
+}
 
-export const ComposerCommandChip = memo(function ComposerCommandChip({
+export function ComposerCommandChip({
   content,
   name,
 }: ComposerCommandPayload) {
@@ -111,11 +111,11 @@ export const ComposerCommandChip = memo(function ComposerCommandChip({
   ) : (
     chip
   );
-});
+}
 
 const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
 
-export const ComposerSkillChip = memo(function ComposerSkillChip({
+export function ComposerSkillChip({
   description,
   label,
 }: ComposerSkillPayload) {
@@ -146,9 +146,9 @@ export const ComposerSkillChip = memo(function ComposerSkillChip({
   ) : (
     chip
   );
-});
+}
 
-export const ComposerInlineTokenChip = memo(function ComposerInlineTokenChip({
+export function ComposerInlineTokenChip({
   label,
   sourceUri,
 }: ComposerInlineTokenPayload) {
@@ -173,4 +173,4 @@ export const ComposerInlineTokenChip = memo(function ComposerInlineTokenChip({
   ) : (
     chip
   );
-});
+}

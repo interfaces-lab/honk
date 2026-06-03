@@ -1,6 +1,6 @@
 import { IconArrowRight, IconChevronDownSmall } from "central-icons";
 import { AnimatePresence, motion } from "motion/react";
-import { type RefObject, useMemo, useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 
 import { Text } from "@multi/ui/text";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -267,8 +267,8 @@ function useConversationNav(initialBranch: BranchId = "technical"): Conversation
   const [previewBranch, setPreviewBranch] = useState<BranchId | null>(null);
 
   const visibleBranch = previewBranch ?? activeBranch;
-  const messages = useMemo(() => pathFor(visibleBranch), [visibleBranch]);
-  const segments = useMemo(() => buildSegments(activeBranch), [activeBranch]);
+  const messages = pathFor(visibleBranch);
+  const segments = buildSegments(activeBranch);
   const isPreviewing = previewBranch !== null && previewBranch !== activeBranch;
 
   function pickBranch(branchId: BranchId) {

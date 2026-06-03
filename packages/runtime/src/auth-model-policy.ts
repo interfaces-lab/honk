@@ -1,24 +1,31 @@
 import {
   AccountId,
   AuthProviderId,
+  AGENT_THINKING_LEVELS,
   ModelId,
   type AgentAuthStatus,
   type AgentInteractionMode,
+  type AgentMode,
   type AgentModelPolicy,
-  type AgentPermissionMode,
   type AgentThinkingLevel,
 } from "@multi/contracts";
 import type { Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 
-export const DEFAULT_AGENT_INTERACTION_MODE: AgentInteractionMode = "default";
-export const DEFAULT_AGENT_PERMISSION_MODE: AgentPermissionMode = "project-write";
-export const DEFAULT_AGENT_THINKING_LEVEL: AgentThinkingLevel = "medium";
+export const DEFAULT_AGENT_INTERACTION_MODE: AgentInteractionMode = "agent";
+export const DEFAULT_AGENT_MODE: AgentMode = "deep";
+export const DEFAULT_AGENT_THINKING_LEVEL: AgentThinkingLevel = "high";
 
 export interface RuntimeModelSelection {
   readonly model: Model<string>;
   readonly thinkingLevel: ThinkingLevel;
+}
+
+const AGENT_THINKING_LEVEL_SET: ReadonlySet<ThinkingLevel> = new Set(AGENT_THINKING_LEVELS);
+
+function isAgentThinkingLevel(level: ThinkingLevel): level is AgentThinkingLevel {
+  return AGENT_THINKING_LEVEL_SET.has(level);
 }
 
 export function modelIdFromPiModel(model: Pick<Model<string>, "provider" | "id">): ModelId {
@@ -33,30 +40,54 @@ export function accountIdFromProvider(provider: string, account = "default"): Ac
   return AccountId.make(`${provider}:${account}`);
 }
 
+export function thinkingLevelForAgentMode(agentMode: AgentMode): AgentThinkingLevel {
+  switch (agentMode) {
+    case "rush":
+      return "low";
+    case "smart":
+      return "medium";
+    case "deep":
+      return "high";
+    default:
+      return DEFAULT_AGENT_THINKING_LEVEL;
+  }
+}
+
+function toAgentThinkingLevel(level: ThinkingLevel): AgentThinkingLevel {
+  return isAgentThinkingLevel(level) ? level : DEFAULT_AGENT_THINKING_LEVEL;
+}
+
 export function createModelPolicy(input: {
   readonly model?: Model<string>;
+  readonly agentMode?: AgentMode;
   readonly thinkingLevel?: ThinkingLevel;
   readonly interactionMode?: AgentInteractionMode;
-  readonly permissionMode?: AgentPermissionMode;
   readonly allowedToolNames?: readonly string[];
   readonly excludedToolNames?: readonly string[];
 }): AgentModelPolicy {
-  const authProviderId = input.model ? authProviderIdFromPiModel(input.model) : undefined;
-  const modelId = input.model ? modelIdFromPiModel(input.model) : undefined;
+  const modelSelection: AgentModelPolicy["modelSelection"] = input.model
+    ? {
+        type: "explicit",
+        authProviderId: authProviderIdFromPiModel(input.model),
+        accountId: accountIdFromProvider(input.model.provider),
+        modelId: modelIdFromPiModel(input.model),
+      }
+    : { type: "pi-managed" };
+  const agentMode = input.agentMode ?? DEFAULT_AGENT_MODE;
   const thinkingLevel =
     input.model && input.thinkingLevel
-      ? (clampThinkingLevel(input.model, input.thinkingLevel) as AgentThinkingLevel)
-      : input.thinkingLevel;
+      ? toAgentThinkingLevel(clampThinkingLevel(input.model, input.thinkingLevel))
+      : input.thinkingLevel
+        ? toAgentThinkingLevel(input.thinkingLevel)
+        : thinkingLevelForAgentMode(agentMode);
 
   return {
+    agentMode,
     interactionMode: input.interactionMode ?? DEFAULT_AGENT_INTERACTION_MODE,
-    permissionMode: input.permissionMode ?? DEFAULT_AGENT_PERMISSION_MODE,
-    ...(authProviderId ? { authProviderId } : {}),
-    ...(authProviderId ? { accountId: accountIdFromProvider(authProviderId) } : {}),
-    ...(modelId ? { modelId } : {}),
-    ...(thinkingLevel ? { thinkingLevel: thinkingLevel as AgentThinkingLevel } : {}),
-    ...(input.allowedToolNames ? { allowedToolNames: [...input.allowedToolNames] } : {}),
-    ...(input.excludedToolNames ? { excludedToolNames: [...input.excludedToolNames] } : {}),
+    modelSelection,
+    thinkingLevel,
+    allowedToolNames: input.allowedToolNames ? [...input.allowedToolNames] : [],
+    excludedToolNames: input.excludedToolNames ? [...input.excludedToolNames] : [],
   };
 }
 
@@ -69,9 +100,10 @@ export function createAuthStatus(input: {
 }): AgentAuthStatus {
   return {
     authProviderId: input.authProviderId,
-    ...(input.accountId ? { accountId: input.accountId } : {}),
+    accountId: input.accountId ?? null,
     state: input.hasCredential ? "available" : "missing",
-    ...(input.message ? { message: input.message } : {}),
+    label: null,
+    message: input.message ?? null,
     updatedAt: (input.now ?? new Date()).toISOString(),
   };
 }

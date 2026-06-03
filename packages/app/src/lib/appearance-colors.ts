@@ -95,17 +95,17 @@ function hexToHsl(hex: string): HslColor {
   return { h: h * 360, s, l };
 }
 
-function hslToHex(color: HslColor) {
-  const hueToRgb = (p: number, q: number, t: number) => {
-    let normalizedT = t;
-    if (normalizedT < 0) normalizedT += 1;
-    if (normalizedT > 1) normalizedT -= 1;
-    if (normalizedT < 1 / 6) return p + (q - p) * 6 * normalizedT;
-    if (normalizedT < 1 / 2) return q;
-    if (normalizedT < 2 / 3) return p + (q - p) * (2 / 3 - normalizedT) * 6;
-    return p;
-  };
+function hueToRgb(p: number, q: number, t: number) {
+  let normalizedT = t;
+  if (normalizedT < 0) normalizedT += 1;
+  if (normalizedT > 1) normalizedT -= 1;
+  if (normalizedT < 1 / 6) return p + (q - p) * 6 * normalizedT;
+  if (normalizedT < 1 / 2) return q;
+  if (normalizedT < 2 / 3) return p + (q - p) * (2 / 3 - normalizedT) * 6;
+  return p;
+}
 
+function hslToHex(color: HslColor) {
   if (color.s === 0) {
     const channel = Math.round(color.l * 255).toString(16).padStart(2, "0");
     return `#${channel}${channel}${channel}`.toUpperCase();

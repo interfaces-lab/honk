@@ -20,7 +20,7 @@ export const DEFAULT_MULTI_HOME = Effect.map(Effect.service(Path.Path), (path) =
   path.join(homedir(), ".multi"),
 );
 
-const MODE_ARGS = {
+export const MODE_ARGS = {
   dev: [
     "run",
     "dev",
@@ -28,15 +28,21 @@ const MODE_ARGS = {
     "--filter=@multi/contracts",
     "--filter=@multi/app",
     "--filter=usemulti",
-    "--parallel",
   ],
   "dev:server": ["run", "dev", "--filter=usemulti"],
   "dev:app": ["run", "dev", "--filter=@multi/app"],
-  "dev:desktop": ["run", "dev", "--filter=@multi/desktop", "--filter=@multi/app", "--parallel"],
+  "dev:desktop": ["run", "dev", "--filter=@multi/desktop", "--filter=@multi/app", "--ui=stream"],
 } as const satisfies Record<string, ReadonlyArray<string>>;
 
 type DevMode = keyof typeof MODE_ARGS;
 type PortAvailabilityCheck<R = never> = (port: number) => Effect.Effect<boolean, never, R>;
+
+export const MODE_PREFLIGHT_ARGS = {
+  dev: [],
+  "dev:server": [],
+  "dev:app": [],
+  "dev:desktop": ["run", "build", "--filter=usemulti", "--ui=stream"],
+} as const satisfies Record<DevMode, ReadonlyArray<string>>;
 
 const DEV_RUNNER_MODES = Object.keys(MODE_ARGS) as Array<DevMode>;
 
@@ -148,7 +154,6 @@ export function createDevRunnerEnv({
     const webPort = BASE_WEB_PORT + webOffset;
     const resolvedBaseDir = yield* resolveBaseDir(multiHome);
     const isDesktopMode = mode === "dev:desktop";
-
     const output: NodeJS.ProcessEnv = {
       ...baseEnv,
       PORT: String(webPort),
@@ -158,17 +163,16 @@ export function createDevRunnerEnv({
       MULTI_HOME: resolvedBaseDir,
     };
 
-    if (!isDesktopMode) {
-      output.MULTI_PORT = String(serverPort);
-      output.VITE_HTTP_URL = `http://localhost:${serverPort}`;
-      output.VITE_WS_URL = `ws://localhost:${serverPort}`;
-    } else {
-      output.MULTI_PORT = String(serverPort);
-      output.VITE_HTTP_URL = `http://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
-      output.VITE_WS_URL = `ws://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
+    output.MULTI_PORT = String(serverPort);
+    if (isDesktopMode) {
+      delete output.VITE_HTTP_URL;
+      delete output.VITE_WS_URL;
       delete output.MULTI_MODE;
       delete output.MULTI_NO_BROWSER;
       delete output.MULTI_HOST;
+    } else {
+      output.VITE_HTTP_URL = `http://localhost:${serverPort}`;
+      output.VITE_WS_URL = `ws://localhost:${serverPort}`;
     }
 
     if (!isDesktopMode && host !== undefined) {
@@ -320,6 +324,7 @@ export function resolveModePortOffsets<R = NetService>({
   R
 > {
   return Effect.gen(function* () {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const checkPort = (checkPortAvailability ??
       defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
 
@@ -423,11 +428,33 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
         : "";
 
     yield* Effect.logInfo(
-      `[dev-runner] mode=${input.mode} source=${source}${selectionSuffix} serverPort=${String(env.MULTI_PORT)} webPort=${String(env.PORT)} baseDir=${String(env.MULTI_HOME)}`,
+      `[dev-runner] mode=${input.mode} source=${source}${selectionSuffix} backendPort=${String(env.MULTI_PORT)} webPort=${String(env.PORT)} baseDir=${String(env.MULTI_HOME)}`,
     );
 
     if (input.dryRun) {
       return;
+    }
+
+    const preflightArgs = MODE_PREFLIGHT_ARGS[input.mode];
+    if (preflightArgs.length > 0) {
+      yield* Effect.logInfo(`[dev-runner] preflight=turbo ${preflightArgs.join(" ")}`);
+      const preflight = yield* ChildProcess.make("turbo", preflightArgs, {
+        stdin: "inherit",
+        stdout: "inherit",
+        stderr: "inherit",
+        env,
+        extendEnv: false,
+        shell: process.platform === "win32",
+        detached: false,
+        forceKillAfter: "1500 millis",
+      });
+
+      const preflightExitCode = yield* preflight.exitCode;
+      if (preflightExitCode !== 0) {
+        return yield* new DevRunnerError({
+          message: `turbo preflight exited with code ${preflightExitCode}`,
+        });
+      }
     }
 
     const child = yield* ChildProcess.make(

@@ -51,4 +51,35 @@ describe("desktop extension UI", () => {
     expect(ui.getStatus("agent")).toBe("Working");
     expect(ui.context.getToolsExpanded()).toBe(true);
   });
+
+  it("notifies when pending extension UI requests change", async () => {
+    const ui = createDesktopExtensionUi();
+    const pendingCounts: number[] = [];
+    const unsubscribe = ui.onPendingRequestsChanged(() => {
+      pendingCounts.push(ui.pendingRequests.length);
+    });
+
+    const answerPromise = ui.context.input("Question", "answer here");
+    const request = ui.pendingRequests[0];
+
+    expect(request).toBeDefined();
+    ui.resolveRequest(request!.id, "resolved answer");
+
+    await expect(answerPromise).resolves.toBe("resolved answer");
+    unsubscribe();
+    expect(pendingCounts).toEqual([1, 0]);
+  });
+
+  it("rejects pending requests and does not enqueue new requests after dispose", async () => {
+    const ui = createDesktopExtensionUi();
+    const answerPromise = ui.context.input("Question", "answer here");
+
+    expect(ui.pendingRequests).toHaveLength(1);
+    ui.dispose();
+
+    await expect(answerPromise).rejects.toThrow("Desktop extension UI session disposed.");
+    expect(ui.pendingRequests).toHaveLength(0);
+    await expect(ui.context.input("After dispose", "answer here")).resolves.toBeUndefined();
+    expect(ui.pendingRequests).toHaveLength(0);
+  });
 });

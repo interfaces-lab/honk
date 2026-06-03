@@ -1,10 +1,6 @@
 import {
   type ProjectEntry,
   type EnvironmentId,
-  type ProviderDriverKind,
-  type ServerProvider,
-  type ServerProviderSkill,
-  type ServerProviderSlashCommand,
 } from "@multi/contracts";
 import {
   insertRankedSearchResult,
@@ -14,15 +10,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import {
-  IconBuildingBlocks,
-  IconBox2,
+  IconBug,
   IconBubbleQuestion,
   IconRobot,
-  IconSettingsSliderHor,
   IconSquareChecklist,
-  type CentralIconBaseProps,
 } from "central-icons";
-import { memo, useCallback, useMemo, type ComponentProps, type ComponentType } from "react";
+import { type ComponentProps } from "react";
 
 import { Popover, PopoverPopup } from "@multi/ui/popover";
 import { cn } from "~/lib/utils";
@@ -35,7 +28,6 @@ import {
 import { basenameOfPath } from "../../shared/vscode-entry-icons";
 import type { ComposerMenuPopoverAnchor } from "./anchor";
 import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
-import { formatProviderSkillDisplayName } from "./provider-skills";
 import {
   Command,
   CommandGroup,
@@ -69,7 +61,6 @@ const COMPOSER_MENU_COLLISION_AVOIDANCE = {
   fallbackAxisSide: "none",
 } as const;
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
-type CentralIconComponent = ComponentType<CentralIconBaseProps>;
 
 export type ComposerCommandItem =
   | {
@@ -84,22 +75,6 @@ export type ComposerCommandItem =
       id: string;
       type: "slash-command";
       command: ComposerSlashCommand;
-      label: string;
-      description: string;
-    }
-  | {
-      id: string;
-      type: "provider-slash-command";
-      provider: ProviderDriverKind;
-      command: ServerProviderSlashCommand;
-      label: string;
-      description: string;
-    }
-  | {
-      id: string;
-      type: "skill";
-      provider: ProviderDriverKind;
-      skill: ServerProviderSkill;
       label: string;
       description: string;
     };
@@ -127,172 +102,12 @@ function composerMenuCollisionPadding() {
   return { top, bottom: 8, left: 8, right: 8 } as const;
 }
 
-function titleCaseWords(value: string): string {
-  return value
-    .split(/[\s:_-]+/)
-    .filter((segment) => segment.length > 0)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
-
-function formatProviderSkillInstallSource(
-  skill: Pick<ServerProviderSkill, "path" | "scope">,
-): string | null {
-  const normalizedPath = skill.path.replaceAll("\\", "/");
-  if (normalizedPath.includes("/.codex/plugins/") || normalizedPath.includes("/.agents/plugins/")) {
-    return "App";
-  }
-
-  const normalizedScope = skill.scope?.trim().toLowerCase();
-  if (normalizedScope === "system") return "System";
-  if (normalizedScope === "project" || normalizedScope === "local" || normalizedScope === "repo") {
-    return "Project";
-  }
-  if (normalizedScope === "admin") return "Admin";
-  if (normalizedScope === "user" || normalizedScope === "personal") return "Personal";
-  return normalizedScope ? titleCaseWords(normalizedScope) : null;
-}
-
-function skillDescription(skill: ServerProviderSkill): string {
-  return (
-    skill.shortDescription ??
-    skill.description ??
-    (skill.scope ? `${skill.scope} skill` : "Run provider skill")
-  );
-}
-
-function toProviderSkillItem(
-  provider: ProviderDriverKind,
-  skill: ServerProviderSkill,
-): Extract<ComposerCommandItem, { type: "skill" }> {
-  const displayName = formatProviderSkillDisplayName(skill);
-  const description = skillDescription(skill);
-  return {
-    id: `skill:${provider}:${skill.name}`,
-    type: "skill",
-    provider,
-    skill,
-    label: `/${skill.name}`,
-    description: description === displayName ? "Provider skill" : `${displayName}: ${description}`,
-  };
-}
-
-function scoreProviderSkill(skill: ServerProviderSkill, query: string): number | null {
-  const normalizedName = skill.name.toLowerCase();
-  const normalizedLabel = formatProviderSkillDisplayName(skill).toLowerCase();
-  const normalizedShortDescription = skill.shortDescription?.toLowerCase() ?? "";
-  const normalizedDescription = skill.description?.toLowerCase() ?? "";
-  const normalizedScope = skill.scope?.toLowerCase() ?? "";
-
-  const scores = [
-    scoreQueryMatch({
-      value: normalizedName,
-      query,
-      exactBase: 0,
-      prefixBase: 2,
-      boundaryBase: 4,
-      includesBase: 6,
-      fuzzyBase: 100,
-      boundaryMarkers: ["-", "_", "/"],
-    }),
-    scoreQueryMatch({
-      value: normalizedLabel,
-      query,
-      exactBase: 1,
-      prefixBase: 3,
-      boundaryBase: 5,
-      includesBase: 7,
-      fuzzyBase: 110,
-    }),
-    scoreQueryMatch({
-      value: normalizedShortDescription,
-      query,
-      exactBase: 20,
-      prefixBase: 22,
-      boundaryBase: 24,
-      includesBase: 26,
-    }),
-    scoreQueryMatch({
-      value: normalizedDescription,
-      query,
-      exactBase: 30,
-      prefixBase: 32,
-      boundaryBase: 34,
-      includesBase: 36,
-    }),
-    scoreQueryMatch({
-      value: normalizedScope,
-      query,
-      exactBase: 40,
-      prefixBase: 42,
-      includesBase: 44,
-    }),
-  ].filter((score): score is number => score !== null);
-
-  return scores.length > 0 ? Math.min(...scores) : null;
-}
-
-function searchProviderSkills(
-  skills: ReadonlyArray<ServerProviderSkill>,
-  query: string,
-  limit = Number.POSITIVE_INFINITY,
-): ServerProviderSkill[] {
-  const enabledSkills = skills.filter((skill) => skill.enabled);
-  const normalizedQuery = normalizeSearchQuery(query, { trimLeadingPattern: /^\/+/ });
-  if (!normalizedQuery) {
-    return enabledSkills;
-  }
-
-  const ranked: Array<{ item: ServerProviderSkill; score: number; tieBreaker: string }> = [];
-  for (const skill of enabledSkills) {
-    const score = scoreProviderSkill(skill, normalizedQuery);
-    if (score === null) continue;
-    insertRankedSearchResult(
-      ranked,
-      {
-        item: skill,
-        score,
-        tieBreaker: `${formatProviderSkillDisplayName(skill).toLowerCase()}\u0000${skill.name}`,
-      },
-      limit,
-    );
-  }
-  return ranked.map((entry) => entry.item);
-}
-
-function collectProviderSkillItems(
-  providerStatuses: ReadonlyArray<ServerProvider>,
-): Array<Extract<ComposerCommandItem, { type: "skill" }>> {
-  const items: Array<Extract<ComposerCommandItem, { type: "skill" }>> = [];
-  const seen = new Set<string>();
-  for (const providerStatus of providerStatuses) {
-    for (const skill of searchProviderSkills(providerStatus.skills, "")) {
-      const key = `${skill.path}\u0000${skill.name}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      items.push(toProviderSkillItem(providerStatus.driver, skill));
-    }
-  }
-  return items;
-}
-
 function scoreSlashCommandItem(
-  item: Extract<
-    ComposerCommandItem,
-    { type: "slash-command" | "provider-slash-command" | "skill" }
-  >,
+  item: Extract<ComposerCommandItem, { type: "slash-command" }>,
   query: string,
 ): number | null {
-  const primaryValue =
-    item.type === "slash-command"
-      ? item.command.toLowerCase()
-      : item.type === "provider-slash-command"
-        ? item.command.name.toLowerCase()
-        : item.skill.name.toLowerCase();
-  const displayValue =
-    item.type === "skill"
-      ? formatProviderSkillDisplayName(item.skill).toLowerCase()
-      : item.label.toLowerCase();
+  const primaryValue = item.command.toLowerCase();
+  const displayValue = item.label.toLowerCase();
   const description = item.description.toLowerCase();
 
   const scores = [
@@ -328,23 +143,16 @@ function scoreSlashCommandItem(
 }
 
 function searchSlashCommandItems(
-  items: ReadonlyArray<
-    Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" | "skill" }>
-  >,
+  items: ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>,
   query: string,
-): Array<
-  Extract<ComposerCommandItem, { type: "slash-command" | "provider-slash-command" | "skill" }>
-> {
+): Array<Extract<ComposerCommandItem, { type: "slash-command" }>> {
   const normalizedQuery = normalizeSearchQuery(query, { trimLeadingPattern: /^\/+/ });
   if (!normalizedQuery) {
     return [...items];
   }
 
   const ranked: Array<{
-    item: Extract<
-      ComposerCommandItem,
-      { type: "slash-command" | "provider-slash-command" | "skill" }
-    >;
+    item: Extract<ComposerCommandItem, { type: "slash-command" }>;
     score: number;
     tieBreaker: string;
   }> = [];
@@ -357,17 +165,7 @@ function searchSlashCommandItems(
       {
         item,
         score,
-        tieBreaker:
-          item.type === "slash-command"
-            ? `0\u0000${item.command}`
-            : item.type === "provider-slash-command"
-              ? `1\u0000${item.command.name}\u0000${item.provider}`
-              : [
-                  "2",
-                  formatProviderSkillDisplayName(item.skill).toLowerCase(),
-                  item.skill.name,
-                  item.provider,
-                ].join("\u0000"),
+        tieBreaker: `0\u0000${item.command}`,
       },
       Number.POSITIVE_INFINITY,
     );
@@ -432,9 +230,6 @@ export function useComposerCommandMenu(input: {
   composerTrigger: ComposerTrigger | null;
   environmentId: EnvironmentId;
   gitCwd: string | null;
-  selectedProvider: ProviderDriverKind;
-  selectedProviderStatus: ServerProvider | null | undefined;
-  providerStatuses: ReadonlyArray<ServerProvider>;
   highlightedItemId: string | null;
   highlightedSearchKey: string | null;
 }) {
@@ -461,7 +256,7 @@ export function useComposerCommandMenu(input: {
   );
   const projectEntries = projectEntriesQuery.data?.entries ?? EMPTY_PROJECT_ENTRIES;
 
-  const composerMenuItems = useMemo<ComposerCommandItem[]>(() => {
+  const composerMenuItems: ComposerCommandItem[] = (() => {
     if (!input.composerTrigger) return [];
     if (input.composerTrigger.kind === "path") {
       return toPathCommandItems(projectEntries);
@@ -471,15 +266,7 @@ export function useComposerCommandMenu(input: {
     }
 
     const builtInSlashCommandItems: Array<Extract<ComposerCommandItem, { type: "slash-command" }>> =
-      [
-        {
-          id: "slash:model",
-          type: "slash-command",
-          command: "model",
-          label: "/model",
-          description: "Switch response model for this thread",
-        },
-      ];
+      [];
     if (input.allowModeSlashCommands !== false) {
       builtInSlashCommandItems.push(
         {
@@ -497,41 +284,26 @@ export function useComposerCommandMenu(input: {
           description: "Switch this thread into plan mode",
         },
         {
-          id: "slash:default",
+          id: "slash:debug",
           type: "slash-command",
-          command: "default",
+          command: "debug",
+          label: "/debug",
+          description: "Focus on diagnostics before making changes",
+        },
+        {
+          id: "slash:agent",
+          type: "slash-command",
+          command: "agent",
           label: "/build",
           description: "Switch this thread back to Build mode",
         },
       );
     }
-    const providerSlashCommandItems = (input.selectedProviderStatus?.slashCommands ?? []).map(
-      (command) => ({
-        id: `provider-slash-command:${input.selectedProvider}:${command.name}`,
-        type: "provider-slash-command" as const,
-        provider: input.selectedProvider,
-        command,
-        label: `/${command.name}`,
-        description: command.description ?? command.input?.hint ?? "Run provider command",
-      }),
-    );
-    const providerSkillItems = collectProviderSkillItems(input.providerStatuses);
-    const slashItems = [
-      ...providerSkillItems,
-      ...providerSlashCommandItems,
-      ...builtInSlashCommandItems,
-    ];
+    const slashItems = builtInSlashCommandItems;
     const query = input.composerTrigger.query.trim();
     const matchingSlashItems = query ? searchSlashCommandItems(slashItems, query) : slashItems;
     return matchingSlashItems;
-  }, [
-    input.allowModeSlashCommands,
-    input.composerTrigger,
-    input.providerStatuses,
-    input.selectedProvider,
-    input.selectedProviderStatus,
-    projectEntries,
-  ]);
+  })();
 
   const slashQueryHasMatches =
     composerTriggerKind !== "slash-command" ||
@@ -543,20 +315,14 @@ export function useComposerCommandMenu(input: {
   const composerMenuSearchKey = input.composerTrigger
     ? `${input.composerTrigger.kind}:${input.composerTrigger.query.trim().toLowerCase()}`
     : null;
-  const activeComposerMenuItemId = useMemo(
-    () =>
-      resolveComposerMenuActiveItemId({
-        items: composerMenuItems,
-        highlightedItemId: input.highlightedItemId,
-        currentSearchKey: composerMenuSearchKey,
-        highlightedSearchKey: input.highlightedSearchKey,
-      }),
-    [input.highlightedItemId, input.highlightedSearchKey, composerMenuItems, composerMenuSearchKey],
-  );
-  const activeComposerMenuItem = useMemo(
-    () => composerMenuItems.find((item) => item.id === activeComposerMenuItemId) ?? null,
-    [activeComposerMenuItemId, composerMenuItems],
-  );
+  const activeComposerMenuItemId = resolveComposerMenuActiveItemId({
+    items: composerMenuItems,
+    highlightedItemId: input.highlightedItemId,
+    currentSearchKey: composerMenuSearchKey,
+    highlightedSearchKey: input.highlightedSearchKey,
+  });
+  const activeComposerMenuItem =
+    composerMenuItems.find((item) => item.id === activeComposerMenuItemId) ?? null;
 
   const isComposerMenuLoading =
     shouldSearchProjectEntries &&
@@ -587,17 +353,18 @@ export function useComposerCommandMenu(input: {
   };
 }
 
-function getSlashCommandIcon(command: ComposerSlashCommand): CentralIconComponent {
-  if (command === "model") return IconBox2;
-  if (command === "ask") return IconBubbleQuestion;
-  if (command === "plan") return IconSquareChecklist;
-  return IconRobot;
+function renderSlashCommandIcon(command: ComposerSlashCommand) {
+  const className = "size-4 shrink-0 text-multi-fg-secondary";
+  if (command === "ask") return <IconBubbleQuestion className={className} />;
+  if (command === "plan") return <IconSquareChecklist className={className} />;
+  if (command === "debug") return <IconBug className={className} />;
+  return <IconRobot className={className} />;
 }
 
 function getSlashCommandTertiaryText(command: ComposerSlashCommand): string {
-  if (command === "model") return "Select Model";
   if (command === "ask") return "Ask Mode";
   if (command === "plan") return "Plan Mode";
+  if (command === "debug") return "Debug Mode";
   return "Build Mode";
 }
 
@@ -617,32 +384,10 @@ function groupCommandItems(
     return items.length > 0 ? [{ id: "results", label: "Results", items }] : [];
   }
 
-  const modeItems = items.filter(
-    (item) => item.type === "slash-command" && item.command !== "model",
-  );
-  const modelItems = items.filter(
-    (item) => item.type === "slash-command" && item.command === "model",
-  );
-  const providerItems = items.filter((item) => item.type === "provider-slash-command");
-  const skillItems = items.filter((item) => item.type === "skill");
-
-  const groups: ComposerCommandGroup[] = [];
-  if (skillItems.length > 0) {
-    groups.push({ id: "skills", label: "Skills", items: skillItems });
-  }
-  if (providerItems.length > 0) {
-    groups.push({ id: "commands", label: "Commands", items: providerItems });
-  }
-  if (modeItems.length > 0) {
-    groups.push({ id: "modes", label: "Modes", items: modeItems });
-  }
-  if (modelItems.length > 0) {
-    groups.push({ id: "models", label: "Models", items: modelItems });
-  }
-  return groups;
+  return items.length > 0 ? [{ id: "modes", label: "Modes", items }] : [];
 }
 
-export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
+export function ComposerCommandMenu(props: {
   items: ComposerCommandItem[];
   resolvedTheme: "light" | "dark";
   isLoading: boolean;
@@ -656,15 +401,11 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
   onHighlightedItemChange: (itemId: string | null) => void;
   onSelect: (item: ComposerCommandItem) => void;
 }) {
-  const groups = useMemo(
-    () =>
-      groupCommandItems(
-        props.items,
-        props.triggerKind,
-        props.groupSlashCommandSections ?? true,
-        props.isSearching ?? false,
-      ),
-    [props.groupSlashCommandSections, props.isSearching, props.items, props.triggerKind],
+  const groups = groupCommandItems(
+    props.items,
+    props.triggerKind,
+    props.groupSlashCommandSections ?? true,
+    props.isSearching ?? false,
   );
 
   return (
@@ -722,32 +463,23 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
       </div>
     </Command>
   );
-});
+}
 
-const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
+const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
   item: ComposerCommandItem;
   resolvedTheme: "light" | "dark";
   isActive: boolean;
   onHighlight: (itemId: string | null) => void;
   onSelect: (item: ComposerCommandItem) => void;
 }) {
-  const scrollActiveItemIntoView = useCallback(
-    (node: HTMLElement | null) => {
-      if (!node || !props.isActive) return;
-      node.scrollIntoView({ block: "nearest" });
-    },
-    [props.isActive],
-  );
-  const skillSourceLabel =
-    props.item.type === "skill" ? formatProviderSkillInstallSource(props.item.skill) : null;
-  const SlashIcon =
-    props.item.type === "slash-command" ? getSlashCommandIcon(props.item.command) : null;
+  const scrollActiveItemIntoView = (node: HTMLElement | null) => {
+    if (!node || !props.isActive) return;
+    node.scrollIntoView({ block: "nearest" });
+  };
+  const slashIcon =
+    props.item.type === "slash-command" ? renderSlashCommandIcon(props.item.command) : null;
   const tertiaryText =
-    props.item.type === "slash-command"
-      ? getSlashCommandTertiaryText(props.item.command)
-      : props.item.type === "provider-slash-command"
-        ? "Command"
-        : skillSourceLabel;
+    props.item.type === "slash-command" ? getSlashCommandTertiaryText(props.item.command) : null;
 
   return (
     <CommandItem
@@ -774,17 +506,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
           theme={props.resolvedTheme}
         />
       ) : null}
-      {SlashIcon ? <SlashIcon className="size-4 shrink-0 text-multi-fg-secondary" /> : null}
-      {props.item.type === "provider-slash-command" ? (
-        <span className="inline-flex size-4 shrink-0 items-center justify-center text-multi-fg-secondary">
-          <IconSettingsSliderHor className="size-3.5" />
-        </span>
-      ) : null}
-      {props.item.type === "skill" ? (
-        <span className="inline-flex size-4 shrink-0 items-center justify-center text-multi-fg-secondary">
-          <IconBuildingBlocks className="size-3.5" />
-        </span>
-      ) : null}
+      {slashIcon}
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
         <span className="min-w-0 flex-none truncate text-body font-medium text-multi-fg-primary">
           {props.item.label}
@@ -800,7 +522,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
       ) : null}
     </CommandItem>
   );
-});
+};
 
 type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandMenu> & {
   open: boolean;
@@ -808,15 +530,14 @@ type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandM
   anchorRevision: number;
 };
 
-export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPositioned(
+export function ComposerCommandMenuPositioned(
   props: ComposerCommandMenuPositionedProps,
 ) {
   const { open, anchor, menuKind, ...menuProps } = props;
   const menuOpen = open;
-  const collisionPadding = useMemo(
-    () => (open ? composerMenuCollisionPadding() : { top: 8, bottom: 8, left: 8, right: 8 }),
-    [open],
-  );
+  const collisionPadding = open
+    ? composerMenuCollisionPadding()
+    : { top: 8, bottom: 8, left: 8, right: 8 };
   const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
 
   // Floating UI reads the live DOM anchor rect; anchorRevision repositions after
@@ -853,4 +574,4 @@ export const ComposerCommandMenuPositioned = memo(function ComposerCommandMenuPo
       </PopoverPopup>
     </Popover>
   );
-});
+}

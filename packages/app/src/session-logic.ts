@@ -8,11 +8,11 @@ import { Data, Effect, Option, Predicate } from "effect";
 import {
   ApprovalRequestId,
   isToolLifecycleItemType,
-  ProviderDriverKind,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
-  type ProviderRequestKind,
+  type DesktopExtensionUiRequestKind,
+  type RuntimeRequestKind,
   type ToolLifecycleItemType,
   type UserInputQuestion,
   type ThreadId,
@@ -29,24 +29,11 @@ import type {
 import {
   decodeSubagentAgentStates,
   decodeSubagentReceiverAgents,
-  decodeSubagentReceiverThreadIds,
 } from "./session/subagents";
-
-export type ProviderPickerKind = ProviderDriverKind;
-
-export const PROVIDER_OPTIONS: Array<{
-  value: ProviderPickerKind;
-  label: string;
-  available: boolean;
-}> = [
-  { value: ProviderDriverKind.make("codex"), label: "Codex", available: true },
-  { value: ProviderDriverKind.make("claudeAgent"), label: "Claude", available: true },
-  { value: ProviderDriverKind.make("cursor"), label: "Cursor", available: true },
-];
 
 export interface WorkLogSubagent {
   threadId: string;
-  providerThreadId?: string | undefined;
+  subagentThreadId?: string | undefined;
   parentItemId?: string | undefined;
   resolvedThreadId?: string | undefined;
   agentId?: string | undefined;
@@ -194,6 +181,8 @@ export interface WorkLogEntry {
   toolTitle?: string;
   itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
+  extensionUiRequestId?: string;
+  extensionUiRequestKind?: DesktopExtensionUiRequestKind;
   taskId?: string;
   precedingToolUseIds?: ReadonlyArray<string>;
   artifacts?: ReadonlyArray<ToolDisplayArtifact>;
@@ -213,7 +202,7 @@ export interface WorkLogDerivationOptions {
 
 export interface PendingApproval {
   requestId: ApprovalRequestId;
-  requestKind: ProviderRequestKind;
+  requestKind: RuntimeRequestKind;
   createdAt: string;
   detail?: string;
 }
@@ -438,7 +427,7 @@ export function derivePendingApprovals(
         ? ApprovalRequestId.make(payload.requestId)
         : null;
     const requestKind =
-      payload && isProviderRequestKind(payload.requestKind)
+      payload && isRuntimeRequestKind(payload.requestKind)
         ? payload.requestKind
         : payload
           ? requestKindFromRequestType(payload.requestType)
@@ -464,7 +453,7 @@ export function derivePendingApprovals(
     }
 
     if (
-      activity.kind === "provider.approval.respond.failed" &&
+      activity.kind === "runtime.approval.respond.failed" &&
       requestId &&
       isStalePendingRequestFailureDetail(detail)
     ) {
@@ -568,7 +557,7 @@ export function derivePendingUserInputs(
     }
 
     if (
-      activity.kind === "provider.user-input.respond.failed" &&
+      activity.kind === "runtime.user-input.respond.failed" &&
       requestId &&
       isStalePendingRequestFailureDetail(detail)
     ) {
@@ -758,10 +747,10 @@ export function deriveWorkLogEntries(
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
-  const subagentUsageByProviderThreadId = deriveSubagentUsageByProviderThreadId(ordered);
-  const subagentDetailsByProviderThreadId = deriveSubagentDetailsByProviderThreadId(ordered);
+  const subagentUsageBySubagentThreadId = deriveSubagentUsageBySubagentThreadId(ordered);
+  const subagentDetailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered);
   const subagentDetailsByParentItemId = deriveSubagentDetailsByParentItemId(
-    subagentDetailsByProviderThreadId,
+    subagentDetailsBySubagentThreadId,
   );
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
@@ -829,8 +818,8 @@ export function deriveWorkLogEntries(
     workLogEntries.push({
       ...workEntry,
       subagents: applySubagentDetails(
-        applySubagentUsage(subagents, subagentUsageByProviderThreadId),
-        subagentDetailsByProviderThreadId,
+        applySubagentUsage(subagents, subagentUsageBySubagentThreadId),
+        subagentDetailsBySubagentThreadId,
       ),
     });
   }
@@ -868,7 +857,7 @@ function isGenericDuplicateToolSummary(label: string): boolean {
 }
 
 interface DerivedSubagentDetails {
-  readonly providerThreadId: string;
+  readonly subagentThreadId: string;
   readonly parentItemId?: string | undefined;
   readonly agentId?: string | undefined;
   readonly nickname?: string | undefined;
@@ -898,11 +887,11 @@ function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boole
   return activity.kind.startsWith("subagent.");
 }
 
-function deriveSubagentDetailsByProviderThreadId(
+function deriveSubagentDetailsBySubagentThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): Map<string, DerivedSubagentDetails> {
-  const detailsByProviderThreadId = new Map<string, DerivedSubagentDetails>();
-  const transcriptByProviderThreadId = new Map<string, MutableTranscriptContext>();
+  const detailsBySubagentThreadId = new Map<string, DerivedSubagentDetails>();
+  const transcriptBySubagentThreadId = new Map<string, MutableTranscriptContext>();
 
   for (const activity of activities) {
     if (!isSubagentRuntimeActivity(activity) || activity.kind === "subagent.usage.updated") {
@@ -910,17 +899,17 @@ function deriveSubagentDetailsByProviderThreadId(
     }
 
     const payload = asRecord(activity.payload);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
-    if (!providerThreadId) {
+    const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
+    if (!subagentThreadId) {
       continue;
     }
 
-    const previous = detailsByProviderThreadId.get(providerThreadId);
-    const identity = deriveSubagentIdentityDetails(providerThreadId, payload, previous);
+    const previous = detailsBySubagentThreadId.get(subagentThreadId);
+    const identity = deriveSubagentIdentityDetails(subagentThreadId, payload, previous);
 
     if (activity.kind === "subagent.content.delta") {
-      reduceTranscriptDelta(transcriptByProviderThreadId, providerThreadId, activity, payload);
-      detailsByProviderThreadId.set(providerThreadId, {
+      reduceTranscriptDelta(transcriptBySubagentThreadId, subagentThreadId, activity, payload);
+      detailsBySubagentThreadId.set(subagentThreadId, {
         ...identity,
         rawStatus: previous?.rawStatus,
         statusLabel: previous?.statusLabel,
@@ -940,23 +929,23 @@ function deriveSubagentDetailsByProviderThreadId(
 
     if (activity.kind === "subagent.item.started" || activity.kind === "subagent.item.updated") {
       reduceTranscriptItemLifecycle(
-        transcriptByProviderThreadId,
-        providerThreadId,
+        transcriptBySubagentThreadId,
+        subagentThreadId,
         activity,
         payload,
         false,
       );
     } else if (activity.kind === "subagent.item.completed") {
       reduceTranscriptItemLifecycle(
-        transcriptByProviderThreadId,
-        providerThreadId,
+        transcriptBySubagentThreadId,
+        subagentThreadId,
         activity,
         payload,
         true,
       );
     }
 
-    detailsByProviderThreadId.set(providerThreadId, {
+    detailsBySubagentThreadId.set(subagentThreadId, {
       ...identity,
       rawStatus,
       statusLabel,
@@ -970,30 +959,30 @@ function deriveSubagentDetailsByProviderThreadId(
     });
   }
 
-  for (const [providerThreadId, ctx] of transcriptByProviderThreadId) {
-    const existing = detailsByProviderThreadId.get(providerThreadId);
+  for (const [subagentThreadId, ctx] of transcriptBySubagentThreadId) {
+    const existing = detailsBySubagentThreadId.get(subagentThreadId);
     const items = ctx.itemsOrdered.slice(-TRANSCRIPT_ITEMS_CAP);
     if (existing) {
-      detailsByProviderThreadId.set(providerThreadId, { ...existing, transcriptItems: items });
+      detailsBySubagentThreadId.set(subagentThreadId, { ...existing, transcriptItems: items });
     } else {
-      detailsByProviderThreadId.set(providerThreadId, {
-        providerThreadId,
+      detailsBySubagentThreadId.set(subagentThreadId, {
+        subagentThreadId,
         logs: [],
         transcriptItems: items,
       });
     }
   }
 
-  return detailsByProviderThreadId;
+  return detailsBySubagentThreadId;
 }
 
 function deriveSubagentIdentityDetails(
-  providerThreadId: string,
+  subagentThreadId: string,
   payload: Record<string, unknown> | null,
   previous: DerivedSubagentDetails | undefined,
 ): Pick<
   DerivedSubagentDetails,
-  | "providerThreadId"
+  | "subagentThreadId"
   | "parentItemId"
   | "agentId"
   | "nickname"
@@ -1010,7 +999,7 @@ function deriveSubagentIdentityDetails(
   const prompt = asTrimmedString(payload?.prompt) ?? previous?.prompt;
   const title = resolveSubagentTitle(nickname, role) ?? previous?.title;
   return {
-    providerThreadId,
+    subagentThreadId,
     ...(parentItemId ? { parentItemId } : {}),
     ...(agentId ? { agentId } : {}),
     ...(nickname ? { nickname } : {}),
@@ -1022,10 +1011,10 @@ function deriveSubagentIdentityDetails(
 }
 
 function deriveSubagentDetailsByParentItemId(
-  detailsByProviderThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
+  detailsBySubagentThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
 ): Map<string, DerivedSubagentDetails[]> {
   const detailsByParentItemId = new Map<string, DerivedSubagentDetails[]>();
-  for (const details of detailsByProviderThreadId.values()) {
+  for (const details of detailsBySubagentThreadId.values()) {
     if (!details.parentItemId) {
       continue;
     }
@@ -1039,8 +1028,8 @@ function deriveSubagentDetailsByParentItemId(
 function subagentFromDerivedDetails(details: DerivedSubagentDetails): WorkLogSubagent {
   const hasTranscript = details.transcriptItems.length > 0;
   return {
-    threadId: details.providerThreadId,
-    providerThreadId: details.providerThreadId,
+    threadId: details.subagentThreadId,
+    subagentThreadId: details.subagentThreadId,
     ...(details.parentItemId ? { parentItemId: details.parentItemId } : {}),
     ...(details.agentId ? { agentId: details.agentId } : {}),
     ...(details.nickname ? { nickname: details.nickname } : {}),
@@ -1059,10 +1048,10 @@ function subagentFromDerivedDetails(details: DerivedSubagentDetails): WorkLogSub
 }
 
 function getOrInitTranscriptContext(
-  byProviderThread: Map<string, MutableTranscriptContext>,
-  providerThreadId: string,
+  bySubagentThread: Map<string, MutableTranscriptContext>,
+  subagentThreadId: string,
 ): MutableTranscriptContext {
-  let ctx = byProviderThread.get(providerThreadId);
+  let ctx = bySubagentThread.get(subagentThreadId);
   if (!ctx) {
     ctx = {
       itemsById: new Map(),
@@ -1070,14 +1059,14 @@ function getOrInitTranscriptContext(
       streamBuffers: new Map(),
       nextSequence: 0,
     };
-    byProviderThread.set(providerThreadId, ctx);
+    bySubagentThread.set(subagentThreadId, ctx);
   }
   return ctx;
 }
 
 function reduceTranscriptItemLifecycle(
-  byProviderThread: Map<string, MutableTranscriptContext>,
-  providerThreadId: string,
+  bySubagentThread: Map<string, MutableTranscriptContext>,
+  subagentThreadId: string,
   activity: OrchestrationThreadActivity,
   payload: Record<string, unknown> | null,
   completed: boolean,
@@ -1097,7 +1086,7 @@ function reduceTranscriptItemLifecycle(
     ? (extractToolResultText(payload, commandPreview ?? undefined) ?? undefined)
     : undefined;
 
-  const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
+  const ctx = getOrInitTranscriptContext(bySubagentThread, subagentThreadId);
   const existing = ctx.itemsById.get(itemId);
 
   const isCompletedStatus =
@@ -1223,8 +1212,8 @@ function extractSubagentContentText(content: unknown): string | undefined {
 }
 
 function reduceTranscriptDelta(
-  byProviderThread: Map<string, MutableTranscriptContext>,
-  providerThreadId: string,
+  bySubagentThread: Map<string, MutableTranscriptContext>,
+  subagentThreadId: string,
   activity: OrchestrationThreadActivity,
   payload: Record<string, unknown> | null,
 ): void {
@@ -1239,7 +1228,7 @@ function reduceTranscriptDelta(
   const summaryIndex = asFiniteNumber(payload?.summaryIndex);
   const bucketKey = `${itemId}\u001f${streamKind}\u001f${contentIndex ?? ""}\u001f${summaryIndex ?? ""}`;
 
-  const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
+  const ctx = getOrInitTranscriptContext(bySubagentThread, subagentThreadId);
   const previousBuffer = ctx.streamBuffers.get(bucketKey);
   const merged = mergeStreamText(previousBuffer, delta) ?? delta;
   ctx.streamBuffers.set(bucketKey, merged);
@@ -1376,14 +1365,14 @@ function resolveSubagentLatestUpdate(
     return previous;
   }
 
-  if (isSubagentProviderSnapshotItemType(log.itemType)) {
+  if (isSubagentSnapshotItemType(log.itemType)) {
     return previous;
   }
 
   return log.detail ?? previous;
 }
 
-export function isSubagentProviderSnapshotItemType(itemType: string | undefined): boolean {
+export function isSubagentSnapshotItemType(itemType: string | undefined): boolean {
   if (!itemType) {
     return false;
   }
@@ -1491,10 +1480,10 @@ function resolveSubagentRawStatus(
   return asTrimmedString(payload?.status) ?? undefined;
 }
 
-function deriveSubagentUsageByProviderThreadId(
+function deriveSubagentUsageBySubagentThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): Map<string, Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">> {
-  const usageByProviderThreadId = new Map<
+  const usageBySubagentThreadId = new Map<
     string,
     Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">
   >();
@@ -1505,9 +1494,9 @@ function deriveSubagentUsageByProviderThreadId(
     }
 
     const payload = asRecord(activity.payload);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
+    const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
     const usedTokens = asFiniteNumber(payload?.usedTokens);
-    if (!providerThreadId || usedTokens === null || usedTokens <= 0) {
+    if (!subagentThreadId || usedTokens === null || usedTokens <= 0) {
       continue;
     }
 
@@ -1515,37 +1504,37 @@ function deriveSubagentUsageByProviderThreadId(
     const usedPercentage =
       maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null;
 
-    usageByProviderThreadId.set(providerThreadId, {
+    usageBySubagentThreadId.set(subagentThreadId, {
       usedTokens,
       ...(maxTokens !== null ? { maxTokens } : {}),
       ...(usedPercentage !== null ? { usedPercentage } : {}),
     });
   }
 
-  return usageByProviderThreadId;
+  return usageBySubagentThreadId;
 }
 
 function applySubagentUsage(
   subagents: ReadonlyArray<WorkLogSubagent>,
-  usageByProviderThreadId: Map<
+  usageBySubagentThreadId: Map<
     string,
     Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">
   >,
 ): WorkLogSubagent[] {
   return subagents.map((subagent) => {
-    const key = subagent.providerThreadId ?? subagent.threadId;
-    const usage = key ? usageByProviderThreadId.get(key) : undefined;
+    const key = subagent.subagentThreadId ?? subagent.threadId;
+    const usage = key ? usageBySubagentThreadId.get(key) : undefined;
     return usage ? { ...subagent, ...usage } : subagent;
   });
 }
 
 function applySubagentDetails(
   subagents: ReadonlyArray<WorkLogSubagent>,
-  detailsByProviderThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
+  detailsBySubagentThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
 ): WorkLogSubagent[] {
   return subagents.map((subagent) => {
-    const key = subagent.providerThreadId ?? subagent.threadId;
-    const details = key ? detailsByProviderThreadId.get(key) : undefined;
+    const key = subagent.subagentThreadId ?? subagent.threadId;
+    const details = key ? detailsBySubagentThreadId.get(key) : undefined;
     if (!details) {
       return subagent;
     }
@@ -1638,6 +1627,7 @@ function toDerivedWorkLogEntry(
     isTaskActivity && typeof payload?.summary === "string" && payload.summary.length > 0
       ? payload.summary
       : null;
+  const taskType = isTaskActivity ? asTrimmedString(payload?.taskType) : null;
   const taskDetailAsLabel =
     isTaskActivity &&
     !taskSummary &&
@@ -1648,6 +1638,12 @@ function toDerivedWorkLogEntry(
   const taskLabel = taskSummary || taskDetailAsLabel;
   const itemType = extractWorkLogItemType(payload);
   const requestKind = extractWorkLogRequestKind(payload);
+  const extensionUiRequestId = isExtensionUiLifecycleActivityKind(activity.kind)
+    ? asTrimmedString(payload?.requestId)
+    : null;
+  const extensionUiRequestKind = isExtensionUiLifecycleActivityKind(activity.kind)
+    ? extractWorkLogExtensionUiRequestKind(payload)
+    : undefined;
   const toolCallId = asTrimmedString(payload?.itemId);
   const entryId =
     toolCallId && isToolLifecycleActivityKind(activity.kind)
@@ -1658,14 +1654,18 @@ function toDerivedWorkLogEntry(
         ? activity.turnId
           ? `task:${activity.turnId}:${taskId}`
           : `task:${taskId}`
-        : activity.id;
+        : extensionUiRequestId && isExtensionUiLifecycleActivityKind(activity.kind)
+          ? `extension-ui:${extensionUiRequestId}`
+          : activity.id;
   const isToolSummary = activity.kind === "tool.summary";
   const precedingToolUseIds = isToolSummary
     ? asTrimmedStringArray(payload?.precedingToolUseIds)
     : [];
   const tone: WorkLogEntry["tone"] = isToolSummary
     ? "info"
-    : activity.kind === "task.started" || activity.kind === "task.progress"
+    : activity.kind === "task.started" ||
+        activity.kind === "task.progress" ||
+        (activity.kind === "task.completed" && taskType === "thinking")
       ? "thinking"
       : activity.tone === "approval"
         ? "info"
@@ -1740,6 +1740,12 @@ function toDerivedWorkLogEntry(
   }
   if (requestKind) {
     entry.requestKind = requestKind;
+  }
+  if (extensionUiRequestId) {
+    entry.extensionUiRequestId = extensionUiRequestId;
+  }
+  if (extensionUiRequestKind) {
+    entry.extensionUiRequestKind = extensionUiRequestKind;
   }
   if (status) {
     entry.status = status;
@@ -1837,6 +1843,12 @@ function activeLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefi
     }
     return entry.id;
   }
+  if (isExtensionUiLifecycleActivityKind(entry.activityKind)) {
+    if (!entry.extensionUiRequestId) {
+      return undefined;
+    }
+    return entry.id;
+  }
   return undefined;
 }
 
@@ -1855,11 +1867,14 @@ function unscopedLifecycleWorkEntryKey(entry: DerivedWorkLogEntry): string | und
     const descriptor = taskLifecycleFallbackDescriptor(entry);
     return descriptor ? `task-fallback:${descriptor}` : undefined;
   }
+  if (isExtensionUiLifecycleActivityKind(entry.activityKind)) {
+    return entry.extensionUiRequestId ? `extension-ui:${entry.extensionUiRequestId}` : undefined;
+  }
   return undefined;
 }
 
 // Composite key used to collapse adjacent tool lifecycle entries when the
-// provider omitted `itemId`. Requires `itemType` plus one stable discriminator
+// runtime omitted `itemId`. Requires `itemType` plus one stable discriminator
 // (command, title, or label) so two unrelated tool calls with the same itemType
 // will not be merged. Detail is appended for additional specificity.
 function toolLifecycleFallbackDescriptor(entry: DerivedWorkLogEntry): string | undefined {
@@ -1890,7 +1905,7 @@ function shouldUseUnscopedLifecycleFallback(
   if (previous.turnId === null || next.turnId === null) {
     return true;
   }
-  // Descriptor-based fallback for entries the provider emitted without an id.
+  // Descriptor-based fallback for entries the runtime emitted without an id.
   // Restrict to the same turn so we never merge across turn boundaries.
   if (
     isToolLifecycleActivityKind(previous.activityKind) &&
@@ -1980,6 +1995,10 @@ function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
 
 function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
   return kind === "task.started" || kind === "task.progress" || kind === "task.completed";
+}
+
+function isExtensionUiLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
+  return kind === "extension-ui.requested" || kind === "extension-ui.resolved";
 }
 
 function lifecycleEntriesShareTurnScope(
@@ -2106,7 +2125,7 @@ function mergeSubagents(
 ): WorkLogSubagent[] {
   const merged = new Map<string, WorkLogSubagent>();
   for (const subagent of [...(previous ?? []), ...(next ?? [])]) {
-    const key = subagent.providerThreadId ?? subagent.threadId ?? subagent.agentId;
+    const key = subagent.subagentThreadId ?? subagent.threadId ?? subagent.agentId;
     const existing = merged.get(key);
     merged.set(key, existing ? { ...existing, ...subagent } : subagent);
   }
@@ -2826,11 +2845,15 @@ function resolveWorkLogStatus(
       return "running";
     case "task.started":
       return "running";
+    case "extension-ui.requested":
+      return "running";
     case "tool.completed":
       return "completed";
     case "task.progress":
       return "running";
     case "task.completed":
+      return "completed";
+    case "extension-ui.resolved":
       return "completed";
     default:
       return undefined;
@@ -3209,15 +3232,14 @@ function extractWorkLogSubagents(
     return [];
   }
 
-  const threadIds = decodeSubagentReceiverThreadIds(item);
-  const agents = decodeSubagentReceiverAgents(item, threadIds);
+  const agents = decodeSubagentReceiverAgents(item);
   const states = decodeSubagentAgentStates(item);
-  const byThreadId = new Map<string, WorkLogSubagent>();
+  const bySubagentThreadId = new Map<string, WorkLogSubagent>();
 
   for (const agent of agents) {
-    byThreadId.set(agent.providerThreadId, {
-      threadId: agent.providerThreadId,
-      providerThreadId: agent.providerThreadId,
+    bySubagentThreadId.set(agent.subagentThreadId, {
+      threadId: agent.subagentThreadId,
+      subagentThreadId: agent.subagentThreadId,
       agentId: agent.agentId,
       nickname: agent.nickname,
       role: agent.role,
@@ -3230,12 +3252,12 @@ function extractWorkLogSubagents(
   }
 
   for (const state of Object.values(states)) {
-    const existing = byThreadId.get(state.threadId);
+    const existing = bySubagentThreadId.get(state.subagentThreadId);
     const statusLabel = resolveSubagentStatusLabel(state.status);
-    byThreadId.set(state.threadId, {
+    bySubagentThreadId.set(state.subagentThreadId, {
       ...existing,
-      threadId: state.threadId,
-      providerThreadId: existing?.providerThreadId ?? state.threadId,
+      threadId: state.subagentThreadId,
+      subagentThreadId: existing?.subagentThreadId ?? state.subagentThreadId,
       agentId: state.agentId ?? existing?.agentId,
       nickname: state.nickname ?? existing?.nickname,
       role: state.role ?? existing?.role,
@@ -3252,7 +3274,7 @@ function extractWorkLogSubagents(
     });
   }
 
-  return [...byThreadId.values()];
+  return [...bySubagentThreadId.values()];
 }
 
 function shouldExtractWorkLogSubagents(item: Record<string, unknown>): boolean {
@@ -3345,13 +3367,22 @@ function isActiveSubagentStatus(
 function extractWorkLogRequestKind(
   payload: Record<string, unknown> | null,
 ): WorkLogEntry["requestKind"] | undefined {
-  if (isProviderRequestKind(payload?.requestKind)) {
+  if (isRuntimeRequestKind(payload?.requestKind)) {
     return payload.requestKind;
   }
   return requestKindFromRequestType(payload?.requestType) ?? undefined;
 }
 
-function isProviderRequestKind(value: unknown): value is ProviderRequestKind {
+function extractWorkLogExtensionUiRequestKind(
+  payload: Record<string, unknown> | null,
+): WorkLogEntry["extensionUiRequestKind"] | undefined {
+  if (isExtensionUiRequestKind(payload?.requestKind)) {
+    return payload.requestKind;
+  }
+  return undefined;
+}
+
+function isRuntimeRequestKind(value: unknown): value is RuntimeRequestKind {
   switch (value) {
     case "command":
     case "file-read":
@@ -3360,6 +3391,19 @@ function isProviderRequestKind(value: unknown): value is ProviderRequestKind {
     case "mcp-elicitation":
     case "dynamic-tool":
     case "auth-refresh":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isExtensionUiRequestKind(value: unknown): value is DesktopExtensionUiRequestKind {
+  switch (value) {
+    case "select":
+    case "confirm":
+    case "input":
+    case "editor":
+    case "custom":
       return true;
     default:
       return false;

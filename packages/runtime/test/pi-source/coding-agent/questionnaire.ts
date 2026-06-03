@@ -40,6 +40,14 @@ interface QuestionnaireResult {
 	cancelled: boolean;
 }
 
+function isQuestion(value: unknown): value is Question {
+	return typeof value === "object" && value !== null && "id" in value && "prompt" in value;
+}
+
+function isQuestionnaireResult(value: unknown): value is QuestionnaireResult {
+	return typeof value === "object" && value !== null && "answers" in value && "cancelled" in value;
+}
+
 // Schema
 const QuestionOptionSchema = Type.Object({
 	value: Type.String({ description: "The value returned when selected" }),
@@ -394,7 +402,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 		},
 
 		renderCall(args, theme, _context) {
-			const qs = (args.questions as Question[]) || [];
+			const qs = Array.isArray(args.questions) ? args.questions.filter(isQuestion) : [];
 			const count = qs.length;
 			const labels = qs.map((q) => q.label || q.id).join(", ");
 			let text = theme.fg("toolTitle", theme.bold("questionnaire "));
@@ -406,7 +414,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 		},
 
 		renderResult(result, _options, theme, _context) {
-			const details = result.details as QuestionnaireResult | undefined;
+			const details = isQuestionnaireResult(result.details) ? result.details : undefined;
 			if (!details) {
 				const text = result.content[0];
 				return new Text(text?.type === "text" ? text.text : "", 0, 0);

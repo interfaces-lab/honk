@@ -212,8 +212,8 @@ describe("SessionManager append and tree traversal", () => {
 			expect(node2.entry.id).toBe(id2);
 			expect(node2.children).toHaveLength(2); // id3 and id4 are siblings
 
-			const childIds = node2.children.map((c) => c.entry.id).sort();
-			expect(childIds).toEqual([id3, id4].sort());
+			const childIds = node2.children.map((c) => c.entry.id).toSorted((a, b) => a.localeCompare(b));
+			expect(childIds).toEqual([id3, id4].toSorted((a, b) => a.localeCompare(b)));
 		});
 
 		it("handles multiple branches at same point", () => {
@@ -239,8 +239,8 @@ describe("SessionManager append and tree traversal", () => {
 			expect(node2.entry.id).toBe(id2);
 			expect(node2.children).toHaveLength(3);
 
-			const branchIds = node2.children.map((c) => c.entry.id).sort();
-			expect(branchIds).toEqual([idA, idB, idC].sort());
+			const branchIds = node2.children.map((c) => c.entry.id).toSorted((a, b) => a.localeCompare(b));
+			expect(branchIds).toEqual([idA, idB, idC].toSorted((a, b) => a.localeCompare(b)));
 		});
 
 		it("handles deep branching", () => {
@@ -476,10 +476,13 @@ describe("createBranchedSession", () => {
 			// Fork from the very first user message (no assistant in the branched path)
 			const newFile = session.createBranchedSession(id1);
 			expect(newFile).toBeDefined();
+			if (!newFile) {
+				throw new Error("Expected branched session file");
+			}
 
 			// The branched path has no assistant, so the file should not exist yet
 			// (deferred to _persist on first assistant, matching newSession() contract)
-			expect(existsSync(newFile!)).toBe(false);
+			expect(existsSync(newFile)).toBe(false);
 
 			// Simulate extension adding entry before assistant (like preset on turn_start)
 			session.appendCustomEntry("preset-state", { name: "plan" });
@@ -488,8 +491,8 @@ describe("createBranchedSession", () => {
 			session.appendMessage(assistantMsg("new answer"));
 
 			// File should now exist with exactly one header and no duplicate IDs
-			expect(existsSync(newFile!)).toBe(true);
-			const content = readFileSync(newFile!, "utf-8");
+			expect(existsSync(newFile)).toBe(true);
+			const content = readFileSync(newFile, "utf-8");
 			const lines = content.trim().split("\n").filter(Boolean);
 			const records = lines.map((line) => JSON.parse(line));
 
@@ -519,10 +522,13 @@ describe("createBranchedSession", () => {
 			// Fork including the assistant message
 			const newFile = session.createBranchedSession(id2);
 			expect(newFile).toBeDefined();
+			if (!newFile) {
+				throw new Error("Expected branched session file");
+			}
 
 			// Path includes an assistant, so file should be written immediately
-			expect(existsSync(newFile!)).toBe(true);
-			const content = readFileSync(newFile!, "utf-8");
+			expect(existsSync(newFile)).toBe(true);
+			const content = readFileSync(newFile, "utf-8");
 			const lines = content.trim().split("\n").filter(Boolean);
 			const records = lines.map((line) => JSON.parse(line));
 			expect(records.filter((r) => r.type === "session")).toHaveLength(1);

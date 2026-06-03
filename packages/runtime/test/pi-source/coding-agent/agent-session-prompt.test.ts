@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { fauxAssistantMessage, fauxToolCall, type Model } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { afterEach, describe, expect, it } from "vitest";
 import type { InputEvent } from "../../src/core/extensions/index.ts";
@@ -36,7 +36,9 @@ describe("AgentSession prompt characterization", () => {
 		await harness.session.prompt("hi");
 
 		expect(harness.session.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
-		expect(getMessageText(harness.session.messages[0]!)).toBe("hi");
+		const firstMessage = harness.session.messages[0];
+		expect(firstMessage).toBeDefined();
+		expect(getMessageText(firstMessage)).toBe("hi");
 		expect(harness.getPendingResponseCount()).toBe(0);
 	});
 
@@ -110,7 +112,7 @@ describe("AgentSession prompt characterization", () => {
 
 		await harness.session.prompt("run tools");
 
-		expect(toolRuns.sort()).toEqual(["fast:b", "slow:a"]);
+		expect(toolRuns.toSorted()).toEqual(["fast:b", "slow:a"]);
 		expect(harness.session.messages.filter((message) => message.role === "toolResult")).toHaveLength(2);
 		expect(harness.session.messages[harness.session.messages.length - 1]?.role).toBe("assistant");
 	});
@@ -257,7 +259,9 @@ describe("AgentSession prompt characterization", () => {
 		await harness.session.sendUserMessage("from extension");
 
 		expect(harness.session.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
-		expect(getMessageText(harness.session.messages[0]!)).toBe("from extension");
+		const firstMessage = harness.session.messages[0];
+		expect(firstMessage).toBeDefined();
+		expect(getMessageText(firstMessage)).toBe("from extension");
 	});
 
 	it("does not report streamingBehavior to input handlers while idle", async () => {
@@ -382,7 +386,7 @@ describe("AgentSession prompt characterization", () => {
 	it("throws when prompting without a model", async () => {
 		const harness = await createHarness();
 		harnesses.push(harness);
-		harness.session.agent.state.model = undefined as unknown as Model<any>;
+		Reflect.set(harness.session.agent.state, "model", undefined);
 
 		await expect(harness.session.prompt("hi")).rejects.toThrow("No model selected.");
 	});

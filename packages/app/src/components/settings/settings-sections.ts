@@ -1,6 +1,5 @@
 import {
   IconArchive1,
-  IconCode,
   IconCollaborationPointerRight,
   IconColorSwatch,
   IconSettingsGear2,
@@ -10,13 +9,12 @@ import type { ComponentType } from "react";
 
 type SettingsSectionIcon = ComponentType<CentralIconBaseProps>;
 
-export type SettingsSectionId = "general" | "appearance" | "agents" | "models" | "archived";
+export type SettingsSectionId = "general" | "appearance" | "agents" | "archived";
 
 export type SettingsPreferenceDomain =
   | "application"
   | "appearance"
   | "agent-runtime"
-  | "model-routing"
   | "conversation-history";
 
 export interface SettingsSectionDescriptor {
@@ -25,7 +23,6 @@ export interface SettingsSectionDescriptor {
     | "/settings/general"
     | "/settings/appearance"
     | "/settings/agents"
-    | "/settings/models"
     | "/settings/archived";
   readonly label: string;
   readonly icon: SettingsSectionIcon;
@@ -56,15 +53,13 @@ export const SETTINGS_SECTIONS = [
     label: "Agents",
     icon: IconCollaborationPointerRight,
     domain: "agent-runtime",
-    cursorPreferenceScopes: ["provider-adapters", "mcp", "tools", "execution"],
-  },
-  {
-    id: "models",
-    to: "/settings/models",
-    label: "Models",
-    icon: IconCode,
-    domain: "model-routing",
-    cursorPreferenceScopes: ["model-selection", "reasoning", "context-window"],
+    cursorPreferenceScopes: [
+      "pi-runtime",
+      "accounts",
+      "agent-mode",
+      "interaction-mode",
+      "extension-ui",
+    ],
   },
   {
     id: "archived",

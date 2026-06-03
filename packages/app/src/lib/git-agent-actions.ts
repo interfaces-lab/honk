@@ -1,4 +1,4 @@
-import type { EnvironmentId, ThreadId, TurnId } from "@multi/contracts";
+import type { EnvironmentId, ThreadId } from "@multi/contracts";
 
 const GIT_AGENT_ACTION_INSTRUCTIONS = [
   "Run this Git action from Source Control.",
@@ -89,17 +89,14 @@ export type GitAgentAction = keyof typeof GIT_AGENT_ACTIONS;
 
 export type GitAgentActionDetails = (typeof GIT_AGENT_ACTIONS)[GitAgentAction];
 
-/** RPC scope for `thread.turn.interrupt` when a Git agent turn is active or starting. */
-export type GitAgentInterruptTarget = Readonly<{
+export type GitAgentStopTarget = Readonly<{
   environmentId: EnvironmentId;
   threadId: ThreadId;
-  turnId?: TurnId | undefined;
 }>;
 
-/** One in-flight Git agent invocation: UI action label plus interrupt target. */
 export type GitAgentRun = Readonly<{
   action: GitAgentAction;
-  target: GitAgentInterruptTarget;
+  target: GitAgentStopTarget;
 }>;
 
 export const GIT_AGENT_PRIMARY_ACTION: GitAgentAction = "commitAndPush";

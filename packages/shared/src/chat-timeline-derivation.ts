@@ -21,6 +21,8 @@ export interface DeriveChatTimelineRowsInput {
 const GLOBAL_STATUS_ACTIVITY_KINDS = new Set<OrchestrationThreadActivity["kind"]>([
   "runtime.error",
   "runtime.warning",
+  "extension-ui.requested",
+  "extension-ui.resolved",
   "context-compaction",
   "setup-script.requested",
   "setup-script.started",
@@ -388,7 +390,10 @@ function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  return Object.fromEntries(Object.entries(value));
 }
 
 function asTrimmedString(value: unknown): string | undefined {

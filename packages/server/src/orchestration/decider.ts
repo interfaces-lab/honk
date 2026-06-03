@@ -151,14 +151,14 @@ function hasPendingApprovalOrUserInput(
         pendingApprovalRequestIds.add(requestId);
         break;
       case "approval.resolved":
-      case "provider.approval.respond.failed":
+      case "runtime.approval.respond.failed":
         pendingApprovalRequestIds.delete(requestId);
         break;
       case "user-input.requested":
         pendingUserInputRequestIds.add(requestId);
         break;
       case "user-input.resolved":
-      case "provider.user-input.respond.failed":
+      case "runtime.user-input.respond.failed":
         pendingUserInputRequestIds.delete(requestId);
         break;
     }

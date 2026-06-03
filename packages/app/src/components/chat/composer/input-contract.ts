@@ -2,13 +2,11 @@ import type {
   ApprovalRequestId,
   EnvironmentId,
   MessageId,
-  ModelSelection,
-  ProviderApprovalDecision,
-  ProviderInteractionMode,
+  RuntimeApprovalDecision,
+  AgentInteractionMode,
   ResolvedKeybindingsConfig,
   ScopedThreadRef,
   ThreadId,
-  ServerProvider,
 } from "@multi/contracts";
 import type { UnifiedSettings } from "@multi/contracts/settings";
 import type { RefObject, ReactNode } from "react";
@@ -32,9 +30,6 @@ export type ComposerMenuPlacement =
 export interface ComposerInputHandle {
   focusAtEnd: () => void;
   focusAt: (cursor: number) => void;
-  openModelPicker: () => void;
-  toggleModelPicker: () => void;
-  isModelPickerOpen: () => boolean;
   readSnapshot: () => {
     value: string;
     cursor: number;
@@ -46,7 +41,7 @@ export interface ComposerInputHandle {
     prompt?: string;
     detectTrigger?: boolean;
   }) => void;
-  /** Read prompt, attachments, effort, model, and provider state for dispatch. */
+  /** Read prompt and attachments for dispatch. */
   getSendContext: () => ComposerSubmitContext;
 }
 
@@ -57,18 +52,11 @@ export type ComposerInputLayout = "new-agent" | "thread" | "inline-edit";
 export interface ComposerInputProps {
   variant?: ComposerInputVariant;
   layout?: ComposerInputLayout;
-  modelPickerPlacement?: ComposerMenuPlacement;
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
-  routeKind: "server" | "draft";
-  routeThreadRef: ScopedThreadRef;
   draftId: DraftId | null;
 
   activeThreadId: ThreadId | null;
-  activeThreadEnvironmentId: EnvironmentId | undefined;
-  activeThread: Thread | undefined;
-  isServerThread: boolean;
-  isLocalDraftThread: boolean;
 
   phase: SessionPhase;
   isConnecting: boolean;
@@ -102,11 +90,7 @@ export interface ComposerInputProps {
   activeProposedPlan?: Thread["proposedPlans"][number] | null | undefined;
   planSurfaceOpen?: boolean | undefined;
 
-  interactionMode: ProviderInteractionMode;
-
-  providerStatuses: ReadonlyArray<ServerProvider>;
-  activeProjectDefaultModelSelection: ModelSelection | null | undefined;
-  activeThreadModelSelection: ModelSelection | null | undefined;
+  interactionMode: AgentInteractionMode;
 
   activeThreadActivities: Thread["activities"] | undefined;
 
@@ -126,7 +110,7 @@ export interface ComposerInputProps {
   footerSecondaryAction?: ReactNode | undefined;
 
   onRespondToApproval?:
-    | ((requestId: ApprovalRequestId, decision: ProviderApprovalDecision) => Promise<void>)
+    | ((requestId: ApprovalRequestId, decision: RuntimeApprovalDecision) => Promise<void>)
     | undefined;
   onSelectActivePendingUserInputOption?:
     | ((questionId: string, optionLabel: string, advanceAfterSelect?: boolean) => void)
@@ -145,7 +129,6 @@ export interface ComposerInputProps {
       ) => void)
     | undefined;
 
-  onProviderModelSelect: (selection: ModelSelection) => void;
   onBeginEditQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
   onCancelEditingQueuedComposerItem?: (() => void) | undefined;
   onRemoveQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
@@ -155,7 +138,7 @@ export interface ComposerInputProps {
     | undefined;
   onQueuedComposerItemsExpandedChange?: ((expanded: boolean) => void) | undefined;
   toggleInteractionMode: () => void;
-  handleInteractionModeChange: (mode: ProviderInteractionMode) => void;
+  handleInteractionModeChange: (mode: AgentInteractionMode) => void;
 
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   onExpandImage: (preview: ExpandedImagePreview) => void;

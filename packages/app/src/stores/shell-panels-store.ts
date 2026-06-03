@@ -18,6 +18,10 @@ const SECONDARY_RAIL_DEFAULT_WIDTH = 220;
 
 export type WorkbenchTab = "plan" | "git" | "terminal" | "files";
 
+export function isWorkbenchTab(value: unknown): value is WorkbenchTab {
+  return value === "plan" || value === "git" || value === "terminal" || value === "files";
+}
+
 interface LeftPanelState {
   leftOpen: boolean;
   leftW: number;
@@ -118,7 +122,7 @@ const DEFAULT_WORKBENCH_PANEL_STATE: WorkbenchPanelState = Object.freeze({
   rightOpen: false,
   rightW: 400,
   activeTab: "files",
-  muted: false,
+  muted: true,
 });
 
 const DEFAULT_SECONDARY_RAIL: SecondaryRailState = Object.freeze({
@@ -176,17 +180,14 @@ function readPersistedPanels(): {
         SHELL_LEFT_PANEL_WIDTH_LIMITS.min,
         SHELL_LEFT_PANEL_WIDTH_LIMITS.max,
       ),
-      rightOpen:
-        typeof parsed.rightOpen === "boolean"
-          ? parsed.rightOpen
-          : DEFAULT_WORKBENCH_PANEL_STATE.rightOpen,
+      rightOpen: DEFAULT_WORKBENCH_PANEL_STATE.rightOpen,
       rightW: clampWidth(
         typeof parsed.rightW === "number" ? parsed.rightW : DEFAULT_WORKBENCH_PANEL_STATE.rightW,
         RIGHT_WORKBENCH_WIDTH_LIMITS.min,
         RIGHT_WORKBENCH_WIDTH_LIMITS.max,
       ),
       activeTab: parsed.activeTab ?? DEFAULT_WORKBENCH_PANEL_STATE.activeTab,
-      muted: typeof parsed.muted === "boolean" ? parsed.muted : DEFAULT_WORKBENCH_PANEL_STATE.muted,
+      muted: DEFAULT_WORKBENCH_PANEL_STATE.muted,
     };
   } catch {
     return { ...DEFAULT_LEFT_PANEL_STATE, ...DEFAULT_WORKBENCH_PANEL_STATE };

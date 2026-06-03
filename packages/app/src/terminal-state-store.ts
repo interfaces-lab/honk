@@ -5,7 +5,7 @@
  * API constrained to store actions/selectors.
  */
 
-import { scopedThreadKey } from "@multi/client-runtime";
+import { scopedThreadKey } from "~/lib/environment-scope";
 import { type ScopedThreadRef, type TerminalEvent } from "@multi/contracts";
 import { Option, Schema } from "effect";
 import { create } from "zustand";

@@ -1,7 +1,7 @@
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@multi/contracts";
-import { scopeProjectRef } from "@multi/client-runtime";
+import type { ScopedThreadRef, ThreadId } from "@multi/contracts";
+import { scopeProjectRef } from "~/lib/environment-scope";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
-import { memo, useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { readEnvironmentApi } from "../../../environment-api";
@@ -20,7 +20,7 @@ export interface TerminalLaunchContext {
   worktreePath: string | null;
 }
 
-export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerminalDrawer(props: {
+export function PersistentThreadTerminalDrawer(props: {
   threadRef: ScopedThreadRef;
   threadId: ThreadId;
   visible: boolean;
@@ -40,7 +40,11 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     newShortcutLabel,
     closeShortcutLabel,
   } = props;
-  const serverThread = useStore(useMemo(() => createThreadSelectorByRef(threadRef), [threadRef]));
+  const serverThreadSelector = useMemo(
+    () => createThreadSelectorByRef(threadRef),
+    [threadRef.environmentId, threadRef.threadId],
+  );
+  const serverThread = useStore(serverThreadSelector);
   const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
   const projectRef = serverThread
     ? serverThread.projectId === null
@@ -51,7 +55,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
         ? null
         : scopeProjectRef(draftThread.environmentId, draftThread.projectId)
       : null;
-  const project = useStore(useMemo(() => createProjectSelectorByRef(projectRef), [projectRef]));
+  const project = useStore(createProjectSelectorByRef(projectRef));
   const terminalState = useTerminalStateStore((state) =>
     selectThreadTerminalState(state.terminalStateByThreadKey, threadRef),
   );
@@ -62,94 +66,74 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   const storeCloseTerminal = useTerminalStateStore((state) => state.closeTerminal);
   const [localFocusRequestId, setLocalFocusRequestId] = useState(0);
   const worktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
-  const effectiveWorktreePath = useMemo(() => {
-    if (launchContext !== null) {
-      return launchContext.worktreePath;
-    }
-    return worktreePath;
-  }, [launchContext, worktreePath]);
-  const cwd = useMemo(
-    () =>
-      launchContext?.cwd ??
-      (project
-        ? projectScriptCwd({
-            project: { cwd: project.cwd },
-            worktreePath: effectiveWorktreePath,
-          })
-        : null),
-    [effectiveWorktreePath, launchContext?.cwd, project],
-  );
-  const runtimeEnv = useMemo(
-    () =>
-      project
-        ? projectScriptRuntimeEnv({
-            project: { cwd: project.cwd },
-            worktreePath: effectiveWorktreePath,
-          })
-        : {},
-    [effectiveWorktreePath, project],
-  );
+  const effectiveWorktreePath =
+    launchContext !== null ? launchContext.worktreePath : worktreePath;
+  const cwd =
+    launchContext?.cwd ??
+    (project
+      ? projectScriptCwd({
+          project: { cwd: project.cwd },
+          worktreePath: effectiveWorktreePath,
+        })
+      : null);
+  const runtimeEnv = project
+    ? projectScriptRuntimeEnv({
+        project: { cwd: project.cwd },
+        worktreePath: effectiveWorktreePath,
+      })
+    : {};
 
-  const bumpFocusRequestId = useCallback(() => {
+  const bumpFocusRequestId = () => {
     if (!visible) {
       return;
     }
     setLocalFocusRequestId((value) => value + 1);
-  }, [visible]);
+  };
 
-  const setTerminalHeight = useCallback(
-    (height: number) => {
-      storeSetTerminalHeight(threadRef, height);
-    },
-    [storeSetTerminalHeight, threadRef],
-  );
+  const setTerminalHeight = (height: number) => {
+    storeSetTerminalHeight(threadRef, height);
+  };
 
-  const splitTerminal = useCallback(() => {
+  const splitTerminal = () => {
     storeSplitTerminal(threadRef, `terminal-${randomUUID()}`);
     bumpFocusRequestId();
-  }, [bumpFocusRequestId, storeSplitTerminal, threadRef]);
+  };
 
-  const createNewTerminal = useCallback(() => {
+  const createNewTerminal = () => {
     storeNewTerminal(threadRef, `terminal-${randomUUID()}`);
     bumpFocusRequestId();
-  }, [bumpFocusRequestId, storeNewTerminal, threadRef]);
+  };
 
-  const activateTerminal = useCallback(
-    (terminalId: string) => {
-      storeSetActiveTerminal(threadRef, terminalId);
-      bumpFocusRequestId();
-    },
-    [bumpFocusRequestId, storeSetActiveTerminal, threadRef],
-  );
+  const activateTerminal = (terminalId: string) => {
+    storeSetActiveTerminal(threadRef, terminalId);
+    bumpFocusRequestId();
+  };
 
-  const closeTerminal = useCallback(
-    (terminalId: string) => {
-      const api = readEnvironmentApi(threadRef.environmentId as EnvironmentId);
-      if (!api) return;
-      const isFinalTerminal = terminalState.terminalIds.length <= 1;
-      const fallbackExitWrite = () =>
-        api.terminal.write({ threadId, terminalId, data: "exit\n" }).catch(() => undefined);
+  const closeTerminal = (terminalId: string) => {
+    const api = readEnvironmentApi(threadRef.environmentId);
+    if (!api) return;
+    const isFinalTerminal = terminalState.terminalIds.length <= 1;
+    const fallbackExitWrite = () =>
+      api.terminal.write({ threadId, terminalId, data: "exit\n" }).catch(() => undefined);
 
-      if ("close" in api.terminal && typeof api.terminal.close === "function") {
-        void (async () => {
-          if (isFinalTerminal) {
-            await api.terminal.clear({ threadId, terminalId }).catch(() => undefined);
-          }
-          await api.terminal.close({
-            threadId,
-            terminalId,
-            deleteHistory: true,
-          });
-        })().catch(() => fallbackExitWrite());
-      } else {
-        void fallbackExitWrite();
-      }
+    if ("close" in api.terminal && typeof api.terminal.close === "function") {
+      void (async () => {
+        if (isFinalTerminal) {
+          await api.terminal.clear({ threadId, terminalId }).catch(() => undefined);
+        }
+        await api.terminal.close({
+          threadId,
+          terminalId,
+          deleteHistory: true,
+        });
+      })().catch(() => fallbackExitWrite());
+    } else {
+      void fallbackExitWrite();
+    }
 
-      storeCloseTerminal(threadRef, terminalId);
-      bumpFocusRequestId();
-    },
-    [bumpFocusRequestId, storeCloseTerminal, terminalState.terminalIds.length, threadId, threadRef],
-  );
+    storeCloseTerminal(threadRef, terminalId);
+    bumpFocusRequestId();
+  };
 
   if (!project || !terminalState.terminalOpen || !cwd) {
     return null;
@@ -181,4 +165,4 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
       />
     </div>
   );
-});
+}

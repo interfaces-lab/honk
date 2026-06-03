@@ -1,7 +1,7 @@
 "use client";
 
 import { Toast } from "@base-ui/react/toast";
-import { useMemo, type CSSProperties } from "react";
+import { type CSSProperties } from "react";
 import { useParams } from "@tanstack/react-router";
 import { type ScopedThreadRef, type ThreadId } from "@multi/contracts";
 import {
@@ -147,26 +147,22 @@ interface ToastProviderProps extends Toast.Provider.Props {
 }
 
 function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
-  const routeTarget = useParams({
-    strict: false,
-    select: (params) => resolveThreadRouteTarget(params),
-  });
+  const routeParams = useParams({ strict: false });
+  const routeTarget = resolveThreadRouteTarget(routeParams);
   const activeDraftSession = useComposerDraftStore((store) =>
     routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );
 
-  return useMemo(() => {
-    if (routeTarget?.kind === "server") {
-      return routeTarget.threadRef;
-    }
-    if (routeTarget?.kind === "draft" && activeDraftSession) {
-      return {
-        environmentId: activeDraftSession.environmentId,
-        threadId: activeDraftSession.threadId,
-      };
-    }
-    return null;
-  }, [activeDraftSession, routeTarget]);
+  if (routeTarget?.kind === "server") {
+    return routeTarget.threadRef;
+  }
+  if (routeTarget?.kind === "draft" && activeDraftSession) {
+    return {
+      environmentId: activeDraftSession.environmentId,
+      threadId: activeDraftSession.threadId,
+    };
+  }
+  return null;
 }
 
 function ThreadToastVisibleAutoDismiss({

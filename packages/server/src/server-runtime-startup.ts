@@ -1,9 +1,8 @@
 import {
   CommandId,
   DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_AGENT_INTERACTION_MODE,
   type ModelSelection,
-  ProviderInstanceId,
   ProjectId,
   ThreadId,
 } from "@multi/contracts";
@@ -34,7 +33,6 @@ import { ServerSettingsService } from "./server-settings";
 import { ServerEnvironment } from "./environment/ServerEnvironment.service";
 import { AnalyticsService } from "./telemetry/AnalyticsService.service";
 import { ServerAuth } from "./auth/ServerAuth.service";
-import { ProviderSessionReaper } from "./provider/ProviderSessionReaper.service";
 import {
   formatHeadlessServeOutput,
   formatHostForUrl,
@@ -230,7 +228,6 @@ export const archiveThreadsForInaccessibleProjectRoots = Effect.gen(function* ()
 
 export const getAutoBootstrapDefaultModelSelection = (): ModelSelection => ({
   ...DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  instanceId: ProviderInstanceId.make(DEFAULT_TEXT_GENERATION_MODEL_SELECTION.instanceId),
 });
 
 export const resolveWelcomeBase = Effect.gen(function* () {
@@ -298,7 +295,7 @@ export const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
           projectId: nextProjectId,
           title: "New thread",
           modelSelection: nextProjectDefaultModelSelection,
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          interactionMode: DEFAULT_AGENT_INTERACTION_MODE,
           runtimeMode: "full-access",
           branch: null,
           worktreePath: null,
@@ -362,7 +359,6 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
   const keybindings = yield* Keybindings;
   const orchestrationReactor = yield* OrchestrationReactor;
-  const providerSessionReaper = yield* ProviderSessionReaper;
   const lifecycleEvents = yield* ServerLifecycleEvents;
   const serverSettings = yield* ServerSettingsService;
   const serverEnvironment = yield* ServerEnvironment;
@@ -409,7 +405,6 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
       "reactors.start",
       Effect.gen(function* () {
         yield* orchestrationReactor.start().pipe(Scope.provide(reactorScope));
-        yield* providerSessionReaper.start().pipe(Scope.provide(reactorScope));
       }),
     );
 

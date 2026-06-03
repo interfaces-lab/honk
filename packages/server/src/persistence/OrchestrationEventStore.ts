@@ -67,18 +67,8 @@ const READ_PAGE_SIZE = 500;
 function inferActorKind(
   event: Omit<OrchestrationEvent, "sequence">,
 ): Schema.Schema.Type<typeof OrchestrationActorKind> {
-  if (event.commandId !== null && event.commandId.startsWith("provider:")) {
-    return "provider";
-  }
   if (event.commandId !== null && event.commandId.startsWith("server:")) {
     return "server";
-  }
-  if (
-    event.metadata.providerTurnId !== undefined ||
-    event.metadata.providerItemId !== undefined ||
-    event.metadata.adapterKey !== undefined
-  ) {
-    return "provider";
   }
   if (event.commandId === null) {
     return "server";

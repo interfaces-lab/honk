@@ -1,12 +1,10 @@
-import { memo } from "react";
-
 import { cn } from "~/lib/utils";
 
 export function hasNonZeroStat(stat: { additions: number; deletions: number }): boolean {
   return stat.additions > 0 || stat.deletions > 0;
 }
 
-export const DiffStatLabel = memo(function DiffStatLabel(props: {
+export function DiffStatLabel(props: {
   additions: number;
   className?: string;
   deletions: number;
@@ -21,4 +19,4 @@ export const DiffStatLabel = memo(function DiffStatLabel(props: {
       {props.showParentheses && <span className="text-multi-fg-quaternary">)</span>}
     </span>
   );
-});
+}

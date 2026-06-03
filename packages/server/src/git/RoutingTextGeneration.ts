@@ -3,7 +3,6 @@ import { Effect, Layer, Context } from "effect";
 import { TextGeneration, type TextGenerationShape } from "./TextGeneration.service.ts";
 import { ClaudeTextGenerationLive } from "./ClaudeTextGeneration.ts";
 import { CodexTextGenerationLive } from "./CodexTextGeneration.ts";
-import { CursorTextGenerationLive } from "./CursorTextGeneration.ts";
 
 // ---------------------------------------------------------------------------
 // Internal service tags so both concrete layers can coexist.
@@ -17,10 +16,6 @@ class ClaudeTextGen extends Context.Service<ClaudeTextGen, TextGenerationShape>(
   "t3/git/RoutingTextGeneration/ClaudeTextGen",
 ) {}
 
-class CursorTextGen extends Context.Service<CursorTextGen, TextGenerationShape>()(
-  "t3/git/RoutingTextGeneration/CursorTextGen",
-) {}
-
 // ---------------------------------------------------------------------------
 // Routing implementation
 // ---------------------------------------------------------------------------
@@ -29,7 +24,6 @@ const makeRoutingTextGeneration = Effect.gen(function* () {
   const byInstanceId = {
     codex: yield* CodexTextGen,
     claudeAgent: yield* ClaudeTextGen,
-    cursor: yield* CursorTextGen,
   };
   const resolve = (instanceId: string): TextGenerationShape =>
     byInstanceId[instanceId as keyof typeof byInstanceId] ?? byInstanceId.codex;
@@ -61,19 +55,10 @@ const InternalClaudeLayer = Layer.effect(
   }),
 ).pipe(Layer.provide(ClaudeTextGenerationLive));
 
-const InternalCursorLayer = Layer.effect(
-  CursorTextGen,
-  Effect.gen(function* () {
-    const svc = yield* TextGeneration;
-    return svc;
-  }),
-).pipe(Layer.provide(CursorTextGenerationLive));
-
 export const RoutingTextGenerationLive = Layer.effect(
   TextGeneration,
   makeRoutingTextGeneration,
 ).pipe(
   Layer.provide(InternalCodexLayer),
   Layer.provide(InternalClaudeLayer),
-  Layer.provide(InternalCursorLayer),
 );

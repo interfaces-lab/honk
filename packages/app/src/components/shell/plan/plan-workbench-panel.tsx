@@ -25,7 +25,7 @@ import {
   IconPencilLine,
 } from "central-icons";
 import { WorkbenchIconButton } from "@multi/ui/workbench-button";
-import { memo, type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { toastManager } from "~/app/toast";
@@ -75,7 +75,7 @@ export interface PlanWorkbenchPanelProps {
   onSaveProposedPlan?: ((nextMarkdown: string) => Promise<boolean>) | undefined;
 }
 
-export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
+export function PlanWorkbenchPanel({
   activePlan,
   activeProposedPlan,
   environmentId,
@@ -267,7 +267,7 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
       </div>
     </div>
   );
-});
+}
 
 function PlanActions(props: {
   environmentId: EnvironmentId | null;

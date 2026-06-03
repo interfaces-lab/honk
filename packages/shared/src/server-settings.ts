@@ -68,14 +68,7 @@ export function applyServerSettingsPatch(
   patch: ServerSettingsPatch,
 ): ServerSettings {
   const selectionPatch = patch.textGenerationModelSelection;
-  const { providerInstances, ...patchWithoutProviderInstances } = patch;
-  const next =
-    providerInstances !== undefined
-      ? {
-          ...deepMerge(current, patchWithoutProviderInstances),
-          providerInstances,
-        }
-      : deepMerge(current, patch);
+  const next = deepMerge(current, patch);
   if (!selectionPatch) {
     return next;
   }

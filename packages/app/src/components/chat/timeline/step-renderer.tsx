@@ -1,6 +1,6 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
 import { IconChevronRightMedium } from "central-icons";
-import { memo, useCallback, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { formatDuration } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
@@ -43,7 +43,7 @@ export interface StepRendererContext {
   onImageExpand: (preview: ExpandedImagePreview) => void;
 }
 
-export const StepRenderer = memo(function StepRenderer({
+export function StepRenderer({
   step,
   editUserMessagesDisabled,
   isEditingUserMessage = false,
@@ -74,9 +74,9 @@ export const StepRenderer = memo(function StepRenderer({
     case "waiting":
       return <WaitingStepRenderer step={step} />;
   }
-});
+}
 
-export const GroupedStepsRenderer = memo(function GroupedStepsRenderer({
+export function GroupedStepsRenderer({
   row,
   expanded,
   onToggleExpanded,
@@ -99,9 +99,9 @@ export const GroupedStepsRenderer = memo(function GroupedStepsRenderer({
       ? summary.action
       : `Worked for ${formatDuration(row.durationMs)}`;
   const contentId = `timeline-work-group:${row.id}`;
-  const handleToggle = useCallback(() => {
+  const handleToggle = () => {
     onToggleExpanded(row.id);
-  }, [onToggleExpanded, row.id]);
+  };
 
   return (
     <div
@@ -144,7 +144,9 @@ export const GroupedStepsRenderer = memo(function GroupedStepsRenderer({
       <div id={contentId} className="contents">
         {expanded ? (
           <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
-            {!isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
+            {!isCommandGroup && !isThinkingGroup ? (
+              <WorkGroupSummaryLine summary={summary} />
+            ) : null}
             {row.steps.map((step) => (
               <StepRenderer
                 key={`work-row:${step.id}`}
@@ -160,7 +162,7 @@ export const GroupedStepsRenderer = memo(function GroupedStepsRenderer({
       </div>
     </div>
   );
-});
+}
 
 function MessageStepRenderer({
   step,
@@ -250,7 +252,7 @@ function WorkGroupSummaryLine({ summary }: { summary: WorkGroupSummary }) {
   );
 }
 
-const WorkGroupPreview = memo(function WorkGroupPreview({
+function WorkGroupPreview({
   row,
   onExpand,
   ctx,
@@ -286,9 +288,9 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
     return () => observer.disconnect();
   }, []);
 
-  const onPreviewClick = useCallback(() => {
+  const onPreviewClick = () => {
     onExpand();
-  }, [onExpand]);
+  };
 
   return (
     <div
@@ -319,7 +321,7 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
       ))}
     </div>
   );
-});
+}
 
 function updatePreviewScrollable(host: HTMLDivElement): void {
   const scrollable = host.scrollHeight > host.clientHeight + 1;

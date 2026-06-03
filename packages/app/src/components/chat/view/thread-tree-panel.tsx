@@ -1,4 +1,3 @@
-import { memo, useMemo } from "react";
 import { IconBranch, IconCircleCheck } from "central-icons";
 import { flattenThreadEntryTree, formatThreadEntryPathIssue } from "@multi/contracts";
 
@@ -36,18 +35,14 @@ function entryRoleLabel(thread: Thread, entry: ThreadTreeEntry): string {
   return "System";
 }
 
-export const ThreadTreePanel = memo(function ThreadTreePanel({
+export function ThreadTreePanel({
   thread,
   variant = "aside",
 }: ThreadTreePanelProps) {
-  const tree = useMemo(
-    () =>
-      flattenThreadEntryTree({
-        entries: thread.entries,
-        leafId: thread.leafId,
-      }),
-    [thread.entries, thread.leafId],
-  );
+  const tree = flattenThreadEntryTree({
+    entries: thread.entries,
+    leafId: thread.leafId,
+  });
   const activePath = tree.nodes.filter((node) => node.isActivePath);
   const rootClassName =
     variant === "panel"
@@ -164,4 +159,4 @@ export const ThreadTreePanel = memo(function ThreadTreePanel({
       )}
     </aside>
   );
-});
+}

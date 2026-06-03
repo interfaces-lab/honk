@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import { isElectron } from "../env";
 import { applyAppearanceBoot } from "../lib/appearance-settings";
@@ -228,12 +228,12 @@ export function useTheme() {
   const resolvedTheme: "light" | "dark" =
     theme === "system" ? (snapshot.systemDark ? "dark" : "light") : theme;
 
-  const setTheme = useCallback((next: Theme) => {
+  const setTheme = (next: Theme) => {
     if (!hasThemeStorage()) return;
     localStorage.setItem(STORAGE_KEY, next);
     applyTheme(next, true);
     emitChange();
-  }, []);
+  };
 
   return { theme, setTheme, resolvedTheme } as const;
 }

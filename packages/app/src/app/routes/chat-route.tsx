@@ -1,9 +1,8 @@
 import { Outlet } from "@tanstack/react-router";
-import { useEffectEvent } from "react";
+import { useEffect } from "react";
 
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import { useHandleNewThread } from "~/hooks/use-handle-new-thread";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 import { ShellHost } from "~/components/shell-host";
 import {
   startNewLocalThreadFromContext,
@@ -29,62 +28,68 @@ function ChatRouteGlobalShortcuts() {
   );
   const defaultThreadEnvMode = useSettings((settings) => settings.defaultThreadEnvMode);
 
-  const handleWindowKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented) return;
-    const command = resolveShortcutCommand(event, keybindings, {
-      context: {
-        terminalFocus: isTerminalFocused(),
-        terminalOpen,
-        threadSelectionActive: selectedThreadKeysSize > 0,
-      },
-    });
-
-    if (useCommandPaletteStore.getState().open) {
-      return;
-    }
-
-    if (command === "threadSelection.clear" && selectedThreadKeysSize > 0) {
-      event.preventDefault();
-      clearSelection();
-      return;
-    }
-
-    if (command === "chat.newLocal") {
-      event.preventDefault();
-      event.stopPropagation();
-      void startNewLocalThreadFromContext({
-        activeDraftThread,
-        activeThread,
-        defaultProjectRef,
-        defaultThreadEnvMode,
-        handleNewThread,
-      });
-      return;
-    }
-
-    if (command === "chat.new") {
-      event.preventDefault();
-      event.stopPropagation();
-      void startNewThreadFromContext({
-        activeDraftThread,
-        activeThread,
-        defaultProjectRef,
-        defaultThreadEnvMode,
-        handleNewThread,
-      });
-    }
-  });
-
-  useMountEffect(() => {
+  useEffect(() => {
     const onWindowKeyDown = (event: KeyboardEvent) => {
-      handleWindowKeyDown(event);
+      if (event.defaultPrevented) return;
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: {
+          terminalFocus: isTerminalFocused(),
+          terminalOpen,
+          threadSelectionActive: selectedThreadKeysSize > 0,
+        },
+      });
+
+      if (useCommandPaletteStore.getState().open) {
+        return;
+      }
+
+      if (command === "threadSelection.clear" && selectedThreadKeysSize > 0) {
+        event.preventDefault();
+        clearSelection();
+        return;
+      }
+
+      if (command === "chat.newLocal") {
+        event.preventDefault();
+        event.stopPropagation();
+        void startNewLocalThreadFromContext({
+          activeDraftThread,
+          activeThread,
+          defaultProjectRef,
+          defaultThreadEnvMode,
+          handleNewThread,
+        });
+        return;
+      }
+
+      if (command === "chat.new") {
+        event.preventDefault();
+        event.stopPropagation();
+        void startNewThreadFromContext({
+          activeDraftThread,
+          activeThread,
+          defaultProjectRef,
+          defaultThreadEnvMode,
+          handleNewThread,
+        });
+      }
     };
 
     window.addEventListener("keydown", onWindowKeyDown);
     return () => {
       window.removeEventListener("keydown", onWindowKeyDown);
     };
-  });
+  }, [
+    activeDraftThread,
+    activeThread,
+    clearSelection,
+    defaultProjectRef,
+    defaultThreadEnvMode,
+    handleNewThread,
+    keybindings,
+    selectedThreadKeysSize,
+    terminalOpen,
+  ]);
 
   return null;
 }

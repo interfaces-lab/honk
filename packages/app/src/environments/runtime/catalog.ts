@@ -1,4 +1,4 @@
-import { getKnownEnvironmentHttpBaseUrl } from "@multi/client-runtime";
+import { getKnownEnvironmentHttpBaseUrl } from "~/lib/environment-scope";
 import type { EnvironmentId } from "@multi/contracts";
 
 import { getPrimaryKnownEnvironment } from "../primary";

@@ -3,17 +3,18 @@ import {
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
-} from "@multi/client-runtime";
+} from "~/lib/environment-scope";
 import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@multi/contracts";
 import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { useNewThreadHandler } from "./use-handle-new-thread";
-import { ensureEnvironmentApi, readEnvironmentApi } from "../environment-api";
+import { readEnvironmentApi } from "../environment-api";
 import { invalidateGitQueries } from "../lib/git-react-query";
+import { ensureEnvironmentGitApi } from "../lib/environment-git-api";
 import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
 import { newCommandId } from "../lib/utils";
 import { readLocalApi } from "../local-api";
@@ -141,6 +142,54 @@ function enqueueArchiveUndoToast(
   archiveToastTimer = setTimeout(resetArchiveToastBatch, archiveToastBatchWindowMs);
 }
 
+function resolveThreadTarget(target: ScopedThreadRef) {
+  const state = useStore.getState();
+  const thread = selectThreadByRef(state, target);
+  if (!thread) {
+    return null;
+  }
+  return {
+    thread,
+    threadRef: target,
+  };
+}
+
+async function commitRename(
+  target: ScopedThreadRef,
+  newTitle: string,
+  originalTitle: string,
+): Promise<void> {
+  const trimmed = newTitle.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Thread title cannot be empty");
+  }
+  if (trimmed === originalTitle) {
+    return;
+  }
+
+  const api = readEnvironmentApi(target.environmentId);
+  if (!api) {
+    return;
+  }
+
+  await api.orchestration.dispatchCommand({
+    type: "thread.meta.update",
+    commandId: newCommandId(),
+    threadId: target.threadId,
+    title: trimmed,
+  });
+}
+
+async function unarchiveThread(target: ScopedThreadRef): Promise<void> {
+  const api = readEnvironmentApi(target.environmentId);
+  if (!api) return;
+  await api.orchestration.dispatchCommand({
+    type: "thread.unarchive",
+    commandId: newCommandId(),
+    threadId: target.threadId,
+  });
+}
+
 export function useThreadActions() {
   const sidebarThreadSortOrder = useSettings((settings) => settings.sidebarThreadSortOrder);
   const confirmThreadDelete = useSettings((settings) => settings.confirmThreadDelete);
@@ -159,78 +208,28 @@ export function useThreadActions() {
   handleNewThreadRef.current = handleNewThread;
   const queryClient = useQueryClient();
 
-  const resolveThreadTarget = useCallback((target: ScopedThreadRef) => {
-    const state = useStore.getState();
-    const thread = selectThreadByRef(state, target);
-    if (!thread) {
-      return null;
-    }
-    return {
-      thread,
-      threadRef: target,
-    };
-  }, []);
-  const getCurrentRouteTarget = useCallback(() => {
+  const getCurrentRouteTarget = () => {
     const currentRouteParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
     return resolveThreadRouteTarget(currentRouteParams);
-  }, [router]);
-  const getCurrentRouteThreadRef = useCallback(() => {
+  };
+  const getCurrentRouteThreadRef = () => {
     const target = getCurrentRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;
-  }, [getCurrentRouteTarget]);
+  };
 
-  const commitRename = useCallback(
-    async (target: ScopedThreadRef, newTitle: string, originalTitle: string) => {
-      const trimmed = newTitle.trim();
-      if (trimmed.length === 0) {
-        throw new Error("Thread title cannot be empty");
-      }
-      if (trimmed === originalTitle) {
-        return;
-      }
-
-      const api = readEnvironmentApi(target.environmentId);
-      if (!api) {
-        return;
-      }
-
-      await api.orchestration.dispatchCommand({
-        type: "thread.meta.update",
-        commandId: newCommandId(),
-        threadId: target.threadId,
-        title: trimmed,
-      });
-    },
-    [],
-  );
-
-  const unarchiveThread = useCallback(async (target: ScopedThreadRef) => {
-    const api = readEnvironmentApi(target.environmentId);
-    if (!api) return;
-    await api.orchestration.dispatchCommand({
-      type: "thread.unarchive",
-      commandId: newCommandId(),
-      threadId: target.threadId,
-    });
-  }, []);
-
-  const undoArchiveThreads = useCallback(
-    (targets: readonly ScopedThreadRef[]) => {
-      for (const target of targets) {
-        void unarchiveThread(target).catch((error) => {
-          toastManager.add({
-            type: "error",
-            title: "Failed to restore archived agent",
-            description: formatSchemaBackedTransportErrorDescription(error, "An error occurred."),
-          });
+  const undoArchiveThreads = (targets: readonly ScopedThreadRef[]) => {
+    for (const target of targets) {
+      void unarchiveThread(target).catch((error) => {
+        toastManager.add({
+          type: "error",
+          title: "Failed to restore archived agent",
+          description: formatSchemaBackedTransportErrorDescription(error, "An error occurred."),
         });
-      }
-    },
-    [unarchiveThread],
-  );
+      });
+    }
+  };
 
-  const archiveThread = useCallback(
-    async (target: ScopedThreadRef) => {
+  const archiveThread = async (target: ScopedThreadRef) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
       const resolved = resolveThreadTarget(target);
@@ -255,12 +254,9 @@ export function useThreadActions() {
         }
         await handleNewThreadRef.current(scopeProjectRef(thread.environmentId, thread.projectId));
       }
-    },
-    [getCurrentRouteThreadRef, resolveThreadTarget, router, undoArchiveThreads],
-  );
+  };
 
-  const archiveThreads = useCallback(
-    async (targets: readonly ScopedThreadRef[]) => {
+  const archiveThreads = async (targets: readonly ScopedThreadRef[]) => {
       const state = useStore.getState();
       const targetByKey = new Map<string, ScopedThreadRef>();
       for (const target of targets) {
@@ -353,12 +349,9 @@ export function useThreadActions() {
       }
 
       await router.navigate({ to: "/", replace: true });
-    },
-    [getCurrentRouteThreadRef, router, sidebarThreadSortOrder, undoArchiveThreads],
-  );
+  };
 
-  const removeProjectFromSidebar = useCallback(
-    async (target: ScopedProjectRef) => {
+  const removeProjectFromSidebar = async (target: ScopedProjectRef) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
 
@@ -405,12 +398,12 @@ export function useThreadActions() {
       }
 
       await router.navigate({ to: "/", replace: true });
-    },
-    [getCurrentRouteTarget, router],
-  );
+  };
 
-  const deleteThread = useCallback(
-    async (target: ScopedThreadRef, opts: { deletedThreadKeys?: ReadonlySet<string> } = {}) => {
+  const deleteThread = async (
+    target: ScopedThreadRef,
+    opts: { deletedThreadKeys?: ReadonlySet<string> } = {},
+  ) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
       const resolved = resolveThreadTarget(target);
@@ -528,7 +521,7 @@ export function useThreadActions() {
       }
 
       try {
-        await ensureEnvironmentApi(threadRef.environmentId).git.removeWorktree({
+        await ensureEnvironmentGitApi(threadRef.environmentId).removeWorktree({
           cwd: threadProject.cwd,
           path: orphanedWorktreePath,
           force: true,
@@ -553,21 +546,9 @@ export function useThreadActions() {
           description: `Could not remove ${displayWorktreePath ?? orphanedWorktreePath}. ${message}`,
         });
       }
-    },
-    [
-      clearComposerDraftForThread,
-      clearProjectDraftThreadById,
-      clearTerminalState,
-      getCurrentRouteThreadRef,
-      router,
-      queryClient,
-      resolveThreadTarget,
-      sidebarThreadSortOrder,
-    ],
-  );
+  };
 
-  const confirmAndDeleteThread = useCallback(
-    async (target: ScopedThreadRef) => {
+  const confirmAndDeleteThread = async (target: ScopedThreadRef) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
       const localApi = readLocalApi();
@@ -588,9 +569,7 @@ export function useThreadActions() {
       }
 
       await deleteThread(target);
-    },
-    [confirmThreadDelete, deleteThread, resolveThreadTarget],
-  );
+  };
 
   return {
     commitRename,

@@ -300,9 +300,8 @@ const makeOrchestrationEngine = Effect.gen(function* () {
     getReadModel,
     readEvents,
     dispatch,
-    // Each access creates a fresh PubSub subscription so that multiple
-    // consumers (wsServer, ProviderRuntimeIngestion, etc.)
-    // each independently receive all domain events.
+    // Each access creates a fresh PubSub subscription so independent consumers
+    // each receive all domain events.
     get streamDomainEvents(): OrchestrationEngineShape["streamDomainEvents"] {
       return Stream.fromPubSub(eventPubSub);
     },

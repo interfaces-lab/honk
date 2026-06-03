@@ -128,6 +128,8 @@ function getEventUpdatedAt(event: OrchestrationShellStreamEvent): string {
     case "project-removed":
     case "thread-removed":
       return new Date().toISOString();
+    default:
+      return new Date().toISOString();
   }
 }
 
@@ -162,6 +164,10 @@ function applyShellStreamEventToSnapshot(
         ...baseSnapshot,
         threads: snapshot.threads.filter((thread) => thread.id !== event.threadId),
       };
+    default: {
+      const _exhaustive: never = event;
+      return _exhaustive;
+    }
   }
 }
 

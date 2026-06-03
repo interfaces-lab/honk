@@ -1,8 +1,7 @@
-import { memo } from "react";
 import { Alert, AlertAction, AlertDescription } from "@multi/ui/alert";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 
-export const ThreadErrorBanner = memo(function ThreadErrorBanner({
+export function ThreadErrorBanner({
   error,
   onDismiss,
 }: {
@@ -32,4 +31,4 @@ export const ThreadErrorBanner = memo(function ThreadErrorBanner({
       </Alert>
     </div>
   );
-});
+}

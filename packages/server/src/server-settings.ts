@@ -12,12 +12,6 @@
  */
 import {
   DEFAULT_SERVER_SETTINGS,
-  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  defaultInstanceIdForDriver,
-  isProviderDriverKind,
-  type ModelSelection,
-  type ProviderInstanceConfig,
-  ProviderInstanceId,
   ServerSettings,
   ServerSettingsError,
   type ServerSettingsPatch,
@@ -47,10 +41,6 @@ import { ServerConfig } from "./config.ts";
 import { type DeepPartial, deepMerge } from "@multi/shared/Struct";
 import { fromLenientJson } from "@multi/shared/schema-json";
 import { applyServerSettingsPatch } from "@multi/shared/server-settings";
-import {
-  CANONICAL_PROVIDER_DRIVER_ORDER,
-  resolveProviderEnabled,
-} from "./provider/provider-settings.ts";
 
 const decodeServerSettings = Schema.decodeEffect(ServerSettings);
 
@@ -112,112 +102,7 @@ export class ServerSettingsService extends Context.Service<
 }
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
-const UnknownSettingsJson = fromLenientJson(Schema.Unknown);
-const decodeServerSettingsUnknownExit = Schema.decodeUnknownExit(ServerSettings);
 const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson);
-const decodeUnknownSettingsJsonExit = Schema.decodeUnknownExit(UnknownSettingsJson);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function pruneUnsupportedProviderInstances(input: unknown): {
-  readonly settings: unknown;
-  readonly removedInstanceIds: ReadonlyArray<string>;
-} {
-  if (!isRecord(input) || !isRecord(input.providerInstances)) {
-    return { settings: input, removedInstanceIds: [] };
-  }
-
-  const nextProviderInstances: Record<string, unknown> = {};
-  const removedInstanceIds: Array<string> = [];
-
-  for (const [instanceId, instanceConfig] of Object.entries(input.providerInstances)) {
-    if (!isRecord(instanceConfig) || !isProviderDriverKind(instanceConfig.driver)) {
-      removedInstanceIds.push(instanceId);
-      continue;
-    }
-    nextProviderInstances[instanceId] = instanceConfig;
-  }
-
-  if (removedInstanceIds.length === 0) {
-    return { settings: input, removedInstanceIds };
-  }
-
-  const nextSettings = { ...input };
-  if (Object.keys(nextProviderInstances).length > 0) {
-    nextSettings.providerInstances = nextProviderInstances;
-  } else {
-    delete nextSettings.providerInstances;
-  }
-
-  return {
-    settings: nextSettings,
-    removedInstanceIds,
-  };
-}
-
-/**
- * Ensure the `textGenerationModelSelection` points to an enabled provider.
- * If the selected provider is disabled, fall back to the first enabled
- * provider with its default model.  This is applied at read-time so the
- * persisted preference is preserved for when a provider is re-enabled.
- */
-function resolveTextGenerationProvider(settings: ServerSettings): ServerSettings {
-  const selection = settings.textGenerationModelSelection;
-  const instanceConfig: ProviderInstanceConfig | undefined =
-    settings.providerInstances[selection.instanceId];
-  if (instanceConfig !== undefined) {
-    return (instanceConfig.enabled ?? true) ? settings : fallbackTextGenerationProvider(settings);
-  }
-
-  if (
-    isProviderDriverKind(selection.instanceId) &&
-    resolveProviderEnabled({
-      settings,
-      driver: selection.instanceId,
-      instanceId: ProviderInstanceId.make(selection.instanceId),
-    })
-  ) {
-    return settings;
-  }
-
-  return fallbackTextGenerationProvider(settings);
-}
-
-function fallbackTextGenerationProvider(settings: ServerSettings): ServerSettings {
-  for (const driver of CANONICAL_PROVIDER_DRIVER_ORDER) {
-    const instanceId = defaultInstanceIdForDriver(driver);
-    if (!resolveProviderEnabled({ settings, driver, instanceId })) {
-      continue;
-    }
-    return {
-      ...settings,
-      textGenerationModelSelection: {
-        instanceId,
-        model: settings.textGenerationModelSelection.model,
-      } satisfies ModelSelection,
-    };
-  }
-
-  for (const [rawInstanceId, instance] of Object.entries(settings.providerInstances)) {
-    if (instance.enabled === false) {
-      continue;
-    }
-    return {
-      ...settings,
-      textGenerationModelSelection: {
-        instanceId: ProviderInstanceId.make(rawInstanceId),
-        model: settings.textGenerationModelSelection.model,
-      } satisfies ModelSelection,
-    };
-  }
-
-  return {
-    ...settings,
-    textGenerationModelSelection: DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  };
-}
 
 // Values under these keys are compared as a whole — never stripped field-by-field.
 const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set(["textGenerationModelSelection"]);
@@ -324,29 +209,6 @@ const makeServerSettings = Effect.gen(function* () {
       return decoded.value;
     }
 
-    const parsed = decodeUnknownSettingsJsonExit(raw);
-    if (parsed._tag === "Success") {
-      const pruned = pruneUnsupportedProviderInstances(parsed.value);
-      if (pruned.removedInstanceIds.length > 0) {
-        const repaired = decodeServerSettingsUnknownExit(pruned.settings);
-        if (repaired._tag === "Success") {
-          yield* Effect.logWarning("pruned unsupported provider instances from settings.json", {
-            path: settingsPath,
-            providerInstanceIds: pruned.removedInstanceIds,
-          });
-          yield* writeSettingsAtomically(repaired.value).pipe(
-            Effect.catch((cause) =>
-              Effect.logWarning("failed to persist pruned settings.json", {
-                path: settingsPath,
-                cause,
-              }),
-            ),
-          );
-          return repaired.value;
-        }
-      }
-    }
-
     yield* Effect.logWarning("failed to parse settings.json, using defaults", {
       path: settingsPath,
       issues: Cause.pretty(decoded.cause),
@@ -432,7 +294,7 @@ const makeServerSettings = Effect.gen(function* () {
   return {
     start,
     ready: Deferred.await(startedDeferred),
-    getSettings: getSettingsFromCache.pipe(Effect.map(resolveTextGenerationProvider)),
+    getSettings: getSettingsFromCache,
     updateSettings: (patch) =>
       writeSemaphore.withPermits(1)(
         Effect.gen(function* () {
@@ -450,11 +312,11 @@ const makeServerSettings = Effect.gen(function* () {
           yield* writeSettingsAtomically(next);
           yield* Cache.set(settingsCache, cacheKey, next);
           yield* emitChange(next);
-          return resolveTextGenerationProvider(next);
+          return next;
         }),
       ),
     get streamChanges() {
-      return Stream.fromPubSub(changesPubSub).pipe(Stream.map(resolveTextGenerationProvider));
+      return Stream.fromPubSub(changesPubSub);
     },
   } satisfies ServerSettingsShape;
 });

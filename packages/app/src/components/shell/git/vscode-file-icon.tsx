@@ -1,5 +1,5 @@
 import { IconFileBend } from "central-icons";
-import { memo, useMemo, useState } from "react";
+import { useState } from "react";
 
 import associations from "../../../vscode-icons-language-associations.json";
 import manifest from "../../../vscode-icons-manifest.json";
@@ -56,12 +56,12 @@ function vscodeIconHref(filePath: string): string {
   return `/vscode-icons/${name}`;
 }
 
-export const VsFileIcon = memo(function VsFileIcon(props: {
+export function VsFileIcon(props: {
   path: string;
   className?: string;
   errored?: boolean;
 }) {
-  const href = useMemo(() => vscodeIconHref(props.path), [props.path]);
+  const href = vscodeIconHref(props.path);
   const [broken, setBroken] = useState(false);
 
   if (broken) {
@@ -86,4 +86,4 @@ export const VsFileIcon = memo(function VsFileIcon(props: {
       onError={() => setBroken(true)}
     />
   );
-});
+}

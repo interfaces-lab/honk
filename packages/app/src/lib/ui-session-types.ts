@@ -3,8 +3,8 @@ import type { OrchestrationSessionStatus } from "@multi/contracts";
 /**
  * UI session types (formerly in @multi/contracts).
  *
- * Types that already exist in @multi/contracts (ProviderDriverKind, ThreadId,
- * ModelSelection, ProviderInteractionMode, etc.) are NOT duplicated here --
+ * Types that already exist in @multi/contracts (ThreadId, ModelSelection,
+ * AgentInteractionMode, etc.) are NOT duplicated here --
  * import those directly from @multi/contracts.
  */
 
@@ -274,7 +274,6 @@ export interface HarnessModelRef {
 }
 
 export interface HarnessCapabilities {
-  modelPicker: boolean;
   thinkingLevels: boolean;
   commands: boolean;
   interactive: boolean;
@@ -357,15 +356,3 @@ export interface GitState {
   behind: number;
   files: GitFileSummary[];
 }
-
-// ── Provider notice ──────────────────────────────────────────────────
-
-export const PROVIDER_NOTICE_KIND = {
-  rateLimit: "provider.notice.rate-limit",
-  auth: "provider.notice.auth",
-  config: "provider.notice.config",
-} as const;
-
-export type ProviderNoticeKind = (typeof PROVIDER_NOTICE_KIND)[keyof typeof PROVIDER_NOTICE_KIND];
-
-export const PROVIDER_NOTICE_KINDS = Object.values(PROVIDER_NOTICE_KIND);

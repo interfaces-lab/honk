@@ -14,11 +14,9 @@ import {
 } from "central-icons";
 import { cva } from "class-variance-authority";
 import {
-  memo,
   type ComponentPropsWithoutRef,
   type ComponentType,
   type ReactNode,
-  useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -214,7 +212,7 @@ const editToolCallFilenameVariants = cva(
   },
 );
 
-export const ThinkingStatus = memo(function ThinkingStatus({
+export function ThinkingStatus({
   task,
   active,
   wrap = false,
@@ -229,9 +227,9 @@ export const ThinkingStatus = memo(function ThinkingStatus({
       <span className={thinkingStatusTaskVariants({ active, wrap })}>{task}</span>
     </div>
   );
-});
+}
 
-export const ToolCallRenderer = memo(function ToolCallRenderer({
+export function ToolCallRenderer({
   toolCall,
   callId,
   loading = false,
@@ -378,7 +376,7 @@ export const ToolCallRenderer = memo(function ToolCallRenderer({
         />
       );
   }
-});
+}
 
 function getCommandMetadataItems(artifact: ToolCommandArtifact | undefined): string[] {
   if (!artifact) {
@@ -523,7 +521,7 @@ interface ToolCallLineProps {
   linkable?: boolean | undefined;
 }
 
-export const ToolCallLine = memo(function ToolCallLine({
+export function ToolCallLine({
   action,
   details,
   loading = false,
@@ -565,7 +563,7 @@ export const ToolCallLine = memo(function ToolCallLine({
       {content}
     </div>
   );
-});
+}
 
 function ToolCallLineDetails({
   children,
@@ -584,12 +582,14 @@ function ToolCallLineDetails({
   );
 }
 
-export const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLine({
+const EMPTY_TOOL_METADATA_ITEMS: readonly string[] = [];
+
+export function ExpandableToolMetadataLine({
   icon: Icon,
   action,
   details,
   output,
-  metadataItems = [],
+  metadataItems = EMPTY_TOOL_METADATA_ITEMS,
   loading = false,
   onFileClick,
   linkable = false,
@@ -751,7 +751,7 @@ export const ExpandableToolMetadataLine = memo(function ExpandableToolMetadataLi
       ) : null}
     </div>
   );
-});
+}
 
 function ShellToolCall({
   action,
@@ -1059,7 +1059,7 @@ function AwaitDetails({ details, startedAtMs }: { details: string; startedAtMs: 
 }
 
 function useNowMs(intervalMs: number): number {
-  const store = useMemo(() => createNowMsStore(intervalMs), [intervalMs]);
+  const store = createNowMsStore(intervalMs);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 

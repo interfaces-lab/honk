@@ -9,11 +9,11 @@ import { Atom } from "effect/unstable/reactivity";
 import { useCallback, useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atom-registry";
+import { subscribeEnvironmentConnections } from "../environments/runtime";
 import {
-  readEnvironmentConnection,
-  subscribeEnvironmentConnections,
-} from "../environments/runtime";
-import type { WsRpcClient } from "~/rpc/ws-rpc-client";
+  readResolvedEnvironmentGitApi,
+  type EnvironmentGitApi,
+} from "./environment-git-api";
 
 interface GitStatusState {
   readonly data: GitStatusResult | null;
@@ -22,8 +22,8 @@ interface GitStatusState {
   readonly isPending: boolean;
 }
 
-type GitStatusRefreshClient = Pick<WsRpcClient["git"], "refreshStatus">;
-type GitStatusClient = Pick<WsRpcClient["git"], "onStatus" | "refreshStatus">;
+type GitStatusRefreshClient = Pick<EnvironmentGitApi, "refreshStatus">;
+type GitStatusClient = Pick<EnvironmentGitApi, "onStatus" | "refreshStatus">;
 interface ResolvedGitStatusClient {
   readonly clientIdentity: string;
   readonly client: GitStatusClient;
@@ -86,9 +86,9 @@ function readResolvedGitStatusClient(target: GitStatusTarget): ResolvedGitStatus
   if (target.environmentId === null) {
     return null;
   }
-  const connection = readEnvironmentConnection(target.environmentId);
-  return connection
-    ? { clientIdentity: connection.environmentId, client: connection.client.git }
+  const resolved = readResolvedEnvironmentGitApi(target.environmentId);
+  return resolved
+    ? { clientIdentity: resolved.clientIdentity, client: resolved.git }
     : null;
 }
 
@@ -101,7 +101,7 @@ export function getGitStatusSnapshot(target: GitStatusTarget): GitStatusState {
   return appAtomRegistry.get(gitStatusStateAtom(targetKey));
 }
 
-export function watchGitStatus(target: GitStatusTarget, client?: GitStatusClient): () => void {
+export function watchGitStatus(target: GitStatusTarget): () => void {
   const targetKey = getGitStatusTargetKey(target);
   if (targetKey === null) {
     return NOOP;
@@ -115,7 +115,7 @@ export function watchGitStatus(target: GitStatusTarget, client?: GitStatusClient
 
   watchedGitStatuses.set(targetKey, {
     refCount: 1,
-    unsubscribe: subscribeToGitStatusTarget(targetKey, target, client),
+    unsubscribe: subscribeToGitStatusTarget(targetKey, target),
   });
 
   return () => unwatchGitStatus(targetKey);
@@ -174,6 +174,7 @@ export function useGitStatus(target: GitStatusTarget): GitStatusState {
     () => watchGitStatus({ environmentId: target.environmentId, cwd: target.cwd }),
     [target.environmentId, target.cwd],
   );
+
   useSyncExternalStore(
     subscribe,
     () => targetKey,
@@ -204,7 +205,6 @@ function unwatchGitStatus(targetKey: string): void {
 function subscribeToGitStatusTarget(
   targetKey: string,
   target: GitStatusTarget,
-  providedClient?: GitStatusClient,
 ): () => void {
   if (target.cwd === null) {
     return NOOP;
@@ -215,12 +215,7 @@ function subscribeToGitStatusTarget(
   let currentUnsubscribe = NOOP;
 
   const syncClientSubscription = () => {
-    const resolved = providedClient
-      ? {
-          clientIdentity: `provided:${targetKey}`,
-          client: providedClient,
-        }
-      : readResolvedGitStatusClient(target);
+    const resolved = readResolvedGitStatusClient(target);
 
     if (!resolved) {
       if (currentClientIdentity !== null) {
@@ -241,9 +236,7 @@ function subscribeToGitStatusTarget(
     currentUnsubscribe = subscribeToGitStatus(targetKey, cwd, resolved.client);
   };
 
-  const unsubscribeRegistry = providedClient
-    ? NOOP
-    : subscribeEnvironmentConnections(syncClientSubscription);
+  const unsubscribeRegistry = subscribeEnvironmentConnections(syncClientSubscription);
   syncClientSubscription();
 
   return () => {

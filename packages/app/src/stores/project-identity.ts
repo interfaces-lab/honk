@@ -1,4 +1,4 @@
-import { scopedProjectKey } from "@multi/client-runtime";
+import { scopedProjectKey } from "~/lib/environment-scope";
 import type { ScopedProjectRef } from "@multi/contracts";
 import { normalizeProjectPathForComparison } from "../lib/project-paths";
 import type { Project } from "../types";

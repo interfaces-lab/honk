@@ -8,9 +8,33 @@ import type {
   TabsTab as TabsTabPrimitive,
 } from "@base-ui/react/tabs";
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 import { cn } from "./utils";
+
+const TabsIndicatorSegmentedContext = createContext(false);
+const TabsIndicatorUnderlineContext = createContext(false);
+const TabsIndicatorClassNameContext = createContext<string | undefined>(undefined);
+
+function TabsIndicatorRender(props: React.ComponentProps<"div">) {
+  const isSegmented = useContext(TabsIndicatorSegmentedContext);
+  const isUnderline = useContext(TabsIndicatorUnderlineContext);
+  const indicatorClassName = useContext(TabsIndicatorClassNameContext);
+  return (
+    <div
+      {...props}
+      className={cn(
+        props.className,
+        "absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-all duration-150",
+        "data-[rendered=false]:scale-95 data-[rendered=false]:opacity-0",
+        isSegmented &&
+          "top-(--active-tab-top) h-(--active-tab-height) rounded-[5px] bg-multi-bg-tertiary shadow-sm ring-1 ring-multi-stroke-secondary",
+        isUnderline && "bottom-0 h-0.5 bg-multi-stroke-focused",
+        indicatorClassName,
+      )}
+    />
+  );
+}
 
 export const MULTI_TABS_VARIANTS = {
   variant: ["segmented", "underline"],
@@ -131,14 +155,17 @@ function Tabs({
   const isUnderline = variant === "underline";
 
   return (
-    <TabsRoot
-      value={isControlled ? value : undefined}
-      defaultValue={isControlled ? undefined : (selectedValue ?? fallbackValue)}
-      className={cn("relative isolate min-w-0 font-multi font-medium", className)}
-      onValueChange={(nextValue) => {
-        onValueChange?.(String(nextValue));
-      }}
-    >
+    <TabsIndicatorSegmentedContext.Provider value={isSegmented}>
+      <TabsIndicatorUnderlineContext.Provider value={isUnderline}>
+        <TabsIndicatorClassNameContext.Provider value={indicatorClassName}>
+          <TabsRoot
+            value={isControlled ? value : undefined}
+            defaultValue={isControlled ? undefined : (selectedValue ?? fallbackValue)}
+            className={cn("relative isolate min-w-0 font-multi font-medium", className)}
+            onValueChange={(nextValue) => {
+              onValueChange?.(String(nextValue));
+            }}
+          >
       <TabsList
         activateOnFocus={activateOnFocus}
         className={cn(
@@ -166,24 +193,12 @@ function Tabs({
             {tab.label}
           </TabsTab>
         ))}
-        <TabsIndicator
-          render={(props) => (
-            <div
-              {...props}
-              className={cn(
-                props.className,
-                "absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-all duration-150",
-                "data-[rendered=false]:scale-95 data-[rendered=false]:opacity-0",
-                isSegmented &&
-                  "top-(--active-tab-top) h-(--active-tab-height) rounded-[5px] bg-multi-bg-tertiary shadow-sm ring-1 ring-multi-stroke-secondary",
-                isUnderline && "bottom-0 h-0.5 bg-multi-stroke-focused",
-                indicatorClassName,
-              )}
-            />
-          )}
-        />
+        <TabsIndicator render={TabsIndicatorRender} />
       </TabsList>
     </TabsRoot>
+        </TabsIndicatorClassNameContext.Provider>
+      </TabsIndicatorUnderlineContext.Provider>
+    </TabsIndicatorSegmentedContext.Provider>
   );
 }
 

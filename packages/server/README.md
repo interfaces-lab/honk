@@ -25,5 +25,5 @@ Remaining `try/catch` sites in `src` should be boundary-required:
 - `src/open.ts`: platform executable probing and detached process spawn callback.
 - `src/observability/TraceRecord.ts` / `TraceSink.ts`: defensive trace parsing and synchronous sink buffering.
 - `src/persistence/NodeSqliteClient.ts`: `node:sqlite` statement boundary mapped to `SqlError`.
-- Provider/process callback files (`CursorProvider`, `CodexProvider`, `CodexSessionRuntime`): JSON/platform callback boundaries.
+- Desktop Pi runtime execution lives in `@multi/runtime`; the server no longer owns provider process callback files.
 - `src/project/ProjectEntries.ts`: grep false positives from `ProjectEntry` identifiers, not `try/catch` statements.

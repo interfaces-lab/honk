@@ -43,6 +43,10 @@ import Migration0028 from "./migrations/028_ProjectionThreadMessageRichText.ts";
 import Migration0030 from "./migrations/030-drop-projection-thread-entry-metadata.ts";
 import Migration0031 from "./migrations/031-prune-legacy-thread-activities.ts";
 import Migration0032 from "./migrations/032-drop-legacy-projection-columns.ts";
+import Migration0033 from "./migrations/033_NormalizeInteractionModeDefaults.ts";
+import Migration0034 from "./migrations/034_NormalizeProviderActivityFailureKinds.ts";
+import Migration0035 from "./migrations/035_DropProviderSessionSchemaResidue.ts";
+import Migration0036 from "./migrations/036_NormalizeSubagentActivityPayloadThreadIds.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -85,6 +89,10 @@ export const migrationEntries = [
   [30, "DropProjectionThreadEntryMetadata", Migration0030],
   [31, "PruneLegacyThreadActivities", Migration0031],
   [32, "DropLegacyProjectionColumns", Migration0032],
+  [33, "NormalizeInteractionModeDefaults", Migration0033],
+  [34, "NormalizeProviderActivityFailureKinds", Migration0034],
+  [35, "DropProviderSessionSchemaResidue", Migration0035],
+  [36, "NormalizeSubagentActivityPayloadThreadIds", Migration0036],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

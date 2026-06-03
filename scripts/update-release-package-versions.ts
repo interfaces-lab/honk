@@ -29,6 +29,7 @@ export function updateReleasePackageVersions(
 
   for (const relativePath of releasePackageFiles) {
     const filePath = resolve(rootDir, relativePath);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const packageJson = JSON.parse(readFileSync(filePath, "utf8")) as MutablePackageJson;
     if (packageJson.version === version) {
       continue;

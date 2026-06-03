@@ -317,5 +317,9 @@ export function applyGitStatusStreamEvent(
         );
       }
       return mergeGitStatusParts(toLocalStatusPart(current), event.remote);
+    default: {
+      const unhandled: never = event;
+      throw new Error(`Unhandled git status stream event: ${String(unhandled)}`);
+    }
   }
 }

@@ -64,7 +64,7 @@ export class WsTransport {
   }
 
   async request<TSuccess>(
-    execute: (client: WsRpcProtocolClient) => Effect.Effect<TSuccess, Error, never>,
+    execute: (client: WsRpcProtocolClient) => Effect.Effect<TSuccess, Error>,
     _options?: RequestOptions,
   ): Promise<TSuccess> {
     if (this.disposed) {
@@ -77,7 +77,7 @@ export class WsTransport {
   }
 
   async requestStream<TValue>(
-    connect: (client: WsRpcProtocolClient) => Stream.Stream<TValue, Error, never>,
+    connect: (client: WsRpcProtocolClient) => Stream.Stream<TValue, Error>,
     listener: (value: TValue) => void,
   ): Promise<void> {
     if (this.disposed) {
@@ -100,7 +100,7 @@ export class WsTransport {
   }
 
   subscribe<TValue>(
-    connect: (client: WsRpcProtocolClient) => Stream.Stream<TValue, Error, never>,
+    connect: (client: WsRpcProtocolClient) => Stream.Stream<TValue, Error>,
     listener: (value: TValue) => void,
     options?: SubscribeOptions,
   ): () => void {
@@ -214,7 +214,7 @@ export class WsTransport {
 
   private closeSession(session: TransportSession) {
     return session.runtime.runPromise(Scope.close(session.clientScope, Exit.void)).finally(() => {
-      session.runtime.dispose();
+      void session.runtime.dispose();
     });
   }
 
@@ -238,7 +238,7 @@ export class WsTransport {
 
   private runStreamOnSession<TValue>(
     session: TransportSession,
-    connect: (client: WsRpcProtocolClient) => Stream.Stream<TValue, Error, never>,
+    connect: (client: WsRpcProtocolClient) => Stream.Stream<TValue, Error>,
     listener: (value: TValue) => void,
     isActive: () => boolean,
     markValueReceived: () => void,

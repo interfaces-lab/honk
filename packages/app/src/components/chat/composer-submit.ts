@@ -1,13 +1,6 @@
-import type {
-  ModelSelection,
-  OrchestrationMessageRichText,
-  ProviderDriverKind,
-  ServerProvider,
-} from "@multi/contracts";
-import { applyClaudePromptEffortPrefix } from "@multi/shared/model";
+import type { OrchestrationMessageRichText } from "@multi/contracts";
 import { Data, Effect, Schema } from "effect";
 
-import { getProviderModelCapabilities } from "../../model/provider-models";
 import type { ComposerImageAttachment } from "../../stores/chat-drafts";
 
 const INLINE_COMPOSER_PLACEHOLDER = "\uFFFC";
@@ -29,17 +22,9 @@ export const ComposerSkillEntity = Schema.Struct({
 });
 export type ComposerSkillEntity = typeof ComposerSkillEntity.Type;
 
-export const ComposerProviderCommandEntity = Schema.Struct({
-  type: Schema.Literal("providerCommand"),
-  command: Schema.String,
-  label: Schema.optional(Schema.String),
-});
-export type ComposerProviderCommandEntity = typeof ComposerProviderCommandEntity.Type;
-
 export const ComposerEntity = Schema.Union([
   ComposerFileEntity,
   ComposerSkillEntity,
-  ComposerProviderCommandEntity,
 ]);
 export type ComposerEntity = typeof ComposerEntity.Type;
 
@@ -56,11 +41,6 @@ export type ComposerSubmitContext = {
   prompt: string;
   richText?: OrchestrationMessageRichText | undefined;
   images: readonly ComposerImageAttachment[];
-  selectedProvider: ProviderDriverKind;
-  selectedModel: string | null;
-  selectedProviderModels: ReadonlyArray<ServerProvider["models"][number]>;
-  selectedPromptEffort: string | null;
-  selectedModelSelection: ModelSelection;
   hasUnresolvedSlashCommand?: boolean | undefined;
 };
 
@@ -120,13 +100,7 @@ export function compileComposerSubmitTurn(
     imageCount: input.images.length,
   });
   const messageTextForSend = sendState.trimmedPrompt;
-  const outgoingMessageText = formatOutgoingPrompt({
-    provider: input.selectedProvider,
-    model: input.selectedModel,
-    models: input.selectedProviderModels,
-    effort: input.selectedPromptEffort,
-    text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
-  });
+  const outgoingMessageText = messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT;
 
   return {
     ...sendState,
@@ -141,24 +115,6 @@ export function compileComposerSubmitTurn(
       composerImages: input.images,
     }),
   };
-}
-
-export function formatOutgoingPrompt(params: {
-  provider: ProviderDriverKind;
-  model: string | null;
-  models: ReadonlyArray<ServerProvider["models"][number]>;
-  effort: string | null;
-  text: string;
-}): string {
-  const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
-  const promptInjectedValues =
-    caps.optionDescriptors
-      ?.filter((descriptor) => descriptor.type === "select")
-      .flatMap((descriptor) => descriptor.promptInjectedValues ?? []) ?? [];
-  if (params.effort && promptInjectedValues.includes(params.effort)) {
-    return applyClaudePromptEffortPrefix(params.text, params.effort);
-  }
-  return params.text;
 }
 
 export function buildOptimisticImageAttachments(

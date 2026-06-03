@@ -1,11 +1,11 @@
 import { cva } from "class-variance-authority";
-import { memo, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 type MessageBubbleActivateEvent = MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>;
 
 interface ChatMessageBubbleProps {
-  role: "user" | "assistant";
+  messageRole: "user" | "assistant";
   body: ReactNode;
   leadingIcon?: ReactNode;
   footer?: ReactNode;
@@ -72,22 +72,19 @@ const humanMessageBubbleVariants = cva(
   },
 );
 
-export const MessageMetaRow = memo(function MessageMetaRow(props: {
-  alignEnd?: boolean;
-  children: ReactNode;
-}) {
+export function MessageMetaRow(props: { alignEnd?: boolean; children: ReactNode }) {
   return (
     <div className={cn("flex items-center gap-2", props.alignEnd && "justify-end")}>
       {props.children}
     </div>
   );
-});
+}
 
-export const MessageMeta = memo(function MessageMeta(props: { children: ReactNode }) {
+export function MessageMeta(props: { children: ReactNode }) {
   return <p className="m-0 select-none text-caption text-multi-fg-tertiary/55">{props.children}</p>;
-});
+}
 
-export const MessageActions = memo(function MessageActions(props: { children: ReactNode }) {
+export function MessageActions(props: { children: ReactNode }) {
   return (
     <div
       className={cn(
@@ -99,16 +96,16 @@ export const MessageActions = memo(function MessageActions(props: { children: Re
       {props.children}
     </div>
   );
-});
+}
 
-export const ChatMessageBubble = memo(function ChatMessageBubble({
-  role,
+export function ChatMessageBubble({
+  messageRole,
   body,
   leadingIcon,
   footer,
   media,
 }: ChatMessageBubbleProps) {
-  if (role === "user") {
+  if (messageRole === "user") {
     return <UserMessageBubbleSurface body={body} footer={footer} media={media} />;
   }
 
@@ -121,9 +118,9 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
       </div>
     </div>
   );
-});
+}
 
-export const EditableChatMessageBubble = memo(function EditableChatMessageBubble({
+export function EditableChatMessageBubble({
   body,
   footer,
   media,
@@ -148,15 +145,15 @@ export const EditableChatMessageBubble = memo(function EditableChatMessageBubble
       onActivate={activateEdit}
     />
   );
-});
+}
 
-export const ReadonlyActionChatMessageBubble = memo(function ReadonlyActionChatMessageBubble({
+export function ReadonlyActionChatMessageBubble({
   body,
   footer,
   media,
 }: ReadonlyActionChatMessageBubbleProps) {
   return <UserMessageBubbleSurface body={body} footer={footer} media={media} readonlyAction />;
-});
+}
 
 function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
   const readonlyAction = !props.editable && props.readonlyAction === true;

@@ -565,6 +565,7 @@ function Demo13ModalVault() {
           <input
             readOnly
             placeholder="Search all archived threads..."
+            aria-label="Search all archived threads"
             className="h-8 w-full rounded-multi-control border border-multi-stroke-quaternary px-3 text-(length:--multi-text-detail)"
           />
           <MockArchivedRows />
@@ -659,7 +660,7 @@ function Demo17SplitPane() {
           <MockAgentRow title="Active agent" active />
           <MockAgentRow title="Plan mode thread" />
         </div>
-        <div className="my-1 h-px shrink-0 bg-multi-stroke-quaternary" role="separator" />
+        <div className="my-1 h-px shrink-0 bg-multi-stroke-quaternary" aria-hidden="true" />
         <div className="flex shrink-0 items-center gap-1 px-1 py-0.5 text-(length:--multi-text-detail) text-multi-fg-tertiary">
           <IconArchive1 className="size-3" aria-hidden="true" />
           Archived

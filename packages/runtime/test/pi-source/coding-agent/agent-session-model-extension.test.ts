@@ -2,8 +2,15 @@ import type { AgentTool, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage, fauxToolCall, type Model } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ExtensionAPI } from "../../src/index.ts";
 import { createHarness, getAssistantTexts, type Harness } from "./harness.ts";
+
+function requireHarnessModel(harness: Harness, id: string): Model<string> {
+	const model = harness.getModel(id);
+	if (!model) {
+		throw new Error(`Expected model ${id}`);
+	}
+	return model;
+}
 
 describe("AgentSession model and extension characterization", () => {
 	const harnesses: Harness[] = [];
@@ -30,7 +37,7 @@ describe("AgentSession model and extension characterization", () => {
 			],
 		});
 		harnesses.push(harness);
-		const nextModel = harness.getModel("faux-2")!;
+		const nextModel = requireHarnessModel(harness, "faux-2");
 
 		await harness.session.setModel(nextModel);
 
@@ -52,8 +59,8 @@ describe("AgentSession model and extension characterization", () => {
 			],
 		});
 		harnesses.push(harness);
-		const modelOne = harness.getModel("faux-1")!;
-		const modelTwo = harness.getModel("faux-2")!;
+		const modelOne = requireHarnessModel(harness, "faux-1");
+		const modelTwo = requireHarnessModel(harness, "faux-2");
 		harness.session.setScopedModels([{ model: modelOne, thinkingLevel: "high" }, { model: modelTwo }] as Array<{
 			model: Model<string>;
 			thinkingLevel?: ThinkingLevel;
@@ -88,7 +95,7 @@ describe("AgentSession model and extension characterization", () => {
 		});
 		harnesses.push(harness);
 
-		await expect(harness.session.setModel(harness.getModel("faux-2")!)).rejects.toThrow(
+		await expect(harness.session.setModel(requireHarnessModel(harness, "faux-2"))).rejects.toThrow(
 			`No API key for ${harness.getModel().provider}/faux-2`,
 		);
 	});
@@ -222,7 +229,7 @@ describe("AgentSession model and extension characterization", () => {
 	});
 
 	it("allows extension input handlers to transform or handle input", async () => {
-		let extensionApi: ExtensionAPI | undefined;
+		let extensionApi;
 		const transformedHarness = await createHarness({
 			extensionFactories: [
 				(pi) => {

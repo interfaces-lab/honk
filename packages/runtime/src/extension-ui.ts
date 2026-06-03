@@ -1,4 +1,5 @@
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from "@earendil-works/pi-coding-agent";
+import { readDefaultPiTheme } from "./pi-default-theme";
 
 export type DesktopExtensionUiRequestKind = "select" | "confirm" | "input" | "editor" | "custom";
 
@@ -28,21 +29,13 @@ export class DesktopExtensionUiController {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly requestLog: DesktopExtensionUiRequest[] = [];
   private readonly notifications: Array<{ message: string; type: "info" | "warning" | "error" }> = [];
+  private readonly pendingRequestListeners = new Set<() => void>();
   private readonly status = new Map<string, string>();
   private editorText = "";
   private toolsExpanded = false;
+  private disposedError: Error | null = null;
 
-  private readonly handleCustom = <T>(
-    _factory: Parameters<ExtensionUIContext["custom"]>[0],
-    _opts?: Parameters<ExtensionUIContext["custom"]>[1],
-  ): Promise<T> =>
-    this.enqueueRequest<T>(
-      "custom",
-      { title: "Custom extension UI" },
-      undefined,
-      undefined as T,
-      (value) => value as T,
-    );
+  private readonly handleCustom: ExtensionUIContext["custom"] = <T>() => Promise.resolve(undefined as T);
 
   readonly context: ExtensionUIContext = {
     select: (title, options, opts) =>
@@ -98,7 +91,7 @@ export class DesktopExtensionUiController {
     setEditorComponent: () => {},
     getEditorComponent: () => undefined,
     get theme() {
-      return undefined as never;
+      return readDefaultPiTheme();
     },
     getAllThemes: () => [],
     getTheme: () => undefined,
@@ -121,6 +114,13 @@ export class DesktopExtensionUiController {
     return this.notifications;
   }
 
+  onPendingRequestsChanged(listener: () => void): () => void {
+    this.pendingRequestListeners.add(listener);
+    return () => {
+      this.pendingRequestListeners.delete(listener);
+    };
+  }
+
   getStatus(key: string): string | undefined {
     return this.status.get(key);
   }
@@ -130,7 +130,6 @@ export class DesktopExtensionUiController {
     if (!pending) {
       return false;
     }
-    pending.cleanup();
     pending.resolve(value);
     return true;
   }
@@ -140,9 +139,25 @@ export class DesktopExtensionUiController {
     if (!pending) {
       return false;
     }
-    pending.cleanup();
     pending.reject(error);
     return true;
+  }
+
+  dispose(error = new Error("Desktop extension UI session disposed.")): void {
+    if (this.disposedError) {
+      return;
+    }
+    this.disposedError = error;
+    for (const pending of this.pending.values()) {
+      pending.reject(error);
+    }
+    this.pendingRequestListeners.clear();
+  }
+
+  private emitPendingRequestsChanged(): void {
+    for (const listener of this.pendingRequestListeners) {
+      listener();
+    }
   }
 
   private enqueueRequest<TResult>(
@@ -160,6 +175,9 @@ export class DesktopExtensionUiController {
     if (opts?.signal?.aborted) {
       return Promise.resolve(defaultValue);
     }
+    if (this.disposedError) {
+      return Promise.resolve(defaultValue);
+    }
 
     const request: DesktopExtensionUiRequest = {
       id: newRequestId(),
@@ -175,12 +193,18 @@ export class DesktopExtensionUiController {
 
     return new Promise<TResult>((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      let settled = false;
       const cleanup = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
         opts?.signal?.removeEventListener("abort", onAbort);
         this.pending.delete(request.id);
+        this.emitPendingRequestsChanged();
       };
       const onAbort = () => {
         cleanup();
@@ -201,9 +225,13 @@ export class DesktopExtensionUiController {
           cleanup();
           resolve(resolveResult(value));
         },
-        reject,
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
         cleanup,
       });
+      this.emitPendingRequestsChanged();
     });
   }
 }

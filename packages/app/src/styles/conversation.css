@@ -129,35 +129,6 @@
   display: contents;
 }
 
-[data-multi-composer-toolbar="left"] .ui-model-picker__trigger {
-  height: 24px;
-  min-height: 24px;
-  max-height: 24px;
-  padding-block: 0;
-  align-items: center;
-}
-
-/*
- * Expanded composer: align model picker trigger text column with the editor
- * caret column. Editor wrapper uses `px-3` (12px L) as its single source of
- * left inset; the footer matches with `px-3`. With `padding-inline: 0 6px` on
- * the trigger here, the icon's leading edge sits at the same x as the caret.
- * Mirrors Cursor's `.composer-unified-dropdown-model` with `!px-1` (4px) chip
- * inset + `padding-left: 0` on the inner button.
- */
-[data-chat-input-footer="true"]:not([data-chat-input-footer-compact="true"])
-  [data-multi-composer-toolbar="left"]
-  .ui-model-picker__trigger {
-  padding-inline: 0 6px;
-}
-
-[data-chat-input-footer-compact="true"]
-  [data-multi-composer-toolbar="left"]
-  .ui-model-picker__trigger {
-  padding-inline: 6px 4px;
-  margin-inline-end: 4px;
-}
-
 [data-multi-composer-surface]:not([data-multi-composer-header], [data-layout="inline-edit"]) {
   border-radius: var(--multi-composer-radius-expanded);
 }
@@ -402,34 +373,6 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
   mask-image: none;
 }
 
-[data-slot="popover-positioner"]:has([data-chat-model-picker-popup]) {
-  transition: none;
-}
-
-[data-chat-model-picker-popup] .ui-model-picker-panel {
-  transform-origin: var(--transform-origin, center);
-  transition:
-    transform var(--multi-motion-duration-fast) var(--multi-motion-ease-float),
-    opacity var(--multi-motion-duration-fast) var(--multi-motion-ease-float);
-}
-
-[data-chat-model-picker-popup][data-starting-style] .ui-model-picker-panel {
-  opacity: 0;
-  transform: scale(0.98);
-}
-
-[data-chat-model-picker-popup][data-ending-style] .ui-model-picker-panel {
-  opacity: 0;
-  transform: scale(0.99);
-  transition-duration: var(--multi-motion-duration-fast);
-  transition-timing-function: ease-in;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-chat-model-picker-popup] .ui-model-picker-panel {
-    transition: none;
-  }
-}
 
 [data-subagent-followup-tray-stack] {
   position: relative;

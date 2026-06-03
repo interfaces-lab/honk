@@ -174,9 +174,6 @@ export function materializeTimelineEntriesFromChatTimelineRows(input: {
   const proposedPlansById = new Map(
     input.proposedPlans.map((proposedPlan) => [proposedPlan.id, proposedPlan] as const),
   );
-  const activitiesById = new Map(
-    input.activities.map((activity) => [activity.id, activity] as const),
-  );
   const workEntriesByRowId = buildWorkEntriesByTimelineRowId({
     rows: input.rows,
     activities: input.activities,
@@ -238,7 +235,7 @@ function buildWorkEntriesByTimelineRowId(input: {
 }): Map<string, WorkLogEntry> {
   const relevantActivityIds = new Set<string>();
   const visibleParentItemIds = new Set<string>();
-  const visibleProviderThreadIds = new Set<string>();
+  const visibleSubagentThreadIds = new Set<string>();
 
   for (const row of input.rows) {
     if (row.kind === "work") {
@@ -258,9 +255,9 @@ function buildWorkEntriesByTimelineRowId(input: {
     }
     const payload = asRecord(activity.payload);
     const parentItemId = asTrimmedString(payload?.parentItemId);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
-    if (parentItemId && visibleParentItemIds.has(parentItemId) && providerThreadId) {
-      visibleProviderThreadIds.add(providerThreadId);
+    const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
+    if (parentItemId && visibleParentItemIds.has(parentItemId) && subagentThreadId) {
+      visibleSubagentThreadIds.add(subagentThreadId);
     }
   }
 
@@ -273,10 +270,10 @@ function buildWorkEntriesByTimelineRowId(input: {
     }
     const payload = asRecord(activity.payload);
     const parentItemId = asTrimmedString(payload?.parentItemId);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
+    const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
     return (
       (parentItemId !== undefined && visibleParentItemIds.has(parentItemId)) ||
-      (providerThreadId !== undefined && visibleProviderThreadIds.has(providerThreadId))
+      (subagentThreadId !== undefined && visibleSubagentThreadIds.has(subagentThreadId))
     );
   });
 

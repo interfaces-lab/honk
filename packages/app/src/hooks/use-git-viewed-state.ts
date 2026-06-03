@@ -1,5 +1,4 @@
 import * as Sch from "effect/Schema";
-import { useCallback } from "react";
 import { useLocalStorage } from "./use-local-storage";
 
 const STORAGE_KEY_PREFIX = "multi:git-viewed";
@@ -12,31 +11,25 @@ export function useGitViewed(gitRoot: string | null) {
 
   const [viewed, setViewed] = useLocalStorage<string[], string[]>(key, [], ViewedPathsSchema);
 
-  const isViewed = useCallback((path: string) => viewed.includes(path), [viewed]);
+  const isViewed = (path: string) => viewed.includes(path);
 
-  const toggleViewed = useCallback(
-    (path: string) => {
-      setViewed((prev) => {
-        if (prev.includes(path)) return prev.filter((p) => p !== path);
-        return [...prev, path];
-      });
-    },
-    [setViewed],
-  );
+  const toggleViewed = (path: string) => {
+    setViewed((prev) => {
+      if (prev.includes(path)) return prev.filter((p) => p !== path);
+      return [...prev, path];
+    });
+  };
 
-  const markAllViewed = useCallback(
-    (paths: string[]) => {
-      setViewed((prev) => {
-        const set = new Set([...prev, ...paths]);
-        return Array.from(set);
-      });
-    },
-    [setViewed],
-  );
+  const markAllViewed = (paths: string[]) => {
+    setViewed((prev) => {
+      const set = new Set([...prev, ...paths]);
+      return Array.from(set);
+    });
+  };
 
-  const clearViewed = useCallback(() => {
+  const clearViewed = () => {
     setViewed([]);
-  }, [setViewed]);
+  };
 
   return { viewed, isViewed, toggleViewed, markAllViewed, clearViewed };
 }

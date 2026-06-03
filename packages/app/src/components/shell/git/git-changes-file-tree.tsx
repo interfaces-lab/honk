@@ -2,7 +2,7 @@
 
 import { prepareFileTreeInput } from "@pierre/trees";
 import type { GitStatus, GitStatusEntry } from "@pierre/trees";
-import { type RefObject, useEffect, useMemo, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import type { GitFileState } from "~/lib/ui-session-types";
@@ -59,29 +59,20 @@ export function GitChangesFileTree(props: {
 
   onSelectRef.current = props.onSelect;
 
-  const sortedRows = useMemo(
-    () => props.rows.toSorted((a, b) => a.path.localeCompare(b.path)),
-    [props.rows],
-  );
+  const sortedRows = props.rows.toSorted((a, b) => a.path.localeCompare(b.path));
 
-  const treePaths = useMemo(
-    () => sortedRows.map((row) => normalizeTreePath(row.path)),
-    [sortedRows],
-  );
+  const treePaths = sortedRows.map((row) => normalizeTreePath(row.path));
 
-  const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
+  const preparedInput = prepareFileTreeInput(treePaths);
 
-  const pathSet = useMemo(() => new Set(treePaths), [treePaths]);
+  const pathSet = new Set(treePaths);
 
-  const pathToRow = useMemo(() => {
-    const next = new Map<string, DiffRow>();
-    for (const row of sortedRows) {
-      next.set(normalizeTreePath(row.path), row);
-    }
-    return next;
-  }, [sortedRows]);
+  const pathToRow = new Map<string, DiffRow>();
+  for (const row of sortedRows) {
+    pathToRow.set(normalizeTreePath(row.path), row);
+  }
 
-  const gitStatusEntries = useMemo(() => diffRowsToGitStatusEntries(sortedRows), [sortedRows]);
+  const gitStatusEntries = diffRowsToGitStatusEntries(sortedRows);
 
   const selectedPath =
     props.selectedId !== null

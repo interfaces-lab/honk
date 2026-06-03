@@ -4,7 +4,7 @@ import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomple
 import { IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 
 import { cn } from "./utils";
-import { Input } from "./input";
+import { InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
 const Autocomplete = AutocompletePrimitive.Root;
@@ -23,10 +23,11 @@ function AutocompleteInput({
   size?: "sm" | "default" | "lg" | number;
   ref?: React.Ref<HTMLInputElement>;
 }) {
-  const sizeValue = (size ?? "default") as "sm" | "default" | "lg" | number;
+  const sizeValue: InputControlSize = size ?? "default";
 
   return (
-    <div className="relative not-has-[>*.w-full]:w-fit w-full font-multi text-foreground has-disabled:opacity-40">
+    <InputControlSizeContext.Provider value={sizeValue}>
+      <div className="relative not-has-[>*.w-full]:w-fit w-full font-multi text-foreground has-disabled:opacity-40">
       {startAddon && (
         <div
           aria-hidden="true"
@@ -46,7 +47,7 @@ function AutocompleteInput({
           className,
         )}
         data-slot="autocomplete-input"
-        render={<Input nativeInput size={sizeValue} />}
+        render={NativeInputRender as NonNullable<AutocompletePrimitive.Input.Props["render"]>}
         {...props}
       />
       {showTrigger && (
@@ -71,7 +72,8 @@ function AutocompleteInput({
           <IconCrossMediumDefault />
         </AutocompleteClear>
       )}
-    </div>
+      </div>
+    </InputControlSizeContext.Provider>
   );
 }
 

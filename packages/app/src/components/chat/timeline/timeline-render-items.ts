@@ -237,7 +237,7 @@ export function deriveTimelineRenderItems(input: {
 
 export function summarizeWorkGroup(
   entries: ReadonlyArray<WorkLogEntry>,
-  projectRoot?: string | undefined,
+  projectRoot?: string  ,
 ): WorkGroupSummary {
   const running = entries.some((entry) => entry.status === "running");
   const thinkingCount = entries.filter((entry) => entry.tone === "thinking").length;

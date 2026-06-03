@@ -16,14 +16,8 @@ import { ProjectionProjectRepository } from "../persistence/ProjectionProjects.s
 import { ProjectionStateRepository } from "../persistence/ProjectionState.service.ts";
 import { ProjectionThreadActivityRepository } from "../persistence/ProjectionThreadActivities.service.ts";
 import { type ProjectionThreadActivity } from "../persistence/ProjectionThreadActivities.service.ts";
-import {
-  type ProjectionThreadEntry,
-  ProjectionThreadEntryRepository,
-} from "../persistence/ProjectionThreadEntries.service.ts";
-import {
-  type ProjectionThreadMessage,
-  ProjectionThreadMessageRepository,
-} from "../persistence/ProjectionThreadMessages.service.ts";
+import { ProjectionThreadEntryRepository } from "../persistence/ProjectionThreadEntries.service.ts";
+import { ProjectionThreadMessageRepository } from "../persistence/ProjectionThreadMessages.service.ts";
 import {
   type ProjectionThreadProposedPlan,
   ProjectionThreadProposedPlanRepository,
@@ -47,7 +41,6 @@ import {
   type OrchestrationProjectionPipelineShape,
 } from "./ProjectionPipeline.service.ts";
 import {
-  attachmentRelativePath,
   parseAttachmentIdFromRelativePath,
   parseThreadSegmentFromAttachmentId,
   toSafeThreadAttachmentSegment,
@@ -145,7 +138,7 @@ function derivePendingUserInputCountFromActivities(
     }
 
     if (
-      activity.kind === "provider.user-input.respond.failed" &&
+      activity.kind === "runtime.user-input.respond.failed" &&
       detail !== null &&
       (detail.includes("stale pending user-input request") ||
         detail.includes("unknown pending user-input request"))
@@ -182,30 +175,6 @@ function deriveHasActionableProposedPlan(input: {
 
   const latestPlan = sorted.at(-1) ?? null;
   return latestPlan !== null && latestPlan.implementedAt === null;
-}
-
-function collectThreadAttachmentRelativePaths(
-  threadId: string,
-  messages: ReadonlyArray<ProjectionThreadMessage>,
-): Set<string> {
-  const threadSegment = toSafeThreadAttachmentSegment(threadId);
-  if (!threadSegment) {
-    return new Set();
-  }
-  const relativePaths = new Set<string>();
-  for (const message of messages) {
-    for (const attachment of message.attachments ?? []) {
-      if (attachment.type !== "image") {
-        continue;
-      }
-      const attachmentThreadSegment = parseThreadSegmentFromAttachmentId(attachment.id);
-      if (!attachmentThreadSegment || attachmentThreadSegment !== threadSegment) {
-        continue;
-      }
-      relativePaths.add(attachmentRelativePath(attachment));
-    }
-  }
-  return relativePaths;
 }
 
 const runAttachmentSideEffects = Effect.fn("runAttachmentSideEffects")(function* (
@@ -646,7 +615,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
 
     const applyThreadMessagesProjection: ProjectorDefinition["apply"] = Effect.fn(
       "applyThreadMessagesProjection",
-    )(function* (event, attachmentSideEffects) {
+    )(function* (event, _attachmentSideEffects) {
       switch (event.type) {
         case "thread.message-sent": {
           const existingMessage = yield* projectionThreadMessageRepository.getByMessageId({
@@ -773,9 +742,6 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       yield* projectionThreadSessionRepository.upsert({
         threadId: event.payload.threadId,
         status: event.payload.session.status,
-        providerName: event.payload.session.providerName,
-        providerInstanceId:
-          event.payload.session.providerInstanceId ?? event.payload.session.providerName,
         runtimeMode: event.payload.session.runtimeMode,
         activeTurnId: event.payload.session.activeTurnId,
         lastError: event.payload.session.lastError,
@@ -800,7 +766,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         }
 
         case "thread.activity-appended": {
-          if (event.payload.activity.kind !== "provider.turn.start.failed") {
+          if (event.payload.activity.kind !== "runtime.turn.start.failed") {
             return;
           }
           const pendingTurnStart =
@@ -1050,7 +1016,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             });
             return;
           }
-          if (event.payload.activity.kind === "provider.approval.respond.failed") {
+          if (event.payload.activity.kind === "runtime.approval.respond.failed") {
             const payload =
               typeof event.payload.activity.payload === "object" &&
               event.payload.activity.payload !== null

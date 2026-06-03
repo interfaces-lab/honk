@@ -34,7 +34,6 @@ import type {
 } from "./project";
 import type {
   ServerConfig,
-  ServerProviderUpdatedPayload,
   ServerUpsertKeybindingResult,
 } from "./server";
 import type {
@@ -50,12 +49,11 @@ import type {
 import type { ServerUpsertKeybindingInput } from "./server";
 import type {
   ClientOrchestrationCommand,
-  OrchestrationGetProviderThreadSnapshotInput,
-  OrchestrationGetProviderThreadSnapshotResult,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
 } from "./orchestration";
+import type { MultiRuntimeApi } from "./runtime";
 import { Schema } from "effect";
 
 import { EditorId } from "./editor";
@@ -198,16 +196,14 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
 
 export interface DesktopEnvironmentBootstrap {
   label: string;
-  httpBaseUrl: string | null;
-  wsBaseUrl: string | null;
-  bootstrapToken?: string;
+  httpBaseUrl: string;
+  bootstrapToken: string;
 }
 
 export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
   label: Schema.String,
-  httpBaseUrl: Schema.NullOr(Schema.String),
-  wsBaseUrl: Schema.NullOr(Schema.String),
-  bootstrapToken: Schema.optionalKey(Schema.String),
+  httpBaseUrl: Schema.String,
+  bootstrapToken: Schema.String,
 });
 
 export type DesktopServerExposureMode = "local-only" | "network-accessible";
@@ -279,6 +275,7 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  runtime?: MultiRuntimeApi;
 }
 
 /**
@@ -292,6 +289,7 @@ export interface DesktopBridge {
  * concepts.
  */
 export interface LocalApi {
+  runtime?: MultiRuntimeApi;
   dialogs: {
     pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
@@ -312,7 +310,6 @@ export interface LocalApi {
   };
   server: {
     getConfig: () => Promise<ServerConfig>;
-    refreshProviders: () => Promise<ServerProviderUpdatedPayload>;
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
@@ -372,9 +369,6 @@ export interface EnvironmentApi {
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
-    getProviderThreadSnapshot: (
-      input: OrchestrationGetProviderThreadSnapshotInput,
-    ) => Promise<OrchestrationGetProviderThreadSnapshotResult>;
     subscribeShell: (
       callback: (event: OrchestrationShellStreamItem) => void,
       options?: {

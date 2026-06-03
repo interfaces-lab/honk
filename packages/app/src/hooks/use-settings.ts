@@ -9,7 +9,7 @@
  * write. The hook transparently routes reads/writes to the correct backing
  * store.
  */
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { ServerSettings, ServerSettingsPatch } from "@multi/contracts";
 import {
   type ClientSettings,
@@ -21,7 +21,6 @@ import { ensureLocalApi } from "~/local-api";
 import { Struct } from "effect";
 import { deepMerge } from "@multi/shared/Struct";
 import {
-  applyProvidersUpdated,
   applySettingsUpdated,
   getServerConfig,
   useServerSettings,
@@ -135,15 +134,12 @@ export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings)
     () => DEFAULT_CLIENT_SETTINGS,
   );
 
-  const merged = useMemo<UnifiedSettings>(
-    () => ({
-      ...serverSettings,
-      ...clientSettings,
-    }),
-    [clientSettings, serverSettings],
-  );
+  const merged: UnifiedSettings = {
+    ...serverSettings,
+    ...clientSettings,
+  };
 
-  return useMemo(() => (selector ? selector(merged) : (merged as T)), [merged, selector]);
+  return selector ? selector(merged) : (merged as T);
 }
 
 /**
@@ -153,12 +149,9 @@ export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings)
  * persisted via RPC. Client keys go through client persistence.
  */
 export function useUpdateSettings() {
-  const updateSettings = useCallback(async (patch: Partial<UnifiedSettings>) => {
+  const updateSettings = async (patch: Partial<UnifiedSettings>) => {
     const { serverPatch, clientPatch } = splitPatch(patch);
     const writes: Promise<unknown>[] = [];
-    const refreshProvidersAfterWrite =
-      serverPatch.providers !== undefined || serverPatch.providerInstances !== undefined;
-
     if (Object.keys(serverPatch).length > 0) {
       const currentServerConfig = getServerConfig();
       if (currentServerConfig) {
@@ -179,17 +172,9 @@ export function useUpdateSettings() {
     }
 
     await Promise.all(writes);
-    if (refreshProvidersAfterWrite) {
-      await ensureLocalApi()
-        .server.refreshProviders()
-        .then((payload) => applyProvidersUpdated(payload));
-    }
-  }, []);
+  };
 
-  const resetSettings = useCallback(
-    () => updateSettings(DEFAULT_UNIFIED_SETTINGS),
-    [updateSettings],
-  );
+  const resetSettings = () => updateSettings(DEFAULT_UNIFIED_SETTINGS);
 
   return {
     updateSettings,

@@ -14,15 +14,6 @@ import { OpenLive } from "./open.ts";
 import { layerConfig as SqlitePersistenceLayerLive } from "./persistence/Sqlite.ts";
 import { ServerLifecycleEventsLive } from "./server-lifecycle-events.ts";
 import { AnalyticsServiceLayerLive } from "./telemetry/AnalyticsService.ts";
-import { makeEventNdjsonLogger } from "./provider/EventNdjsonLogger.ts";
-import { ProviderSessionDirectoryLive } from "./provider/ProviderSessionDirectory.ts";
-import { ProviderSessionReaperLive } from "./provider/ProviderSessionReaper.ts";
-import { ProviderSessionRuntimeRepositoryLive } from "./persistence/ProviderSessionRuntime.ts";
-import { makeCodexAdapterLive } from "./provider/CodexAdapter.ts";
-import { makeClaudeAdapterLive } from "./provider/ClaudeAdapter.ts";
-import { makeCursorAdapterLive } from "./provider/CursorAdapter.ts";
-import { ProviderAdapterRegistryLive } from "./provider/ProviderAdapterRegistry.ts";
-import { makeProviderServiceLive } from "./provider/ProviderService.ts";
 import { GitCoreLive } from "./git/GitCore.ts";
 import { GitHubCliLive } from "./git/GitHubCli.ts";
 import { GitStatusBroadcasterLive } from "./git/GitStatusBroadcaster.ts";
@@ -32,9 +23,6 @@ import { GitManagerLive } from "./git/GitManager.ts";
 import { KeybindingsLive } from "./keybindings.ts";
 import { ServerRuntimeStartupLive } from "./server-runtime-startup.ts";
 import { OrchestrationReactorLive } from "./orchestration/OrchestrationReactor.ts";
-import { ProviderRuntimeIngestionLive } from "./orchestration/ProviderRuntimeIngestion.ts";
-import { ProviderCommandReactorLive } from "./orchestration/ProviderCommandReactor.ts";
-import { ProviderRegistryLive } from "./provider/ProviderRegistry.ts";
 import { ServerSettingsLive } from "./server-settings.ts";
 import { ProjectFaviconResolverLive } from "./project/ProjectFaviconResolver.ts";
 import { RepositoryIdentityResolverLive } from "./project/RepositoryIdentityResolver.ts";
@@ -45,7 +33,6 @@ import { ProjectSetupScriptRunnerLive } from "./project/ProjectSetupScriptRunner
 import { ObservabilityLive } from "./observability/Observability.ts";
 import { ServerEnvironmentLive } from "./environment/ServerEnvironment.ts";
 import {
-  authBearerBootstrapRouteLayer,
   authBootstrapRouteLayer,
   authClientsRevokeOthersRouteLayer,
   authClientsRevokeRouteLayer,
@@ -54,7 +41,6 @@ import {
   authPairingLinksRouteLayer,
   authPairingCredentialRouteLayer,
   authSessionRouteLayer,
-  authWebSocketTokenRouteLayer,
 } from "./auth/http.ts";
 import { ServerSecretStoreLive } from "./auth/ServerSecretStore.ts";
 import { ServerAuthLive } from "./auth/ServerAuth.ts";
@@ -112,45 +98,6 @@ const PlatformServicesLive = Layer.unwrap(
 
 const ReactorLayerLive = Layer.empty.pipe(
   Layer.provideMerge(OrchestrationReactorLive),
-  Layer.provideMerge(ProviderRuntimeIngestionLive),
-  Layer.provideMerge(ProviderCommandReactorLive),
-);
-
-const ProviderSessionDirectoryLayerLive = ProviderSessionDirectoryLive.pipe(
-  Layer.provide(ProviderSessionRuntimeRepositoryLive),
-);
-
-const ProviderLayerLive = Layer.unwrap(
-  Effect.gen(function* () {
-    const { providerEventLogPath } = yield* ServerConfig;
-    const nativeEventLogger = yield* makeEventNdjsonLogger(providerEventLogPath, {
-      stream: "native",
-    });
-    const canonicalEventLogger = yield* makeEventNdjsonLogger(providerEventLogPath, {
-      stream: "canonical",
-    });
-    const codexAdapterLayer = makeCodexAdapterLive(
-      nativeEventLogger ? { nativeEventLogger } : undefined,
-    );
-    const claudeAdapterLayer = makeClaudeAdapterLive(
-      nativeEventLogger ? { nativeEventLogger } : undefined,
-    );
-    const cursorAdapterLayer = makeCursorAdapterLive(
-      nativeEventLogger ? { nativeEventLogger } : undefined,
-    );
-    const adapterRegistryLayer = ProviderAdapterRegistryLive.pipe(
-      Layer.provide(codexAdapterLayer),
-      Layer.provide(claudeAdapterLayer),
-      Layer.provide(cursorAdapterLayer),
-      Layer.provideMerge(ProviderSessionDirectoryLayerLive),
-    );
-    return makeProviderServiceLive(
-      canonicalEventLogger ? { canonicalEventLogger } : undefined,
-    ).pipe(
-      Layer.provide(adapterRegistryLayer),
-      Layer.provideMerge(ProviderSessionDirectoryLayerLive),
-    );
-  }),
 );
 
 const PersistenceLayerLive = Layer.empty.pipe(Layer.provideMerge(SqlitePersistenceLayerLive));
@@ -184,18 +131,12 @@ const AuthLayerLive = ServerAuthLive.pipe(
   Layer.provide(ServerSecretStoreLive),
 );
 
-const ProviderRuntimeLayerLive = ProviderSessionReaperLive.pipe(
-  Layer.provideMerge(ProviderLayerLive),
-  Layer.provideMerge(OrchestrationLayerLive),
-);
-
 const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(GitLayerLive),
-  Layer.provideMerge(ProviderRuntimeLayerLive),
+  Layer.provideMerge(OrchestrationLayerLive),
   Layer.provideMerge(TerminalLayerLive),
   Layer.provideMerge(PersistenceLayerLive),
   Layer.provideMerge(KeybindingsLive),
-  Layer.provideMerge(ProviderRegistryLive),
   Layer.provideMerge(ServerSettingsLive),
   Layer.provideMerge(ProjectLayerLive),
   Layer.provideMerge(ProjectFaviconResolverLive),
@@ -218,7 +159,6 @@ export const ServerRuntimeLayer = RuntimeServicesLive.pipe(
 );
 
 export const makeRoutesLayer = Layer.mergeAll(
-  authBearerBootstrapRouteLayer,
   authBootstrapRouteLayer,
   authClientsRevokeOthersRouteLayer,
   authClientsRevokeRouteLayer,
@@ -227,7 +167,6 @@ export const makeRoutesLayer = Layer.mergeAll(
   authPairingLinksRouteLayer,
   authPairingCredentialRouteLayer,
   authSessionRouteLayer,
-  authWebSocketTokenRouteLayer,
   attachmentsRouteLayer,
   orchestrationDispatchRouteLayer,
   orchestrationSnapshotRouteLayer,

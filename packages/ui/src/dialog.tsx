@@ -2,9 +2,14 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { IconCrossMediumDefault } from "central-icons";
+import type * as React from "react";
 import { cn } from "./utils";
 import { Button } from "./button";
 import { ScrollArea } from "./scroll-area";
+
+function DialogCloseButton(props: React.ComponentProps<typeof Button>) {
+  return <Button size="icon" variant="ghost" {...props} />;
+}
 
 const DialogCreateHandle = DialogPrimitive.createHandle;
 
@@ -77,7 +82,7 @@ function DialogPopup({
             <DialogPrimitive.Close
               aria-label="Close"
               className="absolute inset-e-2 top-2"
-              render={<Button size="icon" variant="ghost" />}
+              render={DialogCloseButton}
             >
               <IconCrossMediumDefault />
             </DialogPrimitive.Close>

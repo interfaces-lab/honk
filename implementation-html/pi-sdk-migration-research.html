@@ -244,13 +244,13 @@
           First-principles design: the app has one agent substrate, Pi. Codex is not the base, not a special runtime, and not a package boundary. Codex is one policy-selected Pi provider/model choice, next to Claude and xAI, surfaced through account setup and Agent Mode policy.
         </p>
         <p>
-          Multi should keep what Pi does not try to be: a desktop control plane with persistent projects, timeline/search projections, approvals, live workbench panels, git state, terminals, file trees, queued sends, subagent run panels, settings, and a renderer/runtime-host boundary. Multi should not keep its own conversation tree model; Pi's local JSONL session tree is the source of truth.
+          Multi should keep what Pi does not try to be: a desktop control plane with persistent projects, timeline/search projections, GUI request panels, live workbench panels, git state, terminals, file trees, queued sends, subagent run panels, settings, and a renderer/runtime-host boundary. Multi should not keep its own conversation tree model; Pi's local JSONL session tree is the source of truth.
         </p>
         <h3>Decision</h3>
         <ol>
           <li>Install Pi as an in-process package dependency and center execution on `AgentHarness`.</li>
           <li>Introduce a Multi-owned `ThreadAgentRuntime` service that emits `AgentRuntimeEvent` directly.</li>
-          <li>Make Pi the model/session/tool authority from the target architecture, with Multi owning product state, UI projections, permissions, and persistence.</li>
+          <li>Make Pi the model/session/tool authority from the target architecture, with Multi owning product state, UI projections, user-input requests, and persistence.</li>
           <li>Expose only the curated login surface: Claude API key, Codex OAuth, Codex API key, and xAI API key.</li>
           <li>Make preferences and GUI state the primary rewrite surface: no Pi TUI imports, no provider-instance settings, no generic model picker.</li>
           <li>Delete `effect-acp`, `effect-codex-app-server`, old Codex/Claude/Cursor runtime code, provider-specific status probes, and provider registry imports.</li>
@@ -260,7 +260,7 @@
       <section id="pi-base-verdict">
         <h2>Pi Base Runtime Verdict</h2>
         <div class="callout">
-          Build Multi on Pi, not on Codex. Pi is the base runtime: authentication, model selection, streamed turns, tool calls, cancellation, approvals/user input, session persistence, tree recovery, extensions, and built-in coding tools all enter through Pi. Codex is only one provider/model choice inside `AgentModePolicy`.
+          Build Multi on Pi, not on Codex. Pi is the base runtime: authentication, model selection, streamed turns, tool calls, cancellation, GUI user input, session persistence, tree recovery, extensions, and built-in coding tools all enter through Pi. Codex is only one provider/model choice inside `AgentModePolicy`.
         </div>
         <p>
           The previous question was useful as a capability test: Pi can cover a barebone Codex provider. The first-principles answer is stronger: the replacement target is not Codex. The replacement target is the entire provider-runtime idea. The current Multi Codex path is a local process/protocol shell around Codex: start a Codex app-server process, initialize it, start or resume a thread, forward `turn/start`, `turn/interrupt`, `thread/read`, `thread/rollback`, answer command/file-change/user-input requests, and normalize notifications into Multi runtime events. Pi's embedded session path covers those jobs in-process: `createAgentSession()` creates an `Agent` whose stream function resolves Pi auth, calls `streamSimple()`, passes retry/timeout/websocket settings, and emits `AgentSessionEvent` values through `session.subscribe()`.
@@ -273,8 +273,9 @@
             <tr><td>Curated account setup</td><td>Pi `AuthStorage` supports stored API keys, stored OAuth credentials, runtime API-key overrides, environment variables, fallback resolvers, locked OAuth refresh, login, logout, and auth status.</td><td><span class="keep">Covered</span></td></tr>
             <tr><td>Provider transport</td><td>Pi `openai-codex-responses` builds Codex Responses requests, supports WebSocket and SSE, retries retryable failures, maps provider events to OpenAI Responses stream events, and exposes a simple `streamSimple` path.</td><td><span class="keep">Covered</span></td></tr>
             <tr><td>Agent run loop</td><td>`AgentSession.prompt()`, `sendUserMessage()`, `steer()`, `followUp()`, `abort()`, `abortRetry()`, and queue events cover the run loop Multi needs.</td><td><span class="keep">Covered</span></td></tr>
+            <tr><td>Image attachments</td><td>Pi accepts `ImageContent[]` as `{ type: "image", data, mimeType }`: `AgentSession.prompt(text, { images })`, `steer(text, images)`, `followUp(text, images)`, and RPC `prompt` / `steer` / `follow_up` all carry images. Multi's current runtime bridge accepts composer image attachments on `ThreadAgentRuntimeSendInput.images` and strips composer data URLs to Pi base64 at the host boundary.</td><td><span class="keep">Covered, bridge-owned</span></td></tr>
             <tr><td>Model policy and thinking</td><td>`AgentSession.setModel()`, `cycleModel()`, `setThinkingLevel()`, and Pi `clampThinkingLevel()` cover model and reasoning changes without exposing raw provider settings to the renderer.</td><td><span class="keep">Covered</span></td></tr>
-            <tr><td>Tool gates and approvals</td><td>Pi has built-in coding tools, custom tools, `tool_call` / `tool_result` hooks, `defineTool()`, `pi.registerTool()`, and active-tool control. Multi can block a tool call on a desktop request panel.</td><td><span class="keep">Covered</span></td></tr>
+            <tr><td>Tools and GUI requests</td><td>Pi has built-in coding tools, custom tools, `tool_call` / `tool_result` hooks, `defineTool()`, `pi.registerTool()`, and active-tool control. Multi should not add a permission gate; the desktop runs all-access and uses Pi tools/extensions for explicit user-input requests.</td><td><span class="keep">Covered</span></td></tr>
             <tr><td>GUI user input</td><td>Pi's example ask tools prove the shape: a tool can wait on UI, return structured `AgentToolResult`, and continue the same run. Multi replaces the TUI UI context with a GUI request registry.</td><td><span class="keep">Covered</span></td></tr>
             <tr><td>Session persistence and tree</td><td>Pi `SessionManager` stores JSONL entries with `id`/`parentId`, active leaf, labels, model/thinking changes, compactions, custom entries, `getTree()`, and HTML/JSONL export.</td><td><span class="keep">Covered</span></td></tr>
             <tr><td>Desktop product surface</td><td>Pi does not own Multi's timeline, pending-request panels, account page, workbench, IPC stream contract, git/files/terminal UI, or product model policy.</td><td><span class="replace">Multi-owned</span></td></tr>
@@ -342,16 +343,16 @@ export async function startAgentThread(input: {
   return {
     threadId: input.threadId,
     session,
-    async send(prompt, delivery) {
+    async send(prompt, delivery, images) {
       if (delivery === "steer") {
-        await session.steer(prompt);
+        await session.steer(prompt, images);
         return;
       }
       if (delivery === "follow-up") {
-        await session.followUp(prompt);
+        await session.followUp(prompt, images);
         return;
       }
-      await session.prompt(prompt);
+      await session.prompt(prompt, images ? { images } : undefined);
     },
     async abort() {
       await session.abort();
@@ -380,14 +381,14 @@ export async function startAgentThread(input: {
         <table>
           <thead><tr><th>AgentHarness Capability</th><th>Multi Product Need</th></tr></thead>
           <tbody>
-            <tr><td><code>ExecutionEnv</code> = filesystem + shell</td><td>Multi can inject project/worktree-aware file and command operations with approvals, terminal integration, sandbox policy, and observability.</td></tr>
+            <tr><td><code>ExecutionEnv</code> = filesystem + shell</td><td>Multi can inject project/worktree-aware file and command operations with terminal integration, process policy, and observability.</td></tr>
             <tr><td><code>Session</code> and JSONL/session repo abstractions</td><td>Durable agent state, branches, labels, model changes, thinking changes, active tools, custom entries, and compaction entries.</td></tr>
             <tr><td><code>prompt</code>, <code>steer</code>, <code>followUp</code>, <code>nextTurn</code></td><td>Matches Multi's visible composer queue, steering, and follow-up UX without inventing a parallel queue model.</td></tr>
             <tr><td><code>compact</code> and <code>navigateTree</code></td><td>Maps directly to context compaction, Pi `/tree` navigation, and plan/implementation forks.</td></tr>
-            <tr><td><code>setTools</code>, <code>setActiveTools</code></td><td>Runtime modes can become tool sets instead of provider-specific permission hacks.</td></tr>
+            <tr><td><code>setTools</code>, <code>setActiveTools</code></td><td>Interaction modes can select tool sets without provider-specific runtime access presets.</td></tr>
             <tr><td><code>setResources</code></td><td>Skills and prompt templates can be updated from Multi project/user settings and command menu state.</td></tr>
             <tr><td><code>before_provider_request</code>, <code>before_provider_payload</code>, <code>after_provider_response</code></td><td>Request telemetry, headers, cache, rate limit state, payload diagnostics, and provider response metadata.</td></tr>
-            <tr><td><code>tool_call</code> and <code>tool_result</code></td><td>Permission gates, ask-user tools, file-change extraction, command output summaries, and UI activity rows.</td></tr>
+            <tr><td><code>tool_call</code> and <code>tool_result</code></td><td>Ask-user tools, file-change extraction, command output summaries, diagnostics, and UI activity rows.</td></tr>
             <tr><td><code>subscribe</code></td><td>Single event source for Multi projections and desktop IPC streams.</td></tr>
           </tbody>
         </table>
@@ -425,7 +426,7 @@ export async function startAgentThread(input: {
         <h3>New Service Boundary</h3>
         <pre><code>ThreadAgentRuntime
   startThread(threadId, cwd, model, mode)
-  send(threadId, prompt, attachments, delivery)
+  send(threadId, prompt, images, delivery)
   abort(threadId)
   compact(threadId, instructions?)
   getTree(threadId)
@@ -441,7 +442,7 @@ export async function startAgentThread(input: {
 
         <h3>Effect Link</h3>
         <p>
-          AgentHarness itself is not Effect-based, and that is acceptable. It becomes a library boundary. Use `Effect.tryPromise` for harness calls, `Scope` for lifecycle, `Queue` for subscribed event callbacks, `PubSub` for fan-out, and `Deferred` for permission/user-input responses. Do not expose raw harness promises past `ThreadAgentRuntime`.
+          AgentHarness itself is not Effect-based, and that is acceptable. It becomes a library boundary. Use `Effect.tryPromise` for harness calls, `Scope` for lifecycle, `Queue` for subscribed event callbacks, `PubSub` for fan-out, and `Deferred` for user-input responses. Do not expose raw harness promises past `ThreadAgentRuntime`.
         </p>
 
         <h3>AgentHarness Adoption Gate</h3>
@@ -543,7 +544,7 @@ function visiblePiTreeNodes(input: {
         <div class="diagram">
           <div class="box">
             <strong>Desktop App</strong>
-            Chat, timeline, agents panel, approvals, plan workbench, git/files/terminal surfaces.
+            Chat, timeline, agents panel, GUI request panels, plan workbench, git/files/terminal surfaces.
           </div>
           <div class="box">
             <strong>Desktop Runtime Host</strong>
@@ -585,7 +586,7 @@ function visiblePiTreeNodes(input: {
             </tr>
             <tr>
               <td><code>AgentModePolicy</code></td>
-              <td>Maps Multi Agent Mode, Interaction Mode, roles, and account state to Pi `ModelRegistry` entries, effective thinking levels, prompt preset, tool posture, and permission posture.</td>
+              <td>Maps Multi Agent Mode, Interaction Mode, roles, and account state to Pi `ModelRegistry` entries, effective thinking levels, prompt preset, tool posture, and queue behavior.</td>
               <td><code>packages/runtime/src/agent/mode-policy.ts</code></td>
             </tr>
             <tr>
@@ -597,11 +598,6 @@ function visiblePiTreeNodes(input: {
               <td><code>AuthGateway</code></td>
               <td>Owns GUI login, API-key storage, OAuth browser/device-code flows, refresh, and provider status for the curated providers.</td>
               <td><code>packages/runtime/src/agent/auth-gateway.ts</code></td>
-            </tr>
-            <tr>
-              <td><code>AgentPermissionGate</code></td>
-              <td>Turns Pi `tool_call` hooks into Multi `request.opened` / `request.resolved` flows for destructive commands, file mutations, and user input.</td>
-              <td><code>packages/runtime/src/agent/agent-permission-gate.ts</code></td>
             </tr>
             <tr>
               <td><code>DesktopAgentExtensions</code></td>
@@ -661,7 +657,7 @@ piSessionId = Pi durable session id or JSONL session file binding</code></pre>
         </table>
         <h3>Forced Usable Models</h3>
         <p>
-          Add `AgentModePolicy.resolve(agentMode, interactionMode, role, authState)` and keep model selection product-owned. A user chooses an Amp-style agent mode such as Deep, Smart, or Rush plus a Cursor-style interaction mode: the unlabeled default agent profile, Ask, Plan, or Debug. Multi chooses the Pi provider/model pair, reasoning level, custom prompt, active tools, permission posture, and queue behavior. On the refreshed Pi mirror, the current frontier examples are `openai-codex/gpt-5.5` and `anthropic/claude-sonnet-4-6`; those belong in release-controlled policy data, not a user-facing model marketplace. xAI remains a fallback/frontier provider such as `xai/grok-code-fast-1` when available.
+          Add `AgentModePolicy.resolve(agentMode, interactionMode, role, authState)` and keep model selection product-owned. A user chooses an Amp-style agent mode such as Deep, Smart, or Rush plus a Cursor-style interaction mode: the unlabeled default agent profile, Ask, Plan, or Debug. Multi chooses the Pi provider/model pair, reasoning level, custom prompt, active tools, and queue behavior. On the refreshed Pi mirror, the current frontier examples are `openai-codex/gpt-5.5` and `anthropic/claude-sonnet-4-6`; those belong in release-controlled policy data, not a user-facing model marketplace. xAI remains a fallback/frontier provider such as `xai/grok-code-fast-1` when available.
         </p>
         <h3>Amp Models Implication</h3>
         <p>
@@ -670,7 +666,7 @@ piSessionId = Pi durable session id or JSONL session file binding</code></pre>
         <table>
           <thead><tr><th>Amp Signal</th><th>Multi Decision</th></tr></thead>
           <tbody>
-            <tr><td>Modes are "system prompt + tools + model".</td><td>Multi splits this into two desktop axes: `AgentMode` owns frontier model/reasoning posture; `InteractionMode` owns prompt constraints, active tools, permission posture, and queue behavior.</td></tr>
+            <tr><td>Modes are "system prompt + tools + model".</td><td>Multi splits this into two desktop axes: `AgentMode` owns frontier model/reasoning posture; `InteractionMode` owns prompt constraints, active tools, queue behavior, and desktop UI posture.</td></tr>
             <tr><td>Deep and Rush can use the same frontier model with different reasoning defaults.</td><td>`rush` should be Codex GPT-5.5 first with low/no reasoning where Pi supports it; xAI is a fast fallback lane, not a separate runtime.</td></tr>
             <tr><td>Oracle/subagent/system models are product-internal jobs.</td><td>Expose Subagent roles in the UI, but keep model selection in `AgentModePolicy` and per-role policy data.</td></tr>
             <tr><td>Amp uses Gemini for several internal roles.</td><td>Do not add Google login now. Either approximate those roles with Codex/Claude/xAI or mark them as a future provider-lane expansion.</td></tr>
@@ -685,7 +681,7 @@ piSessionId = Pi durable session id or JSONL session file binding</code></pre>
           <thead><tr><th>Product Axis</th><th>Values</th><th>Why It Exists</th></tr></thead>
           <tbody>
             <tr><td><code>AgentMode</code></td><td><code>rush</code>, <code>smart</code>, <code>deep</code></td><td>Matches Amp's user-facing frontier modes. Controls usable model candidates, requested thinking level, and cost posture.</td></tr>
-            <tr><td><code>InteractionMode</code></td><td><code>agent</code>, <code>ask</code>, <code>plan</code>, <code>debug</code></td><td>Matches Cursor-style task modes. `agent` is the default and has no visible label; Ask, Plan, and Debug are explicit GUI postures. Controls custom prompt, active tools, permission posture, queue behavior, and desktop workbench surface.</td></tr>
+            <tr><td><code>InteractionMode</code></td><td><code>agent</code>, <code>ask</code>, <code>plan</code>, <code>debug</code></td><td>Matches Cursor-style task modes. `agent` is the default and has no visible label; Ask, Plan, and Debug are explicit GUI postures. Controls custom prompt, active tools, queue behavior, and desktop workbench surface.</td></tr>
             <tr><td><code>AgentRole</code></td><td><code>main</code>, <code>oracle</code>, <code>review</code>, <code>librarian</code>, <code>subagent</code></td><td>Controls internal jobs and child agents. Users can invoke roles, but policy chooses the model.</td></tr>
           </tbody>
         </table>
@@ -713,7 +709,7 @@ piSessionId = Pi durable session id or JSONL session file binding</code></pre>
             <tr><td>`composerState.modes4` near offset `19373483` defines built-ins such as `agent`, `plan`, `debug`, and `chat`/Ask, with fields like description, `enabledTools`, `autoRun`, and custom rules.</td><td>Persist `InteractionMode` as product preference data, but expose only default `agent` with no label plus `Ask`, `Plan`, and `Debug` in the composer.</td></tr>
             <tr><td>The protected-mode set near offset `33704562` includes `agent`, `plan`, `debug`, `chat`, and other built-ins; custom modes are exported separately to command markdown.</td><td>Do not build a custom mode marketplace now. Keep first-party profiles hard-coded so Pi prompts/tools stay predictable.</td></tr>
             <tr><td>VS Code workbench chat mode enum near offset `23216002` still has coarse `Ask`, `Edit`, and `Agent` behavior gates.</td><td>Ask is not `ask_user`. Ask is a read-only chat profile; `ask_user` is a model-initiated Pi tool that can appear in any profile.</td></tr>
-            <tr><td>The request layer carries a `UnifiedMode` enum including `CHAT`, `AGENT`, `EDIT`, `CUSTOM`, `PLAN`, and `DEBUG`, plus `supportedTools`, `thinkingLevel`, and `customSystemPrompt`.</td><td>`AgentModePolicy.resolve()` should output the concrete Pi model, thinking level, active tools, permission posture, and prompt preset before each Pi turn.</td></tr>
+            <tr><td>The request layer carries a `UnifiedMode` enum including `CHAT`, `AGENT`, `EDIT`, `CUSTOM`, `PLAN`, and `DEBUG`, plus `supportedTools`, `thinkingLevel`, and `customSystemPrompt`.</td><td>`AgentModePolicy.resolve()` should output the concrete Pi model, thinking level, active tools, queue behavior, and prompt preset before each Pi turn.</td></tr>
           </tbody>
         </table>
         <h3>Passthrough Login Native To Pi</h3>
@@ -809,9 +805,9 @@ import {
             <tr><td><code>Scope</code></td><td>Own each Pi session, subscription, abort controller, and pending request map. Closing a thread closes the scope.</td></tr>
             <tr><td><code>Queue</code></td><td>Turn Pi callback events into ordered work items before projection and publishing.</td></tr>
             <tr><td><code>PubSub</code></td><td>Expose one canonical runtime stream to `AgentRuntimeService` and the orchestration ingestion layer.</td></tr>
-            <tr><td><code>Deferred</code></td><td>Resolve approvals and user-input questions. Pi hook blocks on a Deferred while Multi UI answers.</td></tr>
+            <tr><td><code>Deferred</code></td><td>Resolve user-input questions. Pi extension tools can block on a Deferred while Multi UI answers.</td></tr>
             <tr><td><code>Schema</code></td><td>Decode all Pi-adjacent raw payloads before storing or exposing over IPC/transport boundaries.</td></tr>
-            <tr><td><code>Layer</code></td><td>Provide `ThreadAgentRuntimeLive`, `AgentModePolicyLive`, `AgentPermissionGateLive`, and `DesktopAgentExtensionsLive` inside the runtime host.</td></tr>
+            <tr><td><code>Layer</code></td><td>Provide `ThreadAgentRuntimeLive`, `AgentModePolicyLive`, and `DesktopAgentExtensionsLive` inside the runtime host.</td></tr>
             <tr><td><code>Effect.tryPromise</code></td><td>Use only at Pi SDK boundaries: create session, prompt, abort, dispose, model registry calls.</td></tr>
           </tbody>
         </table>
@@ -1025,7 +1021,7 @@ contextBridge.exposeInMainWorld("multiRuntime", runtime);</code></pre>
       <section id="desktop-ui">
         <h2>Desktop UI Rebuild</h2>
         <div class="callout">
-          This is the core product rewrite: Pi runs headless inside the runtime host, while Multi turns Pi session state, extension requests, auth, model policy, permissions, and `/tree` into desktop-native React surfaces. Multi should not import `@earendil-works/pi-tui`.
+          This is the core product rewrite: Pi runs headless inside the runtime host, while Multi turns Pi session state, extension requests, auth, model policy, all-access run posture, and `/tree` into desktop-native React surfaces. Multi should not import `@earendil-works/pi-tui`.
         </div>
         <p>
           Pi's `examples/sdk/12-full-control.ts` proves the important point: a caller can create `AuthStorage`, `ModelRegistry`, `SettingsManager`, `ResourceLoader`, `SessionManager`, and `createAgentSession()` directly, subscribe to events, call `prompt()`, and dispose the session without terminal UI. Multi should start from that path and make the GUI the only user interaction layer.
@@ -1035,10 +1031,10 @@ contextBridge.exposeInMainWorld("multiRuntime", runtime);</code></pre>
         <table>
           <thead><tr><th>Current Surface</th><th>Rewrite Decision</th></tr></thead>
           <tbody>
-            <tr><td><code>settings-panels.tsx</code> imports provider instances, driver options, model picker, runtime modes, and `@multi/client-runtime` scoped refs.</td><td><span class="delete">Rewrite</span> as a `Pi Agent` preferences page. The page configures Pi accounts, policy, permissions, tree behavior, resources, and GUI behavior.</td></tr>
+            <tr><td><code>settings-panels.tsx</code> imports provider instances, driver options, model picker, runtime modes, and `@multi/client-runtime` scoped refs.</td><td><span class="delete">Rewrite</span> as a `Pi Agent` preferences page. The page configures Pi accounts, policy, tree behavior, resources, GUI behavior, and diagnostics.</td></tr>
             <tr><td><code>provider-settings-form.tsx</code> derives dynamic form fields from provider driver schemas.</td><td><span class="delete">Delete</span>. The curated account rows are fixed product UI, not generated provider forms.</td></tr>
             <tr><td><code>ProviderModelPicker</code> exposes provider/model selection as user-facing runtime choice.</td><td><span class="replace">Replace</span> with Agent Mode and Interaction Mode controls. `AgentModePolicy` chooses the provider/model pair behind Rush, Smart, Deep, task posture, and internal roles.</td></tr>
-            <tr><td>Runtime mode labels are provider-era permission presets: full access, auto-accept edits, supervised.</td><td><span class="replace">Replace</span> with interaction modes plus Subagent Policy rows that map to Pi active tools and `tool_call` gates.</td></tr>
+            <tr><td>Runtime mode labels are provider-era permission presets: full access, auto-accept edits, supervised.</td><td><span class="delete">Delete</span>. Pi is all-access by default in Multi, with no user-configurable runtime access mode.</td></tr>
             <tr><td>Send-while-running setting only knows queue, stop-and-send, send immediately.</td><td><span class="replace">Expand</span> to Pi-native delivery: queue, steer, follow-up, stop-and-send.</td></tr>
             <tr><td>Provider status cards report old runtime health.</td><td><span class="replace">Replace</span> with Pi auth/model availability diagnostics: active lane, auth source, OAuth expiry, API-key configured, model availability, session directory.</td></tr>
           </tbody>
@@ -1052,8 +1048,7 @@ contextBridge.exposeInMainWorld("multiRuntime", runtime);</code></pre>
           <thead><tr><th>Section</th><th>Settings</th><th>Behavior</th></tr></thead>
           <tbody>
             <tr><td>Accounts</td><td>Claude API Key, Codex OAuth, Codex API Key, xAI API Key.</td><td>Configure, validate, remove, and show auth source. The UI writes through Pi `AuthStorage`; Pi remains the credential source of truth while Multi owns the desktop account surface.</td></tr>
-            <tr><td>Mode Policy</td><td>Default Agent Mode, default Interaction Mode, forced usable models, fallback behavior, reasoning policy.</td><td>Users choose product intent. `AgentModePolicy.resolve()` chooses Pi provider id, model id, effective thinking level, custom prompt, tool posture, permission posture, and queue behavior.</td></tr>
-            <tr><td>Permissions</td><td>Default tool posture, ask before destructive shell, ask before file writes, Subagent Policy, allow network tools.</td><td>Maps to Pi active tools and `tool_call` hook decisions. This replaces provider runtime modes.</td></tr>
+            <tr><td>Mode Policy</td><td>Default Agent Mode, default Interaction Mode, forced usable models, fallback behavior, reasoning policy, and tool posture.</td><td>Users choose product intent. `AgentModePolicy.resolve()` chooses Pi provider id, model id, effective thinking level, custom prompt, active tools, and queue behavior.</td></tr>
             <tr><td>Pi Session</td><td>Session storage location, default desktop `/tree` view predicate, summarize when leaving branch, labels visible, compaction policy.</td><td>Controls Pi JSONL sessions and tree projection. Multi stores only UI expansion/filter state.</td></tr>
             <tr><td>Resources</td><td>Project extensions, user extensions, skills, prompts, MCP/tool discovery.</td><td>Feeds `DefaultResourceLoader` or a custom Multi resource loader before session creation and on reload.</td></tr>
             <tr><td>GUI Behavior</td><td>Assistant streaming, send while running, usage summary, timeline density, pending request placement.</td><td>Pure desktop settings. They never change Pi provider internals; they change how Multi presents and routes Pi events.</td></tr>
@@ -1072,7 +1067,7 @@ contextBridge.exposeInMainWorld("multiRuntime", runtime);</code></pre>
           <tbody>
             <tr><td><code>session.prompt</code>, <code>steer</code>, <code>followUp</code>, <code>nextTurn</code></td><td>Composer delivery menu and visible queue.</td></tr>
             <tr><td><code>session.subscribe</code></td><td>Timeline, status pill, activity stream, usage summary, tree refresh.</td></tr>
-            <tr><td><code>tool_call</code> hook</td><td>Approval panel, destructive action sheet, permission rules table.</td></tr>
+            <tr><td><code>tool_call</code> hook</td><td>Tool diagnostics, file-change extraction, command output summaries, and custom tool telemetry.</td></tr>
             <tr><td>Ask-user tool</td><td>Pending question card in timeline and right workbench; reply resumes the same Pi tool call.</td></tr>
             <tr><td><code>SessionManager.getTree()</code></td><td>Desktop `/tree` view with renderer-side filters, labels, active branch, and jump actions.</td></tr>
             <tr><td><code>ctx.ui.notify</code> equivalent</td><td>Thread-scoped toast plus activity row. Commands can emit events instead of rendering TUI overlays.</td></tr>
@@ -1233,9 +1228,6 @@ export const AccountConnections = Schema.Struct({
 export type AccountConnections = typeof AccountConnections.Type;
 
 export const SubagentPolicy = Schema.Struct({
-  permissionPolicy: Schema.Literals(["supervised", "same-as-parent"]).pipe(
-    Schema.withDecodingDefault(Effect.succeed("supervised")),
-  ),
   projectAgentTrust: Schema.Literals(["ask", "never", "allow"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("ask")),
   ),
@@ -1260,15 +1252,7 @@ export const AgentPreferences = Schema.Struct({
     usableModels: Schema.Literal("frontier").pipe(Schema.withDecodingDefault(Effect.succeed("frontier"))),
     fallback: Schema.Literals(["ask", "auto", "off"]).pipe(Schema.withDecodingDefault(Effect.succeed("ask"))),
     thinking: ThinkingPolicy.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
-  }),
-  permissions: Schema.Struct({
-    defaultToolPosture: Schema.Literals(["supervised", "edits-ok", "autonomous"]).pipe(
-      Schema.withDecodingDefault(Effect.succeed("supervised")),
-    ),
-    askBeforeDestructiveShell: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-    askBeforeFileWrites: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
     subagent: SubagentPolicy,
-    allowNetworkTools: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   }),
   tree: Schema.Struct({
     defaultFilter: Schema.Literals(["default", "no-tools", "user-only", "labeled-only", "all"]).pipe(
@@ -1559,7 +1543,6 @@ export type ProviderId = (typeof MODEL_PROVIDERS)[number];
 
 export type AuthRequirement = "anthropic-api-key" | "codex-oauth" | "codex-api-key" | "xai-api-key";
 export type ToolPosture = "read-only" | "review" | "code" | "research";
-export type PermissionPosture = "observe" | "ask-to-write" | "edits-ok" | "autonomous";
 export type QueueBehavior = "queue" | "steer" | "follow-up" | "stop-and-send";
 export type CostPosture = "cheap" | "standard" | "expensive";
 
@@ -1588,7 +1571,6 @@ type AgentModeDefinition = {
 type InteractionModeDefinition = {
   readonly promptPreset: PromptPreset;
   readonly toolPosture: ToolPosture;
-  readonly permissionPosture: PermissionPosture;
   readonly queueBehavior: QueueBehavior;
 };
 
@@ -1598,7 +1580,6 @@ export type ResolvedMode = {
   readonly role: AgentRole;
   readonly promptPreset: PromptPreset;
   readonly toolPosture: ToolPosture;
-  readonly permissionPosture: PermissionPosture;
   readonly queueBehavior: QueueBehavior;
   readonly selection: ModelSelection;
 };
@@ -1662,25 +1643,21 @@ const INTERACTION_MODE_DEFINITIONS = {
   agent: {
     promptPreset: "agent",
     toolPosture: "code",
-    permissionPosture: "ask-to-write",
     queueBehavior: "queue",
   },
   ask: {
     promptPreset: "ask",
     toolPosture: "read-only",
-    permissionPosture: "observe",
     queueBehavior: "follow-up",
   },
   debug: {
     promptPreset: "debug",
     toolPosture: "research",
-    permissionPosture: "ask-to-write",
     queueBehavior: "steer",
   },
   plan: {
     promptPreset: "plan",
     toolPosture: "read-only",
-    permissionPosture: "observe",
     queueBehavior: "queue",
   },
 } satisfies Record&lt;InteractionMode, InteractionModeDefinition&gt;;
@@ -1691,7 +1668,6 @@ const ROLE_OVERRIDES = {
   oracle: {
     promptPreset: "oracle",
     toolPosture: "read-only",
-    permissionPosture: "observe",
     requestedThinkingLevel: "high",
     costPosture: "expensive",
     candidates: [CODEX_GPT_55, OPENAI_GPT_55_API_KEY],
@@ -1699,13 +1675,11 @@ const ROLE_OVERRIDES = {
   librarian: {
     promptPreset: "librarian",
     toolPosture: "research",
-    permissionPosture: "observe",
     candidates: [CLAUDE_SONNET, CODEX_GPT_55, OPENAI_GPT_55_API_KEY],
   },
   review: {
     promptPreset: "review",
     toolPosture: "review",
-    permissionPosture: "observe",
     candidates: [CODEX_GPT_55, OPENAI_GPT_55_API_KEY, CLAUDE_SONNET],
   },
 } satisfies Record&lt;AgentRole, Partial&lt;InteractionModeDefinition&gt; &amp; {
@@ -1822,7 +1796,6 @@ export function resolveAgentMode(input: ResolveModeInput): ModeResolution {
       role: input.role,
       promptPreset: roleOverride.promptPreset ?? interactionMode.promptPreset,
       toolPosture: roleOverride.toolPosture ?? interactionMode.toolPosture,
-      permissionPosture: roleOverride.permissionPosture ?? interactionMode.permissionPosture,
       queueBehavior: roleOverride.queueBehavior ?? interactionMode.queueBehavior,
       selection: {
         providerId: selectedCandidate.providerId,
@@ -2474,7 +2447,7 @@ export function ExtensionUiPanel(props: ExtensionUiPanelProps) {
         <table>
           <thead><tr><th>Pi Extension Hook</th><th>Multi Use</th></tr></thead>
           <tbody>
-            <tr><td><code>tool_call</code></td><td>Permission gate before bash, write, edit, MCP, deploy, and destructive git operations.</td></tr>
+            <tr><td><code>tool_call</code></td><td>Tool diagnostics, file-change extraction, command output summaries, and custom tool telemetry.</td></tr>
             <tr><td><code>tool_result</code></td><td>Normalize command output, patches, file changes, test summaries, and error display.</td></tr>
             <tr><td><code>input</code></td><td>Implement GUI-only composer modes: ask-only, plan-only, thread references, prompt transformations.</td></tr>
             <tr><td><code>before_agent_start</code></td><td>Inject run constraints, AGENTS/rules visibility, selected plan, worktree metadata, and Multi task state.</td></tr>
@@ -2490,7 +2463,7 @@ export function ExtensionUiPanel(props: ExtensionUiPanelProps) {
         <p>
           Pi extension `ctx.ui` is TUI-shaped, but the concepts are transportable: `select`, `confirm`, `input`, `notify`, widgets, title, editor text, autocomplete, and custom editor. Multi should implement a GUI `ExtensionUIContext` that opens pending request panels, command palette entries, modals, side-panel widgets, and timeline cards instead of TUI overlays.
         </p>
-        <pre><code>ctx.ui.confirm(...)  -&gt; Multi pending approval panel
+        <pre><code>ctx.ui.confirm(...)  -&gt; Multi pending confirmation panel
 ctx.ui.input(...)    -&gt; Multi pending user input panel
 ctx.ui.select(...)   -&gt; Multi choice dialog or command palette sheet
 ctx.ui.notify(...)   -&gt; thread-scoped toast/activity row
@@ -2511,7 +2484,7 @@ ctx.ui.setEditorText(...) -&gt; composer draft update</code></pre>
           <tbody>
             <tr><td>`examples/extensions/subagent/index.ts` registers `pi.registerTool({ name: "subagent" })`.</td><td>Multi registers a first-party `subagent` tool in `registerDesktopAgentExtensions()` and includes it in default/deep/debug tool postures.</td></tr>
             <tr><td>Agent definitions are markdown files with YAML frontmatter: `name`, `description`, optional `tools`, optional `model`, and body as system prompt.</td><td>Multi keeps the same spec and loads user agents plus explicitly trusted project agents. The preferences page shows discovered agents and their source.</td></tr>
-            <tr><td>Default `agentScope` is `user`; project agents require `agentScope: "project"` or `"both"` and can prompt for confirmation through `ctx.ui.confirm()`.</td><td>Keep this exact trust model. Project-local agents open a Multi pending approval panel through the desktop `ExtensionUIContext` before any child run starts.</td></tr>
+            <tr><td>Default `agentScope` is `user`; project agents require `agentScope: "project"` or `"both"` and can prompt for confirmation through `ctx.ui.confirm()`.</td><td>Keep this exact trust model. Project-local agents open a Multi pending confirmation panel through the desktop `ExtensionUIContext` before any child run starts.</td></tr>
             <tr><td>Modes are single `{ agent, task }`, parallel `{ tasks }`, and chain `{ chain }` with `{previous}` handoff.</td><td>Expose the same shape to the parent model. Render single, parallel, and chain as child run groups in the agents panel and timeline.</td></tr>
             <tr><td>The example spawns `pi --mode json -p --no-session`, streams `message_end` and `tool_result_end`, tracks usage, and kills child processes on abort.</td><td>Default to embedded `ThreadAgentRuntime` child sessions instead of subprocesses. Preserve the same streaming, usage, abort, and failure details. Only use a Pi subprocess if product isolation explicitly requires process boundaries.</td></tr>
             <tr><td>The example imports Pi TUI renderers for collapsed/expanded tool display.</td><td>Do not import `@earendil-works/pi-tui`. Multi renders child status, logs, output, usage, and changed files in React.</td></tr>
@@ -2743,7 +2716,7 @@ export function registerSubagentTool(input: {
     description: [
       "Spawn specialized subagents with isolated context.",
       "Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).",
-      'Default agent scope is "user". Project agents require explicit agentScope and approval.',
+      'Default agent scope is "user". Project agents require explicit agentScope and confirmation.',
     ].join(" "),
     promptSnippet: "Use subagent to spawn isolated research, planning, review, or implementation work.",
     promptGuidelines: [
@@ -3055,7 +3028,7 @@ export function createEmbeddedSubagentRunHost(input: CreateEmbeddedSubagentRunHo
           <thead><tr><th>Pi Evidence</th><th>Multi Consequence</th></tr></thead>
           <tbody>
             <tr><td>Pi's shipped `examples/extensions/plan-mode/index.ts` registers `/plan`, toggles state, changes active tools, blocks unsafe bash, injects plan context before agent start, writes custom session entries, and shows TUI status/widgets.</td><td>Multi should port the behavior pattern, not the TUI rendering. Desktop plan mode uses the same Pi extension events and the plan workbench.</td></tr>
-            <tr><td>`pi.setActiveTools()` works for built-in and dynamically registered tools.</td><td>Ask and Plan can be read-only; Debug can allow read/shell; the default agent profile can allow edit/write behind permissions.</td></tr>
+            <tr><td>`pi.setActiveTools()` works for built-in and dynamically registered tools.</td><td>Ask and Plan can be read-only; Debug can allow read/shell; the default agent profile can allow edit/write. These are mode-specific tool choices, not permission presets.</td></tr>
             <tr><td>`pi.setModel()` and `pi.setThinkingLevel()` are public extension APIs.</td><td>Interaction modes can combine with Amp-style Agent Modes while still using Pi-native model/thinking changes.</td></tr>
             <tr><td>`before_agent_start` can inject a hidden message or replace/modify system prompt context.</td><td>Cursor-style custom prompts belong here: agent, Ask, Plan, and Debug are prompt presets applied per turn.</td></tr>
             <tr><td>Pi prompt templates load from Pi resources and SDK resource overrides can provide prompts.</td><td>Multi can ship hard-coded prompt presets and optionally expose project prompts later without exposing Pi's whole prompt filesystem as the main UI.</td></tr>
@@ -3080,7 +3053,7 @@ export function createEmbeddedSubagentRunHost(input: CreateEmbeddedSubagentRunHo
         <h3>Debug Mode In The GUI</h3>
         <ol>
           <li>Composer selects `InteractionMode = "debug"` with a focused diagnostics prompt.</li>
-          <li>Pi active tools allow read/search/safe shell first; edits require a permission transition or explicit user confirmation.</li>
+          <li>Pi active tools allow read/search/safe shell first; promoting to the default agent profile enables the normal all-access implementation tool set.</li>
           <li>Timeline shows hypotheses, probes, command outputs, failing checks, and the selected fix path as structured activity.</li>
           <li>`Promote to Agent` keeps the same Pi session and switches posture from diagnostics to the default implementation profile.</li>
         </ol>
@@ -3119,7 +3092,7 @@ DesktopExtensionUi resolves the Pi dialog promise
       <section id="amp">
         <h2>Amp Frontier Pattern</h2>
         <p>
-          Amp's strongest pattern is not the terminal. It is the way it treats agent work as durable, searchable, shareable work units with modes, queueing, Subagent Runs, skills, permissions, and thread references. Multi should copy that product model in a desktop-native way.
+          Amp's strongest pattern is not the terminal. It is the way it treats agent work as durable, searchable, shareable work units with modes, queueing, Subagent Runs, skills, and thread references. Multi should copy that product model in a desktop-native way.
         </p>
         <div class="callout">
           Copy the frontier product posture, not the terminal surface. Amp can optimize for CLI speed; Multi should turn the same primitives into persistent desktop controls, visible queues, side panels, and inspectable run artifacts.
@@ -3131,8 +3104,8 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td>Threads as work artifacts</td><td>Thread list, thread graph, archive, labels, search by repo/file/task/date/model/touched files, and share/export actions. The thread is a durable product object, not just chat transcript text.</td></tr>
             <tr><td>Thread references</td><td>`@@` thread picker in composer; injected summaries from prior Multi threads, selected plans, active diffs, and user-approved context packs.</td></tr>
             <tr><td>Queue and steer</td><td>Visible per-thread queue with reorder, send-now-after-step, cancel, steer current turn, follow-up after turn, and stop-and-send.</td></tr>
-            <tr><td>Subagents as isolated workers</td><td>Child runs under parent thread with separate context, status, diff, tool logs, provider/model choice, Subagent Policy, and summary handback.</td></tr>
-            <tr><td>Permissions as rules</td><td>Profiles and editable rule table: allow, ask, reject, spawn a Subagent. Scope rules to main thread, Subagent Runs, bash command class, file mutation, MCP/network tool, or project path.</td></tr>
+            <tr><td>Subagents as isolated workers</td><td>Child runs under parent thread with separate context, status, diff, tool logs, provider/model choice, trust policy, and summary handback.</td></tr>
+            <tr><td>Trust as product state</td><td>Project-local agents, MCP bundles, and skills are explicit resources with source labels and enablement state, not a generic permission rule table.</td></tr>
             <tr><td>Skills and lazy MCP</td><td>Project/user skills surfaced in command menu, MCP tools loaded only when a skill or thread asks for them, and resource-loading diagnostics visible in the Agent preferences page.</td></tr>
             <tr><td>Agents panel</td><td>Multi's left sidebar becomes the active work control plane: running, queued, blocked, needs review, changed files, cost/usage, and next action.</td></tr>
           </tbody>
@@ -3142,7 +3115,7 @@ DesktopExtensionUi resolves the Pi dialog promise
           <thead><tr><th>Amp Primitive</th><th>Desktop Version</th><th>Pi Hook/API</th></tr></thead>
           <tbody>
             <tr><td>Run mode changes model and behavior.</td><td>Two segmented controls plus preference defaults: Agent Mode for frontier model posture, Interaction Mode for task behavior. Both are visible on every running thread and child agent.</td><td>`AgentModePolicy`, active tools, `before_agent_start`, stream options.</td></tr>
-            <tr><td>Permission decisions are first-class.</td><td>Approval queue with rule editing from the approval itself: always allow here, ask for this repo, reject this command class, spawn a Subagent.</td><td>`tool_call` hook, `AgentPermissionGate`, `request.opened/resolved`.</td></tr>
+            <tr><td>Run requests are first-class.</td><td>Confirmation/input panels for explicit Pi extension requests, plus visible run state for queues, subagents, and handbacks.</td><td>`ctx.ui`, first-party extension tools, `AgentRuntimeEvent`.</td></tr>
             <tr><td>Subagents are normal agent work.</td><td>Agents panel shows parent/child topology, isolated logs, diff scope, handback summary, and merge/apply controls.</td><td>Pi extension tool `subagent` plus Multi `ThreadAgentRuntime` child run.</td></tr>
             <tr><td>SDK emits structured events.</td><td>Renderer subscribes to typed IPC streams and stores read projections for timeline, search, usage, and workbench panels.</td><td>`AgentSession.subscribe` or `AgentHarness.subscribe` projected to `AgentRuntimeEvent`.</td></tr>
             <tr><td>Skills extend agent behavior.</td><td>Skills appear in command menu and thread context picker; project skill failures show diagnostics instead of terminal logs.</td><td>`DefaultResourceLoader`, `resources_discover`, `setResources`.</td></tr>
@@ -3161,7 +3134,7 @@ DesktopExtensionUi resolves the Pi dialog promise
           </tbody>
         </table>
         <p>
-          The main divergence: Amp is fine telling users to use a terminal next to an IDE. Multi should make the desktop the orchestration surface: live agents panel, file and git workbench, terminal drawer, approval queue, child agents, and plan workbench in one place.
+          The main divergence: Amp is fine telling users to use a terminal next to an IDE. Multi should make the desktop the orchestration surface: live agents panel, file and git workbench, terminal drawer, request panels, child agents, and plan workbench in one place.
         </p>
       </section>
 
@@ -3178,7 +3151,7 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td><code>.vscode</code></td><td>2</td><td><span class="keep">Keep</span>.</td></tr>
             <tr><td><code>assets</code></td><td>31</td><td><span class="keep">Keep</span>; product branding unaffected.</td></tr>
             <tr><td><code>implementation-html</code></td><td>0 tracked</td><td><span class="keep">Keep as research artifact</span>; this report becomes the seed for architecture docs after the rewrite direction settles.</td></tr>
-            <tr><td><code>packages/app</code></td><td>428</td><td><span class="replace">Rewrite around the Agent UI</span>; keep chat, timeline, Pi-backed `/tree`, workbench, approvals, agents panel, plan surfaces, and the new preferences page.</td></tr>
+            <tr><td><code>packages/app</code></td><td>428</td><td><span class="replace">Rewrite around the Agent UI</span>; keep chat, timeline, Pi-backed `/tree`, workbench, request panels, agents panel, plan surfaces, and the new preferences page.</td></tr>
             <tr><td><code>packages/server</code></td><td>329</td><td><span class="replace">Replace with `packages/runtime`</span>; keep durable runtime responsibilities, delete websocket route layer, provider runtimes, and generated protocols.</td></tr>
             <tr><td><code>packages/contracts</code></td><td>33</td><td><span class="replace">Rewrite contracts</span>; keep orchestration concepts, delete provider-driver identity.</td></tr>
             <tr><td><code>packages/shared</code></td><td>32</td><td><span class="replace">Prune hard</span>; remove Claude/Codex/Cursor helpers and keep only cross-process primitives still used.</td></tr>
@@ -3203,9 +3176,9 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td>`.vscode`</td><td><span class="keep">Keep</span></td><td>Editor recommendations/settings are product-neutral.</td></tr>
             <tr><td>`assets/dev`, `assets/prod`</td><td><span class="keep">Keep</span></td><td>Branding assets survive unless the desktop visual identity changes.</td></tr>
             <tr><td>`packages/app/src/app`, `routes`, `router.ts`, `routeTree.gen.ts`, `main.tsx`</td><td><span class="replace">Rewrite around Pi Agent screens</span></td><td>Routes should center on threads, workbench, agents, Pi-backed `/tree`, plan workbench, settings, and diagnostics. Regenerate route artifacts after deleting provider-era pages.</td></tr>
-            <tr><td>`packages/app/src/components/chat`</td><td><span class="replace">Keep timeline/composer shape, replace runtime assumptions</span></td><td>Composer controls send `AgentMode` and `InteractionMode`; timeline renders Pi session events, tool calls, ask-user cards, permission cards, usage, and tree navigation.</td></tr>
+            <tr><td>`packages/app/src/components/chat`</td><td><span class="replace">Keep timeline/composer shape, replace runtime assumptions</span></td><td>Composer controls send `AgentMode` and `InteractionMode`; timeline renders Pi session events, tool calls, ask-user cards, usage, and tree navigation.</td></tr>
             <tr><td>`packages/app/src/components/chat/picker`</td><td><span class="delete">Delete provider picker</span></td><td>No model marketplace. Replace with Agent Mode, Interaction Mode, role, account-status, and command/resource pickers.</td></tr>
-            <tr><td>`packages/app/src/components/settings`</td><td><span class="replace">Rewrite as Agent preferences</span></td><td>Accounts, mode policy, permissions, Pi session/tree, resources, GUI behavior, diagnostics. No generated provider-driver forms.</td></tr>
+            <tr><td>`packages/app/src/components/settings`</td><td><span class="replace">Rewrite as Agent preferences</span></td><td>Accounts, mode policy, Pi session/tree, resources, GUI behavior, diagnostics. No generated provider-driver forms.</td></tr>
             <tr><td>`packages/app/src/components/shell`</td><td><span class="replace">Keep workbench shell, change data source</span></td><td>Agents, files, git, terminal, plan, sidebar, and settings panels subscribe to `MultiRuntimeApi` IPC streams and Pi projections.</td></tr>
             <tr><td>`packages/app/src/environments`, `environment-api.ts`, `local-api.ts`, `rpc`</td><td><span class="replace">Collapse to local runtime IPC</span></td><td>Delete URL-addressed environment/server concepts. Renderer talks to preload `MultiRuntimeApi`; tests use an in-memory runtime API harness.</td></tr>
             <tr><td>`packages/app/src/model`, provider-facing stores, session logic</td><td><span class="delete">Delete provider state model</span></td><td>Replace with agent runtime projection stores keyed by `threadId`, `piSessionId`, active branch, pending requests, and run status.</td></tr>
@@ -3214,8 +3187,8 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td>`packages/app/src/plan`, `notifications`, `styles`, icon manifests, tests</td><td><span class="replace">Keep intent, refresh contracts</span></td><td>Plan becomes GUI plan mode and Oracle review surface. Tests should cover Pi ask/plan/profile UI, pending requests, and IPC runtime harness.</td></tr>
             <tr><td>`packages/server/src/provider`, `http.ts`, `ws.ts`, server runtime files, server exposure</td><td><span class="delete">Delete from core</span></td><td>Pi owns provider transport. Desktop runtime is not a websocket server.</td></tr>
             <tr><td>`packages/server/src/auth`</td><td><span class="replace">Move selected pieces into runtime auth gateway</span></td><td>Keep only account UI/status concepts that survive. Credential persistence goes through Pi `AuthStorage` under Multi userdata.</td></tr>
-            <tr><td>`packages/server/src/orchestration`</td><td><span class="replace">Move to `packages/runtime/src/agent`</span></td><td>Own `ThreadAgentRuntime`, send/abort/steer/follow-up, event projection, child agents, approval requests, and ask-user requests.</td></tr>
-            <tr><td>`packages/server/src/persistence`</td><td><span class="replace">Split storage responsibility</span></td><td>Pi JSONL owns session history/tree. Multi SQLite keeps app metadata, UI state, project index, approvals, and derived search where useful.</td></tr>
+            <tr><td>`packages/server/src/orchestration`</td><td><span class="replace">Move to `packages/runtime/src/agent`</span></td><td>Own `ThreadAgentRuntime`, send/abort/steer/follow-up, event projection, child agents, and ask-user requests.</td></tr>
+            <tr><td>`packages/server/src/persistence`</td><td><span class="replace">Split storage responsibility</span></td><td>Pi JSONL owns session history/tree. Multi SQLite keeps app metadata, UI state, project index, and derived search where useful.</td></tr>
             <tr><td>`packages/server/src/project`, `git`, `terminal`, `telemetry`, `observability`</td><td><span class="replace">Move durable services</span></td><td>Become local runtime services called by Pi tools/extensions and GUI panels.</td></tr>
             <tr><td>`packages/server/src/environment`, CLI/server bootstrap/config</td><td><span class="delete">Delete environment server model</span></td><td>Desktop boot creates `DesktopRuntimeHost`; no remote environment registry in core.</td></tr>
             <tr><td>`packages/contracts/src/provider*.ts`, `server.ts`, `environment.ts`, websocket RPC schema</td><td><span class="delete">Delete</span></td><td>Provider and server identity disappears from the public contract.</td></tr>
@@ -3286,7 +3259,7 @@ DesktopExtensionUi resolves the Pi dialog promise
             Short answer: copy very little verbatim, but reuse a lot as behavior specs. The Pi mirror currently has 296 test-like files: 163 in `packages/coding-agent`, 84 in `packages/ai`, 29 in `packages/tui`, and 20 in `packages/agent`. For a Pi-as-core Multi rewrite, the useful first wave is roughly 15-20% direct ports, 30-40% translated contract tests, and the rest left upstream.
           </p>
           <p>
-            The reason is architectural, not licensing. Pi package metadata marks the packages MIT, so small direct ports are fine. But if Multi includes Pi as a package, Pi's provider transforms, raw harness internals, and TUI widgets are not Multi's unit under test. Multi's unit is the desktop host: auth policy, model policy, `ThreadAgentRuntime`, `session.bindExtensions({ uiContext })`, event projection, permission gates, tree UI, and settings/login GUI.
+            The reason is architectural, not licensing. Pi package metadata marks the packages MIT, so small direct ports are fine. But if Multi includes Pi as a package, Pi's provider transforms, raw harness internals, and TUI widgets are not Multi's unit under test. Multi's unit is the desktop host: auth policy, model policy, `ThreadAgentRuntime`, `session.bindExtensions({ uiContext })`, event projection, tree UI, and settings/login GUI.
           </p>
         </div>
 
@@ -3302,7 +3275,7 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr>
               <td>`packages/coding-agent/test/agent-session-dynamic-tools.test.ts` and tool allowlist regressions `2835`, `3592`, `5109`</td>
               <td><span class="keep">Direct port shape</span></td>
-              <td>Test Multi's first-party Pi extensions, active tool policy, hidden tools, plan/read-only tools, debug tools, and permission posture.</td>
+              <td>Test Multi's first-party Pi extensions, active tool policy, hidden tools, plan/read-only tools, and debug tools.</td>
             </tr>
             <tr>
               <td>`packages/coding-agent/test/suite/agent-session-queue.test.ts`</td>
@@ -3366,7 +3339,7 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td>`packages/runtime/test/desktop-extension-ui.test.ts`</td><td>Pi RPC extension UI docs and example</td><td>GUI request/response behavior matches Pi dialog semantics without TUI or RPC bridge.</td></tr>
             <tr><td>`packages/runtime/test/agent-mode-policy.test.ts`</td><td>`agent-session-model-extension.test.ts`</td><td>Hard-coded frontier model policy resolves Claude/Codex/xAI, rejects missing auth, and clamps reasoning through Pi model capability.</td></tr>
             <tr><td>`packages/runtime/test/pi-session-tree.contract.test.ts`</td><td>`session-manager/tree-traversal.test.ts` and `sdk-session-manager.test.ts`</td><td>Multi consumes Pi tree/session manager output directly and never stores a second conversation tree.</td></tr>
-            <tr><td>`packages/app/src/components/settings/agent-preferences.test.tsx`</td><td>Pi auth/model tests as source behavior</td><td>Preference UI exposes only Claude API Key, Codex OAuth, Codex API Key, xAI API Key, Agent Mode, Interaction Mode, permissions, and tree behavior.</td></tr>
+            <tr><td>`packages/app/src/components/settings/agent-preferences.test.tsx`</td><td>Pi auth/model tests as source behavior</td><td>Preference UI exposes only Claude API Key, Codex OAuth, Codex API Key, xAI API Key, Agent Mode, Interaction Mode, and tree behavior.</td></tr>
             <tr><td>`packages/app/src/components/chat/extension-ui-panel.test.tsx`</td><td>`questionnaire.ts` and Pi extension UI response schema</td><td>Ask/confirm/input/editor pending cards render from Pi request data and answer by request id.</td></tr>
           </tbody>
         </table>
@@ -3379,7 +3352,7 @@ DesktopExtensionUi resolves the Pi dialog promise
       <section id="rewrite">
         <h2>Rewrite Plan</h2>
         <ol>
-          <li><strong>Define the desktop Agent UI first.</strong> Create the `AgentPreferences` contract, new preferences page, account rows, interaction-mode picker, permissions table, pending request panel, and Pi `/tree` view so core logic has a product surface without TUI.</li>
+          <li><strong>Define the desktop Agent UI first.</strong> Create the `AgentPreferences` contract, new preferences page, account rows, interaction-mode picker, pending request panel, and Pi `/tree` view so core logic has a product surface without TUI.</li>
           <li><strong>Define the runtime boundary as IPC first.</strong> Replace websocket/default-server assumptions with `DesktopRuntimeHost`, preload `MultiRuntimeApi`, and typed IPC request/stream channels.</li>
           <li><strong>Cut the old runtime packages.</strong> Remove `effect-acp`, `effect-codex-app-server`, native provider runtimes, provider status probes, provider-specific settings, websocket route code, server exposure, and generated protocol dependencies from the package graph.</li>
           <li><strong>Delete `packages/client-runtime`.</strong> Collapse known-environment and scoped-ref helpers into the app or remove them with single-environment desktop boot.</li>
@@ -3387,12 +3360,12 @@ DesktopExtensionUi resolves the Pi dialog promise
           <li><strong>Create the canonical agent identity.</strong> Define `agentRuntime`, `authProviderId`, `modelId`, `accountId`, `threadId`, and `piSessionId` as the only runtime identity shape.</li>
           <li><strong>Delete Multi's conversation tree model.</strong> Use Pi JSONL session persistence, `SessionManager.getTree()`, `navigateTree()`, labels, and branch summarization as the source of truth. Keep filters as renderer-only view predicates.</li>
           <li><strong>Emit `AgentRuntimeEvent` directly.</strong> Rewrite orchestration ingestion to consume the agent event contract without adding another provider-shaped runtime path.</li>
-          <li><strong>Map events comprehensively.</strong> Cover messages, reasoning, tools, file changes, command output, queue updates, compaction, usage, errors, approvals, and user input.</li>
-          <li><strong>Build the agent permission gate.</strong> Use Pi `tool_call` hooks and Multi pending approval/user-input projections. Verify command/file mutation gating.</li>
+          <li><strong>Map events comprehensively.</strong> Cover messages, reasoning, tools, file changes, command output, queue updates, compaction, usage, errors, and user input.</li>
+          <li><strong>Keep access posture fixed.</strong> Delete provider-era permission/runtime-mode settings. Multi's Pi runtime runs all-access; interaction modes only change prompt/tool/UI posture.</li>
           <li><strong>Build curated GUI login.</strong> Replace Codex/Claude/Cursor settings cards with Claude API key, Codex OAuth, Codex API key, and xAI API key. Use Pi `AuthStorage`, OAuth callbacks, and a Multi-owned Pi auth path.</li>
-          <li><strong>Force model selection through `AgentModePolicy`.</strong> Agent Mode chooses blessed Pi provider/model pairs and effective reasoning level; Interaction Mode chooses prompt, tool posture, and permission posture. The user picks auth and intent, not a generic model registry row.</li>
+          <li><strong>Force model selection through `AgentModePolicy`.</strong> Agent Mode chooses blessed Pi provider/model pairs and effective reasoning level; Interaction Mode chooses prompt, active tools, queue behavior, and UI posture. The user picks auth and intent, not a generic model registry row.</li>
           <li><strong>Add GUI ask/plan/subagent extensions.</strong> Implement as Pi extension factories backed by Multi UI events and orchestration projections.</li>
-          <li><strong>Rebuild tests around the target architecture.</strong> Prefer package-level `pnpm run typecheck`, targeted `ThreadAgentRuntime` tests, permission/user-input tests, and app browser tests for login, pending panels, timeline, Agent Mode, and Interaction Mode.</li>
+          <li><strong>Rebuild tests around the target architecture.</strong> Prefer package-level `pnpm run typecheck`, targeted `ThreadAgentRuntime` tests, user-input tests, and app browser tests for login, pending panels, timeline, Agent Mode, and Interaction Mode.</li>
         </ol>
       </section>
 
@@ -3403,16 +3376,16 @@ DesktopExtensionUi resolves the Pi dialog promise
           <tbody>
             <tr><td>Pi SDK event stream does not contain every Multi canonical detail.</td><td>Keep a small Multi event enrichment layer using Pi tool details, session manager state, and Multi command context.</td></tr>
             <tr><td>Desktop tree view gets stale against Pi session JSONL.</td><td>Do not store a second tree. Recompute from `SessionManager.getTree()` and refresh on `session_tree`, `session_before_tree`, label changes, and new entries.</td></tr>
-            <tr><td>Permission semantics regress.</td><td>Treat `request.opened/resolved` as a product contract and test destructive bash, file edit, file write, and ask-user flows against `ThreadAgentRuntime`.</td></tr>
+            <tr><td>Provider-era permission semantics creep back in.</td><td>Keep Pi access all-access and test that settings/composer surfaces do not expose runtime access presets.</td></tr>
             <tr><td>Curated model forcing gets stale as frontier models change.</td><td>Keep `AgentModePolicy` data-driven and release-controlled, but do not expose Pi's whole provider catalog as the product default.</td></tr>
             <tr><td>GPT-5.5 cost, caching, or retention semantics surprise users.</td><td>Surface model-lane diagnostics in preferences and run summaries: active model, requested/effective thinking level, estimated cost posture, prompt-caching caveat, and whether a profile is using an expensive quality lever.</td></tr>
             <tr><td>Codex API-key semantics differ from Codex OAuth semantics.</td><td>Validate the exact Pi provider/model mapping. If OpenAI API billing must use provider `openai`, keep that as an internal mapping behind the Codex API Key UI row.</td></tr>
             <tr><td>OAuth login leaks TUI assumptions into desktop.</td><td>Use Pi's callback interface directly and render `onAuth`, `onDeviceCode`, `onPrompt`, `onSelect`, `onManualCodeInput`, and `onProgress` as desktop modal states.</td></tr>
             <tr><td>Provider identity assumptions survive in code.</td><td>Delete provider-driver contracts and settings outright. The app is unreleased, so stale settings are not a product constraint.</td></tr>
             <tr><td>Pi TUI assumptions leak into desktop.</td><td>Use SDK below modes. Implement GUI `ExtensionUIContext`; do not embed `@earendil-works/pi-tui` components.</td></tr>
-            <tr><td>Preferences remain a provider-era configuration page.</td><td>Delete provider-instance settings and dynamic provider forms. Build one Agent preferences page around accounts, model policy, permissions, tree behavior, resources, GUI behavior, and diagnostics.</td></tr>
+            <tr><td>Preferences remain a provider-era configuration page.</td><td>Delete provider-instance settings and dynamic provider forms. Build one Agent preferences page around accounts, model policy, tree behavior, resources, GUI behavior, and diagnostics.</td></tr>
             <tr><td>Websocket server assumptions survive as hidden product architecture.</td><td>Delete default `wsBaseUrl`, server exposure, websocket token, reconnect UI, and multi-environment scoped refs. Reintroduce websocket only behind `MultiRuntimeApi` if remote/browser access becomes an explicit product.</td></tr>
-            <tr><td>Subagents edit the same worktree without coordination.</td><td>Desktop agents panel should show child run worktree/diff status and use Subagent Policy for stricter child-run permissions by default.</td></tr>
+            <tr><td>Subagents edit the same worktree without coordination.</td><td>Desktop agents panel should show child run worktree/diff status, topology, and handback summaries so concurrent all-access work remains visible.</td></tr>
           </tbody>
         </table>
       </section>

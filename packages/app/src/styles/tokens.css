@@ -331,14 +331,17 @@ html {
   --vscode-list-hoverBackground: var(--multi-bg-quaternary);
   --cursor-yellow: var(--warning);
   --cursor-green: var(--success);
+  --cursor-red: var(--destructive);
   --cursor-bg-yellow-primary: var(--cursor-yellow);
   --cursor-bg-yellow-secondary: color-mix(in srgb, var(--cursor-yellow) 24%, transparent);
   --cursor-bg-green-secondary: color-mix(in srgb, var(--cursor-green) 24%, transparent);
+  --cursor-bg-red-secondary: color-mix(in srgb, var(--cursor-red) 20%, transparent);
   --cursor-text-primary: var(--multi-fg-primary);
   --cursor-text-secondary: var(--multi-fg-secondary);
   --cursor-text-tertiary: var(--multi-fg-tertiary);
   --cursor-text-yellow-primary: var(--cursor-yellow);
   --cursor-text-green-primary: var(--cursor-green);
+  --cursor-text-red-primary: var(--cursor-red);
   --cursor-icon-yellow-primary: color-mix(in srgb, var(--cursor-yellow) 92%, transparent);
   --cursor-icon-green-primary: color-mix(in srgb, var(--cursor-green) 92%, transparent);
   --cursor-stroke-primary: var(--multi-stroke-primary);
@@ -351,6 +354,8 @@ html {
   --composer-mode-chat-text: var(--cursor-text-green-primary);
   --composer-mode-plan-background: var(--cursor-bg-yellow-secondary);
   --composer-mode-plan-text: var(--cursor-text-yellow-primary);
+  --composer-mode-debug-background: var(--cursor-bg-red-secondary);
+  --composer-mode-debug-text: var(--cursor-text-red-primary);
   --composer-mode-plan-border: var(--cursor-stroke-yellow-primary);
   --composer-mode-plan-icon: var(--cursor-icon-yellow-primary);
   --multi-stroke-primary: color-mix(in srgb, var(--foreground) 20%, transparent);

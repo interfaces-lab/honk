@@ -1,7 +1,7 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
 import { create } from "zustand";
 import {
-  isSubagentProviderSnapshotItemType,
+  isSubagentSnapshotItemType,
   type WorkLogSubagent,
   type WorkLogSubagentLog,
 } from "../session-logic";
@@ -15,11 +15,11 @@ export interface SubagentTraySelection {
 }
 
 export function subagentTrayKey(subagent: WorkLogSubagent): string {
-  return subagent.providerThreadId ?? subagent.threadId ?? subagent.agentId;
+  return subagent.subagentThreadId ?? subagent.threadId ?? subagent.agentId;
 }
 
 function subagentTrayIds(subagent: WorkLogSubagent): ReadonlyArray<string> {
-  return [subagent.providerThreadId, subagent.threadId, subagent.agentId].filter(
+  return [subagent.subagentThreadId, subagent.threadId, subagent.agentId].filter(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
 }
@@ -56,13 +56,13 @@ export function isSubagentTrayLogVisible(
   if (log.kind === "subagent.thread.started" || log.kind === "subagent.thread.state.changed") {
     return false;
   }
-  return !isSubagentProviderSnapshotItemType(log.itemType);
+  return !isSubagentSnapshotItemType(log.itemType);
 }
 
 export function subagentTrayUpdateSignature(subagent: WorkLogSubagent): string {
   return [
     subagentTrayKey(subagent),
-    subagent.providerThreadId?.trim() ?? "",
+    subagent.subagentThreadId?.trim() ?? "",
     subagent.threadId,
     subagent.agentId ?? "",
     subagent.title ?? "",

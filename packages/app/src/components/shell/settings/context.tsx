@@ -1,7 +1,7 @@
 "use client";
 
 import { useNavigate } from "@tanstack/react-router";
-import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useRef, type ReactNode } from "react";
 
 import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 
@@ -11,12 +11,18 @@ const ShellSettingsContext = createContext<{
 
 export function ShellSettingsProvider(props: { children: ReactNode }) {
   const navigate = useNavigate();
-  const openSettings = useCallback(() => {
-    void navigate({ to: DEFAULT_SETTINGS_ROUTE });
-  }, [navigate]);
-  const value = useMemo(() => ({ openSettings }), [openSettings]);
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const contextValueRef = useRef({
+    openSettings: () => {
+      void navigateRef.current({ to: DEFAULT_SETTINGS_ROUTE });
+    },
+  });
+
   return (
-    <ShellSettingsContext.Provider value={value}>{props.children}</ShellSettingsContext.Provider>
+    <ShellSettingsContext.Provider value={contextValueRef.current}>
+      {props.children}
+    </ShellSettingsContext.Provider>
   );
 }
 
