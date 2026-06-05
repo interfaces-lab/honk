@@ -37,7 +37,6 @@
     "unresolved": "error"
   },
   "ignoreDependencies": ["bun"],
-  "ignoreFiles": ["packages/app/public/mockServiceWorker.js"],
   "ignoreIssues": {},
   "workspaces": {
     "packages/contracts": {

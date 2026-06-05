@@ -43,7 +43,7 @@ export function accountIdFromProvider(provider: string, account = "default"): Ac
 export function thinkingLevelForAgentMode(agentMode: AgentMode): AgentThinkingLevel {
   switch (agentMode) {
     case "rush":
-      return "low";
+      return "off";
     case "smart":
       return "medium";
     case "deep":

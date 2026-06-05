@@ -8,7 +8,7 @@ const SHELL_ENV_NAME_PATTERN = /^[A-Z0-9_]+$/;
 type ExecFileSyncLike = (
   file: string,
   args: ReadonlyArray<string>,
-  options: { encoding: "utf8"; timeout: number },
+  options: { encoding: "utf8"; timeout: number; env?: NodeJS.ProcessEnv },
 ) => string;
 
 function trimNonEmpty(value: string | null | undefined): string | undefined {
@@ -152,12 +152,26 @@ export type ShellEnvironmentReader = (
   shell: string,
   names: ReadonlyArray<string>,
   execFile?: ExecFileSyncLike,
+  options?: {
+    env?: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+  },
 ) => Partial<Record<string, string>>;
+
+export type FullShellEnvironmentReader = (
+  shell: string,
+  execFile?: ExecFileSyncLike,
+  options?: {
+    env?: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+  },
+) => Record<string, string>;
 
 export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
   shell,
   names,
   execFile = execFileSync,
+  options,
 ) => {
   if (names.length === 0) {
     return {};
@@ -165,7 +179,8 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
 
   const output = execFile(shell, ["-ilc", buildEnvironmentCaptureCommand(names)], {
     encoding: "utf8",
-    timeout: 5000,
+    timeout: options?.timeoutMs ?? 5000,
+    ...(options?.env ? { env: options.env } : {}),
   });
 
   const environment: Partial<Record<string, string>> = {};
@@ -177,4 +192,28 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
   }
 
   return environment;
+};
+
+function parseNullDelimitedEnvironment(output: string): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const entry of output.split("\0")) {
+    if (!entry) continue;
+    const separatorIndex = entry.indexOf("=");
+    if (separatorIndex <= 0) continue;
+    environment[entry.slice(0, separatorIndex)] = entry.slice(separatorIndex + 1);
+  }
+  return environment;
+}
+
+export const readFullEnvironmentFromLoginShell: FullShellEnvironmentReader = (
+  shell,
+  execFile = execFileSync,
+  options,
+) => {
+  const output = execFile(shell, ["-ilc", "env -0"], {
+    encoding: "utf8",
+    timeout: options?.timeoutMs ?? 5000,
+    ...(options?.env ? { env: options.env } : {}),
+  });
+  return parseNullDelimitedEnvironment(output);
 };

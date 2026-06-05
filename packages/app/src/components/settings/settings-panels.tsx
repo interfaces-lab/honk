@@ -329,8 +329,8 @@ export function GeneralSettingsPanel() {
 
   const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
   const diagnosticsDescription = observability?.localTracingEnabled
-    ? "Local trace file."
-    : "Terminal logs only.";
+    ? "Backend evlog JSONL files and local trace files."
+    : "Backend evlog JSONL files.";
 
   const openInPreferredEditor = (
     target: "keybindings" | "logsDirectory",

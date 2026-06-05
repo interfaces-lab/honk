@@ -6,8 +6,11 @@ node_modules
 *.log
 *.tsbuildinfo
 apps/*/dist
+apps/*/out
 .astro
 packages/*/dist
+packages/*/out
+packages/desktop/.electron-runtime/
 .env
 .env.local
 build/

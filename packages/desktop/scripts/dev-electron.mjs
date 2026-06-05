@@ -18,12 +18,13 @@ if (!Number.isInteger(port) || port <= 0) {
 }
 
 const requiredFiles = [
-  "dist-electron/main.mjs",
-  "dist-electron/preload.cjs",
+  "out/main/index.js",
+  "out/preload/index.js",
   "../server/dist/bin.mjs",
 ];
 const watchedDirectories = [
-  { directory: "dist-electron", files: new Set(["main.mjs", "preload.cjs"]), extensions: [".mjs", ".cjs"] },
+  { directory: "out/main", files: new Set(["index.js"]), extensions: [".js", ".cjs"] },
+  { directory: "out/preload", files: new Set(["index.js"]), extensions: [".js", ".cjs"] },
   { directory: "../server/dist", files: new Set(["bin.mjs"]) },
 ];
 const forcedShutdownTimeoutMs = 1_500;
@@ -226,7 +227,7 @@ function startApp() {
       "--trace-warnings",
       `--user-data-dir=${devUserDataDir}`,
       `--multi-dev-root=${desktopDir}`,
-      "dist-electron/main.mjs",
+      "out/main/index.js",
     ],
     {
       cwd: desktopDir,

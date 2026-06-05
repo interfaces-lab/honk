@@ -11,7 +11,6 @@ import {
   IconStepBack,
   IconStop,
 } from "central-icons";
-import { Virtualizer } from "@pierre/diffs/react";
 import {
   type ComponentType,
   type RefObject,
@@ -74,11 +73,6 @@ const GIT_CHANGES_FILTER_LABELS: Record<GitChangesFilter, string> = {
   branch: "All commits",
 };
 
-const GIT_VIRTUALIZER_CONFIG = {
-  overscrollSize: 640,
-  intersectionObserverMargin: 900,
-} as const;
-
 function showGitActionErrorToast(title: string, error: unknown): void {
   toastManager.add({
     type: "error",
@@ -109,6 +103,7 @@ function resolveGitPanelSelectedId(input: {
 
 export function GitPanel(props: {
   git: GitPanelModel;
+  workspaceKey: string | null;
   onAgentAction: (action: GitAgentAction) => void;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
@@ -117,13 +112,21 @@ export function GitPanel(props: {
   const git = props.git;
 
   switch (git.view.kind) {
-    case "idle":
     case "loading":
       return (
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
           <div className="h-3 w-24 animate-pulse rounded bg-muted/40" />
           <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
           <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
+        </div>
+      );
+    case "idle":
+      return (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+          <p className="text-body font-medium text-foreground/85">No workspace selected</p>
+          <p className="max-w-xs text-detail text-muted-foreground/72">
+            Open a workspace to review changes.
+          </p>
         </div>
       );
     case "error":
@@ -148,6 +151,7 @@ export function GitPanel(props: {
       return (
         <GitPanelInner
           git={git}
+          workspaceKey={props.workspaceKey}
           onAgentAction={props.onAgentAction}
           onStopAgentAction={props.onStopAgentAction}
           stoppingAgentAction={props.stoppingAgentAction}
@@ -194,16 +198,19 @@ function InitGitButton({ git }: { git: GitPanelModel }) {
 }
 
 function GitPanelChangesRail({
+  active,
   rows,
   selectedId,
   onSelect,
 }: {
+  active: boolean;
   rows: readonly DiffRow[];
   selectedId: string | null;
   onSelect: (file: DiffRow) => void;
 }) {
   return (
     <GitChangesFileTree
+      active={active}
       rows={rows}
       selectedId={selectedId}
       onSelect={onSelect}
@@ -275,6 +282,7 @@ function GitDiffCardRow({
 
 function GitPanelInner(props: {
   git: GitPanelModel;
+  workspaceKey: string | null;
   onAgentAction: (action: GitAgentAction) => void;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
@@ -283,7 +291,7 @@ function GitPanelInner(props: {
   const git = props.git;
   const files = git.rows;
   const viewed = useGitViewed(git.cwd);
-  const { open: gitRailOpen, width: gitRailWidth } = useSecondaryRail(git.cwd, "git");
+  const { open: gitRailOpen, width: gitRailWidth } = useSecondaryRail(props.workspaceKey, "git");
   const [diffStyle, setDiffStyle] = useDiffStylePreference();
   const [pending, setPending] = useState<DiffRow | null>(null);
   const [discardAllPending, setDiscardAllPending] = useState(false);
@@ -362,7 +370,7 @@ function GitPanelInner(props: {
   };
 
   const handleToggleRail = () => {
-    shellPanelsActions.toggleSecondaryRail(git.cwd, "git");
+    shellPanelsActions.toggleSecondaryRail(props.workspaceKey, "git");
   };
 
   const handleDiscardAll = () => {
@@ -387,6 +395,7 @@ function GitPanelInner(props: {
 
   const changesRail = (
     <GitPanelChangesRail
+      active={gitRailOpen}
       rows={visibleFiles}
       selectedId={selectedId}
       onSelect={handleSelectFile}
@@ -425,7 +434,7 @@ function GitPanelInner(props: {
           onRefresh={handleRefresh}
         />
         <RightWorkbenchLayout
-          cwd={git.cwd}
+          workspaceKey={props.workspaceKey}
           tab="git"
           railHostClassName="bg-(--multi-shell-sidebar-bg) shadow-[inset_-1px_0_0_color-mix(in_srgb,var(--multi-stroke-quaternary)_78%,transparent)]"
           rail={changesRail}
@@ -451,10 +460,7 @@ function GitPanelInner(props: {
                     : "No files to compare."}
               </div>
             ) : (
-              <Virtualizer
-                className="bg-multi-git-diff-editor-background h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-0 pb-0 scrollbar-gutter-stable"
-                config={GIT_VIRTUALIZER_CONFIG}
-              >
+              <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [overflow-anchor:none] scrollbar-gutter-stable">
                 {visibleFiles.map((file) => (
                   <GitDiffCardRow
                     key={file.id}
@@ -474,7 +480,7 @@ function GitPanelInner(props: {
                     gitRef={gitRef}
                   />
                 ))}
-              </Virtualizer>
+              </div>
             )}
           </div>
         </RightWorkbenchLayout>

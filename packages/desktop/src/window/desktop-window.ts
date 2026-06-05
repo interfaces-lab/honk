@@ -70,7 +70,7 @@ export class DesktopWindow extends Context.Service<DesktopWindow, DesktopWindowS
   "multi/desktop/Window",
 ) {}
 
-const { logInfo: logWindowInfo, logWarning: logWindowWarning } =
+const { logInfo: logWindowInfo, logWarning: logWindowWarning, logError: logWindowError } =
   DesktopObservability.makeComponentLogger("desktop-window");
 
 const DESKTOP_RENDERER_ORIGIN = `${DESKTOP_SCHEME}://desktop`;
@@ -315,7 +315,7 @@ const make = Effect.gen(function* () {
           return;
         }
         void runPromise(
-          logWindowWarning("main window failed to load", {
+          logWindowError("main window failed to load", {
             errorCode,
             errorDescription,
             url: validatedURL,
@@ -325,9 +325,31 @@ const make = Effect.gen(function* () {
     );
     window.webContents.on("render-process-gone", (_event, details) => {
       void runPromise(
-        logWindowWarning("main window render process gone", {
+        logWindowError("main window render process gone", {
           reason: details.reason,
           exitCode: details.exitCode,
+        }),
+      );
+    });
+    window.webContents.on("preload-error", (_event, preloadPath, error) => {
+      void runPromise(
+        logWindowError("main window preload error", {
+          preloadPath,
+          error,
+        }),
+      );
+    });
+    window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+      if (level < 2) {
+        return;
+      }
+      const log = level >= 3 ? logWindowError : logWindowWarning;
+      void runPromise(
+        log("renderer console message", {
+          level,
+          message,
+          line,
+          sourceId,
         }),
       );
     });

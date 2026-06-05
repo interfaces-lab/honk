@@ -12,7 +12,7 @@ export const AGENT_MODE_LABELS: Record<AgentMode, string> = {
 };
 
 export const AGENT_MODE_THINKING_LEVELS: Record<AgentMode, AgentThinkingLevel> = {
-  rush: "low",
+  rush: "off",
   smart: "medium",
   deep: "high",
 };

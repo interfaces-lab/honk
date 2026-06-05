@@ -74,6 +74,8 @@ type ServerAuthGateState =
 
 let bootstrapPromise: Promise<ServerAuthGateState> | null = null;
 let resolvedAuthenticatedGateState: ServerAuthGateState | null = null;
+let serverBearerSessionRecord: ServerBearerSessionRecord | null = null;
+let resolveAuthenticatedServerBearerTokenPromise: Promise<string | null> | null = null;
 const SERVER_BEARER_SESSION_STORAGE_KEY = "multi.server.bearerSession.v1";
 
 interface ServerBearerSessionRecord {
@@ -150,6 +152,7 @@ function isExpired(isoTime: string): boolean {
 }
 
 function clearServerBearerSession(): void {
+  serverBearerSessionRecord = null;
   window.sessionStorage?.removeItem(SERVER_BEARER_SESSION_STORAGE_KEY);
 }
 
@@ -159,9 +162,11 @@ function readServerBearerSession(): ServerBearerSessionRecord | null {
     return null;
   }
 
-  const record = parseServerBearerSessionRecord(
-    window.sessionStorage?.getItem(SERVER_BEARER_SESSION_STORAGE_KEY) ?? null,
-  );
+  const record =
+    serverBearerSessionRecord ??
+    parseServerBearerSessionRecord(
+      window.sessionStorage?.getItem(SERVER_BEARER_SESSION_STORAGE_KEY) ?? null,
+    );
   if (!record) {
     return null;
   }
@@ -171,6 +176,7 @@ function readServerBearerSession(): ServerBearerSessionRecord | null {
     return null;
   }
 
+  serverBearerSessionRecord = record;
   return record;
 }
 
@@ -183,16 +189,60 @@ function writeServerBearerSession(result: AuthBootstrapResult): void {
   const record: ServerBearerSessionRecord = {
     httpBaseUrl,
     sessionToken: result.sessionToken,
-    expiresAt: String(result.expiresAt),
+    expiresAt: DateTime.formatIso(result.expiresAt),
   };
+  serverBearerSessionRecord = record;
   window.sessionStorage?.setItem(SERVER_BEARER_SESSION_STORAGE_KEY, JSON.stringify(record));
 }
 
-function getServerBearerSessionToken(): string | null {
+export function getServerBearerSessionToken(): string | null {
   return readServerBearerSession()?.sessionToken ?? null;
 }
 
-function createAuthenticatedRequestInit(init: RequestInit = {}): RequestInit {
+async function resolveAuthenticatedServerBearerTokenOnce(): Promise<string | null> {
+  const existingToken = getServerBearerSessionToken();
+  if (existingToken) {
+    const currentSession = await fetchSessionState();
+    if (currentSession.authenticated) {
+      return existingToken;
+    }
+    clearServerBearerSession();
+    resolvedAuthenticatedGateState = null;
+  }
+
+  await resolveInitialServerAuthGateState();
+
+  const refreshedExistingToken = getServerBearerSessionToken();
+  if (refreshedExistingToken) {
+    return refreshedExistingToken;
+  }
+
+  const credential = readBootstrapCredential();
+  if (!credential) {
+    return null;
+  }
+
+  const bearerSession = await exchangeBootstrapCredential(credential);
+  writeServerBearerSession(bearerSession);
+  resolvedAuthenticatedGateState = { status: "authenticated" };
+  return bearerSession.sessionToken;
+}
+
+export async function resolveAuthenticatedServerBearerToken(): Promise<string | null> {
+  if (resolveAuthenticatedServerBearerTokenPromise) {
+    return resolveAuthenticatedServerBearerTokenPromise;
+  }
+
+  const nextPromise = resolveAuthenticatedServerBearerTokenOnce();
+  resolveAuthenticatedServerBearerTokenPromise = nextPromise;
+  return nextPromise.finally(() => {
+    if (resolveAuthenticatedServerBearerTokenPromise === nextPromise) {
+      resolveAuthenticatedServerBearerTokenPromise = null;
+    }
+  });
+}
+
+export function createAuthenticatedRequestInit(init: RequestInit = {}): RequestInit {
   const headers = new Headers(init.headers);
   const bearerToken = getServerBearerSessionToken();
   if (bearerToken) {
@@ -506,4 +556,5 @@ export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGat
 export function __resetServerAuthBootstrapForTests() {
   bootstrapPromise = null;
   resolvedAuthenticatedGateState = null;
+  resolveAuthenticatedServerBearerTokenPromise = null;
 }

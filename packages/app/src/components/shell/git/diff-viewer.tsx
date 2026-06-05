@@ -2,7 +2,10 @@ import type { GitFilePatchResult } from "@multi/contracts";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
 
-import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
+import {
+  resolveDiffThemeName,
+  WORKBENCH_CODE_UNSAFE_CSS,
+} from "~/lib/diff-rendering";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
 

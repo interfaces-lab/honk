@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
   type EnvironmentId,
+  GitManagerError,
   type GitManagerServiceError,
   type GitStatusResult,
 } from "@multi/contracts";
@@ -14,6 +15,7 @@ import {
   readResolvedEnvironmentGitApi,
   type EnvironmentGitApi,
 } from "./environment-git-api";
+import { isTransportConnectionErrorMessage } from "../rpc/transport-error";
 
 interface GitStatusState {
   readonly data: GitStatusResult | null;
@@ -61,10 +63,11 @@ const EMPTY_GIT_STATUS_ATOM = Atom.make(EMPTY_GIT_STATUS_STATE).pipe(
 const NOOP: () => void = () => undefined;
 const watchedGitStatuses = new Map<string, WatchedGitStatus>();
 const knownGitStatusKeys = new Set<string>();
-const gitStatusRefreshInFlight = new Map<string, Promise<GitStatusResult>>();
+const gitStatusRefreshInFlight = new Map<string, Promise<GitStatusResult | null>>();
 const gitStatusLastRefreshAtByKey = new Map<string, number>();
 
 const GIT_STATUS_REFRESH_DEBOUNCE_MS = 1_000;
+const GIT_STATUS_REFRESH_TIMEOUT_MS = 8_000;
 
 const gitStatusStateAtom = Atom.family((key: string) => {
   knownGitStatusKeys.add(key);
@@ -147,9 +150,58 @@ export function refreshGitStatus(
   }
 
   gitStatusLastRefreshAtByKey.set(targetKey, Date.now());
-  const refreshPromise = resolvedClient.refreshStatus({ cwd: target.cwd }).finally(() => {
-    gitStatusRefreshInFlight.delete(targetKey);
+  const refreshError = (detail: string) =>
+    new GitManagerError({
+      operation: "refreshStatus",
+      detail,
+    });
+  const updateSuccess = (data: GitStatusResult) => {
+    appAtomRegistry.set(gitStatusStateAtom(targetKey), {
+      data,
+      error: null,
+      cause: null,
+      isPending: false,
+    });
+    return data;
+  };
+  const updateError = (error: GitManagerServiceError) => {
+    appAtomRegistry.set(gitStatusStateAtom(targetKey), {
+      data: getGitStatusSnapshot(target).data,
+      error,
+      cause: null,
+      isPending: false,
+    });
+    return error;
+  };
+  const sourcePromise = resolvedClient.refreshStatus({ cwd: target.cwd }).then(updateSuccess);
+  const timeoutPromise = new Promise<GitStatusResult>((_, reject) => {
+    window.setTimeout(() => {
+      reject(refreshError(`Timed out after ${GIT_STATUS_REFRESH_TIMEOUT_MS}ms for ${target.cwd}.`));
+    }, GIT_STATUS_REFRESH_TIMEOUT_MS);
   });
+  const refreshPromise = Promise.race([sourcePromise, timeoutPromise])
+    .catch((error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (isTransportConnectionErrorMessage(detail)) {
+        const data = getGitStatusSnapshot(target).data;
+        appAtomRegistry.set(gitStatusStateAtom(targetKey), {
+          data,
+          error: null,
+          cause: null,
+          isPending: false,
+        });
+        return data;
+      }
+      const gitError =
+        error instanceof GitManagerError
+          ? error
+          : refreshError(detail);
+      updateError(gitError);
+      throw gitError;
+    })
+    .finally(() => {
+      gitStatusRefreshInFlight.delete(targetKey);
+    });
   gitStatusRefreshInFlight.set(targetKey, refreshPromise);
   return refreshPromise;
 }

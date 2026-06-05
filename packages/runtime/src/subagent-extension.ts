@@ -5,7 +5,7 @@ import {
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { Type } from "typebox";
+import { Type } from "@earendil-works/pi-ai";
 import {
   AGENT_THINKING_LEVELS,
   ThreadId,

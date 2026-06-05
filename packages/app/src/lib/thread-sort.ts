@@ -1,4 +1,3 @@
-import type { ProjectId } from "@multi/contracts";
 import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
 import type { Thread } from "../types";
 
@@ -59,15 +58,4 @@ export function sortThreads<T extends Pick<Thread, "id"> & ThreadSortInput>(
     if (byTimestamp !== 0) return byTimestamp;
     return right.id.localeCompare(left.id);
   });
-}
-
-export function getLatestThreadForProject<
-  T extends Pick<Thread, "id" | "projectId" | "archivedAt"> & ThreadSortInput,
->(threads: readonly T[], projectId: ProjectId, sortOrder: SidebarThreadSortOrder): T | null {
-  return (
-    sortThreads(
-      threads.filter((thread) => thread.projectId === projectId && thread.archivedAt === null),
-      sortOrder,
-    )[0] ?? null
-  );
 }

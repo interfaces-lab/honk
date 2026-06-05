@@ -100,7 +100,7 @@ export const AuthBootstrapResult = Schema.Struct({
   authenticated: Schema.Literal(true),
   role: AuthSessionRole,
   sessionMethod: Schema.Literal("bearer-session-token"),
-  expiresAt: Schema.DateTimeUtc,
+  expiresAt: Schema.DateTimeUtcFromString,
   sessionToken: TrimmedNonEmptyString,
 });
 export type AuthBootstrapResult = typeof AuthBootstrapResult.Type;
@@ -109,7 +109,7 @@ export const AuthPairingCredentialResult = Schema.Struct({
   id: TrimmedNonEmptyString,
   credential: TrimmedNonEmptyString,
   label: Schema.optionalKey(TrimmedNonEmptyString),
-  expiresAt: Schema.DateTimeUtc,
+  expiresAt: Schema.DateTimeUtcFromString,
 });
 export type AuthPairingCredentialResult = typeof AuthPairingCredentialResult.Type;
 
@@ -119,8 +119,8 @@ export const AuthPairingLink = Schema.Struct({
   role: AuthSessionRole,
   subject: TrimmedNonEmptyString,
   label: Schema.optionalKey(TrimmedNonEmptyString),
-  createdAt: Schema.DateTimeUtc,
-  expiresAt: Schema.DateTimeUtc,
+  createdAt: Schema.DateTimeUtcFromString,
+  expiresAt: Schema.DateTimeUtcFromString,
 });
 export type AuthPairingLink = typeof AuthPairingLink.Type;
 
@@ -149,9 +149,9 @@ export const AuthClientSession = Schema.Struct({
   role: AuthSessionRole,
   method: ServerAuthSessionMethod,
   client: AuthClientMetadata,
-  issuedAt: Schema.DateTimeUtc,
-  expiresAt: Schema.DateTimeUtc,
-  lastConnectedAt: Schema.NullOr(Schema.DateTimeUtc),
+  issuedAt: Schema.DateTimeUtcFromString,
+  expiresAt: Schema.DateTimeUtcFromString,
+  lastConnectedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   connected: Schema.Boolean,
   current: Schema.Boolean,
 });
@@ -238,6 +238,6 @@ export const AuthSessionState = Schema.Struct({
   auth: ServerAuthDescriptor,
   role: Schema.optionalKey(AuthSessionRole),
   sessionMethod: Schema.optionalKey(ServerAuthSessionMethod),
-  expiresAt: Schema.optionalKey(Schema.DateTimeUtc),
+  expiresAt: Schema.optionalKey(Schema.DateTimeUtcFromString),
 });
 export type AuthSessionState = typeof AuthSessionState.Type;

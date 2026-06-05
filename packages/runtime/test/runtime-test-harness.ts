@@ -1,7 +1,14 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ThreadId, type AgentModelPolicy, type AgentRuntimeEvent } from "@multi/contracts";
+import {
+  AccountId,
+  AuthProviderId,
+  ModelId,
+  ThreadId,
+  type AgentModelPolicy,
+  type AgentRuntimeEvent,
+} from "@multi/contracts";
 import { AuthStorage, type ExtensionFactory, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
   type FauxModelDefinition,
@@ -86,6 +93,7 @@ export async function createRuntimeHarness(options: {
   if (options.withConfiguredAuth ?? true) {
     authStorage.setRuntimeApiKey(model.provider, "faux-key");
   }
+  const policy = options.policy ?? createFauxModelPolicy(model);
 
   const runtime = await ThreadAgentRuntime.create({
     threadId: ThreadId.make(`thread:${Date.now()}:${Math.random().toString(36).slice(2)}`),
@@ -97,7 +105,7 @@ export async function createRuntimeHarness(options: {
     ...(options.tools ? { tools: options.tools } : {}),
     ...(options.excludeTools ? { excludeTools: options.excludeTools } : {}),
     extensionFactories: options.extensionFactories ? [...options.extensionFactories] : [],
-    ...(options.policy ? { policy: options.policy } : {}),
+    policy,
   });
 
   return {
@@ -113,5 +121,22 @@ export async function createRuntimeHarness(options: {
         rmSync(tempDir, { recursive: true, force: true });
       }
     },
+  };
+}
+
+function createFauxModelPolicy(model: Model<string>): AgentModelPolicy {
+  const authProviderId = AuthProviderId.make(model.provider);
+  return {
+    agentMode: "deep",
+    interactionMode: "agent",
+    modelSelection: {
+      type: "explicit",
+      authProviderId,
+      accountId: AccountId.make(`${authProviderId}:default`),
+      modelId: ModelId.make(`${model.provider}/${model.id}`),
+    },
+    thinkingLevel: "high",
+    allowedToolNames: [],
+    excludedToolNames: [],
   };
 }

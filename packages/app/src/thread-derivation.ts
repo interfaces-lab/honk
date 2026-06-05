@@ -11,7 +11,6 @@ import type {
   ThreadTurnState,
   TurnDiffSummary,
 } from "./types";
-import { debugLog } from "./lib/debug-log";
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
 const EMPTY_LIVE_ASSISTANT_TURNS: LiveAssistantTurn[] = [];
@@ -175,12 +174,6 @@ export function getThreadFromEnvironmentState(
     cached.turnDiffSummaries === turnDiffSummaries &&
     cached.chatTimelineRows === chatTimelineRows
   ) {
-    debugLog("thread-derivation.hit", {
-      threadId,
-      messageCount: messages.length,
-      entryCount: entries.length,
-      activityCount: activities.length,
-    });
     return cached.thread;
   }
 
@@ -210,16 +203,6 @@ export function getThreadFromEnvironmentState(
     turnDiffSummaries,
     chatTimelineRows,
     thread,
-  });
-  debugLog("thread-derivation.miss", {
-    threadId,
-    hadCached: cached !== undefined,
-    messageCount: messages.length,
-    entryCount: entries.length,
-    activityCount: activities.length,
-    committedMessageIdsLength: state.messageIdsByThreadId[threadId]?.length ?? 0,
-    entryIdsLength: state.entryIdsByThreadId?.[threadId]?.length ?? 0,
-    activityIdsLength: state.activityIdsByThreadId[threadId]?.length ?? 0,
   });
 
   return thread;

@@ -16,6 +16,7 @@ import {
   clearLastChatRouteTarget,
   writeLastChatRouteTarget,
 } from "~/app/routes/chat-route-persistence";
+import { openChatIndex } from "~/app/chat-navigation";
 import { resolveThreadRouteRef } from "~/app/routes/thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";
@@ -156,12 +157,12 @@ function ChatThreadRouteSync(props: {
 
     if (props.environmentHasAnyThreads) {
       clearLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
-      void props.navigate({ to: "/", replace: true });
+      void openChatIndex(props.navigate, { replace: true });
       return;
     }
 
     clearLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
-    void props.navigate({ to: "/", replace: true });
+    void openChatIndex(props.navigate, { replace: true });
   });
 
   return null;

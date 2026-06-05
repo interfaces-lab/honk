@@ -12,17 +12,26 @@ const MODE_EXPECTATIONS = [
   {
     mode: "ask",
     heading: "Multi Interaction Mode: Ask",
-    instruction: "Answer the user directly.",
+    expectedGuidance: ["Answer the user directly."],
   },
   {
     mode: "plan",
     heading: "Multi Interaction Mode: Plan",
-    instruction: "Produce a concrete implementation plan.",
+    expectedGuidance: [
+      "Produce a concrete implementation plan through Multi's built-in Pi planning surface.",
+      "Research the codebase to find relevant files and review relevant docs before planning.",
+      "Ask clarifying questions when requirements are ambiguous or the plan depends on missing decisions.",
+      "Use the create_plan tool as the final action once the plan is ready for review.",
+      "The create_plan payload should include a short name, overview, actionable todos, isProject, optional phases, and a complete Markdown plan.",
+      "The Markdown plan should include diagnosis, implementation steps with file paths or code references, verification, risks, and non-goals.",
+      "Stop after creating the plan so the user can review, edit, or approve it before implementation.",
+      "Do not change files, run mutating shell commands, create commits, or execute the plan.",
+    ],
   },
   {
     mode: "debug",
     heading: "Multi Interaction Mode: Debug",
-    instruction: "Diagnose the issue first",
+    expectedGuidance: ["Diagnose the issue first"],
   },
 ] as const;
 
@@ -37,7 +46,7 @@ describe("ThreadAgentRuntime interaction modes", () => {
 
   it.each(MODE_EXPECTATIONS)(
     "adds $mode guidance to the provider system prompt without changing the user message",
-    async ({ mode, heading, instruction }) => {
+    async ({ mode, heading, expectedGuidance }) => {
       const harness = await createRuntimeHarness();
       harnesses.push(harness);
       const observedSystemPrompts: string[] = [];
@@ -56,7 +65,9 @@ describe("ThreadAgentRuntime interaction modes", () => {
       );
 
       expect(observedSystemPrompts[0]).toContain(heading);
-      expect(observedSystemPrompts[0]).toContain(instruction);
+      for (const guidance of expectedGuidance) {
+        expect(observedSystemPrompts[0]).toContain(guidance);
+      }
       expect(
         harness.runtime.session.messages
           .filter((message): message is UserMessage => message.role === "user")
@@ -119,7 +130,7 @@ describe("ThreadAgentRuntime interaction modes", () => {
     );
 
     const startedEvent = events.find((event) => event.type === "turn.started");
-    expect(startedEvent?.data).toEqual({
+    expect(startedEvent?.data).toMatchObject({
       sourceProposedPlan: {
         threadId: harness.runtime.threadId,
         planId: "plan:source",
@@ -131,5 +142,22 @@ describe("ThreadAgentRuntime interaction modes", () => {
       planId: `plan:${harness.runtime.threadId}:${planEvent?.turnId}`,
       planMarkdown: "# Plan\n\n1. Do the work.",
     });
+  });
+
+  it("does not capture clarifying questions as proposed plans", async () => {
+    const harness = await createRuntimeHarness();
+    harnesses.push(harness);
+    const events: AgentRuntimeEvent[] = [];
+    harness.runtime.subscribe((event) => events.push(event));
+    harness.setResponses([fauxAssistantMessage("Which package should I inspect first?")]);
+
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("make a plan", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        interactionMode: "plan",
+      }),
+    );
+
+    expect(events.filter((event) => event.type === "turn.proposed.completed")).toHaveLength(0);
   });
 });

@@ -3,12 +3,24 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist-electron/**"],
+      "dependsOn": ["^build", "usemulti#build"],
+      "outputs": ["out/**"],
     },
     "dev": {
       "dependsOn": ["usemulti#build"],
       "persistent": true,
+    },
+    "package": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "package:mac": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "package:linux": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
     },
     "start": {
       "dependsOn": ["build", "@multi/app#build", "usemulti#build"],

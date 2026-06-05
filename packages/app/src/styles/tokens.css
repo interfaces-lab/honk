@@ -342,6 +342,12 @@ html {
   --cursor-text-yellow-primary: var(--cursor-yellow);
   --cursor-text-green-primary: var(--cursor-green);
   --cursor-text-red-primary: var(--cursor-red);
+  --cursor-text-orange-primary: color-mix(in oklch, var(--warning) 74%, var(--destructive));
+  --cursor-text-cyan-primary: var(--primary);
+  --multi-git-status-added: color-mix(in srgb, var(--cursor-text-green-primary) 86%, var(--foreground));
+  --multi-git-status-deleted: var(--cursor-text-red-primary);
+  --multi-git-status-modified: var(--cursor-text-orange-primary);
+  --multi-git-status-renamed: var(--cursor-text-cyan-primary);
   --cursor-icon-yellow-primary: color-mix(in srgb, var(--cursor-yellow) 92%, transparent);
   --cursor-icon-green-primary: color-mix(in srgb, var(--cursor-green) 92%, transparent);
   --cursor-stroke-primary: var(--multi-stroke-primary);

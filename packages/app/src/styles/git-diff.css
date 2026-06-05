@@ -50,10 +50,39 @@ html.dark {
 
 /* Pierre diffs CSS bridge - layout variables inherit into Shadow DOM */
 [data-diffs-container] {
+  --diffs-light-bg: var(--multi-git-diff-editor-background);
+  --diffs-dark-bg: var(--multi-git-diff-editor-background);
+  --diffs-light: var(--foreground);
+  --diffs-dark: var(--foreground);
+  --diffs-bg-context-override: color-mix(
+    in srgb,
+    var(--multi-git-diff-editor-background) 94%,
+    var(--foreground)
+  );
+  --diffs-bg-context-gutter-override: color-mix(
+    in srgb,
+    var(--multi-git-diff-editor-background) 96%,
+    var(--foreground)
+  );
+  --diffs-bg-buffer-override: color-mix(
+    in srgb,
+    var(--multi-git-diff-editor-background) 97%,
+    var(--foreground)
+  );
+  --diffs-bg-separator-override: var(--multi-workbench-card-background);
+  --diffs-bg-hover-override: var(--multi-workbench-toolbar-hover-background);
+  --diffs-bg-selection-override: var(--multi-color-active);
+  --diffs-addition-color-override: var(--multi-git-diff-addition);
+  --diffs-deletion-color-override: var(--multi-git-diff-deletion);
+  --diffs-bg-addition-override: var(--multi-git-diff-addition-line-background);
+  --diffs-bg-deletion-override: var(--multi-git-diff-deletion-line-background);
+  --diffs-bg-addition-emphasis-override: var(--multi-git-diff-addition-text-background);
+  --diffs-bg-deletion-emphasis-override: var(--multi-git-diff-deletion-text-background);
+  --diffs-fg-number-override: var(--multi-fg-tertiary);
   --diffs-font-family: var(--multi-font-mono);
   --diffs-header-font-family: var(--multi-font-ui);
   --diffs-font-size: var(--multi-code-font-size-user, 12px);
-  --diffs-line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  --diffs-line-height: 18px;
   /*
    * Pierre pads the code grid by --diffs-gap-block (8px fallback) on the block
    * axis. That padding exposes the diffs-container's own background, which reads
@@ -61,19 +90,23 @@ html.dark {
    * own the surrounding spacing, so collapse Pierre's gap to remove it.
    */
   --diffs-gap-block: 0px;
+  min-width: 0;
+  max-width: 100%;
   font-family: var(--multi-font-mono);
   font-size: var(--multi-code-font-size-user, 12px);
-  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  line-height: 18px;
 }
 
 .web-component[data-diffs-container] {
-  background-color: transparent;
+  color: var(--foreground);
+  background-color: var(--multi-git-diff-editor-background);
 }
 
 .web-component[data-diffs-container] > diffs-container {
   display: block;
   max-width: 100%;
   min-width: 0;
+  background-color: var(--multi-git-diff-editor-background);
 }
 
 .diff-render-file {

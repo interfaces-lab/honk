@@ -67,6 +67,9 @@ async function sendQueuedRuntimeTurn(input: {
   if (!cwd) {
     throw new Error("Pi runtime requires an active project before sending.");
   }
+  if (!thread) {
+    throw new Error("Cannot send queued message because the thread is no longer available.");
+  }
 
   const runtimeImages = await prepareComposerTurnAttachments(input.item.sendContext.images);
   await sendRuntimeTurn({

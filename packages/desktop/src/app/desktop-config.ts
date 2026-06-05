@@ -33,7 +33,10 @@ export const DesktopConfig = Config.all({
   appDataDirectory: trimmedString("APPDATA"),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
   multiHome: trimmedString("MULTI_HOME"),
-  devServerUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option),
+  devServerUrl: Config.url("VITE_DEV_SERVER_URL").pipe(
+    Config.orElse(() => Config.url("ELECTRON_RENDERER_URL")),
+    Config.option,
+  ),
   configuredBackendPort: Config.port("MULTI_PORT").pipe(Config.option),
   commitHashOverride: trimmedString("MULTI_COMMIT_HASH"),
   desktopLanHostOverride: trimmedString("MULTI_DESKTOP_LAN_HOST"),

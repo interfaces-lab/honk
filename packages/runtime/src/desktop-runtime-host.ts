@@ -5,7 +5,6 @@ import {
   type AgentCredentialAuthFlow,
   type AgentCredentialConfigureInput,
   type AgentAuthStatus,
-  type AgentModelPolicy,
   type AgentPreferences,
   type AgentPreferencesPatch,
   type AgentRuntimeEvent,
@@ -319,7 +318,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         agentDir: this.agentDir,
         ...(this.authStorage ? { authStorage: this.authStorage } : {}),
         extensionFactories: this.extensionFactories,
-        policy: input.policy ?? this.createDefaultPolicy(this.preferences.interactionMode),
+        policy: input.policy,
       });
       const ui = createDesktopExtensionUi();
       const unsubscribeRuntime = runtime.subscribe((event) => {
@@ -370,6 +369,9 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   }
 
   async sendTurn(input: ThreadAgentRuntimeSendTurnInput) {
+    if (!input.policy) {
+      throw new Error("Runtime sendTurn requires AgentModelPolicy.");
+    }
     const sendInput: RuntimeThreadSendInput = {
       threadId: input.threadId,
       input: input.input,
@@ -381,7 +383,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     const startInput: RuntimeThreadStartInput = {
       threadId: input.threadId,
       cwd: input.cwd,
-      policy: input.policy ?? this.createDefaultPolicy(input.interactionMode),
+      policy: input.policy,
     };
 
     if (!this.runtimes.has(input.threadId)) {
@@ -496,17 +498,6 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         this.runtimeEvents.splice(index, 1);
       }
     }
-  }
-
-  private createDefaultPolicy(interactionMode: AgentModelPolicy["interactionMode"]): AgentModelPolicy {
-    return {
-      agentMode: this.preferences.agentMode,
-      interactionMode,
-      modelSelection: { type: "pi-managed" },
-      thinkingLevel: this.preferences.thinkingLevel,
-      allowedToolNames: [],
-      excludedToolNames: [],
-    };
   }
 }
 

@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { Type } from "@earendil-works/pi-ai";
 import { createSubagentExtension } from "./subagent-extension";
+import { createPlanExtension } from "./plan-extension";
 
 type AskUserKind = "input" | "select" | "confirm";
 
@@ -120,5 +121,5 @@ export interface DesktopAgentExtensionFactoryOptions {
 export function createDesktopAgentExtensionFactories(
   options: DesktopAgentExtensionFactoryOptions,
 ): ExtensionFactory[] {
-  return [askUserExtension, createSubagentExtension(options)];
+  return [askUserExtension, createPlanExtension, createSubagentExtension(options)];
 }

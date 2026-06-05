@@ -71,7 +71,22 @@ export class WsTransport {
       throw new Error("Transport disposed");
     }
 
-    const session = this.session;
+    try {
+      return await this.requestOnSession(this.session, execute);
+    } catch (error) {
+      if (this.disposed || !isTransportConnectionErrorMessage(formatErrorMessage(error))) {
+        throw error;
+      }
+
+      await this.reconnect();
+      return await this.requestOnSession(this.session, execute);
+    }
+  }
+
+  private async requestOnSession<TSuccess>(
+    session: TransportSession,
+    execute: (client: WsRpcProtocolClient) => Effect.Effect<TSuccess, Error>,
+  ): Promise<TSuccess> {
     const client = await session.clientPromise;
     return await session.runtime.runPromise(Effect.suspend(() => execute(client)));
   }
@@ -167,12 +182,15 @@ export class WsTransport {
             return;
           }
 
-          if (!this.hasReportedTransportDisconnect) {
+          if (hasReceivedValue && !this.hasReportedTransportDisconnect) {
             console.warn("WebSocket RPC subscription disconnected", {
               error: formattedError,
             });
           }
-          this.hasReportedTransportDisconnect = true;
+          if (hasReceivedValue) {
+            this.hasReportedTransportDisconnect = true;
+          }
+          await this.reconnectSession(session);
           await sleep(retryDelayMs);
         }
       }
@@ -185,6 +203,10 @@ export class WsTransport {
   }
 
   async reconnect() {
+    await this.reconnectSession(this.session);
+  }
+
+  private async reconnectSession(session: TransportSession) {
     if (this.disposed) {
       throw new Error("Transport disposed");
     }
@@ -194,10 +216,13 @@ export class WsTransport {
         throw new Error("Transport disposed");
       }
 
+      if (this.session !== session) {
+        return;
+      }
+
       clearAllTrackedRpcRequests();
-      const previousSession = this.session;
       this.session = this.createSession();
-      await this.closeSession(previousSession);
+      await this.closeSession(session);
     });
 
     this.reconnectChain = reconnectOperation.catch(() => undefined);

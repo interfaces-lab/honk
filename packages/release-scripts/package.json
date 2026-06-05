@@ -1,0 +1,25 @@
+{
+  "name": "@multi/release-scripts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./lib/brand-assets": "./src/lib/brand-assets.ts",
+    "./lib/resolve-catalog": "./src/lib/resolve-catalog.ts",
+    "./lib/workspace-catalog": "./src/lib/workspace-catalog.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "test": "node src/release-smoke.ts"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@multi/shared": "workspace:*",
+    "effect": "catalog:",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@effect/language-service": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

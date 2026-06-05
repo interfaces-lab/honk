@@ -14,12 +14,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.78.0",
-    "@earendil-works/pi-ai": "^0.78.0",
-    "@earendil-works/pi-coding-agent": "^0.78.0",
+    "@earendil-works/pi-agent-core": "^0.78.1",
+    "@earendil-works/pi-ai": "^0.78.1",
+    "@earendil-works/pi-coding-agent": "^0.78.1",
     "@multi/contracts": "workspace:*",
     "effect": "catalog:",
-    "typebox": "^1.1.39"
+    "typebox": "^1.2.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

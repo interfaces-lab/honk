@@ -92,6 +92,7 @@ function buildThreadChat(
     cwd: sum.cwd || "/",
     environmentId: sum.environmentId,
     projectId: sum.projectId,
+    workspaceProjectRef: sum.workspaceProjectRef,
     projectCwd: sum.projectCwd,
     threadRef,
   } satisfies SidebarChatItem;
@@ -122,6 +123,7 @@ function buildDraftChat(draft: SidebarDraftSummary) {
     cwd: draft.cwd || "/",
     environmentId: draft.environmentId,
     projectId: draft.projectId,
+    workspaceProjectRef: draft.workspaceProjectRef,
     projectCwd: draft.projectCwd,
   } satisfies SidebarChatItem;
 }
@@ -168,10 +170,10 @@ export function buildProjectChatSections(
   const projectsByCwd = new Map<string, SidebarProjectSummary[]>();
   const projectKeysWithItems = new Set<string>();
   for (const item of list) {
-    if (item.projectId === null) {
+    if (item.workspaceProjectRef === null) {
       continue;
     }
-    projectKeysWithItems.add(scopedProjectKey(scopeProjectRef(item.environmentId, item.projectId)));
+    projectKeysWithItems.add(scopedProjectKey(item.workspaceProjectRef));
   }
 
   for (const projectCwd of projectCwds) {
@@ -203,8 +205,10 @@ export function buildProjectChatSections(
     const retainedProject =
       sorted.length === 0 && retainedProjectCandidate
         ? {
-            environmentId: retainedProjectCandidate.environmentId,
-            projectId: retainedProjectCandidate.id,
+            projectRef: scopeProjectRef(
+              retainedProjectCandidate.environmentId,
+              retainedProjectCandidate.id,
+            ),
             projectCwd: dir,
           }
         : null;
@@ -225,14 +229,14 @@ export function buildProjectChatSections(
 
   const threadRefsByProjectKey = new Map<string, ScopedThreadRef[]>();
   for (const sum of threadSummaries) {
-    if (sum.projectId === null) {
+    if (sum.workspaceProjectRef === null) {
       continue;
     }
     const threadRef = scopeThreadRef(sum.environmentId, sum.id);
     if (pinnedThreadKeys?.has(scopedThreadKey(threadRef))) {
       continue;
     }
-    const key = scopedProjectKey(scopeProjectRef(sum.environmentId, sum.projectId));
+    const key = scopedProjectKey(sum.workspaceProjectRef);
     const refs = threadRefsByProjectKey.get(key) ?? [];
     refs.push(threadRef);
     threadRefsByProjectKey.set(key, refs);
@@ -247,15 +251,14 @@ export function buildProjectChatSections(
         if (item.projectCwd !== group.dir) {
           return [];
         }
-        if (item.projectId === null) {
+        if (item.workspaceProjectRef === null) {
           return [];
         }
         return [
           [
-            scopedProjectKey(scopeProjectRef(item.environmentId, item.projectId)),
+            scopedProjectKey(item.workspaceProjectRef),
             {
-              environmentId: item.environmentId,
-              projectId: item.projectId,
+              projectRef: item.workspaceProjectRef,
               projectCwd: group.dir,
             },
           ] as const,
@@ -267,7 +270,7 @@ export function buildProjectChatSections(
         ? ([...rootProjectsByKey.values()][0] ?? null)
         : (group.retainedProject ?? null);
     const rootProjectKey = rootProject
-      ? scopedProjectKey(scopeProjectRef(rootProject.environmentId, rootProject.projectId))
+      ? scopedProjectKey(rootProject.projectRef)
       : null;
     const threadRefs = rootProjectKey
       ? (threadRefsByProjectKey.get(rootProjectKey) ?? [])
@@ -286,10 +289,11 @@ export function buildProjectChatSections(
       return section;
     }
     return Object.assign(section, {
-      environmentId: rootProject.environmentId,
-      projectId: rootProject.projectId,
+      environmentId: rootProject.projectRef.environmentId,
+      projectId: rootProject.projectRef.projectId,
+      projectRef: rootProject.projectRef,
       projectCwd: rootProject.projectCwd,
-    } satisfies Pick<SidebarSectionModel, "environmentId" | "projectId" | "projectCwd">);
+    } satisfies Pick<SidebarSectionModel, "environmentId" | "projectId" | "projectRef" | "projectCwd">);
   });
 
   if (pinnedItems.length === 0) {

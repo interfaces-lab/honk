@@ -29,7 +29,7 @@ export class ElectronProtocolStaticBundleMissingError extends Data.TaggedError(
   "ElectronProtocolStaticBundleMissingError",
 )<{}> {
   override get message() {
-    return "Desktop static bundle missing. Build packages/server (with bundled client) first.";
+    return "Desktop static bundle missing. Build packages/desktop first.";
   }
 }
 
@@ -94,8 +94,8 @@ const resolveDesktopStaticDir: Effect.Effect<
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment;
   const candidates = [
-    environment.path.join(environment.appRoot, "packages/server/dist/client"),
-    environment.path.join(environment.appRoot, "packages/app/dist"),
+    environment.path.join(environment.appRoot, "out/renderer"),
+    environment.path.join(environment.appRoot, "packages/desktop/out/renderer"),
   ];
   for (const candidate of candidates) {
     const hasIndex = yield* fileSystem

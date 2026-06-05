@@ -215,31 +215,6 @@ export function selectSidebarThreadsAcrossEnvironments(state: AppState): Sidebar
   );
 }
 
-export function selectSidebarThreadsForProjectRef(
-  state: AppState,
-  ref: ScopedProjectRef | null | undefined,
-): SidebarThreadSummary[] {
-  if (!ref) {
-    return [];
-  }
-
-  const environmentState = selectEnvironmentState(state, ref.environmentId);
-  const threadIds = environmentState.threadIdsByProjectId[ref.projectId] ?? EMPTY_THREAD_IDS;
-  return threadIds.flatMap((threadId) => {
-    const thread = environmentState.sidebarThreadSummaryById[threadId];
-    return thread ? [thread] : [];
-  });
-}
-
-export function selectSidebarThreadsForProjectRefs(
-  state: AppState,
-  refs: readonly ScopedProjectRef[],
-): SidebarThreadSummary[] {
-  if (refs.length === 0) return [];
-  if (refs.length === 1) return selectSidebarThreadsForProjectRef(state, refs[0]);
-  return refs.flatMap((ref) => selectSidebarThreadsForProjectRef(state, ref));
-}
-
 export function selectBootstrapCompleteForActiveEnvironment(state: AppState): boolean {
   return selectEnvironmentState(state, state.activeEnvironmentId).bootstrapComplete;
 }
@@ -285,16 +260,6 @@ export function selectSidebarThreadSummaryByRef(
   return ref
     ? selectEnvironmentState(state, ref.environmentId).sidebarThreadSummaryById[ref.threadId]
     : undefined;
-}
-
-export function selectThreadIdsByProjectRef(
-  state: AppState,
-  ref: ScopedProjectRef | null | undefined,
-): ThreadId[] {
-  return ref
-    ? (selectEnvironmentState(state, ref.environmentId).threadIdsByProjectId[ref.projectId] ??
-        EMPTY_THREAD_IDS)
-    : EMPTY_THREAD_IDS;
 }
 
 interface AppStore extends AppState {

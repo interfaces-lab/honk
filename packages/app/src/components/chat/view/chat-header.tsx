@@ -1,41 +1,14 @@
-import {
-  type EditorId,
-  type ProjectScript,
-  type ResolvedKeybindingsConfig,
-} from "@multi/contracts";
 import { IconSidebar } from "central-icons";
 import { Button } from "@multi/ui/button";
-import ProjectScriptsControl, { type NewProjectScriptInput } from "../../project-scripts-control";
 import { shellPanelsActions } from "~/stores/shell-panels-store";
+import type { ReactNode } from "react";
 
 interface ChatHeaderProps {
   activeThreadTitle: string;
-  activeProjectName: string | undefined;
-  isGitRepo: boolean;
-  activeProjectScripts: ProjectScript[] | undefined;
-  preferredScriptId: string | null;
-  keybindings: ResolvedKeybindingsConfig;
-  availableEditors: ReadonlyArray<EditorId>;
-  terminalAvailable: boolean;
-  terminalOpen: boolean;
-  terminalToggleShortcutLabel: string | null;
-  onRunProjectScript: (script: ProjectScript) => void;
-  onAddProjectScript: (input: NewProjectScriptInput) => Promise<void>;
-  onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
-  onDeleteProjectScript: (scriptId: string) => Promise<void>;
-  onToggleTerminal: () => void;
+  actions?: ReactNode | undefined;
 }
 
-export function ChatHeader({
-  activeThreadTitle,
-  activeProjectScripts,
-  preferredScriptId,
-  keybindings,
-  onRunProjectScript,
-  onAddProjectScript,
-  onUpdateProjectScript,
-  onDeleteProjectScript,
-}: ChatHeaderProps) {
+export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
   return (
     <div className="@container/header-actions pointer-events-auto flex min-w-0 flex-1 select-none items-center gap-2 text-body">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
@@ -59,24 +32,16 @@ export function ChatHeader({
             <span className="min-w-0 truncate">{activeThreadTitle}</span>
           </button>
         </div>
+        {actions ? (
+          <div className="no-drag flex min-w-0 shrink items-center gap-1 overflow-hidden">
+            {actions}
+          </div>
+        ) : null}
       </div>
       <div
         className="drag-region pointer-events-auto min-h-(--multi-titlebar-control-height) min-w-8 flex-1 self-center"
         aria-hidden
       />
-      {activeProjectScripts ? (
-        <div className="no-drag flex shrink-0 items-center">
-          <ProjectScriptsControl
-            scripts={activeProjectScripts}
-            keybindings={keybindings}
-            preferredScriptId={preferredScriptId}
-            onRunScript={onRunProjectScript}
-            onAddScript={onAddProjectScript}
-            onUpdateScript={onUpdateProjectScript}
-            onDeleteScript={onDeleteProjectScript}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -4,8 +4,8 @@ import { readNativeEnvironmentApi, readNativeRuntimeApi } from "~/lib/native-run
 
 type WorkbenchTerminalApi = EnvironmentApi["terminal"];
 
-export function workbenchTerminalThreadId(cwd: string): string {
-  return `workbench:${cwd}`;
+export function workbenchTerminalThreadId(workspaceKey: string): string {
+  return `workbench:${workspaceKey}`;
 }
 
 export function readWorkbenchTerminalApi(

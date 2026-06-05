@@ -181,7 +181,7 @@ export function GitDiffCard(props: {
               state={props.file.state}
               prevPath={props.file.prevPath}
               diffStyle={props.diffStyle}
-              className="min-h-[12rem]"
+              className="min-h-0"
               layoutKey={props.diffLayoutKey}
             />
           )}

@@ -2,13 +2,17 @@
 
 import type { EditorId, EnvironmentId } from "@multi/contracts";
 import {
+  IconBarsThree,
   IconChevronLeftMedium,
   IconChevronRightMedium,
-  IconBarsThree,
 } from "central-icons";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
+import {
+  shellPanelsActions,
+  useHasSecondaryRailState,
+  useSecondaryRail,
+} from "~/stores/shell-panels-store";
 import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
 import { WorkbenchIconButton } from "@multi/ui/workbench-button";
 import { useRightWorkbenchPanelRuntime } from "../shell/app";
@@ -41,12 +45,13 @@ function pushPreviewHistory(current: PreviewHistory, relativePath: string): Prev
 
 export function ProjectFilesPanel(props: {
   cwd: string | null;
+  workspaceKey: string | null;
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
 }) {
   return (
     <ProjectFilesPanelContent
-      key={`${props.environmentId ?? "none"}:${props.cwd ?? "none"}`}
+      key={props.workspaceKey ?? "none"}
       {...props}
     />
   );
@@ -54,17 +59,51 @@ export function ProjectFilesPanel(props: {
 
 function ProjectFilesPanelContent(props: {
   cwd: string | null;
+  workspaceKey: string | null;
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
 }) {
   const [history, setHistory] = useState<PreviewHistory>(EMPTY_PREVIEW_HISTORY);
   const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
   const runtime = useRightWorkbenchPanelRuntime();
-  const { open: fileRailOpen } = useSecondaryRail(props.cwd, "files");
   const isFilesPanelActive = runtime.open && runtime.activeTab === "files";
+  const fileRail = useSecondaryRail(props.workspaceKey, "files");
+  const fileRailInitialized = useHasSecondaryRailState(props.workspaceKey, "files");
+  const fileRailOpen = isFilesPanelActive && (fileRailInitialized ? fileRail.open : true);
   const selectedPath = history.index >= 0 ? (history.paths[history.index] ?? null) : null;
   const canGoBack = history.index > 0;
   const canGoForward = history.index >= 0 && history.index < history.paths.length - 1;
+
+  useEffect(() => {
+    if (!isFilesPanelActive || fileRailInitialized) {
+      return;
+    }
+    shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
+  }, [fileRailInitialized, isFilesPanelActive, props.workspaceKey]);
+
+  useEffect(() => {
+    console.log("[workspace.panel.files-target]", {
+      cwd: props.cwd,
+      environmentId: props.environmentId,
+      workspaceKey: props.workspaceKey,
+      active: isFilesPanelActive,
+      rightWorkbenchOpen: runtime.open,
+      activeTab: runtime.activeTab,
+      fileRailInitialized,
+      fileRailOpen,
+      selectedPath,
+    });
+  }, [
+    fileRailInitialized,
+    fileRailOpen,
+    isFilesPanelActive,
+    props.cwd,
+    props.environmentId,
+    props.workspaceKey,
+    runtime.activeTab,
+    runtime.open,
+    selectedPath,
+  ]);
 
   const openPreviewPath = (relativePath: string) => {
     setHistory((current) => pushPreviewHistory(current, relativePath));
@@ -91,8 +130,8 @@ function ProjectFilesPanelContent(props: {
       availableEditors={props.availableEditors}
       onOpenFile={openPreviewPath}
       selectedPath={selectedPath}
-      active={isFilesPanelActive}
-      className="min-h-36 flex-1 border-b-0 bg-[color-mix(in_srgb,var(--multi-bg-elevated)_78%,transparent)]"
+      active={fileRailOpen}
+      className="min-h-36 flex-1 border-b-0 bg-(--multi-workbench-panel-background)"
     />
   );
 
@@ -102,13 +141,9 @@ function ProjectFilesPanelContent(props: {
         <ModeButton
           active={fileRailOpen}
           chrome="panel"
-          label={fileRailOpen ? "Hide file sidebar" : "Browse Files"}
+          label={fileRailOpen ? "Hide file tree" : "Show file tree"}
           onClick={() => {
-            if (fileRailOpen) {
-              shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", false);
-              return;
-            }
-            shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", true);
+            shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", !fileRailOpen);
           }}
         >
           <IconBarsThree className="size-[15px]" aria-hidden />
@@ -139,7 +174,12 @@ function ProjectFilesPanelContent(props: {
         <div className="min-w-0 flex-1" />
       </div>
 
-      <RightWorkbenchLayout cwd={props.cwd} tab="files" rail={tree}>
+      <RightWorkbenchLayout
+        workspaceKey={props.workspaceKey}
+        tab="files"
+        railOpen={fileRailOpen}
+        rail={tree}
+      >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)">
           <div className="flex min-h-0 flex-1 flex-col">
             {selectedPath ? (
@@ -153,7 +193,7 @@ function ProjectFilesPanelContent(props: {
             ) : (
               <EmptyFilePreview
                 onOpenFile={() => {
-                  shellPanelsActions.setSecondaryRailOpen(props.cwd, "files", true);
+                  fileTreeRef.current?.refresh();
                 }}
               />
             )}

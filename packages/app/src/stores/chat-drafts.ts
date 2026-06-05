@@ -1952,22 +1952,47 @@ function emptyStateThreadIdForEnvironment(environmentId: EnvironmentId): ThreadI
 
 export function ensureProjectEmptyStateDraftSession(
   projectRef: ScopedProjectRef,
+  options?: { logicalProjectKey?: string | null },
 ): ProjectDraftSession {
   const store = useComposerDraftStore.getState();
-  const existingDraft = store.getDraftSessionByProjectRef(projectRef);
+  const logicalProjectKey = options?.logicalProjectKey?.trim() || null;
+  const existingDraft = logicalProjectKey
+    ? (store.getDraftSessionByLogicalProjectKey(logicalProjectKey) ??
+      store.getDraftSessionByProjectRef(projectRef))
+    : store.getDraftSessionByProjectRef(projectRef);
   if (existingDraft) {
+    if (logicalProjectKey && existingDraft.logicalProjectKey !== logicalProjectKey) {
+      store.setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, existingDraft.draftId, {
+        threadId: existingDraft.threadId,
+        branch: existingDraft.branch,
+        worktreePath: existingDraft.worktreePath,
+        createdAt: existingDraft.createdAt,
+        envMode: existingDraft.envMode,
+        interactionMode: existingDraft.interactionMode,
+      });
+      return useComposerDraftStore
+        .getState()
+        .getDraftSessionByLogicalProjectKey(logicalProjectKey) ?? existingDraft;
+    }
     return existingDraft;
   }
 
   const draftId = emptyStateDraftIdForProject(projectRef);
-  store.setProjectDraftThreadId(projectRef, draftId, {
+  const draftOptions = {
     threadId: emptyStateThreadIdForProject(projectRef),
     createdAt: new Date().toISOString(),
     interactionMode: DEFAULT_INTERACTION_MODE,
-    envMode: "local",
-  });
+    envMode: "local" as const,
+  };
+  if (logicalProjectKey) {
+    store.setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, draftOptions);
+  } else {
+    store.setProjectDraftThreadId(projectRef, draftId, draftOptions);
+  }
 
-  const ensuredDraft = useComposerDraftStore.getState().getDraftSessionByProjectRef(projectRef);
+  const ensuredDraft = logicalProjectKey
+    ? useComposerDraftStore.getState().getDraftSessionByLogicalProjectKey(logicalProjectKey)
+    : useComposerDraftStore.getState().getDraftSessionByProjectRef(projectRef);
   if (!ensuredDraft) {
     throw new Error("Could not create workspace empty-state draft.");
   }

@@ -4,7 +4,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Path from "effect/Path";
+import { Path } from "effect";
 
 import {
   type DesktopSettings,
@@ -95,8 +95,6 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
         ? path.join(homeDirectory, "Library", "Application Support")
         : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
   const baseDir = Option.getOrElse(config.multiHome, () => path.join(homeDirectory, ".multi"));
-  const rootDir = path.resolve(input.dirname, "../../..");
-  const appRoot = input.isPackaged ? input.appPath : rootDir;
   const defaultBackendCwd = resolveDefaultBackendCwd({
     documentsDirectory: input.documentsDirectory,
   });
@@ -107,6 +105,14 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   const stateDir = path.join(baseDir, "userdata");
   const userDataDirName = isDevelopment ? "multi-dev" : "multi";
   const resourcesPath = input.resourcesPath;
+  const desktopPackageDir = input.isPackaged
+    ? input.appPath
+    : path.resolve(input.dirname, "../..");
+  const rootDir = input.isPackaged ? input.appPath : path.resolve(desktopPackageDir, "../..");
+  const appRoot = input.isPackaged ? input.appPath : rootDir;
+  const backendEntryPath = input.isPackaged
+    ? path.join(input.appPath, "out/server/bin.mjs")
+    : path.join(rootDir, "packages/server/dist/bin.mjs");
 
   return DesktopEnvironment.of({
     path,
@@ -128,9 +134,9 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     logDir: path.join(stateDir, "logs"),
     rootDir,
     appRoot,
-    backendEntryPath: path.join(appRoot, "packages/server/dist/bin.mjs"),
+    backendEntryPath,
     backendCwd: defaultBackendCwd,
-    preloadPath: path.join(input.dirname, "preload.cjs"),
+    preloadPath: path.join(input.dirname, "../preload/index.js"),
     appUpdateYmlPath: input.isPackaged
       ? path.join(resourcesPath, "app-update.yml")
       : path.join(input.appPath, "dev-app-update.yml"),
@@ -177,12 +183,11 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
       return Option.some(path.resolve(trimmedPath));
     },
     resolveResourcePathCandidates: (fileName) => [
-      path.join(input.dirname, "../resources", fileName),
-      path.join(input.dirname, "../prod-resources", fileName),
+      path.join(desktopPackageDir, "resources", fileName),
       path.join(resourcesPath, "resources", fileName),
       path.join(resourcesPath, fileName),
     ],
-    developmentDockIconPath: path.join(input.dirname, "../resources/icon.png"),
+    developmentDockIconPath: path.join(desktopPackageDir, "resources/icon.png"),
   });
 });
 

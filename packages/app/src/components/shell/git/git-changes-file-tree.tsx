@@ -2,7 +2,7 @@
 
 import { prepareFileTreeInput } from "@pierre/trees";
 import type { GitStatus, GitStatusEntry } from "@pierre/trees";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useMemo, useRef } from "react";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import type { GitFileState } from "~/lib/ui-session-types";
@@ -48,6 +48,7 @@ export function GitChangesFileTree(props: {
   rows: readonly DiffRow[];
   selectedId: string | null;
   onSelect: (row: DiffRow) => void;
+  active?: boolean;
   className?: string;
 }) {
   const filePathSetRef = useRef<ReadonlySet<string>>(new Set());
@@ -59,20 +60,25 @@ export function GitChangesFileTree(props: {
 
   onSelectRef.current = props.onSelect;
 
-  const sortedRows = props.rows.toSorted((a, b) => a.path.localeCompare(b.path));
-
-  const treePaths = sortedRows.map((row) => normalizeTreePath(row.path));
-
-  const preparedInput = prepareFileTreeInput(treePaths);
-
-  const pathSet = new Set(treePaths);
-
-  const pathToRow = new Map<string, DiffRow>();
-  for (const row of sortedRows) {
-    pathToRow.set(normalizeTreePath(row.path), row);
-  }
-
-  const gitStatusEntries = diffRowsToGitStatusEntries(sortedRows);
+  const sortedRows = useMemo(
+    () => props.rows.toSorted((a, b) => a.path.localeCompare(b.path)),
+    [props.rows],
+  );
+  const treePaths = useMemo(
+    () => sortedRows.map((row) => normalizeTreePath(row.path)),
+    [sortedRows],
+  );
+  const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
+  const pathSet = useMemo(() => new Set(treePaths), [treePaths]);
+  const pathToRow = useMemo(() => {
+    const rowsByPath = new Map<string, DiffRow>();
+    for (const row of sortedRows) {
+      rowsByPath.set(normalizeTreePath(row.path), row);
+    }
+    return rowsByPath;
+  }, [sortedRows]);
+  const gitStatusEntries = useMemo(() => diffRowsToGitStatusEntries(sortedRows), [sortedRows]);
+  const isActive = props.active !== false;
 
   const selectedPath =
     props.selectedId !== null
@@ -111,7 +117,7 @@ export function GitChangesFileTree(props: {
   return (
     <section
       className={cn(
-        "git-changes-file-tree project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-multi-bg-quinary text-multi-fg-primary",
+        "git-changes-file-tree project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--multi-workbench-panel-background) text-multi-fg-primary",
         props.className,
       )}
     >
@@ -125,7 +131,7 @@ export function GitChangesFileTree(props: {
         suppressSelectionOpenRef={suppressSelectionOpenRef}
       />
       <div className="min-h-0 flex-1 overflow-hidden">
-        <Tree model={model} resolvedTheme={resolvedTheme} />
+        {isActive ? <Tree model={model} resolvedTheme={resolvedTheme} /> : null}
       </div>
     </section>
   );

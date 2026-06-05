@@ -19,17 +19,14 @@ import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
 import { newCommandId } from "../lib/utils";
 import { readLocalApi } from "../local-api";
 import {
-  selectProjectByRef,
   selectProjectsAcrossEnvironments,
   selectThreadByRef,
   selectThreadsForEnvironment,
   useStore,
 } from "../stores/thread-store";
 import { useTerminalStateStore } from "../terminal-state-store";
-import {
-  buildThreadRouteParams,
-  resolveThreadRouteTarget,
-} from "~/app/routes/thread-route-targets";
+import { openChatIndex, openThread } from "~/app/chat-navigation";
+import { getCurrentRouteTarget as getCurrentRouteTargetFromRouter } from "~/app/routes/thread-route-targets";
 import {
   formatWorktreePathForDisplay,
   getOrphanedWorktreePathForThread,
@@ -38,6 +35,7 @@ import { toastManager } from "~/app/toast";
 import { formatSchemaBackedTransportErrorDescription } from "~/rpc/transport-error";
 import { useSettings } from "./use-settings";
 import type { Thread } from "../types";
+import { findWorkspaceProjectForSource, isSourceForWorkspaceProject } from "~/lib/workspace-target";
 
 function getFallbackThreadIdAfterDelete<
   T extends Pick<Thread, "id" | "projectId" | "createdAt" | "updatedAt"> & ThreadSortInput,
@@ -209,8 +207,7 @@ export function useThreadActions() {
   const queryClient = useQueryClient();
 
   const getCurrentRouteTarget = () => {
-    const currentRouteParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
-    return resolveThreadRouteTarget(currentRouteParams);
+    return getCurrentRouteTargetFromRouter(router);
   };
   const getCurrentRouteThreadRef = () => {
     const target = getCurrentRouteTarget();
@@ -249,10 +246,20 @@ export function useThreadActions() {
         currentRouteThreadRef.environmentId === threadRef.environmentId
       ) {
         if (thread.projectId === null) {
-          await router.navigate({ to: "/", replace: true });
+          await openChatIndex(router, { replace: true });
           return;
         }
-        await handleNewThreadRef.current(scopeProjectRef(thread.environmentId, thread.projectId));
+        const workspaceProject = findWorkspaceProjectForSource(
+          selectProjectsAcrossEnvironments(useStore.getState()),
+          thread,
+        );
+        if (!workspaceProject) {
+          await openChatIndex(router, { replace: true });
+          return;
+        }
+        await handleNewThreadRef.current(
+          scopeProjectRef(workspaceProject.environmentId, workspaceProject.id),
+        );
       }
   };
 
@@ -280,9 +287,13 @@ export function useThreadActions() {
       const currentThread = currentRouteThreadRef
         ? selectThreadByRef(state, currentRouteThreadRef)
         : undefined;
+      const projects = selectProjectsAcrossEnvironments(state);
+      const currentWorkspaceProject = currentThread
+        ? findWorkspaceProjectForSource(projects, currentThread)
+        : null;
       const fallbackProjectRef =
-        shouldNavigateToFallback && currentThread?.projectId !== null && currentThread !== undefined
-          ? scopeProjectRef(currentThread.environmentId, currentThread.projectId)
+        shouldNavigateToFallback && currentWorkspaceProject
+          ? scopeProjectRef(currentWorkspaceProject.environmentId, currentWorkspaceProject.id)
           : null;
       const archivedIds =
         shouldNavigateToFallback && currentRouteThreadRef
@@ -335,11 +346,7 @@ export function useThreadActions() {
       }
 
       if (fallbackThreadRef) {
-        await router.navigate({
-          to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(fallbackThreadRef),
-          replace: true,
-        });
+        await openThread(router, fallbackThreadRef, { replace: true });
         return;
       }
 
@@ -348,7 +355,7 @@ export function useThreadActions() {
         return;
       }
 
-      await router.navigate({ to: "/", replace: true });
+      await openChatIndex(router, { replace: true });
   };
 
   const removeProjectFromSidebar = async (target: ScopedProjectRef) => {
@@ -356,26 +363,21 @@ export function useThreadActions() {
       if (!api) return;
 
       const state = useStore.getState();
+      const projects = selectProjectsAcrossEnvironments(state);
       const routeTarget = getCurrentRouteTarget();
       const shouldNavigateToFallback =
         routeTarget?.kind === "server"
           ? (() => {
               const thread = selectThreadByRef(state, routeTarget.threadRef);
-              return (
-                thread?.environmentId === target.environmentId &&
-                thread.projectId === target.projectId
-              );
+              return isSourceForWorkspaceProject({ project: target, projects, source: thread });
             })()
           : routeTarget?.kind === "draft"
             ? (() => {
                 const draft = useComposerDraftStore.getState().getDraftSession(routeTarget.draftId);
-                return (
-                  draft?.environmentId === target.environmentId &&
-                  draft.projectId === target.projectId
-                );
+                return isSourceForWorkspaceProject({ project: target, projects, source: draft });
               })()
             : false;
-      const fallbackProject = selectProjectsAcrossEnvironments(state).find(
+      const fallbackProject = projects.find(
         (project) =>
           project.environmentId !== target.environmentId || project.id !== target.projectId,
       );
@@ -397,7 +399,7 @@ export function useThreadActions() {
         return;
       }
 
-      await router.navigate({ to: "/", replace: true });
+      await openChatIndex(router, { replace: true });
   };
 
   const deleteThread = async (
@@ -411,13 +413,8 @@ export function useThreadActions() {
       const { thread, threadRef } = resolved;
       const state = useStore.getState();
       const threads = selectThreadsForEnvironment(state, threadRef.environmentId);
-      const threadProject =
-        thread.projectId === null
-          ? undefined
-          : selectProjectByRef(state, {
-              environmentId: threadRef.environmentId,
-              projectId: thread.projectId,
-            });
+      const projects = selectProjectsAcrossEnvironments(state);
+      const threadProject = findWorkspaceProjectForSource(projects, thread) ?? undefined;
       const deletedIds =
         opts.deletedThreadKeys && opts.deletedThreadKeys.size > 0
           ? new Set<ThreadId>(
@@ -486,9 +483,9 @@ export function useThreadActions() {
         threadId: threadRef.threadId,
       });
       clearComposerDraftForThread(threadRef);
-      if (thread.projectId !== null) {
+      if (threadProject) {
         clearProjectDraftThreadById(
-          scopeProjectRef(threadRef.environmentId, thread.projectId),
+          scopeProjectRef(threadProject.environmentId, threadProject.id),
           threadRef,
         );
       }
@@ -501,18 +498,16 @@ export function useThreadActions() {
             scopeThreadRef(threadRef.environmentId, fallbackThreadId),
           );
           if (fallbackThread) {
-            await router.navigate({
-              to: "/$environmentId/$threadId",
-              params: buildThreadRouteParams(
-                scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
-              ),
-              replace: true,
-            });
+            await openThread(
+              router,
+              scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
+              { replace: true },
+            );
           } else {
-            await router.navigate({ to: "/", replace: true });
+            await openChatIndex(router, { replace: true });
           }
         } else {
-          await router.navigate({ to: "/", replace: true });
+          await openChatIndex(router, { replace: true });
         }
       }
 
@@ -521,13 +516,13 @@ export function useThreadActions() {
       }
 
       try {
-        await ensureEnvironmentGitApi(threadRef.environmentId).removeWorktree({
+        await ensureEnvironmentGitApi(threadProject.environmentId).removeWorktree({
           cwd: threadProject.cwd,
           path: orphanedWorktreePath,
           force: true,
         });
         await invalidateGitQueries(queryClient, {
-          environmentId: threadRef.environmentId,
+          environmentId: threadProject.environmentId,
         });
       } catch (error) {
         const message = formatSchemaBackedTransportErrorDescription(

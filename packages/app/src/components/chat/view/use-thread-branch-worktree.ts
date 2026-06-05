@@ -1,5 +1,5 @@
 import type { GitBranch } from "@multi/contracts";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
 
 import { toastManager } from "~/app/toast";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
@@ -61,9 +61,9 @@ export function useThreadBranchWorktree(
 
   const [unavailableBaseBranch, setUnavailableBaseBranch] = useState<string | null>(null);
 
-  function handleStoredBranchAvailabilityChange(missingBranch: string | null) {
-    setUnavailableBaseBranch(missingBranch);
-  }
+  const handleStoredBranchAvailabilityChange = useCallback((missingBranch: string | null) => {
+    setUnavailableBaseBranch((current) => (current === missingBranch ? current : missingBranch));
+  }, []);
 
   function handleBranchEnvModeChange(mode: DraftThreadEnvMode, branch: string | null) {
     const nextBranch = mode === "worktree" ? (branch ?? activeThreadBranch) : activeThreadBranch;

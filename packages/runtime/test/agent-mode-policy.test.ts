@@ -42,7 +42,7 @@ describe("agent mode policy", () => {
   });
 
   it("maps agent modes to default thinking levels", () => {
-    expect(thinkingLevelForAgentMode("rush")).toBe("low");
+    expect(thinkingLevelForAgentMode("rush")).toBe("off");
     expect(thinkingLevelForAgentMode("smart")).toBe("medium");
     expect(thinkingLevelForAgentMode("deep")).toBe("high");
     expect(createModelPolicy({ agentMode: "deep" })).toMatchObject({

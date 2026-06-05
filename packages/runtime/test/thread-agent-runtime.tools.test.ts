@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import { Type } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentRuntimeEvent } from "@multi/contracts";
 import { createDesktopAgentExtensionFactories } from "../src/desktop-agent-extensions";
@@ -18,6 +18,7 @@ import {
   type RuntimeHarness,
   waitForEvent,
 } from "./runtime-test-harness";
+import { CREATE_PLAN_TOOL_NAME } from "../src/plan-extension";
 
 function expectRecord(value: unknown): Record<string, unknown> {
   expect(typeof value).toBe("object");
@@ -174,6 +175,61 @@ describe("ThreadAgentRuntime tools", () => {
     );
     expect(completedEvent?.summary).toBe("Completed ask_user");
     expect(expectRecord(completedEvent?.data).isError).toBe(false);
+  });
+
+  it("runs the first-party create_plan extension and emits a proposed plan", async () => {
+    const harness = await createRuntimeHarness({
+      extensionFactories: createDesktopAgentExtensionFactories({ agentDir: createAgentDir() }),
+      tools: [CREATE_PLAN_TOOL_NAME],
+    });
+    harnesses.push(harness);
+    const events: AgentRuntimeEvent[] = [];
+    harness.runtime.subscribe((event) => events.push(event));
+    harness.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall(CREATE_PLAN_TOOL_NAME, {
+          name: "Refactor parser",
+          overview: "Tighten ACP parsing",
+          plan: "# Plan\n\n1. Add schemas\n2. Remove casts",
+          todos: [
+            { id: "t1", content: "Add schemas", status: "completed" },
+            { id: "t2", content: "Remove casts", status: "in_progress" },
+          ],
+          isProject: false,
+        }),
+        { stopReason: "toolUse" },
+      ),
+    ]);
+
+    const turnId = await waitForEvent(harness.runtime, "turn.proposed.completed", () =>
+      harness.runtime.sendMessage("make a plan", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        interactionMode: "plan",
+      }),
+    );
+    await harness.runtime.session.agent.waitForIdle();
+
+    const completedEvent = events.find(
+      (event) =>
+        event.type === "tool.completed" && expectRecord(event.data).toolName === CREATE_PLAN_TOOL_NAME,
+    );
+    const result = expectRecord(expectRecord(completedEvent?.data).result);
+    const details = expectRecord(result.details);
+    expect(details.name).toBe("Refactor parser");
+    expect(details.planMarkdown).toBe("# Plan\n\n1. Add schemas\n2. Remove casts");
+    expect(result.terminate).toBe(true);
+
+    const planEvent = events.find((event) => event.type === "turn.proposed.completed");
+    expect(planEvent).toMatchObject({
+      type: "turn.proposed.completed",
+      summary: "Proposed plan captured",
+      turnId,
+      data: {
+        planId: `plan:${harness.runtime.threadId}:${turnId}`,
+        planMarkdown: "# Plan\n\n1. Add schemas\n2. Remove casts",
+      },
+    });
+    expect(events.filter((event) => event.type === "turn.proposed.completed")).toHaveLength(1);
   });
 
   it("runs the first-party subagent extension as an embedded child session from a prompt", async () => {

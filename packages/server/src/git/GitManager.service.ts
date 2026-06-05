@@ -18,6 +18,9 @@ import {
   GitStatusRemoteResult,
   GitStatusInput,
   GitStatusResult,
+  DispatchResult,
+  OrchestrationCommand,
+  OrchestrationDispatchCommandError,
 } from "@multi/contracts";
 import { Context } from "effect";
 import type { Effect } from "effect";
@@ -36,6 +39,13 @@ export interface GitRunStackedActionOptions {
  * GitManagerShape - Service API for high-level Git workflow actions.
  */
 export interface GitManagerShape {
+  /**
+   * Dispatch a bootstrapped thread turn start with thread/worktree/setup orchestration.
+   */
+  readonly dispatchBootstrapTurnStart: (
+    command: Extract<OrchestrationCommand, { type: "thread.turn.start" }>,
+  ) => Effect.Effect<DispatchResult, OrchestrationDispatchCommandError>;
+
   /**
    * Read current repository Git status plus open PR metadata when available.
    */

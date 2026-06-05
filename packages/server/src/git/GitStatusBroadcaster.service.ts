@@ -4,6 +4,7 @@ import type {
   GitManagerServiceError,
   GitStatusInput,
   GitStatusLocalResult,
+  GitStatusRemoteResult,
   GitStatusResult,
   GitStatusStreamEvent,
 } from "@multi/contracts";
@@ -15,6 +16,9 @@ export interface GitStatusBroadcasterShape {
   readonly refreshLocalStatus: (
     cwd: string,
   ) => Effect.Effect<GitStatusLocalResult, GitManagerServiceError>;
+  readonly refreshRemoteStatus: (
+    cwd: string,
+  ) => Effect.Effect<GitStatusRemoteResult | null, GitManagerServiceError>;
   readonly refreshStatus: (cwd: string) => Effect.Effect<GitStatusResult, GitManagerServiceError>;
   readonly streamStatus: (
     input: GitStatusInput,

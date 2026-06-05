@@ -2,10 +2,7 @@ import type { EnvironmentApi, EnvironmentId } from "@multi/contracts";
 
 import { readEnvironmentApi, createEnvironmentApi } from "~/environment-api";
 import { getPrimaryKnownEnvironment } from "~/environments/primary";
-import {
-  getPrimaryEnvironmentConnection,
-  readEnvironmentConnection,
-} from "~/environments/runtime";
+import { readEnvironmentConnection } from "~/environments/runtime";
 
 export type EnvironmentGitApi = EnvironmentApi["git"];
 
@@ -23,16 +20,15 @@ function readPrimaryEnvironmentGitApi(
     return null;
   }
 
-  try {
-    const connection = getPrimaryEnvironmentConnection();
-    return {
-      environmentId: connection.environmentId,
-      clientIdentity: connection.environmentId,
-      git: createEnvironmentApi(connection.client).git,
-    };
-  } catch {
+  const connection = readEnvironmentConnection(environmentId);
+  if (!connection) {
     return null;
   }
+  return {
+    environmentId: connection.environmentId,
+    clientIdentity: connection.environmentId,
+    git: createEnvironmentApi(connection.client).git,
+  };
 }
 
 export function readResolvedEnvironmentGitApi(

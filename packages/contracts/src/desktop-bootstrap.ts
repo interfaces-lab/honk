@@ -9,6 +9,7 @@ export const DesktopBackendBootstrap = Schema.Struct({
   multiHome: Schema.String,
   host: Schema.String,
   desktopBootstrapToken: Schema.String,
+  runId: Schema.String,
   otlpTracesUrl: Schema.optional(Schema.String),
   otlpMetricsUrl: Schema.optional(Schema.String),
 });

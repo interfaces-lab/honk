@@ -7,7 +7,7 @@ describe("RightWorkbenchLayout", () => {
   it("keeps secondary rail content mounted when the rail is collapsed", () => {
     const html = renderToStaticMarkup(
       <RightWorkbenchLayout
-        cwd="/repo"
+        workspaceKey='{"rpcEnvironmentId":"environment:primary","cwd":"/repo"}'
         tab="files"
         railOpen={false}
         rail={<div data-testid="file-tree">File tree</div>}

@@ -49,6 +49,7 @@ import type {
 import type { ServerUpsertKeybindingInput } from "./server";
 import type {
   ClientOrchestrationCommand,
+  DispatchResult,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
@@ -198,12 +199,14 @@ export interface DesktopEnvironmentBootstrap {
   label: string;
   httpBaseUrl: string;
   bootstrapToken: string;
+  runId: string;
 }
 
 export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
   label: Schema.String,
   httpBaseUrl: Schema.String,
   bootstrapToken: Schema.String,
+  runId: Schema.String,
 });
 
 export type DesktopServerExposureMode = "local-only" | "network-accessible";
@@ -368,7 +371,7 @@ export interface EnvironmentApi {
     ) => () => void;
   };
   orchestration: {
-    dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
+    dispatchCommand: (command: ClientOrchestrationCommand) => Promise<DispatchResult>;
     subscribeShell: (
       callback: (event: OrchestrationShellStreamItem) => void,
       options?: {

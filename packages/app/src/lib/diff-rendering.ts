@@ -9,14 +9,32 @@ export function resolveDiffThemeName(theme: "light" | "dark"): DiffThemeName {
   return theme === "dark" ? DIFF_THEME_NAMES.dark : DIFF_THEME_NAMES.light;
 }
 
+export const WORKBENCH_DIFF_LINE_HEIGHT = 18;
+
 export const WORKBENCH_CODE_UNSAFE_CSS = `
-  [data-line] {
-    min-height: 1lh;
+  :host {
+    min-width: 0;
+    max-width: 100%;
   }
 
-  [data-line-type='change-addition'] [data-diff-span],
-  [data-line-type='change-deletion'] [data-diff-span] {
-    background-color: inherit;
+  [data-file],
+  [data-diff] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-code],
+  [data-content],
+  [data-gutter] {
+    min-width: 0;
+  }
+
+  [data-code] {
+    line-height: ${WORKBENCH_DIFF_LINE_HEIGHT}px;
+  }
+
+  [data-line] {
+    min-height: ${WORKBENCH_DIFF_LINE_HEIGHT}px;
   }
 
   [data-background] [data-line-type='change-addition'][data-line],

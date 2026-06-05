@@ -1,6 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage, fauxToolCall, type UserMessage } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import { Type } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentRuntimeEvent } from "@multi/contracts";
 import {

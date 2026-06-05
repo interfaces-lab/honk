@@ -13,6 +13,7 @@ allowBuilds:
   sqlite3: true
   "@google/genai": false
   protobufjs: false
+  electron-winstaller: false
 
 catalog:
   effect: "4.0.0-beta.59"
@@ -27,6 +28,6 @@ catalog:
   bun: "1.3.14"
   "@types/bun": "1.3.14"
   "@types/node": "^25.9.1"
-  tsdown: "^0.22.0"
+  tsdown: "^0.22.2"
   typescript: "^6.0.3"
-  vitest: "^4.1.7"
+  vitest: "^4.1.8"

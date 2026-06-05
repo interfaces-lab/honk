@@ -1,4 +1,9 @@
 import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
+import {
+  MULTI_PROCESS_INSTANCE_ID_ENV,
+  MULTI_PROCESS_ROLE_ENV,
+  MULTI_RUN_ID_ENV,
+} from "@multi/shared/logging";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -39,6 +44,8 @@ const DESKTOP_BACKEND_ENV_NAMES = [
   "MULTI_DESKTOP_WS_URL",
   "MULTI_DESKTOP_LAN_ACCESS",
   "MULTI_DESKTOP_LAN_HOST",
+  MULTI_PROCESS_INSTANCE_ID_ENV,
+  MULTI_PROCESS_ROLE_ENV,
 ] as const;
 
 const backendChildEnvPatch = (): Record<string, string | undefined> =>
@@ -114,6 +121,9 @@ const resolveBackendStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       env: {
         ...backendChildEnvPatch(),
         ELECTRON_RUN_AS_NODE: "1",
+        [MULTI_RUN_ID_ENV]: DesktopObservability.desktopProcessMetadata.runId,
+        [MULTI_PROCESS_ROLE_ENV]: "server",
+        [MULTI_PROCESS_INSTANCE_ID_ENV]: undefined,
       },
       bootstrap: {
         mode: "desktop",
@@ -122,6 +132,7 @@ const resolveBackendStartConfig = Effect.fn("desktop.backendConfiguration.resolv
         multiHome: environment.baseDir,
         host: backendExposure.bindHost,
         desktopBootstrapToken: input.bootstrapToken,
+        runId: DesktopObservability.desktopProcessMetadata.runId,
         ...Option.match(input.observabilitySettings.otlpTracesUrl, {
           onNone: () => ({}),
           onSome: (otlpTracesUrl) => ({ otlpTracesUrl }),

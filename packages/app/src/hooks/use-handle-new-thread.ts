@@ -1,6 +1,6 @@
 import { scopedProjectKey, scopeProjectRef } from "~/lib/environment-scope";
 import type { ScopedProjectRef } from "@multi/contracts";
-import { useParams, useRouter } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useMemo, useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -10,16 +10,20 @@ import {
 } from "../stores/chat-drafts";
 import { newDraftId, newThreadId } from "../lib/utils";
 import { findProjectByPath } from "../lib/project-paths";
-import { deriveLogicalProjectKey, getProjectOrderKey } from "../stores/project-identity";
+import {
+  deriveLogicalProjectKey,
+  derivePhysicalProjectKeyFromPath,
+  getProjectOrderKey,
+} from "../stores/project-identity";
 import { useServerConfig } from "../rpc/server-state";
 import { selectProjectsAcrossEnvironments, useStore } from "../stores/thread-store";
 import { createThreadSelectorByRef } from "../stores/thread-selectors";
-import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
+import { getCurrentRouteTarget, useRouteTarget } from "~/app/routes/thread-route-targets";
+import { openDraft } from "~/app/chat-navigation";
 import { useUiStateStore } from "../stores/ui-state-store";
 import {
   readStoredProjectCwd,
   readStoredProjectSelection,
-  subscribeStoredProjectCwd,
   subscribeStoredProjectSelection,
 } from "../lib/project-state";
 
@@ -61,107 +65,101 @@ function useNewThreadState() {
       reuseExistingDraft?: boolean;
       worktreePath?: string | null;
       envMode?: DraftThreadEnvMode;
+      logicalProjectKey?: string | null;
     },
   ): Promise<void> => {
-    const getCurrentRouteTarget = () => {
-      const currentRouteParams =
-        router.state.matches[router.state.matches.length - 1]?.params ?? {};
-      return resolveThreadRouteTarget(currentRouteParams);
-    };
     const {
-        getDraftSessionByLogicalProjectKey,
-        getDraftSession,
-        getDraftThread,
-        setDraftThreadContext,
-        setLogicalProjectDraftThreadId,
-      } = useComposerDraftStore.getState();
-      const currentRouteTarget = getCurrentRouteTarget();
-      const projects = selectProjectsAcrossEnvironments(useStore.getState());
-      const project = projects.find(
-        (candidate) =>
-          candidate.id === projectRef.projectId &&
-          candidate.environmentId === projectRef.environmentId,
-      );
-      const logicalProjectKey = project
-        ? deriveLogicalProjectKey(project)
-        : scopedProjectKey(projectRef);
-      const hasBranchOption = options?.branch !== undefined;
-      const hasWorktreePathOption = options?.worktreePath !== undefined;
-      const hasEnvModeOption = options?.envMode !== undefined;
-      const reuseExistingDraft = options?.reuseExistingDraft !== false;
-      const storedDraftThread = getDraftSessionByLogicalProjectKey(logicalProjectKey);
-      const latestActiveDraftThread: DraftThreadState | null = currentRouteTarget
-        ? currentRouteTarget.kind === "server"
-          ? getDraftThread(currentRouteTarget.threadRef)
-          : getDraftSession(currentRouteTarget.draftId)
-        : null;
-      if (reuseExistingDraft && storedDraftThread) {
-        return (async () => {
-          if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
-            setDraftThreadContext(storedDraftThread.draftId, {
-              ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
-              ...(hasWorktreePathOption ? { worktreePath: options?.worktreePath ?? null } : {}),
-              ...(hasEnvModeOption ? { envMode: options?.envMode } : {}),
-            });
-          }
-          setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, storedDraftThread.draftId, {
-            threadId: storedDraftThread.threadId,
-          });
-          if (
-            currentRouteTarget?.kind === "draft" &&
-            currentRouteTarget.draftId === storedDraftThread.draftId
-          ) {
-            return;
-          }
-          await router.navigate({
-            to: "/draft/$draftId",
-            params: { draftId: storedDraftThread.draftId },
-          });
-        })();
-      }
-
-      if (
-        reuseExistingDraft &&
-        latestActiveDraftThread &&
-        currentRouteTarget?.kind === "draft" &&
-        latestActiveDraftThread.logicalProjectKey === logicalProjectKey &&
-        latestActiveDraftThread.promotedTo == null
-      ) {
+      getDraftSessionByLogicalProjectKey,
+      getDraftSessionByProjectRef,
+      getDraftSession,
+      getDraftThread,
+      setDraftThreadContext,
+      setLogicalProjectDraftThreadId,
+    } = useComposerDraftStore.getState();
+    const currentRouteTarget = getCurrentRouteTarget(router);
+    const projects = selectProjectsAcrossEnvironments(useStore.getState());
+    const project = projects.find(
+      (candidate) =>
+        candidate.id === projectRef.projectId &&
+        candidate.environmentId === projectRef.environmentId,
+    );
+    const explicitLogicalProjectKey = options?.logicalProjectKey?.trim() || null;
+    const logicalProjectKey =
+      explicitLogicalProjectKey ??
+      (project ? deriveLogicalProjectKey(project) : scopedProjectKey(projectRef));
+    const hasBranchOption = options?.branch !== undefined;
+    const hasWorktreePathOption = options?.worktreePath !== undefined;
+    const hasEnvModeOption = options?.envMode !== undefined;
+    const reuseExistingDraft = options?.reuseExistingDraft !== false;
+    const storedDraftThread =
+      getDraftSessionByLogicalProjectKey(logicalProjectKey) ??
+      getDraftSessionByProjectRef(projectRef);
+    const latestActiveDraftThread: DraftThreadState | null = currentRouteTarget
+      ? currentRouteTarget.kind === "server"
+        ? getDraftThread(currentRouteTarget.threadRef)
+        : getDraftSession(currentRouteTarget.draftId)
+      : null;
+    if (reuseExistingDraft && storedDraftThread) {
+      return (async () => {
         if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
-          setDraftThreadContext(currentRouteTarget.draftId, {
+          setDraftThreadContext(storedDraftThread.draftId, {
             ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
             ...(hasWorktreePathOption ? { worktreePath: options?.worktreePath ?? null } : {}),
             ...(hasEnvModeOption ? { envMode: options?.envMode } : {}),
           });
         }
-        setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, currentRouteTarget.draftId, {
-          threadId: latestActiveDraftThread.threadId,
-          createdAt: latestActiveDraftThread.createdAt,
-          interactionMode: latestActiveDraftThread.interactionMode,
+        setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, storedDraftThread.draftId, {
+          threadId: storedDraftThread.threadId,
+        });
+        if (
+          currentRouteTarget?.kind === "draft" &&
+          currentRouteTarget.draftId === storedDraftThread.draftId
+        ) {
+          return;
+        }
+        await openDraft(router, storedDraftThread.draftId);
+      })();
+    }
+
+    if (
+      reuseExistingDraft &&
+      latestActiveDraftThread &&
+      currentRouteTarget?.kind === "draft" &&
+      latestActiveDraftThread.logicalProjectKey === logicalProjectKey &&
+      latestActiveDraftThread.promotedTo == null
+    ) {
+      if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
+        setDraftThreadContext(currentRouteTarget.draftId, {
           ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
           ...(hasWorktreePathOption ? { worktreePath: options?.worktreePath ?? null } : {}),
           ...(hasEnvModeOption ? { envMode: options?.envMode } : {}),
         });
-        return Promise.resolve();
       }
+      setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, currentRouteTarget.draftId, {
+        threadId: latestActiveDraftThread.threadId,
+        createdAt: latestActiveDraftThread.createdAt,
+        interactionMode: latestActiveDraftThread.interactionMode,
+        ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
+        ...(hasWorktreePathOption ? { worktreePath: options?.worktreePath ?? null } : {}),
+        ...(hasEnvModeOption ? { envMode: options?.envMode } : {}),
+      });
+      return Promise.resolve();
+    }
 
-      const draftId = newDraftId();
-      const threadId = newThreadId();
-      const createdAt = new Date().toISOString();
-      return (async () => {
-        setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
-          threadId,
-          createdAt,
-          branch: options?.branch ?? null,
-          worktreePath: options?.worktreePath ?? null,
-          envMode: options?.envMode ?? "local",
-        });
+    const draftId = newDraftId();
+    const threadId = newThreadId();
+    const createdAt = new Date().toISOString();
+    return (async () => {
+      setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
+        threadId,
+        createdAt,
+        branch: options?.branch ?? null,
+        worktreePath: options?.worktreePath ?? null,
+        envMode: options?.envMode ?? "local",
+      });
 
-        await router.navigate({
-          to: "/draft/$draftId",
-          params: { draftId },
-        });
-      })();
+      await openDraft(router, draftId);
+    })();
   };
 }
 
@@ -175,8 +173,7 @@ export function useNewThreadHandler() {
 
 export function useHandleNewThread() {
   const projectOrder = useUiStateStore((store) => store.projectOrder);
-  const routeParams = useParams({ strict: false });
-  const routeTarget = resolveThreadRouteTarget(routeParams);
+  const routeTarget = useRouteTarget();
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThreadSelector = useMemo(
     () => createThreadSelectorByRef(routeThreadRef),
@@ -193,11 +190,6 @@ export function useHandleNewThread() {
   );
   const projects = useStore(useShallow((store) => selectProjectsAcrossEnvironments(store)));
   const serverConfig = useServerConfig();
-  const storedProjectCwd = useSyncExternalStore(
-    subscribeStoredProjectCwd,
-    readStoredProjectCwd,
-    () => null,
-  );
   const storedProjectSelection = useSyncExternalStore(
     subscribeStoredProjectSelection,
     readStoredProjectSelection,
@@ -215,20 +207,51 @@ export function useHandleNewThread() {
           project.id === storedProjectSelection.projectId,
       )
     : undefined;
-  const defaultProject =
-    selectedProject ??
-    (storedProjectCwd ? findProjectByPath(orderedProjects, storedProjectCwd) : undefined) ??
-    (serverConfig?.cwd ? findProjectByPath(orderedProjects, serverConfig.cwd) : undefined) ??
-    orderedProjects[0] ??
+  const selectedProjectByLastKnownCwd =
+    storedProjectSelection && !selectedProject
+      ? findProjectByPath(orderedProjects, storedProjectSelection.cwd)
+      : undefined;
+  const legacyStoredProjectCwd = storedProjectSelection ? null : readStoredProjectCwd();
+  const defaultProject = storedProjectSelection
+    ? (selectedProject ?? selectedProjectByLastKnownCwd ?? null)
+    : ((legacyStoredProjectCwd
+        ? findProjectByPath(orderedProjects, legacyStoredProjectCwd)
+        : undefined) ??
+      (serverConfig?.cwd ? findProjectByPath(orderedProjects, serverConfig.cwd) : undefined) ??
+      orderedProjects[0] ??
+      null);
+  const defaultProjectRef =
+    defaultProject
+      ? scopeProjectRef(defaultProject.environmentId, defaultProject.id)
+      : storedProjectSelection
+        ? scopeProjectRef(storedProjectSelection.environmentId, storedProjectSelection.projectId)
+        : null;
+  const defaultProjectCwd =
+    defaultProject?.cwd ??
+    storedProjectSelection?.cwd ??
+    legacyStoredProjectCwd ??
+    serverConfig?.cwd ??
     null;
+  const defaultProjectEnvironmentId =
+    defaultProject?.environmentId ?? storedProjectSelection?.environmentId ?? null;
+  const defaultLogicalProjectKey =
+    defaultProject
+      ? deriveLogicalProjectKey(defaultProject)
+      : storedProjectSelection
+        ? derivePhysicalProjectKeyFromPath(
+            storedProjectSelection.environmentId,
+            storedProjectSelection.cwd,
+          )
+        : null;
   const handleNewThread = useNewThreadState();
 
   return {
     activeDraftThread,
     activeThread,
-    defaultProjectRef: defaultProject
-      ? scopeProjectRef(defaultProject.environmentId, defaultProject.id)
-      : null,
+    defaultProjectCwd,
+    defaultProjectEnvironmentId,
+    defaultProjectRef,
+    defaultLogicalProjectKey,
     handleNewThread,
     routeThreadRef,
   };

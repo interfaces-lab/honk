@@ -50,7 +50,7 @@ export function SourcePreview(props: {
   if (fileQuery.isPending) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="space-y-2 bg-background p-3">
+        <div className="space-y-2 bg-(--multi-workbench-editor-surface-background) p-3">
           <div className="h-3 w-11/12 animate-pulse rounded bg-muted-foreground/10" />
           <div className="h-3 w-7/12 animate-pulse rounded bg-muted-foreground/10" />
           <div className="h-3 w-10/12 animate-pulse rounded bg-muted-foreground/10" />
@@ -82,12 +82,15 @@ export function SourcePreview(props: {
         </div>
       ) : null}
       {fileContents ? (
-        <div className="project-file-preview min-h-0 flex-1 overflow-hidden bg-background text-body text-foreground">
+        <div
+          className="project-file-preview web-component min-h-0 min-w-0 flex-1 overflow-hidden bg-(--multi-workbench-editor-surface-background) text-foreground"
+          data-diffs-container
+        >
           <File
             key={`${fileQuery.data.relativePath}:${props.wordWrap ? "wrap" : "scroll"}:${resolvedTheme}`}
             file={fileContents}
             options={fileOptions}
-            className="project-file-preview-code min-h-0 h-full overflow-auto"
+            className="project-file-preview-code h-full min-h-0 min-w-0 overflow-auto"
           />
         </div>
       ) : null}

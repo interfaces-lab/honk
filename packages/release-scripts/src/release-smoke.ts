@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const workspaceFiles = [
   "package.json",
@@ -17,6 +17,7 @@ const workspaceFiles = [
   "packages/contracts/package.json",
   "packages/shared/package.json",
   "packages/ui/package.json",
+  "packages/release-scripts/package.json",
   "scripts/package.json",
 ] as const;
 
@@ -94,7 +95,7 @@ try {
   execFileSync(
     process.execPath,
     [
-      resolve(repoRoot, "scripts/update-release-package-versions.ts"),
+      resolve(repoRoot, "packages/release-scripts/src/update-release-package-versions.ts"),
       "9.9.9-smoke.0",
       "--root",
       tempRoot,
@@ -118,7 +119,11 @@ try {
   const { arm64Path, x64Path } = writeMacManifestFixtures(tempRoot);
   execFileSync(
     process.execPath,
-    [resolve(repoRoot, "scripts/merge-mac-update-manifests.ts"), arm64Path, x64Path],
+    [
+      resolve(repoRoot, "packages/release-scripts/src/merge-mac-update-manifests.ts"),
+      arm64Path,
+      x64Path,
+    ],
     {
       cwd: repoRoot,
       stdio: "inherit",

@@ -1,6 +1,7 @@
 import type { EnvironmentApi, EnvironmentId, LocalApi } from "@multi/contracts";
 
-import { getEnvironmentWsRpcClient } from "~/environments/runtime";
+import { readEnvironmentConnection } from "~/environments/runtime";
+import { getPrimaryKnownEnvironment } from "~/environments/primary";
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";
 import { createEnvironmentApi, readEnvironmentApi } from "~/environment-api";
 import { ensureLocalApi, readLocalApi } from "~/local-api";
@@ -35,11 +36,18 @@ function readEnvironmentApiWithFallback(
     return undefined;
   }
 
-  try {
-    return createEnvironmentApi(getEnvironmentWsRpcClient(null));
-  } catch {
+  const primaryEnvironment = getPrimaryKnownEnvironment();
+  const primaryEnvironmentId = primaryEnvironment?.environmentId;
+  if (!primaryEnvironmentId) {
     return undefined;
   }
+
+  const connection = readEnvironmentConnection(primaryEnvironmentId);
+  if (!connection) {
+    return undefined;
+  }
+
+  return createEnvironmentApi(connection.client);
 }
 
 export function readNativeEnvironmentApi(

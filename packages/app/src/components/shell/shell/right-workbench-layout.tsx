@@ -3,11 +3,11 @@
 import { type CSSProperties, type ReactNode, useRef } from "react";
 
 import {
-  type WorkbenchTab,
   SECONDARY_RAIL_LIMITS,
   shellPanelsActions,
   useSecondaryRail,
 } from "~/stores/shell-panels-store";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 
 import { useColumnResize } from "./use-column-resize";
@@ -15,14 +15,17 @@ import { useColumnResize } from "./use-column-resize";
 type SecondaryRailStyle = CSSProperties & Record<`--${string}`, string>;
 
 export function RightWorkbenchLayout(props: {
-  cwd: string | null;
+  workspaceKey: string | null;
   tab: WorkbenchTab;
   rail?: ReactNode;
   railOpen?: boolean;
   railHostClassName?: string;
   children: ReactNode;
 }) {
-  const { open: persistedRailOpen, width: railWidth } = useSecondaryRail(props.cwd, props.tab);
+  const { open: persistedRailOpen, width: railWidth } = useSecondaryRail(
+    props.workspaceKey,
+    props.tab,
+  );
   const railOpen = props.railOpen ?? persistedRailOpen;
   const hasRail = props.rail != null;
 
@@ -33,7 +36,7 @@ export function RightWorkbenchLayout(props: {
     elementRef: railRef,
     direction: "right",
     onCommit: (nextWidth) =>
-      shellPanelsActions.setSecondaryRailWidth(props.cwd, props.tab, nextWidth),
+      shellPanelsActions.setSecondaryRailWidth(props.workspaceKey, props.tab, nextWidth),
   });
   const railStyle: SecondaryRailStyle = {
     "--multi-shell-secondary-rail-width": `${railWidth}px`,
@@ -52,7 +55,7 @@ export function RightWorkbenchLayout(props: {
       {hasRail ? (
         <div
           className={cn(
-            "multi-shell-secondary-rail relative flex min-h-0 shrink-0 overflow-hidden bg-(--multi-workbench-panel-title-background)",
+            "multi-shell-secondary-rail relative flex min-h-0 shrink-0 overflow-hidden bg-(--multi-workbench-panel-background)",
             props.railHostClassName,
           )}
           data-shell-panel="secondary"

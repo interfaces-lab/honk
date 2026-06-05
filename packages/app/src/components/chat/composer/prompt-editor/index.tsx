@@ -1,7 +1,7 @@
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
+import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary.js";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { type OrchestrationMessageRichText } from "@multi/contracts";
@@ -19,7 +19,12 @@ import {
   $isTextNode,
   $nodesOfType,
   $setSelection,
+  COMMAND_PRIORITY_HIGH,
   DecoratorNode,
+  KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_UP_COMMAND,
+  KEY_ENTER_COMMAND,
+  KEY_TAB_COMMAND,
   type EditorState,
   type ElementNode,
   type InitialEditorStateType,
@@ -1391,26 +1396,52 @@ const ComposerPromptEditorInner = forwardRef<
   focusAtRef.current = focusAt;
   insertTextRef.current = insertText;
 
+  const handleCommandKeyDown = (
+    key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
+    event: KeyboardEvent,
+  ): boolean => {
+    const handled = onCommandKeyDownRef.current?.(key, event) ?? false;
+    if (handled) {
+      event.preventDefault();
+      event.stopPropagation();
+      pendingSurroundSelectionRef.current = null;
+    }
+    return handled;
+  };
+
+  useLayoutSyncEffect(() => {
+    const unregisterArrowDown = editor.registerCommand(
+      KEY_ARROW_DOWN_COMMAND,
+      (event) => (event ? handleCommandKeyDown("ArrowDown", event) : false),
+      COMMAND_PRIORITY_HIGH,
+    );
+    const unregisterArrowUp = editor.registerCommand(
+      KEY_ARROW_UP_COMMAND,
+      (event) => (event ? handleCommandKeyDown("ArrowUp", event) : false),
+      COMMAND_PRIORITY_HIGH,
+    );
+    const unregisterEnter = editor.registerCommand(
+      KEY_ENTER_COMMAND,
+      (event) => (event ? handleCommandKeyDown("Enter", event) : false),
+      COMMAND_PRIORITY_HIGH,
+    );
+    const unregisterTab = editor.registerCommand(
+      KEY_TAB_COMMAND,
+      (event) => (event ? handleCommandKeyDown("Tab", event) : false),
+      COMMAND_PRIORITY_HIGH,
+    );
+
+    return () => {
+      unregisterArrowDown();
+      unregisterArrowUp();
+      unregisterEnter();
+      unregisterTab();
+    };
+  }, [editor]);
+
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      const menuOpen = commandMenuOpenRef.current;
-      const isAlwaysMenuKey = event.key === "Escape" || event.key === "Enter";
-      const isInteractionModeShortcutKey = event.key === "Tab" && event.shiftKey;
-      const isMenuNavigationKey =
-        event.key === "ArrowDown" ||
-        event.key === "ArrowUp" ||
-        (event.key === "Tab" && !event.shiftKey);
-      if (isAlwaysMenuKey || isInteractionModeShortcutKey || (menuOpen && isMenuNavigationKey)) {
-        const handled =
-          onCommandKeyDownRef.current?.(
-            event.key as "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
-            event.nativeEvent,
-          ) ?? false;
-        if (handled) {
-          event.preventDefault();
-          event.stopPropagation();
-          pendingSurroundSelectionRef.current = null;
-          return;
-        }
+      if (event.key === "Escape" && handleCommandKeyDown("Escape", event.nativeEvent)) {
+        return;
       }
 
       if (

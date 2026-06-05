@@ -1,4 +1,4 @@
-import { scopedThreadKey, scopeProjectRef } from "~/lib/environment-scope";
+import { scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@multi/contracts";
 import { SidebarItem } from "@multi/ui/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
@@ -100,8 +100,7 @@ export function AgentSidebarSection(props: {
     props.dropTarget?.sectionId === section.id ? props.dropTarget.position : null;
   const draggingProject = props.dragPayload?.sectionId === section.id;
   const canRemoveProject =
-    section.environmentId !== undefined &&
-    section.projectId !== undefined &&
+    section.projectRef !== undefined &&
     section.projectCwd !== undefined;
   const visibleThreadRefs = open
     ? section.items
@@ -152,16 +151,14 @@ export function AgentSidebarSection(props: {
   };
 
   const removeSectionProject = () => {
-    if (!section.environmentId || !section.projectId) {
+    if (!section.projectRef) {
       return;
     }
-    void removeProjectFromSidebar(scopeProjectRef(section.environmentId, section.projectId)).catch(
-      (error) => {
-        toast.error("Failed to remove project", {
-          description: error instanceof Error ? error.message : "An error occurred.",
-        });
-      },
-    );
+    void removeProjectFromSidebar(section.projectRef).catch((error) => {
+      toast.error("Failed to remove project", {
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    });
   };
 
   const { onVisibleThreadRefsChange } = props;

@@ -27,6 +27,14 @@ import {
 import { GitManager } from "./GitManager.service.ts";
 
 const GIT_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
+const GIT_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.seconds(30);
+const GIT_STATUS_REFRESH_FAILURE_MAX_DELAY = Duration.minutes(15);
+
+export interface GitStatusBroadcasterOptions {
+  readonly remoteRefreshInterval?: Duration.Duration;
+  readonly remoteRefreshFailureBaseDelay?: Duration.Duration;
+  readonly remoteRefreshFailureMaxDelay?: Duration.Duration;
+}
 
 interface GitStatusChange {
   readonly cwd: string;
@@ -58,10 +66,35 @@ function fingerprintStatusPart(status: unknown): string {
   return JSON.stringify(status);
 }
 
-export const GitStatusBroadcasterLive = Layer.effect(
-  GitStatusBroadcaster,
-  Effect.gen(function* () {
-    const gitManager = yield* GitManager;
+export function remoteRefreshFailureDelay(
+  consecutiveFailures: number,
+  configuredInterval: Duration.Duration,
+  options?: {
+    readonly baseDelay?: Duration.Duration;
+    readonly maxDelay?: Duration.Duration;
+  },
+) {
+  const exponent = Math.max(0, consecutiveFailures - 1);
+  const backoffMs =
+    Duration.toMillis(options?.baseDelay ?? GIT_STATUS_REFRESH_FAILURE_BASE_DELAY) *
+    Math.pow(2, exponent);
+  const cappedBackoff = Duration.min(
+    Duration.millis(backoffMs),
+    options?.maxDelay ?? GIT_STATUS_REFRESH_FAILURE_MAX_DELAY,
+  );
+  return Duration.max(configuredInterval, cappedBackoff);
+}
+
+export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOptions = {}) =>
+  Layer.effect(
+    GitStatusBroadcaster,
+    Effect.gen(function* () {
+      const remoteRefreshInterval = options.remoteRefreshInterval ?? GIT_STATUS_REFRESH_INTERVAL;
+      const remoteRefreshFailureBaseDelay =
+        options.remoteRefreshFailureBaseDelay ?? GIT_STATUS_REFRESH_FAILURE_BASE_DELAY;
+      const remoteRefreshFailureMaxDelay =
+        options.remoteRefreshFailureMaxDelay ?? GIT_STATUS_REFRESH_FAILURE_MAX_DELAY;
+      const gitManager = yield* GitManager;
     const changesPubSub = yield* Effect.acquireRelease(
       PubSub.unbounded<GitStatusChange>(),
       (pubsub) => PubSub.shutdown(pubsub),
@@ -185,40 +218,65 @@ export const GitStatusBroadcasterLive = Layer.effect(
       return yield* updateCachedLocalStatus(normalizedCwd, local, { publish: true });
     });
 
-    const refreshRemoteStatus = Effect.fn("refreshRemoteStatus")(function* (cwd: string) {
-      yield* gitManager.invalidateRemoteStatus(cwd);
-      const remote = yield* gitManager.remoteStatus({ cwd });
-      return yield* updateCachedRemoteStatus(cwd, remote, { publish: true });
+    const refreshRemoteStatus: GitStatusBroadcasterShape["refreshRemoteStatus"] = Effect.fn(
+      "refreshRemoteStatus",
+    )(function* (cwd) {
+      const normalizedCwd = yield* normalizeCwd(cwd);
+      yield* gitManager.invalidateRemoteStatus(normalizedCwd);
+      const remote = yield* gitManager.remoteStatus({ cwd: normalizedCwd });
+      return yield* updateCachedRemoteStatus(normalizedCwd, remote, { publish: true });
     });
+
+    const makeRemoteRefreshLoop = (cwd: string) => {
+      return Effect.gen(function* () {
+        const consecutiveFailuresRef = yield* Ref.make(0);
+        const refreshRemoteStatusWithDelay = Effect.gen(function* () {
+          const exit = yield* refreshRemoteStatus(cwd).pipe(Effect.exit);
+          if (Exit.isSuccess(exit)) {
+            yield* Ref.set(consecutiveFailuresRef, 0);
+            return remoteRefreshInterval;
+          }
+
+          const consecutiveFailures = yield* Ref.updateAndGet(
+            consecutiveFailuresRef,
+            (count) => count + 1,
+          );
+          const nextDelay = remoteRefreshFailureDelay(
+            consecutiveFailures,
+            remoteRefreshInterval,
+            {
+              baseDelay: remoteRefreshFailureBaseDelay,
+              maxDelay: remoteRefreshFailureMaxDelay,
+            },
+          );
+          yield* Effect.logWarning("git remote status refresh failed", {
+            cwd,
+            detail: exit.cause.toString(),
+            consecutiveFailures,
+            nextDelayMs: Duration.toMillis(nextDelay),
+          });
+          return nextDelay;
+        });
+
+        let nextDelay = yield* refreshRemoteStatusWithDelay;
+        while (true) {
+          yield* Effect.sleep(nextDelay);
+          nextDelay = yield* refreshRemoteStatusWithDelay;
+        }
+      });
+    };
 
     const refreshStatus: GitStatusBroadcasterShape["refreshStatus"] = Effect.fn("refreshStatus")(
       function* (cwd) {
         const normalizedCwd = yield* normalizeCwd(cwd);
         const local = yield* refreshLocalStatus(normalizedCwd);
         const remote =
-          local.isRepo && local.hasOriginRemote ? yield* refreshRemoteStatus(normalizedCwd) : null;
+          local.isRepo && local.hasOriginRemote
+            ? yield* refreshRemoteStatus(normalizedCwd)
+            : null;
         return mergeGitStatusParts(local, remote);
       },
     );
-
-    const makeRemoteRefreshLoop = (cwd: string) => {
-      const logRefreshFailure = (error: Error) =>
-        Effect.logWarning("git remote status refresh failed", {
-          cwd,
-          detail: error.message,
-        });
-
-      return refreshRemoteStatus(cwd).pipe(
-        Effect.catch(logRefreshFailure),
-        Effect.andThen(
-          Effect.forever(
-            Effect.sleep(GIT_STATUS_REFRESH_INTERVAL).pipe(
-              Effect.andThen(refreshRemoteStatus(cwd).pipe(Effect.catch(logRefreshFailure))),
-            ),
-          ),
-        ),
-      );
-    };
 
     const retainRemotePoller = Effect.fn("retainRemotePoller")(function* (cwd: string) {
       yield* SynchronizedRef.modifyEffect(pollersRef, (activePollers) => {
@@ -305,8 +363,11 @@ export const GitStatusBroadcasterLive = Layer.effect(
     return {
       getStatus,
       refreshLocalStatus,
+      refreshRemoteStatus,
       refreshStatus,
       streamStatus,
     } satisfies GitStatusBroadcasterShape;
   }),
 );
+
+export const GitStatusBroadcasterLive = makeGitStatusBroadcasterLive();

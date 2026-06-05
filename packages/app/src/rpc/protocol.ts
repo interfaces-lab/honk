@@ -48,6 +48,14 @@ function resolveWsRpcSocketUrl(rawUrl: string): string {
   return resolved.toString();
 }
 
+function redactSocketUrl(rawUrl: string): string {
+  const resolved = new URL(rawUrl);
+  if (resolved.searchParams.has("access_token")) {
+    resolved.searchParams.set("access_token", "[redacted]");
+  }
+  return resolved.toString();
+}
+
 function defaultLifecycleHandlers(): Required<WsProtocolLifecycleHandlers> {
   return {
     isActive: () => true,
@@ -76,8 +84,9 @@ function composeLifecycleHandlers(
       if (!isActive()) {
         return;
       }
-      defaults.onAttempt(socketUrl);
-      handlers?.onAttempt?.(socketUrl);
+      const redactedSocketUrl = redactSocketUrl(socketUrl);
+      defaults.onAttempt(redactedSocketUrl);
+      handlers?.onAttempt?.(redactedSocketUrl);
     },
     onOpen: () => {
       if (!isActive()) {

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   AuthProviderId,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
+  type AgentModelPolicy,
   MessageId,
   ThreadId,
 } from "@multi/contracts";
@@ -14,6 +15,14 @@ import { DesktopRuntimeHost } from "../src/desktop-runtime-host";
 
 describe("DesktopRuntimeHost", () => {
   const tempDirs: string[] = [];
+  const testPolicy: AgentModelPolicy = {
+    agentMode: "deep",
+    interactionMode: "agent",
+    modelSelection: { type: "pi-managed" },
+    thinkingLevel: "high",
+    allowedToolNames: [],
+    excludedToolNames: [],
+  };
 
   afterEach(() => {
     while (tempDirs.length > 0) {
@@ -307,7 +316,7 @@ describe("DesktopRuntimeHost", () => {
       },
     });
 
-    await host.startThread({ threadId, cwd: tempDir });
+    await host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
 
     expect(observedAgentMode).toBe("deep");
     expect(observedThinkingLevel).toBe("high");
@@ -325,7 +334,9 @@ describe("DesktopRuntimeHost", () => {
       },
     });
 
-    await expect(host.startThread({ threadId, cwd: tempDir })).rejects.toThrow("bind failed");
+    await expect(host.startThread({ threadId, cwd: tempDir, policy: testPolicy })).rejects.toThrow(
+      "bind failed",
+    );
 
     const snapshot = await host.getHostSnapshot();
     expect(snapshot.runtimeEvents.filter((event) => event.threadId === threadId)).toHaveLength(0);
@@ -371,9 +382,9 @@ describe("DesktopRuntimeHost", () => {
       },
     });
 
-    const firstStart = host.startThread({ threadId, cwd: tempDir });
+    const firstStart = host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
     await firstBindStarted;
-    const secondStart = host.startThread({ threadId, cwd: tempDir });
+    const secondStart = host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(bindCount).toBe(1);

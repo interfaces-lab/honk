@@ -315,7 +315,7 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
   sourceProposedPlan: Schema.NullOr(SourceProposedPlanReference),
   clientMessageId: MessageId,
   images: Schema.Array(ThreadAgentRuntimeImageAttachment),
-  policy: Schema.optional(AgentModelPolicy),
+  policy: AgentModelPolicy,
 });
 export type ThreadAgentRuntimeSendTurnInput = typeof ThreadAgentRuntimeSendTurnInput.Type;
 

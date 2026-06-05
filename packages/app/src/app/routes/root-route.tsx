@@ -1,7 +1,9 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Outlet, type ErrorComponentProps, useNavigate } from "@tanstack/react-router";
 
 import { APP_DISPLAY_NAME } from "~/app/branding";
 import { CommandPalette } from "~/components/command-palette";
+import { WebSocketConnectionCoordinator } from "~/components/web-socket-connection-surface";
 import { TaskCompletionNotifications } from "~/notifications/taskCompletion";
 import { Button } from "@multi/ui/button";
 import { AnchoredToastProvider, ToastProvider } from "~/app/toast";
@@ -10,17 +12,13 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import { DevDevtoolsPanel } from "~/dev/devtools-panel";
 import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
+import { startEnvironmentConnectionService } from "~/environments/runtime";
 import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
-import { debugLog } from "~/lib/debug-log";
 
 const routeApi = getRouteApi("__root__");
 
 export function RootRouteView() {
   const { authGateState, devStandalone } = routeApi.useRouteContext();
-  debugLog("root.render", {
-    authStatus: authGateState.status,
-    devStandalone,
-  });
 
   if (devStandalone) {
     return (
@@ -58,6 +56,8 @@ export function RootRouteView() {
       <BrowserChromeThemeSync key={authGateState.status} />
       <AnchoredToastProvider>
         <CursorPreferenceSync />
+        <EnvironmentConnectionServiceSync />
+        <WebSocketConnectionCoordinator />
         <DesktopRuntimeHostBootstrap />
         <TaskCompletionNotifications />
         <CommandPalette>
@@ -93,6 +93,14 @@ function BrowserChromeThemeSync() {
   return null;
 }
 
+function EnvironmentConnectionServiceSync() {
+  const queryClient = useQueryClient();
+
+  useMountEffect(() => startEnvironmentConnectionService(queryClient));
+
+  return null;
+}
+
 function CursorPreferenceSync() {
   const cursorPointerOnButtons = useSettings((settings) => settings.cursorPointerOnButtons);
 
@@ -120,10 +128,6 @@ function CursorPreferenceDomSync(props: { readonly cursorPointerOnButtons: boole
 export function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   const message = errorMessage(error);
   const details = errorDetails(error);
-  debugLog("root.error", {
-    message,
-    details,
-  });
 
   return (
     <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">

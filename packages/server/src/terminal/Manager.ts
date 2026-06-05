@@ -6,7 +6,12 @@ import {
   type TerminalSessionSnapshot,
   type TerminalSessionStatus,
 } from "@multi/contracts";
-import { listLoginShellCandidates, readUserLoginShell } from "@multi/shared/shell";
+import {
+  type FullShellEnvironmentReader,
+  listLoginShellCandidates,
+  readFullEnvironmentFromLoginShell,
+  readUserLoginShell,
+} from "@multi/shared/shell";
 import {
   Effect,
   Encoding,
@@ -87,6 +92,14 @@ const TERMINAL_ENV_BLOCKLIST = new Set([
   "ELECTRON_RUN_AS_NODE",
   "TERM",
   "COLORTERM",
+]);
+
+const TERMINAL_LOGIN_SHELL_CLEAR_WHEN_ABSENT = new Set([
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_STATE_HOME",
+  "ZDOTDIR",
 ]);
 
 class TerminalSubprocessCheckError extends Schema.TaggedErrorClass<TerminalSubprocessCheckError>()(
@@ -668,8 +681,61 @@ function shouldExcludeTerminalEnvKey(key: string): boolean {
   return TERMINAL_ENV_BLOCKLIST.has(normalizedKey);
 }
 
+function createLoginShellProbeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const probeEnv: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (value === undefined) continue;
+    if (shouldExcludeTerminalEnvKey(key)) continue;
+    probeEnv[key] = value;
+  }
+
+  for (const name of TERMINAL_LOGIN_SHELL_CLEAR_WHEN_ABSENT) {
+    delete probeEnv[name];
+  }
+  return probeEnv;
+}
+
+function readTerminalLoginShellEnvironment(input: {
+  baseEnv: NodeJS.ProcessEnv;
+  platform: NodeJS.Platform;
+  readEnvironment: FullShellEnvironmentReader;
+  shellResolver: () => string | undefined;
+  userLoginShellResolver: () => string | undefined;
+}): Record<string, string> {
+  if (input.platform === "win32") {
+    return {};
+  }
+
+  const requestedShell = normalizeShellCommand(input.shellResolver()) ?? undefined;
+  const shellCandidates = listLoginShellCandidates(
+    input.platform,
+    requestedShell,
+    input.userLoginShellResolver(),
+  );
+  const probeEnv = createLoginShellProbeEnv(input.baseEnv);
+
+  for (const shell of shellCandidates) {
+    try {
+      const environment = input.readEnvironment(shell, undefined, {
+        env: probeEnv,
+      });
+      if (Object.keys(environment).length > 0) {
+        return environment;
+      }
+    } catch (error) {
+      console.warn(
+        `[server] Failed to read terminal login shell environment from ${shell}.`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
+  return {};
+}
+
 function createTerminalSpawnEnv(
   baseEnv: NodeJS.ProcessEnv,
+  loginShellEnv?: Readonly<Record<string, string>> | null,
   runtimeEnv?: Record<string, string> | null,
 ): NodeJS.ProcessEnv {
   const spawnEnv: NodeJS.ProcessEnv = {};
@@ -678,6 +744,7 @@ function createTerminalSpawnEnv(
     if (shouldExcludeTerminalEnvKey(key)) continue;
     spawnEnv[key] = value;
   }
+  applyLoginShellEnvironment(spawnEnv, loginShellEnv);
   // Runtime env is the only supported escape hatch for terminal identity vars.
   // Keep this explicit so app/bootstrap env cannot silently reintroduce xterm.
   if (runtimeEnv) {
@@ -686,6 +753,26 @@ function createTerminalSpawnEnv(
     }
   }
   return spawnEnv;
+}
+
+function applyLoginShellEnvironment(
+  spawnEnv: NodeJS.ProcessEnv,
+  loginShellEnv?: Readonly<Record<string, string>> | null,
+): void {
+  if (!loginShellEnv) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(loginShellEnv)) {
+    if (shouldExcludeTerminalEnvKey(key)) continue;
+    spawnEnv[key] = value;
+  }
+
+  for (const name of TERMINAL_LOGIN_SHELL_CLEAR_WHEN_ABSENT) {
+    if (loginShellEnv[name] === undefined) {
+      delete spawnEnv[name];
+    }
+  }
 }
 
 function normalizedRuntimeEnv(
@@ -717,6 +804,7 @@ interface TerminalManagerOptions {
   ptyAdapter: PtyAdapterShape;
   shellResolver?: () => string | undefined;
   userLoginShellResolver?: () => string | undefined;
+  shellEnvironmentReader?: FullShellEnvironmentReader;
   subprocessChecker?: TerminalSubprocessChecker;
   subprocessPollIntervalMs?: number;
   processKillGraceMs?: number;
@@ -743,6 +831,15 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
     const historyLineLimit = options.historyLineLimit ?? DEFAULT_HISTORY_LINE_LIMIT;
     const shellResolver = options.shellResolver ?? defaultShellResolver;
     const userLoginShellResolver = options.userLoginShellResolver ?? readUserLoginShell;
+    const shellEnvironmentReader =
+      options.shellEnvironmentReader ?? readFullEnvironmentFromLoginShell;
+    const loginShellEnv = readTerminalLoginShellEnvironment({
+      baseEnv: process.env,
+      platform: process.platform,
+      readEnvironment: shellEnvironmentReader,
+      shellResolver,
+      userLoginShellResolver,
+    });
     const subprocessChecker = options.subprocessChecker ?? defaultSubprocessChecker;
     const subprocessPollIntervalMs =
       options.subprocessPollIntervalMs ?? DEFAULT_SUBPROCESS_POLL_INTERVAL_MS;
@@ -1379,8 +1476,15 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
         increment(terminalSessionsTotal, { lifecycle: eventType }).pipe(
           Effect.andThen(
             Effect.gen(function* () {
-              const shellCandidates = resolveShellCandidates(shellResolver, userLoginShellResolver);
-              const terminalEnv = createTerminalSpawnEnv(process.env, session.runtimeEnv);
+              const shellCandidates = resolveShellCandidates(
+                shellResolver,
+                userLoginShellResolver,
+              );
+              const terminalEnv = createTerminalSpawnEnv(
+                process.env,
+                loginShellEnv,
+                session.runtimeEnv,
+              );
               const spawnResult = yield* trySpawn(shellCandidates, terminalEnv, session);
               ptyProcess = spawnResult.process;
               startedShell = spawnResult.shellLabel;

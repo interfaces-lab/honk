@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type {
   AccountId,
   AgentModelPolicy,
@@ -23,9 +24,10 @@ import {
   type SessionEntry,
   type ToolDefinition,
   DefaultResourceLoader,
+  ModelRegistry,
   createAgentSession,
 } from "@earendil-works/pi-coding-agent";
-import type { ImageContent, Model } from "@earendil-works/pi-ai";
+import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   authProviderIdFromPiModel,
@@ -38,6 +40,7 @@ import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./e
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
 import { extractMessageText } from "./message-text";
+import { CREATE_PLAN_TOOL_NAME, extractCreatePlanToolResultMarkdown } from "./plan-extension";
 import { projectRuntimeSessionTree } from "./session-tree-projection";
 
 export interface ThreadAgentRuntimeIdentity {
@@ -63,7 +66,7 @@ export interface ThreadAgentRuntimeOptions {
   readonly resourceLoader?: ResourceLoader;
   readonly authStorage?: AuthStorage;
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"];
-  readonly policy?: AgentModelPolicy;
+  readonly policy: AgentModelPolicy;
 }
 
 export interface SendMessageOptions {
@@ -108,6 +111,11 @@ export class ThreadAgentRuntime {
   private pendingFirstTurnId: TurnId | undefined;
   private activeTurnId: TurnId | undefined;
   private activeRunFirstTurnId: TurnId | undefined;
+  private readonly sourceProposedPlanByTurnId = new Map<
+    TurnId,
+    SourceProposedPlanReference | null
+  >();
+  private readonly proposedPlanTurnIds = new Set<TurnId>();
 
   private constructor(
     readonly threadId: ThreadId,
@@ -119,29 +127,40 @@ export class ThreadAgentRuntime {
     this.unsubscribeSessionEvents = sessionResult.session.subscribe((event) => {
       this.bindPendingPromptClientMessages();
       const turnId = this.preparePiEventTurnId(event);
-      this.emit(
+      const runtimeEvent = this.withSourceProposedPlanData(
         projectPiAgentSessionEvent(event, {
           threadId: this.threadId,
           runtimeSessionId: this.runtimeSessionId,
           ...(turnId ? { turnId } : {}),
           sequence: this.nextEventSequence(),
         }),
+        turnId,
       );
+      this.emit(runtimeEvent);
+      this.emitCreatePlanEvent(event, turnId);
       this.finishPiEventTurn(event, turnId);
     });
   }
 
   static async create(options: ThreadAgentRuntimeOptions): Promise<ThreadAgentRuntime> {
     const policyThinkingLevel =
-      options.policy?.thinkingLevel ??
-      (options.policy ? thinkingLevelForAgentMode(options.policy.agentMode) : undefined);
+      options.policy.thinkingLevel ?? thinkingLevelForAgentMode(options.policy.agentMode);
     const effectiveThinkingLevel = options.thinkingLevel ?? policyThinkingLevel;
+    const authStorage = options.authStorage ?? AuthStorage.create(join(options.agentDir, "auth.json"));
+    const modelRegistry =
+      options.modelRegistry ??
+      ModelRegistry.create(authStorage, join(options.agentDir, "models.json"));
+    const effectiveModel = resolvePolicyModel({
+      policy: options.policy,
+      model: options.model,
+      modelRegistry,
+    });
     const interactionModeQueue = createInteractionModeQueue();
     const sessionOptions: CreateAgentSessionOptions = {
       cwd: options.cwd,
     };
     sessionOptions.agentDir = options.agentDir;
-    if (options.model) sessionOptions.model = options.model;
+    if (effectiveModel) sessionOptions.model = effectiveModel;
     if (effectiveThinkingLevel) {
       sessionOptions.thinkingLevel = effectiveThinkingLevel;
     }
@@ -150,7 +169,7 @@ export class ThreadAgentRuntime {
     if (options.excludeTools) sessionOptions.excludeTools = [...options.excludeTools];
     if (options.customTools) sessionOptions.customTools = [...options.customTools];
     if (options.resourceLoader) sessionOptions.resourceLoader = options.resourceLoader;
-    if (options.modelRegistry) sessionOptions.modelRegistry = options.modelRegistry;
+    sessionOptions.modelRegistry = modelRegistry;
     if (!options.resourceLoader) {
       const resourceLoader = new DefaultResourceLoader({
         cwd: options.cwd,
@@ -171,7 +190,7 @@ export class ThreadAgentRuntime {
       await resourceLoader.reload();
       sessionOptions.resourceLoader = resourceLoader;
     }
-    if (options.authStorage) sessionOptions.authStorage = options.authStorage;
+    sessionOptions.authStorage = authStorage;
 
     const sessionResult = await createAgentSession(sessionOptions);
     let runtime: ThreadAgentRuntime | undefined;
@@ -179,15 +198,18 @@ export class ThreadAgentRuntime {
       const model = sessionResult.session.model as Model<string> | undefined;
       const policyInput = {
         ...(model ? { model } : {}),
-        ...(options.policy?.agentMode ? { agentMode: options.policy.agentMode } : {}),
-        ...(options.policy?.interactionMode
-          ? { interactionMode: options.policy.interactionMode }
-          : {}),
+        agentMode: options.policy.agentMode,
+        interactionMode: options.policy.interactionMode,
         thinkingLevel: sessionResult.session.thinkingLevel,
         ...(options.tools ? { allowedToolNames: options.tools } : {}),
         ...(options.excludeTools ? { excludedToolNames: options.excludeTools } : {}),
       };
-      const policy = options.policy ?? createModelPolicy(policyInput);
+      const resolvedPolicy = createModelPolicy(policyInput);
+      const policy = {
+        ...resolvedPolicy,
+        ...options.policy,
+        thinkingLevel: options.policy.thinkingLevel ?? resolvedPolicy.thinkingLevel,
+      };
 
       runtime = new ThreadAgentRuntime(
         options.threadId,
@@ -287,6 +309,7 @@ export class ThreadAgentRuntime {
     if (pendingClientMessage) {
       this.pendingPromptClientMessages.push(pendingClientMessage);
     }
+    this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
     const interactionMode = this.interactionModeQueue.enqueue(options.interactionMode);
     try {
       const piImages = toPiImageContent(images);
@@ -315,7 +338,9 @@ export class ThreadAgentRuntime {
             messageTurnIds: this.pendingMessageTurnIds.splice(0),
           });
           const planMarkdown =
-            options.interactionMode === "plan" ? extractProposedPlanMarkdown(newEntries) : null;
+            options.interactionMode === "plan" && !this.proposedPlanTurnIds.has(turnId)
+              ? extractProposedPlanMarkdown(newEntries)
+              : null;
           if (planMarkdown) {
             this.emit(
               this.createEvent("turn.proposed.completed", "Proposed plan captured", turnId, {
@@ -338,6 +363,8 @@ export class ThreadAgentRuntime {
         .finally(() => {
           this.removePendingPromptClientMessage(pendingClientMessage);
           this.interactionModeQueue.remove(interactionMode);
+          this.sourceProposedPlanByTurnId.delete(turnId);
+          this.proposedPlanTurnIds.delete(turnId);
           if (this.pendingFirstTurnId === turnId) {
             this.pendingFirstTurnId = undefined;
           }
@@ -352,6 +379,8 @@ export class ThreadAgentRuntime {
     } catch (error) {
       this.removePendingPromptClientMessage(pendingClientMessage);
       this.interactionModeQueue.remove(interactionMode);
+      this.sourceProposedPlanByTurnId.delete(turnId);
+      this.proposedPlanTurnIds.delete(turnId);
       if (this.pendingFirstTurnId === turnId) {
         this.pendingFirstTurnId = undefined;
       }
@@ -563,6 +592,49 @@ export class ThreadAgentRuntime {
     }
   }
 
+  private withSourceProposedPlanData(
+    event: AgentRuntimeEvent,
+    turnId: TurnId | undefined,
+  ): AgentRuntimeEvent {
+    if (event.type !== "turn.started" || !turnId) {
+      return event;
+    }
+    const sourceProposedPlan = this.sourceProposedPlanByTurnId.get(turnId);
+    if (!sourceProposedPlan) {
+      return event;
+    }
+    const data =
+      typeof event.data === "object" && event.data !== null && !Array.isArray(event.data)
+        ? { ...event.data, sourceProposedPlan }
+        : { value: event.data, sourceProposedPlan };
+    return {
+      ...event,
+      data,
+    };
+  }
+
+  private emitCreatePlanEvent(event: AgentSessionEvent, turnId: TurnId | undefined): void {
+    if (
+      !turnId ||
+      event.type !== "tool_execution_end" ||
+      event.toolName !== CREATE_PLAN_TOOL_NAME ||
+      event.isError
+    ) {
+      return;
+    }
+    const planMarkdown = extractCreatePlanToolResultMarkdown(event.result);
+    if (!planMarkdown) {
+      return;
+    }
+    this.proposedPlanTurnIds.add(turnId);
+    this.emit(
+      this.createEvent("turn.proposed.completed", "Proposed plan captured", turnId, {
+        planId: proposedPlanIdForTurn(this.threadId, turnId),
+        planMarkdown,
+      }),
+    );
+  }
+
   private emit(event: AgentRuntimeEvent): void {
     for (const listener of this.listeners) {
       listener(event);
@@ -572,6 +644,32 @@ export class ThreadAgentRuntime {
 
 function proposedPlanIdForTurn(threadId: ThreadId, turnId: TurnId): string {
   return `plan:${threadId}:${turnId}`;
+}
+
+function resolvePolicyModel(input: {
+  readonly policy: AgentModelPolicy;
+  readonly model: Model<string> | undefined;
+  readonly modelRegistry: ModelRegistry;
+}): Model<string> | undefined {
+  if (input.policy.modelSelection.type === "pi-managed") {
+    return input.model;
+  }
+
+  const provider = input.policy.modelSelection.authProviderId;
+  const modelId = runtimeModelIdFromPolicyModelId(input.policy.modelSelection.modelId);
+  if (input.model && input.model.provider === provider && input.model.id === modelId) {
+    return input.model;
+  }
+  const model = input.modelRegistry.find(provider, modelId);
+  if (!model) {
+    throw new Error(`Runtime model policy references unknown model ${provider}/${modelId}.`);
+  }
+  return model as Model<Api>;
+}
+
+function runtimeModelIdFromPolicyModelId(modelId: string): string {
+  const slashIndex = modelId.indexOf("/");
+  return slashIndex === -1 ? modelId : modelId.slice(slashIndex + 1);
 }
 
 function extractProposedPlanMarkdown(entries: readonly SessionEntry[]): string | null {
@@ -588,7 +686,11 @@ function extractProposedPlanMarkdown(entries: readonly SessionEntry[]): string |
     return null;
   }
   const text = extractMessageText(lastAssistantMessage.message).trim();
-  return text.length > 0 ? text : null;
+  return looksLikeProposedPlanMarkdown(text) ? text : null;
+}
+
+function looksLikeProposedPlanMarkdown(text: string): boolean {
+  return /^\s{0,3}#{1,6}\s+.*\bplan\b.*$/im.test(text);
 }
 
 function createInteractionModeQueue(): InteractionModeQueue {
@@ -652,8 +754,14 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
     case "plan":
       return [
         "## Multi Interaction Mode: Plan",
-        "Produce a concrete implementation plan. Do not change files, run mutating shell commands, create commits, or execute the plan.",
-        "Use read-only inspection as needed to ground the plan.",
+        "Produce a concrete implementation plan through Multi's built-in Pi planning surface.",
+        "Research the codebase to find relevant files and review relevant docs before planning.",
+        "Ask clarifying questions when requirements are ambiguous or the plan depends on missing decisions.",
+        "Use the create_plan tool as the final action once the plan is ready for review.",
+        "The create_plan payload should include a short name, overview, actionable todos, isProject, optional phases, and a complete Markdown plan.",
+        "The Markdown plan should include diagnosis, implementation steps with file paths or code references, verification, risks, and non-goals.",
+        "Stop after creating the plan so the user can review, edit, or approve it before implementation.",
+        "Do not change files, run mutating shell commands, create commits, or execute the plan.",
       ].join("\n");
     case "debug":
       return [

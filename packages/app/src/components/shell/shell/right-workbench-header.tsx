@@ -4,7 +4,8 @@ import { TabsList, TabsTab } from "@multi/ui/tabs";
 import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
 import type { ComponentType, ReactNode } from "react";
 
-import type { TerminalSessionEntry, WorkbenchTab } from "~/stores/shell-panels-store";
+import type { TerminalSessionEntry } from "~/stores/shell-panels-store";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 
 import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";

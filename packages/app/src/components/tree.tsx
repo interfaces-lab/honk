@@ -41,37 +41,15 @@ function toTreeThemeInput(theme: PierreTheme): TreeThemeInput {
   };
 }
 
-function getThemeColor(theme: PierreTheme, ...keys: string[]): string | undefined {
-  const colors = theme.colors as Record<string, string>;
-  for (const key of keys) {
-    const value = colors[key];
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function getExtendedGitTreeStyles(theme: PierreTheme): TreeThemeStyles {
+function getExtendedGitTreeStyles(): TreeThemeStyles {
   const styles: TreeThemeStyles = {};
-  const untracked = getThemeColor(
-    theme,
-    "gitDecoration.untrackedResourceForeground",
-    "gitDecoration.addedResourceForeground",
-    "terminal.ansiGreen",
-  );
-  const ignored = getThemeColor(
-    theme,
-    "gitDecoration.ignoredResourceForeground",
-    "terminal.ansiBrightBlack",
-  );
-  const renamed = getThemeColor(
-    theme,
-    "gitDecoration.renamedResourceForeground",
-    "terminal.ansiYellow",
-  );
 
-  if (untracked) styles["--trees-theme-git-untracked-fg"] = untracked;
-  if (ignored) styles["--trees-theme-git-ignored-fg"] = ignored;
-  if (renamed) styles["--trees-theme-git-renamed-fg"] = renamed;
+  styles["--trees-git-added-color-override"] = "var(--multi-git-status-added)";
+  styles["--trees-git-deleted-color-override"] = "var(--multi-git-status-deleted)";
+  styles["--trees-git-ignored-color-override"] = "var(--multi-fg-quaternary)";
+  styles["--trees-git-modified-color-override"] = "var(--multi-git-status-modified)";
+  styles["--trees-git-renamed-color-override"] = "var(--multi-git-status-renamed)";
+  styles["--trees-git-untracked-color-override"] = "var(--multi-git-status-added)";
 
   return styles;
 }
@@ -80,12 +58,18 @@ function getPierreTreeThemeStyles(resolvedTheme: "light" | "dark"): TreeThemeSty
   const theme = resolvedTheme === "dark" ? pierreDark : pierreLight;
   return {
     ...themeToTreeStyles(toTreeThemeInput(theme)),
-    ...getExtendedGitTreeStyles(theme),
+    ...getExtendedGitTreeStyles(),
   };
 }
 
 function treeHostLayout(): TreeHostStyle {
   return {
+    "--trees-bg-override": "var(--multi-workbench-panel-background)",
+    "--trees-input-bg-override": "var(--multi-workbench-panel-background)",
+    "--trees-bg-muted-override": "var(--multi-workbench-toolbar-hover-wash)",
+    "--trees-selected-bg-override": "var(--multi-workbench-card-selected-background)",
+    "--trees-fg-override": "var(--multi-fg-primary)",
+    "--trees-fg-muted-override": "var(--multi-fg-secondary)",
     "--trees-font-family-override": "var(--multi-font-ui)",
     "--trees-font-size-override": "12px",
     "--trees-font-weight-regular-override": 400,
@@ -131,7 +115,11 @@ export function Tree({ className, resolvedTheme, style, ...props }: TreeProps) {
   const hostStyle = treeHostStyle(getPierreTreeThemeStyles(resolvedTheme), resolvedTheme, style);
 
   return (
-    <PierreFileTree {...props} className={cn("block h-full w-full", className)} style={hostStyle} />
+    <PierreFileTree
+      {...props}
+      className={cn("block h-full min-h-0 w-full overflow-auto overscroll-contain", className)}
+      style={hostStyle}
+    />
   );
 }
 

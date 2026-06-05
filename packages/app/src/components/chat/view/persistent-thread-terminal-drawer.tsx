@@ -1,18 +1,16 @@
 import type { ScopedThreadRef, ThreadId } from "@multi/contracts";
-import { scopeProjectRef } from "~/lib/environment-scope";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { readEnvironmentApi } from "../../../environment-api";
-import {
-  createProjectSelectorByRef,
-  createThreadSelectorByRef,
-} from "../../../stores/thread-selectors";
+import { createThreadSelectorByRef } from "../../../stores/thread-selectors";
 import { selectThreadTerminalState, useTerminalStateStore } from "../../../terminal-state-store";
-import { useStore } from "../../../stores/thread-store";
+import { selectProjectsAcrossEnvironments, useStore } from "../../../stores/thread-store";
 import { randomUUID } from "~/lib/utils";
 import ThreadTerminalDrawer from "../../thread-terminal-drawer";
+import { findWorkspaceProjectForSource } from "~/lib/workspace-target";
 
 export interface TerminalLaunchContext {
   threadId: ThreadId;
@@ -46,16 +44,8 @@ export function PersistentThreadTerminalDrawer(props: {
   );
   const serverThread = useStore(serverThreadSelector);
   const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
-  const projectRef = serverThread
-    ? serverThread.projectId === null
-      ? null
-      : scopeProjectRef(serverThread.environmentId, serverThread.projectId)
-    : draftThread
-      ? draftThread.projectId === null
-        ? null
-        : scopeProjectRef(draftThread.environmentId, draftThread.projectId)
-      : null;
-  const project = useStore(createProjectSelectorByRef(projectRef));
+  const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
+  const project = findWorkspaceProjectForSource(projects, serverThread ?? draftThread);
   const terminalState = useTerminalStateStore((state) =>
     selectThreadTerminalState(state.terminalStateByThreadKey, threadRef),
   );

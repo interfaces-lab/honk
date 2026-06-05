@@ -51,6 +51,12 @@ function parseBearerToken(request: HttpServerRequest.HttpServerRequest): string 
   return token.length > 0 ? token : null;
 }
 
+function parseWebSocketAccessToken(request: HttpServerRequest.HttpServerRequest): string | null {
+  const url = new URL(request.url, "http://localhost");
+  const token = url.searchParams.get("access_token")?.trim() ?? "";
+  return token.length > 0 ? token : null;
+}
+
 export const makeServerAuth = Effect.gen(function* () {
   const policy = yield* ServerAuthPolicy;
   const bootstrapCredentials = yield* BootstrapCredentialService;
@@ -84,8 +90,13 @@ export const makeServerAuth = Effect.gen(function* () {
       ),
     );
 
-  const authenticateRequest = (request: HttpServerRequest.HttpServerRequest) => {
-    const bearerToken = parseBearerToken(request);
+  const authenticateRequest = (
+    request: HttpServerRequest.HttpServerRequest,
+    options?: { allowWebSocketQueryToken?: boolean },
+  ) => {
+    const bearerToken =
+      parseBearerToken(request) ??
+      (options?.allowWebSocketQueryToken ? parseWebSocketAccessToken(request) : null);
     if (!bearerToken) {
       return Effect.fail(
         new AuthError({
@@ -274,7 +285,7 @@ export const makeServerAuth = Effect.gen(function* () {
     );
 
   const authenticateWebSocketUpgrade: ServerAuthShape["authenticateWebSocketUpgrade"] =
-    authenticateRequest;
+    (request) => authenticateRequest(request, { allowWebSocketQueryToken: true });
 
   return {
     getDescriptor: () => Effect.succeed(descriptor),

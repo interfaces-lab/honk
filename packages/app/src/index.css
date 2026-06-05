@@ -1,5 +1,7 @@
 @import "tailwindcss";
+@import "@pierre/truncate/style.css";
 
+@source "./**/*.{ts,tsx}";
 @source "../../ui/src/**/*.{ts,tsx}";
 @source "../node_modules/streamdown/dist/*.js";
 

@@ -81,7 +81,9 @@ export function buildThreadActionItems(input: {
     }
   >;
   activeThreadId?: Thread["id"];
-  projectTitleById: ReadonlyMap<Project["id"], string>;
+  projectTitleForThread: (
+    thread: Pick<SidebarThreadSummary, "environmentId" | "projectId">,
+  ) => string | undefined;
   sortOrder: SidebarThreadSortOrder;
   icon: ReactNode;
   runThread: (thread: Pick<SidebarThreadSummary, "environmentId" | "id">) => Promise<void>;
@@ -96,7 +98,7 @@ export function buildThreadActionItems(input: {
 
   return visibleThreads.map((thread) => {
     const projectTitle =
-      thread.projectId === null ? "General" : input.projectTitleById.get(thread.projectId);
+      thread.projectId === null ? "General" : input.projectTitleForThread(thread);
     const descriptionParts: string[] = [];
 
     if (projectTitle) {

@@ -79,10 +79,12 @@ jobs:
       - name: Build desktop pipeline
         run: pnpm run build:desktop
 
-      - name: Verify preload bundle output
+      - name: Verify desktop bundle output
         run: |
-          test -f packages/desktop/dist-electron/preload.cjs
-          grep -nE "desktopBridge|getLocalEnvironmentBootstrap|PICK_FOLDER_CHANNEL|wsUrl" packages/desktop/dist-electron/preload.cjs
+          test -f packages/desktop/out/preload/index.js
+          test -f packages/desktop/out/renderer/index.html
+          test -f packages/desktop/out/server/bin.mjs
+          grep -nE "desktopBridge|getLocalEnvironmentBootstrap|PICK_FOLDER_CHANNEL|wsUrl" packages/desktop/out/preload/index.js
 
   release_smoke:
     name: Release Smoke
@@ -104,4 +106,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Exercise release-only workflow steps
-        run: node scripts/release-smoke.ts
+        run: pnpm --filter=@multi/release-scripts run test

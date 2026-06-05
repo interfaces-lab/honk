@@ -1,5 +1,6 @@
 import { DEFAULT_PROJECTLESS_CWD, EnvironmentId, ProjectId } from "@multi/contracts";
 
+
 export const PROJECT_KEY = "multi:project-cwd";
 export const SELECTED_PROJECT_KEY = "multi:selected-project";
 export const SHELL_LAYOUT_CHANGED_EVENT = "multi:shell-layout-changed";
@@ -9,6 +10,9 @@ export interface StoredProjectSelection {
   readonly projectId: ProjectId;
   readonly cwd: string;
 }
+
+let cachedSelectionRaw: string | null | undefined;
+let cachedSelection: StoredProjectSelection | null = null;
 
 export function resolveProjectlessCwd(serverCwd: string | null | undefined): string {
   return serverCwd ?? DEFAULT_PROJECTLESS_CWD;
@@ -46,15 +50,15 @@ function parseStoredProjectSelection(raw: string | null): StoredProjectSelection
 
 export function readStoredProjectSelection(): StoredProjectSelection | null {
   if (typeof window === "undefined") return null;
-  return parseStoredProjectSelection(window.localStorage.getItem(SELECTED_PROJECT_KEY));
+  const raw = window.localStorage.getItem(SELECTED_PROJECT_KEY);
+  if (raw === cachedSelectionRaw) return cachedSelection;
+  cachedSelectionRaw = raw;
+  cachedSelection = parseStoredProjectSelection(raw);
+  return cachedSelection;
 }
 
 export function readStoredProjectCwd(): string | null {
   if (typeof window === "undefined") return null;
-  const selectedProject = readStoredProjectSelection();
-  if (selectedProject) {
-    return selectedProject.cwd;
-  }
   const raw = window.localStorage.getItem(PROJECT_KEY)?.trim();
   return raw && raw.length > 0 ? raw : null;
 }
@@ -64,10 +68,6 @@ export function subscribeStoredProjectSelection(listener: () => void): () => voi
   return () => {
     window.removeEventListener(SHELL_LAYOUT_CHANGED_EVENT, listener);
   };
-}
-
-export function subscribeStoredProjectCwd(listener: () => void): () => void {
-  return subscribeStoredProjectSelection(listener);
 }
 
 export function writeStoredProjectSelection(selection: StoredProjectSelection): void {
@@ -81,12 +81,6 @@ export function writeStoredProjectSelection(selection: StoredProjectSelection): 
     }),
   );
   window.localStorage.setItem(PROJECT_KEY, selection.cwd);
-  window.dispatchEvent(new CustomEvent(SHELL_LAYOUT_CHANGED_EVENT));
-}
-
-export function writeStoredProjectCwd(cwd: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SELECTED_PROJECT_KEY);
-  window.localStorage.setItem(PROJECT_KEY, cwd);
+  cachedSelectionRaw = undefined;
   window.dispatchEvent(new CustomEvent(SHELL_LAYOUT_CHANGED_EVENT));
 }

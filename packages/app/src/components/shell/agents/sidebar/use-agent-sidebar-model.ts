@@ -7,13 +7,21 @@ import {
 import { type ScopedProjectRef } from "@multi/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 
-import { prefetchDraftNavigation, prefetchThreadNavigation } from "~/app/thread-prefetch";
+import {
+  openDraft,
+  openThread,
+  prefetchDraftNavigation,
+  prefetchThreadNavigation,
+} from "~/app/chat-navigation";
 import {
   startNewThreadFromContext,
   startNewThreadInProjectFromContext,
 } from "~/lib/chat-thread-actions";
 import { writeStoredProjectSelection } from "~/lib/project-state";
-import { findWorkspaceProjectForSource } from "~/lib/workspace-target";
+import {
+  findWorkspaceProjectForSource,
+  isSourceForWorkspaceProjectRef,
+} from "~/lib/workspace-target";
 import { getProjectOrderKey, deriveSidebarProjectStateKey } from "~/stores/project-identity";
 import {
   type DraftThreadEnvMode,
@@ -32,6 +40,7 @@ type HandleNewThread = (
     reuseExistingDraft?: boolean;
     worktreePath?: string | null;
     envMode?: DraftThreadEnvMode;
+    logicalProjectKey?: string | null;
   },
 ) => Promise<void>;
 
@@ -79,6 +88,7 @@ function toSummaryFromSidebarThread(
     id: thread.id,
     environmentId: thread.environmentId,
     projectId: thread.projectId,
+    workspaceProjectRef: project ? scopeProjectRef(project.environmentId, project.id) : null,
     projectCwd,
     path: cwd,
     cwd,
@@ -97,6 +107,8 @@ function toSummaryFromSidebarThread(
 export function useAgentSidebarModel(input: {
   activeCwd: string | null;
   activeDraftThread: DraftThreadState | null;
+  defaultProjectCwd: string | null;
+  defaultLogicalProjectKey: string | null;
   defaultProjectRef: ScopedProjectRef | null;
   defaultThreadEnvMode: DraftThreadEnvMode;
   handleNewThread: HandleNewThread;
@@ -120,6 +132,17 @@ export function useAgentSidebarModel(input: {
       environmentId: project.environmentId,
       projectId: project.id,
       cwd: project.cwd,
+    });
+  }
+
+  function persistDefaultProjectSelection(): void {
+    if (!input.defaultProjectRef || !input.defaultProjectCwd) {
+      return;
+    }
+    writeStoredProjectSelection({
+      environmentId: input.defaultProjectRef.environmentId,
+      projectId: input.defaultProjectRef.projectId,
+      cwd: input.defaultProjectCwd,
     });
   }
 
@@ -148,13 +171,23 @@ export function useAgentSidebarModel(input: {
             cwd: projectlessCwd,
             environmentId: draftThread.environmentId,
             projectId: null,
+            workspaceProjectRef: null,
             projectCwd: projectlessCwd,
             updatedAt: draftThread.createdAt,
           },
         ];
       }
       const project = findWorkspaceProjectForSource(input.projects, draftThread);
-      if (!project) {
+      const projectRef = project
+        ? scopeProjectRef(project.environmentId, project.id)
+        : isSourceForWorkspaceProjectRef({
+              projectRef: input.defaultProjectRef,
+              source: draftThread,
+            })
+          ? input.defaultProjectRef
+          : null;
+      const projectCwd = project?.cwd ?? (projectRef ? input.defaultProjectCwd : null);
+      if (!projectRef || !projectCwd) {
         return [];
       }
       const firstAttachment = composerDraft?.images[0] ?? composerDraft?.persistedAttachments[0];
@@ -166,10 +199,11 @@ export function useAgentSidebarModel(input: {
           text: composerDraft?.prompt ?? "",
           attachmentCount,
           firstAttachmentName: firstAttachment?.name ?? null,
-          cwd: draftThread.worktreePath ?? project.cwd,
+          cwd: draftThread.worktreePath ?? projectCwd,
           environmentId: draftThread.environmentId,
           projectId: draftThread.projectId,
-          projectCwd: project.cwd,
+          workspaceProjectRef: projectRef,
+          projectCwd,
           updatedAt: draftThread.createdAt,
         },
       ];
@@ -183,7 +217,27 @@ export function useAgentSidebarModel(input: {
       return [toSummaryFromSidebarThread(thread, null, projectlessCwd)];
     }
     const project = findWorkspaceProjectForSource(input.projects, thread);
-    return project ? [toSummaryFromSidebarThread(thread, project, projectlessCwd)] : [];
+    if (project) {
+      return [toSummaryFromSidebarThread(thread, project, projectlessCwd)];
+    }
+    if (
+      isSourceForWorkspaceProjectRef({
+        projectRef: input.defaultProjectRef,
+        source: thread,
+      }) &&
+      input.defaultProjectCwd
+    ) {
+      return [
+        {
+          ...toSummaryFromSidebarThread(thread, null, input.defaultProjectCwd),
+          workspaceProjectRef: input.defaultProjectRef,
+          projectCwd: input.defaultProjectCwd,
+          cwd: thread.worktreePath ?? input.defaultProjectCwd,
+          path: thread.worktreePath ?? input.defaultProjectCwd,
+        },
+      ];
+    }
+    return [];
   });
 
   const unreadIds = (() => {
@@ -272,8 +326,8 @@ export function useAgentSidebarModel(input: {
       retainedSidebarProjects,
     ).map((section) => {
       const sectionProjectKey =
-        section.environmentId && section.projectId
-          ? scopedProjectKey(scopeProjectRef(section.environmentId, section.projectId))
+        section.projectRef
+          ? scopedProjectKey(section.projectRef)
           : null;
       const projectStateKey =
         (sectionProjectKey ? projectStateKeyByProjectKey.get(sectionProjectKey) : undefined) ??
@@ -295,9 +349,11 @@ export function useAgentSidebarModel(input: {
     const context = {
       activeDraftThread: input.activeDraftThread,
       activeThread: input.routeActiveThread ?? undefined,
+      defaultLogicalProjectKey: input.defaultLogicalProjectKey,
       defaultProjectRef: input.defaultProjectRef,
       defaultThreadEnvMode: input.defaultThreadEnvMode,
       handleNewThread: input.handleNewThread,
+      projects: input.projects,
     };
     const project =
       cwd && cwd.length > 0 ? input.projects.find((candidate) => candidate.cwd === cwd) : null;
@@ -319,9 +375,16 @@ export function useAgentSidebarModel(input: {
         const project = findWorkspaceProjectForSource(input.projects, draft);
         if (project) {
           persistProjectSelection(project);
+        } else if (
+          isSourceForWorkspaceProjectRef({
+            projectRef: input.defaultProjectRef,
+            source: draft,
+          })
+        ) {
+          persistDefaultProjectSelection();
         }
       }
-      void navigate({ to: "/draft/$draftId", params: { draftId: id } });
+      void openDraft(navigate, id);
       return;
     }
     const summary = summaries.find((entry) => entry.id === id);
@@ -331,12 +394,16 @@ export function useAgentSidebarModel(input: {
         const project = findWorkspaceProjectForSource(input.projects, summary);
         if (project) {
           persistProjectSelection(project);
+        } else if (
+          isSourceForWorkspaceProjectRef({
+            projectRef: input.defaultProjectRef,
+            source: summary,
+          })
+        ) {
+          persistDefaultProjectSelection();
         }
       }
-      void navigate({
-        to: "/$environmentId/$threadId",
-        params: { environmentId: summary.environmentId, threadId: summary.id },
-      });
+      void openThread(navigate, scopeThreadRef(summary.environmentId, summary.id));
     }
   };
 

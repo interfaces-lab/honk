@@ -2,6 +2,7 @@ import type {
   EnvironmentId,
   OrchestrationSessionStatus,
   ProjectId,
+  ScopedProjectRef,
   ScopedThreadRef,
   ThreadId,
 } from "@multi/contracts";
@@ -16,6 +17,7 @@ export interface SidebarDraftSummary {
   cwd: string;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
+  workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
   updatedAt: string;
 }
@@ -31,6 +33,7 @@ export interface SidebarThreadSummary {
   id: ThreadId;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
+  workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
   harness?: HarnessKind;
   path: string;
@@ -55,6 +58,7 @@ interface SidebarChatItemBase {
   cwd: string;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
+  workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
 }
 
@@ -84,6 +88,7 @@ export interface SidebarSectionModel {
   canOpenInEditor?: boolean;
   environmentId?: EnvironmentId;
   projectId?: ProjectId;
+  projectRef?: ScopedProjectRef;
   projectCwd?: string;
   projectOrderKeys?: readonly string[];
   projectStateKey?: string;
@@ -101,4 +106,3 @@ export interface AgentSidebarProps {
   loading?: boolean;
   error?: boolean;
 }
-

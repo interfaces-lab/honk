@@ -6,7 +6,7 @@ export function EmptyFilePreview(props: { onOpenFile: () => void }) {
       <button
         type="button"
         onClick={props.onOpenFile}
-        className="flex h-7 items-center gap-1.5 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2.5 text-body font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
+        className="flex h-7 items-center gap-1.5 rounded-multi-control border border-multi-workbench-panel-border-muted bg-(--multi-workbench-card-background) px-2.5 text-body font-medium text-multi-fg-primary hover:bg-(--multi-workbench-toolbar-hover-background)"
       >
         <IconFiles className="size-4" />
         Open File

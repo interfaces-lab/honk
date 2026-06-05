@@ -8,6 +8,10 @@
       "types": "./src/model.ts",
       "import": "./src/model.ts"
     },
+    "./agent-model-policy": {
+      "types": "./src/agent-model-policy.ts",
+      "import": "./src/agent-model-policy.ts"
+    },
     "./git": {
       "types": "./src/git.ts",
       "import": "./src/git.ts"
@@ -75,7 +79,8 @@
   },
   "dependencies": {
     "@multi/contracts": "workspace:*",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "evlog": "^2.18.1"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

@@ -312,7 +312,7 @@ export default function ProjectScriptsControl({
         <div
           className="flex shrink-0 items-center gap-0.5"
           role="group"
-          aria-label="Project scripts"
+          aria-label="Project actions"
         >
           <Button
             size="xs"
@@ -333,7 +333,7 @@ export default function ProjectScriptsControl({
                   size="icon-xs"
                   variant="ghost"
                   className={headerActionIconButtonClassName}
-                  aria-label="Script actions"
+                  aria-label="Project action menu"
                 />
               }
             >
@@ -354,7 +354,7 @@ export default function ProjectScriptsControl({
                   >
                     <ScriptIcon icon={script.icon} className="size-3" />
                     <span className="min-w-0 truncate">
-                      {script.runOnWorktreeCreate ? `${script.name} (setup)` : script.name}
+                      {script.runOnWorktreeCreate ? `${script.name} (setup action)` : script.name}
                     </span>
                     <span className="relative ms-auto flex h-4 min-w-4 items-center justify-end">
                       {shortcutLabel ? (
@@ -388,7 +388,7 @@ export default function ProjectScriptsControl({
               })}
               <MenuItem variant="workbench" onClick={openAddDialog}>
                 <IconPlusLarge className="size-3" />
-                Add action
+                Add project action
               </MenuItem>
             </MenuPopup>
           </Menu>
@@ -403,7 +403,7 @@ export default function ProjectScriptsControl({
         >
           <IconPlusLarge className="size-4 shrink-0" />
           <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
-            Add action
+            Add project action
           </span>
         </Button>
       )}
@@ -429,9 +429,9 @@ export default function ProjectScriptsControl({
       >
         <DialogPopup className="max-w-md">
           <DialogHeader className="gap-0.5 px-5 pt-4 pb-0">
-            <DialogTitle>{isEditing ? "Edit Action" : "Add Action"}</DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Project Action" : "Add Project Action"}</DialogTitle>
             <DialogDescription className="leading-snug">
-              Actions are project-scoped commands you can run from the top bar or keybindings.
+              Project actions are workspace commands you can run from the top bar or keybindings.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel className="px-5 pt-1.5 pb-4">
@@ -513,7 +513,7 @@ export default function ProjectScriptsControl({
                 className="flex items-center justify-between gap-3 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-1.5 text-body text-multi-fg-primary"
                 htmlFor={runOnWorktreeCreateId}
               >
-                <span>Run automatically on worktree creation</span>
+                <span>Run as a setup action on worktree creation</span>
                 <Switch
                   id={runOnWorktreeCreateId}
                   checked={runOnWorktreeCreate}
@@ -546,7 +546,7 @@ export default function ProjectScriptsControl({
               Cancel
             </Button>
             <Button form={addScriptFormId} type="submit">
-              {isEditing ? "Save changes" : "Save action"}
+              {isEditing ? "Save changes" : "Save project action"}
             </Button>
           </DialogFooter>
         </DialogPopup>
@@ -555,13 +555,13 @@ export default function ProjectScriptsControl({
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogPopup>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete action "{name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete project action "{name}"?</AlertDialogTitle>
             <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
             <Button variant="destructive" onClick={confirmDeleteScript}>
-              Delete action
+              Delete project action
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>

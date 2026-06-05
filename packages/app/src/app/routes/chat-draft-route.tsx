@@ -10,9 +10,8 @@ import {
   clearLastChatRouteTarget,
   writeLastChatRouteTarget,
 } from "~/app/routes/chat-route-persistence";
-import { buildThreadRouteParams } from "~/app/routes/thread-route-targets";
+import { openChatIndex, openThread } from "~/app/chat-navigation";
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import { debugLog } from "~/lib/debug-log";
 
 const routeApi = getRouteApi("/_chat/draft/$draftId");
 
@@ -41,15 +40,6 @@ export function DraftChatThreadRouteView() {
           threadId: serverThread.id,
         }
       : null;
-  debugLog("draft-route.render", {
-    draftId,
-    hasDraftSession: draftSession !== null,
-    draftThreadId: draftSession?.threadId ?? null,
-    hasServerThread: serverThread !== undefined,
-    serverThreadStarted,
-    canonicalThreadRef,
-  });
-
   if (canonicalThreadRef) {
     return (
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -98,11 +88,7 @@ function CanonicalDraftThreadRouteSync(props: {
 }) {
   useMountEffect(() => {
     writeLastChatRouteTarget({ kind: "server", threadRef: props.canonicalThreadRef });
-    void props.navigate({
-      to: "/$environmentId/$threadId",
-      params: buildThreadRouteParams(props.canonicalThreadRef),
-      replace: true,
-    });
+    void openThread(props.navigate, props.canonicalThreadRef, { replace: true });
   });
 
   return null;
@@ -122,7 +108,7 @@ function MissingDraftThreadRouteSync(props: {
 }) {
   useMountEffect(() => {
     clearLastChatRouteTarget({ kind: "draft", draftId: props.draftId });
-    void props.navigate({ to: "/", replace: true });
+    void openChatIndex(props.navigate, { replace: true });
   });
 
   return null;

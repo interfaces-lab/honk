@@ -1,6 +1,12 @@
 import { scopeProjectRef } from "~/lib/environment-scope";
 import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
 import type { DraftThreadEnvMode } from "../stores/chat-drafts";
+import {
+  findWorkspaceProjectForSource,
+  isSourceForWorkspaceProject,
+  isSourceForWorkspaceProjectRef,
+} from "./workspace-target";
+import type { Project } from "../types";
 
 interface ThreadContextLike {
   environmentId: EnvironmentId;
@@ -11,6 +17,7 @@ interface ThreadContextLike {
 
 interface DraftThreadContextLike extends ThreadContextLike {
   envMode: DraftThreadEnvMode;
+  logicalProjectKey: string;
 }
 
 interface NewThreadHandler {
@@ -21,6 +28,7 @@ interface NewThreadHandler {
       reuseExistingDraft?: boolean;
       worktreePath?: string | null;
       envMode?: DraftThreadEnvMode;
+      logicalProjectKey?: string | null;
     },
   ): Promise<void>;
 }
@@ -30,27 +38,39 @@ type NewThreadOptions = NonNullable<Parameters<NewThreadHandler>[1]>;
 export interface ChatThreadActionContext {
   readonly activeDraftThread: DraftThreadContextLike | null;
   readonly activeThread: ThreadContextLike | undefined;
+  readonly defaultLogicalProjectKey: string | null;
   readonly defaultProjectRef: ScopedProjectRef | null;
   readonly defaultThreadEnvMode: DraftThreadEnvMode;
   readonly handleNewThread: NewThreadHandler;
+  readonly projects: readonly Project[];
 }
 
 export function resolveThreadActionProjectRef(
   context: ChatThreadActionContext,
 ): ScopedProjectRef | null {
-  if (context.activeThread?.projectId !== null && context.activeThread !== undefined) {
-    return scopeProjectRef(context.activeThread.environmentId, context.activeThread.projectId);
+  const activeThreadProject = findWorkspaceProjectForSource(context.projects, context.activeThread);
+  if (activeThreadProject) {
+    return scopeProjectRef(activeThreadProject.environmentId, activeThreadProject.id);
   }
-  if (context.activeDraftThread?.projectId !== null && context.activeDraftThread !== null) {
-    return scopeProjectRef(
-      context.activeDraftThread.environmentId,
-      context.activeDraftThread.projectId,
-    );
+  const activeDraftProject = findWorkspaceProjectForSource(
+    context.projects,
+    context.activeDraftThread,
+  );
+  if (activeDraftProject) {
+    return scopeProjectRef(activeDraftProject.environmentId, activeDraftProject.id);
   }
   return context.defaultProjectRef;
 }
 
 function buildContextualThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
+  const logicalProjectKey =
+    context.activeDraftThread?.logicalProjectKey ??
+    (isSourceForWorkspaceProjectRef({
+      projectRef: context.defaultProjectRef,
+      source: context.activeThread,
+    })
+      ? context.defaultLogicalProjectKey
+      : null);
   return {
     branch: context.activeThread?.branch ?? context.activeDraftThread?.branch ?? null,
     worktreePath:
@@ -58,13 +78,27 @@ function buildContextualThreadOptions(context: ChatThreadActionContext): NewThre
     envMode:
       context.activeDraftThread?.envMode ??
       (context.activeThread?.worktreePath ? "worktree" : "local"),
+    logicalProjectKey,
   };
 }
 
 function buildDefaultThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
   return {
     envMode: context.defaultThreadEnvMode,
+    logicalProjectKey: context.defaultLogicalProjectKey,
   };
+}
+
+function projectRefsEqual(
+  left: ScopedProjectRef | null | undefined,
+  right: ScopedProjectRef | null | undefined,
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.environmentId === right.environmentId &&
+      left.projectId === right.projectId,
+  );
 }
 
 function buildProjectThreadOptions(
@@ -77,24 +111,62 @@ function buildProjectThreadOptions(
     };
   }
 
-  if (context.activeDraftThread?.projectId === projectRef.projectId) {
+  const activeDraftThread = context.activeDraftThread;
+  if (
+    activeDraftThread &&
+    isSourceForWorkspaceProject({
+      project: projectRef,
+      projects: context.projects,
+      source: activeDraftThread,
+    })
+  ) {
     return {
-      branch: context.activeDraftThread.branch,
-      worktreePath: context.activeDraftThread.worktreePath,
-      envMode: context.activeDraftThread.envMode,
+      branch: activeDraftThread.branch,
+      worktreePath: activeDraftThread.worktreePath,
+      envMode: activeDraftThread.envMode,
+      logicalProjectKey: activeDraftThread.logicalProjectKey,
     };
   }
 
-  if (context.activeThread?.projectId === projectRef.projectId) {
+  if (
+    activeDraftThread &&
+    isSourceForWorkspaceProjectRef({
+      projectRef,
+      source: activeDraftThread,
+    })
+  ) {
     return {
-      branch: context.activeThread.branch,
-      worktreePath: context.activeThread.worktreePath,
-      envMode: context.activeThread.worktreePath ? "worktree" : "local",
+      branch: activeDraftThread.branch,
+      worktreePath: activeDraftThread.worktreePath,
+      envMode: activeDraftThread.envMode,
+      logicalProjectKey: activeDraftThread.logicalProjectKey,
+    };
+  }
+
+  const activeThread = context.activeThread;
+  if (
+    activeThread &&
+    isSourceForWorkspaceProject({
+      project: projectRef,
+      projects: context.projects,
+      source: activeThread,
+    })
+  ) {
+    return {
+      branch: activeThread.branch,
+      worktreePath: activeThread.worktreePath,
+      envMode: activeThread.worktreePath ? "worktree" : "local",
+      logicalProjectKey: projectRefsEqual(projectRef, context.defaultProjectRef)
+        ? context.defaultLogicalProjectKey
+        : null,
     };
   }
 
   return {
     envMode: context.defaultThreadEnvMode,
+    logicalProjectKey: projectRefsEqual(projectRef, context.defaultProjectRef)
+      ? context.defaultLogicalProjectKey
+      : null,
   };
 }
 

@@ -10,15 +10,15 @@
   "type": "module",
   "scripts": {
     "prepare": "effect-language-service patch",
-    "dev": "node scripts/dev-runner.ts dev",
-    "dev:server": "node scripts/dev-runner.ts dev:server",
-    "dev:app": "node scripts/dev-runner.ts dev:app",
-    "dev:desktop": "node scripts/dev-runner.ts dev:desktop",
+    "dev": "turbo run dev --filter=@multi/desktop",
+    "dev:server": "turbo run dev --filter=usemulti",
+    "dev:app": "turbo run dev --filter=@multi/app",
+    "dev:desktop": "turbo run dev --filter=@multi/desktop",
     "start": "turbo run start --filter=usemulti",
     "start:desktop": "turbo run start --filter=@multi/desktop",
     "start:mock-update-server": "bun scripts/mock-update-server.ts",
     "build": "turbo run build",
-    "build:desktop": "turbo run build --filter=@multi/desktop --filter=usemulti",
+    "build:desktop": "turbo run build --filter=@multi/desktop",
     "typecheck": "turbo run typecheck",
     "lint": "oxlint --report-unused-disable-directives --deny-warnings && pnpm run lint:css",
     "lint:css": "stylelint \"packages/**/*.css\" --allow-empty-input",
@@ -29,13 +29,13 @@
     "build:contracts": "turbo run build --filter=@multi/contracts",
     "knip": "knip --include-entry-exports --no-progress --no-config-hints",
     "knip:production": "knip --production --include-entry-exports --no-progress --no-config-hints",
-    "dist:desktop:artifact": "node scripts/build-desktop-artifact.ts",
-    "dist:desktop:dmg": "node scripts/build-desktop-artifact.ts --platform mac --target dmg",
-    "dist:desktop:dmg:arm64": "node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64",
-    "dist:desktop:dmg:x64": "node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch x64",
-    "dist:desktop:linux": "node scripts/build-desktop-artifact.ts --platform linux --target AppImage --arch x64",
-    "release:smoke": "node scripts/release-smoke.ts",
-    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist packages/*/dist-electron .turbo packages/*/.turbo",
+    "dist:desktop:artifact": "turbo run package --filter=@multi/desktop",
+    "dist:desktop:dmg": "turbo run package:mac --filter=@multi/desktop",
+    "dist:desktop:dmg:arm64": "turbo run package:mac --filter=@multi/desktop -- --arm64",
+    "dist:desktop:dmg:x64": "turbo run package:mac --filter=@multi/desktop -- --x64",
+    "dist:desktop:linux": "turbo run package:linux --filter=@multi/desktop -- --x64",
+    "release:smoke": "pnpm --filter=@multi/release-scripts run test",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist packages/*/dist-electron packages/*/out .turbo packages/*/.turbo",
     "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs"
   },
   "devDependencies": {
@@ -43,15 +43,15 @@
     "@types/node": "catalog:",
     "@typescript/native-preview": "7.0.0-dev.20260601.1",
     "bun": "catalog:",
-    "knip": "^6.14.2",
-    "oxfmt": "^0.51.0",
-    "oxlint": "^1.66.0",
+    "knip": "^6.15.0",
+    "oxfmt": "^0.53.0",
+    "oxlint": "^1.68.0",
     "oxlint-plugin-react-doctor": "0.2.16",
     "oxlint-tsgolint": "^0.23.0",
     "react-doctor": "0.2.16",
     "stylelint": "^17.12.0",
     "stylelint-config-standard": "^40.0.0",
-    "turbo": "^2.9.14",
+    "turbo": "^2.9.16",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
@@ -63,12 +63,12 @@
     "@effect/sql-sqlite-bun": "catalog:",
     "@effect/vitest": "catalog:",
     "effect": "catalog:",
-    "vite": "^8.0.14"
+    "vite": "^8.0.16"
   },
   "engines": {
     "node": "25.8.1"
   },
-  "packageManager": "pnpm@11.5.0+sha512.dbfcc4f81cf48597afd4bc391ffdf12c11f1a9fb83a395bfa6b0a2d9cc2fd8ffebafdb1ccbd529632153f793904c2615b7f09fe1a345473fd1c35845172a8eb1",
+  "packageManager": "pnpm@11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485",
   "msw": {
     "workerDirectory": [
       "packages/app/public"

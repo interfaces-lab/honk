@@ -1,13 +1,8 @@
 "use client";
 
 import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
-import {
-  type ProjectId,
-  type ResolvedKeybindingsConfig,
-  type ScopedProjectRef,
-} from "@multi/contracts";
-import { toSafeThreadSegment } from "@multi/shared/thread-segments";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { type ResolvedKeybindingsConfig } from "@multi/contracts";
+import { useNavigate } from "@tanstack/react-router";
 import {
   IconChevronLeftMedium,
   IconChevronRightMedium,
@@ -22,7 +17,6 @@ import {
 import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useCommandPaletteStore } from "../stores/ui/command-palette-store";
-import { readEnvironmentApi } from "../environment-api";
 import { usePrimaryEnvironmentId } from "../environments/primary";
 import { useHandleNewThread } from "../hooks/use-handle-new-thread";
 import { useMountEffect } from "../hooks/use-mount-effect";
@@ -32,24 +26,24 @@ import {
   startNewThreadInProjectFromContext,
   startNewThreadFromContext,
 } from "../lib/chat-thread-actions";
-import { findProjectByPath, inferProjectTitleFromPath } from "../lib/project-paths";
 import { isTerminalFocused } from "../lib/terminal-focus";
-import { getLatestThreadForProject } from "../lib/thread-sort";
-import { writeStoredProjectSelection } from "../lib/project-state";
-import { findWorkspaceProjectForSource } from "../lib/workspace-target";
-import { cn, newCommandId, newProjectId } from "../lib/utils";
 import {
-  selectProjectByRef,
+  openWorkspaceFolder,
+  persistProjectSelection,
+} from "../lib/project-selection";
+import {
+  findWorkspaceProjectForSource,
+  getLatestWorkspaceThreadForProject,
+} from "../lib/workspace-target";
+import { cn } from "../lib/utils";
+import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
   useStore,
 } from "../stores/thread-store";
-import { applyLocalProjectCreated } from "../stores/local-orchestration-events";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
-import {
-  buildThreadRouteParams,
-  resolveThreadRouteTarget,
-} from "~/app/routes/thread-route-targets";
+import { openThread } from "~/app/chat-navigation";
+import { useRouteTarget } from "~/app/routes/thread-route-targets";
 import {
   buildProjectActionItems,
   buildRootGroups,
@@ -215,8 +209,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   const toggleOpenRef = useRef(toggleOpen);
   const activeKeybindings =
     keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
-  const routeParams = useParams({ strict: false });
-  const routeTarget = resolveThreadRouteTarget(routeParams);
+  const routeTarget = useRouteTarget();
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const terminalOpen = useTerminalStateStore((state) =>
     routeThreadRef
@@ -292,36 +285,8 @@ function projectCommandPaletteIcon(project: Project): ReactNode {
   );
 }
 
-const PROJECT_LINK_TIMEOUT_MS = 5000;
-
-async function waitForProjectInStore(projectRef: ScopedProjectRef): Promise<void> {
-  if (selectProjectByRef(useStore.getState(), projectRef)) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    let unsubscribe = () => {};
-    const timeout = window.setTimeout(() => {
-      unsubscribe();
-      reject(new Error("Workspace was created but did not become available in the local store."));
-    }, PROJECT_LINK_TIMEOUT_MS);
-
-    unsubscribe = useStore.subscribe((state) => {
-      if (!selectProjectByRef(state, projectRef)) {
-        return;
-      }
-
-      window.clearTimeout(timeout);
-      unsubscribe();
-      resolve();
-    });
-  });
-}
-
 function OpenCommandPaletteDialog() {
   const navigate = useNavigate();
-  const routeParams = useParams({ strict: false });
-  const routeTarget = resolveThreadRouteTarget(routeParams);
   const open = useCommandPaletteStore((store) => store.open);
   const openSessionId = useCommandPaletteStore((store) => store.openSessionId);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
@@ -329,8 +294,13 @@ function OpenCommandPaletteDialog() {
   const composerHandleRef = useComposerHandleContext();
   const openAddProjectFlowRef = useRef<() => void>(() => undefined);
   const settings = useSettings();
-  const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread } =
-    useHandleNewThread();
+  const {
+    activeDraftThread,
+    activeThread,
+    defaultLogicalProjectKey,
+    defaultProjectRef,
+    handleNewThread,
+  } = useHandleNewThread();
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const threads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const keybindings = useServerKeybindings();
@@ -338,60 +308,30 @@ function OpenCommandPaletteDialog() {
   const observability = useServerObservability();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
 
-  const projectCwdById = new Map<ProjectId, string>(
-    projects.map((project) => [project.id, project.cwd]),
-  );
-  const projectTitleById = new Map<ProjectId, string>(
-    projects.map((project) => [project.id, project.name]),
-  );
-
   const activeThreadId = activeThread?.id;
-  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
-  const threadRuntimeLogPath = (() => {
-    if (!import.meta.env.DEV || !routeThreadRef || !observability?.logsDirectoryPath) {
-      return null;
-    }
-    const safeThreadSegment = toSafeThreadSegment(routeThreadRef.threadId);
-    if (!safeThreadSegment) {
-      return null;
-    }
-    return joinFileSystemPath(
-      observability.logsDirectoryPath,
-      "runtime",
-      `${safeThreadSegment}.log`,
-    );
-  })();
   const serverTracePath = (() => {
     if (!import.meta.env.DEV || !observability?.logsDirectoryPath) {
       return null;
     }
     return joinFileSystemPath(observability.logsDirectoryPath, "server.trace.ndjson");
   })();
-  const currentProjectId = activeThread?.projectId ?? activeDraftThread?.projectId ?? null;
-  const currentProjectCwd = currentProjectId
-    ? (projectCwdById.get(currentProjectId) ?? null)
-    : null;
-
-  function persistProjectSelection(project: Project) {
-    writeStoredProjectSelection({
-      environmentId: project.environmentId,
-      projectId: project.id,
-      cwd: project.cwd,
-    });
-  }
+  const currentWorkspaceProject = activeThread
+    ? findWorkspaceProjectForSource(projects, activeThread)
+    : activeDraftThread
+      ? findWorkspaceProjectForSource(projects, activeDraftThread)
+      : null;
+  const currentProjectCwd = currentWorkspaceProject?.cwd ?? null;
 
   async function openProjectFromSearch(project: (typeof projects)[number]) {
     persistProjectSelection(project);
-    const latestThread = getLatestThreadForProject(
+    const latestThread = getLatestWorkspaceThreadForProject({
+      project,
+      projects,
       threads,
-      project.id,
-      settings.sidebarThreadSortOrder,
-    );
+      sortOrder: settings.sidebarThreadSortOrder,
+    });
     if (latestThread) {
-      await navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(scopeThreadRef(latestThread.environmentId, latestThread.id)),
-      });
+      await openThread(navigate, scopeThreadRef(latestThread.environmentId, latestThread.id));
       return;
     }
 
@@ -436,9 +376,11 @@ function OpenCommandPaletteDialog() {
         {
           activeDraftThread,
           activeThread,
+          defaultLogicalProjectKey,
           defaultProjectRef,
           defaultThreadEnvMode: settings.defaultThreadEnvMode,
           handleNewThread,
+          projects,
         },
         scopeProjectRef(project.environmentId, project.id),
       );
@@ -448,7 +390,7 @@ function OpenCommandPaletteDialog() {
   const allThreadItems = buildThreadActionItems({
     threads,
     ...(activeThreadId ? { activeThreadId } : {}),
-    projectTitleById,
+    projectTitleForThread: (thread) => findWorkspaceProjectForSource(projects, thread)?.name,
     sortOrder: settings.sidebarThreadSortOrder,
     icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
     runThread: async (thread) => {
@@ -463,10 +405,7 @@ function OpenCommandPaletteDialog() {
       if (selectedProject) {
         persistProjectSelection(selectedProject);
       }
-      await navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
-      });
+      await openThread(navigate, scopeThreadRef(thread.environmentId, thread.id));
     },
   });
   const recentThreadItems = allThreadItems.slice(0, RECENT_THREAD_LIMIT);
@@ -499,67 +438,35 @@ function OpenCommandPaletteDialog() {
     const environmentId = primaryEnvironmentId;
     if (!environmentId) return;
 
-    const cwd = rawCwd.trim();
-    if (cwd.length === 0) return;
-    const api = readEnvironmentApi(environmentId);
+    const selection = await openWorkspaceFolder({
+      environmentId,
+      projects,
+      rawCwd,
+      defaultModelSelection: settings.textGenerationModelSelection,
+    });
+    if (!selection) return;
 
-    const existing = findProjectByPath(
-      projects.filter((project) => project.environmentId === environmentId),
-      cwd,
-    );
-    if (existing) {
-      persistProjectSelection(existing);
-      const latestThread = getLatestThreadForProject(
+    if (!selection.created && selection.project) {
+      const latestThread = getLatestWorkspaceThreadForProject({
+        project: selection.project,
+        projects,
         threads,
-        existing.id,
-        settings.sidebarThreadSortOrder,
-      );
+        sortOrder: settings.sidebarThreadSortOrder,
+      });
       if (latestThread) {
-        await navigate({
-          to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(
-            scopeThreadRef(latestThread.environmentId, latestThread.id),
-          ),
-        });
+        await openThread(navigate, scopeThreadRef(latestThread.environmentId, latestThread.id));
       } else {
-        await handleNewThread(scopeProjectRef(existing.environmentId, existing.id), {
+        await handleNewThread(selection.projectRef, {
           envMode: settings.defaultThreadEnvMode,
+          logicalProjectKey: selection.logicalProjectKey,
         }).catch(() => undefined);
       }
       return;
     }
 
-    const projectId = newProjectId();
-    const projectRef = scopeProjectRef(environmentId, projectId);
-    const title = inferProjectTitleFromPath(cwd);
-    const createdAt = new Date().toISOString();
-    if (api) {
-      await api.orchestration.dispatchCommand({
-        type: "project.create",
-        commandId: newCommandId(),
-        projectId,
-        title,
-        projectRoot: cwd,
-        createProjectRootIfMissing: true,
-        defaultModelSelection: settings.textGenerationModelSelection,
-        createdAt,
-      });
-    } else {
-      applyLocalProjectCreated({
-        environmentId,
-        projectId,
-        title,
-        projectRoot: cwd,
-        defaultModelSelection: settings.textGenerationModelSelection,
-        createdAt,
-      });
-    }
-    writeStoredProjectSelection({ environmentId, projectId, cwd });
-    if (api) {
-      await waitForProjectInStore(projectRef);
-    }
-    await handleNewThread(projectRef, {
+    await handleNewThread(selection.projectRef, {
       envMode: settings.defaultThreadEnvMode,
+      logicalProjectKey: selection.logicalProjectKey,
     }).catch(() => undefined);
   }
 
@@ -742,9 +649,7 @@ function OpenCommandPaletteDialog() {
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
   if (projects.length > 0) {
-    const activeProjectTitle = currentProjectId
-      ? (projectTitleById.get(currentProjectId) ?? null)
-      : null;
+    const activeProjectTitle = currentWorkspaceProject?.name ?? null;
 
     if (activeProjectTitle) {
       actionItems.push({
@@ -762,9 +667,11 @@ function OpenCommandPaletteDialog() {
           await startNewThreadFromContext({
             activeDraftThread,
             activeThread,
+            defaultLogicalProjectKey,
             defaultProjectRef,
             defaultThreadEnvMode: settings.defaultThreadEnvMode,
             handleNewThread,
+            projects,
           });
         },
       });
@@ -803,54 +710,6 @@ function OpenCommandPaletteDialog() {
       await navigate({ to: "/settings" });
     },
   });
-
-  if (threadRuntimeLogPath) {
-    actionItems.push({
-      kind: "action",
-      value: `action:debug:copy-thread-runtime-log:${routeThreadRef?.threadId ?? "current"}`,
-      searchTerms: [
-        "copy runtime log path",
-        "copy thread log path",
-        "debug",
-        "logs",
-        routeThreadRef?.threadId ?? "",
-      ],
-      title: "Copy thread runtime log path",
-      description: "Current thread runtime event log",
-      icon: <IconClipboard className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        await copyPathToClipboard(threadRuntimeLogPath, "Copied thread runtime log path");
-      },
-    });
-    actionItems.push({
-      kind: "action",
-      value: `action:debug:open-thread-runtime-log:${routeThreadRef?.threadId ?? "current"}`,
-      searchTerms: [
-        "open runtime log",
-        "open thread log",
-        "debug",
-        "logs",
-        routeThreadRef?.threadId ?? "",
-      ],
-      title: "Open thread runtime log",
-      description: "Open current thread runtime event log in your editor",
-      icon: <IconCode className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        try {
-          await openPathInPreferredEditor(
-            threadRuntimeLogPath,
-            "Unable to open thread runtime log",
-          );
-        } catch (error) {
-          toastManager.add({
-            type: "error",
-            title: "Unable to open thread runtime log",
-            description: formatSchemaBackedTransportErrorDescription(error, "An error occurred."),
-          });
-        }
-      },
-    });
-  }
 
   if (serverTracePath) {
     actionItems.push({

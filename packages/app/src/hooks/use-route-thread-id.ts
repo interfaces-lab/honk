@@ -1,4 +1,4 @@
-import { useParams } from "@tanstack/react-router";
+import { useRouteTarget } from "~/app/routes/thread-route-targets";
 
 export function resolveRouteThreadId(params: { threadId?: string | null } | null | undefined) {
   if (!params?.threadId) {
@@ -14,8 +14,6 @@ export function resolveRouteThreadId(params: { threadId?: string | null } | null
 }
 
 export function useRouteThreadId() {
-  return useParams({
-    strict: false,
-    select: (params) => resolveRouteThreadId(params),
-  });
+  const routeTarget = useRouteTarget();
+  return routeTarget?.kind === "server" ? routeTarget.threadRef.threadId : null;
 }

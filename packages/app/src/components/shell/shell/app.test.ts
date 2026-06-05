@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { addVisitedWorkbenchTab } from "./app";
-import type { WorkbenchTab } from "~/stores/shell-panels-store";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
 
 function tabList(tabs: ReadonlySet<WorkbenchTab>): WorkbenchTab[] {
   return [...tabs];

@@ -1,8 +1,10 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { toastManager } from "~/app/toast";
-import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
+import { openThread } from "~/app/chat-navigation";
+import { scopeThreadRef } from "~/lib/environment-scope";
+import { useRouteTarget } from "~/app/routes/thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "../stores/thread-store";
 import type { SidebarThreadSummary } from "../types";
@@ -103,10 +105,7 @@ function focusThread(
   threadId: ThreadId,
   navigate: ReturnType<typeof useNavigate>,
 ): void {
-  void navigate({
-    to: "/$environmentId/$threadId",
-    params: { environmentId, threadId },
-  });
+  void openThread(navigate, scopeThreadRef(environmentId, threadId));
 }
 
 async function showSystemThreadNotification(
@@ -277,8 +276,7 @@ function collectInputNeededSummaryCandidates(
 }
 
 function useVisibleThreadIdsFromRoute(): ReadonlySet<ThreadId> {
-  const routeParams = useParams({ strict: false });
-  const routeTarget = resolveThreadRouteTarget(routeParams);
+  const routeTarget = useRouteTarget();
   const activeDraftSession = useComposerDraftStore((store) =>
     routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );

@@ -9,7 +9,6 @@ import {
 import { type QueryClient } from "@tanstack/react-query";
 import {
   getKnownEnvironmentWsBaseUrl,
-  scopeProjectRef,
   scopedThreadKey,
   scopeThreadRef,
 } from "~/lib/environment-scope";
@@ -24,6 +23,7 @@ import { deriveOrchestrationBatchEffects } from "./orchestration-event-effects";
 import { refreshGitStatus } from "~/lib/git-status-state";
 import { invalidateGitPatchQueries } from "~/lib/environment-git-react-query";
 import { getPrimaryKnownEnvironment } from "../primary";
+import { resolveAuthenticatedServerBearerToken } from "../primary/auth";
 import { createEnvironmentConnection, type EnvironmentConnection } from "./connection";
 import {
   forgetLiveShellSnapshot,
@@ -34,7 +34,6 @@ import {
 import { createFrameBatcher, type FrameBatcher } from "./frame-batcher";
 import {
   useStore,
-  selectProjectByRef,
   selectProjectsAcrossEnvironments,
   selectSidebarThreadSummaryByRef,
   selectThreadByRef,
@@ -46,6 +45,7 @@ import { WsTransport } from "../../rpc/ws-transport";
 import { createWsRpcClient, type WsRpcClient } from "../../rpc/ws-rpc-client";
 import { deriveSidebarProjectStateKey, getProjectOrderKey } from "~/stores/project-identity";
 import { dispatchNextQueuedComposerItemForThread } from "~/stores/chat-send-queue-dispatch";
+import { findWorkspaceProjectForSource } from "~/lib/workspace-target";
 
 type EnvironmentServiceState = {
   readonly queryClient: QueryClient;
@@ -594,24 +594,25 @@ function refreshGitStatusForThreadActivityEffects(
       continue;
     }
 
-    const project = selectProjectByRef(state, scopeProjectRef(environmentId, thread.projectId));
+    const project = findWorkspaceProjectForSource(selectProjectsAcrossEnvironments(state), thread);
     const cwd = thread.worktreePath ?? project?.cwd ?? null;
     if (cwd === null || refreshedCwds.has(cwd)) {
       continue;
     }
 
     refreshedCwds.add(cwd);
+    const rpcEnvironmentId = project?.environmentId ?? environmentId;
     const queryClient = activeService?.queryClient ?? null;
     void (async () => {
       try {
-        await refreshGitStatus({ environmentId, cwd }, undefined, { force: true });
+        await refreshGitStatus({ environmentId: rpcEnvironmentId, cwd }, undefined, { force: true });
       } finally {
         // The service can restart while the git refresh is in flight, so use
         // the QueryClient from the event that scheduled the refresh. Status
         // rows and patch queries must move together; stale patch data can ask
         // Git for a path that no longer has a diff.
         if (queryClient) {
-          await invalidateGitPatchQueries(queryClient, { environmentId, cwd });
+          await invalidateGitPatchQueries(queryClient, { environmentId: rpcEnvironmentId, cwd });
         }
       }
     })().catch(() => undefined);
@@ -807,7 +808,17 @@ function createPrimaryEnvironmentClient(
     );
   }
 
-  return createWsRpcClient(new WsTransport(wsBaseUrl));
+  const resolveAuthenticatedWsBaseUrl = async () => {
+    const url = new URL(wsBaseUrl);
+    const bearerToken = await resolveAuthenticatedServerBearerToken();
+    if (!bearerToken) {
+      throw new Error("Unable to resolve an authenticated server bearer token.");
+    }
+    url.searchParams.set("access_token", bearerToken);
+    return url.toString();
+  };
+
+  return createWsRpcClient(new WsTransport(resolveAuthenticatedWsBaseUrl));
 }
 
 function registerConnection(connection: EnvironmentConnection): EnvironmentConnection {

@@ -1,5 +1,6 @@
 import { Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import { useHandleNewThread } from "~/hooks/use-handle-new-thread";
@@ -14,18 +15,26 @@ import { selectThreadTerminalState, useTerminalStateStore } from "~/terminal-sta
 import { useThreadSelectionStore } from "~/stores/thread-selection-store";
 import { useSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
+import { selectProjectsAcrossEnvironments, useStore } from "~/stores/thread-store";
 
 function ChatRouteGlobalShortcuts() {
   const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
   const selectedThreadKeysSize = useThreadSelectionStore((state) => state.selectedThreadKeys.size);
-  const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread, routeThreadRef } =
-    useHandleNewThread();
+  const {
+    activeDraftThread,
+    activeThread,
+    defaultLogicalProjectKey,
+    defaultProjectRef,
+    handleNewThread,
+    routeThreadRef,
+  } = useHandleNewThread();
   const keybindings = useServerKeybindings();
   const terminalOpen = useTerminalStateStore((state) =>
     routeThreadRef
       ? selectThreadTerminalState(state.terminalStateByThreadKey, routeThreadRef).terminalOpen
       : false,
   );
+  const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const defaultThreadEnvMode = useSettings((settings) => settings.defaultThreadEnvMode);
 
   useEffect(() => {
@@ -55,9 +64,11 @@ function ChatRouteGlobalShortcuts() {
         void startNewLocalThreadFromContext({
           activeDraftThread,
           activeThread,
+          defaultLogicalProjectKey,
           defaultProjectRef,
           defaultThreadEnvMode,
           handleNewThread,
+          projects,
         });
         return;
       }
@@ -68,9 +79,11 @@ function ChatRouteGlobalShortcuts() {
         void startNewThreadFromContext({
           activeDraftThread,
           activeThread,
+          defaultLogicalProjectKey,
           defaultProjectRef,
           defaultThreadEnvMode,
           handleNewThread,
+          projects,
         });
       }
     };
@@ -83,10 +96,12 @@ function ChatRouteGlobalShortcuts() {
     activeDraftThread,
     activeThread,
     clearSelection,
+    defaultLogicalProjectKey,
     defaultProjectRef,
     defaultThreadEnvMode,
     handleNewThread,
     keybindings,
+    projects,
     selectedThreadKeysSize,
     terminalOpen,
   ]);

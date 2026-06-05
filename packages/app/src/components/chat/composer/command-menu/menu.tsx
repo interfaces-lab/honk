@@ -281,7 +281,7 @@ export function useComposerCommandMenu(input: {
           type: "slash-command",
           command: "plan",
           label: "/plan",
-          description: "Switch this thread into plan mode",
+          description: "Create a proposed plan",
         },
         {
           id: "slash:debug",

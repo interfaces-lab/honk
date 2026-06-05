@@ -55,6 +55,7 @@ export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
         label: "Local environment",
         httpBaseUrl: httpBaseUrl.href,
         bootstrapToken: bootstrap.desktopBootstrapToken,
+        runId: bootstrap.runId,
       }),
     });
   }),

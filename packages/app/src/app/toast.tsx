@@ -2,7 +2,6 @@
 
 import { Toast } from "@base-ui/react/toast";
 import { type CSSProperties } from "react";
-import { useParams } from "@tanstack/react-router";
 import { type ScopedThreadRef, type ThreadId } from "@multi/contracts";
 import {
   IconCheckmark1,
@@ -19,7 +18,7 @@ import { cn } from "~/lib/utils";
 import { buttonVariants } from "@multi/ui/button";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
-import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
+import { useRouteTarget } from "~/app/routes/thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 export type ThreadToastData = {
@@ -147,8 +146,7 @@ interface ToastProviderProps extends Toast.Provider.Props {
 }
 
 function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
-  const routeParams = useParams({ strict: false });
-  const routeTarget = resolveThreadRouteTarget(routeParams);
+  const routeTarget = useRouteTarget();
   const activeDraftSession = useComposerDraftStore((store) =>
     routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );

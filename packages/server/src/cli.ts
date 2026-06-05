@@ -1,4 +1,5 @@
 import { NetService } from "@multi/shared/Net";
+import { configureMultiProcessMetadata, MULTI_RUN_ID_ENV } from "@multi/shared/logging";
 import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
 import {
   AuthSessionId,
@@ -77,6 +78,7 @@ const BootstrapEnvelopeSchema = Schema.Struct({
   devUrl: Schema.optional(Schema.URLFromString),
   noBrowser: Schema.optional(Schema.Boolean),
   desktopBootstrapToken: Schema.optional(Schema.String),
+  runId: Schema.optional(Schema.String),
   autoBootstrapProjectFromCwd: Schema.optional(Schema.Boolean),
   logWebSocketEvents: Schema.optional(Schema.Boolean),
   otlpTracesUrl: Schema.optional(Schema.String),
@@ -245,6 +247,9 @@ export const resolveServerConfig = (
         ? yield* readBootstrapEnvelope(BootstrapEnvelopeSchema, bootstrapFd)
         : Option.none();
     const bootstrap = Option.getOrUndefined(bootstrapEnvelope);
+    if (bootstrap?.runId) {
+      process.env[MULTI_RUN_ID_ENV] = bootstrap.runId;
+    }
 
     const mode: RuntimeMode = Option.getOrElse(
       resolveOptionPrecedence(
@@ -1162,6 +1167,9 @@ const runServerCommand = (
   Effect.gen(function* () {
     const logLevel = yield* GlobalFlag.LogLevel;
     const config = yield* resolveServerConfig(flags, logLevel, options);
+    const { runId, processInstanceId, processRole } = configureMultiProcessMetadata("server");
+    yield* Effect.annotateLogsScoped({ scope: "server", runId, processInstanceId, processRole });
+    yield* Effect.annotateCurrentSpan({ scope: "server", runId, processInstanceId, processRole });
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
   });
 

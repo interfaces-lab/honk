@@ -2,6 +2,7 @@ import type { EnvironmentId, GitBranch, ProjectId, ScopedProjectRef } from "@mul
 import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@multi/shared/git";
 import { Button } from "@multi/ui/button";
 import { Input } from "@multi/ui/input";
+import { MiddleTruncate } from "@pierre/truncate/react";
 import {
   Menu,
   MenuItem,
@@ -37,7 +38,7 @@ interface WorkspaceToolbarProps {
   environmentId: EnvironmentId;
   cwd: string | null;
   workspaceName: string;
-  workspacePath: string;
+  workspacePath: string | null;
   projects: ReadonlyArray<WorkspaceToolbarProject>;
   activeProjectRef: ScopedProjectRef | null;
   envMode: BranchEnvMode;
@@ -123,7 +124,8 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
   const [branchOpen, setBranchOpen] = useState(false);
   const [branchQuery, setBranchQuery] = useState("");
   const branchFocusFrameRef = useRef<number | null>(null);
-  const branchQueryEnabled = props.isGitRepo && props.cwd !== null;
+  const hasWorkspace = props.cwd !== null;
+  const branchQueryEnabled = props.isGitRepo && hasWorkspace;
 
   const branchesQuery = useInfiniteQuery(
     gitBranchSearchInfiniteQueryOptions({
@@ -158,9 +160,11 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
   useEffect(() => {
     onStoredBranchAvailabilityChange?.(missingStoredBranch);
   }, [missingStoredBranch, onStoredBranchAvailabilityChange]);
+  const workspacePath = props.workspacePath ?? props.cwd;
   const workspaceLabel =
-    props.workspaceName.trim() || formatFallbackWorkspaceName(props.workspacePath);
-  const envModeLabel = props.envMode === "worktree" ? "New branch/worktree" : "Local";
+    props.workspaceName.trim() ||
+    (workspacePath ? formatFallbackWorkspaceName(workspacePath) : "Open Folder...");
+  const envModeLabel = props.envMode === "worktree" ? "New branch/worktree" : "Local(default)";
   const branchButtonLabel = selectedBranch
     ? props.envMode === "worktree" && props.activeWorktreePath === null
       ? missingStoredBranch
@@ -182,6 +186,10 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
   const selectedBranchHasLocalChanges = Boolean(
     props.hasLocalChanges && selectedBranch !== null && selectedBranch === currentBranch,
   );
+  const workspaceMenuLabel =
+    props.cwd === null || props.projects.length === 0 ? "Open Folder..." : "Workspaces";
+  const openFolderDescription =
+    props.projects.length === 0 ? "Choose a folder" : "Add another workspace";
 
   const focusBranchInput = (node: HTMLInputElement | null) => {
     if (branchFocusFrameRef.current !== null) {
@@ -229,12 +237,8 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
     props.onOpenFolder();
   };
 
-  if (!props.cwd) {
-    return null;
-  }
-
   return (
-    <div className="mb-2 flex w-full min-w-0 items-center justify-start gap-1 px-1 text-[12px]">
+    <div className="flex min-w-0 items-center justify-start gap-1 text-[12px]">
       <Menu open={workspaceOpen} onOpenChange={setWorkspaceOpen}>
         <MenuTrigger
           render={
@@ -242,13 +246,15 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
               size="sm"
               variant="ghost"
               className="h-6 min-w-0 max-w-[11rem] shrink rounded-multi-control px-1.5 font-normal text-[12px] text-multi-fg-secondary shadow-none before:hidden hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary [&_svg]:size-3.5"
-              title={`${workspaceLabel}\n${props.workspacePath}`}
+              title={workspacePath ? `${workspaceLabel}\n${workspacePath}` : "Open Folder..."}
               aria-label={`Workspace: ${workspaceLabel}`}
             />
           }
         >
           <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
-          <span className="min-w-0 truncate">{workspaceLabel}</span>
+          <MiddleTruncate className="min-w-0" split="leaf-path">
+            {workspaceLabel}
+          </MiddleTruncate>
           <IconChevronDownSmall
             className={cn(
               "size-3.5 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
@@ -264,7 +270,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
           className="w-72 overflow-hidden p-0 [&>div]:flex [&>div]:max-h-[min(24rem,var(--available-height))] [&>div]:min-h-0 [&>div]:flex-col [&>div]:overflow-hidden [&>div]:p-0"
         >
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            <div className={workbenchMenuLabelClassName}>Workspaces</div>
+            <div className={workbenchMenuLabelClassName}>{workspaceMenuLabel}</div>
             {props.projects.map((project) => {
               const projectRef = scopeProjectRef(project.environmentId, project.id);
               const isActive =
@@ -286,10 +292,15 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                     aria-hidden
                   />
                   <span className="grid min-w-0 flex-1 text-left">
-                    <span className="truncate">{projectLabel}</span>
-                    <span className="truncate text-[11px] text-multi-fg-tertiary">
+                    <MiddleTruncate className="min-w-0" split="leaf-path">
+                      {projectLabel}
+                    </MiddleTruncate>
+                    <MiddleTruncate
+                      className="min-w-0 text-[11px] text-multi-fg-tertiary"
+                      split="leaf-path"
+                    >
                       {project.cwd}
-                    </span>
+                    </MiddleTruncate>
                   </span>
                   {isActive ? (
                     <IconCheckmark1Small
@@ -309,7 +320,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                 <span className="grid min-w-0 flex-1 text-left">
                   <span className="truncate">Open Folder...</span>
                   <span className="truncate text-[11px] text-multi-fg-tertiary">
-                    Add another workspace
+                    {openFolderDescription}
                   </span>
                 </span>
               </MenuItem>
@@ -318,7 +329,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
         </MenuPopup>
       </Menu>
 
-      {props.isGitRepo ? (
+      {props.isGitRepo && hasWorkspace ? (
         <>
           <Menu open={envModeOpen} onOpenChange={setEnvModeOpen}>
             <MenuTrigger

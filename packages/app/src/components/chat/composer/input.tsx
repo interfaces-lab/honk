@@ -13,11 +13,24 @@ import {
   type SetStateAction,
 } from "react";
 import { Button } from "@multi/ui/button";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
+import {
+  Menu,
+  MenuGroupLabel,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
+  MenuTrigger,
+  workbenchMenuMetaTextClassName,
+} from "@multi/ui/menu";
 import {
   IconArrowUp,
   IconBug,
   IconBubbleQuestion,
+  IconChevronDownSmall,
   IconChevronLeftMedium,
   IconCrossSmall,
   IconPlusSmall,
@@ -90,9 +103,8 @@ import {
   AGENT_MODE_THINKING_LEVELS,
   AGENT_THINKING_LEVEL_LABELS,
   AGENT_THINKING_LEVEL_OPTIONS,
-  agentModeSupportsThinkingLevelSelection,
   normalizedConfigurableThinkingLevel,
-  type ConfigurableAgentThinkingLevel,
+  agentModeSupportsThinkingLevelSelection,
 } from "~/lib/agent-mode-options";
 
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
@@ -102,7 +114,7 @@ const composerEditorClass = cva(
   {
     variants: {
       mode: {
-        "new-agent": "min-h-14 max-h-[min(75vh,420px)] px-3 py-2",
+        "new-agent": "min-h-9 max-h-[200px] px-3 py-2 text-body/[1.5] text-(--vscode-input-foreground)",
         "thread-multiline": "min-w-0 px-3 pt-2",
         "thread-pill": "flex-1 pl-1",
         "inline-edit": "min-h-5 max-h-60 px-3 py-2",
@@ -114,7 +126,7 @@ const composerEditorClass = cva(
 const composerShellClass = cva("relative z-1 min-w-0 rounded-[inherit]", {
   variants: {
     mode: {
-      "new-agent": "flex flex-col gap-2 px-2.5 pt-2 pb-1.5",
+      "new-agent": "flex flex-col",
       thread: "",
       "inline-edit": "flex flex-col",
     },
@@ -227,73 +239,79 @@ function ComposerInteractionModeChip(props: {
   );
 }
 
-function ComposerAgentModeSelect(props: {
-  value: AgentMode;
+function ComposerAgentModeMenu(props: {
+  agentMode: AgentMode;
+  thinkingLevel: AgentThinkingLevel;
   disabled: boolean;
-  onChange: (agentMode: AgentMode) => void;
+  onAgentModeChange: (agentMode: AgentMode) => void;
+  onThinkingLevelChange: (thinkingLevel: AgentThinkingLevel) => void;
 }) {
-  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-  const handleValueChange = (value: AgentMode | null) => {
-    if (value) {
-      props.onChange(value);
+  const thinkingLevel = normalizedConfigurableThinkingLevel(props.thinkingLevel);
+  const supportsThinkingLevel = agentModeSupportsThinkingLevelSelection(props.agentMode);
+
+  const handleAgentModeValueChange = (value: string) => {
+    const option = AGENT_MODE_OPTIONS.find((item) => item.value === value);
+    if (option && option.value !== props.agentMode) {
+      props.onAgentModeChange(option.value);
+    }
+  };
+
+  const handleThinkingLevelValueChange = (value: string) => {
+    const option = AGENT_THINKING_LEVEL_OPTIONS.find((item) => item.value === value);
+    if (option && option.value !== thinkingLevel) {
+      props.onThinkingLevelChange(option.value);
     }
   };
 
   return (
-    <Select value={props.value} onValueChange={handleValueChange}>
-      <SelectTrigger
-        size="control"
-        variant="ghost"
-        className="h-6 min-w-16 max-w-24 rounded-full bg-multi-bg-quinary px-2 font-medium text-multi-fg-secondary hover:text-multi-fg-primary"
-        aria-label="Agent mode"
+    <Menu>
+      <MenuTrigger
+        type="button"
+        className="inline-flex h-6 min-w-0 max-w-40 select-none items-center gap-1 overflow-hidden rounded-full bg-transparent py-0 pr-1.5 pl-2 text-[12px]/[16px] font-medium text-multi-fg-secondary outline-hidden transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-tertiary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+        aria-label="Agent mode and thinking level"
         disabled={props.disabled}
       >
-        <SelectValue>{AGENT_MODE_LABELS[props.value]}</SelectValue>
-      </SelectTrigger>
-      <SelectPopup align="start" alignItemWithTrigger={false}>
-        {AGENT_MODE_OPTIONS.map((option) => (
-          <SelectItem key={option.value} hideIndicator value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectPopup>
-    </Select>
-  );
-}
-
-function ComposerThinkingLevelSelect(props: {
-  value: AgentThinkingLevel;
-  disabled: boolean;
-  onChange: (thinkingLevel: AgentThinkingLevel) => void;
-}) {
-  const value = normalizedConfigurableThinkingLevel(props.value);
-
-  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-  const handleValueChange = (nextValue: ConfigurableAgentThinkingLevel | null) => {
-    if (nextValue) {
-      props.onChange(nextValue);
-    }
-  };
-
-  return (
-    <Select value={value} onValueChange={handleValueChange}>
-      <SelectTrigger
-        size="control"
-        variant="ghost"
-        className="h-6 min-w-18 max-w-24 rounded-full bg-multi-bg-quinary px-2 font-medium text-multi-fg-secondary hover:text-multi-fg-primary"
-        aria-label="Thinking level"
-        disabled={props.disabled}
-      >
-        <SelectValue>{AGENT_THINKING_LEVEL_LABELS[value]}</SelectValue>
-      </SelectTrigger>
-      <SelectPopup align="start" alignItemWithTrigger={false}>
-        {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
-          <SelectItem key={option.value} hideIndicator value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectPopup>
-    </Select>
+        <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
+        {supportsThinkingLevel ? (
+          <span className="shrink-0 text-multi-fg-tertiary">
+            {AGENT_THINKING_LEVEL_LABELS[thinkingLevel]}
+          </span>
+        ) : null}
+        <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" aria-hidden />
+      </MenuTrigger>
+      <MenuPopup align="start" side="top" sideOffset={6} variant="workbench">
+        <MenuRadioGroup value={props.agentMode} onValueChange={handleAgentModeValueChange}>
+          <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
+          {AGENT_MODE_OPTIONS.map((option) => (
+            <MenuRadioItem key={option.value} value={option.value} variant="workbench">
+              {option.label}
+            </MenuRadioItem>
+          ))}
+        </MenuRadioGroup>
+        <MenuSeparator variant="workbench" />
+        <MenuSub>
+          <MenuSubTrigger
+            className="pe-1"
+            disabled={!supportsThinkingLevel || props.disabled}
+            variant="workbench"
+          >
+            <span className="min-w-0 flex-1 truncate">Thinking</span>
+            <span className={cn(workbenchMenuMetaTextClassName, "shrink-0")}>
+              {supportsThinkingLevel ? AGENT_THINKING_LEVEL_LABELS[thinkingLevel] : "Off"}
+            </span>
+          </MenuSubTrigger>
+          <MenuSubPopup variant="workbench">
+            <MenuRadioGroup value={thinkingLevel} onValueChange={handleThinkingLevelValueChange}>
+              {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
+                <MenuRadioItem key={option.value} value={option.value} variant="workbench">
+                  {option.label}
+                </MenuRadioItem>
+              ))}
+            </MenuRadioGroup>
+          </MenuSubPopup>
+        </MenuSub>
+      </MenuPopup>
+    </Menu>
   );
 }
 
@@ -638,9 +656,9 @@ const COMPOSER_TOOLBAR_CONTROL_SIZE = "h-6 w-6";
 const COMPOSER_ACTION_ICON_COMPACT = "size-3.5";
 const COMPOSER_ACTION_ICON_EXPANDED = "size-3.5";
 const COMPOSER_SUBMIT_BASE_CLASS =
-  "flex enabled:cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-[color,opacity,transform] duration-100 hover:opacity-90 motion-reduce:transition-opacity motion-reduce:active:scale-100 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-30 disabled:hover:opacity-30";
+  "flex enabled:cursor-pointer items-center justify-center rounded-full bg-transparent text-multi-icon-secondary transition-[background-color,color,opacity] duration-100 hover:bg-multi-bg-quaternary hover:text-multi-icon-primary disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-multi-icon-secondary";
 const COMPOSER_STOP_BASE_CLASS =
-  "flex cursor-pointer items-center justify-center rounded-full bg-rose-500/90 text-white transition-[background-color,color,opacity,transform] duration-100 hover:bg-rose-500 motion-reduce:transition-colors motion-reduce:active:scale-100 active:scale-[0.96]";
+  "flex cursor-pointer items-center justify-center rounded-full bg-transparent text-multi-fg-red-primary transition-[background-color,color,opacity] duration-100 hover:bg-multi-bg-quaternary hover:opacity-85";
 
 function PrimaryActionControls(props: {
   compact: boolean;
@@ -764,17 +782,16 @@ function PrimaryActionControls(props: {
 
   if (props.showPlanFollowUpPrompt) {
     return (
-      <Button
+      <button
         type="submit"
-        size="sm"
-        className="bg-(--cursor-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] [&_svg]:size-3.5"
+        className="flex h-6 enabled:cursor-pointer items-center justify-center gap-1 rounded-full bg-transparent px-2.5 text-detail font-medium text-(--cursor-bg-yellow-primary) transition-[background-color,color,opacity] duration-100 hover:bg-multi-bg-quaternary hover:opacity-85 disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent [&_svg]:size-3.5 [&_svg]:shrink-0"
         disabled={props.isSendBusy || props.isConnecting}
         aria-label="Refine plan"
         title="Refine plan"
       >
         <IconArrowUp aria-hidden />
         {props.isConnecting || props.isSendBusy ? "Sending..." : "Refine"}
-      </Button>
+      </button>
     );
   }
 
@@ -871,7 +888,7 @@ function ComposerFooter(props: {
           : cn(
               "flex w-full items-center justify-between",
               dockExpanded ? "gap-[0.55rem]" : "gap-2",
-              props.inlineEdit ? "px-3 pb-2" : isThreadShell ? "" : "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+              props.inlineEdit ? "px-3 pb-2" : isThreadShell ? "" : "px-2.5 py-2 sm:px-2.5 sm:py-2",
             ),
       )}
     >
@@ -879,7 +896,7 @@ function ComposerFooter(props: {
         data-multi-composer-toolbar="left"
         className={cn(
           "flex min-w-0 items-center gap-1",
-          dockSingleRow ? "shrink" : "flex-1 overflow-hidden",
+          dockSingleRow ? "max-w-[46%] shrink overflow-hidden" : "flex-1 overflow-hidden",
         )}
       >
         {props.agentModeControl ? (
@@ -1739,6 +1756,19 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         return true;
       }
 
+      if (key === "Tab" && event.shiftKey) {
+        toggleInteractionMode();
+        return true;
+      }
+
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: { terminalOpen, composerFocus: true },
+      });
+      if (command === "composer.cycleInteractionMode") {
+        toggleInteractionMode();
+        return true;
+      }
+
       const menuIsActive = composerMenuOpenRef.current;
       if (menuIsActive) {
         const currentItems = composerMenuItemsRef.current;
@@ -1754,25 +1784,21 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
           nudgeComposerMenuHighlight("ArrowUp");
           return true;
         }
-        if ((key === "Enter" || (key === "Tab" && !event.shiftKey)) && selectedItem) {
+        if ((key === "Enter" || key === "Tab") && selectedItem) {
           onSelectComposerItem(selectedItem);
           return true;
         }
       }
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: { terminalOpen, composerFocus: true },
-      });
-      if (command === "composer.send") {
+      if (
+        command === "composer.send" ||
+        (command === null && key === "Enter" && !event.shiftKey)
+      ) {
         flushPromptCommit();
         onSend();
         return true;
       }
       if (command === "composer.interrupt") {
         onInterrupt();
-        return true;
-      }
-      if (command === "composer.cycleInteractionMode") {
-        toggleInteractionMode();
         return true;
       }
       return false;
@@ -1877,19 +1903,14 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         />
       );
     const composerAgentModeControl = showModeControls ? (
-      <span className="inline-flex shrink-0 items-center gap-1">
-        <ComposerAgentModeSelect
-          value={runtimePreferences.agentMode}
+      <span className="inline-flex min-w-0 max-w-full shrink items-center gap-1 overflow-hidden">
+        <ComposerAgentModeMenu
+          agentMode={runtimePreferences.agentMode}
+          thinkingLevel={runtimePreferences.thinkingLevel}
           disabled={isAgentModeSaving || isConnecting}
-          onChange={handleAgentModeChange}
+          onAgentModeChange={handleAgentModeChange}
+          onThinkingLevelChange={handleThinkingLevelChange}
         />
-        {agentModeSupportsThinkingLevelSelection(runtimePreferences.agentMode) ? (
-          <ComposerThinkingLevelSelect
-            value={runtimePreferences.thinkingLevel}
-            disabled={isAgentModeSaving || isConnecting}
-            onChange={handleThinkingLevelChange}
-          />
-        ) : null}
       </span>
     ) : null;
     // Render
@@ -2061,13 +2082,15 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
                               ? "Edit message"
                               : interactionMode === "ask"
                                 ? "Ask questions without making changes..."
+                                : interactionMode === "plan"
+                                  ? "Create a plan..."
                                 : interactionMode === "debug"
                                   ? "Inspect failures and gather diagnostics..."
                                   : phase === "disconnected"
                                     ? "Ask for follow-up changes or attach images"
                                     : composerVariant === "compact"
                                       ? "Send follow-up"
-                                      : "Ask anything, @tag files/folders, or use / to show available commands"
+                                      : "Plan, Build, / for skills, @ for context"
                   }
                   disabled={isConnecting || isComposerApprovalState}
                 />

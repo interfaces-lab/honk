@@ -65,7 +65,7 @@ export function parseArgs(argv: ReadonlyArray<string>): {
 
   if (positionals.length !== 1 || !positionals[0]) {
     throw new Error(
-      "Usage: node scripts/update-release-package-versions.ts <version> [--root <path>] [--github-output]",
+      "Usage: node packages/release-scripts/src/update-release-package-versions.ts <version> [--root <path>] [--github-output]",
     );
   }
 

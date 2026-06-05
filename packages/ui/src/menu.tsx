@@ -289,19 +289,24 @@ function MenuSub(props: MenuPrimitive.SubmenuRoot.Props) {
 function MenuSubTrigger({
   className,
   inset,
+  variant = "default",
   children,
   ...props
 }: MenuPrimitive.SubmenuTrigger.Props & {
   inset?: boolean;
+  variant?: "default" | "workbench";
 }) {
   return (
     <MenuPrimitive.SubmenuTrigger
       className={cn(
-        "flex min-h-8 items-center gap-2 rounded-sm px-2 py-1 text-base text-foreground outline-none data-disabled:pointer-events-none data-highlighted:bg-accent data-popup-open:bg-accent data-inset:ps-8 data-highlighted:text-accent-foreground data-popup-open:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none",
+        variant === "workbench"
+          ? workbenchMenuItemClassName
+          : "flex min-h-8 items-center gap-2 rounded-sm px-2 py-1 text-base text-foreground outline-none data-disabled:pointer-events-none data-highlighted:bg-accent data-popup-open:bg-accent data-inset:ps-8 data-highlighted:text-accent-foreground data-popup-open:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none",
         className,
       )}
       data-inset={inset}
       data-slot="menu-sub-trigger"
+      data-variant={variant}
       {...props}
     >
       {children}
@@ -315,11 +320,13 @@ function MenuSubPopup({
   sideOffset = 0,
   alignOffset,
   align = "start",
+  variant = "default",
   ...props
 }: MenuPrimitive.Popup.Props & {
   align?: MenuPrimitive.Positioner.Props["align"];
   sideOffset?: MenuPrimitive.Positioner.Props["sideOffset"];
   alignOffset?: MenuPrimitive.Positioner.Props["alignOffset"];
+  variant?: "default" | "workbench";
 }) {
   const defaultAlignOffset = align !== "center" ? -5 : undefined;
 
@@ -331,6 +338,7 @@ function MenuSubPopup({
       data-slot="menu-sub-content"
       side="inline-end"
       sideOffset={sideOffset}
+      variant={variant}
       {...props}
     />
   );

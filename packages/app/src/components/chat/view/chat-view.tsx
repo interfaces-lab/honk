@@ -30,6 +30,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
+import { usePrimaryEnvironmentId } from "../../../environments/primary";
 import { sendRuntimeTurn } from "~/lib/runtime-turn-dispatch";
 import { isElectron } from "../../../env";
 import { readLocalApi } from "../../../local-api";
@@ -81,7 +82,7 @@ import { buildTemporaryWorktreeBranchName } from "@multi/shared/git";
 import { shortcutLabelForCommand } from "../../../keybindings";
 import { cn, randomUUID } from "~/lib/utils";
 import { toastManager } from "~/app/toast";
-import { type NewProjectScriptInput } from "../../project-scripts-control";
+import ProjectScriptsControl, { type NewProjectScriptInput } from "../../project-scripts-control";
 import {
   commandForProjectScript,
   decodeProjectScriptKeybindingRule,
@@ -91,14 +92,15 @@ import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils
 import { useSettings } from "../../../hooks/use-settings";
 import { useHandleNewThread } from "../../../hooks/use-handle-new-thread";
 import { readMultiRuntimeApi } from "../../../lib/multi-runtime-api";
+import { openWorkspaceFolder } from "../../../lib/project-selection";
 import { resolveProjectlessCwd, writeStoredProjectSelection } from "../../../lib/project-state";
-import { resolveWorkspaceTarget } from "~/lib/workspace-target";
-import { getLatestThreadForProject } from "~/lib/thread-sort";
-import { deriveLogicalProjectKey } from "../../../stores/project-identity";
 import {
-  buildDraftThreadRouteParams,
-  buildThreadRouteParams,
-} from "~/app/routes/thread-route-targets";
+  findWorkspaceProjectForSource,
+  getLatestWorkspaceThreadForProject,
+  resolveWorkspaceTarget,
+} from "~/lib/workspace-target";
+import { deriveLogicalProjectKey } from "../../../stores/project-identity";
+import { openDraft, openThread } from "~/app/chat-navigation";
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
@@ -167,13 +169,14 @@ import {
   useServerConfig,
   useServerKeybindings,
 } from "~/rpc/server-state";
-import { sanitizeThreadErrorMessage } from "~/rpc/transport-error";
+import {
+  formatSchemaBackedTransportErrorDescription,
+  sanitizeThreadErrorMessage,
+} from "~/rpc/transport-error";
 import { useGitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import { IconChevronRightMedium, IconExclamationCircle } from "central-icons";
 import { useAttachmentPreviewHandoff } from "./attachment-preview-handoff";
 import { WorkspaceToolbar } from "./workspace-toolbar";
-import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
-import { debugLog } from "~/lib/debug-log";
 import { applyLocalThreadCreated } from "~/stores/local-orchestration-events";
 import {
   type ComposerSendSnapshot,
@@ -320,13 +323,6 @@ export default function ChatView(props: ChatViewProps) {
     [environmentId, threadId],
   );
   const routeThreadKey = scopedThreadKey(routeThreadRef);
-  debugLog("chat-view.render.start", {
-    routeKind,
-    environmentId,
-    threadId,
-    draftId,
-    routeThreadKey,
-  });
   const editComposerDraftTarget = DraftId.make(`inline-message-edit:${routeThreadKey}`);
   const composerDraftTarget: ScopedThreadRef | ComposerDraftId =
     routeKind === "server" ? routeThreadRef : props.draftId;
@@ -349,8 +345,13 @@ export default function ChatView(props: ChatViewProps) {
   );
   const settings = useSettings();
   const workspaceProjects = useStore(useShallow(selectProjectsAcrossEnvironments));
-  const openAddProject = useCommandPaletteStore((store) => store.openAddProject);
-  const { defaultProjectRef, handleNewThread: handleWorkspaceNewThread } = useHandleNewThread();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const {
+    defaultProjectCwd,
+    defaultProjectEnvironmentId,
+    defaultProjectRef,
+    handleNewThread: handleWorkspaceNewThread,
+  } = useHandleNewThread();
   const defaultWorkspaceProject = useStore(createProjectSelectorByRef(defaultProjectRef));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -485,12 +486,9 @@ export default function ChatView(props: ChatViewProps) {
     return mountedThreadRef ? [{ key: mountedThreadKey, threadRef: mountedThreadRef }] : [];
   });
 
-  const fallbackDraftProjectRef = draftThread
-    ? draftThread.projectId === null
-      ? null
-      : scopeProjectRef(draftThread.environmentId, draftThread.projectId)
+  const fallbackDraftProject = draftThread
+    ? findWorkspaceProjectForSource(workspaceProjects, draftThread)
     : null;
-  const fallbackDraftProject = useStore(createProjectSelectorByRef(fallbackDraftProjectRef));
   const localDraftError =
     routeKind === "server" && serverThread
       ? null
@@ -519,38 +517,87 @@ export default function ChatView(props: ChatViewProps) {
   })();
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
-  const activeProjectRef = activeThread
-    ? activeThread.projectId === null
-      ? null
-      : scopeProjectRef(activeThread.environmentId, activeThread.projectId)
+  const activeProject = activeThread
+    ? findWorkspaceProjectForSource(workspaceProjects, activeThread)
     : null;
-  const activeProject = useStore(createProjectSelectorByRef(activeProjectRef));
-  const handleWorkspaceProjectSelect = async (projectRef: ScopedProjectRef) => {
-    const selectedProject = workspaceProjects.find(
+  const activeProjectRef = activeProject
+    ? scopeProjectRef(activeProject.environmentId, activeProject.id)
+    : null;
+  const handleWorkspaceProjectSelect = async (
+    projectRef: ScopedProjectRef,
+    options?: { logicalProjectKey?: string | null },
+  ) => {
+    console.log("[workspace.toolbar.select.start]", {
+      requestedEnvironmentId: projectRef.environmentId,
+      requestedProjectId: projectRef.projectId,
+      routeKind,
+      routeEnvironmentId: environmentId,
+      routeThreadId: threadId,
+      draftId: draftId ?? null,
+      workspaceProjectCount: workspaceProjects.length,
+      activeThreadEnvironmentId: activeThread?.environmentId ?? null,
+      activeThreadId: activeThread?.id ?? null,
+      activeThreadProjectId: activeThread?.projectId ?? null,
+      currentWorkspaceEnvironmentId: workspaceProject?.environmentId ?? null,
+      currentWorkspaceProjectId: workspaceProject?.id ?? null,
+      currentWorkspaceCwd: workspaceTarget.cwd,
+    });
+    const currentWorkspaceProjects = selectProjectsAcrossEnvironments(useStore.getState());
+    const selectedProject = currentWorkspaceProjects.find(
       (project) =>
         project.environmentId === projectRef.environmentId && project.id === projectRef.projectId,
     );
     if (!selectedProject) {
-      return handleWorkspaceNewThread(projectRef, { envMode: settings.defaultThreadEnvMode });
+      console.log("[workspace.toolbar.select.missing-project-in-render-snapshot]", {
+        requestedEnvironmentId: projectRef.environmentId,
+        requestedProjectId: projectRef.projectId,
+        workspaceProjectCount: workspaceProjects.length,
+        currentWorkspaceProjectCount: currentWorkspaceProjects.length,
+      });
+      return handleWorkspaceNewThread(projectRef, {
+        envMode: settings.defaultThreadEnvMode,
+        logicalProjectKey: options?.logicalProjectKey ?? null,
+      });
     }
+    console.log("[workspace.toolbar.select.project-found]", {
+      selectedEnvironmentId: selectedProject.environmentId,
+      selectedProjectId: selectedProject.id,
+      selectedCwd: selectedProject.cwd,
+    });
     writeStoredProjectSelection({
       environmentId: selectedProject.environmentId,
       projectId: selectedProject.id,
       cwd: selectedProject.cwd,
     });
-    const latestThread = getLatestThreadForProject(
-      sidebarThreads,
-      selectedProject.id,
-      settings.sidebarThreadSortOrder,
-    );
+    const currentSidebarThreads = selectSidebarThreadsAcrossEnvironments(useStore.getState());
+    const latestThread = getLatestWorkspaceThreadForProject({
+      project: selectedProject,
+      projects: currentWorkspaceProjects,
+      threads: currentSidebarThreads,
+      sortOrder: settings.sidebarThreadSortOrder,
+    });
     if (latestThread) {
-      await navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(scopeThreadRef(latestThread.environmentId, latestThread.id)),
+      console.log("[workspace.toolbar.select.open-thread]", {
+        selectedEnvironmentId: selectedProject.environmentId,
+        selectedProjectId: selectedProject.id,
+        selectedCwd: selectedProject.cwd,
+        threadEnvironmentId: latestThread.environmentId,
+        threadId: latestThread.id,
+        threadProjectId: latestThread.projectId,
       });
+      await openThread(navigate, scopeThreadRef(latestThread.environmentId, latestThread.id));
       return;
     }
-    return handleWorkspaceNewThread(projectRef, { envMode: settings.defaultThreadEnvMode });
+    console.log("[workspace.toolbar.select.new-thread]", {
+      selectedEnvironmentId: selectedProject.environmentId,
+      selectedProjectId: selectedProject.id,
+      selectedCwd: selectedProject.cwd,
+      envMode: settings.defaultThreadEnvMode,
+    });
+    return handleWorkspaceNewThread(projectRef, {
+      envMode: settings.defaultThreadEnvMode,
+      logicalProjectKey: options?.logicalProjectKey ?? deriveLogicalProjectKey(selectedProject),
+    });
   };
   const closePullRequestDialog = () => {
     setPullRequestDialogState(null);
@@ -579,10 +626,7 @@ export default function ChatView(props: ChatViewProps) {
         },
       );
       if (routeKind !== "draft" || draftId !== storedDraftSession.draftId) {
-        await navigate({
-          to: "/draft/$draftId",
-          params: buildDraftThreadRouteParams(storedDraftSession.draftId),
-        });
+        await openDraft(navigate, storedDraftSession.draftId);
       }
       return storedDraftSession.threadId;
     }
@@ -607,10 +651,7 @@ export default function ChatView(props: ChatViewProps) {
       interactionMode: DEFAULT_INTERACTION_MODE,
       ...input,
     });
-    await navigate({
-      to: "/draft/$draftId",
-      params: buildDraftThreadRouteParams(nextDraftId),
-    });
+    await openDraft(navigate, nextDraftId);
     return nextThreadId;
   };
 
@@ -696,11 +737,6 @@ export default function ChatView(props: ChatViewProps) {
         ? activeLatestTurn.sourceProposedPlan.threadId
         : activeThread.id
       : null;
-  const activeWorkbenchTab = useActiveTab();
-  const rightWorkbenchOpen = useRightOpen();
-  const rightWorkbenchMuted = useIsMuted();
-  const planSurfaceOpen =
-    activeWorkbenchTab === "plan" && rightWorkbenchOpen && !rightWorkbenchMuted;
   const showPlanFollowUpPrompt =
     pendingUserInputs.length === 0 &&
     latestTurnSettled &&
@@ -856,15 +892,79 @@ export default function ChatView(props: ChatViewProps) {
   const availableEditors = useServerAvailableEditors();
   const serverConfig = useServerConfig();
   const projectlessCwd = resolveProjectlessCwd(serverConfig?.cwd);
+  const workspaceSource = activeThread ?? draftThread ?? null;
   const workspaceTarget = resolveWorkspaceTarget({
-    activeDraftThread: draftThread ?? null,
-    activeThread: activeThread ?? null,
+    source: workspaceSource,
     defaultProject: defaultWorkspaceProject ?? null,
+    defaultProjectCwd,
+    defaultProjectEnvironmentId,
+    defaultProjectRef,
     projects: workspaceProjects,
     projectlessCwd,
     fallbackEnvironmentId: environmentId,
   });
+  useEffect(() => {
+    const sourceProjectIdMatchCount = workspaceSource?.projectId
+      ? workspaceProjects.filter((project) => project.id === workspaceSource.projectId).length
+      : 0;
+    const sourceExactProjectMatchCount = workspaceSource?.projectId
+      ? workspaceProjects.filter(
+          (project) =>
+            project.environmentId === workspaceSource.environmentId &&
+            project.id === workspaceSource.projectId,
+        ).length
+      : 0;
+    const targetDebugPayload = {
+      routeKind,
+      routeEnvironmentId: environmentId,
+      routeThreadId: threadId,
+      draftId: draftId ?? null,
+      projectCount: workspaceProjects.length,
+      sourceProjectIdMatchCount,
+      sourceExactProjectMatchCount,
+      sourceEnvironmentId: workspaceSource?.environmentId ?? null,
+      sourceProjectId: workspaceSource?.projectId ?? null,
+      sourceWorktreePath: workspaceSource?.worktreePath ?? null,
+      defaultProjectEnvironmentId: defaultWorkspaceProject?.environmentId ?? null,
+      defaultProjectId: defaultWorkspaceProject?.id ?? null,
+      defaultProjectCwd: defaultWorkspaceProject?.cwd ?? null,
+      targetEnvironmentId: workspaceTarget.environmentId,
+      targetRpcEnvironmentId: workspaceTarget.rpcEnvironmentId,
+      targetProjectEnvironmentId: workspaceTarget.project?.environmentId ?? null,
+      targetProjectId: workspaceTarget.project?.id ?? null,
+      targetProjectCwd: workspaceTarget.projectCwd,
+      targetCwd: workspaceTarget.cwd,
+      targetWorktreePath: workspaceTarget.worktreePath,
+      workspaceKey: workspaceTarget.workspaceKey,
+    };
+    console.log("[workspace.target.chat-view]", targetDebugPayload);
+  }, [
+    defaultWorkspaceProject?.cwd,
+    defaultWorkspaceProject?.environmentId,
+    defaultWorkspaceProject?.id,
+    draftId,
+    environmentId,
+    routeKind,
+    threadId,
+    workspaceSource?.environmentId,
+    workspaceSource?.projectId,
+    workspaceSource?.worktreePath,
+    workspaceProjects,
+    workspaceTarget.cwd,
+    workspaceTarget.environmentId,
+    workspaceTarget.project?.environmentId,
+    workspaceTarget.project?.id,
+    workspaceTarget.projectCwd,
+    workspaceTarget.rpcEnvironmentId,
+    workspaceTarget.worktreePath,
+    workspaceTarget.workspaceKey,
+  ]);
   const workspaceProject = workspaceTarget.project;
+  const activeWorkbenchTab = useActiveTab(workspaceTarget.workspaceKey);
+  const rightWorkbenchOpen = useRightOpen(workspaceTarget.workspaceKey);
+  const rightWorkbenchMuted = useIsMuted(workspaceTarget.workspaceKey);
+  const planSurfaceOpen =
+    activeWorkbenchTab === "plan" && rightWorkbenchOpen && !rightWorkbenchMuted;
   const threadCreateModelSelection: ModelSelection =
     activeThread?.modelSelection ??
     workspaceProject?.defaultModelSelection ??
@@ -872,8 +972,112 @@ export default function ChatView(props: ChatViewProps) {
     settings.textGenerationModelSelection;
   const activeProjectCwd = workspaceTarget.projectCwd;
   const gitCwd = workspaceTarget.cwd;
+  const workspaceToolbarCwd = gitCwd ?? activeProjectCwd;
   const gitEnvironmentId = workspaceTarget.rpcEnvironmentId;
   const gitStatusQuery = useGitStatus({ environmentId: gitEnvironmentId, cwd: gitCwd });
+  const handleWorkspaceOpenFolder = () => {
+    if (!primaryEnvironmentId) {
+      console.log("[workspace.toolbar.pick-folder.blocked]", {
+        reason: "missing-primary-environment",
+      });
+      toastManager.add({
+        type: "error",
+        title: "Unable to open folder",
+        description: "No local environment is available.",
+      });
+      return;
+    }
+    if (typeof window === "undefined" || !window.desktopBridge) {
+      console.log("[workspace.toolbar.pick-folder.blocked]", {
+        reason: "missing-desktop-bridge",
+        hasWindow: typeof window !== "undefined",
+      });
+      toastManager.add({
+        type: "error",
+        title: "Unable to open folder",
+        description: "Folder selection is only available in the desktop app.",
+      });
+      return;
+    }
+    const api = readLocalApi();
+    if (!api) {
+      console.log("[workspace.toolbar.pick-folder.blocked]", {
+        reason: "missing-local-api",
+      });
+      toastManager.add({
+        type: "error",
+        title: "Unable to open folder",
+        description: "Local desktop integration is unavailable.",
+      });
+      return;
+    }
+
+    const configuredBaseDirectory = settings.addProjectBaseDirectory.trim();
+    const initialPath =
+      activeProjectCwd ??
+      gitCwd ??
+      (configuredBaseDirectory.length > 0 ? configuredBaseDirectory : "~/");
+    console.log("[workspace.toolbar.pick-folder.start]", {
+      initialPath,
+      primaryEnvironmentId,
+      routeKind,
+      routeEnvironmentId: environmentId,
+      routeThreadId: threadId,
+      draftId: draftId ?? null,
+      currentWorkspaceEnvironmentId: workspaceProject?.environmentId ?? null,
+      currentWorkspaceProjectId: workspaceProject?.id ?? null,
+      currentWorkspaceCwd: workspaceTarget.cwd,
+      workspaceProjectCount: workspaceProjects.length,
+    });
+
+    void api.dialogs
+      .pickFolder({ initialPath })
+      .then(async (pickedPath) => {
+        console.log("[workspace.toolbar.pick-folder.result]", {
+          pickedPath: pickedPath ?? null,
+          primaryEnvironmentId,
+        });
+        if (!pickedPath) {
+          console.log("[workspace.toolbar.pick-folder.cancelled]");
+          return;
+        }
+
+        const selection = await openWorkspaceFolder({
+          environmentId: primaryEnvironmentId,
+          projects: workspaceProjects,
+          rawCwd: pickedPath,
+          defaultModelSelection: settings.textGenerationModelSelection,
+        });
+        if (!selection) {
+          console.log("[workspace.toolbar.pick-folder.no-selection]", {
+            pickedPath,
+          });
+          return;
+        }
+
+        console.log("[workspace.toolbar.pick-folder.selection]", {
+          pickedPath,
+          selectedEnvironmentId: selection.projectRef.environmentId,
+          selectedProjectId: selection.projectRef.projectId,
+          selectedCwd: selection.cwd,
+          created: selection.created,
+          projectAvailable: selection.project !== null,
+        });
+        await handleWorkspaceProjectSelect(selection.projectRef, {
+          logicalProjectKey: selection.logicalProjectKey,
+        });
+      })
+      .catch((error: unknown) => {
+        console.log("[workspace.toolbar.pick-folder.error]", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        toastManager.add({
+          type: "error",
+          title: "Failed to open folder",
+          description: formatSchemaBackedTransportErrorDescription(error, "An error occurred."),
+        });
+      });
+  };
   const checkoutBranchMutation = useMutation(
     gitCheckoutMutationOptions({ environmentId: gitEnvironmentId, cwd: gitCwd, queryClient }),
   );
@@ -989,8 +1193,9 @@ export default function ChatView(props: ChatViewProps) {
       });
     }
     const targetCwd = options?.cwd ?? gitCwd ?? workspaceProject.cwd;
-    const terminalThreadId = workbenchTerminalThreadId(targetCwd);
-    const terminalId = readTerminalSessions(targetCwd).activeId;
+    const terminalWorkspaceKey = workspaceTarget.workspaceKey;
+    const terminalThreadId = workbenchTerminalThreadId(terminalWorkspaceKey);
+    const terminalId = readTerminalSessions(terminalWorkspaceKey).activeId;
     const terminalWorktreePath = options?.worktreePath ?? workspaceTarget.worktreePath;
 
     const runtimeEnv = projectScriptRuntimeEnv({
@@ -1010,7 +1215,7 @@ export default function ChatView(props: ChatViewProps) {
 
     try {
       await api.open(openTerminalInput);
-      shellPanelsActions.setActiveTab("terminal");
+      shellPanelsActions.setActiveTab("terminal", terminalWorkspaceKey);
       await api.write({
         threadId: terminalThreadId,
         terminalId,
@@ -1261,9 +1466,7 @@ export default function ChatView(props: ChatViewProps) {
     requestedEnvMode: envMode,
     isGitRepo,
   });
-  const showWorkspaceToolbar =
-    isLocalDraftThread && gitCwd !== null && activeThreadWorktreePath === null;
-
+  const showWorkspaceToolbar = isLocalDraftThread && activeThreadWorktreePath === null;
   const {
     unavailableBaseBranch,
     handleStoredBranchAvailabilityChange,
@@ -1281,6 +1484,48 @@ export default function ChatView(props: ChatViewProps) {
     checkoutBranchMutation,
     setPullRequestDialogState,
   });
+  const workspaceTopnavActions =
+    showWorkspaceToolbar || workspaceProject ? (
+      <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+        {showWorkspaceToolbar ? (
+          <WorkspaceToolbar
+            environmentId={gitEnvironmentId ?? environmentId}
+            cwd={workspaceToolbarCwd}
+            workspaceName={workspaceProject?.name ?? ""}
+            workspacePath={workspaceProject ? (activeProjectCwd ?? gitCwd) : null}
+            projects={workspaceProjects}
+            activeProjectRef={workspaceTarget.projectRef ?? activeProjectRef}
+            envMode={envMode}
+            activeWorktreePath={activeWorktreePath}
+            activeThreadBranch={activeThreadBranch}
+            currentGitBranch={currentGitBranch}
+            hasLocalChanges={gitStatusQuery.data?.hasWorkingTreeChanges ?? false}
+            isGitRepo={isGitRepo}
+            canChangeEnvMode={true}
+            disabled={isConnecting || isSendBusy}
+            onEnvModeChange={handleBranchEnvModeChange}
+            onProjectSelect={handleWorkspaceProjectSelect}
+            onOpenFolder={handleWorkspaceOpenFolder}
+            onBranchSelect={handleBranchSelect}
+            onCheckoutPullRequest={openPullRequestBranchDialog}
+            onStoredBranchAvailabilityChange={handleStoredBranchAvailabilityChange}
+          />
+        ) : null}
+        {workspaceProject ? (
+          <div className="flex shrink-0 items-center">
+            <ProjectScriptsControl
+              scripts={workspaceProject.scripts}
+              keybindings={keybindings}
+              preferredScriptId={lastInvokedScriptByProjectId[workspaceProject.id] ?? null}
+              onRunScript={runProjectScript}
+              onAddScript={saveProjectScript}
+              onUpdateScript={updateProjectScript}
+              onDeleteScript={deleteProjectScript}
+            />
+          </div>
+        ) : null}
+      </div>
+    ) : null;
 
   const onSubmitEditUserMessage = async (
     messageId: MessageId,
@@ -1324,7 +1569,10 @@ export default function ChatView(props: ChatViewProps) {
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
     const composerImagesSnapshot = [...composerImages];
-    const turnAttachmentsPromise = prepareComposerTurnAttachments(composerImagesSnapshot);
+    const readTurnAttachments = (() => {
+      const preparedAttachments = prepareComposerTurnAttachments(composerImagesSnapshot);
+      return () => preparedAttachments;
+    })();
     const optimisticAttachments = compiledTurn.optimisticAttachments;
     let turnStartSucceeded = false;
     let optimisticMessageAdded = false;
@@ -1357,7 +1605,7 @@ export default function ChatView(props: ChatViewProps) {
         interactionMode: input.interactionMode,
       });
 
-      const turnAttachments = await turnAttachmentsPromise;
+      const turnAttachments = await readTurnAttachments();
       await api.orchestration.dispatchCommand({
         type: "thread.turn.start",
         commandId: newCommandId(),
@@ -1491,7 +1739,10 @@ export default function ChatView(props: ChatViewProps) {
     const composerImagesSnapshot = [...composerImages];
     const messageIdForSend = snapshot.messageId ?? newMessageId();
     const messageCreatedAt = snapshot.createdAt ?? new Date().toISOString();
-    const turnAttachmentsPromise = prepareComposerTurnAttachments(composerImagesSnapshot);
+    const readTurnAttachments = (() => {
+      const preparedAttachments = prepareComposerTurnAttachments(composerImagesSnapshot);
+      return () => preparedAttachments;
+    })();
     const optimisticAttachments = compiledTurn.optimisticAttachments;
     // Scroll to the current end before adding the optimistic message so the
     // virtualizer pins to the new item when the data changes.
@@ -1527,6 +1778,10 @@ export default function ChatView(props: ChatViewProps) {
       let runtimeCwd = initialRuntimeCwd;
       let threadBranch = activeThreadBranch;
       let threadWorktreePath = activeThread.worktreePath;
+      const worktreeBranch = baseBranchForWorktree ? buildTemporaryWorktreeBranchName() : null;
+      const shouldDispatchBootstrapTurnStart = Boolean(
+        api && (isLocalDraftThread || baseBranchForWorktree),
+      );
 
       // Auto-title from first message
       if (api && isFirstMessage && isServerThread) {
@@ -1546,57 +1801,78 @@ export default function ChatView(props: ChatViewProps) {
         });
       }
 
-      if (baseBranchForWorktree && api && workspaceProject) {
-        const worktree = await api.git.createWorktree({
-          cwd: workspaceProject.cwd,
-          branch: baseBranchForWorktree,
-          newBranch: buildTemporaryWorktreeBranchName(),
-          path: null,
+      const turnAttachments = await readTurnAttachments();
+      const threadProjectId = workspaceProject?.id ?? workspaceTarget.projectRef?.projectId ?? null;
+      if (shouldDispatchBootstrapTurnStart && api) {
+        const dispatchResult = await api.orchestration.dispatchCommand({
+          type: "thread.turn.start",
+          commandId: newCommandId(),
+          threadId: threadIdForSend,
+          message: {
+            messageId: messageIdForSend,
+            role: "user",
+            text: compiledTurn.outgoingMessageText,
+            ...(compiledTurn.outgoingRichText !== undefined
+              ? { richText: compiledTurn.outgoingRichText }
+              : {}),
+            attachments: turnAttachments,
+          },
+          modelSelection: activeThread.modelSelection,
+          titleSeed: title,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          interactionMode: interactionModeForSend,
+          parentEntryId: branchView.entryId,
+          bootstrap: {
+            ...(isLocalDraftThread
+              ? {
+                  createThread: {
+                    projectId: threadProjectId,
+                    title,
+                    modelSelection: threadCreateModelSelection,
+                    runtimeMode: DEFAULT_RUNTIME_MODE,
+                    interactionMode: interactionModeForSend,
+                    branch: threadBranch,
+                    worktreePath: threadWorktreePath,
+                    createdAt: activeThread.createdAt,
+                  },
+                }
+              : {}),
+            ...(baseBranchForWorktree && workspaceProject && worktreeBranch
+              ? {
+                  prepareWorktree: {
+                    projectCwd: workspaceProject.cwd,
+                    baseBranch: baseBranchForWorktree,
+                    branch: worktreeBranch,
+                  },
+                  runSetupScript: true,
+                }
+              : {}),
+          },
+          createdAt: messageCreatedAt,
         });
-        runtimeCwd = worktree.worktree.path;
-        threadBranch = worktree.worktree.branch;
-        threadWorktreePath = worktree.worktree.path;
-        if (!isLocalDraftThread) {
-          await api.orchestration.dispatchCommand({
-            type: "thread.meta.update",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-            branch: threadBranch,
-            worktreePath: threadWorktreePath,
-          });
-        }
-      }
+        turnStartSucceeded = true;
 
-      const turnAttachments = await turnAttachmentsPromise;
-      if (isLocalDraftThread) {
-        if (api) {
-          await api.orchestration.dispatchCommand({
-            type: "thread.create",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-            projectId: workspaceProject?.id ?? null,
-            title,
-            modelSelection: threadCreateModelSelection,
-            runtimeMode: DEFAULT_RUNTIME_MODE,
-            interactionMode: interactionModeForSend,
-            branch: threadBranch,
-            worktreePath: threadWorktreePath,
-            createdAt: activeThread.createdAt,
-          });
-        } else {
-          applyLocalThreadCreated({
-            environmentId,
-            threadId: threadIdForSend,
-            projectId: workspaceProject?.id ?? null,
-            title,
-            modelSelection: threadCreateModelSelection,
-            runtimeMode: DEFAULT_RUNTIME_MODE,
-            interactionMode: interactionModeForSend,
-            branch: threadBranch,
-            worktreePath: threadWorktreePath,
-            createdAt: activeThread.createdAt,
-          });
+        if (baseBranchForWorktree) {
+          if (!dispatchResult.preparedWorktree) {
+            throw new Error("New worktree was created, but no prepared worktree was returned.");
+          }
+          runtimeCwd = dispatchResult.preparedWorktree.worktreePath;
+          threadBranch = dispatchResult.preparedWorktree.branch;
+          threadWorktreePath = dispatchResult.preparedWorktree.worktreePath;
         }
+      } else if (isLocalDraftThread) {
+        applyLocalThreadCreated({
+          environmentId,
+          threadId: threadIdForSend,
+          projectId: threadProjectId,
+          title,
+          modelSelection: threadCreateModelSelection,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          interactionMode: interactionModeForSend,
+          branch: threadBranch,
+          worktreePath: threadWorktreePath,
+          createdAt: activeThread.createdAt,
+        });
       }
 
       beginLocalDispatch({ preparingWorktree: false });
@@ -1604,11 +1880,7 @@ export default function ChatView(props: ChatViewProps) {
         const promotedThreadRef = scopeThreadRef(environmentId, threadIdForSend);
         markDraftThreadPromoting(draftId, promotedThreadRef);
         promotedDraftOptimistically = true;
-        await navigate({
-          to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(promotedThreadRef),
-          replace: true,
-        });
+        await openThread(navigate, promotedThreadRef, { replace: true });
         navigatedOptimistically = true;
       }
       await sendRuntimeTurn({
@@ -1626,11 +1898,7 @@ export default function ChatView(props: ChatViewProps) {
         cancelDraftThreadPromotion(draftId);
       }
       if (navigatedOptimistically && draftId) {
-        await navigate({
-          to: "/draft/$draftId",
-          params: buildDraftThreadRouteParams(draftId),
-          replace: true,
-        });
+        await openDraft(navigate, draftId, { replace: true });
       }
       if (
         !turnStartSucceeded &&
@@ -2036,7 +2304,7 @@ export default function ChatView(props: ChatViewProps) {
       // Agent mode here means the agent is executing the plan, which produces
       // step-tracking activities that the workbench Plan/Tasks tab will display.
       if (nextInteractionMode === "agent") {
-        shellPanelsActions.activatePlanTab();
+        shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey);
       }
       sendInFlightRef.current = false;
     } catch (err) {
@@ -2246,34 +2514,18 @@ export default function ChatView(props: ChatViewProps) {
       {chatViewLifecycleSync}
       {attachmentPreviewHandoffSync}
       {/* Top bar */}
-      <header
-        className={cn(
-          "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center px-(--multi-workbench-chrome-padding-inline)",
-          isElectron &&
-            reserveTitleBarControlInset &&
-            "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
-        )}
-      >
-        <ChatHeader
-          activeThreadTitle={activeThread.title}
-          activeProjectName={workspaceProject?.name}
-          isGitRepo={isGitRepo}
-          activeProjectScripts={workspaceProject?.scripts}
-          preferredScriptId={
-            workspaceProject ? (lastInvokedScriptByProjectId[workspaceProject.id] ?? null) : null
-          }
-          keybindings={keybindings}
-          availableEditors={availableEditors}
-          terminalAvailable={workspaceProject !== null}
-          terminalOpen={terminalState.terminalOpen}
-          terminalToggleShortcutLabel={terminalToggleShortcutLabel}
-          onRunProjectScript={runProjectScript}
-          onAddProjectScript={saveProjectScript}
-          onUpdateProjectScript={updateProjectScript}
-          onDeleteProjectScript={deleteProjectScript}
-          onToggleTerminal={toggleTerminalVisibility}
-        />
-      </header>
+      {isHeroComposer ? null : (
+        <header
+          className={cn(
+            "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center px-(--multi-workbench-chrome-padding-inline)",
+            isElectron &&
+              reserveTitleBarControlInset &&
+              "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
+          )}
+        >
+          <ChatHeader activeThreadTitle={activeThread.title} actions={workspaceTopnavActions} />
+        </header>
+      )}
 
       {/* Error banner */}
       <ThreadErrorBanner
@@ -2371,30 +2623,6 @@ export default function ChatView(props: ChatViewProps) {
             {...(isConnecting ? { "data-disabled": "true" } : {})}
             {...(showScrollToBottom ? {} : { "data-scrolled-to-bottom": "" })}
           >
-            {showWorkspaceToolbar ? (
-              <WorkspaceToolbar
-                environmentId={gitEnvironmentId ?? environmentId}
-                cwd={gitCwd}
-                workspaceName={workspaceProject?.name ?? ""}
-                workspacePath={activeProjectCwd ?? gitCwd}
-                projects={workspaceProjects}
-                activeProjectRef={workspaceTarget.projectRef ?? activeProjectRef}
-                envMode={envMode}
-                activeWorktreePath={activeWorktreePath}
-                activeThreadBranch={activeThreadBranch}
-                currentGitBranch={currentGitBranch}
-                hasLocalChanges={gitStatusQuery.data?.hasWorkingTreeChanges ?? false}
-                isGitRepo={isGitRepo}
-                canChangeEnvMode={true}
-                disabled={isConnecting || isSendBusy}
-                onEnvModeChange={handleBranchEnvModeChange}
-                onProjectSelect={handleWorkspaceProjectSelect}
-                onOpenFolder={openAddProject}
-                onBranchSelect={handleBranchSelect}
-                onCheckoutPullRequest={openPullRequestBranchDialog}
-                onStoredBranchAvailabilityChange={handleStoredBranchAvailabilityChange}
-              />
-            ) : null}
             <ComposerPendingExtensionUiRequestPanel
               request={activePendingExtensionUiRequest}
               pendingCount={pendingExtensionUiRequests.length}
@@ -2405,6 +2633,11 @@ export default function ChatView(props: ChatViewProps) {
               }
               onRespond={onRespondToExtensionUiRequest}
             />
+            {isHeroComposer && workspaceTopnavActions ? (
+              <div className="@container/header-actions pointer-events-auto mb-2 flex w-full max-w-agent-chat items-center gap-1 overflow-hidden px-1">
+                {workspaceTopnavActions}
+              </div>
+            ) : null}
             <ComposerInput
               ref={composerRef}
               variant={isHeroComposer ? "expanded" : "compact"}
@@ -2444,7 +2677,7 @@ export default function ChatView(props: ChatViewProps) {
               onSend={onSend}
               onInterrupt={onInterrupt}
               onBuildPlan={onBuildActiveProposedPlan}
-              onViewPlan={shellPanelsActions.activatePlanTab}
+              onViewPlan={() => shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey)}
               onRespondToApproval={onRespondToApproval}
               onSelectActivePendingUserInputOption={onSelectActivePendingUserInputOption}
               onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}

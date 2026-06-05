@@ -2,7 +2,7 @@
 
 import { IconSidebar, IconSidebarHiddenLeftWide, IconSidebarHiddenRightWide } from "central-icons";
 import { TabsPanel, TabsRoot } from "@multi/ui/tabs";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
   createContext,
@@ -10,6 +10,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -19,10 +20,8 @@ import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
 import {
-  type WorkbenchTab,
   RIGHT_WORKBENCH_WIDTH_LIMITS,
   SHELL_LEFT_PANEL_WIDTH_LIMITS,
-  isWorkbenchTab,
   shellPanelsActions,
   useActiveTab,
   useIsMuted,
@@ -32,6 +31,7 @@ import {
   useRightWidth,
   useTerminalSessions,
 } from "~/stores/shell-panels-store";
+import { isWorkbenchTab, type WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 import { RightWorkbenchHeader, type WorkbenchTabMeta } from "./right-workbench-header";
 import { useColumnResize } from "./use-column-resize";
@@ -107,18 +107,12 @@ function resolveEffectiveRightOpen(input: {
   return input.storedRightOpen || Boolean(input.routeThreadId && input.gitFocusId && !input.muted);
 }
 
-function setRightPanelOpen(open: boolean): void {
-  shellPanelsActions.setRightOpen(open);
-  shellPanelsActions.setMuted(!open);
+function setRightPanelOpen(open: boolean, workspaceKey: string | null): void {
+  shellPanelsActions.setRightOpen(open, workspaceKey);
+  shellPanelsActions.setMuted(!open, workspaceKey);
 }
 
 const SHOW_RIGHT_WORKBENCH_LABEL = "Show project panel — files, Git changes, terminal.";
-
-function selectWorkbenchPanelSearch(
-  search: Partial<Record<"panel", unknown>>,
-): WorkbenchTab | undefined {
-  return isWorkbenchTab(search.panel) ? search.panel : undefined;
-}
 
 function LeftAside(props: { children: ReactNode }) {
   const leftOpen = useLeftOpen();
@@ -174,11 +168,11 @@ function LeftAside(props: { children: ReactNode }) {
 }
 
 function RightAsideHeader(props: {
-  cwd: string | null;
+  workspaceKey: string | null;
   activeTab: WorkbenchTab;
   tabs: readonly WorkbenchTabMeta[];
 }) {
-  const terminalState = useTerminalSessions(props.cwd);
+  const terminalState = useTerminalSessions(props.workspaceKey);
 
   return (
     <RightWorkbenchHeader
@@ -186,35 +180,37 @@ function RightAsideHeader(props: {
       activeTab={props.activeTab}
       terminalSessions={terminalState.sessions}
       activeTerminalId={terminalState.activeId}
-      onTerminalTab={(id) => shellPanelsActions.setActiveTerminal(props.cwd, id)}
+      onTerminalTab={(id) => shellPanelsActions.setActiveTerminal(props.workspaceKey, id)}
       onNewTerminal={() => {
         const id = `term-${Date.now()}`;
-        shellPanelsActions.addTerminalSession(props.cwd, {
+        shellPanelsActions.addTerminalSession(props.workspaceKey, {
           id,
           label: `Terminal ${terminalState.sessions.length + 1}`,
         });
       }}
-      onCloseTerminal={(id) => shellPanelsActions.removeTerminalSession(props.cwd, id)}
+      onCloseTerminal={(id) => shellPanelsActions.removeTerminalSession(props.workspaceKey, id)}
     />
   );
 }
 
 function RightAside(props: {
   cwd: string | null;
+  workspaceKey: string | null;
   right: RightWorkbenchDefinition;
   routeThreadId: string | null;
   gitFocusId: string | null;
 }) {
-  const storedRightOpen = useRightOpen();
+  const storedRightOpen = useRightOpen(props.workspaceKey);
   const rightWidth = useRightWidth();
-  const storedActiveTab = useActiveTab();
-  const searchActiveTab = useRouterState({
-    select: (state) => selectWorkbenchPanelSearch(state.location.search),
+  const storedActiveTab = useActiveTab(props.workspaceKey);
+  const searchActiveTab = useSearch({
+    from: "/_chat",
+    select: (search) => search.panel,
   });
   const navigate = useNavigate();
-  const activeTab = searchActiveTab ?? storedActiveTab;
-  const muted = useIsMuted();
-  const visibleTabs = new Set(props.right.tabs.map((tab) => tab.id));
+  const activeTab = storedActiveTab;
+  const muted = useIsMuted(props.workspaceKey);
+  const visibleTabs = useMemo(() => new Set(props.right.tabs.map((tab) => tab.id)), [props.right.tabs]);
   const effectiveActiveTab = visibleTabs.has(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
@@ -235,17 +231,24 @@ function RightAside(props: {
     if (activeTab === value && !muted) {
       return;
     }
-    shellPanelsActions.setActiveTab(value);
-    shellPanelsActions.setMuted(false);
+    shellPanelsActions.setActiveTab(value, props.workspaceKey);
+    shellPanelsActions.setMuted(false, props.workspaceKey);
+  };
+
+  useEffect(() => {
+    if (!searchActiveTab) {
+      return;
+    }
+    if (visibleTabs.has(searchActiveTab)) {
+      shellPanelsActions.setActiveTab(searchActiveTab, props.workspaceKey);
+      shellPanelsActions.setMuted(false, props.workspaceKey);
+    }
     void navigate({
       replace: true,
       to: ".",
-      search: (search) => ({
-        ...search,
-        panel: value,
-      }),
+      search: ({ panel: _panel, ...search }) => search,
     });
-  };
+  }, [navigate, props.workspaceKey, searchActiveTab, visibleTabs]);
 
   const asideRef = useRef<HTMLElement | null>(null);
   const resize = useColumnResize({
@@ -305,15 +308,15 @@ function RightAside(props: {
             )}
           >
             <RightAsideHeader
-              cwd={props.cwd}
+              workspaceKey={props.workspaceKey}
               activeTab={effectiveActiveTab}
               tabs={props.right.tabs}
             />
             <RightAsidePanels
-              key={props.cwd ?? "none"}
+              key={props.workspaceKey ?? "none"}
               activeTab={effectiveActiveTab}
               right={props.right}
-              workspaceKey={props.cwd ?? "none"}
+              workspaceKey={props.workspaceKey ?? "none"}
             />
           </TabsRoot>
           {rightOpen ? (
@@ -368,12 +371,13 @@ function RightAsidePanels(props: {
 
 function ShellHeaderControls(props: {
   showRight: boolean;
+  workspaceKey: string | null;
   routeThreadId: string | null;
   gitFocusId: string | null;
 }) {
   const leftOpen = useLeftOpen();
-  const storedRightOpen = useRightOpen();
-  const muted = useIsMuted();
+  const storedRightOpen = useRightOpen(props.workspaceKey);
+  const muted = useIsMuted(props.workspaceKey);
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
     routeThreadId: props.routeThreadId,
@@ -403,7 +407,7 @@ function ShellHeaderControls(props: {
         <div className="multi-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-40 flex h-(--multi-titlebar-control-height) shrink-0 items-center">
           <button
             type="button"
-            onClick={() => setRightPanelOpen(!rightOpen)}
+            onClick={() => setRightPanelOpen(!rightOpen, props.workspaceKey)}
             className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
             aria-label={rightPanelLabel}
             aria-pressed={rightOpen}
@@ -423,6 +427,7 @@ function ShellHeaderControls(props: {
 
 export function AppShell(props: {
   cwd: string | null;
+  workspaceKey?: string | null;
   left: ReactNode;
   center: ReactNode;
   right: RightWorkbenchDefinition | null;
@@ -434,9 +439,9 @@ export function AppShell(props: {
   const showRight = props.right !== null;
   const leftOpen = useLeftOpen();
   const leftWidth = useLeftWidth();
-  const storedRightOpen = useRightOpen();
+  const storedRightOpen = useRightOpen(props.workspaceKey ?? null);
   const rightWidth = useRightWidth();
-  const muted = useIsMuted();
+  const muted = useIsMuted(props.workspaceKey ?? null);
   const agentWindowChatMaxWidth = useSettings((settings) => settings.agentWindowChatMaxWidth);
   const agentWindowFontSmoothingAntialiased = useSettings(
     (settings) => settings.agentWindowFontSmoothingAntialiased,
@@ -511,6 +516,7 @@ export function AppShell(props: {
           {showRight && props.right ? (
             <RightAside
               cwd={props.cwd}
+              workspaceKey={props.workspaceKey ?? null}
               right={props.right}
               routeThreadId={props.routeThreadId ?? null}
               gitFocusId={props.gitFocusId ?? null}
@@ -521,6 +527,7 @@ export function AppShell(props: {
 
       <ShellHeaderControls
         showRight={showRight}
+        workspaceKey={props.workspaceKey ?? null}
         routeThreadId={props.routeThreadId ?? null}
         gitFocusId={props.gitFocusId ?? null}
       />

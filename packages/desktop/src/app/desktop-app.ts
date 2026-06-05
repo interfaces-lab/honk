@@ -6,7 +6,6 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
-import * as Random from "effect/Random";
 import * as Ref from "effect/Ref";
 
 import * as ElectronApp from "../electron/electron-app";
@@ -27,10 +26,6 @@ import * as DesktopState from "./desktop-state";
 import * as DesktopUpdates from "../updates/desktop-updates";
 
 const DESKTOP_BACKEND_SHUTDOWN_TIMEOUT = Duration.seconds(5);
-
-const makeDesktopRunId = Random.nextUUIDv4.pipe(
-  Effect.map((value) => value.replaceAll("-", "").slice(0, 12)),
-);
 
 class DesktopBackendPortUnavailableError extends Data.TaggedError(
   "DesktopBackendPortUnavailableError",
@@ -260,9 +255,9 @@ const startup = Effect.gen(function* () {
 
 const scopedProgram = Effect.scoped(
   Effect.gen(function* () {
-    const runId = yield* makeDesktopRunId;
-    yield* Effect.annotateLogsScoped({ scope: "desktop", runId });
-    yield* Effect.annotateCurrentSpan({ scope: "desktop", runId });
+    const { runId, processInstanceId, processRole } = DesktopObservability.desktopProcessMetadata;
+    yield* Effect.annotateLogsScoped({ scope: "desktop", runId, processInstanceId, processRole });
+    yield* Effect.annotateCurrentSpan({ scope: "desktop", runId, processInstanceId, processRole });
 
     const shutdown = yield* DesktopLifecycle.DesktopShutdown;
     const backendManager = yield* DesktopBackendManager.DesktopBackendManager;

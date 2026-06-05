@@ -51,7 +51,7 @@ describe("project-state", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reads selected project identity before the legacy cwd value", () => {
+  it("stores selected project identity and mirrors cwd for legacy startup fallback", () => {
     const localStorage = stubBrowserStorage();
     localStorage.setItem(PROJECT_KEY, "/legacy");
 

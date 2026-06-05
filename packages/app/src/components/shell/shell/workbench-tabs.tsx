@@ -12,7 +12,7 @@ import {
 } from "central-icons";
 import { useState, type ComponentType } from "react";
 
-import type { WorkbenchTab } from "~/stores/shell-panels-store";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 import {
   workbenchMenuIconSlotClassName,
