@@ -4,7 +4,7 @@ import {
   IconChevronRightMedium,
   IconCrossMediumDefault,
 } from "central-icons";
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import type { ExpandedImagePreview } from "./expanded-image-preview";
 
 interface ExpandedImageDialogProps {

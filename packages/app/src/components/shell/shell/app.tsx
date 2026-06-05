@@ -1,7 +1,7 @@
 "use client";
 
 import { IconSidebar, IconSidebarHiddenLeftWide, IconSidebarHiddenRightWide } from "central-icons";
-import { TabsPanel, TabsRoot } from "@multi/ui/tabs";
+import { TabsPanel, TabsRoot } from "@multi/multikit/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {
@@ -46,7 +46,12 @@ const workbenchPanelSlotVariants = cva(
     variants: {
       active: {
         false: "pointer-events-none invisible opacity-0",
-        true: "visible opacity-100",
+        // No explicit `visible`: the active panel inherits visibility from the
+        // aside so it stays hidden when the workbench collapses
+        // (`.agent-window__workbench[data-state="collapsed"]`). Forcing
+        // `visibility: visible` here would escape that collapse and leave the
+        // panel's (opaque) background painted as a frozen layer.
+        true: "opacity-100",
       },
     },
   },

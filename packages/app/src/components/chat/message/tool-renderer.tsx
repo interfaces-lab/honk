@@ -14,9 +14,12 @@ import {
 } from "central-icons";
 import { cva } from "class-variance-authority";
 import {
+  memo,
   type ComponentPropsWithoutRef,
   type ComponentType,
   type ReactNode,
+  useCallback,
+  useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -245,16 +248,7 @@ export function ToolCallRenderer({
   conversationDensity = "minimal",
 }: ToolCallRendererProps) {
   const { action, details, command, output, path, stats, artifacts } = toolCall.tool.value;
-  const commandArtifact = artifacts?.find((artifact) => artifact.type === "command");
-  const diffArtifact =
-    artifacts?.find(
-      (artifact): artifact is ToolDiffArtifact =>
-        artifact.type === "diff" && artifact.source === "result",
-    ) ?? artifacts?.find((artifact): artifact is ToolDiffArtifact => artifact.type === "diff");
-  const readArtifact = artifacts?.find((artifact) => artifact.type === "read");
-  const searchArtifact = artifacts?.find((artifact) => artifact.type === "search");
-  const diagnosticArtifact = artifacts?.find((artifact) => artifact.type === "diagnostic");
-  const rawArtifact = artifacts?.find((artifact) => artifact.type === "raw");
+  const artifactLookup = useMemo(() => collectToolArtifacts(artifacts), [artifacts]);
   const displayState = {
     action: resolveActionLabel(toolCall.tool.case, action, loading, hasError),
     details: details ?? "",
@@ -280,9 +274,9 @@ export function ToolCallRenderer({
         <ShellToolCall
           action={displayState.action}
           details={displayState.details}
-          command={commandArtifact?.command ?? command ?? displayState.details}
-          output={commandArtifact?.output ?? output ?? null}
-          artifact={commandArtifact}
+          command={artifactLookup.command?.command ?? command ?? displayState.details}
+          output={artifactLookup.command?.output ?? output ?? null}
+          artifact={artifactLookup.command}
           loading={loading}
           hasError={hasError}
           approval={approval}
@@ -301,7 +295,7 @@ export function ToolCallRenderer({
           stats={stats}
           loading={loading}
           detail={output ?? details ?? null}
-          diffArtifact={diffArtifact}
+          diffArtifact={artifactLookup.diff}
           isDelete={toolCall.tool.case === "deleteToolCall"}
           defaultExpanded={defaultExpanded}
           onFileClick={onFileClick}
@@ -354,18 +348,18 @@ export function ToolCallRenderer({
           action={displayState.action}
           details={displayState.details}
           output={
-            readArtifact?.output ??
-            searchArtifact?.output ??
-            diagnosticArtifact?.message ??
-            rawArtifact?.text ??
+            artifactLookup.read?.output ??
+            artifactLookup.search?.output ??
+            artifactLookup.diagnostic?.message ??
+            artifactLookup.raw?.text ??
             output ??
             null
           }
           metadataItems={getMetadataArtifactItems(
-            readArtifact,
-            searchArtifact,
-            diagnosticArtifact,
-            rawArtifact,
+            artifactLookup.read,
+            artifactLookup.search,
+            artifactLookup.diagnostic,
+            artifactLookup.raw,
           )}
           loading={loading}
           onFileClick={path && onFileClick ? () => onFileClick(path) : undefined}
@@ -378,24 +372,79 @@ export function ToolCallRenderer({
   }
 }
 
-function getCommandMetadataItems(artifact: ToolCommandArtifact | undefined): string[] {
-  if (!artifact) {
-    return [];
+interface ToolArtifactLookup {
+  command: ToolCommandArtifact | undefined;
+  diff: ToolDiffArtifact | undefined;
+  read: ToolReadArtifact | undefined;
+  search: ToolSearchArtifact | undefined;
+  diagnostic: ToolDiagnosticArtifact | undefined;
+  raw: ToolRawArtifact | undefined;
+}
+
+function collectToolArtifacts(
+  artifacts: ReadonlyArray<ToolDisplayArtifact> | undefined,
+): ToolArtifactLookup {
+  const lookup: ToolArtifactLookup = {
+    command: undefined,
+    diff: undefined,
+    read: undefined,
+    search: undefined,
+    diagnostic: undefined,
+    raw: undefined,
+  };
+
+  for (const artifact of artifacts ?? []) {
+    switch (artifact.type) {
+      case "command":
+        lookup.command ??= artifact;
+        break;
+      case "diff":
+        if (!lookup.diff || (artifact.source === "result" && lookup.diff.source !== "result")) {
+          lookup.diff = artifact;
+        }
+        break;
+      case "read":
+        lookup.read ??= artifact;
+        break;
+      case "search":
+        lookup.search ??= artifact;
+        break;
+      case "diagnostic":
+        lookup.diagnostic ??= artifact;
+        break;
+      case "raw":
+        lookup.raw ??= artifact;
+        break;
+    }
   }
+
+  return lookup;
+}
+
+function getCommandMetadataItemsFromValues(input: {
+  exitCode: number | undefined;
+  durationMs: number | undefined;
+  truncated: boolean | undefined;
+  fullOutputPath: string | undefined;
+}): string[] {
   const items: string[] = [];
-  if (artifact.exitCode !== undefined) {
-    items.push(`exit ${artifact.exitCode}`);
+  if (input.exitCode !== undefined) {
+    items.push(`exit ${input.exitCode}`);
   }
-  if (artifact.durationMs !== undefined) {
-    items.push(formatDuration(artifact.durationMs));
+  if (input.durationMs !== undefined) {
+    items.push(formatDuration(input.durationMs));
   }
-  if (artifact.truncated === true) {
+  if (input.truncated === true) {
     items.push("truncated");
   }
-  if (artifact.fullOutputPath) {
-    items.push(`full output: ${artifact.fullOutputPath}`);
+  if (input.fullOutputPath) {
+    items.push(`full output: ${input.fullOutputPath}`);
   }
   return items;
+}
+
+export function hasShellToolPotentialOutput(output: string | null | undefined): boolean {
+  return output !== null && output !== undefined && output.length > 0;
 }
 
 function getMetadataArtifactItems(
@@ -583,6 +632,7 @@ function ToolCallLineDetails({
 }
 
 const EMPTY_TOOL_METADATA_ITEMS: readonly string[] = [];
+const STREAMING_SHELL_OUTPUT_MAX_CHARS = 12_000;
 
 export function ExpandableToolMetadataLine({
   icon: Icon,
@@ -609,9 +659,15 @@ export function ExpandableToolMetadataLine({
   callId?: string | undefined;
   onNestedToolExpand?: ((callId: string | undefined, expanded: boolean) => void) | undefined;
 }) {
-  const bodyText = output?.trim() ?? "";
-  const hasBody = bodyText.length > 0 || metadataItems.length > 0;
+  const hasOutput = output !== null && output !== undefined && output.length > 0;
+  const hasBody = hasOutput || metadataItems.length > 0;
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const bodyText = useMemo(() => {
+    if (!isExpanded || !hasOutput) {
+      return "";
+    }
+    return resolveStreamingShellOutput(output ?? "", loading).text.trim();
+  }, [hasOutput, isExpanded, loading, output]);
 
   const toggleExpanded = () => {
     if (!hasBody) return;
@@ -798,16 +854,25 @@ function ShellToolCall({
   if (activeExpansionState !== expansionState) {
     setExpansionState(activeExpansionState);
   }
-  const metadataItems = getCommandMetadataItems(artifact);
-  const outputText = output?.trim() ?? "";
+  const metadataItems = useMemo(
+    () =>
+      getCommandMetadataItemsFromValues({
+        exitCode: artifact?.exitCode,
+        durationMs: artifact?.durationMs,
+        truncated: artifact?.truncated,
+        fullOutputPath: artifact?.fullOutputPath,
+      }),
+    [artifact?.durationMs, artifact?.exitCode, artifact?.fullOutputPath, artifact?.truncated],
+  );
   const commandText = command.trim();
   const bodyCommand = commandText && commandText !== details.trim() ? command : "";
-  const hasExpandedContent = outputText.length > 0 || metadataItems.length > 0;
+  const hasPotentialOutput = hasShellToolPotentialOutput(output);
+  const hasExpandedContent = hasPotentialOutput || metadataItems.length > 0;
   const hasContent = bodyCommand.length > 0 || hasExpandedContent;
   const expandable = hasContent;
   const isExpanded = expandable && activeExpansionState.isExpanded;
 
-  const toggleExpanded = () => {
+  const toggleExpanded = useCallback(() => {
     if (!expandable) return;
     setExpansionState((current) => {
       const next = !current.isExpanded;
@@ -817,7 +882,7 @@ function ShellToolCall({
         isExpanded: next,
       };
     });
-  };
+  }, [callId, currentApprovalStatus, expandable, onNestedToolExpand]);
 
   return (
     <div
@@ -826,63 +891,30 @@ function ShellToolCall({
       data-status={hasError ? "error" : loading ? "running" : "completed"}
       data-expanded={isExpanded ? "true" : "false"}
     >
-      <button
-        type="button"
-        className={cn(
-          "group/shell-trigger inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
-          "border-0 bg-transparent p-0 text-left select-none",
-          "text-conversation text-multi-fg-primary",
-          expandable && "cursor-pointer",
-          !expandable && "cursor-default",
-          hasError && "text-multi-fg-red-primary",
-        )}
-        aria-expanded={expandable ? isExpanded : undefined}
-        data-tool-call-line=""
-        data-shell-tool-call-header=""
-        disabled={!expandable}
-        onClick={toggleExpanded}
-      >
-        {showIcon ? <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
-        <span
-          className={cn(
-            "inline-flex min-w-0 max-w-full items-center gap-1",
-            "overflow-hidden text-ellipsis whitespace-nowrap",
-          )}
-        >
-          <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
-            {action}
-          </span>
-          {details ? (
-            <span
-              className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary"
-              data-tool-call-line-details=""
-            >
-              {details}
-            </span>
-          ) : null}
-        </span>
-        {expandable ? (
-          <span
-            className="inline-flex size-3 shrink-0 items-center justify-center"
-            data-tool-call-line-chevron=""
-          >
-            <IconChevronRightMedium
-              className={cn(
-                "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out",
-                isExpanded && "rotate-90",
-              )}
-            />
-          </span>
-        ) : null}
-      </button>
+      <ShellToolCallHeader
+        action={action}
+        details={details}
+        expandable={expandable}
+        hasError={hasError}
+        isExpanded={isExpanded}
+        loading={loading}
+        onToggleExpanded={toggleExpanded}
+        showIcon={showIcon}
+      />
       {isExpanded && hasContent ? (
-        <div className="mt-1 min-w-0 max-w-full" data-shell-tool-call-body="">
+        <div
+          className={cn(
+            "mt-1 min-w-0 max-w-full overflow-hidden rounded-multi-control",
+            "border border-multi-stroke-tertiary bg-multi-bg-elevated",
+          )}
+          data-shell-tool-call-body=""
+        >
           <div className="min-w-0 max-w-full">
             {bodyCommand ? (
               <pre
                 className={cn(
                   "m-0",
-                  "py-1",
+                  "px-(--conversation-tool-card-padding-x) py-1.5",
                   "font-mono text-conversation whitespace-pre-wrap",
                   hasError
                     ? "text-multi-fg-red-primary"
@@ -894,18 +926,7 @@ function ShellToolCall({
                 <ShellCommandTokens command={bodyCommand} />
               </pre>
             ) : null}
-            {outputText ? (
-              <pre
-                className={cn(
-                  "m-0",
-                  "pb-1",
-                  "font-mono text-conversation whitespace-pre-wrap",
-                  "text-multi-fg-tertiary wrap-anywhere select-text",
-                )}
-              >
-                {output}
-              </pre>
-            ) : null}
+            <ShellOutputBlock output={output} loading={loading} />
             {metadataItems.length > 0 ? (
               <div className="flex flex-wrap gap-x-2 gap-y-1 py-1 text-detail text-multi-fg-tertiary">
                 {metadataItems.map((item) => (
@@ -918,6 +939,153 @@ function ShellToolCall({
       ) : null}
     </div>
   );
+}
+
+const ShellToolCallHeader = memo(function ShellToolCallHeader({
+  action,
+  details,
+  expandable,
+  hasError,
+  isExpanded,
+  loading,
+  onToggleExpanded,
+  showIcon,
+}: {
+  action: string;
+  details: string;
+  expandable: boolean;
+  hasError: boolean;
+  isExpanded: boolean;
+  loading: boolean;
+  onToggleExpanded: () => void;
+  showIcon: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "group/shell-trigger inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
+        "border-0 bg-transparent p-0 text-left select-none",
+        "text-conversation text-multi-fg-primary",
+        expandable && "cursor-pointer",
+        !expandable && "cursor-default",
+        hasError && "text-multi-fg-red-primary",
+      )}
+      aria-expanded={expandable ? isExpanded : undefined}
+      data-tool-call-line=""
+      data-shell-tool-call-header=""
+      disabled={!expandable}
+      onClick={onToggleExpanded}
+    >
+      {showIcon ? <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+      <span
+        className={cn(
+          "inline-flex min-w-0 max-w-full items-center gap-1",
+          "overflow-hidden text-ellipsis whitespace-nowrap",
+        )}
+      >
+        <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
+          {action}
+        </span>
+        {details ? (
+          <span
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary"
+            data-tool-call-line-details=""
+          >
+            {details}
+          </span>
+        ) : null}
+      </span>
+      {expandable ? (
+        <span
+          className="inline-flex size-3 shrink-0 items-center justify-center"
+          data-tool-call-line-chevron=""
+        >
+          <IconChevronRightMedium
+            className={cn(
+              "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out",
+              isExpanded && "rotate-90",
+            )}
+          />
+        </span>
+      ) : null}
+    </button>
+  );
+});
+
+const ShellOutputBlock = memo(function ShellOutputBlock({
+  output,
+  loading,
+}: {
+  output: string | null;
+  loading: boolean;
+}) {
+  const outputText = output ?? "";
+  const displayOutput = useMemo(
+    () => resolveStreamingShellOutput(outputText, loading),
+    [loading, outputText],
+  );
+
+  if (!hasRenderableText(displayOutput.text)) {
+    return null;
+  }
+
+  return (
+    <>
+      {displayOutput.truncated ? (
+        <div className="px-(--conversation-tool-card-padding-x) pb-1 font-mono text-detail text-multi-fg-tertiary select-none">
+          Showing latest output while command runs.
+        </div>
+      ) : null}
+      <pre
+        className={cn(
+          "m-0",
+          "px-(--conversation-tool-card-padding-x) pb-1.5",
+          "max-h-[min(42vh,520px)] overflow-y-auto overscroll-contain",
+          "font-mono text-conversation whitespace-pre-wrap",
+          "text-multi-fg-tertiary wrap-anywhere select-text",
+        )}
+        data-shell-tool-call-output=""
+        data-output-truncated={displayOutput.truncated ? "true" : undefined}
+      >
+        {displayOutput.text}
+      </pre>
+    </>
+  );
+});
+
+export function hasRenderableText(text: string | null | undefined): boolean {
+  if (!text) {
+    return false;
+  }
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charCodeAt(index);
+    if (
+      char !== 9 &&
+      char !== 10 &&
+      char !== 11 &&
+      char !== 12 &&
+      char !== 13 &&
+      char !== 32
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function resolveStreamingShellOutput(
+  output: string,
+  loading: boolean,
+): { text: string; truncated: boolean } {
+  if (!loading || output.length <= STREAMING_SHELL_OUTPUT_MAX_CHARS) {
+    return { text: output, truncated: false };
+  }
+
+  const start = Math.max(0, output.length - STREAMING_SHELL_OUTPUT_MAX_CHARS);
+  const newlineStart = output.indexOf("\n", start);
+  const sliceStart = newlineStart === -1 ? start : newlineStart + 1;
+  return { text: output.slice(sliceStart), truncated: true };
 }
 
 function EditToolCall({
@@ -1059,7 +1227,7 @@ function AwaitDetails({ details, startedAtMs }: { details: string; startedAtMs: 
 }
 
 function useNowMs(intervalMs: number): number {
-  const store = createNowMsStore(intervalMs);
+  const store = useMemo(() => createNowMsStore(intervalMs), [intervalMs]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
@@ -1093,7 +1261,7 @@ function createNowMsStore(intervalMs: number) {
 }
 
 function ShellCommandTokens({ command }: { command: string }) {
-  const tokens = tokenizeShellCommand(command);
+  const tokens = useMemo(() => tokenizeShellCommand(command), [command]);
   return (
     <>
       {tokens.map((token) => (

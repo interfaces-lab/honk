@@ -20,7 +20,7 @@ import {
   workbenchMenuMetaTextClassName,
   workbenchMenuPopupClassName,
   workbenchMenuPrimaryTextClassName,
-} from "@multi/ui/menu";
+} from "@multi/multikit/menu";
 
 const NEW_TAB_MENU_WIDTH = "w-72 max-w-full min-w-0";
 const NEW_TAB_MENU_MAX_HEIGHT = "max-h-[min(720px,var(--available-height))]";

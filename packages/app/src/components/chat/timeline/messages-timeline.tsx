@@ -1,5 +1,8 @@
 import { type EnvironmentId, type MessageId, type ThreadId } from "@multi/contracts";
 import {
+  memo,
+  useCallback,
+  useMemo,
   type RefObject,
   type CSSProperties,
   useRef,
@@ -14,7 +17,7 @@ import {
   type VirtualItem,
   type Virtualizer,
 } from "@tanstack/react-virtual";
-import { Spinner } from "@multi/ui/spinner";
+import { Spinner } from "@multi/multikit/spinner";
 import { type TimelineEntry } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
@@ -83,7 +86,7 @@ interface MessagesTimelineProps {
   activeTurnStartedAt: string | null;
   bottomClearancePx?: number | undefined;
   timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
-  timelineEntries: TimelineEntry[];
+  timelineEntries: ReadonlyArray<TimelineEntry>;
   editableUserMessageIds: ReadonlySet<MessageId>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
@@ -124,18 +127,22 @@ export function MessagesTimeline({
   awaitingServerThreadDetail = false,
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
-  const rawRows = deriveMessagesTimelineRows({
-    timelineEntries,
-    isWorking,
-    activeTurnStartedAt,
-    editableUserMessageIds,
-    projectRoot,
-  });
+  const rawRows = useMemo(
+    () =>
+      deriveMessagesTimelineRows({
+        timelineEntries,
+        isWorking,
+        activeTurnStartedAt,
+        editableUserMessageIds,
+        projectRoot,
+      }),
+    [activeTurnStartedAt, editableUserMessageIds, isWorking, projectRoot, timelineEntries],
+  );
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const toggleWorkGroupExpanded = (rowId: string) => {
+  const toggleWorkGroupExpanded = useCallback((rowId: string) => {
     setExpandedWorkGroupIds((current) => {
       const next = new Set(current);
       if (next.has(rowId)) {
@@ -145,8 +152,11 @@ export function MessagesTimeline({
       }
       return next;
     });
-  };
-  const stickyUserRowIndices = rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : []));
+  }, []);
+  const stickyUserRowIndices = useMemo(
+    () => rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : [])),
+    [rows],
+  );
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const isAtBottomRef = useRef(true);
   const programmaticScrollFrameRef = useRef<number | null>(null);
@@ -168,8 +178,9 @@ export function MessagesTimeline({
     ? cachedVirtualizerSnapshot.scrollOffset
     : null;
   const shouldRestoreInitialScrollOffset = restoredInitialScrollOffset !== null;
-  const estimatedRowSizes = rows.map((row) =>
-    getEstimatedTimelineRowSize(row, expandedWorkGroupIds),
+  const estimatedRowSizes = useMemo(
+    () => rows.map((row) => getEstimatedTimelineRowSize(row, expandedWorkGroupIds)),
+    [expandedWorkGroupIds, rows],
   );
   const initialScrollOffset =
     restoredInitialScrollOffset !== null
@@ -179,23 +190,23 @@ export function MessagesTimeline({
   rowsRef.current = rows;
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
 
-  const reportIsAtBottom = (isAtBottom: boolean, options?: { force?: boolean }) => {
+  const reportIsAtBottom = useCallback((isAtBottom: boolean, options?: { force?: boolean }) => {
     if (!options?.force && isAtBottomRef.current === isAtBottom) {
       return;
     }
     isAtBottomRef.current = isAtBottom;
     onIsAtBottomChange(isAtBottom);
-  };
+  }, [onIsAtBottomChange]);
 
-  const clearProgrammaticScrollTracking = () => {
+  const clearProgrammaticScrollTracking = useCallback(() => {
     programmaticScrollActiveRef.current = false;
     if (programmaticScrollFrameRef.current != null) {
       window.cancelAnimationFrame(programmaticScrollFrameRef.current);
       programmaticScrollFrameRef.current = null;
     }
-  };
+  }, []);
 
-  const rangeExtractor = (range: Range) => {
+  const rangeExtractor = useCallback((range: Range) => {
     const defaultRange = defaultRangeExtractor(range);
     const activeStickyIndex = findActiveStickyUserRowIndex(
       stickyUserRowIndicesRef.current,
@@ -207,7 +218,7 @@ export function MessagesTimeline({
     }
 
     return [activeStickyIndex, ...defaultRange].toSorted((left, right) => left - right);
-  };
+  }, []);
 
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
@@ -247,10 +258,12 @@ export function MessagesTimeline({
     };
   });
 
-  const getIsAtBottom = () =>
-    rowVirtualizer.isAtEnd(TIMELINE_SCROLL_END_THRESHOLD_PX + virtualizerBottomPadding);
+  const getIsAtBottom = useCallback(
+    () => rowVirtualizer.isAtEnd(TIMELINE_SCROLL_END_THRESHOLD_PX + virtualizerBottomPadding),
+    [rowVirtualizer, virtualizerBottomPadding],
+  );
 
-  const scheduleProgrammaticScrollResolution = () => {
+  const scheduleProgrammaticScrollResolution = useCallback(() => {
     if (programmaticScrollFrameRef.current != null) {
       return;
     }
@@ -272,9 +285,9 @@ export function MessagesTimeline({
     };
 
     programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
-  };
+  }, [getIsAtBottom, reportIsAtBottom]);
 
-  const scrollToBottom = (options?: { animated?: boolean }) => {
+  const scrollToBottom = useCallback((options?: { animated?: boolean }) => {
     if (!scrollElementRef.current) {
       return;
     }
@@ -293,11 +306,16 @@ export function MessagesTimeline({
     } else {
       reportIsAtBottom(true);
     }
-  };
+  }, [
+    clearProgrammaticScrollTracking,
+    reportIsAtBottom,
+    rowVirtualizer,
+    scheduleProgrammaticScrollResolution,
+  ]);
   const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
   const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     const isAtBottom = getIsAtBottom();
     if (programmaticScrollActiveRef.current) {
       if (isAtBottom) {
@@ -308,7 +326,7 @@ export function MessagesTimeline({
     }
 
     reportIsAtBottom(isAtBottom);
-  };
+  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom]);
 
   useLayoutSyncEffect(() => {
     if (rows.length === 0 || initializedScrollRef.current) {
@@ -346,17 +364,30 @@ export function MessagesTimeline({
     [rowVirtualizer, timelineCacheKey],
   );
 
-  const sharedState: StepRendererContext = {
-    markdownCwd,
-    projectRoot,
-    activeThreadId,
-    activeThreadEnvironmentId,
-    isServerThread,
-    onBeginEditUserMessage,
-    renderEditComposer,
-    onUpdateProposedPlan,
-    onImageExpand,
-  };
+  const sharedState: StepRendererContext = useMemo(
+    () => ({
+      markdownCwd,
+      projectRoot,
+      activeThreadId,
+      activeThreadEnvironmentId,
+      isServerThread,
+      onBeginEditUserMessage,
+      renderEditComposer,
+      onUpdateProposedPlan,
+      onImageExpand,
+    }),
+    [
+      activeThreadEnvironmentId,
+      activeThreadId,
+      isServerThread,
+      markdownCwd,
+      onBeginEditUserMessage,
+      onImageExpand,
+      onUpdateProposedPlan,
+      projectRoot,
+      renderEditComposer,
+    ],
+  );
   const lifecycleSync = (
     <>
       <TimelineControllerSync
@@ -758,7 +789,7 @@ function virtualRowStyle(
 
 type TimelineRow = MessagesTimelineRow;
 
-const TimelineRowContent = function TimelineRowContent({
+const TimelineRowContent = memo(function TimelineRowContent({
   row,
   workGroupExpanded,
   onToggleWorkGroupExpanded,
@@ -800,7 +831,7 @@ const TimelineRowContent = function TimelineRowContent({
       />
     </div>
   );
-};
+});
 
 function TimelineRowBody({
   row,

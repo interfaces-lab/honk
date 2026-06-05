@@ -1,4 +1,4 @@
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
 import { useState } from "react";
 

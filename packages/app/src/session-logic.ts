@@ -2490,7 +2490,7 @@ function extractToolCommandArtifact(
   }
 
   const command = entry.command?.trim();
-  const output = entry.output?.trim();
+  const output = entry.status === "running" ? undefined : entry.output?.trim();
   const metadata = extractCommandArtifactMetadata(payload);
   if (!command && !output && !hasCommandArtifactMetadata(metadata)) {
     return null;

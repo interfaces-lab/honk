@@ -1,6 +1,6 @@
 import { IconConsole } from "central-icons";
 
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { cn } from "~/lib/utils";
 
 interface TerminalContextInlineChipProps {

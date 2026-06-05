@@ -1,5 +1,5 @@
 import { IconSidebar } from "central-icons";
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import { shellPanelsActions } from "~/stores/shell-panels-store";
 import type { ReactNode } from "react";
 

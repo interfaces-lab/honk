@@ -46,12 +46,12 @@ import {
   useStore,
 } from "../../stores/thread-store";
 import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
-import { Button } from "@multi/ui/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/ui/empty";
-import { Input } from "@multi/ui/input";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
-import { Switch } from "@multi/ui/switch";
-import { Text, textVariants } from "@multi/ui/text";
+import { Button } from "@multi/multikit/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/multikit/empty";
+import { Input } from "@multi/multikit/input";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/multikit/select";
+import { Switch } from "@multi/multikit/switch";
+import { Text, textVariants } from "@multi/multikit/text";
 import { toastManager } from "~/app/toast";
 import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
@@ -64,7 +64,7 @@ import {
   agentModeSupportsThinkingLevelSelection,
   normalizedConfigurableThinkingLevel,
 } from "~/lib/agent-mode-options";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,

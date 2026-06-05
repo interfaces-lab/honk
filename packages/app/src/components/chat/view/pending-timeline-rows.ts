@@ -47,12 +47,12 @@ export function createPendingTimelineRowFromMessage(input: {
 export function filterPendingTimelineRowsToBranch(
   rows: ReadonlyArray<PendingTimelineRow>,
   branchView: ThreadBranchView,
-): PendingTimelineRow[] {
+): ReadonlyArray<PendingTimelineRow> {
   if (branchView.status === "invalid") {
     return [];
   }
   if (branchView.status === "unfiltered") {
-    return [...rows];
+    return rows;
   }
 
   return rows.filter((row) => {
@@ -66,23 +66,23 @@ export function filterPendingTimelineRowsToBranch(
 export function appendPendingTimelineRowsToMessages(
   messages: ReadonlyArray<ChatMessage>,
   pendingRows: ReadonlyArray<PendingTimelineRow>,
-): ChatMessage[] {
+): ReadonlyArray<ChatMessage> {
   if (pendingRows.length === 0) {
-    return [...messages];
+    return messages;
   }
 
   const committedMessageIds = new Set(messages.map((message) => message.id));
   const pendingMessages = pendingRows.flatMap((row) =>
     committedMessageIds.has(row.clientSendKey) ? [] : [row.message],
   );
-  return pendingMessages.length === 0 ? [...messages] : [...messages, ...pendingMessages];
+  return pendingMessages.length === 0 ? messages : [...messages, ...pendingMessages];
 }
 
 export function appendTransientTimelineEntries(input: {
   entries: ReadonlyArray<TimelineEntry>;
   liveMessages: ReadonlyArray<ChatMessage>;
   pendingRows: ReadonlyArray<PendingTimelineRow>;
-}): TimelineEntry[] {
+}): ReadonlyArray<TimelineEntry> {
   const existingMessageIds = new Set(
     input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
   );
@@ -115,7 +115,7 @@ export function appendTransientTimelineEntries(input: {
   }
 
   if (transientEntries.length === 0) {
-    return [...input.entries];
+    return input.entries;
   }
 
   return [...input.entries, ...transientEntries].toSorted(compareTimelineEntries);

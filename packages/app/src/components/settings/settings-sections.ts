@@ -2,6 +2,7 @@ import {
   IconArchive1,
   IconCollaborationPointerRight,
   IconColorSwatch,
+  IconLineChart1,
   IconSettingsGear2,
   type CentralIconBaseProps,
 } from "central-icons";
@@ -9,12 +10,13 @@ import type { ComponentType } from "react";
 
 type SettingsSectionIcon = ComponentType<CentralIconBaseProps>;
 
-export type SettingsSectionId = "general" | "appearance" | "agents" | "archived";
+export type SettingsSectionId = "general" | "appearance" | "agents" | "usage" | "archived";
 
 export type SettingsPreferenceDomain =
   | "application"
   | "appearance"
   | "agent-runtime"
+  | "usage"
   | "conversation-history";
 
 export interface SettingsSectionDescriptor {
@@ -23,6 +25,7 @@ export interface SettingsSectionDescriptor {
     | "/settings/general"
     | "/settings/appearance"
     | "/settings/agents"
+    | "/settings/usage"
     | "/settings/archived";
   readonly label: string;
   readonly icon: SettingsSectionIcon;
@@ -60,6 +63,14 @@ export const SETTINGS_SECTIONS = [
       "interaction-mode",
       "extension-ui",
     ],
+  },
+  {
+    id: "usage",
+    to: "/settings/usage",
+    label: "Usage",
+    icon: IconLineChart1,
+    domain: "usage",
+    cursorPreferenceScopes: ["pi-sessions", "activity", "history"],
   },
   {
     id: "archived",

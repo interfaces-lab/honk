@@ -1,0 +1,43 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "multikit",
+  "homepage": "https://multi.app",
+  "items": [
+    {
+      "name": "styles",
+      "type": "registry:style",
+      "title": "Multikit Styles",
+      "description": "Light and dark CSS variables for Multikit components.",
+      "files": [
+        {
+          "path": "src/styles.css",
+          "type": "registry:style",
+          "target": "styles/multikit.css"
+        }
+      ]
+    },
+    {
+      "name": "button",
+      "type": "registry:ui",
+      "title": "Button",
+      "description": "Primary action control with variant and size scales.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "files": [
+        {
+          "path": "src/button.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/button.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "lib/utils.ts"
+        }
+      ]
+    }
+  ]
+}

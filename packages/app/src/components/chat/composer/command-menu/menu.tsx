@@ -17,7 +17,7 @@ import {
 } from "central-icons";
 import { type ComponentProps } from "react";
 
-import { Popover, PopoverPopup } from "@multi/ui/popover";
+import { Popover, PopoverPopup } from "@multi/multikit/popover";
 import { cn } from "~/lib/utils";
 
 import {
@@ -35,7 +35,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@multi/ui/command";
+} from "@multi/multikit/command";
 import { VscodeEntryIcon } from "../../shared/vscode-entry-icon";
 
 /**

@@ -20,8 +20,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@multi/ui/button";
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@multi/ui/menu";
+import { Button } from "@multi/multikit/button";
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@multi/multikit/menu";
 import {
   Dialog,
   DialogDescription,
@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
+} from "@multi/multikit/dialog";
 
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
 import {
@@ -51,7 +51,7 @@ import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-stor
 import { GitChangesFileTree } from "./git-changes-file-tree";
 import { GitDiffCard } from "./git-diff-card";
 import { WorkbenchChromeRow } from "../shell/workbench-chrome-row";
-import { WorkbenchIconButton } from "@multi/ui/workbench-button";
+import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 type GitChangesFilter = "uncommitted" | "unstaged" | "staged" | "branch";

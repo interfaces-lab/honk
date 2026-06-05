@@ -1,7 +1,9 @@
 import {
   forwardRef,
+  memo,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -12,7 +14,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import {
   Menu,
   MenuGroupLabel,
@@ -24,8 +26,7 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-  workbenchMenuMetaTextClassName,
-} from "@multi/ui/menu";
+} from "@multi/multikit/menu";
 import {
   IconArrowUp,
   IconBug,
@@ -92,7 +93,6 @@ import { QueuedComposerEditBanner, QueuedComposerItemsPanel } from "./queue/queu
 import { SubagentTrayStack } from "./subagents/subagent-tray";
 import { ComposerContextUsageBar } from "./context/context-usage-bar";
 import { PlanFollowUpTray } from "./plan-follow-up/plan-follow-up-tray";
-import { deriveLatestContextWindowSnapshot } from "../../../lib/context-window";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
@@ -239,10 +239,28 @@ function ComposerInteractionModeChip(props: {
   );
 }
 
+const ComposerAgentModeMenuTrigger = memo(function ComposerAgentModeMenuTrigger(props: {
+  agentMode: AgentMode;
+  disabled: boolean;
+}) {
+  return (
+    <MenuTrigger
+      type="button"
+      className="inline-flex h-6 min-w-0 max-w-40 select-none items-center gap-1 overflow-hidden rounded-full bg-transparent py-0 pr-1.5 pl-2 text-[12px]/[16px] font-medium text-multi-fg-secondary outline-hidden transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-tertiary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+      aria-label="Agent mode and thinking level"
+      disabled={props.disabled}
+    >
+      <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
+      <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" aria-hidden />
+    </MenuTrigger>
+  );
+});
+
 function ComposerAgentModeMenu(props: {
   agentMode: AgentMode;
   thinkingLevel: AgentThinkingLevel;
-  disabled: boolean;
+  agentModeDisabled: boolean;
+  isConnecting: boolean;
   onAgentModeChange: (agentMode: AgentMode) => void;
   onThinkingLevelChange: (thinkingLevel: AgentThinkingLevel) => void;
 }) {
@@ -265,20 +283,10 @@ function ComposerAgentModeMenu(props: {
 
   return (
     <Menu>
-      <MenuTrigger
-        type="button"
-        className="inline-flex h-6 min-w-0 max-w-40 select-none items-center gap-1 overflow-hidden rounded-full bg-transparent py-0 pr-1.5 pl-2 text-[12px]/[16px] font-medium text-multi-fg-secondary outline-hidden transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-tertiary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
-        aria-label="Agent mode and thinking level"
-        disabled={props.disabled}
-      >
-        <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
-        {supportsThinkingLevel ? (
-          <span className="shrink-0 text-multi-fg-tertiary">
-            {AGENT_THINKING_LEVEL_LABELS[thinkingLevel]}
-          </span>
-        ) : null}
-        <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" aria-hidden />
-      </MenuTrigger>
+      <ComposerAgentModeMenuTrigger
+        agentMode={props.agentMode}
+        disabled={props.agentModeDisabled}
+      />
       <MenuPopup align="start" side="top" sideOffset={6} variant="workbench">
         <MenuRadioGroup value={props.agentMode} onValueChange={handleAgentModeValueChange}>
           <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
@@ -292,13 +300,10 @@ function ComposerAgentModeMenu(props: {
         <MenuSub>
           <MenuSubTrigger
             className="pe-1"
-            disabled={!supportsThinkingLevel || props.disabled}
+            disabled={!supportsThinkingLevel || props.isConnecting}
             variant="workbench"
           >
             <span className="min-w-0 flex-1 truncate">Thinking</span>
-            <span className={cn(workbenchMenuMetaTextClassName, "shrink-0")}>
-              {supportsThinkingLevel ? AGENT_THINKING_LEVEL_LABELS[thinkingLevel] : "Off"}
-            </span>
           </MenuSubTrigger>
           <MenuSubPopup variant="workbench">
             <MenuRadioGroup value={thinkingLevel} onValueChange={handleThinkingLevelValueChange}>
@@ -945,7 +950,7 @@ function ComposerFooter(props: {
 // Component
 // --------------------------------------------------------------------------
 
-export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>(
+export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputProps>(
   function ComposerInput(props, ref) {
     const {
       variant = "compact",
@@ -975,7 +980,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       activeProposedPlan = null,
       planSurfaceOpen = false,
       interactionMode,
-      activeThreadActivities,
+      activeContextWindow,
       resolvedTheme,
       settings,
       keybindings,
@@ -1060,8 +1065,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     const setRuntimeSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
-    const activeContextWindow = deriveLatestContextWindowSnapshot(activeThreadActivities ?? []);
-    const visibleContextWindow = (() => {
+    const visibleContextWindow = useMemo(() => {
       if (!activeContextWindow || settings.agentWindowUsageSummaryDisplay === "never") {
         return null;
       }
@@ -1071,7 +1075,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       return activeContextWindow.usedPercentage !== null && activeContextWindow.usedPercentage >= 50
         ? activeContextWindow
         : null;
-    })();
+    }, [activeContextWindow, settings.agentWindowUsageSummaryDisplay]);
 
     // ------------------------------------------------------------------
     // Composer-local state
@@ -1180,10 +1184,13 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     };
 
     const updateAgentRuntimePreferences = (
-      patch: { agentMode: AgentMode; thinkingLevel: AgentThinkingLevel } | { thinkingLevel: AgentThinkingLevel },
+      patch:
+        | { agentMode: AgentMode; thinkingLevel: AgentThinkingLevel }
+        | { thinkingLevel: AgentThinkingLevel },
       errorMessage: string,
+      setSaving?: Dispatch<SetStateAction<boolean>>,
     ) => {
-      setIsAgentModeSaving(true);
+      setSaving?.(true);
       const runtimeApi = readMultiRuntimeApi();
       void runtimeApi
         .updatePreferences(patch)
@@ -1198,7 +1205,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
             error instanceof Error ? error.message : errorMessage,
           );
         })
-        .finally(() => setIsAgentModeSaving(false));
+        .finally(() => setSaving?.(false));
     };
 
     const handleAgentModeChange = (agentMode: AgentMode) => {
@@ -1214,6 +1221,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       updateAgentRuntimePreferences(
         { agentMode, thinkingLevel },
         "Failed to update agent mode.",
+        setIsAgentModeSaving,
       );
     };
 
@@ -1223,7 +1231,10 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         return;
       }
 
-      updateAgentRuntimePreferences({ thinkingLevel }, "Failed to update thinking level.");
+      updateAgentRuntimePreferences(
+        { thinkingLevel },
+        "Failed to update thinking level.",
+      );
     };
 
     useComposerKeyboard({
@@ -1907,7 +1918,8 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         <ComposerAgentModeMenu
           agentMode={runtimePreferences.agentMode}
           thinkingLevel={runtimePreferences.thinkingLevel}
-          disabled={isAgentModeSaving || isConnecting}
+          agentModeDisabled={isAgentModeSaving || isConnecting}
+          isConnecting={isConnecting}
           onAgentModeChange={handleAgentModeChange}
           onThinkingLevelChange={handleThinkingLevelChange}
         />
@@ -2170,4 +2182,4 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       </form>
     );
   },
-);
+));

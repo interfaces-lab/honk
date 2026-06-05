@@ -1,4 +1,4 @@
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
 import { type ComponentType } from "react";

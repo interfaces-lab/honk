@@ -3157,7 +3157,7 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td><code>packages/shared</code></td><td>32</td><td><span class="replace">Prune hard</span>; remove Claude/Codex/Cursor helpers and keep only cross-process primitives still used.</td></tr>
             <tr><td><code>packages/client-runtime</code></td><td>6</td><td><span class="delete">Delete</span>; fold any surviving thread/project key helpers into app-local code.</td></tr>
             <tr><td><code>packages/desktop</code></td><td>75</td><td><span class="keep">Keep shell</span>; own `DesktopRuntimeHost`, preload IPC surface, env wiring, secret storage, and update metadata.</td></tr>
-            <tr><td><code>packages/ui</code></td><td>40</td><td><span class="keep">Keep reusable UI only</span>; delete provider-specific components.</td></tr>
+            <tr><td><code>packages/multikit</code></td><td>40</td><td><span class="keep">Keep reusable UI only</span>; delete provider-specific components.</td></tr>
             <tr><td><code>packages/effect-acp</code></td><td>19</td><td><span class="delete">Delete</span>.</td></tr>
             <tr><td><code>packages/effect-codex-app-server</code></td><td>17</td><td><span class="delete">Delete</span>.</td></tr>
             <tr><td><code>scripts</code></td><td>18</td><td><span class="replace">Prune</span>; keep only release/version/dev scripts that match the rewritten package graph.</td></tr>
@@ -3197,7 +3197,7 @@ DesktopExtensionUi resolves the Pi dialog promise
             <tr><td>`packages/desktop/src/backend`, backend port/readiness, server exposure/listening detector</td><td><span class="delete">Delete server bootstrap</span></td><td>Desktop creates a local runtime host in-process. No port readiness, server listening probe, or LAN exposure toggle in default app.</td></tr>
             <tr><td>`packages/desktop/src/ipc`, `preload.ts`, `main.ts`, Electron/app/window/update/settings</td><td><span class="replace">Keep desktop shell, rewrite IPC contract</span></td><td>Expose typed runtime methods/streams over preload, plus account login modals and Pi auth callbacks.</td></tr>
             <tr><td>`packages/shared/src`</td><td><span class="replace">Prune hard</span></td><td>Keep generic path, shell, git, logging, schema, search, and UI derivation helpers only if still imported after provider deletion.</td></tr>
-            <tr><td>`packages/ui/src`</td><td><span class="keep">Keep reusable components</span></td><td>Button/input/dialog/popover/tabs/tooltip/etc. support the Agent UI. No provider-specific additions here.</td></tr>
+            <tr><td>`packages/multikit/src`</td><td><span class="keep">Keep reusable components</span></td><td>Button/input/dialog/popover/tabs/tooltip/etc. support the Agent UI. No provider-specific additions here.</td></tr>
             <tr><td>`packages/client-runtime/src`</td><td><span class="delete">Delete package</span></td><td>Known-environment and scoped-ref helpers are artifacts of multi-environment runtime addressing.</td></tr>
             <tr><td>`packages/effect-acp`, `packages/effect-codex-app-server`</td><td><span class="delete">Delete packages</span></td><td>Generated protocol packages are replaced by Pi SDK packages and local runtime contracts.</td></tr>
             <tr><td>`scripts`</td><td><span class="replace">Prune</span></td><td>Keep release/versioning/icon/build scripts that still match the package graph; delete scripts tied to removed packages or old server packaging.</td></tr>

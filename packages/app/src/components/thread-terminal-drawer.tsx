@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
+import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
 import { openInPreferredEditor } from "../editor-preferences";
 import {
   collectWrappedTerminalLinkLine,

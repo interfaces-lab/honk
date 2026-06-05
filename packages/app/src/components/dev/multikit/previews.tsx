@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, AlertTitle } from "@multi/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@multi/multikit/alert";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -8,10 +8,10 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@multi/ui/alert-dialog";
-import { Badge } from "@multi/ui/badge";
-import { Button } from "@multi/ui/button";
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@multi/ui/collapsible";
+} from "@multi/multikit/alert-dialog";
+import { Badge } from "@multi/multikit/badge";
+import { Button } from "@multi/multikit/button";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@multi/multikit/collapsible";
 import {
   Dialog,
   DialogDescription,
@@ -20,32 +20,32 @@ import {
   DialogPopup,
   DialogTitle,
   DialogTrigger,
-} from "@multi/ui/dialog";
-import { ButtonGroup, ButtonGroupSeparator } from "@multi/ui/group";
-import { Input } from "@multi/ui/input";
-import { Kbd, KbdGroup } from "@multi/ui/kbd";
-import { Label } from "@multi/ui/label";
+} from "@multi/multikit/dialog";
+import { ButtonGroup, ButtonGroupSeparator } from "@multi/multikit/group";
+import { Input } from "@multi/multikit/input";
+import { Kbd, KbdGroup } from "@multi/multikit/kbd";
+import { Label } from "@multi/multikit/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multi/ui/menu";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/ui/empty";
-import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from "@multi/ui/popover";
-import { ScrollArea } from "@multi/ui/scroll-area";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
-import { Separator } from "@multi/ui/separator";
-import { SidebarItem } from "@multi/ui/sidebar";
-import { Skeleton } from "@multi/ui/skeleton";
-import { Spinner } from "@multi/ui/spinner";
-import { StatusDot } from "@multi/ui/status-dot";
-import { Switch } from "@multi/ui/switch";
-import { Tabs } from "@multi/ui/tabs";
-import { Text } from "@multi/ui/text";
-import { Textarea } from "@multi/ui/textarea";
-import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@multi/ui/tooltip";
-import { WorkbenchIconButton, WorkbenchTextButton } from "@multi/ui/workbench-button";
+} from "@multi/multikit/menu";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/multikit/empty";
+import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from "@multi/multikit/popover";
+import { ScrollArea } from "@multi/multikit/scroll-area";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/multikit/select";
+import { Separator } from "@multi/multikit/separator";
+import { SidebarItem } from "@multi/multikit/sidebar";
+import { Skeleton } from "@multi/multikit/skeleton";
+import { Spinner } from "@multi/multikit/spinner";
+import { StatusDot } from "@multi/multikit/status-dot";
+import { Switch } from "@multi/multikit/switch";
+import { Tabs } from "@multi/multikit/tabs";
+import { Text } from "@multi/multikit/text";
+import { Textarea } from "@multi/multikit/textarea";
+import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@multi/multikit/tooltip";
+import { WorkbenchIconButton, WorkbenchTextButton } from "@multi/multikit/workbench-button";
 import { IconBubbleText, IconSettingsGear1 } from "central-icons";
 import { useDialKit } from "dialkit";
 import { useState, type ReactNode } from "react";
@@ -626,7 +626,7 @@ function AlertDialogPreview() {
   );
 }
 
-export const TOMETO_PREVIEWS: Record<string, () => ReactNode> = {
+export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   alert: AlertPreview,
   "alert-dialog": AlertDialogPreview,
   badge: BadgePreview,
@@ -655,8 +655,8 @@ export const TOMETO_PREVIEWS: Record<string, () => ReactNode> = {
   "workbench-button": WorkbenchButtonPreview,
 };
 
-export function TomeitoPreview({ componentId }: { componentId: string }) {
-  const Preview = TOMETO_PREVIEWS[componentId];
+export function MultikitPreview({ componentId }: { componentId: string }) {
+  const Preview = MULTIKIT_PREVIEWS[componentId];
   if (!Preview) {
     return (
       <PreviewFrame>

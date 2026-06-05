@@ -1,6 +1,6 @@
 import { type DesktopExtensionUiRequest } from "@multi/contracts";
-import { Button } from "@multi/ui/button";
-import { Input } from "@multi/ui/input";
+import { Button } from "@multi/multikit/button";
+import { Input } from "@multi/multikit/input";
 import { useState } from "react";
 
 interface ComposerPendingExtensionUiRequestPanelProps {

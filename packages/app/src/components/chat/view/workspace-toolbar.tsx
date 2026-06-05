@@ -1,7 +1,7 @@
 import type { EnvironmentId, GitBranch, ProjectId, ScopedProjectRef } from "@multi/contracts";
 import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@multi/shared/git";
-import { Button } from "@multi/ui/button";
-import { Input } from "@multi/ui/input";
+import { Button } from "@multi/multikit/button";
+import { Input } from "@multi/multikit/input";
 import { MiddleTruncate } from "@pierre/truncate/react";
 import {
   Menu,
@@ -9,7 +9,7 @@ import {
   MenuPopup,
   MenuTrigger,
   workbenchMenuLabelClassName,
-} from "@multi/ui/menu";
+} from "@multi/multikit/menu";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   IconBranch,

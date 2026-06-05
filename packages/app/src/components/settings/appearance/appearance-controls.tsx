@@ -1,6 +1,6 @@
-import { Button } from "@multi/ui/button";
-import { Input } from "@multi/ui/input";
-import { Text } from "@multi/ui/text";
+import { Button } from "@multi/multikit/button";
+import { Input } from "@multi/multikit/input";
+import { Text } from "@multi/multikit/text";
 import { useThrottler } from "@tanstack/react-pacer";
 import {
   type CSSProperties,

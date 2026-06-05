@@ -1,0 +1,503 @@
+/*
+ * Design tokens: Pierre palette, typography, and shared semantic roles.
+ * Feature-owned variables live beside their selectors (shell, composer, terminal, markdown, git).
+ */
+
+:root {
+  --multi-font-ui:
+    -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
+  --multi-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  --multi-font-smoothing-webkit: antialiased;
+  --multi-font-smoothing-moz: grayscale;
+  /* Defaults copied from local Cursor glass.theme tint preferences. */
+  --multi-user-hue: 261;
+  --multi-intensity: 20;
+  /* Typography scale relative to user preference. */
+  --multi-text-caption: calc(var(--multi-ui-font-size-user, 13px) - 3px);
+  --multi-text-detail: calc(var(--multi-ui-font-size-user, 13px) - 2px);
+  --multi-text-body: calc(var(--multi-ui-font-size-user, 13px) - 1px);
+  --multi-text-title: var(--multi-ui-font-size-user, 13px);
+  --multi-text-heading: calc(var(--multi-ui-font-size-user, 13px) + 3px);
+  --multi-leading-caption: calc(var(--multi-ui-font-size-user, 13px) - 1px);
+  --multi-leading-detail: calc(var(--multi-ui-font-size-user, 13px) + 1px);
+  --multi-leading-body: calc(var(--multi-ui-font-size-user, 13px) + 3px);
+  --multi-leading-title: calc(var(--multi-ui-font-size-user, 13px) + 5px);
+  --multi-leading-heading: calc(var(--multi-ui-font-size-user, 13px) + 8px);
+  /* Border radius */
+  --multi-radius-control: 6px;
+  --multi-radius-card: var(--multi-radius-card-user, 10px);
+  --multi-radius-chip: var(--multi-radius-chip-user, 20px);
+  --multi-radius-pill: var(--multi-radius-chip-user, 20px);
+}
+
+/*
+ * Pierre palette (canonical). OKLCH baseline; Display-P3 primaries/diffs in @media (color-gamut: p3).
+ */
+
+/* ---- Light ---- */
+:root:not(.dark) {
+  color-scheme: light;
+  --app-background: var(--background);
+  --multi-vibrancy-sidebar-mix: 42%;
+  --multi-vibrancy-chat-mix: 84%;
+  --multi-vibrancy-editor-mix: var(--multi-vibrancy-chat-mix);
+  --multi-glass-surface-background: hsl(0 0% 100% / 0.16);
+
+  --background: var(--multi-base-editor);
+  --multi-base-foreground: #141414;
+  --multi-cursor-base: var(--multi-base-foreground);
+  --foreground: var(--multi-base-foreground);
+  --multi-swatch-inset-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--foreground) 16%, transparent);
+  --card: var(--multi-base-editor);
+  --card-foreground: var(--foreground);
+  --popover: var(--multi-base-editor);
+  --popover-foreground: var(--foreground);
+
+  --secondary: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);
+
+  /* Tint bases (Cursor surface split): TS owns user hue / intensity math. */
+  --multi-base-sidebar: #f3f3f3;
+  --multi-base-chrome: #f8f8f8;
+  --multi-base-editor: #fcfcfc;
+  --multi-base-accent: #3685bf;
+  --multi-base-focus: #3685bf;
+  --multi-shadow-primary: color-mix(in srgb, #000000 6%, transparent);
+
+  --accent: var(--multi-bg-secondary);
+  --accent-foreground: var(--foreground);
+
+  --destructive: oklch(0.647 0.239 23.794);
+  --destructive-foreground: oklch(0.992 0 0);
+  --success: oklch(0.752 0.137 179.603);
+  --success-foreground: oklch(0.22 0.04 179);
+  --warning: oklch(0.82 0.16 88);
+  --warning-foreground: oklch(0.28 0.06 88);
+
+  --border: var(--multi-stroke-tertiary);
+  --input: var(--multi-base-editor);
+
+  --primary: var(--multi-base-accent);
+  --primary-foreground: #fcfcfc;
+  --ring: color-mix(in srgb, var(--multi-base-focus) 15%, transparent);
+
+  --info: var(--primary);
+  --info-foreground: oklch(0.992 0 0);
+
+  --multi-action: var(--primary);
+
+  --multi-diff-addition: oklch(0.752 0.137 179.603);
+  --multi-diff-deletion: oklch(0.647 0.239 23.794);
+  --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 15%, transparent);
+  --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 15%, transparent);
+
+  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
+  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
+  --multi-color-chat-opaque: var(--multi-base-chrome);
+  --multi-color-chat: var(--multi-color-chat-opaque);
+  --multi-color-editor-opaque: var(--multi-base-editor);
+  --multi-color-editor: var(--multi-color-editor-opaque);
+  --multi-color-surface-opaque: var(--multi-base-editor);
+  --multi-color-surface: var(--multi-color-surface-opaque);
+  --multi-color-elevated-opaque: var(--multi-base-editor);
+  --multi-color-elevated: var(--multi-color-elevated-opaque);
+  --multi-color-menubar-opaque: var(--multi-base-editor);
+  --multi-color-menubar: var(--multi-color-menubar-opaque);
+
+  --multi-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --multi-color-stroke: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-color-stroke-strong: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --multi-color-hover: var(--multi-bg-secondary);
+  --multi-color-active: var(--multi-bg-active);
+
+  --multi-hue-green: var(--multi-diff-addition);
+  --multi-hue-red: var(--multi-diff-deletion);
+  --multi-hue-blue: var(--primary);
+}
+
+/* ---- Dark ---- */
+:root.dark {
+  color-scheme: dark;
+  --app-background: var(--background);
+  --multi-glass-surface-background: rgb(0 0 0 / 0.42);
+
+  --background: var(--multi-base-editor);
+  --multi-base-foreground: #e4e4e4;
+  --multi-cursor-base: var(--multi-base-foreground);
+  --foreground: var(--multi-base-foreground);
+  --multi-swatch-inset-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--foreground) 16%, transparent);
+  --card: var(--multi-base-editor);
+  --card-foreground: var(--foreground);
+  --popover: var(--multi-base-editor);
+  --popover-foreground: var(--foreground);
+
+  --secondary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);
+
+  --multi-base-sidebar: #181818;
+  --multi-base-chrome: #141414;
+  --multi-base-editor: #181818;
+  --multi-base-accent: #599ce7;
+  --multi-base-focus: #e4e4e4;
+  --multi-shadow-primary: color-mix(in srgb, #000000 20%, transparent);
+
+  --accent: var(--multi-bg-secondary);
+  --accent-foreground: var(--foreground);
+
+  --destructive: oklch(0.647 0.239 23.794);
+  --destructive-foreground: oklch(0.992 0 0);
+  --success: oklch(0.752 0.137 179.603);
+  --success-foreground: oklch(0.15 0.03 179);
+  --warning: oklch(0.86 0.14 88);
+  --warning-foreground: oklch(0.2 0.04 88);
+
+  --border: var(--multi-stroke-tertiary);
+  --input: var(--multi-base-editor);
+
+  --primary: var(--multi-base-accent);
+  --primary-foreground: #191c22;
+  --ring: color-mix(in srgb, var(--multi-base-focus) 15%, transparent);
+
+  --info: var(--primary);
+  --info-foreground: var(--primary-foreground);
+
+  --multi-action: var(--primary);
+
+  --multi-diff-addition: oklch(0.752 0.137 179.603);
+  --multi-diff-deletion: oklch(0.647 0.239 23.794);
+  --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 18%, transparent);
+  --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 18%, transparent);
+
+  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
+  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
+  --multi-color-chat-opaque: var(--multi-base-chrome);
+  --multi-color-chat: var(--multi-color-chat-opaque);
+  --multi-color-editor-opaque: var(--multi-base-editor);
+  --multi-color-editor: var(--multi-color-editor-opaque);
+  --multi-color-surface-opaque: var(--multi-base-editor);
+  --multi-color-surface: var(--multi-color-surface-opaque);
+  --multi-color-elevated-opaque: var(--multi-base-editor);
+  --multi-color-elevated: var(--multi-color-elevated-opaque);
+  --multi-color-menubar-opaque: var(--multi-base-editor);
+  --multi-color-menubar: var(--multi-color-menubar-opaque);
+
+  --multi-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --multi-color-stroke: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-color-stroke-strong: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --multi-color-hover: var(--multi-bg-secondary);
+  --multi-color-active: var(--multi-bg-active);
+
+  --multi-hue-green: var(--multi-diff-addition);
+  --multi-hue-red: var(--multi-diff-deletion);
+  --multi-hue-blue: var(--primary);
+}
+
+/* ---- Display-P3 diffs + destructive only; Cursor tint bases are applied in TS. ---- */
+@media (color-gamut: p3) {
+  @supports (color: color(display-p3 1 1 1)) {
+    :root:not(.dark) {
+      --destructive: color(display-p3 1 0.2502 0.2623);
+      --multi-diff-addition: color(display-p3 0.31 0.8276 0.7251);
+      --multi-diff-deletion: color(display-p3 1 0.2502 0.2623);
+      --multi-diff-addition-bg: color(display-p3 0.31 0.8276 0.7251 / 0.2);
+      --multi-diff-deletion-bg: color(display-p3 1 0.2502 0.2623 / 0.2);
+      --multi-hue-green: color(display-p3 0.31 0.8276 0.7251);
+      --multi-hue-red: color(display-p3 1 0.2502 0.2623);
+    }
+
+    :root.dark {
+      --destructive: color(display-p3 1 0.2502 0.2623);
+      --multi-diff-addition: color(display-p3 0.31 0.8276 0.7251);
+      --multi-diff-deletion: color(display-p3 1 0.2502 0.2623);
+      --multi-diff-addition-bg: color(display-p3 0.31 0.8276 0.7251 / 0.1);
+      --multi-diff-deletion-bg: color(display-p3 1 0.2502 0.2623 / 0.1);
+      --multi-hue-green: color(display-p3 0.31 0.8276 0.7251);
+      --multi-hue-red: color(display-p3 1 0.2502 0.2623);
+    }
+  }
+}
+
+/*
+ * Shared semantic roles + chrome (after Pierre + P3 so primitives exist).
+ * Workbench, terminal chrome, and background aliases use the same math
+ * app-wide. .agent-window only sets font smoothing and sash hit targets.
+ */
+html {
+  --multi-interactive-surface: var(--multi-base-chrome);
+  --multi-chat-surface-background: var(--multi-color-chat);
+  --multi-pane-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-editor-opaque) 96%,
+    #fff
+  );
+  /* Cursor keeps composer chrome and human bubbles on separate neutral lanes. */
+  --multi-input-surface-opaque: var(--input);
+  --multi-input-surface: var(--multi-input-surface-opaque);
+  --multi-composer-surface-background: var(--multi-pane-surface-background);
+  --multi-composer-surface-opaque-background: color-mix(
+    in srgb,
+    var(--multi-color-editor-opaque) 96%,
+    #fff
+  );
+  --multi-message-bubble-background: var(--multi-input-surface);
+  --multi-shadow-secondary: color-mix(in srgb, var(--multi-shadow-primary) 60%, transparent);
+  --multi-shadow-tertiary: color-mix(in srgb, var(--multi-shadow-primary) 30%, transparent);
+  --multi-shadow-workbench: 0 0 8px 2px
+    color-mix(in srgb, var(--multi-shadow-primary) 40%, transparent);
+  --multi-shadow-toolbar: 0 1px 2px color-mix(in srgb, var(--multi-shadow-primary) 12%, transparent);
+  --multi-workbench-panel-background: color-mix(
+    in srgb,
+    var(--multi-color-editor) 92%,
+    var(--background)
+  );
+  --multi-workbench-panel-border: color-mix(in srgb, var(--multi-color-border) 55%, transparent);
+  --multi-workbench-panel-border-faint: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-border) 94%,
+    transparent
+  );
+  --multi-workbench-panel-border-muted: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-border) 78%,
+    transparent
+  );
+  --multi-workbench-panel-border-soft: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-border) 90%,
+    transparent
+  );
+  --multi-workbench-panel-border-dim: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-border) 72%,
+    transparent
+  );
+  --multi-workbench-surface-background: color-mix(
+    in srgb,
+    var(--multi-workbench-panel-background) 74%,
+    transparent
+  );
+  --multi-workbench-editor-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-editor) 92%,
+    transparent
+  );
+  --multi-workbench-panel-title-background: var(--multi-workbench-editor-surface-background);
+  --multi-workbench-tool-island-background: var(--multi-workbench-editor-surface-background);
+  --multi-workbench-card-background: color-mix(
+    in srgb,
+    var(--multi-color-sidebar) 14%,
+    var(--multi-color-editor) 86%
+  );
+  --multi-workbench-card-selected-background: color-mix(
+    in srgb,
+    var(--multi-color-active) 22%,
+    var(--multi-workbench-card-background)
+  );
+  --multi-workbench-toolbar-hover-background: var(--multi-color-hover);
+  --multi-workbench-toolbar-hover-wash: color-mix(
+    in srgb,
+    var(--multi-workbench-toolbar-hover-background) 88%,
+    transparent
+  );
+  --multi-fg-primary: var(--foreground);
+  --multi-fg-secondary: color-mix(in srgb, var(--foreground) 74%, transparent);
+  --multi-fg-tertiary: color-mix(in srgb, var(--foreground) 54%, transparent);
+  --multi-fg-quaternary: color-mix(in srgb, var(--foreground) 36%, transparent);
+  --multi-fg-active: var(--foreground);
+  --multi-fg-focused: var(--foreground);
+  --multi-fg-red-primary: var(--destructive);
+  --multi-fg-green-primary: var(--success);
+  --multi-bg-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --multi-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --multi-bg-secondary-wash: color-mix(in srgb, var(--multi-bg-secondary) 72%, transparent);
+  --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --multi-bg-elevated: var(--multi-color-elevated-opaque);
+  --multi-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
+  --multi-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --multi-bg-green-primary: var(--success);
+  --vscode-editor-background: var(--background);
+  --vscode-foreground: var(--foreground);
+  --vscode-widget-border: var(--multi-stroke-tertiary);
+  --vscode-list-hoverBackground: var(--multi-bg-quaternary);
+  --cursor-yellow: var(--warning);
+  --cursor-green: var(--success);
+  --cursor-red: var(--destructive);
+  --cursor-bg-yellow-primary: var(--cursor-yellow);
+  --cursor-bg-yellow-secondary: color-mix(in srgb, var(--cursor-yellow) 24%, transparent);
+  --cursor-bg-green-secondary: color-mix(in srgb, var(--cursor-green) 24%, transparent);
+  --cursor-bg-red-secondary: color-mix(in srgb, var(--cursor-red) 20%, transparent);
+  --cursor-text-primary: var(--multi-fg-primary);
+  --cursor-text-secondary: var(--multi-fg-secondary);
+  --cursor-text-tertiary: var(--multi-fg-tertiary);
+  --cursor-text-yellow-primary: var(--cursor-yellow);
+  --cursor-text-green-primary: var(--cursor-green);
+  --cursor-text-red-primary: var(--cursor-red);
+  --cursor-text-orange-primary: color-mix(in oklch, var(--warning) 74%, var(--destructive));
+  --cursor-text-cyan-primary: var(--primary);
+  --multi-git-status-added: color-mix(in srgb, var(--cursor-text-green-primary) 86%, var(--foreground));
+  --multi-git-status-deleted: var(--cursor-text-red-primary);
+  --multi-git-status-modified: var(--cursor-text-orange-primary);
+  --multi-git-status-renamed: var(--cursor-text-cyan-primary);
+  --cursor-icon-yellow-primary: color-mix(in srgb, var(--cursor-yellow) 92%, transparent);
+  --cursor-icon-green-primary: color-mix(in srgb, var(--cursor-green) 92%, transparent);
+  --cursor-stroke-primary: var(--multi-stroke-primary);
+  --cursor-stroke-secondary: var(--multi-stroke-secondary);
+  --cursor-stroke-yellow-primary: color-mix(in srgb, var(--cursor-yellow) 56%, transparent);
+  --cursor-stroke-green-primary: color-mix(in srgb, var(--cursor-green) 56%, transparent);
+  --cursor-stroke-tertiary: var(--multi-stroke-tertiary);
+  --cursor-stroke-focused: var(--multi-stroke-focused);
+  --composer-mode-chat-background: var(--cursor-bg-green-secondary);
+  --composer-mode-chat-text: var(--cursor-text-green-primary);
+  --composer-mode-plan-background: var(--cursor-bg-yellow-secondary);
+  --composer-mode-plan-text: var(--cursor-text-yellow-primary);
+  --composer-mode-debug-background: var(--cursor-bg-red-secondary);
+  --composer-mode-debug-text: var(--cursor-text-red-primary);
+  --composer-mode-plan-border: var(--cursor-stroke-yellow-primary);
+  --composer-mode-plan-icon: var(--cursor-icon-yellow-primary);
+  --multi-stroke-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --multi-stroke-secondary: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --multi-stroke-quaternary: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --multi-stroke-focused: var(--ring);
+  --multi-stroke-red-primary: color-mix(in oklch, var(--destructive) 56%, transparent);
+  --multi-icon-primary: color-mix(in srgb, var(--foreground) 86%, transparent);
+  --multi-icon-secondary: color-mix(in srgb, var(--foreground) 66%, transparent);
+  --multi-icon-tertiary: color-mix(in srgb, var(--foreground) 46%, transparent);
+  --multi-icon-quaternary: color-mix(in srgb, var(--foreground) 28%, transparent);
+  --multi-icon-accent-primary: var(--primary);
+  --multi-icon-warning: var(--warning);
+  --multi-shadow-card: 0 1px 2px 0 var(--multi-shadow-primary);
+  --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.18);
+  --multi-shell-blur: 28px;
+  --multi-shell-saturate: 160%;
+  --multi-shell-sidebar-bg: var(--multi-color-sidebar);
+  --multi-shell-surface-bg: var(--multi-color-surface);
+  --multi-radius-full: 9999px;
+
+  --motion-duration-hover: 100ms;
+  --motion-duration-collapsible: 100ms;
+  --motion-duration-shimmer: 2000ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  html {
+    --motion-duration-hover: 0ms;
+    --motion-duration-collapsible: 0ms;
+  }
+}
+
+[data-component="root"] {
+  --multi-message-bubble-background: var(--multi-input-surface);
+  --multi-composer-queue-edit-banner-background: color-mix(
+    in srgb,
+    var(--multi-composer-surface-background) 88%,
+    var(--multi-stroke-tertiary) 12%
+  );
+  --multi-composer-queue-row-editing-background: color-mix(
+    in srgb,
+    var(--multi-stroke-tertiary) 15%,
+    transparent
+  );
+  --multi-composer-popup-surface-background: color-mix(
+    in srgb,
+    var(--multi-composer-surface-opaque-background) 96%,
+    transparent
+  );
+}
+
+html.dark {
+  --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
+  --multi-vibrancy-sidebar-mix: 36%;
+  --multi-vibrancy-chat-mix: 72%;
+  --multi-vibrancy-editor-mix: var(--multi-vibrancy-chat-mix);
+}
+
+/*
+ * Vibrancy colors live on the shell root. Vibrancy-on mixes use fixed bands.
+ * Reduce Transparency remaps semantic tokens to opaque colors.
+ */
+body[data-multi-glass-mode="true"] [data-component="root"] {
+  --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);
+  --multi-vibrancy-off-chat-surface-background: var(--multi-color-chat-opaque);
+  --multi-vibrancy-off-editor-surface-background: var(--multi-color-chat-opaque);
+  --multi-vibrancy-on-sidebar-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-sidebar-opaque) var(--multi-vibrancy-sidebar-mix),
+    transparent
+  );
+  --multi-vibrancy-on-chat-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-chat-opaque) var(--multi-vibrancy-chat-mix),
+    transparent
+  );
+  --multi-vibrancy-on-editor-surface-background: color-mix(
+    in srgb,
+    var(--multi-color-chat-opaque) var(--multi-vibrancy-editor-mix),
+    transparent
+  );
+  --multi-sidebar-surface-background: var(--multi-vibrancy-off-sidebar-surface-background);
+  --multi-chat-surface-background: var(--multi-vibrancy-off-chat-surface-background);
+  --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
+  --multi-color-sidebar: var(--multi-sidebar-surface-background);
+  --multi-color-chat: var(--multi-chat-surface-background);
+  --multi-workbench-editor-surface-background: var(--multi-vibrancy-off-editor-surface-background);
+  --multi-message-bubble-background: var(--multi-input-surface);
+}
+
+body.multi-os-vibrancy-on[data-multi-glass-mode="true"] [data-component="root"] {
+  --multi-sidebar-surface-background: var(--multi-vibrancy-on-sidebar-surface-background);
+  --multi-chat-surface-background: var(--multi-vibrancy-on-chat-surface-background);
+  --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
+  --multi-color-sidebar: var(--multi-sidebar-surface-background);
+  --multi-color-chat: var(--multi-chat-surface-background);
+  --multi-workbench-editor-surface-background: var(--multi-vibrancy-on-editor-surface-background);
+  --multi-message-bubble-background: var(--multi-input-surface);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  html.dark [data-component="root"] {
+    --multi-message-bubble-background: color-mix(
+      in srgb,
+      var(--multi-input-surface-opaque) 96%,
+      #fff
+    );
+  }
+}
+
+body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="root"] {
+  --multi-glass-surface-background: var(--multi-color-editor-opaque);
+  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
+  --multi-color-chat: var(--multi-color-chat-opaque);
+  --multi-color-editor: var(--multi-color-editor-opaque);
+  --multi-color-surface: var(--multi-color-surface-opaque);
+  --multi-color-elevated: var(--multi-color-elevated-opaque);
+  --multi-color-menubar: var(--multi-color-menubar-opaque);
+  --multi-composer-surface-background: var(--multi-composer-surface-opaque-background);
+  --multi-message-bubble-background: var(--multi-input-surface-opaque);
+  --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
+  --multi-workbench-surface-background: var(--multi-color-surface-opaque);
+  --multi-bg-elevated: var(--multi-color-elevated-opaque);
+  --multi-shell-blur: 0px;
+  --multi-shell-saturate: 100%;
+  --multi-shell-sidebar-bg: var(--multi-color-sidebar-opaque);
+  --multi-shell-surface-bg: var(--multi-color-surface-opaque);
+  --multi-sidebar-surface-background: var(--multi-color-sidebar-opaque);
+  --multi-chat-surface-background: var(--multi-color-chat-opaque);
+  --multi-composer-blur: 0px;
+  --multi-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --multi-bg-secondary-wash: var(--multi-bg-secondary);
+  --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+}

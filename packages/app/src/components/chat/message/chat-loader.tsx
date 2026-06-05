@@ -1,6 +1,14 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type MouseEventHandler, type RefObject } from "react";
+import {
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type HTMLAttributes,
+  type MouseEventHandler,
+  type RefObject,
+} from "react";
 
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { cn } from "~/lib/utils";
@@ -211,8 +219,8 @@ export function ChatLoader({
     onMouseEnter: onLoaderMouseEnter,
     onMouseLeave: onLoaderMouseLeave,
   } = useChatLoaderPhases({
-    animated: Boolean(animated && !reducedMotion),
-    hoverAnimated: Boolean(hoverAnimated && !reducedMotion),
+    animated: animated && !reducedMotion,
+    hoverAnimated: hoverAnimated && !reducedMotion,
   });
   const handleMouseEnter: MouseEventHandler<HTMLDivElement> = (event) => {
     onMouseEnter?.(event);
@@ -236,17 +244,6 @@ export function ChatLoader({
       style={style}
       {...props}
     >
-      <ChatLoaderMatrix
-        aria-hidden="true"
-        cellPadding={cellPadding}
-        dotSize={dotSize}
-        fitToLineHeight={maxExtent == null}
-        {...(maxExtent == null ? {} : { maxExtent })}
-        pattern={pattern}
-        phase={phase}
-        reducedMotion={reducedMotion}
-        speed={speed}
-      />
       <span
         className="text-body font-medium thinking-shimmer motion-reduce:animate-none"
         aria-hidden="true"

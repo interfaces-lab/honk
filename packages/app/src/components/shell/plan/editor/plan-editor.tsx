@@ -2,7 +2,7 @@
 
 import { IconCheckmark1, IconCrossSmall } from "central-icons";
 
-import { WorkbenchTextButton } from "@multi/ui/workbench-button";
+import { WorkbenchTextButton } from "@multi/multikit/workbench-button";
 
 import type { PlanEditorProps } from "./plan-editor-contract";
 import { TipTapPlanEditor } from "./tiptap-editor";

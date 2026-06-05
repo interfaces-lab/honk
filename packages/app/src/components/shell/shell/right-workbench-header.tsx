@@ -1,6 +1,6 @@
 "use client";
 
-import { TabsList, TabsTab } from "@multi/ui/tabs";
+import { TabsList, TabsTab } from "@multi/multikit/tabs";
 import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
 import type { ComponentType, ReactNode } from "react";
 
@@ -8,7 +8,7 @@ import type { TerminalSessionEntry } from "~/stores/shell-panels-store";
 import type { WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 export interface WorkbenchTabMeta {

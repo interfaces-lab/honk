@@ -14,7 +14,7 @@ import {
   useSecondaryRail,
 } from "~/stores/shell-panels-store";
 import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
-import { WorkbenchIconButton } from "@multi/ui/workbench-button";
+import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
 import { useRightWorkbenchPanelRuntime } from "../shell/app";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 import { EmptyFilePreview } from "./empty-file-preview";

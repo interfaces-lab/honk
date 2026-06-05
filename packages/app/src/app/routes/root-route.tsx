@@ -5,7 +5,7 @@ import { APP_DISPLAY_NAME } from "~/app/branding";
 import { CommandPalette } from "~/components/command-palette";
 import { WebSocketConnectionCoordinator } from "~/components/web-socket-connection-surface";
 import { TaskCompletionNotifications } from "~/notifications/taskCompletion";
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import { AnchoredToastProvider, ToastProvider } from "~/app/toast";
 import { syncBrowserChromeTheme } from "~/hooks/use-theme";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -45,6 +45,7 @@ export function RootRouteView() {
             authGateState.errorMessage ??
             "The local environment did not accept the desktop bootstrap credential."
           }
+          browserBootstrapUrl={readDesktopBrowserBootstrapUrl()}
         />
         <DevDevtoolsPanel />
       </>
@@ -191,7 +192,13 @@ export function RootRouteNotFoundView() {
   );
 }
 
-function AuthenticationRequiredView({ message }: { readonly message: string }) {
+function AuthenticationRequiredView({
+  browserBootstrapUrl,
+  message,
+}: {
+  readonly browserBootstrapUrl: string | null;
+  readonly message: string;
+}) {
   return (
     <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
       <section className="relative w-full max-w-xl rounded-2xl border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
@@ -202,14 +209,37 @@ function AuthenticationRequiredView({ message }: { readonly message: string }) {
           Local authentication failed.
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message}</p>
-        <div className="mt-5">
+        <div className="mt-5 flex flex-wrap gap-2">
           <Button size="sm" onClick={() => window.location.reload()}>
             Reload app
           </Button>
+          {browserBootstrapUrl ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openBrowserBootstrapUrl(browserBootstrapUrl)}
+            >
+              Open in browser
+            </Button>
+          ) : null}
         </div>
       </section>
     </div>
   );
+}
+
+function readDesktopBrowserBootstrapUrl(): string | null {
+  return window.desktopBridge?.getLocalEnvironmentBootstrap()?.browserBootstrapUrl ?? null;
+}
+
+function openBrowserBootstrapUrl(url: string): void {
+  const opened = window.desktopBridge?.openExternal(url);
+  if (opened) {
+    void opened;
+    return;
+  }
+
+  window.open(url, "_blank", "noopener");
 }
 
 function errorMessage(error: unknown): string {

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { homedir } from "node:os";
@@ -16,6 +17,7 @@ const desktopDevLoopbackHost = "127.0.0.1";
 const devPortProbeHosts = ["127.0.0.1", "0.0.0.0", "::1", "::"] as const;
 const staleProcessTerminateGraceMs = 2_000;
 const staleProcessPollIntervalMs = 50;
+const desktopBootstrapTokenEnv = "MULTI_DESKTOP_BOOTSTRAP_TOKEN";
 
 function hashString(value: string): number {
   let hash = 0;
@@ -39,6 +41,20 @@ function parseOptionalPort(value: string | undefined): number | undefined {
     return undefined;
   }
   return parsed;
+}
+
+function createDesktopBootstrapToken(): string {
+  return randomBytes(24).toString("hex");
+}
+
+function buildBrowserBootstrapUrl(input: {
+  readonly baseUrl: string;
+  readonly bootstrapToken: string;
+}): string {
+  const url = new URL("/", input.baseUrl);
+  url.searchParams.delete("token");
+  url.hash = new URLSearchParams([["token", input.bootstrapToken]]).toString();
+  return url.toString();
 }
 
 function resolveOffset(env: NodeJS.ProcessEnv): {
@@ -137,15 +153,18 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
   const backendPort = explicitBackendPort ?? baseServerPort + selectedOffset;
   const rendererPort = parseOptionalPort(baseEnv.PORT) ?? baseRendererPort + selectedOffset;
   const multiHome = resolve(baseEnv.MULTI_HOME?.trim() || join(homedir(), ".multi"));
+  const bootstrapToken = baseEnv[desktopBootstrapTokenEnv]?.trim() || createDesktopBootstrapToken();
+  const rendererUrl = explicitRendererUrl ?? `http://${desktopDevLoopbackHost}:${rendererPort}`;
 
   const env: NodeJS.ProcessEnv = {
     ...baseEnv,
     ELECTRON_EXEC_PATH: resolveElectronPath(),
     HOST: desktopDevLoopbackHost,
     PORT: String(rendererPort),
-    VITE_DEV_SERVER_URL: explicitRendererUrl ?? `http://${desktopDevLoopbackHost}:${rendererPort}`,
+    VITE_DEV_SERVER_URL: rendererUrl,
     MULTI_HOME: multiHome,
     MULTI_PORT: String(backendPort),
+    [desktopBootstrapTokenEnv]: bootstrapToken,
   };
 
   delete env.ELECTRON_RUN_AS_NODE;
@@ -160,6 +179,12 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
     selectedOffset === offset ? "" : ` selectedOffset=${String(selectedOffset)}`;
   console.log(
     `[desktop-dev] source=${source}${selectionSuffix} backendPort=${env.MULTI_PORT} rendererUrl=${env.VITE_DEV_SERVER_URL} baseDir=${env.MULTI_HOME}`,
+  );
+  console.log(
+    `[desktop-dev] Browser bootstrap URL: ${buildBrowserBootstrapUrl({
+      baseUrl: rendererUrl,
+      bootstrapToken,
+    })}`,
   );
 
   return env;

@@ -2,9 +2,9 @@ import { IconStepBack } from "central-icons";
 import { type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
-import { Button } from "@multi/ui/button";
-import { Text, textVariants } from "@multi/ui/text";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Button } from "@multi/multikit/button";
+import { Text, textVariants } from "@multi/multikit/text";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 
 export function SettingsSection({
   title,

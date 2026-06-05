@@ -112,7 +112,9 @@ function readCurrentHttpBaseUrl(): string | null {
 
 function readBootstrapCredential(): string | null {
   return (
-    window.desktopBridge?.getLocalEnvironmentBootstrap()?.bootstrapToken ?? takePairingTokenFromUrl()
+    takePairingTokenFromUrl() ??
+    window.desktopBridge?.getLocalEnvironmentBootstrap()?.bootstrapToken ??
+    null
   );
 }
 
@@ -273,7 +275,27 @@ export async function fetchSessionState(): Promise<AuthSessionState> {
 
 async function readErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
   const text = await response.text();
-  return text || fallbackMessage;
+  if (!text) {
+    return fallbackMessage;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === "object" && parsed !== null) {
+      const error = Reflect.get(parsed, "error");
+      if (typeof error === "string" && error.trim().length > 0) {
+        return error;
+      }
+      const message = Reflect.get(parsed, "message");
+      if (typeof message === "string" && message.trim().length > 0) {
+        return message;
+      }
+    }
+  } catch {
+    return text;
+  }
+
+  return text;
 }
 
 async function exchangeBootstrapCredential(credential: string): Promise<AuthBootstrapResult> {
@@ -288,9 +310,12 @@ async function exchangeBootstrapCredential(credential: string): Promise<AuthBoot
     });
 
     if (!response.ok) {
-      const message = await response.text();
+      const message = await readErrorMessage(
+        response,
+        `Failed to bootstrap auth session (${response.status}).`,
+      );
       throw new BootstrapHttpError({
-        message: message || `Failed to bootstrap auth session (${response.status}).`,
+        message,
         status: response.status,
       });
     }

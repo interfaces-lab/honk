@@ -14,6 +14,7 @@ import type { RefObject, ReactNode } from "react";
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import type { PendingUserInputDraftAnswer } from "./pending/user-input";
+import type { ContextWindowSnapshot } from "../../../lib/context-window";
 import type { PendingApproval, PendingUserInput } from "../../../session-logic";
 import type { SessionPhase, Thread } from "../../../types";
 import type { ExpandedImagePreview } from "../message/expanded-image-preview";
@@ -92,7 +93,7 @@ export interface ComposerInputProps {
 
   interactionMode: AgentInteractionMode;
 
-  activeThreadActivities: Thread["activities"] | undefined;
+  activeContextWindow: ContextWindowSnapshot | null | undefined;
 
   resolvedTheme: "light" | "dark";
   settings: UnifiedSettings;

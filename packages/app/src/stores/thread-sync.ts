@@ -1200,7 +1200,12 @@ function upsertLiveAgentAssistantTurn(
   state: EnvironmentState,
   event: AgentRuntimeEvent,
 ): EnvironmentState {
-  if (event.turnId === undefined || event.text === undefined || event.text.length === 0) {
+  if (
+    event.messageRole !== "assistant" ||
+    event.turnId === undefined ||
+    event.text === undefined ||
+    event.text.length === 0
+  ) {
     return state;
   }
   const threadId = event.threadId;

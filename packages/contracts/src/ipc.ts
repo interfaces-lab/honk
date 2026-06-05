@@ -198,6 +198,7 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
 export interface DesktopEnvironmentBootstrap {
   label: string;
   httpBaseUrl: string;
+  browserBootstrapUrl: string;
   bootstrapToken: string;
   runId: string;
 }
@@ -205,6 +206,7 @@ export interface DesktopEnvironmentBootstrap {
 export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
   label: Schema.String,
   httpBaseUrl: Schema.String,
+  browserBootstrapUrl: Schema.String,
   bootstrapToken: Schema.String,
   runId: Schema.String,
 });

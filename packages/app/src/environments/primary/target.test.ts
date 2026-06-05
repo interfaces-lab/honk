@@ -12,7 +12,9 @@ describe("resolvePrimaryEnvironmentHttpUrl", () => {
         getLocalEnvironmentBootstrap: () => ({
           label: "Local environment",
           httpBaseUrl: "http://127.0.0.1:13773",
+          browserBootstrapUrl: "http://127.0.0.1:5733/#token=test-token",
           bootstrapToken: "test-token",
+          runId: "test-run",
         }),
       },
     });

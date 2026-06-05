@@ -24,6 +24,16 @@ import * as ElectronWindow from "../../electron/electron-window";
 import * as IpcChannels from "../channels";
 import { makeIpcMethod, makeSyncIpcMethod } from "../desktop-ipc";
 
+function buildBrowserBootstrapUrl(input: {
+  readonly baseUrl: string;
+  readonly bootstrapToken: string;
+}): string {
+  const url = new URL("/", input.baseUrl);
+  url.searchParams.delete("token");
+  url.hash = new URLSearchParams([["token", input.bootstrapToken]]).toString();
+  return url.toString();
+}
+
 const ContextMenuPosition = Schema.Struct({
   x: Schema.Number,
   y: Schema.Number,
@@ -48,15 +58,23 @@ export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
   result: Schema.NullOr(DesktopEnvironmentBootstrapSchema),
   handler: Effect.fn("desktop.ipc.window.getLocalEnvironmentBootstrap")(function* () {
     const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const config = yield* backendManager.currentConfig;
     return Option.match(config, {
       onNone: () => null,
-      onSome: ({ bootstrap, httpBaseUrl }) => ({
-        label: "Local environment",
-        httpBaseUrl: httpBaseUrl.href,
-        bootstrapToken: bootstrap.desktopBootstrapToken,
-        runId: bootstrap.runId,
-      }),
+      onSome: ({ bootstrap, httpBaseUrl }) => {
+        const browserBaseUrl = Option.getOrElse(environment.devServerUrl, () => httpBaseUrl);
+        return {
+          label: "Local environment",
+          httpBaseUrl: httpBaseUrl.href,
+          browserBootstrapUrl: buildBrowserBootstrapUrl({
+            baseUrl: browserBaseUrl.href,
+            bootstrapToken: bootstrap.desktopBootstrapToken,
+          }),
+          bootstrapToken: bootstrap.desktopBootstrapToken,
+          runId: bootstrap.runId,
+        };
+      },
     });
   }),
 });

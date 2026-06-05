@@ -1,12 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { TomeitoGalleryPage } from "~/components/dev/tomeito-gallery";
+import { MultikitGalleryPage } from "~/components/dev/multikit-gallery";
 
-export const Route = createFileRoute("/dev/tomeito")({
+export const Route = createFileRoute("/dev/multikit")({
   beforeLoad: () => {
     if (!import.meta.env.DEV) {
       throw redirect({ to: "/", replace: true });
     }
   },
-  component: TomeitoGalleryPage,
+  component: MultikitGalleryPage,
 });

@@ -1,11 +1,13 @@
-import type {
-  AgentRuntimeEvent,
-  AgentRuntimeEventType,
-  RuntimeSessionId,
-  ThreadId,
-  TurnId,
+import {
+  SessionMessageRole,
+  type AgentRuntimeEvent,
+  type AgentRuntimeEventType,
+  type RuntimeSessionId,
+  type ThreadId,
+  type TurnId,
 } from "@multi/contracts";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { Schema } from "effect";
 import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
 import { makeRuntimeEventId } from "./ids";
 
@@ -107,6 +109,10 @@ export function projectPiAgentSessionEvent(
   const summary = summarizePiEvent(event);
   const text = textForPiEvent(event);
   const thinking = thinkingForPiEvent(event);
+  const messageRole =
+    "message" in event && Schema.is(SessionMessageRole)(event.message.role)
+      ? event.message.role
+      : undefined;
   return {
     id: makeRuntimeEventId(context.sequence),
     type: eventTypeForPiEvent(event),
@@ -116,6 +122,7 @@ export function projectPiAgentSessionEvent(
     ...(context.turnId ? { turnId: context.turnId } : {}),
     createdAt: (context.now ?? new Date()).toISOString(),
     ...(summary ? { summary } : {}),
+    ...(messageRole ? { messageRole } : {}),
     ...(text ? { text } : {}),
     ...(thinking ? { thinking } : {}),
     data: toUnknownRecord(event),

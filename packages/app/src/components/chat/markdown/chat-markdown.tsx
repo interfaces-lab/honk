@@ -30,8 +30,8 @@ import {
 import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
-import { Dialog, DialogPopup } from "@multi/ui/dialog";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Dialog, DialogPopup } from "@multi/multikit/dialog";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor-preferences";
 import { resolveDiffThemeName, type DiffThemeName } from "../../../lib/diff-rendering";

@@ -1,37 +1,37 @@
-import { Input } from "@multi/ui/input";
-import { Text } from "@multi/ui/text";
+import { Input } from "@multi/multikit/input";
+import { Text } from "@multi/multikit/text";
 import { DialRoot } from "dialkit";
 import "dialkit/styles.css";
 import { useMemo, useState } from "react";
 
 import {
-  DEFAULT_TOMETO_COMPONENT_ID,
-  findTomeitoComponent,
-  TOMETO_CATALOG,
-  TOMETO_COMPONENTS,
-} from "~/components/dev/tomeito/catalog";
-import { TomeitoPreview } from "~/components/dev/tomeito/previews";
+  DEFAULT_MULTIKIT_COMPONENT_ID,
+  findMultikitComponent,
+  MULTIKIT_CATALOG,
+  MULTIKIT_COMPONENTS,
+} from "~/components/dev/multikit/catalog";
+import { MultikitPreview } from "~/components/dev/multikit/previews";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { cn } from "~/lib/utils";
 
-export function TomeitoGalleryPage() {
-  const [selectedId, setSelectedId] = useState(DEFAULT_TOMETO_COMPONENT_ID);
+export function MultikitGalleryPage() {
+  const [selectedId, setSelectedId] = useState(DEFAULT_MULTIKIT_COMPONENT_ID);
   const [query, setQuery] = useState("");
 
   useMountEffect(() => {
     syncAppearanceVibrancy();
   });
 
-  const selected = findTomeitoComponent(selectedId) ?? TOMETO_COMPONENTS[0]!;
+  const selected = findMultikitComponent(selectedId) ?? MULTIKIT_COMPONENTS[0]!;
 
   const filteredCatalog = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
-      return TOMETO_CATALOG;
+      return MULTIKIT_CATALOG;
     }
 
-    return TOMETO_CATALOG.map((group) => ({
+    return MULTIKIT_CATALOG.map((group) => ({
       ...group,
       components: group.components.filter((entry) => {
         const haystack = [entry.name, entry.id, entry.importPath].join(" ").toLowerCase();
@@ -45,7 +45,7 @@ export function TomeitoGalleryPage() {
       <aside className="flex w-56 shrink-0 flex-col border-r border-multi-stroke-tertiary/60 bg-background">
         <div className="border-b border-multi-stroke-tertiary/60 px-3 py-3">
           <Text size="sm" weight="semibold">
-            Tomeito
+            Multikit
           </Text>
         </div>
         <div className="p-3">
@@ -101,7 +101,7 @@ export function TomeitoGalleryPage() {
           </Text>
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center p-12">
-          <TomeitoPreview key={selected.id} componentId={selected.id} />
+          <MultikitPreview key={selected.id} componentId={selected.id} />
         </div>
       </main>
 

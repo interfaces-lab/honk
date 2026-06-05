@@ -15,7 +15,7 @@ import {
 } from "central-icons";
 
 import { cn } from "~/lib/utils";
-import { buttonVariants } from "@multi/ui/button";
+import { buttonVariants } from "@multi/multikit/button";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { useRouteTarget } from "~/app/routes/thread-route-targets";

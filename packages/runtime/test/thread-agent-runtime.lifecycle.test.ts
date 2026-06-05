@@ -50,6 +50,15 @@ describe("ThreadAgentRuntime lifecycle", () => {
     expect(events.some((event) => event.turnId === turnId)).toBe(true);
     expect(events.some((event) => event.text === "hello from pi")).toBe(true);
     expect(events.some((event) => event.thinking === "checking the prompt")).toBe(true);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ messageRole: "user", text: "hello" }),
+        expect.objectContaining({ messageRole: "assistant", text: "hello from pi" }),
+      ]),
+    );
+    expect(
+      events.some((event) => event.messageRole === "assistant" && event.text === "hello"),
+    ).toBe(false);
     expect(harness.runtime.identity).toMatchObject({
       agentRuntime: "pi",
       threadId: harness.runtime.threadId,

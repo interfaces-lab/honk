@@ -2,7 +2,6 @@ import { type EnvironmentId, type ThreadId } from "@multi/contracts";
 import { IconChevronRightMedium } from "central-icons";
 import { useRef, type ReactNode } from "react";
 
-import { formatDuration } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { cn } from "~/lib/utils";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
@@ -12,7 +11,6 @@ import { ProposedPlanMessage } from "../message/proposed-plan-message";
 import { AssistantTranscriptRow, HumanTranscriptRow } from "../message/transcript-rows";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
-  isCommandWorkEntry,
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
   type TimelineStep,
@@ -91,13 +89,13 @@ export function GroupedStepsRenderer({
 }) {
   const summary = row.summary;
   const isRunning = row.isRunning;
-  const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
-  const isCommandGroup = row.groupedEntries.every(isCommandWorkEntry);
+  const isThinkingGroup = row.isThinkingGroup;
+  const isCommandGroup = row.isCommandGroup;
   const headerLabel = isThinkingGroup
     ? [summary.action, summary.details].filter(Boolean).join(" ")
     : isRunning
       ? summary.action
-      : `Worked for ${formatDuration(row.durationMs)}`;
+      : `Worked for ${row.completedDurationLabel ?? "briefly"}`;
   const contentId = `timeline-work-group:${row.id}`;
   const handleToggle = () => {
     onToggleExpanded(row.id);

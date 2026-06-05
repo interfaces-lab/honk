@@ -248,6 +248,17 @@ const turnStartedEvent = {
   turnId,
   createdAt: turnStartedAt,
 } satisfies AgentRuntimeEvent;
+const userMessageUpdatedEvent = {
+  id: EventId.make("runtime-event:user-message.updated"),
+  type: "message.updated",
+  agentRuntime: "pi",
+  threadId,
+  runtimeSessionId,
+  turnId,
+  createdAt: messageUpdatedAt,
+  messageRole: "user",
+  text: "Follow-up prompt",
+} satisfies AgentRuntimeEvent;
 const messageUpdatedEvent = {
   id: EventId.make("runtime-event:message.updated"),
   type: "message.updated",
@@ -256,6 +267,7 @@ const messageUpdatedEvent = {
   runtimeSessionId,
   turnId,
   createdAt: messageUpdatedAt,
+  messageRole: "assistant",
   text: "Live answer",
   thinking: "Live thinking",
 } satisfies AgentRuntimeEvent;
@@ -376,6 +388,17 @@ describe("Pi runtime thread sync", () => {
   it("applies live Pi events and pending extension UI requests", () => {
     useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
     useStore.getState().applyAgentRuntimeEvent(turnStartedEvent, environmentId);
+    useStore.getState().applyAgentRuntimeEvent(userMessageUpdatedEvent, environmentId);
+    expect(currentThread().thread.messages).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "assistant",
+          streaming: true,
+          text: "Follow-up prompt",
+        }),
+      ]),
+    );
+
     useStore.getState().applyAgentRuntimeEvent(messageUpdatedEvent, environmentId);
     useStore.getState().applyAgentRuntimeEvent(toolStartedEvent, environmentId);
     useStore.getState().syncPendingExtensionUiRequests([extensionUiRequest], environmentId);

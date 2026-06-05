@@ -1,6 +1,6 @@
 import { cn } from "~/lib/utils";
 import { formatContextUsageSummary, type ContextWindowSnapshot } from "~/lib/context-window";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
+import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
 import { ContextWindowRing, ContextWindowUsageDetails } from "./context-window-meter";
 
 export function ComposerContextUsageBar(props: { usage: ContextWindowSnapshot }) {

@@ -1,16 +1,17 @@
-import type {
-  MessageId,
-  RuntimeItemId,
+import {
   SessionMessageRole,
-  SessionTreeEntry,
-  SessionTreeEntryKind,
-  SessionTreeNode,
-  SessionTreeProjection,
-  ThreadEntryId,
-  ThreadId,
-  TurnId,
+  type MessageId,
+  type RuntimeItemId,
+  type SessionTreeEntry,
+  type SessionTreeEntryKind,
+  type SessionTreeNode,
+  type SessionTreeProjection,
+  type ThreadEntryId,
+  type ThreadId,
+  type TurnId,
 } from "@multi/contracts";
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
+import { Schema } from "effect";
 import {
   makeRuntimeItemId,
   makeRuntimeSessionId,
@@ -49,15 +50,7 @@ function messageRole(entry: SessionEntry): SessionMessageRole | undefined {
   if (entry.type !== "message") {
     return undefined;
   }
-  switch (entry.message.role) {
-    case "user":
-    case "assistant":
-    case "toolResult":
-    case "custom":
-      return entry.message.role;
-    default:
-      return undefined;
-  }
+  return Schema.is(SessionMessageRole)(entry.message.role) ? entry.message.role : undefined;
 }
 
 function entryText(entry: SessionEntry): string | undefined {

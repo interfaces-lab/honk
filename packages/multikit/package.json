@@ -1,9 +1,10 @@
 {
-  "name": "@multi/ui",
-  "version": "0.0.2",
-  "private": true,
+  "name": "@multi/multikit",
+  "version": "0.0.0",
+  "private": false,
   "type": "module",
   "exports": {
+    "./styles.css": "./src/styles.css",
     "./alert": {
       "types": "./src/alert.tsx",
       "import": "./src/alert.tsx"
@@ -11,6 +12,10 @@
     "./alert-dialog": {
       "types": "./src/alert-dialog.tsx",
       "import": "./src/alert-dialog.tsx"
+    },
+    "./autocomplete": {
+      "types": "./src/autocomplete.tsx",
+      "import": "./src/autocomplete.tsx"
     },
     "./badge": {
       "types": "./src/badge.tsx",
@@ -59,6 +64,14 @@
     "./label": {
       "types": "./src/label.tsx",
       "import": "./src/label.tsx"
+    },
+    "./local-storage": {
+      "types": "./src/local-storage.ts",
+      "import": "./src/local-storage.ts"
+    },
+    "./media-query": {
+      "types": "./src/media-query.ts",
+      "import": "./src/media-query.ts"
     },
     "./menu": {
       "types": "./src/menu.tsx",
@@ -116,6 +129,10 @@
       "types": "./src/textarea.tsx",
       "import": "./src/textarea.tsx"
     },
+    "./toggle": {
+      "types": "./src/toggle.tsx",
+      "import": "./src/toggle.tsx"
+    },
     "./toggle-group": {
       "types": "./src/toggle-group.tsx",
       "import": "./src/toggle-group.tsx"
@@ -123,6 +140,10 @@
     "./tooltip": {
       "types": "./src/tooltip.tsx",
       "import": "./src/tooltip.tsx"
+    },
+    "./utils": {
+      "types": "./src/utils.ts",
+      "import": "./src/utils.ts"
     },
     "./workbench-button": {
       "types": "./src/workbench-button.tsx",

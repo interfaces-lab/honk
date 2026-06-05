@@ -2,7 +2,7 @@ import { IconArrowRight, IconChevronDownSmall } from "central-icons";
 import { AnimatePresence, motion } from "motion/react";
 import { type RefObject, useRef, useState } from "react";
 
-import { Text } from "@multi/ui/text";
+import { Text } from "@multi/multikit/text";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { cn } from "~/lib/utils";
 

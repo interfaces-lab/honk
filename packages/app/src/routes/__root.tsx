@@ -12,7 +12,7 @@ import { ensureDesktopRuntimeHostReady, isDesktopRuntimeApiAvailable } from "~/l
 function isStandaloneDevRoute(pathname: string): boolean {
   return (
     import.meta.env.DEV &&
-    (pathname === "/dev/queued-message-demo" || pathname === "/dev/tomeito")
+    (pathname === "/dev/queued-message-demo" || pathname === "/dev/multikit")
   );
 }
 

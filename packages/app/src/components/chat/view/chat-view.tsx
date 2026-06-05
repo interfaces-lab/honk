@@ -2,6 +2,7 @@ import {
   type ApprovalRequestId,
   type DesktopExtensionUiRequest,
   type EnvironmentId,
+  type GitBranch,
   type MessageId,
   type ModelSelection,
   type ProjectScript,
@@ -24,11 +25,15 @@ import {
 import { projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
 import { Debouncer } from "@tanstack/react-pacer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@multi/ui/alert";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@multi/multikit/alert";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
-import { useGitStatus } from "~/lib/git-status-state";
+import {
+  deriveLatestContextWindowSnapshot,
+  type ContextWindowSnapshot,
+} from "~/lib/context-window";
+import { getGitStatusSnapshot, useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
 import { usePrimaryEnvironmentId } from "../../../environments/primary";
 import { sendRuntimeTurn } from "~/lib/runtime-turn-dispatch";
@@ -48,6 +53,9 @@ import {
   hasActionableProposedPlan,
   isLatestTurnSettled,
   type PendingApproval,
+  type ToolDisplayArtifact,
+  type WorkLogEntry,
+  type WorkLogSubagent,
 } from "../../../session-logic";
 import {
   selectEnvironmentState,
@@ -73,6 +81,7 @@ import {
   DEFAULT_RUNTIME_MODE,
   MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
+  type PendingTimelineRow,
   type ProposedPlan,
   type SessionPhase,
   type Thread,
@@ -176,7 +185,10 @@ import {
 import { useGitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import { IconChevronRightMedium, IconExclamationCircle } from "central-icons";
 import { useAttachmentPreviewHandoff } from "./attachment-preview-handoff";
-import { WorkspaceToolbar } from "./workspace-toolbar";
+import {
+  WorkspaceToolbar,
+  type WorkspaceToolbarProject,
+} from "./workspace-toolbar";
 import { applyLocalThreadCreated } from "~/stores/local-orchestration-events";
 import {
   type ComposerSendSnapshot,
@@ -228,8 +240,8 @@ const EMPTY_THREAD_MESSAGES: ChatMessage[] = [];
 const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
 
-function messagesAcknowledgementKey(messages: readonly ChatMessage[] | undefined): string {
-  return JSON.stringify(messages?.map((message) => [message.id, message.role, message.text]) ?? []);
+function committedMessageIdsKey(messages: readonly ChatMessage[] | undefined): string {
+  return messages?.map((message) => message.id).join("\0") ?? "";
 }
 
 function projectScriptsKey(scripts: readonly ProjectScript[] | null | undefined): string {
@@ -401,12 +413,16 @@ export default function ChatView(props: ChatViewProps) {
     (store) => store.pendingRowsByThreadKey[routeThreadKey] ?? EMPTY_PENDING_TIMELINE_ROWS,
   );
   const appendPendingTimelineRow = usePendingThreadSendStore((store) => store.appendPendingRow);
+  const copyPendingTimelineRows = usePendingThreadSendStore((store) => store.copyPendingRows);
   const removePendingTimelineRows = usePendingThreadSendStore((store) => store.removePendingRows);
-  const removePendingTimelineRowsByClientSendKey = (messageId: MessageId) => {
-    const removedRows = removePendingTimelineRows(routeThreadKey, new Set([messageId]));
-    for (const message of pendingTimelineRowMessages(removedRows)) {
+  const revokePendingTimelineMessages = (rows: ReadonlyArray<PendingTimelineRow>) => {
+    for (const message of pendingTimelineRowMessages(rows)) {
       revokeUserMessagePreviewUrls(message);
     }
+  };
+  const removePendingTimelineRowsByClientSendKey = (messageId: MessageId) => {
+    const removedRows = removePendingTimelineRows(routeThreadKey, new Set([messageId]));
+    revokePendingTimelineMessages(removedRows);
   };
   const [localDraftErrorsByDraftId, setLocalDraftErrorsByDraftId] = useState<
     Record<string, string | null>
@@ -666,21 +682,36 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
 
-  const phase = derivePhase(activeThread?.session ?? null);
+  const phase = useMemo(() => derivePhase(activeThread?.session ?? null), [activeThread?.session]);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
+  const activeContextWindow = useStableLatestContextWindowSnapshot(threadActivities);
   const chatTimelineRows = activeThread?.chatTimelineRows ?? EMPTY_CHAT_TIMELINE_ROWS;
   const leafId = activeThread?.leafId ?? null;
   const branchViewEntryId = containsThreadEntry(activeThread ?? null, leafId) ? leafId : null;
-  const branchView = deriveThreadBranchView(activeThread ?? null, branchViewEntryId);
-  const visibleThreadActivities = filterActivitiesToBranch(threadActivities, branchView);
-  const visibleChatTimelineRows = filterChatTimelineRowsToBranch(chatTimelineRows, branchView);
+  const branchView = useMemo(
+    () => deriveThreadBranchView(activeThread ?? null, branchViewEntryId),
+    [activeThread, branchViewEntryId],
+  );
+  const visibleThreadActivities = useMemo(
+    () => filterActivitiesToBranch(threadActivities, branchView),
+    [branchView, threadActivities],
+  );
+  const visibleChatTimelineRows = useMemo(
+    () => filterChatTimelineRowsToBranch(chatTimelineRows, branchView),
+    [branchView, chatTimelineRows],
+  );
   const activeRunningTurnId =
     activeThread?.session?.orchestrationStatus === "running"
       ? (activeThread.session.activeTurnId ?? activeLatestTurn?.turnId ?? null)
       : null;
-  const workLogEntries = deriveWorkLogEntries(visibleThreadActivities, undefined, {
-    activeRunningTurnId,
-  });
+  const derivedWorkLogEntries = useMemo(
+    () =>
+      deriveWorkLogEntries(visibleThreadActivities, undefined, {
+        activeRunningTurnId,
+      }),
+    [activeRunningTurnId, visibleThreadActivities],
+  );
+  const workLogEntries = useStableCompletedWorkLogEntries(derivedWorkLogEntries);
   useEffect(() => {
     if (focusedSubagentTrayKey === null) {
       return;
@@ -690,9 +721,13 @@ export default function ChatView(props: ChatViewProps) {
       updateFocusedSubagentTray(subagent);
     }
   }, [focusedSubagentTrayKey, updateFocusedSubagentTray, workLogEntries]);
-  const pendingApprovals = latestTurnSettled
-    ? EMPTY_PENDING_APPROVALS
-    : derivePendingApprovals(threadActivities, activeLatestTurn?.turnId ?? null);
+  const pendingApprovals = useMemo(
+    () =>
+      latestTurnSettled
+        ? EMPTY_PENDING_APPROVALS
+        : derivePendingApprovals(threadActivities, activeLatestTurn?.turnId ?? null),
+    [activeLatestTurn?.turnId, latestTurnSettled, threadActivities],
+  );
   const {
     pendingUserInputs,
     activePendingUserInput,
@@ -722,7 +757,7 @@ export default function ChatView(props: ChatViewProps) {
   const [respondingExtensionUiRequestIds, setRespondingExtensionUiRequestIds] = useState<string[]>(
     [],
   );
-  const activeProposedPlan = (() => {
+  const activeProposedPlan = useMemo(() => {
     if (!latestTurnSettled) {
       return null;
     }
@@ -730,7 +765,7 @@ export default function ChatView(props: ChatViewProps) {
       activeThread?.proposedPlans ?? [],
       activeLatestTurn?.turnId ?? null,
     );
-  })();
+  }, [activeLatestTurn?.turnId, activeThread?.proposedPlans, latestTurnSettled]);
   const activeProposedPlanSourceThreadId =
     activeProposedPlan && activeThread
       ? activeLatestTurn?.sourceProposedPlan?.planId === activeProposedPlan.id
@@ -770,20 +805,27 @@ export default function ChatView(props: ChatViewProps) {
     cancelEditingQueuedComposerItem,
     replaceEditingQueuedComposerItem,
   } = useThreadComposerQueue(routeThreadKey);
-  const activeWorkStartedAt = deriveActiveWorkStartedAt(
-    activeLatestTurn,
-    activeThread?.session ?? null,
-    localDispatchStartedAt,
+  const activeWorkStartedAt = useMemo(
+    () =>
+      deriveActiveWorkStartedAt(
+        activeLatestTurn,
+        activeThread?.session ?? null,
+        localDispatchStartedAt,
+      ),
+    [activeLatestTurn, activeThread?.session, localDispatchStartedAt],
   );
   const threadMessages = activeThread?.messages ?? EMPTY_THREAD_MESSAGES;
-  const serverMessages = filterMessagesToBranch(threadMessages, branchView);
+  const serverMessages = useMemo(
+    () => filterMessagesToBranch(threadMessages, branchView),
+    [branchView, threadMessages],
+  );
   const {
     attachmentPreviewHandoffSync,
     applyAttachmentPreviewHandoff,
     clearAttachmentPreviewHandoffs,
     handoffAttachmentPreviews,
   } = useAttachmentPreviewHandoff({ serverMessages });
-  const localPendingTimelineRows = (() => {
+  const localPendingTimelineRows = useMemo(() => {
     const pendingGitAgentMessage =
       gitAgentActionHandoff?.target.environmentId === environmentId &&
       gitAgentActionHandoff.target.threadId === threadId
@@ -803,24 +845,39 @@ export default function ChatView(props: ChatViewProps) {
     return pendingGitAgentRow === null
       ? pendingTimelineRows
       : [...pendingTimelineRows, pendingGitAgentRow];
-  })();
-  const visiblePendingTimelineRows = filterPendingTimelineRowsToBranch(
-    localPendingTimelineRows,
-    branchView,
+  }, [
+    branchView.entryId,
+    environmentId,
+    gitAgentActionHandoff?.optimisticMessage,
+    gitAgentActionHandoff?.target.environmentId,
+    gitAgentActionHandoff?.target.threadId,
+    pendingTimelineRows,
+    threadId,
+  ]);
+  const visiblePendingTimelineRows = useMemo(
+    () => filterPendingTimelineRowsToBranch(localPendingTimelineRows, branchView),
+    [branchView, localPendingTimelineRows],
   );
-  const renderPendingTimelineRows = unacknowledgedPendingTimelineRows({
-    pendingRows: visiblePendingTimelineRows,
-    committedMessages: serverMessages,
-  });
-  const timelineMessages = (() => {
+  const renderPendingTimelineRows = useMemo(
+    () =>
+      unacknowledgedPendingTimelineRows({
+        pendingRows: visiblePendingTimelineRows,
+        committedMessages: serverMessages,
+      }),
+    [serverMessages, visiblePendingTimelineRows],
+  );
+  const timelineMessages = useMemo(() => {
     const serverMessagesWithPreviewHandoff = applyAttachmentPreviewHandoff(serverMessages);
     return appendPendingTimelineRowsToMessages(
       serverMessagesWithPreviewHandoff,
       renderPendingTimelineRows,
     );
-  })();
-  const liveTimelineMessages = timelineMessages.filter((message) => message.streaming);
-  const timelineEntries = (() => {
+  }, [applyAttachmentPreviewHandoff, renderPendingTimelineRows, serverMessages]);
+  const liveTimelineMessages = useMemo(
+    () => timelineMessages.filter((message) => message.streaming),
+    [timelineMessages],
+  );
+  const timelineEntries = useMemo(() => {
     const committedEntries = materializeTimelineEntriesFromChatTimelineRows({
       rows: visibleChatTimelineRows,
       messages: timelineMessages,
@@ -833,8 +890,16 @@ export default function ChatView(props: ChatViewProps) {
       liveMessages: liveTimelineMessages,
       pendingRows: renderPendingTimelineRows,
     });
-  })();
-  const editableUserMessageIds = (() => {
+  }, [
+    activeRunningTurnId,
+    activeThread?.proposedPlans,
+    liveTimelineMessages,
+    renderPendingTimelineRows,
+    threadActivities,
+    timelineMessages,
+    visibleChatTimelineRows,
+  ]);
+  const editableUserMessageIds = useMemo(() => {
     if (!activeThread || activeThread.entries.length === 0) {
       return new Set<MessageId>();
     }
@@ -853,7 +918,7 @@ export default function ChatView(props: ChatViewProps) {
       }
     }
     return editableIds;
-  })();
+  }, [activeThread]);
   const activeEditingUserMessageId =
     editingUserMessageId &&
     editableUserMessageIds.has(editingUserMessageId) &&
@@ -863,7 +928,7 @@ export default function ChatView(props: ChatViewProps) {
       ? editingUserMessageId
       : null;
 
-  const onBeginEditUserMessage = (messageId: MessageId) => {
+  const onBeginEditUserMessage = useCallback((messageId: MessageId) => {
     if (!isServerThread || !activeThread) {
       return;
     }
@@ -881,12 +946,22 @@ export default function ChatView(props: ChatViewProps) {
     clearComposerDraftContent(editComposerDraftTarget);
     setComposerDraftPrompt(editComposerDraftTarget, msg.text);
     setEditingUserMessageId(messageId);
-  };
+  }, [
+    activeThread?.entries,
+    activeThread?.id,
+    activeThread?.messages,
+    clearComposerDraftContent,
+    editComposerDraftTarget,
+    isServerThread,
+    setComposerDraftPrompt,
+    setThreadError,
+  ]);
+  const handleBeginEditUserMessage = useStableEvent(onBeginEditUserMessage);
 
-  const onCancelEditUserMessage = (messageId: MessageId) => {
+  const onCancelEditUserMessage = useCallback((messageId: MessageId) => {
     setEditingUserMessageId((current) => (current === messageId ? null : current));
     clearComposerDraftContent(editComposerDraftTarget);
-  };
+  }, [clearComposerDraftContent, editComposerDraftTarget]);
 
   const keybindings = useServerKeybindings();
   const availableEditors = useServerAvailableEditors();
@@ -974,7 +1049,6 @@ export default function ChatView(props: ChatViewProps) {
   const gitCwd = workspaceTarget.cwd;
   const workspaceToolbarCwd = gitCwd ?? activeProjectCwd;
   const gitEnvironmentId = workspaceTarget.rpcEnvironmentId;
-  const gitStatusQuery = useGitStatus({ environmentId: gitEnvironmentId, cwd: gitCwd });
   const handleWorkspaceOpenFolder = () => {
     if (!primaryEnvironmentId) {
       console.log("[workspace.toolbar.pick-folder.blocked]", {
@@ -1087,7 +1161,6 @@ export default function ChatView(props: ChatViewProps) {
     terminalLaunchContext?.threadId === activeThreadId
       ? terminalLaunchContext
       : (storeServerTerminalLaunchContext ?? null);
-  const isGitRepo = gitStatusQuery.data?.isRepo ?? false;
   const terminalShortcutLabelOptions = {
     context: {
       terminalFocus: true,
@@ -1385,7 +1458,7 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
-  const onUpdateProposedPlan = async (
+  const onUpdateProposedPlan = useCallback(async (
     proposedPlan: ProposedPlan,
     nextMarkdown: string,
   ): Promise<boolean> => {
@@ -1423,7 +1496,7 @@ export default function ChatView(props: ChatViewProps) {
       );
       return false;
     }
-  };
+  }, [activeThread?.id, environmentId, isServerThread, setThreadError]);
 
   // The messages timeline owns virtualized scroll state.
   const scrollTimelineToBottom = (animated = false) => {
@@ -1461,11 +1534,6 @@ export default function ChatView(props: ChatViewProps) {
         ? "worktree"
         : "local";
   const activeThreadBranch = activeThread?.branch ?? null;
-  const currentGitBranch = gitStatusQuery.data?.branch ?? null;
-  const sendEnvMode = resolveSendEnvMode({
-    requestedEnvMode: envMode,
-    isGitRepo,
-  });
   const showWorkspaceToolbar = isLocalDraftThread && activeThreadWorktreePath === null;
   const {
     unavailableBaseBranch,
@@ -1488,7 +1556,7 @@ export default function ChatView(props: ChatViewProps) {
     showWorkspaceToolbar || workspaceProject ? (
       <div className="flex min-w-0 items-center gap-1 overflow-hidden">
         {showWorkspaceToolbar ? (
-          <WorkspaceToolbar
+          <WorkspaceToolbarWithGitStatus
             environmentId={gitEnvironmentId ?? environmentId}
             cwd={workspaceToolbarCwd}
             workspaceName={workspaceProject?.name ?? ""}
@@ -1498,9 +1566,6 @@ export default function ChatView(props: ChatViewProps) {
             envMode={envMode}
             activeWorktreePath={activeWorktreePath}
             activeThreadBranch={activeThreadBranch}
-            currentGitBranch={currentGitBranch}
-            hasLocalChanges={gitStatusQuery.data?.hasWorkingTreeChanges ?? false}
-            isGitRepo={isGitRepo}
             canChangeEnvMode={true}
             disabled={isConnecting || isSendBusy}
             onEnvModeChange={handleBranchEnvModeChange}
@@ -1701,15 +1766,28 @@ export default function ChatView(props: ChatViewProps) {
     }
     const threadIdForSend = activeThread.id;
     const isFirstMessage = !isServerThread || activeThread.messages.length === 0;
+    const currentSendEnvMode = resolveSendEnvMode({
+      requestedEnvMode: envMode,
+      isGitRepo: getGitStatusSnapshot({
+        environmentId: gitEnvironmentId,
+        cwd: gitCwd,
+      }).data?.isRepo ?? false,
+    });
     const baseBranchForWorktree =
-      workspaceProject && isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath
+      workspaceProject &&
+      isFirstMessage &&
+      currentSendEnvMode === "worktree" &&
+      !activeThread.worktreePath
         ? activeThreadBranch
         : null;
 
     // In worktree mode, require an explicit base branch so we don't silently
     // fall back to local execution when branch selection is missing.
     const shouldCreateWorktree =
-      workspaceProject && isFirstMessage && sendEnvMode === "worktree" && !activeThread.worktreePath;
+      workspaceProject &&
+      isFirstMessage &&
+      currentSendEnvMode === "worktree" &&
+      !activeThread.worktreePath;
     if (shouldCreateWorktree && !activeThreadBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
       return;
@@ -1771,6 +1849,7 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     let promotedDraftOptimistically = false;
+    let promotedPendingThreadKey: string | null = null;
     let navigatedOptimistically = false;
     let turnStartSucceeded = false;
     await (async () => {
@@ -1878,9 +1957,17 @@ export default function ChatView(props: ChatViewProps) {
       beginLocalDispatch({ preparingWorktree: false });
       if (isLocalDraftThread && draftId) {
         const promotedThreadRef = scopeThreadRef(environmentId, threadIdForSend);
+        const promotedThreadKey = scopedThreadKey(promotedThreadRef);
         markDraftThreadPromoting(draftId, promotedThreadRef);
+        copyPendingTimelineRows(
+          routeThreadKey,
+          promotedThreadKey,
+          new Set([messageIdForSend]),
+        );
+        promotedPendingThreadKey = promotedThreadKey;
         promotedDraftOptimistically = true;
         await openThread(navigate, promotedThreadRef, { replace: true });
+        removePendingTimelineRows(routeThreadKey, new Set([messageIdForSend]));
         navigatedOptimistically = true;
       }
       await sendRuntimeTurn({
@@ -1905,7 +1992,16 @@ export default function ChatView(props: ChatViewProps) {
         promptRef.current.length === 0 &&
         composerImagesRef.current.length === 0
       ) {
-        removePendingTimelineRowsByClientSendKey(messageIdForSend);
+        if (promotedPendingThreadKey !== null) {
+          const removedPromotedRows = removePendingTimelineRows(
+            promotedPendingThreadKey,
+            new Set([messageIdForSend]),
+          );
+          revokePendingTimelineMessages(removedPromotedRows);
+          removePendingTimelineRows(routeThreadKey, new Set([messageIdForSend]));
+        } else {
+          removePendingTimelineRowsByClientSendKey(messageIdForSend);
+        }
         promptRef.current = promptForSend;
         const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
         composerImagesRef.current = retryComposerImages;
@@ -2317,11 +2413,26 @@ export default function ChatView(props: ChatViewProps) {
       resetLocalDispatch();
     }
   };
-  const onExpandTimelineImage = (preview: ExpandedImagePreview) => {
+  const handleComposerSend = useStableEvent(onSend);
+  const handleComposerInterrupt = useStableEvent(onInterrupt);
+  const handleBuildActiveProposedPlan = useStableEvent(onBuildActiveProposedPlan);
+  const handleViewActivePlan = useStableEvent(() => {
+    shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey);
+  });
+  const handleRespondToApproval = useStableEvent(onRespondToApproval);
+  const handleBeginEditQueuedComposerItem = useStableEvent(onBeginEditQueuedComposerItem);
+  const handleCancelEditingQueuedComposerItem = useStableEvent(onCancelEditingQueuedComposerItem);
+  const handleRemoveQueuedComposerItem = useStableEvent(onRemoveQueuedComposerItem);
+  const handleSendQueuedComposerItemNow = useStableEvent(onSendQueuedComposerItemNow);
+  const handleReorderQueuedComposerItem = useStableEvent(onReorderQueuedComposerItem);
+  const handleQueuedComposerItemsExpandedChange = useStableEvent(
+    onQueuedComposerItemsExpandedChange,
+  );
+  const onExpandTimelineImage = useCallback((preview: ExpandedImagePreview) => {
     setExpandedImage(preview);
-  };
-  const renderEditComposer = (message: ChatMessage): ReactNode => {
-    if (!activeThread) {
+  }, []);
+  const renderEditComposer = useCallback((message: ChatMessage): ReactNode => {
+    if (activeThreadId === null) {
       return null;
     }
     return (
@@ -2331,26 +2442,47 @@ export default function ChatView(props: ChatViewProps) {
         composerDraftTarget={editComposerDraftTarget}
         environmentId={environmentId}
         draftId={draftId}
-        activeThreadId={activeThread.id}
+        activeThreadId={activeThreadId}
         phase={phase}
         isConnecting={isConnecting}
         isSendBusy={isSendBusy}
         isPreparingWorktree={isPreparingWorktree}
         interactionMode={interactionMode}
-        activeThreadActivities={threadActivities}
+        activeContextWindow={activeContextWindow}
         resolvedTheme={resolvedTheme}
         settings={settings}
         keybindings={keybindings}
         terminalOpen={Boolean(terminalState.terminalOpen)}
         gitCwd={gitCwd}
-        onInterrupt={onInterrupt}
+        onInterrupt={handleComposerInterrupt}
         setThreadError={setThreadError}
         onExpandImage={onExpandTimelineImage}
         onCancelEditUserMessage={onCancelEditUserMessage}
         onSubmitEditUserMessage={onSubmitEditUserMessage}
       />
     );
-  };
+  }, [
+    activeThreadId,
+    draftId,
+    editComposerDraftTarget,
+    environmentId,
+    gitCwd,
+    interactionMode,
+    isConnecting,
+    isPreparingWorktree,
+    isSendBusy,
+    keybindings,
+    onCancelEditUserMessage,
+    handleComposerInterrupt,
+    onExpandTimelineImage,
+    onSubmitEditUserMessage,
+    phase,
+    resolvedTheme,
+    setThreadError,
+    settings,
+    terminalState.terminalOpen,
+    activeContextWindow,
+  ]);
   const localThreadHasStarted =
     pendingTimelineRows.length > 0 || isSendBusy || Boolean(draftThread?.promotedTo);
   const isHeroComposer = activeThread
@@ -2361,7 +2493,7 @@ export default function ChatView(props: ChatViewProps) {
     ? `${activeThread.id}:${branchView.entryId ?? "linear"}`
     : "";
   const existingOpenTerminalThreadKeysKey = existingOpenTerminalThreadKeys.join("\0");
-  const serverMessagesAcknowledgementKey = messagesAcknowledgementKey(activeThread?.messages);
+  const serverMessagesAcknowledgementKey = committedMessageIdsKey(activeThread?.messages);
   const storeServerTerminalLaunchContextKey = storeServerTerminalLaunchContext
     ? [
         storeServerTerminalLaunchContext.cwd,
@@ -2570,8 +2702,10 @@ export default function ChatView(props: ChatViewProps) {
                   projectRoot={activeProjectRoot}
                   isServerThread={isServerThread}
                   editingUserMessageId={activeEditingUserMessageId}
-                  onBeginEditUserMessage={onBeginEditUserMessage}
-                  renderEditComposer={renderEditComposer}
+                  onBeginEditUserMessage={handleBeginEditUserMessage}
+                  renderEditComposer={
+                    activeEditingUserMessageId !== null ? renderEditComposer : undefined
+                  }
                   onUpdateProposedPlan={onUpdateProposedPlan}
                   awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
                   onIsAtBottomChange={onIsAtBottomChange}
@@ -2666,7 +2800,7 @@ export default function ChatView(props: ChatViewProps) {
               activeProposedPlan={activeProposedPlan}
               planSurfaceOpen={planSurfaceOpen}
               interactionMode={interactionMode}
-              activeThreadActivities={activeThread?.activities}
+              activeContextWindow={activeContextWindow}
               resolvedTheme={resolvedTheme}
               settings={settings}
               keybindings={keybindings}
@@ -2674,23 +2808,23 @@ export default function ChatView(props: ChatViewProps) {
               gitCwd={gitCwd}
               promptRef={promptRef}
               composerImagesRef={composerImagesRef}
-              onSend={onSend}
-              onInterrupt={onInterrupt}
-              onBuildPlan={onBuildActiveProposedPlan}
-              onViewPlan={() => shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey)}
-              onRespondToApproval={onRespondToApproval}
+              onSend={handleComposerSend}
+              onInterrupt={handleComposerInterrupt}
+              onBuildPlan={handleBuildActiveProposedPlan}
+              onViewPlan={handleViewActivePlan}
+              onRespondToApproval={handleRespondToApproval}
               onSelectActivePendingUserInputOption={onSelectActivePendingUserInputOption}
               onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
               onPreviousActivePendingUserInputQuestion={onPreviousActivePendingUserInputQuestion}
               onChangeActivePendingUserInputCustomAnswer={
                 onChangeActivePendingUserInputCustomAnswer
               }
-              onBeginEditQueuedComposerItem={onBeginEditQueuedComposerItem}
-              onCancelEditingQueuedComposerItem={onCancelEditingQueuedComposerItem}
-              onRemoveQueuedComposerItem={onRemoveQueuedComposerItem}
-              onSendQueuedComposerItemNow={onSendQueuedComposerItemNow}
-              onReorderQueuedComposerItem={onReorderQueuedComposerItem}
-              onQueuedComposerItemsExpandedChange={onQueuedComposerItemsExpandedChange}
+              onBeginEditQueuedComposerItem={handleBeginEditQueuedComposerItem}
+              onCancelEditingQueuedComposerItem={handleCancelEditingQueuedComposerItem}
+              onRemoveQueuedComposerItem={handleRemoveQueuedComposerItem}
+              onSendQueuedComposerItemNow={handleSendQueuedComposerItemNow}
+              onReorderQueuedComposerItem={handleReorderQueuedComposerItem}
+              onQueuedComposerItemsExpandedChange={handleQueuedComposerItemsExpandedChange}
               toggleInteractionMode={toggleInteractionMode}
               handleInteractionModeChange={handleInteractionModeChange}
               setThreadError={setThreadError}
@@ -2743,5 +2877,386 @@ export default function ChatView(props: ChatViewProps) {
         />
       )}
     </div>
+  );
+}
+
+function useStableLatestContextWindowSnapshot(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): ContextWindowSnapshot | null {
+  const nextSnapshot = useMemo(() => deriveLatestContextWindowSnapshot(activities), [activities]);
+  const previousSnapshotRef = useRef<ContextWindowSnapshot | null>(null);
+
+  if (!areSameContextWindowSnapshot(previousSnapshotRef.current, nextSnapshot)) {
+    previousSnapshotRef.current = nextSnapshot;
+  }
+
+  return previousSnapshotRef.current;
+}
+
+function areSameContextWindowSnapshot(
+  left: ContextWindowSnapshot | null,
+  right: ContextWindowSnapshot | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.usedTokens === right.usedTokens &&
+    left.totalProcessedTokens === right.totalProcessedTokens &&
+    left.maxTokens === right.maxTokens &&
+    left.remainingTokens === right.remainingTokens &&
+    left.usedPercentage === right.usedPercentage &&
+    left.remainingPercentage === right.remainingPercentage &&
+    left.inputTokens === right.inputTokens &&
+    left.cachedInputTokens === right.cachedInputTokens &&
+    left.outputTokens === right.outputTokens &&
+    left.reasoningOutputTokens === right.reasoningOutputTokens &&
+    left.lastUsedTokens === right.lastUsedTokens &&
+    left.lastInputTokens === right.lastInputTokens &&
+    left.lastCachedInputTokens === right.lastCachedInputTokens &&
+    left.lastOutputTokens === right.lastOutputTokens &&
+    left.lastReasoningOutputTokens === right.lastReasoningOutputTokens &&
+    left.toolUses === right.toolUses &&
+    left.durationMs === right.durationMs &&
+    left.compactsAutomatically === right.compactsAutomatically &&
+    left.updatedAt === right.updatedAt
+  );
+}
+
+interface StableWorkLogEntryState {
+  byId: Map<string, WorkLogEntry>;
+  result: WorkLogEntry[];
+}
+
+function useStableCompletedWorkLogEntries(
+  entries: ReadonlyArray<WorkLogEntry>,
+): WorkLogEntry[] {
+  const stateRef = useRef<StableWorkLogEntryState>({
+    byId: new Map(),
+    result: [],
+  });
+
+  return useMemo(() => {
+    const previous = stateRef.current;
+    const nextById = new Map<string, WorkLogEntry>();
+    let changed = entries.length !== previous.result.length;
+
+    const result = entries.map((entry, index) => {
+      if (entry.status === "running") {
+        changed = true;
+        return entry;
+      }
+
+      const previousEntry = previous.byId.get(entry.id);
+      const stableEntry =
+        previousEntry && canReuseCompletedWorkLogEntry(previousEntry, entry)
+          ? previousEntry
+          : entry;
+      nextById.set(entry.id, stableEntry);
+
+      if (!changed && previous.result[index] !== stableEntry) {
+        changed = true;
+      }
+
+      return stableEntry;
+    });
+
+    const nextState = changed ? { byId: nextById, result } : previous;
+    if (!changed) {
+      return previous.result;
+    }
+
+    stateRef.current = nextState;
+    return result;
+  }, [entries]);
+}
+
+function canReuseCompletedWorkLogEntry(previous: WorkLogEntry, next: WorkLogEntry): boolean {
+  return (
+    previous.status !== "running" &&
+    next.status !== "running" &&
+    previous.id === next.id &&
+    previous.createdAt === next.createdAt &&
+    previous.completedAt === next.completedAt &&
+    previous.label === next.label &&
+    previous.detail === next.detail &&
+    previous.output === next.output &&
+    previous.command === next.command &&
+    previous.rawCommand === next.rawCommand &&
+    previous.tone === next.tone &&
+    previous.status === next.status &&
+    previous.toolCallId === next.toolCallId &&
+    previous.toolTitle === next.toolTitle &&
+    previous.itemType === next.itemType &&
+    previous.requestKind === next.requestKind &&
+    previous.extensionUiRequestId === next.extensionUiRequestId &&
+    previous.extensionUiRequestKind === next.extensionUiRequestKind &&
+    previous.taskId === next.taskId &&
+    previous.isToolSummary === next.isToolSummary &&
+    areSameStringArray(previous.changedFiles, next.changedFiles) &&
+    areSameStringArray(previous.precedingToolUseIds, next.precedingToolUseIds) &&
+    areSameToolDisplayArtifacts(previous.artifacts, next.artifacts) &&
+    areSameSubagentSummaries(previous.subagents, next.subagents) &&
+    areSameSubagentAction(previous.subagentAction, next.subagentAction)
+  );
+}
+
+function areSameStringArray(
+  previous: ReadonlyArray<string> | undefined,
+  next: ReadonlyArray<string> | undefined,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (!previous || !next || previous.length !== next.length) {
+    return false;
+  }
+  for (let index = 0; index < previous.length; index += 1) {
+    if (previous[index] !== next[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areSameToolDisplayArtifacts(
+  previous: ReadonlyArray<ToolDisplayArtifact> | undefined,
+  next: ReadonlyArray<ToolDisplayArtifact> | undefined,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (!previous || !next || previous.length !== next.length) {
+    return false;
+  }
+  for (let index = 0; index < previous.length; index += 1) {
+    const previousArtifact = previous[index];
+    const nextArtifact = next[index];
+    if (
+      !previousArtifact ||
+      !nextArtifact ||
+      !areSameToolDisplayArtifact(previousArtifact, nextArtifact)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areSameToolDisplayArtifact(
+  previous: ToolDisplayArtifact,
+  next: ToolDisplayArtifact,
+): boolean {
+  if (previous.type !== next.type) {
+    return false;
+  }
+
+  switch (previous.type) {
+    case "command":
+      return (
+        next.type === "command" &&
+        previous.command === next.command &&
+        previous.output === next.output &&
+        previous.exitCode === next.exitCode &&
+        previous.durationMs === next.durationMs &&
+        previous.truncated === next.truncated &&
+        previous.fullOutputPath === next.fullOutputPath &&
+        previous.isPartial === next.isPartial
+      );
+    case "diff":
+      return (
+        next.type === "diff" &&
+        previous.source === next.source &&
+        previous.title === next.title &&
+        previous.summary === next.summary &&
+        previous.unifiedDiff === next.unifiedDiff &&
+        previous.isPreview === next.isPreview &&
+        areSameToolDiffFiles(previous.files, next.files)
+      );
+    case "read":
+      return (
+        next.type === "read" &&
+        previous.path === next.path &&
+        previous.output === next.output &&
+        previous.truncated === next.truncated &&
+        previous.isPartial === next.isPartial
+      );
+    case "search":
+      return (
+        next.type === "search" &&
+        previous.query === next.query &&
+        previous.output === next.output &&
+        previous.truncated === next.truncated &&
+        previous.isPartial === next.isPartial &&
+        areSameStringArray(previous.matchedFiles, next.matchedFiles)
+      );
+    case "diagnostic":
+      return (
+        next.type === "diagnostic" &&
+        previous.severity === next.severity &&
+        previous.message === next.message
+      );
+    case "raw":
+      return next.type === "raw" && previous.text === next.text;
+  }
+}
+
+function areSameToolDiffFiles(
+  previous: Extract<ToolDisplayArtifact, { type: "diff" }>["files"],
+  next: Extract<ToolDisplayArtifact, { type: "diff" }>["files"],
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (previous.length !== next.length) {
+    return false;
+  }
+  for (let index = 0; index < previous.length; index += 1) {
+    const previousFile = previous[index];
+    const nextFile = next[index];
+    if (
+      !previousFile ||
+      !nextFile ||
+      previousFile.path !== nextFile.path ||
+      previousFile.additions !== nextFile.additions ||
+      previousFile.deletions !== nextFile.deletions
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areSameSubagentSummaries(
+  previous: ReadonlyArray<WorkLogSubagent> | undefined,
+  next: ReadonlyArray<WorkLogSubagent> | undefined,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (!previous || !next || previous.length !== next.length) {
+    return false;
+  }
+  for (let index = 0; index < previous.length; index += 1) {
+    const previousSubagent = previous[index];
+    const nextSubagent = next[index];
+    if (
+      !previousSubagent ||
+      !nextSubagent ||
+      previousSubagent.threadId !== nextSubagent.threadId ||
+      previousSubagent.subagentThreadId !== nextSubagent.subagentThreadId ||
+      previousSubagent.title !== nextSubagent.title ||
+      previousSubagent.nickname !== nextSubagent.nickname ||
+      previousSubagent.role !== nextSubagent.role ||
+      previousSubagent.rawStatus !== nextSubagent.rawStatus ||
+      previousSubagent.latestUpdate !== nextSubagent.latestUpdate ||
+      previousSubagent.statusLabel !== nextSubagent.statusLabel ||
+      previousSubagent.isActive !== nextSubagent.isActive ||
+      previousSubagent.usedTokens !== nextSubagent.usedTokens ||
+      previousSubagent.maxTokens !== nextSubagent.maxTokens ||
+      previousSubagent.usedPercentage !== nextSubagent.usedPercentage ||
+      previousSubagent.hasDetails !== nextSubagent.hasDetails ||
+      previousSubagent.logs?.length !== nextSubagent.logs?.length ||
+      previousSubagent.transcriptItems?.length !== nextSubagent.transcriptItems?.length
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areSameSubagentAction(
+  previous: WorkLogEntry["subagentAction"],
+  next: WorkLogEntry["subagentAction"],
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (!previous || !next) {
+    return false;
+  }
+  return (
+    previous.tool === next.tool &&
+    previous.status === next.status &&
+    previous.summaryText === next.summaryText &&
+    previous.model === next.model &&
+    previous.prompt === next.prompt
+  );
+}
+
+function useStableEvent<TArgs extends unknown[], TResult>(
+  handler: (...args: TArgs) => TResult,
+): (...args: TArgs) => TResult {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+  return useCallback((...args: TArgs) => handlerRef.current(...args), []);
+}
+
+function WorkspaceToolbarWithGitStatus({
+  environmentId,
+  cwd,
+  workspaceName,
+  workspacePath,
+  projects,
+  activeProjectRef,
+  envMode,
+  activeWorktreePath,
+  activeThreadBranch,
+  canChangeEnvMode,
+  disabled,
+  onEnvModeChange,
+  onProjectSelect,
+  onOpenFolder,
+  onBranchSelect,
+  onCheckoutPullRequest,
+  onStoredBranchAvailabilityChange,
+}: {
+  environmentId: EnvironmentId;
+  cwd: string | null;
+  workspaceName: string;
+  workspacePath: string | null;
+  projects: ReadonlyArray<WorkspaceToolbarProject>;
+  activeProjectRef: ScopedProjectRef | null;
+  envMode: DraftThreadEnvMode;
+  activeWorktreePath: string | null;
+  activeThreadBranch: string | null;
+  canChangeEnvMode: boolean;
+  disabled: boolean;
+  onEnvModeChange: (mode: DraftThreadEnvMode, branch: string | null) => void;
+  onProjectSelect: (projectRef: ScopedProjectRef) => Promise<void> | void;
+  onOpenFolder: () => void;
+  onBranchSelect: (branch: GitBranch) => Promise<void> | void;
+  onCheckoutPullRequest: (reference: string) => void;
+  onStoredBranchAvailabilityChange: (missingBranch: string | null) => void;
+}) {
+  const gitStatusQuery = useGitStatus({ environmentId, cwd });
+
+  return (
+    <WorkspaceToolbar
+      environmentId={environmentId}
+      cwd={cwd}
+      workspaceName={workspaceName}
+      workspacePath={workspacePath}
+      projects={projects}
+      activeProjectRef={activeProjectRef}
+      envMode={envMode}
+      activeWorktreePath={activeWorktreePath}
+      activeThreadBranch={activeThreadBranch}
+      currentGitBranch={gitStatusQuery.data?.branch ?? null}
+      hasLocalChanges={gitStatusQuery.data?.hasWorkingTreeChanges ?? false}
+      isGitRepo={gitStatusQuery.data?.isRepo ?? false}
+      canChangeEnvMode={canChangeEnvMode}
+      disabled={disabled}
+      onEnvModeChange={onEnvModeChange}
+      onProjectSelect={onProjectSelect}
+      onOpenFolder={onOpenFolder}
+      onBranchSelect={onBranchSelect}
+      onCheckoutPullRequest={onCheckoutPullRequest}
+      onStoredBranchAvailabilityChange={onStoredBranchAvailabilityChange}
+    />
   );
 }

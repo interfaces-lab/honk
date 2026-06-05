@@ -54,10 +54,28 @@ function getExtendedGitTreeStyles(): TreeThemeStyles {
   return styles;
 }
 
+// themeToTreeStyles() returns the --trees-theme-* fallback variables *plus*
+// literal layout properties (backgroundColor, color, borderColor, colorScheme)
+// taken straight from the Pierre theme. The literal backgroundColor is the
+// theme's sidebar/editor background (white in light mode), and as an inline
+// style it beats the `:host { background-color: var(--trees-bg) }` rule —
+// painting an extra white background over our panel background. We drive the
+// host entirely through --trees-*-override variables (treeHostLayout), so keep
+// only the custom properties and drop the literal layout properties.
+function pickTreeThemeVariables(styles: TreeThemeStyles): TreeThemeStyles {
+  const variables: TreeThemeStyles = {};
+  for (const [key, value] of Object.entries(styles)) {
+    if (key.startsWith("--")) {
+      variables[key] = value;
+    }
+  }
+  return variables;
+}
+
 function getPierreTreeThemeStyles(resolvedTheme: "light" | "dark"): TreeThemeStyles {
   const theme = resolvedTheme === "dark" ? pierreDark : pierreLight;
   return {
-    ...themeToTreeStyles(toTreeThemeInput(theme)),
+    ...pickTreeThemeVariables(themeToTreeStyles(toTreeThemeInput(theme))),
     ...getExtendedGitTreeStyles(),
   };
 }

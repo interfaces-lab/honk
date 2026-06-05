@@ -287,6 +287,7 @@ export const AgentRuntimeEvent = Schema.Struct({
   turnId: Schema.optional(TurnId),
   createdAt: IsoDateTime,
   summary: Schema.optional(Schema.String),
+  messageRole: Schema.optional(SessionMessageRole),
   text: Schema.optional(Schema.String),
   thinking: Schema.optional(Schema.String),
   data: Schema.optional(Schema.Unknown),

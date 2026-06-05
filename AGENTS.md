@@ -30,13 +30,13 @@
 - Browse available icons in `node_modules/central-icons/icons-index.json`.
 - Import icons from `central-icons`.
 
-## Tomeito (design system)
+## Multikit (design system)
 
-- **Tomeito** is Multi's design system. Primitives live in `@multi/ui/*`; tokens in `packages/app/src/styles/tokens.css` and `index.css`.
-- Browse and tweak components in dev at `/dev/tomeito` (Cmd+K → "Open Tomeito"). DialKit panel adjusts the active preview.
-- Prefer existing Tomeito primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@multi/ui/text` is for settings and structured copy.
+- **Multikit** is Multi's design system. Primitives live in `@multi/multikit/*`; tokens in `@multi/multikit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
+- Browse and tweak components in dev at `/dev/multikit` (Cmd+K → "Open Multikit"). DialKit panel adjusts the active preview.
+- Prefer existing Multikit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@multi/multikit/text` is for settings and structured copy.
 - Stack: Base UI headless + CVA variants + Tailwind v4. Icons: `central-icons` only.
-- `cn()` / `tailwind-merge` must treat `text-multi-*` size utilities separately from `text-multi-fg-*` color utilities (see `packages/ui/src/utils.ts`).
+- `cn()` / `tailwind-merge` must treat `text-multi-*` size utilities separately from `text-multi-fg-*` color utilities (see `packages/multikit/src/utils.ts`).
 
 ## Commands
 

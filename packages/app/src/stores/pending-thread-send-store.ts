@@ -10,6 +10,11 @@ interface PendingThreadSendStoreState {
   pendingRowsByThreadKey: Record<string, PendingTimelineRow[] | undefined>;
   localDispatchByThreadKey: Record<string, LocalDispatchSnapshot | undefined>;
   appendPendingRow: (threadKey: string, row: PendingTimelineRow) => void;
+  copyPendingRows: (
+    sourceThreadKey: string,
+    targetThreadKey: string,
+    clientSendKeys?: ReadonlySet<MessageId>,
+  ) => void;
   removePendingRows: (
     threadKey: string,
     clientSendKeys: ReadonlySet<MessageId>,
@@ -34,6 +39,40 @@ export const usePendingThreadSendStore = create<PendingThreadSendStoreState>((se
         pendingRowsByThreadKey: {
           ...state.pendingRowsByThreadKey,
           [threadKey]: [...existing, row],
+        },
+      };
+    });
+  },
+
+  copyPendingRows: (sourceThreadKey, targetThreadKey, clientSendKeys) => {
+    if (sourceThreadKey === targetThreadKey) {
+      return;
+    }
+    set((state) => {
+      const sourceRows = state.pendingRowsByThreadKey[sourceThreadKey] ?? [];
+      if (sourceRows.length === 0) {
+        return state;
+      }
+
+      const rowsToTransfer = clientSendKeys
+        ? sourceRows.filter((row) => clientSendKeys.has(row.clientSendKey))
+        : sourceRows;
+      if (rowsToTransfer.length === 0) {
+        return state;
+      }
+
+      const targetRows = state.pendingRowsByThreadKey[targetThreadKey] ?? [];
+      const targetClientSendKeys = new Set(targetRows.map((row) => row.clientSendKey));
+      const rowsToAppend = rowsToTransfer.filter(
+        (row) => !targetClientSendKeys.has(row.clientSendKey),
+      );
+      if (rowsToAppend.length === 0) {
+        return state;
+      }
+      return {
+        pendingRowsByThreadKey: {
+          ...state.pendingRowsByThreadKey,
+          [targetThreadKey]: [...targetRows, ...rowsToAppend],
         },
       };
     });

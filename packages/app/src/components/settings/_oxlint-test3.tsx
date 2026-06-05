@@ -1,4 +1,4 @@
-import { Text } from "@multi/ui/text";
+import { Text } from "@multi/multikit/text";
 
 const TEXT_SPAN_RENDER = <span />;
 

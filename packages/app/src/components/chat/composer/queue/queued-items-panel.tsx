@@ -3,7 +3,7 @@ import type { MessageId } from "@multi/contracts";
 import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";
-import { SidebarButton, SidebarItem } from "@multi/ui/sidebar";
+import { SidebarButton, SidebarItem } from "@multi/multikit/sidebar";
 import { cn } from "~/lib/utils";
 
 function handleQueuedItemDragEnter(event: DragEvent<HTMLElement>) {

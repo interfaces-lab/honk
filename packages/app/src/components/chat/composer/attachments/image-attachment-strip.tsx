@@ -1,5 +1,5 @@
-import { Button } from "@multi/ui/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Button } from "@multi/multikit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {

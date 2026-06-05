@@ -136,12 +136,12 @@ export function filterActivitiesToBranch(
 export function filterChatTimelineRowsToBranch(
   rows: ReadonlyArray<OrchestrationChatTimelineRow>,
   branchView: ThreadBranchView,
-): OrchestrationChatTimelineRow[] {
+): ReadonlyArray<OrchestrationChatTimelineRow> {
   if (branchView.status === "invalid") {
     return [];
   }
   if (branchView.status === "unfiltered") {
-    return [...rows];
+    return rows;
   }
 
   const messageIds = branchView.messageIds;

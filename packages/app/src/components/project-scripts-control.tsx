@@ -32,8 +32,8 @@ import {
   AlertDialogHeader,
   AlertDialogPopup,
   AlertDialogTitle,
-} from "@multi/ui/alert-dialog";
-import { Button } from "@multi/ui/button";
+} from "@multi/multikit/alert-dialog";
+import { Button } from "@multi/multikit/button";
 import {
   Dialog,
   DialogDescription,
@@ -42,10 +42,10 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
-import { Input } from "@multi/ui/input";
-import { Kbd } from "@multi/ui/kbd";
-import { Label } from "@multi/ui/label";
+} from "@multi/multikit/dialog";
+import { Input } from "@multi/multikit/input";
+import { Kbd } from "@multi/multikit/kbd";
+import { Label } from "@multi/multikit/label";
 import {
   Menu,
   MenuItem,
@@ -53,10 +53,10 @@ import {
   MenuShortcut,
   MenuTrigger,
   workbenchMenuMetaTextClassName,
-} from "@multi/ui/menu";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
-import { Switch } from "@multi/ui/switch";
-import { Textarea } from "@multi/ui/textarea";
+} from "@multi/multikit/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
+import { Switch } from "@multi/multikit/switch";
+import { Textarea } from "@multi/multikit/textarea";
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "play", label: "Play" },

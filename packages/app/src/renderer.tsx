@@ -6,7 +6,7 @@ import "./dev/react-grab";
 import "./app/appearance-boot";
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
-import "./styles/tokens.css";
+import "@multi/multikit/styles.css";
 import "./styles/app.css";
 
 import { installDesktopActiveWorkBridge } from "./desktop-active-work-bridge";

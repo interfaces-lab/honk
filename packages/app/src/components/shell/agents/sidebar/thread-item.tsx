@@ -1,5 +1,5 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
-import { SidebarButton, SidebarItem } from "@multi/ui/sidebar";
+import { SidebarButton, SidebarItem } from "@multi/multikit/sidebar";
 import { IconArchive1, IconPin, IconUnpin } from "central-icons";
 import { type KeyboardEvent, type MouseEvent, useRef, useState } from "react";
 import { toast } from "sonner";

@@ -1,4 +1,4 @@
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
 import { useState, type FormEvent } from "react";
 

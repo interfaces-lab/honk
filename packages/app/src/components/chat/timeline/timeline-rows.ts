@@ -36,9 +36,10 @@ export interface WorkTimelineRow {
   kind: "work";
   id: string;
   createdAt: string;
-  durationStart: string;
-  durationMs: number;
+  completedDurationLabel: string | null;
   isRunning: boolean;
+  isThinkingGroup: boolean;
+  isCommandGroup: boolean;
   summary: WorkGroupSummary;
   steps: TimelineWorkStep[];
   groupedEntries: WorkLogEntry[];
@@ -110,12 +111,13 @@ function timelineRenderItemToRow(item: TimelineRenderItem): MessagesTimelineRow 
         kind: "work",
         id: item.id,
         createdAt: item.createdAt,
-        durationStart: item.group.durationStart,
-        durationMs: item.group.durationMs,
+        completedDurationLabel: item.group.completedDurationLabel,
         isRunning: item.group.isRunning,
+        isThinkingGroup: item.group.isThinkingGroup,
+        isCommandGroup: item.group.isCommandGroup,
         summary: item.group.summary,
         steps: item.group.steps,
-        groupedEntries: item.group.steps.map((step) => step.entry),
+        groupedEntries: item.group.entries,
         renderItem: item,
       };
 
@@ -161,9 +163,10 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {
   return (
     a.createdAt === b.createdAt &&
-    a.durationStart === b.durationStart &&
-    a.durationMs === b.durationMs &&
+    a.completedDurationLabel === b.completedDurationLabel &&
     a.isRunning === b.isRunning &&
+    a.isThinkingGroup === b.isThinkingGroup &&
+    a.isCommandGroup === b.isCommandGroup &&
     a.summary.action === b.summary.action &&
     a.summary.details === b.summary.details &&
     a.summary.additions === b.summary.additions &&

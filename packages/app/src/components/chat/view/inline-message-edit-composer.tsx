@@ -32,7 +32,7 @@ type InlineMessageEditComposerProps = Pick<
   | "isSendBusy"
   | "isPreparingWorktree"
   | "interactionMode"
-  | "activeThreadActivities"
+  | "activeContextWindow"
   | "resolvedTheme"
   | "settings"
   | "keybindings"

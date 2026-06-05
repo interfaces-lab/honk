@@ -83,8 +83,8 @@ import {
   CommandList,
   CommandPanel,
   CommandShortcut,
-} from "@multi/ui/command";
-import { Kbd, KbdGroup } from "@multi/ui/kbd";
+} from "@multi/multikit/command";
+import { Kbd, KbdGroup } from "@multi/multikit/kbd";
 import { toastManager } from "~/app/toast";
 import {
   ComposerHandleContext,
@@ -728,23 +728,23 @@ function OpenCommandPaletteDialog() {
   if (import.meta.env.DEV) {
     actionItems.push({
       kind: "action",
-      value: "action:dev:tomeito",
+      value: "action:dev:multikit",
       searchTerms: [
-        "tomeito",
+        "multikit",
         "design system",
         "components",
         "component gallery",
         "ui",
         "primitives",
-        "@multi/ui",
+        "@multi/multikit",
         "dialkit",
         "dev",
       ],
-      title: "Open Tomeito",
-      description: "Browse the Tomeito design system with DialKit (dev)",
+      title: "Open Multikit",
+      description: "Browse the Multikit design system with DialKit (dev)",
       icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
       run: async () => {
-        await navigate({ to: "/dev/tomeito" });
+        await navigate({ to: "/dev/multikit" });
       },
     });
 

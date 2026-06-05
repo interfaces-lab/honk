@@ -41,6 +41,7 @@ const DESKTOP_BACKEND_ENV_NAMES = [
   "MULTI_MODE",
   "MULTI_NO_BROWSER",
   "MULTI_HOST",
+  "MULTI_DESKTOP_BOOTSTRAP_TOKEN",
   "MULTI_DESKTOP_WS_URL",
   "MULTI_DESKTOP_LAN_ACCESS",
   "MULTI_DESKTOP_LAN_HOST",
@@ -86,6 +87,12 @@ const readPersistedBackendObservabilitySettings: Effect.Effect<
 
 const getOrCreateBootstrapToken = Effect.fn("desktop.backendConfiguration.bootstrapToken")(
   function* (tokenRef: Ref.Ref<Option.Option<string>>) {
+    const configuredToken = process.env.MULTI_DESKTOP_BOOTSTRAP_TOKEN?.trim();
+    if (configuredToken) {
+      yield* Ref.set(tokenRef, Option.some(configuredToken));
+      return configuredToken;
+    }
+
     const existing = yield* Ref.get(tokenRef);
     if (Option.isSome(existing)) {
       return existing.value;

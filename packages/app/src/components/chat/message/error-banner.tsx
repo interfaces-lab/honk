@@ -1,4 +1,4 @@
-import { Alert, AlertAction, AlertDescription } from "@multi/ui/alert";
+import { Alert, AlertAction, AlertDescription } from "@multi/multikit/alert";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 
 export function ThreadErrorBanner({

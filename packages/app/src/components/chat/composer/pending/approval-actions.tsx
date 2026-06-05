@@ -1,5 +1,5 @@
 import { type ApprovalRequestId, type RuntimeApprovalDecision } from "@multi/contracts";
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 
 interface ComposerPendingApprovalActionsProps {
   requestId: ApprovalRequestId;

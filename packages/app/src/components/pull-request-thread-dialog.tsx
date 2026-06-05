@@ -10,7 +10,7 @@ import {
 } from "~/lib/git-react-query";
 import { cn } from "~/lib/utils";
 import { parsePullRequestReference } from "~/git/pull-request-reference";
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import {
   Dialog,
   DialogDescription,
@@ -19,9 +19,9 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
-import { Input } from "@multi/ui/input";
-import { Spinner } from "@multi/ui/spinner";
+} from "@multi/multikit/dialog";
+import { Input } from "@multi/multikit/input";
+import { Spinner } from "@multi/multikit/spinner";
 
 interface PullRequestThreadDialogProps {
   open: boolean;

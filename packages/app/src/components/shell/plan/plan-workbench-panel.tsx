@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@multi/ui/button";
+import { Button } from "@multi/multikit/button";
 import {
   Dialog,
   DialogDescription,
@@ -9,9 +9,9 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
-import { Input } from "@multi/ui/input";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@multi/ui/menu";
+} from "@multi/multikit/dialog";
+import { Input } from "@multi/multikit/input";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@multi/multikit/menu";
 import type { EnvironmentId } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
 import {
@@ -24,7 +24,7 @@ import {
   IconLoader,
   IconPencilLine,
 } from "central-icons";
-import { WorkbenchIconButton } from "@multi/ui/workbench-button";
+import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
@@ -40,7 +40,7 @@ import {
   stripDisplayedPlanMarkdown,
 } from "~/plan/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
-import { WorkbenchTextButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";
+import { WorkbenchTextButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
 import { PlanEditor } from "./editor/plan-editor";
 import { planEditorMarkdownMatches } from "./editor/markdown";
 

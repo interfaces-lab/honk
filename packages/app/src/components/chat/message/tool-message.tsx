@@ -6,7 +6,7 @@ import {
   IconRobot,
   IconSummary,
 } from "central-icons";
-import { type KeyboardEvent, type MouseEvent } from "react";
+import { memo, type KeyboardEvent, type MouseEvent, useMemo } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
@@ -39,16 +39,17 @@ interface ToolCallMessageProps {
   subagentDetailsEnabled?: boolean | undefined;
 }
 
-export function ToolCallMessage({
+export const ToolCallMessage = memo(function ToolCallMessage({
   workEntry,
   projectRoot,
   activeThreadId,
   environmentId,
   subagentDetailsEnabled = true,
 }: ToolCallMessageProps) {
-  const status = resolveStatus(workEntry);
+  const status = useMemo(() => resolveStatus(workEntry), [workEntry]);
   const isLoading = status === "loading";
   const subagents = workEntry.subagents ?? [];
+  const toolCall = useMemo(() => toToolCall(workEntry, projectRoot), [projectRoot, workEntry]);
 
   if (workEntry.isToolSummary) {
     return <ToolSummaryRow text={workEntry.label} />;
@@ -67,7 +68,6 @@ export function ToolCallMessage({
     );
   }
 
-  const toolCall = toToolCall(workEntry, projectRoot);
   const hasSubagents = subagents.length > 0;
   const subagentStatusSurface = hasSubagents ? (
     <SubagentStatusSurface
@@ -101,7 +101,7 @@ export function ToolCallMessage({
       {subagentStatusSurface}
     </div>
   );
-}
+});
 
 function ExtensionUiRequestRow({
   workEntry,

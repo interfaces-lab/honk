@@ -1,8 +1,8 @@
 /**
- * Tomeito component catalog — `@multi/ui` primitives (Base UI + CVA + `multi-*` tokens).
+ * Multikit component catalog — `@multi/multikit` primitives (Base UI + CVA + `multi-*` tokens).
  */
 
-export type TomeitoCategory =
+export type MultikitCategory =
   | "actions"
   | "typography"
   | "forms"
@@ -11,21 +11,21 @@ export type TomeitoCategory =
   | "overlays"
   | "feedback";
 
-export type TomeitoComponent = {
+export type MultikitComponent = {
   id: string;
   name: string;
   importPath: string;
   description: string;
 };
 
-export type TomeitoCategoryGroup = {
-  id: TomeitoCategory;
+export type MultikitCategoryGroup = {
+  id: MultikitCategory;
   label: string;
   description: string;
-  components: TomeitoComponent[];
+  components: MultikitComponent[];
 };
 
-export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
+export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
   {
     id: "actions",
     label: "Actions",
@@ -34,25 +34,25 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "button",
         name: "Button",
-        importPath: "@multi/ui/button",
+        importPath: "@multi/multikit/button",
         description: "Primary action control with variant and size scales",
       },
       {
         id: "workbench-button",
         name: "Workbench Button",
-        importPath: "@multi/ui/workbench-button",
+        importPath: "@multi/multikit/workbench-button",
         description: "Workbench icon and text toolbar controls",
       },
       {
         id: "sidebar",
         name: "Sidebar Item",
-        importPath: "@multi/ui/sidebar",
+        importPath: "@multi/multikit/sidebar",
         description: "Ghost button wrappers for agent sidebar rows",
       },
       {
         id: "group",
         name: "Button Group",
-        importPath: "@multi/ui/group",
+        importPath: "@multi/multikit/group",
         description: "Joined horizontal or vertical control groups",
       },
     ],
@@ -65,20 +65,20 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "text",
         name: "Text",
-        importPath: "@multi/ui/text",
+        importPath: "@multi/multikit/text",
         description:
           "Semantic typography with size, tone, and weight. Used in settings and dev tools; most product UI uses text-body/text-detail utilities directly.",
       },
       {
         id: "label",
         name: "Label",
-        importPath: "@multi/ui/label",
+        importPath: "@multi/multikit/label",
         description: "Accessible form label",
       },
       {
         id: "kbd",
         name: "Kbd",
-        importPath: "@multi/ui/kbd",
+        importPath: "@multi/multikit/kbd",
         description: "Keyboard shortcut styling",
       },
     ],
@@ -91,25 +91,25 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "input",
         name: "Input",
-        importPath: "@multi/ui/input",
+        importPath: "@multi/multikit/input",
         description: "Single-line text field",
       },
       {
         id: "textarea",
         name: "Textarea",
-        importPath: "@multi/ui/textarea",
+        importPath: "@multi/multikit/textarea",
         description: "Multi-line text field",
       },
       {
         id: "switch",
         name: "Switch",
-        importPath: "@multi/ui/switch",
+        importPath: "@multi/multikit/switch",
         description: "Boolean on/off toggle",
       },
       {
         id: "select",
         name: "Select",
-        importPath: "@multi/ui/select",
+        importPath: "@multi/multikit/select",
         description: "Dropdown select with SimpleSelect convenience API",
       },
     ],
@@ -122,31 +122,31 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "badge",
         name: "Badge",
-        importPath: "@multi/ui/badge",
+        importPath: "@multi/multikit/badge",
         description: "Small status or tag chip",
       },
       {
         id: "empty",
         name: "Empty",
-        importPath: "@multi/ui/empty",
+        importPath: "@multi/multikit/empty",
         description: "Empty-state layout blocks",
       },
       {
         id: "separator",
         name: "Separator",
-        importPath: "@multi/ui/separator",
+        importPath: "@multi/multikit/separator",
         description: "Visual divider",
       },
       {
         id: "skeleton",
         name: "Skeleton",
-        importPath: "@multi/ui/skeleton",
+        importPath: "@multi/multikit/skeleton",
         description: "Loading placeholder",
       },
       {
         id: "scroll-area",
         name: "Scroll Area",
-        importPath: "@multi/ui/scroll-area",
+        importPath: "@multi/multikit/scroll-area",
         description: "Custom scroll container",
       },
     ],
@@ -159,13 +159,13 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "tabs",
         name: "Tabs",
-        importPath: "@multi/ui/tabs",
+        importPath: "@multi/multikit/tabs",
         description: "Segmented or underline tab navigation",
       },
       {
         id: "collapsible",
         name: "Collapsible",
-        importPath: "@multi/ui/collapsible",
+        importPath: "@multi/multikit/collapsible",
         description: "Expand/collapse section",
       },
     ],
@@ -178,31 +178,31 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "dialog",
         name: "Dialog",
-        importPath: "@multi/ui/dialog",
+        importPath: "@multi/multikit/dialog",
         description: "Modal dialog stack",
       },
       {
         id: "alert-dialog",
         name: "Alert Dialog",
-        importPath: "@multi/ui/alert-dialog",
+        importPath: "@multi/multikit/alert-dialog",
         description: "Confirmation-style modal",
       },
       {
         id: "popover",
         name: "Popover",
-        importPath: "@multi/ui/popover",
+        importPath: "@multi/multikit/popover",
         description: "Anchored floating panel",
       },
       {
         id: "tooltip",
         name: "Tooltip",
-        importPath: "@multi/ui/tooltip",
+        importPath: "@multi/multikit/tooltip",
         description: "Hover/focus tooltips",
       },
       {
         id: "menu",
         name: "Menu",
-        importPath: "@multi/ui/menu",
+        importPath: "@multi/multikit/menu",
         description: "Dropdown and submenu",
       },
     ],
@@ -215,29 +215,29 @@ export const TOMETO_CATALOG: TomeitoCategoryGroup[] = [
       {
         id: "alert",
         name: "Alert",
-        importPath: "@multi/ui/alert",
+        importPath: "@multi/multikit/alert",
         description: "Inline status banner",
       },
       {
         id: "status-dot",
         name: "Status Dot",
-        importPath: "@multi/ui/status-dot",
+        importPath: "@multi/multikit/status-dot",
         description: "Thread or provider state indicator",
       },
       {
         id: "spinner",
         name: "Spinner",
-        importPath: "@multi/ui/spinner",
+        importPath: "@multi/multikit/spinner",
         description: "Loading indicator",
       },
     ],
   },
 ];
 
-export const TOMETO_COMPONENTS = TOMETO_CATALOG.flatMap((group) => group.components);
+export const MULTIKIT_COMPONENTS = MULTIKIT_CATALOG.flatMap((group) => group.components);
 
-export function findTomeitoComponent(id: string): TomeitoComponent | undefined {
-  return TOMETO_COMPONENTS.find((entry) => entry.id === id);
+export function findMultikitComponent(id: string): MultikitComponent | undefined {
+  return MULTIKIT_COMPONENTS.find((entry) => entry.id === id);
 }
 
-export const DEFAULT_TOMETO_COMPONENT_ID = "button";
+export const DEFAULT_MULTIKIT_COMPONENT_ID = "button";

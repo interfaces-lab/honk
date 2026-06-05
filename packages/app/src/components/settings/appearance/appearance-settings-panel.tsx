@@ -1,7 +1,7 @@
 import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
-import { Button } from "@multi/ui/button";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
-import { Switch } from "@multi/ui/switch";
+import { Button } from "@multi/multikit/button";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/multikit/select";
+import { Switch } from "@multi/multikit/switch";
 
 import { useSettings, useUpdateSettings } from "../../../hooks/use-settings";
 import { useTheme } from "../../../hooks/use-theme";

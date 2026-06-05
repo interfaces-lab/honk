@@ -5,9 +5,9 @@ import {
   ThreadId,
   type AgentInteractionMode,
 } from "@multi/contracts";
-import { Button } from "@multi/ui/button";
-import { Text } from "@multi/ui/text";
-import { Textarea } from "@multi/ui/textarea";
+import { Button } from "@multi/multikit/button";
+import { Text } from "@multi/multikit/text";
+import { Textarea } from "@multi/multikit/textarea";
 import { useRef, useState } from "react";
 
 import {

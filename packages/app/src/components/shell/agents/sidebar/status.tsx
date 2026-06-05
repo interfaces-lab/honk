@@ -1,4 +1,4 @@
-import { StatusDot as UiStatusDot } from "@multi/ui/status-dot";
+import { StatusDot as UiStatusDot } from "@multi/multikit/status-dot";
 import type { ComponentProps } from "react";
 
 import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";

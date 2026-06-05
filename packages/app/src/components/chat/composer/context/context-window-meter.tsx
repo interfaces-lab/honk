@@ -3,7 +3,7 @@ import {
   formatContextUsagePercentage,
   formatContextWindowTokens,
 } from "~/lib/context-window";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
+import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
 import { ContextWindowRing } from "./context-window-ring";
 import { ContextWindowUsageDetails } from "./context-window-usage-details";
 

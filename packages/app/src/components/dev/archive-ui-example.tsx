@@ -8,7 +8,7 @@ import {
 } from "central-icons";
 import type { ReactNode } from "react";
 
-import { Text } from "@multi/ui/text";
+import { Text } from "@multi/multikit/text";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { cn } from "~/lib/utils";
 

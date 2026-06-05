@@ -1,6 +1,6 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@multi/contracts";
-import { SidebarItem } from "@multi/ui/sidebar";
+import { SidebarItem } from "@multi/multikit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
 import { type DragEvent, useRef, useState } from "react";
 import { toast } from "sonner";
