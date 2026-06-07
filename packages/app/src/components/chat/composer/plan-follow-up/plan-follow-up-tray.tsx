@@ -43,15 +43,16 @@ export function PlanFollowUpTray(props: {
             {title}
           </div>
         </div>
-        <button
-          type="button"
-          className="flex size-6 shrink-0 items-center justify-center rounded-multi-control bg-multi-bg-quinary text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+        <Button
+          className="shrink-0 bg-multi-bg-quinary text-multi-icon-secondary hover:text-multi-icon-primary"
+          size="icon-sm"
+          variant="ghost"
           aria-label="Dismiss plan"
           title="Dismiss plan"
           onClick={() => setDismissedPlanId(planKey)}
         >
           <IconCrossSmall className="size-3" aria-hidden />
-        </button>
+        </Button>
       </div>
 
       {previewMarkdown ? (

@@ -15,6 +15,7 @@ interface PendingThreadSendStoreState {
     targetThreadKey: string,
     clientSendKeys?: ReadonlySet<MessageId>,
   ) => void;
+  copyLocalDispatch: (sourceThreadKey: string, targetThreadKey: string) => void;
   removePendingRows: (
     threadKey: string,
     clientSendKeys: ReadonlySet<MessageId>,
@@ -73,6 +74,24 @@ export const usePendingThreadSendStore = create<PendingThreadSendStoreState>((se
         pendingRowsByThreadKey: {
           ...state.pendingRowsByThreadKey,
           [targetThreadKey]: [...targetRows, ...rowsToAppend],
+        },
+      };
+    });
+  },
+
+  copyLocalDispatch: (sourceThreadKey, targetThreadKey) => {
+    if (sourceThreadKey === targetThreadKey) {
+      return;
+    }
+    set((state) => {
+      const dispatch = state.localDispatchByThreadKey[sourceThreadKey];
+      if (!dispatch) {
+        return state;
+      }
+      return {
+        localDispatchByThreadKey: {
+          ...state.localDispatchByThreadKey,
+          [targetThreadKey]: dispatch,
         },
       };
     });

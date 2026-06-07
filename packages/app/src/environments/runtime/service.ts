@@ -43,6 +43,7 @@ import { useTerminalStateStore } from "~/terminal-state-store";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { WsTransport } from "../../rpc/ws-transport";
 import { createWsRpcClient, type WsRpcClient } from "../../rpc/ws-rpc-client";
+import { emitWelcome, setServerConfigSnapshot } from "../../rpc/server-state";
 import { deriveSidebarProjectStateKey, getProjectOrderKey } from "~/stores/project-identity";
 import { dispatchNextQueuedComposerItemForThread } from "~/stores/chat-send-queue-dispatch";
 import { findWorkspaceProjectForSource } from "~/lib/workspace-target";
@@ -862,6 +863,8 @@ function createPrimaryEnvironmentConnection(): EnvironmentConnection {
     createEnvironmentConnection({
       knownEnvironment,
       client: createPrimaryEnvironmentClient(knownEnvironment),
+      onConfigSnapshot: setServerConfigSnapshot,
+      onWelcome: emitWelcome,
       ...createEnvironmentConnectionHandlers(),
     }),
   );

@@ -3,7 +3,16 @@ import type { MessageId } from "@multi/contracts";
 import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";
-import { SidebarButton, SidebarItem } from "@multi/multikit/sidebar";
+import { Button } from "@multi/multikit/button";
+import {
+  SidebarTray,
+  SidebarTrayHeader,
+  SidebarTrayHeaderButton,
+  SidebarTrayRow,
+  SidebarTrayRowContent,
+  SidebarTrayRowLabel,
+  SidebarTrayRowStatus,
+} from "@multi/multikit/sidebar";
 import { cn } from "~/lib/utils";
 
 function handleQueuedItemDragEnter(event: DragEvent<HTMLElement>) {
@@ -60,9 +69,6 @@ function QueuedComposerItemRowActions(props: {
   onRemove: (itemId: MessageId) => void;
   onSendNow: (itemId: MessageId) => void;
 }) {
-  const actionButtonClass =
-    "flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-fg-tertiary outline-none hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-35";
-
   return (
     <div
       className="hidden shrink-0 items-center group-focus-within/sidebar-item:flex [@media(hover:hover)]:group-hover/sidebar-item:flex"
@@ -74,19 +80,21 @@ function QueuedComposerItemRowActions(props: {
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className={actionButtonClass}
+      <Button
+        className="shrink-0 text-multi-fg-tertiary disabled:opacity-35"
+        size="icon-xs"
+        variant="ghost"
         onClick={() => props.onBeginEdit(props.itemId)}
         aria-label={QUEUE_EDIT_ACTION_LABEL}
         title={QUEUE_EDIT_ACTION_LABEL}
         data-queue-action="edit"
       >
         <IconPencilLine className="size-4 shrink-0" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className={actionButtonClass}
+      </Button>
+      <Button
+        className="shrink-0 text-multi-fg-tertiary disabled:opacity-35"
+        size="icon-xs"
+        variant="ghost"
         onClick={() => props.onSendNow(props.itemId)}
         disabled={props.isBusy}
         aria-label={QUEUE_SEND_NOW_ACTION_LABEL}
@@ -94,17 +102,18 @@ function QueuedComposerItemRowActions(props: {
         data-queue-action="send"
       >
         <IconArrowUp className="size-4 shrink-0" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className={actionButtonClass}
+      </Button>
+      <Button
+        className="shrink-0 text-multi-fg-tertiary disabled:opacity-35"
+        size="icon-xs"
+        variant="ghost"
         onClick={() => props.onRemove(props.itemId)}
         aria-label={QUEUE_REMOVE_ACTION_LABEL}
         title={QUEUE_REMOVE_ACTION_LABEL}
         data-queue-action="remove"
       >
         <IconTrashCan className="size-4 shrink-0" aria-hidden="true" />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -186,7 +195,7 @@ function QueuedComposerItemRow(props: {
       {showDropBefore ? (
         <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
       ) : null}
-      <SidebarItem
+      <SidebarTrayRow
         render={<div />}
         draggable={isDraggable}
         selected={isEditing}
@@ -197,7 +206,7 @@ function QueuedComposerItemRow(props: {
         data-editing={isEditing ? "" : undefined}
         data-dragging={isDragging ? "" : undefined}
         data-queue-position={index === 0 ? "next" : undefined}
-        className="ui-tray-row queue-sortable-row group/sidebar-item h-auto data-[selected=true]:focus-within:bg-multi-bg-tertiary"
+        className="queue-sortable-row"
         onDoubleClick={() => {
           if (!isEditing) {
             onBeginEdit(item.id);
@@ -210,9 +219,7 @@ function QueuedComposerItemRow(props: {
         onDrop={onDrop}
         onDragEnd={onDragEnd}
       >
-        <SidebarButton
-          variant="inset"
-          className="ui-tray-row__content disabled:opacity-100"
+        <SidebarTrayRowContent
           disabled={isEditing}
           onClick={() => onBeginEdit(item.id)}
           onKeyDown={(event) => {
@@ -226,19 +233,12 @@ function QueuedComposerItemRow(props: {
           data-queued-composer-item-preview=""
         >
           <QueuedComposerItemThumbnails item={item} />
-          <span
-            className={cn(
-              "ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary",
-              isEditing && "text-multi-fg-primary",
-            )}
-          >
+          <SidebarTrayRowLabel className={cn(isEditing && "text-multi-fg-primary")}>
             {preview}
-          </span>
-        </SidebarButton>
+          </SidebarTrayRowLabel>
+        </SidebarTrayRowContent>
         {isEditing ? (
-          <span className="ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary">
-            Editing
-          </span>
+          <SidebarTrayRowStatus>Editing</SidebarTrayRowStatus>
         ) : (
           <QueuedComposerItemRowActions
             itemId={item.id}
@@ -248,7 +248,7 @@ function QueuedComposerItemRow(props: {
             onSendNow={onSendNow}
           />
         )}
-      </SidebarItem>
+      </SidebarTrayRow>
       {showDropAfter ? (
         <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
       ) : null}
@@ -358,20 +358,14 @@ export function QueuedComposerItemsPanel(
       className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
       data-queued-composer-panel-stack=""
     >
-      <div
-        className="ui-tray--queued font-multi text-detail text-multi-fg-primary"
+      <SidebarTray
         data-queued-composer-panel=""
         data-queue-count={props.items.length}
         data-queue-expanded={props.expanded ? "" : undefined}
         data-queue-editing={editingActive ? "" : undefined}
       >
-        <div
-          className="ui-tray-header--queued flex min-h-9 min-w-0 items-center justify-between gap-2 px-2.5 py-1.5"
-          data-queued-composer-panel-header=""
-        >
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-multi-control px-1.5 py-1 text-left text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+        <SidebarTrayHeader data-queued-composer-panel-header="">
+          <SidebarTrayHeaderButton
             aria-label={expandLabel}
             title={expandLabel}
             onClick={() => props.onExpandedChange(!props.expanded)}
@@ -389,8 +383,8 @@ export function QueuedComposerItemsPanel(
                 {countLabel}
               </span>
             </span>
-          </button>
-        </div>
+          </SidebarTrayHeaderButton>
+        </SidebarTrayHeader>
         {props.expanded ? (
           <QueuedComposerItemsList
             items={props.items}
@@ -402,7 +396,7 @@ export function QueuedComposerItemsPanel(
             onReorder={props.onReorder}
           />
         ) : null}
-      </div>
+      </SidebarTray>
     </div>
   );
 }
@@ -416,13 +410,14 @@ export function QueuedComposerEditBanner(props: {
       data-queued-composer-edit-banner=""
     >
       <span className="opacity-90">{QUEUE_EDIT_BANNER_LABEL}</span>
-      <button
-        type="button"
-        className="rounded-multi-control px-1.5 py-0.5 text-detail text-primary transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+      <Button
+        className="text-primary"
+        size="xs"
+        variant="ghost"
         onClick={props.onCancelEdit}
       >
         Cancel
-      </button>
+      </Button>
     </div>
   );
 }

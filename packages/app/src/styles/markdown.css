@@ -5,7 +5,6 @@
   word-break: break-word;
   color: color-mix(in srgb, var(--foreground) 84%, transparent);
   font-size: var(--conversation-text-font-size);
-  letter-spacing: -0.005em;
   line-height: var(--multi-markdown-line-height);
   text-rendering: optimizeLegibility;
   --monaco-monospace-font: var(--multi-font-mono);

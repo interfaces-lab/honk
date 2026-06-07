@@ -1,4 +1,5 @@
 import { Button } from "@multi/multikit/button";
+import { Textarea } from "@multi/multikit/textarea";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
 import { useState, type FormEvent } from "react";
 
@@ -66,10 +67,11 @@ export function ProposedPlanMessage({
         </div>
         {editing ? (
           <form onSubmit={submit} className="flex min-w-0 flex-col gap-2 p-3">
-            <textarea
+            <Textarea
               value={draft}
               onChange={(event) => setDraft(event.currentTarget.value)}
-              className="min-h-48 w-full resize-y rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-primary px-2 py-2 font-mono text-detail leading-relaxed text-multi-fg-primary outline-none focus:border-multi-stroke-focused"
+              className="bg-multi-bg-primary"
+              controlClassName="min-h-48 resize-y px-2 py-2 font-multi-mono text-detail leading-relaxed"
               data-proposed-plan-editor=""
               aria-label="Edit plan"
               spellCheck={false}

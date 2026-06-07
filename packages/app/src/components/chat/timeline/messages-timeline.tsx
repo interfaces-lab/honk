@@ -17,7 +17,6 @@ import {
   type VirtualItem,
   type Virtualizer,
 } from "@tanstack/react-virtual";
-import { Spinner } from "@multi/multikit/spinner";
 import { type TimelineEntry } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
@@ -49,6 +48,7 @@ const VIRTUAL_ROW_GAP_PX = 12;
 const VIRTUALIZER_OVERSCAN = 8;
 const TIMELINE_SCROLL_END_THRESHOLD_PX = 2;
 const MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS = 16;
+const INITIAL_OFFSET_SAMPLE_ROW_COUNT = 64;
 
 interface TimelineVirtualizerSnapshot {
   measuredItems: VirtualItem[];
@@ -138,7 +138,11 @@ export function MessagesTimeline({
       }),
     [activeTurnStartedAt, editableUserMessageIds, isWorking, projectRoot, timelineEntries],
   );
-  const rows = useStableRows(rawRows);
+  const loadingStableRows = useLoadingStableGroupedRows(rawRows, {
+    isWorking,
+    cacheKey: timelineCacheKey,
+  });
+  const rows = useStableRows(loadingStableRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -178,14 +182,14 @@ export function MessagesTimeline({
     ? cachedVirtualizerSnapshot.scrollOffset
     : null;
   const shouldRestoreInitialScrollOffset = restoredInitialScrollOffset !== null;
-  const estimatedRowSizes = useMemo(
-    () => rows.map((row) => getEstimatedTimelineRowSize(row, expandedWorkGroupIds)),
-    [expandedWorkGroupIds, rows],
-  );
   const initialScrollOffset =
     restoredInitialScrollOffset !== null
       ? restoredInitialScrollOffset
-      : estimateInitialTimelineBottomOffset(estimatedRowSizes, virtualizerBottomPadding);
+      : estimateInitialTimelineBottomOffset({
+          rows,
+          paddingEnd: virtualizerBottomPadding,
+          expandedWorkGroupIds,
+        });
 
   rowsRef.current = rows;
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
@@ -223,7 +227,7 @@ export function MessagesTimeline({
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimatedRowSizes[index] ?? estimateTimelineRowSize(undefined),
+    estimateSize: (index) => estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds),
     getItemKey: (index) => rows[index]?.id ?? index,
     rangeExtractor,
     overscan: VIRTUALIZER_OVERSCAN,
@@ -406,9 +410,10 @@ export function MessagesTimeline({
     return (
       <>
         {lifecycleSync}
-        <div className="flex h-full items-center justify-center" aria-busy="true">
-          <Spinner className="size-6 text-muted-foreground" />
-        </div>
+        <TimelineLoadingPlaceholder
+          bottomClearancePx={virtualizerBottomPadding}
+          reportIsAtBottom={reportIsAtBottom}
+        />
       </>
     );
   }
@@ -572,6 +577,47 @@ function ProgrammaticScrollTrackingCleanup({
   return null;
 }
 
+function TimelineLoadingPlaceholder({
+  bottomClearancePx,
+  reportIsAtBottom,
+}: {
+  bottomClearancePx: number;
+  reportIsAtBottom: (isAtBottom: boolean, options?: { force?: boolean }) => void;
+}) {
+  useMountEffect(() => {
+    reportIsAtBottom(true, { force: true });
+  });
+
+  const placeholderContentStyle = {
+    paddingBottom: `calc(var(--chat-timeline-row-gap) + ${bottomClearancePx}px)`,
+  } satisfies CSSProperties;
+
+  return (
+    <div
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden pt-(--chat-timeline-padding-block-start)"
+      aria-busy="true"
+      aria-label="Loading conversation"
+    >
+      <div className="h-full min-h-0 flex-1 overflow-hidden scrollbar-gutter-stable-both-edges">
+        <div
+          className="mx-auto box-border flex min-h-full w-full max-w-agent-chat flex-col justify-end gap-5 px-4"
+          style={placeholderContentStyle}
+        >
+          <span className="sr-only">Loading conversation</span>
+          <div className="flex w-full justify-end">
+            <div className="h-12 w-2/3 max-w-136 animate-pulse rounded-2xl bg-muted/35" />
+          </div>
+          <div className="flex w-full flex-col gap-3">
+            <div className="h-3 w-24 animate-pulse rounded-full bg-muted/35" />
+            <div className="h-3 w-11/12 animate-pulse rounded-full bg-muted/25" />
+            <div className="h-3 w-8/12 animate-pulse rounded-full bg-muted/25" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function isUserMessageRow(row: MessagesTimelineRow): row is UserMessageTimelineRow {
   return row.kind === "message" && row.message.role === "user";
 }
@@ -589,11 +635,6 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
 
 const ASSISTANT_MESSAGE_MIN_PX = 156;
 const USER_MESSAGE_MIN_PX = 88;
-const MESSAGE_ROW_CHROME_PX = 40;
-const MESSAGE_TEXT_LINE_HEIGHT_PX = 21;
-const ASSISTANT_MESSAGE_CHARS_PER_LINE = 82;
-const USER_MESSAGE_CHARS_PER_LINE = 96;
-const estimatedTimelineRowSizeCache = new WeakMap<MessagesTimelineRow, number>();
 
 function filterReusableTimelineMeasurements(
   snapshot: TimelineVirtualizerSnapshot | null,
@@ -603,10 +644,14 @@ function filterReusableTimelineMeasurements(
     return [];
   }
 
-  const rowIds = new Set(rows.map((row) => row.id));
-  return snapshot.measuredItems.filter(
-    (item) => typeof item.key === "string" && rowIds.has(item.key),
-  );
+  const rowsById = new Map(rows.map((row) => [row.id, row] as const));
+  return snapshot.measuredItems.filter((item) => {
+    if (typeof item.key !== "string") {
+      return false;
+    }
+    const row = rowsById.get(item.key);
+    return row !== undefined && row.kind !== "work";
+  });
 }
 
 function shouldRestoreTimelineScrollOffset(
@@ -659,28 +704,32 @@ function rememberTimelineVirtualizerSnapshot(input: {
   }
 }
 
-function getEstimatedTimelineRowSize(
-  row: MessagesTimelineRow,
+function estimateVirtualTimelineRowSize(
+  row: MessagesTimelineRow | undefined,
   expandedWorkGroupIds: ReadonlySet<string>,
 ): number {
-  if (row.kind === "work") {
-    return estimateTimelineRowSize(row, expandedWorkGroupIds.has(row.id));
-  }
-  const cachedSize = estimatedTimelineRowSizeCache.get(row);
-  if (cachedSize !== undefined) {
-    return cachedSize;
-  }
-
-  const size = estimateTimelineRowSize(row, false);
-  estimatedTimelineRowSizeCache.set(row, size);
-  return size;
+  return estimateTimelineRowSize(row, row?.kind === "work" && expandedWorkGroupIds.has(row.id));
 }
 
-function estimateInitialTimelineBottomOffset(
-  rowSizes: readonly number[],
-  paddingEnd: number,
-): number {
-  const totalSize = rowSizes.reduce((total, size) => total + size, paddingEnd);
+function estimateInitialTimelineBottomOffset(input: {
+  rows: readonly MessagesTimelineRow[];
+  paddingEnd: number;
+  expandedWorkGroupIds: ReadonlySet<string>;
+}): number {
+  if (input.rows.length === 0) {
+    return 0;
+  }
+
+  const sampleStartIndex = Math.max(0, input.rows.length - INITIAL_OFFSET_SAMPLE_ROW_COUNT);
+  let sampledSize = 0;
+  let sampledCount = 0;
+  for (let index = sampleStartIndex; index < input.rows.length; index += 1) {
+    sampledSize += estimateVirtualTimelineRowSize(input.rows[index], input.expandedWorkGroupIds);
+    sampledCount += 1;
+  }
+
+  const averageRowSize = sampledCount > 0 ? sampledSize / sampledCount : 96 + VIRTUAL_ROW_GAP_PX;
+  const totalSize = averageRowSize * input.rows.length + input.paddingEnd;
   return Math.max(0, totalSize - DEFAULT_VIRTUALIZER_RECT.height);
 }
 
@@ -697,14 +746,29 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
     return 180 + VIRTUAL_ROW_GAP_PX;
   }
 
+  if (row.kind === "custom-message") {
+    return 96 + VIRTUAL_ROW_GAP_PX;
+  }
+
+  if (row.kind === "runtime-thinking") {
+    return 96 + VIRTUAL_ROW_GAP_PX;
+  }
+
+  if (row.kind === "runtime-tool" || row.kind === "runtime-extension-ui-request") {
+    return 64 + VIRTUAL_ROW_GAP_PX;
+  }
+
   if (row.kind === "working") {
     return 52 + VIRTUAL_ROW_GAP_PX;
   }
 
   if (expanded) {
-    const hasExpandedSummary = row.groupedEntries.some((entry) => !isCommandWorkEntry(entry));
-    const expandedRowCount = row.groupedEntries.length + (hasExpandedSummary ? 1 : 0);
-    const childRowsHeight = row.groupedEntries.length * WORK_GROUP_PREVIEW_ENTRY_PX;
+    const hasExpandedSummary =
+      row.groupedEntries.length > 0
+        ? row.groupedEntries.some((entry) => !isCommandWorkEntry(entry))
+        : !row.isCommandGroup && !row.isThinkingGroup;
+    const expandedRowCount = row.steps.length + (hasExpandedSummary ? 1 : 0);
+    const childRowsHeight = row.steps.length * WORK_GROUP_PREVIEW_ENTRY_PX;
     const expandedContentGap = Math.max(0, expandedRowCount - 1) * WORK_GROUP_STEP_GAP_PX;
     return (
       WORK_GROUP_HEADER_PX +
@@ -717,7 +781,7 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
   }
 
   if (row.isRunning) {
-    const previewCount = Math.min(row.groupedEntries.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
+    const previewCount = Math.min(row.steps.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
     const previewHeight = Math.min(
       WORK_GROUP_PREVIEW_PX,
       previewCount * WORK_GROUP_PREVIEW_ENTRY_PX,
@@ -730,37 +794,7 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
 
 function estimateMessageTimelineRowSize(row: Extract<MessagesTimelineRow, { kind: "message" }>) {
   const minHeight = row.message.role === "user" ? USER_MESSAGE_MIN_PX : ASSISTANT_MESSAGE_MIN_PX;
-  const charsPerLine =
-    row.message.role === "user" ? USER_MESSAGE_CHARS_PER_LINE : ASSISTANT_MESSAGE_CHARS_PER_LINE;
-  const estimatedTextHeight =
-    estimateWrappedLineCount(row.message.text, charsPerLine) * MESSAGE_TEXT_LINE_HEIGHT_PX;
-
-  return Math.max(minHeight, MESSAGE_ROW_CHROME_PX + estimatedTextHeight) + VIRTUAL_ROW_GAP_PX;
-}
-
-function estimateWrappedLineCount(text: string | undefined, charsPerLine: number): number {
-  const value = text?.trim();
-  if (!value) {
-    return 1;
-  }
-
-  let lines = 1;
-  let currentLineLength = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    if (value.charCodeAt(index) === 10) {
-      lines += 1;
-      currentLineLength = 0;
-      continue;
-    }
-
-    currentLineLength += 1;
-    if (currentLineLength >= charsPerLine) {
-      lines += 1;
-      currentLineLength = 0;
-    }
-  }
-
-  return lines;
+  return minHeight + VIRTUAL_ROW_GAP_PX;
 }
 
 function virtualRowStyle(
@@ -820,6 +854,9 @@ const TimelineRowContent = memo(function TimelineRowContent({
       data-message-kind={timelineRowMessageKind(row)}
       data-message-index={row.kind === "message" ? row.messageIndex : undefined}
       data-message-pair-id={row.kind === "message" ? (row.pairId ?? undefined) : undefined}
+      data-tool-call-id={row.kind === "runtime-tool" ? row.tool.toolCallId : undefined}
+      data-tool-status={timelineRowToolStatus(row)}
+      data-tool-has-error={timelineRowToolHasError(row) ? "true" : undefined}
     >
       <TimelineRowBody
         row={row}
@@ -872,22 +909,108 @@ function TimelineRowBody({
   );
 }
 
-function timelineRowKind(row: TimelineRow): "human" | "assistant" | "tool-call" | "loading" {
+function timelineRowKind(
+  row: TimelineRow,
+): "human" | "assistant" | "tool-call" | "custom-message" | "loading" {
   if (row.kind === "message") return row.message.role === "user" ? "human" : "assistant";
+  if (row.kind === "runtime-thinking") return "assistant";
+  if (row.kind === "custom-message") return "custom-message";
   if (row.kind === "working") return "loading";
   return "tool-call";
 }
 
 // Matches Cursor's `data-message-kind` semantics: "message" for user/assistant
-// text bubbles, "tool" for tool-call rows. Proposed plans and working rows fall
-// outside this taxonomy.
-function timelineRowMessageKind(row: TimelineRow): "message" | "tool" | undefined {
+// text bubbles, "thinking" for reasoning rows, "tool" for tool-call rows.
+// Proposed plans and working rows fall outside this taxonomy.
+function timelineRowMessageKind(row: TimelineRow): "message" | "thinking" | "tool" | undefined {
   if (row.kind === "message") return "message";
-  if (row.kind === "work") return "tool";
+  if (row.kind === "runtime-thinking") return "thinking";
+  if (
+    row.kind === "work" ||
+    row.kind === "runtime-tool" ||
+    row.kind === "runtime-extension-ui-request"
+  ) {
+    return "tool";
+  }
+  if (row.kind === "custom-message") return "message";
   return undefined;
 }
 
+function timelineRowToolStatus(row: TimelineRow): "loading" | "completed" | "error" | undefined {
+  switch (row.kind) {
+    case "runtime-tool":
+      if (row.tool.status === "error" || row.tool.isError === true) return "error";
+      return row.tool.status === "running" ? "loading" : "completed";
+    case "runtime-extension-ui-request":
+      return row.request.status === "pending" ? "loading" : "completed";
+    case "work":
+      if (
+        row.groupedEntries.some((entry) => entry.tone === "error" || entry.status === "error") ||
+        row.steps.some(
+          (step) =>
+            step.kind === "runtime-tool" &&
+            (step.tool.status === "error" || step.tool.isError === true),
+        )
+      ) {
+        return "error";
+      }
+      return row.isRunning ? "loading" : "completed";
+    default:
+      return undefined;
+  }
+}
+
+function timelineRowToolHasError(row: TimelineRow): boolean {
+  return timelineRowToolStatus(row) === "error";
+}
+
 // Reuse old row references when data has not changed.
+
+function useLoadingStableGroupedRows(
+  rows: MessagesTimelineRow[],
+  input: { isWorking: boolean; cacheKey: string },
+): MessagesTimelineRow[] {
+  const frozenGroupRef = useRef<{
+    cacheKey: string;
+    row: Extract<MessagesTimelineRow, { kind: "work" }> | null;
+  }>({ cacheKey: input.cacheKey, row: null });
+
+  if (frozenGroupRef.current.cacheKey !== input.cacheKey) {
+    frozenGroupRef.current = { cacheKey: input.cacheKey, row: null };
+  }
+
+  const activeGroup = rows.findLast(isActiveGroupedTail);
+  if (activeGroup) {
+    frozenGroupRef.current.row = activeGroup;
+    return rows;
+  }
+
+  if (!input.isWorking) {
+    frozenGroupRef.current.row = null;
+    return rows;
+  }
+
+  const frozenGroup = frozenGroupRef.current.row;
+  if (!frozenGroup || rows.some((row) => row.id === frozenGroup.id)) {
+    return rows;
+  }
+
+  const workingRowIndex = rows.findIndex((row) => row.kind === "working");
+  if (workingRowIndex === -1) {
+    return [...rows, frozenGroup];
+  }
+  return [
+    ...rows.slice(0, workingRowIndex),
+    frozenGroup,
+    ...rows.slice(workingRowIndex),
+  ];
+}
+
+function isActiveGroupedTail(
+  row: MessagesTimelineRow,
+): row is Extract<MessagesTimelineRow, { kind: "work" }> {
+  return row.kind === "work" && row.isRunning;
+}
 
 function useStableRows(rows: MessagesTimelineRow[]): MessagesTimelineRow[] {
   const prevState = useRef<StableMessagesTimelineRowsState>({

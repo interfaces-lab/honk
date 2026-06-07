@@ -7,7 +7,10 @@ import {
   type TurnId,
 } from "@multi/contracts";
 import { Schema } from "effect";
-import { type DraftThreadState } from "../../../stores/chat-drafts";
+import {
+  type DraftId as DraftIdType,
+  type DraftThreadState,
+} from "../../../stores/chat-drafts";
 import { selectThreadByRef, useStore } from "../../../stores/thread-store";
 import {
   DEFAULT_RUNTIME_MODE,
@@ -118,6 +121,67 @@ export function threadHasStarted(thread: Thread | null | undefined): boolean {
   );
 }
 
+export function threadHasRenderableUserStart(thread: Thread | null | undefined): boolean {
+  if (!thread) {
+    return false;
+  }
+  const renderableUserMessageIds = new Set(
+    thread.messages.flatMap((message) =>
+      message.role === "user" && userMessageHasRenderableContent(message) ? [message.id] : [],
+    ),
+  );
+  if (renderableUserMessageIds.size === 0) {
+    return false;
+  }
+  const messageRows = thread.chatTimelineRows?.filter((row) => row.kind === "message") ?? [];
+  return messageRows.some((row) => renderableUserMessageIds.has(row.messageId));
+}
+
+function userMessageHasRenderableContent(message: Thread["messages"][number]): boolean {
+  return (
+    message.text.trim().length > 0 ||
+    message.richText !== undefined ||
+    (message.attachments?.length ?? 0) > 0
+  );
+}
+
+export function resolveRenderableDraftCanonicalThreadRef(input: {
+  readonly promotedTo: ScopedThreadRef | null | undefined;
+  readonly serverThread: Thread | null | undefined;
+}): ScopedThreadRef | null {
+  if (!threadHasRenderableUserStart(input.serverThread)) {
+    return null;
+  }
+  if (input.promotedTo) {
+    return input.promotedTo;
+  }
+  if (!input.serverThread) {
+    return null;
+  }
+  return {
+    environmentId: input.serverThread.environmentId,
+    threadId: input.serverThread.id,
+  };
+}
+
+export type DraftPromotionRouteTarget =
+  | { readonly kind: "draft"; readonly draftId: DraftIdType }
+  | { readonly kind: "server"; readonly threadRef: ScopedThreadRef };
+
+export function resolveDraftPromotionRouteTarget(input: {
+  readonly draftRouteId: DraftIdType | null;
+  readonly serverThread: Thread | null | undefined;
+  readonly serverThreadRef: ScopedThreadRef | null | undefined;
+}): DraftPromotionRouteTarget | null {
+  if (!input.serverThreadRef) {
+    return null;
+  }
+  if (input.draftRouteId !== null && !threadHasRenderableUserStart(input.serverThread)) {
+    return { kind: "draft", draftId: input.draftRouteId };
+  }
+  return { kind: "server", threadRef: input.serverThreadRef };
+}
+
 export async function waitForStartedServerThread(
   threadRef: ScopedThreadRef,
   timeoutMs = 1_000,
@@ -219,21 +283,24 @@ export function hasServerAcknowledgedLocalDispatch(input: {
     if (!latestTurnChanged) {
       return false;
     }
-    if (latestTurn?.startedAt === null || latestTurn === null) {
+    if (latestTurn === null || latestTurn.startedAt === null) {
       return false;
     }
     if (
       session?.activeTurnId !== undefined &&
       session.activeTurnId !== null &&
-      latestTurn?.turnId !== session.activeTurnId
+      latestTurn.turnId !== session.activeTurnId
     ) {
       return false;
     }
     return true;
   }
 
+  if (latestTurnChanged) {
+    return latestTurn === null || latestTurn.completedAt !== null;
+  }
+
   return (
-    latestTurnChanged ||
     input.localDispatch.sessionOrchestrationStatus !== (session?.orchestrationStatus ?? null) ||
     input.localDispatch.sessionUpdatedAt !== (session?.updatedAt ?? null)
   );

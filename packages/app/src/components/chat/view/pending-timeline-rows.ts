@@ -3,6 +3,7 @@ import type { MessageId, ThreadEntryId } from "@multi/contracts";
 import type { TimelineEntry } from "../../../session-logic";
 import type { ChatMessage, PendingTimelineRow } from "../../../types";
 import type { ThreadBranchView } from "./thread-branch-view";
+import { timelineMessageEntryId } from "./timeline-entry-ids";
 
 export function createPendingTimelineRow(input: {
   messageId: MessageId;
@@ -80,7 +81,7 @@ export function appendPendingTimelineRowsToMessages(
 
 export function appendTransientTimelineEntries(input: {
   entries: ReadonlyArray<TimelineEntry>;
-  liveMessages: ReadonlyArray<ChatMessage>;
+  messages: ReadonlyArray<ChatMessage>;
   pendingRows: ReadonlyArray<PendingTimelineRow>;
 }): ReadonlyArray<TimelineEntry> {
   const existingMessageIds = new Set(
@@ -88,17 +89,19 @@ export function appendTransientTimelineEntries(input: {
   );
   const transientEntries: TimelineEntry[] = [];
 
-  for (const message of input.liveMessages) {
-    if (existingMessageIds.has(message.id)) {
-      continue;
+  if (existingMessageIds.size < input.messages.length) {
+    for (const message of input.messages) {
+      if (existingMessageIds.has(message.id)) {
+        continue;
+      }
+      existingMessageIds.add(message.id);
+      transientEntries.push({
+        id: timelineMessageRowId(message.id),
+        kind: "message",
+        createdAt: message.createdAt,
+        message,
+      });
     }
-    existingMessageIds.add(message.id);
-    transientEntries.push({
-      id: timelineMessageRowId(message.id),
-      kind: "message",
-      createdAt: message.createdAt,
-      message,
-    });
   }
 
   for (const row of input.pendingRows) {
@@ -118,20 +121,106 @@ export function appendTransientTimelineEntries(input: {
     return input.entries;
   }
 
-  return [...input.entries, ...transientEntries].toSorted(compareTimelineEntries);
+  return mergeTransientTimelineEntries(
+    input.entries,
+    transientEntries.toSorted(compareTransientEntries),
+  );
+}
+
+export function materializePendingUserTimelineEntries(
+  pendingRows: ReadonlyArray<PendingTimelineRow>,
+): TimelineEntry[] {
+  return pendingRows.map((row) => ({
+    id: row.id,
+    kind: "message",
+    createdAt: row.message.createdAt,
+    message: row.message,
+  }));
+}
+
+export function appendPendingUserTimelineEntries(input: {
+  entries: ReadonlyArray<TimelineEntry>;
+  pendingRows: ReadonlyArray<PendingTimelineRow>;
+}): ReadonlyArray<TimelineEntry> {
+  if (input.pendingRows.length === 0) {
+    return input.entries;
+  }
+  const existingMessageIds = new Set(
+    input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
+  );
+  const pendingEntries = materializePendingUserTimelineEntries(
+    input.pendingRows.filter((row) => !existingMessageIds.has(row.clientSendKey)),
+  );
+  if (pendingEntries.length === 0) {
+    return input.entries;
+  }
+  return mergeTransientTimelineEntries(
+    input.entries,
+    pendingEntries.toSorted(compareTransientEntries),
+  );
+}
+
+export function appendRuntimeUserTimelineEntries(input: {
+  entries: ReadonlyArray<TimelineEntry>;
+  messages: ReadonlyArray<ChatMessage>;
+  pendingRows: ReadonlyArray<PendingTimelineRow>;
+}): ReadonlyArray<TimelineEntry> {
+  const existingMessageIds = new Set(
+    input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
+  );
+  const userEntries: TimelineEntry[] = [];
+
+  for (const message of input.messages) {
+    if (message.role !== "user" || existingMessageIds.has(message.id)) {
+      continue;
+    }
+    existingMessageIds.add(message.id);
+    userEntries.push({
+      id: timelineMessageRowId(message.id),
+      kind: "message",
+      createdAt: message.createdAt,
+      message,
+    });
+  }
+
+  for (const row of input.pendingRows) {
+    if (existingMessageIds.has(row.clientSendKey)) {
+      continue;
+    }
+    existingMessageIds.add(row.clientSendKey);
+    userEntries.push({
+      id: row.id,
+      kind: "message",
+      createdAt: row.message.createdAt,
+      message: row.message,
+    });
+  }
+
+  if (userEntries.length === 0) {
+    return input.entries;
+  }
+  return mergeTransientTimelineEntries(
+    input.entries,
+    userEntries.toSorted(compareTransientEntries),
+  );
 }
 
 export function acknowledgedPendingTimelineRows(input: {
   pendingRows: ReadonlyArray<PendingTimelineRow>;
   committedMessages: ReadonlyArray<ChatMessage>;
+  acknowledgedMessageIds?: ReadonlySet<MessageId> | undefined;
 }): PendingTimelineRow[] {
   const committedMessageIds = new Set(input.committedMessages.map((message) => message.id));
+  for (const messageId of input.acknowledgedMessageIds ?? []) {
+    committedMessageIds.add(messageId);
+  }
   return input.pendingRows.filter((row) => committedMessageIds.has(row.clientSendKey));
 }
 
 export function unacknowledgedPendingTimelineRows(input: {
   pendingRows: ReadonlyArray<PendingTimelineRow>;
   committedMessages: ReadonlyArray<ChatMessage>;
+  acknowledgedMessageIds?: ReadonlySet<MessageId> | undefined;
 }): PendingTimelineRow[] {
   const acknowledgedRows = new Set(acknowledgedPendingTimelineRows(input));
   return input.pendingRows.filter((row) => !acknowledgedRows.has(row));
@@ -143,11 +232,37 @@ export function pendingTimelineRowMessages(
   return rows.map((row) => row.message);
 }
 
-function compareTimelineEntries(left: TimelineEntry, right: TimelineEntry): number {
+function mergeTransientTimelineEntries(
+  entries: ReadonlyArray<TimelineEntry>,
+  transientEntries: ReadonlyArray<TimelineEntry>,
+): TimelineEntry[] {
+  const result: TimelineEntry[] = [];
+  let transientIndex = 0;
+
+  for (const entry of entries) {
+    while (
+      transientIndex < transientEntries.length &&
+      transientEntries[transientIndex]!.createdAt.localeCompare(entry.createdAt) < 0
+    ) {
+      result.push(transientEntries[transientIndex]!);
+      transientIndex += 1;
+    }
+    result.push(entry);
+  }
+
+  while (transientIndex < transientEntries.length) {
+    result.push(transientEntries[transientIndex]!);
+    transientIndex += 1;
+  }
+
+  return result;
+}
+
+function compareTransientEntries(left: TimelineEntry, right: TimelineEntry): number {
   const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
   return createdAtOrder === 0 ? left.id.localeCompare(right.id) : createdAtOrder;
 }
 
 function timelineMessageRowId(messageId: MessageId): string {
-  return `message:${messageId}`;
+  return timelineMessageEntryId(messageId);
 }

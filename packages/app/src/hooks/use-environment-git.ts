@@ -11,6 +11,7 @@ import * as Schema from "effect/Schema";
 import {
   createElement,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -68,6 +69,7 @@ export interface GitPanelModel {
   diffLoadingByPath: Set<string>;
   diffErrorByPath: Map<string, string>;
   expandedIds: Set<string>;
+  activeDiffIds: Set<string>;
   lifecycleSync: ReactNode;
   requestDiff: (id: string) => void;
   toggleExpand: (id: string, open?: boolean) => void;
@@ -189,6 +191,19 @@ export function syncRows(prev: DiffRow[], next: DiffRow[]) {
   }
 
   return { ids, drop };
+}
+
+function pruneSetToIds(current: Set<string>, validIds: ReadonlySet<string>): Set<string> {
+  let changed = false;
+  const next = new Set<string>();
+  for (const id of current) {
+    if (validIds.has(id)) {
+      next.add(id);
+    } else {
+      changed = true;
+    }
+  }
+  return changed ? next : current;
 }
 
 function EnvironmentGitPanelRowsSync({
@@ -357,6 +372,7 @@ export function useEnvironmentGitPanel(
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
   const [requestedDiffIds, setRequestedDiffIds] = useState<Set<string>>(() => new Set());
+  const [activeDiffIds, setActiveDiffIds] = useState<Set<string>>(() => new Set());
   const gitPanelRowsSync = createElement(EnvironmentGitPanelRowsSync, {
     key: [cwd ?? "", environmentId ?? ""].join("\0"),
     cwd: enabled ? cwd : null,
@@ -365,36 +381,22 @@ export function useEnvironmentGitPanel(
     rows,
   });
 
-  const rowIds = new Set(rows.map((row) => row.id));
+  const rowIds = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
 
   useEffect(() => {
-    setCollapsedIds((current) => {
-      const next = new Set<string>();
-      for (const row of rows) {
-        if (current.has(row.id) || !requestedDiffIds.has(row.id)) {
-          next.add(row.id);
-        }
-      }
-      if (next.size !== current.size) {
-        return next;
-      }
-      for (const id of next) {
-        if (!current.has(id)) {
-          return next;
-        }
-      }
-      return current;
-    });
-  }, [requestedDiffIds, rows]);
+    setCollapsedIds((current) => pruneSetToIds(current, rowIds));
+    setRequestedDiffIds((current) => pruneSetToIds(current, rowIds));
+    setActiveDiffIds((current) => pruneSetToIds(current, rowIds));
+  }, [rowIds]);
 
   const expandedIds = new Set(
     rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id),
   );
 
-  const requestedDiffRows = rows.filter((row) => requestedDiffIds.has(row.id));
+  const activeDiffRows = rows.filter((row) => activeDiffIds.has(row.id));
 
   const patchQueries = useQueries({
-    queries: requestedDiffRows.map((row) =>
+    queries: activeDiffRows.map((row) =>
       gitPatchQueryOptions({
         environmentId: environmentId ?? null,
         cwd,
@@ -410,7 +412,21 @@ export function useEnvironmentGitPanel(
   const diffLoadingByPath = new Set<string>();
   const diffErrorByPath = new Map<string, string>();
 
-  for (const [index, row] of requestedDiffRows.entries()) {
+  if (cwd) {
+    for (const row of rows) {
+      if (!requestedDiffIds.has(row.id)) {
+        continue;
+      }
+      const cachedPatch = queryClient.getQueryData<GitFilePatchResult>(
+        gitQueryKeys.patch(environmentId ?? null, cwd, row.path, row.state, row.prevPath),
+      );
+      if (cachedPatch) {
+        patchesByPath.set(row.path, cachedPatch);
+      }
+    }
+  }
+
+  for (const [index, row] of activeDiffRows.entries()) {
     const query = patchQueries[index];
     if (!query) continue;
 
@@ -490,6 +506,15 @@ export function useEnvironmentGitPanel(
     if (!rowIds.has(id)) return;
 
     setRequestedDiffIds((current) => {
+      if (current.has(id)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+
+    setActiveDiffIds((current) => {
       const next = new Set(current);
       next.delete(id);
       next.add(id);
@@ -542,6 +567,7 @@ export function useEnvironmentGitPanel(
     diffLoadingByPath,
     diffErrorByPath,
     expandedIds,
+    activeDiffIds,
     lifecycleSync: gitPanelRowsSync,
     requestDiff,
     toggleExpand,

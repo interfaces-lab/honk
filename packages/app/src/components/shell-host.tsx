@@ -146,10 +146,7 @@ function hasGitAgentStartFailure(thread: Thread, action: GitAgentAction): boolea
 
 function hasGitAgentActionMessage(thread: Thread, handoff: GitAgentActionHandoff): boolean {
   return thread.messages.some(
-    (message) =>
-      message.role === "user" &&
-      (message.id === handoff.optimisticMessage.id ||
-        resolveGitAgentActionFromPrompt(message.text) === handoff.action),
+    (message) => message.role === "user" && message.id === handoff.optimisticMessage.id,
   );
 }
 
@@ -299,6 +296,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     routeTarget?.kind === "draft" ? routeTarget.draftId : (routeTarget?.threadRef.threadId ?? null);
 
   const activeThread = routeActiveThread ?? null;
+  const gitAgentActionInFlightRef = useRef(false);
 
   const activeGitAgentRun = (() => {
     if (!activeThread) {
@@ -569,6 +567,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
   });
 
   const startGitAgentAction = async (action: GitAgentAction) => {
+    if (gitAgentActionInFlightRef.current || activeGitAgentRun !== null) {
+      throw new Error("Wait for the current Git action to finish before starting another one.");
+    }
     const routeServerThreadFallback =
       routeTarget?.kind === "server" &&
       activeThread?.environmentId === routeTarget.threadRef.environmentId &&
@@ -654,6 +655,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     const promotedDraftId = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
     let draftPromotionMarked = false;
 
+    gitAgentActionInFlightRef.current = true;
     try {
       setGitAgentOrchestrationHandoff({
         action,
@@ -707,6 +709,8 @@ function ChatShellHost(props: { children?: ReactNode }) {
         cancelDraftThreadPromotion(promotedDraftId);
       }
       throw error;
+    } finally {
+      gitAgentActionInFlightRef.current = false;
     }
   };
   const gitAgentActionMutation = useMutation({

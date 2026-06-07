@@ -7,10 +7,9 @@ import {
 } from "@multi/contracts";
 import { IconCrossSmall } from "central-icons";
 import { useEffect } from "react";
-import {
-  ExpandableToolMetadataLine,
-  ToolCallLine,
-} from "../../message/tool-renderer";
+import { Button } from "@multi/multikit/button";
+import { ToolCallLine } from "@multi/multikit/tool-call";
+import { ExpandableToolMetadataLine } from "../../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import {
   type SubagentTranscriptItem,
@@ -148,15 +147,16 @@ function SubagentTray(props: {
             {title}
           </div>
         ) : null}
-        <button
-          type="button"
-          className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-multi-control border-0 bg-transparent text-multi-icon-secondary transition-colors hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+        <Button
+          className="ml-auto shrink-0 text-multi-icon-secondary hover:text-multi-icon-primary"
+          size="icon-sm"
+          variant="ghost"
           aria-label="Close subagent tray"
           title="Close subagent tray"
           onClick={onClose}
         >
           <IconCrossSmall className="size-3.5" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
       <SubagentTrayBody key={subagentTrayBodyKey(selection)} selection={selection} />
     </div>

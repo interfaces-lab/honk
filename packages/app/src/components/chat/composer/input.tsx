@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type ComponentProps,
   type Dispatch,
   type FocusEvent,
   type RefObject,
@@ -27,6 +28,7 @@ import {
   MenuSubTrigger,
   MenuTrigger,
 } from "@multi/multikit/menu";
+import { workbenchChromeTextControlVariants } from "@multi/multikit/workbench-chrome-row";
 import {
   IconArrowUp,
   IconBug,
@@ -91,6 +93,7 @@ import {
 } from "./input-contract";
 import { QueuedComposerEditBanner, QueuedComposerItemsPanel } from "./queue/queued-items-panel";
 import { SubagentTrayStack } from "./subagents/subagent-tray";
+import { shouldShowSubagentTrayForComposer } from "./subagents/subagent-tray-visibility";
 import { ComposerContextUsageBar } from "./context/context-usage-bar";
 import { PlanFollowUpTray } from "./plan-follow-up/plan-follow-up-tray";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
@@ -246,7 +249,10 @@ const ComposerAgentModeMenuTrigger = memo(function ComposerAgentModeMenuTrigger(
   return (
     <MenuTrigger
       type="button"
-      className="inline-flex h-6 min-w-0 max-w-40 select-none items-center gap-1 overflow-hidden rounded-full bg-transparent py-0 pr-1.5 pl-2 text-[12px]/[16px] font-medium text-multi-fg-secondary outline-hidden transition-colors hover:bg-multi-bg-tertiary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-tertiary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+      className={cn(
+        workbenchChromeTextControlVariants(),
+        "max-w-40 rounded-full pr-1.5 pl-2 disabled:pointer-events-none disabled:opacity-50",
+      )}
       aria-label="Agent mode and thinking level"
       disabled={props.disabled}
     >
@@ -655,15 +661,39 @@ function formatPendingPrimaryActionLabel(input: {
   return input.questionIndex > 0 ? "Submit answers" : "Submit answer";
 }
 
-const COMPOSER_ACTION_SIZE_COMPACT = "h-6 w-6";
-const COMPOSER_ACTION_SIZE_EXPANDED = "h-6 w-6";
-const COMPOSER_TOOLBAR_CONTROL_SIZE = "h-6 w-6";
-const COMPOSER_ACTION_ICON_COMPACT = "size-3.5";
-const COMPOSER_ACTION_ICON_EXPANDED = "size-3.5";
-const COMPOSER_SUBMIT_BASE_CLASS =
-  "flex enabled:cursor-pointer items-center justify-center rounded-full bg-transparent text-multi-icon-secondary transition-[background-color,color,opacity] duration-100 hover:bg-multi-bg-quaternary hover:text-multi-icon-primary disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-multi-icon-secondary";
-const COMPOSER_STOP_BASE_CLASS =
-  "flex cursor-pointer items-center justify-center rounded-full bg-transparent text-multi-fg-red-primary transition-[background-color,color,opacity] duration-100 hover:bg-multi-bg-quaternary hover:opacity-85";
+const composerActionButtonClass = cva(
+  "flex size-6 items-center justify-center rounded-full bg-transparent transition-[background-color,color,opacity] duration-100",
+  {
+    variants: {
+      action: {
+        submit:
+          "enabled:cursor-pointer text-multi-icon-secondary hover:bg-multi-bg-quaternary hover:text-multi-icon-primary disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-multi-icon-secondary",
+        stop: "cursor-pointer text-multi-fg-red-primary hover:bg-multi-bg-quaternary hover:opacity-85",
+      },
+    },
+  },
+);
+
+function ComposerActionButton({
+  action,
+  state,
+  className,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "size" | "variant"> & {
+  action: "submit" | "stop";
+  state: "running" | "busy" | "idle";
+}) {
+  return (
+    <Button
+      size="icon-sm"
+      variant="ghost"
+      className={cn(composerActionButtonClass({ action }), className)}
+      data-multi-composer-action={action}
+      data-multi-composer-state={state}
+      {...props}
+    />
+  );
+}
 
 function PrimaryActionControls(props: {
   compact: boolean;
@@ -681,12 +711,6 @@ function PrimaryActionControls(props: {
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
 }) {
-  const sizeClass = props.dockSingleRow
-    ? COMPOSER_ACTION_SIZE_COMPACT
-    : COMPOSER_ACTION_SIZE_EXPANDED;
-  const iconSizeClass = props.dockSingleRow
-    ? COMPOSER_ACTION_ICON_COMPACT
-    : COMPOSER_ACTION_ICON_EXPANDED;
   const dataState: "running" | "busy" | "idle" = props.isRunning
     ? "running"
     : props.isConnecting || props.isSendBusy || props.isPreparingWorktree
@@ -751,33 +775,31 @@ function PrimaryActionControls(props: {
           ? "Stop and send"
           : "Send immediately");
     const stopButton = (
-      <button
+      <ComposerActionButton
         type="button"
-        data-multi-composer-action="stop"
-        data-multi-composer-state={dataState}
-        className={cn(COMPOSER_STOP_BASE_CLASS, sizeClass)}
+        action="stop"
+        state={dataState}
         onClick={props.onInterrupt}
         aria-label="Stop generation"
       >
-        <IconStop className={iconSizeClass} />
-      </button>
+        <IconStop className="size-3.5" />
+      </ComposerActionButton>
     );
 
     if (props.hasSendableContent) {
       return (
         <div className={cn("flex items-center justify-end", props.compact ? "gap-1.5" : "gap-2")}>
           {stopButton}
-          <button
+          <ComposerActionButton
             type="submit"
-            data-multi-composer-action="submit"
-            data-multi-composer-state={dataState}
-            className={cn(COMPOSER_SUBMIT_BASE_CLASS, sizeClass)}
+            action="submit"
+            state={dataState}
             disabled={props.isSendBusy || props.isConnecting || !props.hasSendableContent}
             aria-label={runningSendLabel}
             title={runningSendLabel}
           >
-            <IconArrowUp className={iconSizeClass} />
-          </button>
+            <IconArrowUp className="size-3.5" />
+          </ComposerActionButton>
         </div>
       );
     }
@@ -787,16 +809,18 @@ function PrimaryActionControls(props: {
 
   if (props.showPlanFollowUpPrompt) {
     return (
-      <button
+      <Button
         type="submit"
-        className="flex h-6 enabled:cursor-pointer items-center justify-center gap-1 rounded-full bg-transparent px-2.5 text-detail font-medium text-(--cursor-bg-yellow-primary) transition-[background-color,color,opacity] duration-100 hover:bg-multi-bg-quaternary hover:opacity-85 disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent [&_svg]:size-3.5 [&_svg]:shrink-0"
+        size="sm"
+        variant="ghost"
+        className="h-6 gap-1 rounded-full bg-transparent px-2.5 text-detail font-medium text-(--cursor-bg-yellow-primary) hover:opacity-85 disabled:opacity-30 [&_svg]:size-3.5 [&_svg]:shrink-0"
         disabled={props.isSendBusy || props.isConnecting}
         aria-label="Refine plan"
         title="Refine plan"
       >
         <IconArrowUp aria-hidden />
         {props.isConnecting || props.isSendBusy ? "Sending..." : "Refine"}
-      </button>
+      </Button>
     );
   }
 
@@ -806,11 +830,10 @@ function PrimaryActionControls(props: {
   const spinnerDash = props.dockSingleRow ? "17 10" : "20 12";
 
   return (
-    <button
+    <ComposerActionButton
       type="submit"
-      data-multi-composer-action="submit"
-      data-multi-composer-state={dataState}
-      className={cn(COMPOSER_SUBMIT_BASE_CLASS, sizeClass)}
+      action="submit"
+      state={dataState}
       disabled={props.isSendBusy || props.isConnecting || !props.hasSendableContent}
       aria-label={
         props.isConnecting
@@ -829,7 +852,7 @@ function PrimaryActionControls(props: {
           height={spinnerSize}
           viewBox={`0 0 ${spinnerSize} ${spinnerSize}`}
           fill="none"
-          className="animate-spin"
+          className="animate-spin motion-reduce:animate-none"
           aria-hidden="true"
         >
           <circle
@@ -843,9 +866,9 @@ function PrimaryActionControls(props: {
           />
         </svg>
       ) : (
-        <IconArrowUp className={iconSizeClass} />
+        <IconArrowUp className="size-3.5" />
       )}
-    </button>
+    </ComposerActionButton>
   );
 }
 
@@ -918,7 +941,7 @@ function ComposerFooter(props: {
         className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
       >
         {!dockSingleRow && props.primaryActionState.isPreparingWorktree ? (
-          <span className="hidden select-none text-muted-foreground/70 text-xs sm:inline">
+          <span className="hidden select-none text-caption text-muted-foreground/70 sm:inline">
             Preparing worktree...
           </span>
         ) : null}
@@ -1421,8 +1444,9 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       pendingUserInputs.length === 0 &&
       showPlanFollowUpPrompt &&
       activeProposedPlan !== null;
-    const subagentTrayVisible =
-      !isInlineEditComposer && (composerVariant !== "compact" || isDockComposerExpanded);
+    const subagentTrayVisible = shouldShowSubagentTrayForComposer({
+      isInlineEditComposer,
+    });
 
     // ------------------------------------------------------------------
     // Prompt helpers
@@ -2029,18 +2053,19 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
                     aria-label="Attach images"
                     onChange={onComposerImageInputChange}
                   />
-                  <button
+                  <Button
                     type="button"
+                    size="icon-sm"
+                    variant="ghost"
                     className={cn(
-                      COMPOSER_TOOLBAR_CONTROL_SIZE,
-                      "flex shrink-0 items-center justify-center rounded-full bg-multi-bg-tertiary p-0 text-multi-icon-tertiary transition-[background-color,color] duration-150 hover:bg-multi-bg-secondary hover:text-multi-icon-secondary disabled:pointer-events-none disabled:opacity-35",
+                      "size-6 shrink-0 rounded-full bg-multi-bg-tertiary p-0 text-multi-icon-tertiary hover:bg-multi-bg-secondary hover:text-multi-icon-secondary disabled:opacity-35",
                     )}
                     aria-label="Attach images"
                     disabled={pendingUserInputs.length > 0 || isConnecting}
                     onClick={() => composerImageInputRef.current?.click()}
                   >
                     <IconPlusSmall className="size-3.5 shrink-0" aria-hidden="true" />
-                  </button>
+                  </Button>
                 </>
               ) : null}
               {isEditingQueuedComposerItem ? (

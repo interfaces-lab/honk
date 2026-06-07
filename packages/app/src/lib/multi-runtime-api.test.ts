@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetLocalApiForTests } from "../local-api";
 import {
+  assertRuntimeHostAvailable,
   createEmptyRuntimeHostSnapshot,
   isDesktopRuntimeApiAvailable,
   readMultiRuntimeApi,
@@ -23,6 +24,7 @@ function createRuntimeApi(snapshot: MultiRuntimeHostSnapshot): MultiRuntimeApi {
     getPreferences: async () => snapshot.preferences,
     updatePreferences: async () => snapshot.preferences,
     configureCredential: async () => snapshot,
+    hydrateThread: async () => undefined,
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
@@ -79,6 +81,7 @@ describe("readMultiRuntimeApi", () => {
 
     await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toBe(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
+    await expect(assertRuntimeHostAvailable()).resolves.toBeUndefined();
   });
 
   it("uses the runtime attached to desktopBridge through localApi", async () => {
@@ -94,5 +97,13 @@ describe("readMultiRuntimeApi", () => {
 
     await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toBe(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
+    await expect(assertRuntimeHostAvailable()).resolves.toBeUndefined();
+  });
+
+  it("rejects when no runtime bridge is available", async () => {
+    vi.stubGlobal("window", {});
+
+    expect(isDesktopRuntimeApiAvailable()).toBe(false);
+    await expect(assertRuntimeHostAvailable()).rejects.toThrow("Runtime host unavailable.");
   });
 });

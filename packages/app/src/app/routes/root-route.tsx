@@ -1,11 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Outlet, type ErrorComponentProps, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 
-import { APP_DISPLAY_NAME } from "~/app/branding";
 import { CommandPalette } from "~/components/command-palette";
 import { WebSocketConnectionCoordinator } from "~/components/web-socket-connection-surface";
 import { TaskCompletionNotifications } from "~/notifications/taskCompletion";
-import { Button } from "@multi/multikit/button";
 import { AnchoredToastProvider, ToastProvider } from "~/app/toast";
 import { syncBrowserChromeTheme } from "~/hooks/use-theme";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -14,6 +13,7 @@ import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
 import { startEnvironmentConnectionService } from "~/environments/runtime";
 import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
+import { RootStatusPage } from "./root-status-page";
 
 const routeApi = getRouteApi("__root__");
 
@@ -26,9 +26,7 @@ export function RootRouteView() {
         <RootMountPerformanceMark />
         <BrowserChromeThemeSync key="dev-standalone" />
         <AnchoredToastProvider>
-          <CommandPalette>
-            <Outlet />
-          </CommandPalette>
+          <Outlet />
           <DevDevtoolsPanel />
         </AnchoredToastProvider>
       </ToastProvider>
@@ -126,46 +124,28 @@ function CursorPreferenceDomSync(props: { readonly cursorPointerOnButtons: boole
   return null;
 }
 
-export function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
-  const message = errorMessage(error);
+export function RootRouteErrorView({ error }: ErrorComponentProps) {
   const details = errorDetails(error);
+  const [copied, setCopied] = useState(false);
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
-      <div className="pointer-events-none absolute inset-0 opacity-80">
-        <div className="absolute inset-x-0 top-0 h-44 bg-[radial-gradient(44rem_16rem_at_top,color-mix(in_srgb,var(--color-red-500)_16%,transparent),transparent)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--background)_90%,var(--color-black))_0%,var(--background)_55%)]" />
-      </div>
-
-      <section className="relative w-full max-w-xl rounded-2xl border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
-        <p className="text-detail font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-          {APP_DISPLAY_NAME}
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-          Something went wrong.
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message}</p>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => reset()}>
-            Try again
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
-            Reload app
-          </Button>
-        </div>
-
-        <details className="group mt-5 overflow-hidden rounded-lg border border-border/70 bg-background/55">
-          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-muted-foreground">
-            <span className="group-open:hidden">Show error details</span>
-            <span className="hidden group-open:inline">Hide error details</span>
-          </summary>
-          <pre className="max-h-56 overflow-auto border-t border-border/70 bg-background/80 px-3 py-2 text-xs text-foreground/85">
-            {details}
-          </pre>
-        </details>
-      </section>
-    </div>
+    <RootStatusPage
+      title="Something went wrong"
+      description="An unexpected error occurred. Reload the window to try again."
+      details={details}
+      actions={[
+        {
+          label: "Reload Window",
+          onClick: () => window.location.reload(),
+        },
+        {
+          label: copied ? "Copied" : "Copy Error",
+          onClick: () => {
+            void copyText(details).then(() => setCopied(true));
+          },
+        },
+      ]}
+    />
   );
 }
 
@@ -173,22 +153,22 @@ export function RootRouteNotFoundView() {
   const navigate = useNavigate();
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
-      <section className="relative w-full max-w-xl rounded-2xl border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
-        <p className="text-detail font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-          {APP_DISPLAY_NAME}
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">Route not found.</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          The current app route does not exist in this build.
-        </p>
-        <div className="mt-5">
-          <Button size="sm" onClick={() => void navigate({ to: "/", replace: true })}>
-            Go home
-          </Button>
-        </div>
-      </section>
-    </div>
+    <RootStatusPage
+      title="Page not found"
+      description="The requested page could not be found."
+      actions={[
+        {
+          label: "Go Home",
+          onClick: () => {
+            void navigate({ to: "/", replace: true });
+          },
+        },
+        {
+          label: "Reload Window",
+          onClick: () => window.location.reload(),
+        },
+      ]}
+    />
   );
 }
 
@@ -200,31 +180,24 @@ function AuthenticationRequiredView({
   readonly message: string;
 }) {
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
-      <section className="relative w-full max-w-xl rounded-2xl border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
-        <p className="text-detail font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-          {APP_DISPLAY_NAME}
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-          Local authentication failed.
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message}</p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => window.location.reload()}>
-            Reload app
-          </Button>
-          {browserBootstrapUrl ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => openBrowserBootstrapUrl(browserBootstrapUrl)}
-            >
-              Open in browser
-            </Button>
-          ) : null}
-        </div>
-      </section>
-    </div>
+    <RootStatusPage
+      title="Local authentication failed"
+      description={message}
+      actions={[
+        {
+          label: "Reload Window",
+          onClick: () => window.location.reload(),
+        },
+        ...(browserBootstrapUrl
+          ? [
+              {
+                label: "Open in Browser",
+                onClick: () => openBrowserBootstrapUrl(browserBootstrapUrl),
+              },
+            ]
+          : []),
+      ]}
+    />
   );
 }
 
@@ -242,32 +215,32 @@ function openBrowserBootstrapUrl(url: string): void {
   window.open(url, "_blank", "noopener");
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  if (typeof error === "string" && error.trim().length > 0) {
-    return error;
-  }
-
-  return "An unexpected router error occurred.";
-}
-
 function errorDetails(error: unknown): string {
   if (error instanceof Error) {
-    return error.stack ?? error.message;
+    const details = error.stack ?? error.message;
+    return details.trim().length > 0 ? details : "No additional error details are available.";
   }
 
   if (typeof error === "string") {
-    return error;
+    return error.trim().length > 0 ? error : "No additional error details are available.";
   }
 
   try {
-    return JSON.stringify(error, null, 2);
+    const details = JSON.stringify(error, null, 2);
+    if (typeof details === "string" && details.trim().length > 0) {
+      return details;
+    }
+    return "No additional error details are available.";
   } catch {
     return "No additional error details are available.";
   }
+}
+
+async function copyText(value: string): Promise<void> {
+  if (!navigator.clipboard?.writeText) {
+    return;
+  }
+  await navigator.clipboard.writeText(value);
 }
 
 function DesktopRuntimeHostBootstrap() {

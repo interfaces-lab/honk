@@ -10,7 +10,9 @@ const TERMINAL_SESSIONS_STORAGE_KEY = "multi.shell.terminalSessions.v1";
 const DEFAULT_CWD_KEY = "default";
 
 /** Persisted width limits for the chat/settings thread rail (`LeftAside`). */
-export const SHELL_LEFT_PANEL_WIDTH_LIMITS = { min: 164, max: 560 } as const;
+export const SHELL_LEFT_PANEL_WIDTH_LIMITS = { min: 180, max: 560 } as const;
+const SHELL_LEFT_PANEL_DEFAULT_WIDTH = 260;
+const LEGACY_SHELL_LEFT_PANEL_DEFAULT_WIDTH = 180;
 
 /** Cursor/VS Code auxiliary workbench width floor. Cursor's bundled part uses minimumWidth 300. */
 export const RIGHT_WORKBENCH_WIDTH_LIMITS = { min: 300, max: 600 } as const;
@@ -121,7 +123,7 @@ const decodePersistedTerminalSessionsStateOption = Schema.decodeUnknownOption(
 
 const DEFAULT_LEFT_PANEL_STATE: LeftPanelState = Object.freeze({
   leftOpen: true,
-  leftW: 180,
+  leftW: SHELL_LEFT_PANEL_DEFAULT_WIDTH,
 });
 
 const DEFAULT_WORKBENCH_PANEL_STATE: WorkbenchPanelState = Object.freeze({
@@ -145,6 +147,18 @@ const DEFAULT_TERMINAL_SESSIONS: TerminalSessionsState = Object.freeze({
 
 function clampWidth(width: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(width) ? width : min));
+}
+
+function normalizePersistedLeftWidth(width: unknown): number {
+  if (typeof width !== "number") return DEFAULT_LEFT_PANEL_STATE.leftW;
+  const clamped = clampWidth(
+    width,
+    SHELL_LEFT_PANEL_WIDTH_LIMITS.min,
+    SHELL_LEFT_PANEL_WIDTH_LIMITS.max,
+  );
+  return clamped === LEGACY_SHELL_LEFT_PANEL_DEFAULT_WIDTH
+    ? SHELL_LEFT_PANEL_DEFAULT_WIDTH
+    : clamped;
 }
 
 function resolveWorkspacePanelKey(workspaceKey: string | null): string {
@@ -181,11 +195,7 @@ function readPersistedPanels(): {
     return {
       leftOpen:
         typeof parsed.leftOpen === "boolean" ? parsed.leftOpen : DEFAULT_LEFT_PANEL_STATE.leftOpen,
-      leftW: clampWidth(
-        typeof parsed.leftW === "number" ? parsed.leftW : DEFAULT_LEFT_PANEL_STATE.leftW,
-        SHELL_LEFT_PANEL_WIDTH_LIMITS.min,
-        SHELL_LEFT_PANEL_WIDTH_LIMITS.max,
-      ),
+      leftW: normalizePersistedLeftWidth(parsed.leftW),
       rightOpen: DEFAULT_WORKBENCH_PANEL_STATE.rightOpen,
       rightW: clampWidth(
         typeof parsed.rightW === "number" ? parsed.rightW : DEFAULT_WORKBENCH_PANEL_STATE.rightW,

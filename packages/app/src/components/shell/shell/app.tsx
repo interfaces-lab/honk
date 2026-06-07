@@ -210,6 +210,7 @@ function RightAside(props: {
   const storedActiveTab = useActiveTab(props.workspaceKey);
   const searchActiveTab = useSearch({
     from: "/_chat",
+    shouldThrow: false,
     select: (search) => search.panel,
   });
   const navigate = useNavigate();
@@ -447,7 +448,6 @@ export function AppShell(props: {
   const storedRightOpen = useRightOpen(props.workspaceKey ?? null);
   const rightWidth = useRightWidth();
   const muted = useIsMuted(props.workspaceKey ?? null);
-  const agentWindowChatMaxWidth = useSettings((settings) => settings.agentWindowChatMaxWidth);
   const agentWindowFontSmoothingAntialiased = useSettings(
     (settings) => settings.agentWindowFontSmoothingAntialiased,
   );
@@ -471,7 +471,6 @@ export function AppShell(props: {
     "--multi-shell-titlebar-control-size": "var(--multi-titlebar-control-height)",
     "--multi-shell-titlebar-control-y": "var(--multi-titlebar-control-row-top)",
     "--multi-shell-titlebar-gutter": "8px",
-    "--agent-window-chat-max-width": `${agentWindowChatMaxWidth}px`,
   };
 
   useMountEffect(() => {

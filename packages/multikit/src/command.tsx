@@ -103,7 +103,7 @@ function CommandInput({
       <AutocompleteInput
         autoFocus
         className={cn(
-          "border-transparent! bg-transparent! text-[13px]/[18px] shadow-none before:hidden has-focus-visible:ring-0",
+          "border-transparent! bg-transparent! text-body shadow-none before:hidden has-focus-visible:ring-0",
           className,
         )}
         placeholder={placeholder}
@@ -185,7 +185,7 @@ function CommandShortcut({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd
       className={cn(
-        "ms-auto font-multi text-[10px]/[12px] font-medium tracking-normal text-muted-foreground/64",
+        "ms-auto font-multi text-caption font-medium tracking-normal text-muted-foreground/64",
         className,
       )}
       data-slot="command-shortcut"
@@ -198,7 +198,7 @@ function CommandFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex min-h-9 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-3 py-2 font-multi text-[11px]/[14px] text-multi-fg-secondary",
+        "flex min-h-9 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-3 py-2 font-multi text-detail text-multi-fg-secondary",
         className,
       )}
       data-slot="command-footer"

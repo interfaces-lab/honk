@@ -10,8 +10,8 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
   return (
-    <div className="@container/header-actions pointer-events-auto flex min-w-0 flex-1 select-none items-center gap-2 text-body">
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+    <div className="@container/header-actions pointer-events-auto flex min-w-0 flex-1 select-none items-center gap-(--multi-workbench-chrome-action-gap) text-body">
+      <div className="flex min-w-0 flex-1 items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden">
         <Button
           type="button"
           variant="ghost"
@@ -23,17 +23,19 @@ export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
           <IconSidebar className="size-4 shrink-0" />
         </Button>
         <div className="no-drag flex min-w-0 shrink items-center">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             aria-label={`Chat title. Right-click for more actions. ${activeThreadTitle}`}
-            className="flex min-w-0 shrink items-center rounded-sm px-1 py-0.5 text-left text-body font-medium text-multi-fg-primary hover:bg-multi-bg-quaternary"
+            className="h-auto min-w-0 shrink justify-start rounded-sm px-1 py-0.5 text-left text-body font-medium text-multi-fg-primary shadow-none before:hidden"
             title={activeThreadTitle}
           >
             <span className="min-w-0 truncate">{activeThreadTitle}</span>
-          </button>
+          </Button>
         </div>
         {actions ? (
-          <div className="no-drag flex min-w-0 shrink items-center gap-1 overflow-hidden">
+          <div className="no-drag flex min-w-0 shrink items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden">
             {actions}
           </div>
         ) : null}

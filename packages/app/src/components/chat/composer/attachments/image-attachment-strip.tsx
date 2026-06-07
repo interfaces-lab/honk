@@ -25,9 +25,10 @@ export function ComposerImageAttachmentStrip(props: {
           className="relative h-14 w-14 overflow-hidden rounded-[var(--multi-radius-control,6px)] border border-border/80 bg-background"
         >
           {image.previewUrl ? (
-            <button
+            <Button
               type="button"
-              className="h-full w-full cursor-zoom-in"
+              variant="ghost"
+              className="h-full w-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
               aria-label={`Preview ${image.name}`}
               onClick={() => {
                 const preview = buildExpandedImagePreview(props.images, image.id);
@@ -36,7 +37,7 @@ export function ComposerImageAttachmentStrip(props: {
               }}
             >
               <img src={image.previewUrl} alt={image.name} className="h-full w-full object-cover" />
-            </button>
+            </Button>
           ) : (
             <div className="flex h-full w-full items-center justify-center px-1 text-center text-caption text-muted-foreground/70">
               {image.name}

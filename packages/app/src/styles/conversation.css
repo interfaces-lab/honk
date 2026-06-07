@@ -306,10 +306,6 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"]
   font-size: 9px;
 }
 
-[data-queued-composer-panel] .queue-sortable-row .ui-tray-row__content {
-  overflow: hidden;
-}
-
 body[data-multi-glass-mode="true"] [data-queued-composer-panel] {
   backdrop-filter: blur(var(--multi-composer-queue-panel-blur));
   -webkit-backdrop-filter: blur(var(--multi-composer-queue-panel-blur));
@@ -462,8 +458,9 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
   pointer-events: auto;
 }
 
-[data-subagent-tray-click-capture]:focus {
-  outline: none;
+[data-subagent-tray-click-capture]:focus-visible {
+  outline: 1px solid var(--multi-stroke-focused);
+  outline-offset: -1px;
 }
 
 [data-subagent-tray-container] {

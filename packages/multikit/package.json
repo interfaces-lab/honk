@@ -17,6 +17,10 @@
       "types": "./src/autocomplete.tsx",
       "import": "./src/autocomplete.tsx"
     },
+    "./avatar": {
+      "types": "./src/avatar.tsx",
+      "import": "./src/avatar.tsx"
+    },
     "./badge": {
       "types": "./src/badge.tsx",
       "import": "./src/badge.tsx"
@@ -24,6 +28,18 @@
     "./button": {
       "types": "./src/button.tsx",
       "import": "./src/button.tsx"
+    },
+    "./card": {
+      "types": "./src/card.tsx",
+      "import": "./src/card.tsx"
+    },
+    "./checkbox": {
+      "types": "./src/checkbox.tsx",
+      "import": "./src/checkbox.tsx"
+    },
+    "./chart": {
+      "types": "./src/chart.tsx",
+      "import": "./src/chart.tsx"
     },
     "./collapsible": {
       "types": "./src/collapsible.tsx",
@@ -41,6 +57,10 @@
       "types": "./src/command.tsx",
       "import": "./src/command.tsx"
     },
+    "./code": {
+      "types": "./src/code.tsx",
+      "import": "./src/code.tsx"
+    },
     "./dialog": {
       "types": "./src/dialog.tsx",
       "import": "./src/dialog.tsx"
@@ -53,9 +73,21 @@
       "types": "./src/group.tsx",
       "import": "./src/group.tsx"
     },
+    "./hover-card": {
+      "types": "./src/hover-card.tsx",
+      "import": "./src/hover-card.tsx"
+    },
+    "./icon": {
+      "types": "./src/icon.tsx",
+      "import": "./src/icon.tsx"
+    },
     "./input": {
       "types": "./src/input.tsx",
       "import": "./src/input.tsx"
+    },
+    "./input-group": {
+      "types": "./src/input-group.tsx",
+      "import": "./src/input-group.tsx"
     },
     "./kbd": {
       "types": "./src/kbd.tsx",
@@ -64,6 +96,14 @@
     "./label": {
       "types": "./src/label.tsx",
       "import": "./src/label.tsx"
+    },
+    "./layout": {
+      "types": "./src/layout.tsx",
+      "import": "./src/layout.tsx"
+    },
+    "./link": {
+      "types": "./src/link.tsx",
+      "import": "./src/link.tsx"
     },
     "./local-storage": {
       "types": "./src/local-storage.ts",
@@ -109,9 +149,17 @@
       "types": "./src/spinner.tsx",
       "import": "./src/spinner.tsx"
     },
+    "./split-button": {
+      "types": "./src/split-button.tsx",
+      "import": "./src/split-button.tsx"
+    },
     "./status-dot": {
       "types": "./src/status-dot.tsx",
       "import": "./src/status-dot.tsx"
+    },
+    "./stat": {
+      "types": "./src/stat.tsx",
+      "import": "./src/stat.tsx"
     },
     "./switch": {
       "types": "./src/switch.tsx",
@@ -120,6 +168,10 @@
     "./tabs": {
       "types": "./src/tabs.tsx",
       "import": "./src/tabs.tsx"
+    },
+    "./table": {
+      "types": "./src/table.tsx",
+      "import": "./src/table.tsx"
     },
     "./text": {
       "types": "./src/text.tsx",
@@ -141,6 +193,14 @@
       "types": "./src/tooltip.tsx",
       "import": "./src/tooltip.tsx"
     },
+    "./toast": {
+      "types": "./src/toast.tsx",
+      "import": "./src/toast.tsx"
+    },
+    "./tool-call": {
+      "types": "./src/tool-call.tsx",
+      "import": "./src/tool-call.tsx"
+    },
     "./utils": {
       "types": "./src/utils.ts",
       "import": "./src/utils.ts"
@@ -148,6 +208,10 @@
     "./workbench-button": {
       "types": "./src/workbench-button.tsx",
       "import": "./src/workbench-button.tsx"
+    },
+    "./workbench-chrome-row": {
+      "types": "./src/workbench-chrome-row.tsx",
+      "import": "./src/workbench-chrome-row.tsx"
     }
   },
   "scripts": {

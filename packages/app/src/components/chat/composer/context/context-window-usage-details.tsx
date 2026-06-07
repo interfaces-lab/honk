@@ -10,11 +10,11 @@ export function ContextWindowUsageDetails(props: { usage: ContextWindowSnapshot 
 
   return (
     <div className="space-y-1.5 leading-tight">
-      <div className="text-detail font-medium uppercase tracking-[0.08em] text-muted-foreground">
+      <div className="text-detail font-medium uppercase text-muted-foreground">
         Context window
       </div>
       {usage.maxTokens !== null && usedPercentage ? (
-        <div className="whitespace-nowrap tabular-nums text-xs font-medium text-foreground">
+        <div className="whitespace-nowrap text-detail font-medium tabular-nums text-foreground">
           <span>{usedPercentage}</span>
           <span className="mx-1">·</span>
           <span>{formatContextWindowTokens(usage.usedTokens)}</span>
@@ -22,18 +22,18 @@ export function ContextWindowUsageDetails(props: { usage: ContextWindowSnapshot 
           <span>{formatContextWindowTokens(usage.maxTokens ?? null)} context used</span>
         </div>
       ) : (
-        <div className="text-sm text-foreground">
+        <div className="text-detail text-foreground">
           {formatContextWindowTokens(usage.usedTokens)} tokens used so far
         </div>
       )}
       {(usage.totalProcessedTokens ?? null) !== null &&
       (usage.totalProcessedTokens ?? 0) > usage.usedTokens ? (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-detail text-muted-foreground">
           Total processed: {formatContextWindowTokens(usage.totalProcessedTokens ?? null)} tokens
         </div>
       ) : null}
       {usage.compactsAutomatically ? (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-detail text-muted-foreground">
           Automatically compacts its context when needed.
         </div>
       ) : null}

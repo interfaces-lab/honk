@@ -113,7 +113,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
   const prewarmedSidebarThreadRefsKey = createThreadRefsKey(prewarmedSidebarThreadRefs);
 
   return (
-    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pt-0 pb-4">
+    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-(--multi-sidebar-section-gap) overflow-y-auto pt-0 pb-4">
       <RetainedThreadDetailSubscriptions
         key={prewarmedSidebarThreadRefsKey}
         threadRefs={prewarmedSidebarThreadRefs}

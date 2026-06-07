@@ -3,7 +3,7 @@
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
 import { forwardRef, type ReactNode } from "react";
 
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
 
 const ContextMenu = ContextMenuPrimitive.Root;
 
@@ -25,7 +25,8 @@ const workbenchContextMenuViewportClassName =
 
 const workbenchContextMenuItemClassName =
   cn(
-    "flex w-full cursor-pointer items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-multi-hover/40 data-highlighted:bg-multi-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
+    "flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-multi-hover/40 data-highlighted:bg-multi-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
+    interactiveControlCursorClassName,
     controlTransitionClassName,
   );
 

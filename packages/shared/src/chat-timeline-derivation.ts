@@ -1,6 +1,8 @@
 import {
   type EventId,
+  type ExtensionUiActivityRequestKind,
   type OrchestrationChatTimelineRow,
+  type OrchestrationChatTimelineWorkKind,
   type OrchestrationMessage,
   type OrchestrationProposedPlan,
   type OrchestrationThreadActivity,
@@ -44,8 +46,11 @@ interface MutableWorkRow {
   workId: string;
   activityIds: EventId[];
   turnId: TurnId | null;
+  workKind: OrchestrationChatTimelineWorkKind;
   toolCallId?: string;
   taskId?: RuntimeTaskIdType;
+  extensionUiRequestId?: string;
+  extensionUiRequestKind?: ExtensionUiActivityRequestKind;
 }
 
 export function deriveChatTimelineRows(
@@ -147,8 +152,15 @@ export function deriveChatTimelineRows(
       workId: workRow.workId,
       activityIds: [...workRow.activityIds],
       turnId: workRow.turnId,
+      workKind: workRow.workKind,
       ...(workRow.toolCallId ? { toolCallId: workRow.toolCallId } : {}),
       ...(workRow.taskId ? { taskId: workRow.taskId } : {}),
+      ...(workRow.extensionUiRequestId
+        ? { extensionUiRequestId: workRow.extensionUiRequestId }
+        : {}),
+      ...(workRow.extensionUiRequestKind
+        ? { extensionUiRequestKind: workRow.extensionUiRequestKind }
+        : {}),
     });
   }
 
@@ -272,7 +284,20 @@ function toWorkRowSeed(activity: OrchestrationThreadActivity): MutableWorkRow | 
   const taskId = isTaskLifecycleActivityKind(activity.kind)
     ? asRuntimeTaskId(payload?.taskId)
     : undefined;
-  const workId = deriveWorkId(activity.turnId, toolCallId, taskId, activity.id);
+  const extensionUiRequestId = isExtensionUiLifecycleActivityKind(activity.kind)
+    ? asTrimmedString(payload?.requestId)
+    : undefined;
+  const extensionUiRequestKind = isExtensionUiLifecycleActivityKind(activity.kind)
+    ? asExtensionUiRequestKind(payload?.requestKind)
+    : undefined;
+  const workKind = deriveWorkKind(activity.kind, toolCallId, taskId, extensionUiRequestId);
+  const workId = deriveWorkId(
+    activity.turnId,
+    toolCallId,
+    taskId,
+    extensionUiRequestId,
+    activity.id,
+  );
   const id = `work:${workId}`;
 
   return {
@@ -282,15 +307,37 @@ function toWorkRowSeed(activity: OrchestrationThreadActivity): MutableWorkRow | 
     workId,
     activityIds: [activity.id],
     turnId: activity.turnId,
+    workKind,
     ...(toolCallId ? { toolCallId } : {}),
     ...(taskId ? { taskId } : {}),
+    ...(extensionUiRequestId ? { extensionUiRequestId } : {}),
+    ...(extensionUiRequestKind ? { extensionUiRequestKind } : {}),
   };
+}
+
+function deriveWorkKind(
+  kind: OrchestrationThreadActivity["kind"],
+  toolCallId: string | undefined,
+  taskId: string | undefined,
+  extensionUiRequestId: string | undefined,
+): OrchestrationChatTimelineWorkKind {
+  if (isToolLifecycleActivityKind(kind) || toolCallId) {
+    return "tool";
+  }
+  if (isTaskLifecycleActivityKind(kind) || taskId) {
+    return "task";
+  }
+  if (isExtensionUiLifecycleActivityKind(kind) || extensionUiRequestId) {
+    return "extension-ui";
+  }
+  return "activity";
 }
 
 function deriveWorkId(
   turnId: TurnId | null,
   toolCallId: string | undefined,
   taskId: string | undefined,
+  extensionUiRequestId: string | undefined,
   activityId: EventId,
 ): string {
   if (toolCallId) {
@@ -298,6 +345,9 @@ function deriveWorkId(
   }
   if (taskId) {
     return turnId === null ? `task:${taskId}` : `task:${turnId}:${taskId}`;
+  }
+  if (extensionUiRequestId) {
+    return `extension-ui:${extensionUiRequestId}`;
   }
   return `activity:${activityId}`;
 }
@@ -308,6 +358,9 @@ function unscopedWorkRowKey(workRow: MutableWorkRow): string | undefined {
   }
   if (workRow.taskId) {
     return `task:${workRow.taskId}`;
+  }
+  if (workRow.extensionUiRequestId) {
+    return `extension-ui:${workRow.extensionUiRequestId}`;
   }
   return undefined;
 }
@@ -365,6 +418,13 @@ function shouldCollapseWorkRows(
     );
   }
 
+  if (isExtensionUiLifecycleActivityKind(nextActivity.kind)) {
+    return (
+      previous.extensionUiRequestId !== undefined &&
+      previous.extensionUiRequestId === next.extensionUiRequestId
+    );
+  }
+
   return false;
 }
 
@@ -379,6 +439,15 @@ function mergeWorkRowMetadata(previous: MutableWorkRow, next: MutableWorkRow): v
     previous.workId = next.workId;
     previous.id = next.id;
   }
+  if (!previous.extensionUiRequestId && next.extensionUiRequestId) {
+    previous.extensionUiRequestId = next.extensionUiRequestId;
+    previous.workKind = next.workKind;
+    previous.workId = next.workId;
+    previous.id = next.id;
+  }
+  if (!previous.extensionUiRequestKind && next.extensionUiRequestKind) {
+    previous.extensionUiRequestKind = next.extensionUiRequestKind;
+  }
 }
 
 function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
@@ -387,6 +456,10 @@ function isToolLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
 
 function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
   return kind === "task.started" || kind === "task.progress" || kind === "task.completed";
+}
+
+function isExtensionUiLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
+  return kind === "extension-ui.requested" || kind === "extension-ui.resolved";
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -398,6 +471,21 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asTrimmedString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function asExtensionUiRequestKind(
+  value: unknown,
+): ExtensionUiActivityRequestKind | undefined {
+  switch (value) {
+    case "select":
+    case "confirm":
+    case "input":
+    case "editor":
+    case "custom":
+      return value;
+    default:
+      return undefined;
+  }
 }
 
 function asRuntimeTaskId(value: unknown): RuntimeTaskIdType | undefined {

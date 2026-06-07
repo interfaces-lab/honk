@@ -1,15 +1,15 @@
 "use client";
 
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
 
 const buttonVariants = cva(
   cn(
-    "[&_svg]:-mx-0.5 relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-multi-control border font-multi text-body font-medium outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-multi-control border font-multi text-body font-medium outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    interactiveControlCursorClassName,
     controlTransitionClassName,
   ),
   {
@@ -53,27 +53,74 @@ const buttonVariants = cva(
   },
 );
 
-interface ButtonProps extends useRender.ComponentProps<"button"> {
+interface ButtonProps extends ButtonPrimitive.Props {
   variant?: VariantProps<typeof buttonVariants>["variant"];
   size?: VariantProps<typeof buttonVariants>["size"];
 }
 
-function Button({ className, variant, size, render, ...props }: ButtonProps) {
-  const typeValue: React.ButtonHTMLAttributes<HTMLButtonElement>["type"] = render
-    ? undefined
-    : "button";
+const iconButtonSizes = new Set<ButtonProps["size"]>([
+  "icon",
+  "icon-lg",
+  "icon-sm",
+  "icon-xl",
+  "icon-xs",
+]);
 
-  const defaultProps = {
-    className: cn(buttonVariants({ className, size, variant })),
-    "data-slot": "button",
-    type: typeValue,
-  };
+const warnedIconButtons = new Set<string>();
 
-  return useRender({
-    defaultTagName: "button",
-    props: mergeProps<"button">(defaultProps, props),
-    render,
+function warnIfMissingIconButtonName({
+  ariaLabel,
+  ariaLabelledBy,
+  className,
+  size,
+  title,
+}: {
+  ariaLabel?: ButtonProps["aria-label"];
+  ariaLabelledBy?: ButtonProps["aria-labelledby"];
+  className?: ButtonProps["className"];
+  size?: ButtonProps["size"];
+  title?: ButtonProps["title"];
+}) {
+  if (!iconButtonSizes.has(size)) return;
+  if (ariaLabel || ariaLabelledBy || title) return;
+
+  const warningKey = `${size}:${typeof className === "function" ? "classNameFn" : (className ?? "")}`;
+  if (warnedIconButtons.has(warningKey)) return;
+  warnedIconButtons.add(warningKey);
+
+  console.warn(
+    "Multikit Button with an icon-only size needs aria-label, aria-labelledby, or title.",
+  );
+}
+
+function Button({ className, variant, size, render, type, ...props }: ButtonProps) {
+  warnIfMissingIconButtonName({
+    ariaLabel: props["aria-label"],
+    ariaLabelledBy: props["aria-labelledby"],
+    className,
+    size,
+    title: props.title,
   });
+
+  const typeValue: React.ButtonHTMLAttributes<HTMLButtonElement>["type"] =
+    type ?? (render ? undefined : "button");
+  const baseClassName = buttonVariants({ size, variant });
+  const resolvedClassName: ButtonPrimitive.Props["className"] =
+    typeof className === "function"
+      ? (state) => cn(baseClassName, className(state))
+      : cn(baseClassName, className);
+
+  return (
+    <ButtonPrimitive
+      className={resolvedClassName}
+      data-size={size ?? "default"}
+      data-slot="button"
+      data-variant={variant ?? "default"}
+      render={render}
+      type={typeValue}
+      {...props}
+    />
+  );
 }
 
 export { Button, buttonVariants };

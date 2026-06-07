@@ -17,7 +17,11 @@ function ScrollArea({
   hideScrollbars?: boolean;
 }) {
   return (
-    <ScrollAreaPrimitive.Root className={cn("size-full min-h-0 min-w-0", className)} {...props}>
+    <ScrollAreaPrimitive.Root
+      className={cn("ui-scroll-area size-full min-h-0 min-w-0", className)}
+      data-slot="scroll-area"
+      {...props}
+    >
       <ScrollAreaPrimitive.Viewport
         className={cn(
           "h-full rounded-[inherit] outline-none overscroll-contain transition-[box-shadow,mask-image] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-has-overflow-x:overscroll-x-contain",

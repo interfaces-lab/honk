@@ -406,7 +406,7 @@ describe("Pi runtime thread sync", () => {
 
     expect(thread.session?.status).toBe("running");
     expect(thread.latestTurn?.state).toBe("running");
-    expect(thread.messages).toEqual(
+    expect(thread.messages).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           role: "assistant",
@@ -418,18 +418,21 @@ describe("Pi runtime thread sync", () => {
     );
     expect(thread.activities).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          kind: "extension-ui.requested",
+          summary: "Waiting for Run tool?",
+          turnId,
+        }),
+      ]),
+    );
+    expect(thread.activities).not.toEqual(
+      expect.arrayContaining([
         expect.objectContaining({ kind: "task.progress", turnId }),
         expect.objectContaining({
           kind: "tool.started",
           payload: expect.objectContaining({
             itemId: "tool-call-1",
-            data: expect.objectContaining({ command: "pnpm run typecheck" }),
           }),
-          turnId,
-        }),
-        expect.objectContaining({
-          kind: "extension-ui.requested",
-          summary: "Waiting for Run tool?",
           turnId,
         }),
       ]),

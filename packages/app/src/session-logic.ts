@@ -11,6 +11,10 @@ import {
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
+  type RuntimeDisplayTimelineCustomMessageItem,
+  type RuntimeDisplayTimelineExtensionUiRequestItem,
+  type RuntimeDisplayTimelineMessageItem,
+  type RuntimeDisplayTimelineToolItem,
   type DesktopExtensionUiRequestKind,
   type RuntimeRequestKind,
   type ToolLifecycleItemType,
@@ -255,6 +259,30 @@ export type TimelineEntry =
       kind: "work";
       createdAt: string;
       entry: WorkLogEntry;
+    }
+  | {
+      id: string;
+      kind: "custom-message";
+      createdAt: string;
+      customMessage: RuntimeDisplayTimelineCustomMessageItem;
+    }
+  | {
+      id: string;
+      kind: "runtime-thinking";
+      createdAt: string;
+      message: RuntimeDisplayTimelineMessageItem;
+    }
+  | {
+      id: string;
+      kind: "runtime-tool";
+      createdAt: string;
+      tool: RuntimeDisplayTimelineToolItem;
+    }
+  | {
+      id: string;
+      kind: "runtime-extension-ui-request";
+      createdAt: string;
+      request: RuntimeDisplayTimelineExtensionUiRequestItem;
     };
 
 export interface FormatDurationOptions {
@@ -3049,14 +3077,11 @@ function extractToolCommand(payload: Record<string, unknown> | null): {
   const item = asRecord(data?.item);
   const itemResult = asRecord(item?.result);
   const itemInput = asRecord(item?.input);
-  const itemType = asTrimmedString(payload?.itemType);
-  const detail = asTrimmedString(payload?.detail);
   const candidates: unknown[] = [
     item?.command,
     itemInput?.command,
     itemResult?.command,
     data?.command,
-    itemType === "command_execution" && detail ? stripTrailingExitCode(detail).output : null,
   ];
 
   for (const candidate of candidates) {

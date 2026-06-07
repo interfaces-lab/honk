@@ -1,4 +1,9 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
+import {
+  type EnvironmentId,
+  type RuntimeDisplayTimelineCustomMessageItem,
+  type ThreadId,
+} from "@multi/contracts";
+import { Button } from "@multi/multikit/button";
 import { IconChevronRightMedium } from "central-icons";
 import { useRef, type ReactNode } from "react";
 
@@ -6,13 +11,22 @@ import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { cn } from "~/lib/utils";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { WorkingStatusRow } from "../message/status-row";
-import { ToolCallMessage } from "../message/tool-message";
+import {
+  RuntimeExtensionUiRequestMessage,
+  RuntimeToolCallMessage,
+  ToolCallMessage,
+} from "../message/tool-message";
 import { ProposedPlanMessage } from "../message/proposed-plan-message";
 import { AssistantTranscriptRow, HumanTranscriptRow } from "../message/transcript-rows";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
+import ChatMarkdown from "../markdown/chat-markdown";
 import {
+  type TimelineCustomMessageStep,
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
+  type TimelineRuntimeExtensionUiRequestStep,
+  type TimelineRuntimeThinkingStep,
+  type TimelineRuntimeToolStep,
   type TimelineStep,
   type TimelineWaitingStep,
   type TimelineWorkStep,
@@ -66,6 +80,18 @@ export function StepRenderer({
     case "proposed-plan":
       return <ProposedPlanStepRenderer step={step} ctx={ctx} />;
 
+    case "custom-message":
+      return <CustomMessageStepRenderer step={step} ctx={ctx} />;
+
+    case "runtime-tool":
+      return <RuntimeToolStepRenderer step={step} ctx={ctx} />;
+
+    case "runtime-thinking":
+      return <RuntimeThinkingStepRenderer step={step} ctx={ctx} />;
+
+    case "runtime-extension-ui-request":
+      return <RuntimeExtensionUiRequestStepRenderer step={step} />;
+
     case "work":
       return <WorkStepRenderer step={step} ctx={ctx} />;
 
@@ -107,13 +133,15 @@ export function GroupedStepsRenderer({
       data-assistant-work-group=""
       data-work-group-expanded={expanded ? "true" : "false"}
       data-work-group-running={isRunning ? "true" : "false"}
+      data-group-loading={isRunning ? "true" : undefined}
       aria-busy={isRunning ? "true" : undefined}
     >
-      <button
+      <Button
         type="button"
+        variant="ghost"
         className={cn(
           "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
-          "border-0 bg-transparent p-0 text-left select-none",
+          "h-auto border-0 bg-transparent p-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
           "text-conversation text-multi-fg-tertiary",
           "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
         )}
@@ -138,7 +166,7 @@ export function GroupedStepsRenderer({
           )}
           aria-hidden="true"
         />
-      </button>
+      </Button>
       <div id={contentId} className="contents">
         {expanded ? (
           <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
@@ -208,6 +236,118 @@ function ProposedPlanStepRenderer({
   );
 }
 
+function CustomMessageStepRenderer({
+  step,
+  ctx,
+}: {
+  step: TimelineCustomMessageStep;
+  ctx: StepRendererContext;
+}) {
+  return (
+    <RuntimeCustomMessageRow customMessage={step.customMessage} markdownCwd={ctx.markdownCwd} />
+  );
+}
+
+function RuntimeCustomMessageRow({
+  customMessage,
+  markdownCwd,
+}: {
+  customMessage: RuntimeDisplayTimelineCustomMessageItem;
+  markdownCwd: string | undefined;
+}) {
+  const rendered = renderRuntimeCustomMessage(customMessage, { markdownCwd });
+  return rendered ?? (
+    <UnknownRuntimeCustomMessageRow customMessage={customMessage} markdownCwd={markdownCwd} />
+  );
+}
+
+type RuntimeCustomMessageRenderer = (
+  customMessage: RuntimeDisplayTimelineCustomMessageItem,
+  options: { markdownCwd: string | undefined },
+) => ReactNode;
+
+const runtimeCustomMessageRenderers: Readonly<Record<string, RuntimeCustomMessageRenderer>> = {
+  "git-agent-action": RuntimeMarkdownCustomMessageRow,
+  "plan-complete": RuntimeMarkdownCustomMessageRow,
+  "plan-mode-execute": RuntimeMarkdownCustomMessageRow,
+  "plan-todo-list": RuntimeMarkdownCustomMessageRow,
+  "status-update": RuntimeMarkdownCustomMessageRow,
+};
+
+function renderRuntimeCustomMessage(
+  customMessage: RuntimeDisplayTimelineCustomMessageItem,
+  options: { markdownCwd: string | undefined },
+): ReactNode {
+  return runtimeCustomMessageRenderers[customMessage.customType]?.(customMessage, options) ?? null;
+}
+
+function RuntimeMarkdownCustomMessageRow(
+  customMessage: RuntimeDisplayTimelineCustomMessageItem,
+  options: { markdownCwd: string | undefined },
+) {
+  const text = runtimeCustomMessageText(customMessage);
+  if (!text) {
+    return null;
+  }
+  return (
+    <div
+      className="box-border flex w-full min-w-0 px-0"
+      data-runtime-custom-message=""
+      data-runtime-custom-message-type={customMessage.customType}
+      data-runtime-custom-message-renderer="markdown"
+    >
+      <div className="box-border flex w-full max-w-agent-chat flex-col gap-1 text-conversation text-multi-fg-primary">
+        <ChatMarkdown text={text} cwd={options.markdownCwd} />
+      </div>
+    </div>
+  );
+}
+
+function UnknownRuntimeCustomMessageRow({
+  customMessage,
+  markdownCwd,
+}: {
+  customMessage: RuntimeDisplayTimelineCustomMessageItem;
+  markdownCwd: string | undefined;
+}) {
+  const text = runtimeCustomMessageText(customMessage);
+  return (
+    <div
+      className="box-border flex w-full min-w-0 px-0"
+      data-runtime-custom-message=""
+      data-runtime-custom-message-type={customMessage.customType}
+      data-runtime-custom-message-renderer="unknown"
+    >
+      <div className="box-border flex w-full max-w-agent-chat flex-col gap-1 text-conversation text-multi-fg-primary">
+        <div className="select-none text-caption text-multi-fg-tertiary">
+          [{customMessage.customType}]
+        </div>
+        {text ? <ChatMarkdown text={text} cwd={markdownCwd} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function runtimeCustomMessageText(
+  customMessage: RuntimeDisplayTimelineCustomMessageItem,
+): string {
+  if (typeof customMessage.content === "string") {
+    return customMessage.content;
+  }
+  if (Array.isArray(customMessage.content)) {
+    return customMessage.content
+      .flatMap((entry) => {
+        if (!entry || typeof entry !== "object") {
+          return [];
+        }
+        const record = entry as Record<string, unknown>;
+        return record.type === "text" && typeof record.text === "string" ? [record.text] : [];
+      })
+      .join("\n");
+  }
+  return customMessage.text ?? "";
+}
+
 function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRendererContext }) {
   return (
     <ToolCallMessage
@@ -218,6 +358,59 @@ function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRend
       subagentDetailsEnabled
     />
   );
+}
+
+function RuntimeToolStepRenderer({
+  step,
+  ctx,
+}: {
+  step: TimelineRuntimeToolStep;
+  ctx: StepRendererContext;
+}) {
+  return (
+    <RuntimeToolCallMessage
+      tool={step.tool}
+      projectRoot={ctx.projectRoot}
+      activeThreadId={ctx.activeThreadId}
+      environmentId={ctx.activeThreadEnvironmentId}
+      subagentDetailsEnabled
+    />
+  );
+}
+
+function RuntimeThinkingStepRenderer({
+  step,
+  ctx,
+}: {
+  step: TimelineRuntimeThinkingStep;
+  ctx: StepRendererContext;
+}) {
+  const thinking = step.message.thinking?.trim();
+  if (!thinking) {
+    return null;
+  }
+  return (
+    <div
+      className="min-w-0 py-0.5 text-conversation text-multi-fg-secondary"
+      data-runtime-thinking=""
+      data-runtime-thinking-streaming={step.message.streaming ? "true" : undefined}
+    >
+      <ChatMarkdown
+        text={thinking}
+        cwd={ctx.markdownCwd}
+        isStreaming={step.message.streaming === true}
+        className="text-multi-fg-secondary"
+      />
+    </div>
+  );
+}
+
+function RuntimeExtensionUiRequestStepRenderer({
+  step,
+}: {
+  step: TimelineRuntimeExtensionUiRequestStep;
+}) {
+  return <RuntimeExtensionUiRequestMessage request={step.request} />;
 }
 
 function WaitingStepRenderer({ step }: { step: TimelineWaitingStep }) {

@@ -241,7 +241,6 @@ export function useSettingsRestore(onRestored?: () => void) {
   const isAgentWindowAppearanceDirty =
     settings.agentWindowFontSmoothingAntialiased !==
       DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased ||
-    settings.agentWindowChatMaxWidth !== DEFAULT_UNIFIED_SETTINGS.agentWindowChatMaxWidth ||
     settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons;
   const isAppearanceDirty = !Equal.equals(appearance, DEFAULT_APPEARANCE_SNAPSHOT);
 

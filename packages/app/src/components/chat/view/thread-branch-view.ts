@@ -15,6 +15,7 @@ import {
   type WorkLogDerivationOptions,
   type WorkLogEntry,
 } from "../../../session-logic";
+import { timelineMessageEntryId } from "./timeline-entry-ids";
 
 /**
  * Result of projecting a thread tree onto a single branch path. When `status`
@@ -168,17 +169,21 @@ export function materializeTimelineEntriesFromChatTimelineRows(input: {
   messages: ReadonlyArray<ChatMessage>;
   proposedPlans: ReadonlyArray<ProposedPlan>;
   activities: ReadonlyArray<OrchestrationThreadActivity>;
+  workEntries?: ReadonlyArray<WorkLogEntry> | undefined;
   workLogOptions?: WorkLogDerivationOptions;
 }): TimelineEntry[] {
   const messagesById = new Map(input.messages.map((message) => [message.id, message] as const));
   const proposedPlansById = new Map(
     input.proposedPlans.map((proposedPlan) => [proposedPlan.id, proposedPlan] as const),
   );
-  const workEntriesByRowId = buildWorkEntriesByTimelineRowId({
-    rows: input.rows,
-    activities: input.activities,
-    ...(input.workLogOptions ? { workLogOptions: input.workLogOptions } : {}),
-  });
+  const workEntriesByRowId = buildWorkEntriesByTimelineRowIdFromEntries(
+    input.workEntries ??
+      deriveWorkLogEntriesForChatTimelineRows({
+        rows: input.rows,
+        activities: input.activities,
+        ...(input.workLogOptions ? { workLogOptions: input.workLogOptions } : {}),
+      }),
+  );
   const entries: TimelineEntry[] = [];
 
   for (const row of input.rows) {
@@ -189,7 +194,7 @@ export function materializeTimelineEntriesFromChatTimelineRows(input: {
           continue;
         }
         entries.push({
-          id: row.id,
+          id: timelineMessageEntryId(message.id),
           kind: "message",
           createdAt: row.createdAt,
           message,
@@ -228,11 +233,11 @@ export function materializeTimelineEntriesFromChatTimelineRows(input: {
   return entries;
 }
 
-function buildWorkEntriesByTimelineRowId(input: {
+export function deriveWorkLogEntriesForChatTimelineRows(input: {
   rows: ReadonlyArray<OrchestrationChatTimelineRow>;
   activities: ReadonlyArray<OrchestrationThreadActivity>;
   workLogOptions?: WorkLogDerivationOptions;
-}): Map<string, WorkLogEntry> {
+}): WorkLogEntry[] {
   const relevantActivityIds = new Set<string>();
   const visibleParentItemIds = new Set<string>();
   const visibleSubagentThreadIds = new Set<string>();
@@ -282,6 +287,12 @@ function buildWorkEntriesByTimelineRowId(input: {
     undefined,
     input.workLogOptions ?? {},
   );
+  return workEntries;
+}
+
+function buildWorkEntriesByTimelineRowIdFromEntries(
+  workEntries: ReadonlyArray<WorkLogEntry>,
+): Map<string, WorkLogEntry> {
   const byRowId = new Map<string, WorkLogEntry>();
   for (const workEntry of workEntries) {
     if (workEntry.isToolSummary) {

@@ -1,6 +1,5 @@
 import {
   IconCheckCircle2,
-  IconChevronRightMedium,
   IconClock,
   IconCodeBrackets,
   IconCloudDownload,
@@ -15,10 +14,10 @@ import {
 import { cva } from "class-variance-authority";
 import {
   memo,
-  type ComponentPropsWithoutRef,
   type ComponentType,
   type ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -35,6 +34,25 @@ import {
 } from "../../../session-logic";
 import { cn } from "~/lib/utils";
 import { InlineToolDiff } from "./tool-inline-diff";
+import {
+  ToolCallLine,
+  ToolCallLineChevron,
+  ToolCallLineDetails,
+  ToolCallShellBody,
+  ToolCallShellHeader,
+  ToolCallShellRoot,
+  ToolCallTaskBody,
+  ToolCallTaskChevron,
+  ToolCallTaskHeader,
+  ToolCallTaskRoot,
+  ToolCallTaskStatusIcon,
+  ToolCallTaskSubtitle,
+  ToolCallTaskTitle,
+  ToolCallTaskTitleArea,
+  toolCallLineActionVariants,
+  toolCallLineVariants,
+} from "@multi/multikit/tool-call";
+import { Button } from "@multi/multikit/button";
 
 type CentralIconComponent = ComponentType<{ className?: string | undefined }>;
 
@@ -125,72 +143,6 @@ const thinkingStatusTaskVariants = cva(
   },
 );
 
-const toolCallLineVariants = cva(
-  cn(
-    "group/tool-call-line inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
-    "border-0 bg-transparent text-left select-none",
-    "text-conversation",
-    "text-ellipsis whitespace-nowrap text-multi-fg-primary",
-  ),
-  {
-    variants: {
-      clickable: {
-        false: "",
-        true: "cursor-pointer",
-      },
-    },
-    defaultVariants: {
-      clickable: false,
-    },
-  },
-);
-
-const toolCallLineActionVariants = cva(
-  cn(
-    "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap",
-    "font-normal text-multi-fg-secondary",
-    "transition-colors duration-100",
-    "group-hover/tool-call-line:text-multi-fg-primary",
-  ),
-  {
-    variants: {
-      loading: {
-        false: "",
-        true: "tool-call-shimmer",
-      },
-    },
-    defaultVariants: {
-      loading: false,
-    },
-  },
-);
-
-const toolCallLineDetailsVariants = cva(
-  cn(
-    "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums",
-    "transition-colors duration-100",
-    "group-hover/tool-call-line:text-multi-fg-secondary",
-  ),
-  {
-    variants: {
-      linkable: {
-        false: "",
-        true: cn(
-          "cursor-pointer underline",
-          "decoration-[color-mix(in_srgb,var(--multi-fg-tertiary)_45%,transparent)]",
-          "hover:text-multi-fg-secondary",
-          "hover:decoration-[color-mix(in_srgb,var(--multi-fg-secondary)_55%,transparent)]",
-          "focus-visible:text-multi-fg-secondary",
-          "focus-visible:decoration-[color-mix(in_srgb,var(--multi-fg-secondary)_55%,transparent)]",
-        ),
-      },
-    },
-    defaultVariants: {
-      linkable: false,
-    },
-  },
-);
-
 const editToolCallFilenameVariants = cva(
   cn(
     "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
@@ -269,12 +221,13 @@ export function ToolCallRenderer({
           loading={loading}
         />
       );
-    case "shellToolCall":
+    case "shellToolCall": {
+      const shellCommand = artifactLookup.command?.command ?? command ?? "";
       return (
         <ShellToolCall
           action={displayState.action}
-          details={displayState.details}
-          command={artifactLookup.command?.command ?? command ?? displayState.details}
+          details={shellCommand}
+          command={shellCommand}
           output={artifactLookup.command?.output ?? output ?? null}
           artifact={artifactLookup.command}
           loading={loading}
@@ -286,6 +239,7 @@ export function ToolCallRenderer({
           showIcon={conversationDensity === "verbose"}
         />
       );
+    }
     case "editToolCall":
     case "deleteToolCall":
       return (
@@ -472,6 +426,7 @@ function getMetadataArtifactItems(
 
 function TaskToolCall({
   action,
+  details,
   loading,
   hasError,
   subagentConversation,
@@ -498,13 +453,21 @@ function TaskToolCall({
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasBody = Boolean(subagentConversation) || Boolean(renderStep);
+  const subtitle = details.trim();
+
+  useEffect(() => {
+    if (!defaultExpanded || !hasBody) {
+      return;
+    }
+    setIsExpanded(true);
+  }, [defaultExpanded, hasBody]);
 
   if (!hasBody) {
     return (
       <ToolCallLine
         icon={showIcon ? IconRobot : undefined}
         action={action}
-        details=""
+        details={details}
         loading={loading}
       />
     );
@@ -520,19 +483,15 @@ function TaskToolCall({
   };
 
   return (
-    <div
-      className="min-w-0 max-w-full text-conversation"
-      data-task-tool-call=""
-      data-status={hasError ? "error" : loading ? "running" : "completed"}
-      data-expanded={isExpanded ? "true" : "false"}
+    <ToolCallTaskRoot
+      expanded={isExpanded}
+      status={hasError ? "error" : loading ? "running" : "completed"}
     >
-      <button
-        type="button"
+      <ToolCallTaskHeader
         aria-expanded={isExpanded}
         onClick={toggleExpanded}
-        data-task-tool-call-header=""
       >
-        <span data-task-tool-call-status-icon="">
+        <ToolCallTaskStatusIcon>
           {loading ? (
             <IconClock className="tool-call-shimmer size-3.5" />
           ) : hasError ? (
@@ -540,94 +499,20 @@ function TaskToolCall({
           ) : (
             <IconCheckCircle2 className="size-3.5" />
           )}
-        </span>
-        <span data-task-tool-call-title-area="">
-          <span
-            data-task-tool-call-title=""
-            className={cn(loading && "tool-call-shimmer")}
-          >
-            {title}
-          </span>
-        </span>
-        <IconChevronRightMedium className="size-3" data-task-tool-call-chevron="" />
-      </button>
+        </ToolCallTaskStatusIcon>
+        <ToolCallTaskTitleArea>
+          <ToolCallTaskTitle loading={loading}>{title}</ToolCallTaskTitle>
+          {subtitle ? <ToolCallTaskSubtitle>{subtitle}</ToolCallTaskSubtitle> : null}
+        </ToolCallTaskTitleArea>
+        <ToolCallTaskChevron expanded={isExpanded} />
+      </ToolCallTaskHeader>
       {isExpanded ? (
-        <div className="min-w-0 max-w-full" data-task-tool-call-body="">
+        <ToolCallTaskBody>
           {subagentConversation}
           {renderStep?.(toolCall, 0, callId)}
-        </div>
+        </ToolCallTaskBody>
       ) : null}
-    </div>
-  );
-}
-
-interface ToolCallLineProps {
-  action: string;
-  details: ReactNode;
-  loading?: boolean | undefined;
-  icon?: CentralIconComponent | undefined;
-  onClick?: (() => void) | undefined;
-  linkable?: boolean | undefined;
-}
-
-export function ToolCallLine({
-  action,
-  details,
-  loading = false,
-  icon: Icon,
-  onClick,
-  linkable = false,
-}: ToolCallLineProps) {
-  const content = (
-    <>
-      {Icon ? <Icon className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
-      <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
-        {action}
-      </span>
-      {details ? <ToolCallLineDetails linkable={linkable}>{details}</ToolCallLineDetails> : null}
-    </>
-  );
-
-  if (!onClick) {
-    return (
-      <div className={toolCallLineVariants({ clickable: false })} data-tool-call-line="">
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className={toolCallLineVariants({ clickable: true })}
-      data-tool-call-line=""
-      onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onClick();
-      }}
-    >
-      {content}
-    </div>
-  );
-}
-
-function ToolCallLineDetails({
-  children,
-  className,
-  linkable = false,
-  ...spanProps
-}: ComponentPropsWithoutRef<"span"> & { linkable?: boolean | undefined }) {
-  return (
-    <span
-      {...spanProps}
-      className={cn(toolCallLineDetailsVariants({ linkable }), className)}
-      data-tool-call-line-details=""
-    >
-      {children}
-    </span>
+    </ToolCallTaskRoot>
   );
 }
 
@@ -729,19 +614,7 @@ export function ExpandableToolMetadataLine({
     </>
   );
 
-  const chevron = (
-    <span
-      className="inline-flex size-3 shrink-0 items-center justify-center"
-      data-tool-call-line-chevron=""
-    >
-      <IconChevronRightMedium
-        className={cn(
-          "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
-          isExpanded && "rotate-90",
-        )}
-      />
-    </span>
-  );
+  const chevron = <ToolCallLineChevron expanded={isExpanded} />;
 
   return (
     <div className="m-0 min-w-0 max-w-full">
@@ -754,8 +627,9 @@ export function ExpandableToolMetadataLine({
             >
               {headerInner}
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
               className={cn(
                 "inline-flex size-4 shrink-0 cursor-pointer items-center justify-center",
                 "border-0 bg-transparent p-0 text-multi-fg-tertiary",
@@ -769,19 +643,23 @@ export function ExpandableToolMetadataLine({
               onClick={toggleExpanded}
             >
               {chevron}
-            </button>
+            </Button>
           </>
         ) : (
-          <button
+          <Button
             type="button"
-            className={toolCallLineVariants({ clickable: true })}
+            variant="ghost"
+            className={cn(
+              toolCallLineVariants({ clickable: true }),
+              "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+            )}
             data-tool-call-line=""
             aria-expanded={isExpanded}
             onClick={toggleExpanded}
           >
             {headerInner}
             {chevron}
-          </button>
+          </Button>
         )}
       </div>
       {isExpanded ? (
@@ -885,11 +763,9 @@ function ShellToolCall({
   }, [callId, currentApprovalStatus, expandable, onNestedToolExpand]);
 
   return (
-    <div
-      className="group/shell-tool-call min-w-0 max-w-full px-0 text-conversation tracking-normal"
-      data-shell-tool-call=""
-      data-status={hasError ? "error" : loading ? "running" : "completed"}
-      data-expanded={isExpanded ? "true" : "false"}
+    <ToolCallShellRoot
+      expanded={isExpanded}
+      status={hasError ? "error" : loading ? "running" : "completed"}
     >
       <ShellToolCallHeader
         action={action}
@@ -902,13 +778,7 @@ function ShellToolCall({
         showIcon={showIcon}
       />
       {isExpanded && hasContent ? (
-        <div
-          className={cn(
-            "mt-1 min-w-0 max-w-full overflow-hidden rounded-multi-control",
-            "border border-multi-stroke-tertiary bg-multi-bg-elevated",
-          )}
-          data-shell-tool-call-body=""
-        >
+        <ToolCallShellBody>
           <div className="min-w-0 max-w-full">
             {bodyCommand ? (
               <pre
@@ -935,9 +805,9 @@ function ShellToolCall({
               </div>
             ) : null}
           </div>
-        </div>
+        </ToolCallShellBody>
       ) : null}
-    </div>
+    </ToolCallShellRoot>
   );
 }
 
@@ -961,20 +831,10 @@ const ShellToolCallHeader = memo(function ShellToolCallHeader({
   showIcon: boolean;
 }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        "group/shell-trigger inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
-        "border-0 bg-transparent p-0 text-left select-none",
-        "text-conversation text-multi-fg-primary",
-        expandable && "cursor-pointer",
-        !expandable && "cursor-default",
-        hasError && "text-multi-fg-red-primary",
-      )}
-      aria-expanded={expandable ? isExpanded : undefined}
-      data-tool-call-line=""
-      data-shell-tool-call-header=""
-      disabled={!expandable}
+    <ToolCallShellHeader
+      expandable={expandable}
+      expanded={isExpanded}
+      hasError={hasError}
       onClick={onToggleExpanded}
     >
       {showIcon ? <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
@@ -996,20 +856,8 @@ const ShellToolCallHeader = memo(function ShellToolCallHeader({
           </span>
         ) : null}
       </span>
-      {expandable ? (
-        <span
-          className="inline-flex size-3 shrink-0 items-center justify-center"
-          data-tool-call-line-chevron=""
-        >
-          <IconChevronRightMedium
-            className={cn(
-              "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out",
-              isExpanded && "rotate-90",
-            )}
-          />
-        </span>
-      ) : null}
-    </button>
+      {expandable ? <ToolCallLineChevron expanded={isExpanded} /> : null}
+    </ToolCallShellHeader>
   );
 });
 
@@ -1131,9 +979,13 @@ function EditToolCall({
     <div className="m-0">
       <div className="group/edit-tool-call flex w-full min-w-0 items-center gap-1">
         {hasContent ? (
-          <button
+          <Button
             type="button"
-            className={toolCallLineVariants({ clickable: true })}
+            variant="ghost"
+            className={cn(
+              toolCallLineVariants({ clickable: true }),
+              "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+            )}
             aria-label={isExpanded ? "Collapse edit details" : "Expand edit details"}
             aria-expanded={isExpanded}
             onClick={toggleExpanded}
@@ -1144,26 +996,19 @@ function EditToolCall({
             <span className={toolCallLineActionVariants()}>{action}</span>
             <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
             <EditStats stats={stats} />
-            <IconChevronRightMedium
-              className={cn(
-                "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
-                isExpanded && "rotate-90",
-              )}
-            />
-          </button>
+            <ToolCallLineChevron expanded={isExpanded} />
+          </Button>
         ) : (
           <>
             {onFileClick ? (
-              <div
-                className={toolCallLineVariants({ clickable: true })}
-                role="button"
-                tabIndex={0}
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn(
+                  toolCallLineVariants({ clickable: true }),
+                  "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+                )}
                 onClick={() => onFileClick(path)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onFileClick(path);
-                }}
               >
                 {showIcon ? (
                   <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
@@ -1171,7 +1016,7 @@ function EditToolCall({
                 <span className={toolCallLineActionVariants()}>{action}</span>
                 <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
                 <EditStats stats={stats} />
-              </div>
+              </Button>
             ) : (
               <div className={toolCallLineVariants({ clickable: false })}>
                 {showIcon ? (
@@ -1387,12 +1232,12 @@ const TOOL_ACTION_LABELS: Record<ToolCase, { loading: string; completed: string;
     shellToolCall: { loading: "Running", completed: "Ran", error: "Command" },
     editToolCall: { loading: "Editing", completed: "Edited", error: "Edit" },
     deleteToolCall: { loading: "Deleting", completed: "Deleted", error: "Delete" },
-    mcpToolCall: { loading: "Running", completed: "Ran", error: "Run" },
+    mcpToolCall: { loading: "Running MCP", completed: "Ran MCP", error: "MCP" },
     dynamicToolCall: { loading: "Running", completed: "Ran", error: "Run" },
     taskToolCall: {
-      loading: "Subagent",
-      completed: "Subagent",
-      error: "Subagent",
+      loading: "Task",
+      completed: "Task",
+      error: "Task",
     },
     webSearchToolCall: { loading: "Searching", completed: "Searched", error: "Search" },
     webFetchToolCall: { loading: "Fetching", completed: "Fetched", error: "Fetch" },

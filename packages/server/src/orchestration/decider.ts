@@ -690,6 +690,38 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.turn.start.failed": {
+      yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.activity-appended",
+        payload: {
+          threadId: command.threadId,
+          activity: {
+            id: crypto.randomUUID() as OrchestrationThread["activities"][number]["id"],
+            tone: "error",
+            kind: "runtime.turn.start.failed",
+            summary: "Runtime failed to start",
+            payload: {
+              detail: command.detail,
+              messageId: command.messageId,
+            },
+            turnId: null,
+            createdAt: command.createdAt,
+          },
+        },
+      };
+    }
+
     case "thread.approval.respond": {
       yield* requireThread({
         readModel,

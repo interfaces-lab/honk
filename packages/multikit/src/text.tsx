@@ -38,22 +38,27 @@ const textVariants = cva("font-multi", {
   },
 });
 
-interface TextProps extends useRender.ComponentProps<"span"> {
+type TextElement = "span" | "p" | "div" | "label" | "h1" | "h2" | "h3";
+
+type TextProps<Element extends TextElement = "span"> = useRender.ComponentProps<Element> & {
+  as?: Element;
   size?: VariantProps<typeof textVariants>["size"];
   tone?: VariantProps<typeof textVariants>["tone"];
   weight?: VariantProps<typeof textVariants>["weight"];
   truncate?: VariantProps<typeof textVariants>["truncate"];
-}
+};
 
-function Text({ className, size, tone, weight, truncate, render, ...props }: TextProps) {
+function Text<Element extends TextElement = "span">(props: TextProps<Element>) {
+  const { as, className, render, size, tone, truncate, weight, ...textProps } = props;
+  const defaultTagName = (as ?? "span") as Element;
   const defaultProps = {
     className: cn(textVariants({ className, size, tone, truncate, weight })),
     "data-slot": "text",
   };
 
   return useRender({
-    defaultTagName: "span",
-    props: mergeProps<"span">(defaultProps, props),
+    defaultTagName,
+    props: mergeProps(defaultProps, textProps),
     render,
   });
 }

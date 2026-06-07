@@ -3,6 +3,7 @@ import { flattenThreadEntryTree, formatThreadEntryPathIssue } from "@multi/contr
 
 import type { Thread, ThreadTreeEntry } from "../../../types";
 import { cn } from "~/lib/utils";
+import { WorkbenchChromeRow } from "@multi/multikit/workbench-chrome-row";
 
 interface ThreadTreePanelProps {
   thread: Thread;
@@ -51,30 +52,29 @@ export function ThreadTreePanel({
 
   return (
     <aside className={rootClassName}>
-      <div className="multi-workbench-panel-title-row">
-        <IconBranch className="size-4 shrink-0 text-multi-icon-secondary" aria-hidden />
-        <div className="min-w-0 flex-1 truncate text-sm font-medium text-multi-fg-primary">
+      <WorkbenchChromeRow variant="panel">
+        <span className="min-w-0 flex-1 truncate text-body font-medium text-multi-fg-primary">
           Thread Tree
-        </div>
-      </div>
+        </span>
+      </WorkbenchChromeRow>
 
       {tree.nodes.length === 0 ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-xs text-multi-fg-tertiary">
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-detail text-multi-fg-tertiary">
           No canonical tree entries.
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <section className="border-b border-multi-workbench-panel-border-muted px-2 py-2">
-            <div className="px-1.5 pb-1.5 text-[11px] font-medium text-multi-fg-tertiary">
+            <div className="px-1.5 pb-1.5 text-detail font-medium text-multi-fg-tertiary">
               Active Branch
             </div>
             <div className="space-y-0.5">
               {activePath.map((node, indexInPath) => (
                 <div
                   key={node.entry.id}
-                  className="flex min-h-7 items-center gap-1.5 rounded-multi-control px-1.5 py-1 text-xs text-multi-fg-secondary"
+                  className="flex min-h-7 items-center gap-1.5 rounded-multi-control px-1.5 py-1 text-detail text-multi-fg-secondary"
                 >
-                  <span className="w-4 shrink-0 text-center text-[10px] tabular-nums text-multi-fg-tertiary">
+                  <span className="w-4 shrink-0 text-center text-caption tabular-nums text-multi-fg-tertiary">
                     {indexInPath + 1}
                   </span>
                   <span className="min-w-0 flex-1 truncate">
@@ -92,7 +92,7 @@ export function ThreadTreePanel({
           </section>
 
           <section className="px-2 py-2">
-            <div className="px-1.5 pb-1.5 text-[11px] font-medium text-multi-fg-tertiary">
+            <div className="px-1.5 pb-1.5 text-detail font-medium text-multi-fg-tertiary">
               Canonical Flattened Tree
             </div>
             <div className="space-y-0.5">
@@ -100,7 +100,7 @@ export function ThreadTreePanel({
                 <div
                   key={node.entry.id}
                   className={cn(
-                    "flex min-h-8 items-center gap-1 rounded-multi-control px-1.5 py-1 text-xs",
+                    "flex min-h-8 items-center gap-1 rounded-multi-control px-1.5 py-1 text-detail",
                     node.isActiveLeaf
                       ? "bg-multi-bg-quaternary text-multi-fg-primary"
                       : node.isActivePath
@@ -124,11 +124,11 @@ export function ThreadTreePanel({
                   <span className="min-w-0 flex-1 truncate">
                     {shortMessageText(thread, node.entry)}
                   </span>
-                  <span className="shrink-0 text-[10px] text-multi-fg-tertiary">
+                  <span className="shrink-0 text-caption text-multi-fg-tertiary">
                     {entryRoleLabel(thread, node.entry)}
                   </span>
                   {node.childCount > 0 ? (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-multi-fg-tertiary">
+                    <span className="inline-flex shrink-0 items-center gap-0.5 text-caption text-multi-fg-tertiary">
                       <IconBranch className="size-3" aria-hidden />
                       {node.childCount}
                     </span>
@@ -140,14 +140,14 @@ export function ThreadTreePanel({
 
           {tree.issues.length > 0 ? (
             <section className="border-t border-multi-workbench-panel-border-muted px-2 py-2">
-              <div className="px-1.5 pb-1.5 text-[11px] font-medium text-multi-fg-tertiary">
+              <div className="px-1.5 pb-1.5 text-detail font-medium text-multi-fg-tertiary">
                 Structural Issues
               </div>
               <div className="space-y-1">
                 {tree.issues.map((issue) => (
                   <div
                     key={`${issue.reason}:${issue.entryId}`}
-                    className="rounded-multi-control bg-multi-bg-tertiary px-2 py-1.5 text-xs text-multi-fg-tertiary"
+                    className="rounded-multi-control bg-multi-bg-tertiary px-2 py-1.5 text-detail text-multi-fg-tertiary"
                   >
                     {formatThreadEntryPathIssue(issue)}
                   </div>

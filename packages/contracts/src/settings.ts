@@ -32,10 +32,7 @@ export type SidebarProjectGroupingMode = typeof SidebarProjectGroupingMode.Type;
 export const DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE: SidebarProjectGroupingMode = "repository";
 
 export const DEFAULT_AGENT_WINDOW_FONT_SMOOTHING_ANTIALIASED = true;
-export const DEFAULT_AGENT_WINDOW_CHAT_MAX_WIDTH = 840;
 export const DEFAULT_CURSOR_POINTER_ON_BUTTONS = false;
-export const AgentWindowChatMaxWidth = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
-export type AgentWindowChatMaxWidth = typeof AgentWindowChatMaxWidth.Type;
 
 export const AgentWindowSendWhileStreamingBehavior = Schema.Literals([
   "queue",
@@ -52,9 +49,6 @@ export type AgentWindowUsageSummaryDisplay = typeof AgentWindowUsageSummaryDispl
 export const DEFAULT_AGENT_WINDOW_USAGE_SUMMARY_DISPLAY: AgentWindowUsageSummaryDisplay = "auto";
 
 export const ClientSettingsSchema = Schema.Struct({
-  agentWindowChatMaxWidth: AgentWindowChatMaxWidth.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_WINDOW_CHAT_MAX_WIDTH)),
-  ),
   agentWindowFontSmoothingAntialiased: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_WINDOW_FONT_SMOOTHING_ANTIALIASED)),
   ),
@@ -163,7 +157,6 @@ export const ServerSettingsPatch = Schema.Struct({
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 
 export const ClientSettingsPatch = Schema.Struct({
-  agentWindowChatMaxWidth: Schema.optionalKey(AgentWindowChatMaxWidth),
   agentWindowFontSmoothingAntialiased: Schema.optionalKey(Schema.Boolean),
   agentWindowSendWhileStreamingBehavior: Schema.optionalKey(AgentWindowSendWhileStreamingBehavior),
   agentWindowUsageSummaryDisplay: Schema.optionalKey(AgentWindowUsageSummaryDisplay),

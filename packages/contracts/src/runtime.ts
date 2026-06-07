@@ -320,6 +320,13 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
 });
 export type ThreadAgentRuntimeSendTurnInput = typeof ThreadAgentRuntimeSendTurnInput.Type;
 
+export const ThreadAgentRuntimeHydrateInput = Schema.Struct({
+  threadId: ThreadId,
+  cwd: TrimmedNonEmptyString,
+  policy: AgentModelPolicy,
+});
+export type ThreadAgentRuntimeHydrateInput = typeof ThreadAgentRuntimeHydrateInput.Type;
+
 export const SUBAGENT_MODES = ["single", "parallel", "chain"] as const;
 export const SubagentMode = Schema.Literals(SUBAGENT_MODES);
 export type SubagentMode = typeof SubagentMode.Type;
@@ -429,6 +436,195 @@ export const DesktopExtensionUiRespondInput = Schema.Struct({
 });
 export type DesktopExtensionUiRespondInput = typeof DesktopExtensionUiRespondInput.Type;
 
+const RuntimeDisplayTimelineItemBaseFields = {
+  id: TrimmedNonEmptyString,
+  orderKey: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+} as const;
+
+export const RuntimeDisplayTimelineToolStatus = Schema.Literals([
+  "running",
+  "completed",
+  "error",
+]);
+export type RuntimeDisplayTimelineToolStatus =
+  typeof RuntimeDisplayTimelineToolStatus.Type;
+
+export const RuntimeDisplayTimelineExtensionUiStatus = Schema.Literals([
+  "pending",
+  "resolved",
+]);
+export type RuntimeDisplayTimelineExtensionUiStatus =
+  typeof RuntimeDisplayTimelineExtensionUiStatus.Type;
+
+const RuntimeDisplayTimelineShellToolDisplay = Schema.Struct({
+  kind: Schema.Literal("shell"),
+  command: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  exitCode: Schema.optional(NonNegativeInt),
+});
+
+const RuntimeDisplayTimelineReadToolDisplay = Schema.Struct({
+  kind: Schema.Literal("read"),
+  path: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  startLine: Schema.optional(NonNegativeInt),
+  endLine: Schema.optional(NonNegativeInt),
+});
+
+const RuntimeDisplayTimelineGrepToolDisplay = Schema.Struct({
+  kind: Schema.Literal("grep"),
+  query: Schema.optional(Schema.String),
+  path: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  matchedFiles: Schema.optional(Schema.Array(Schema.String)),
+});
+
+const RuntimeDisplayTimelineEditToolDisplay = Schema.Struct({
+  kind: Schema.Literal("edit"),
+  path: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  additions: Schema.optional(NonNegativeInt),
+  deletions: Schema.optional(NonNegativeInt),
+});
+
+const RuntimeDisplayTimelineMcpToolDisplay = Schema.Struct({
+  kind: Schema.Literal("mcp"),
+  providerIdentifier: Schema.optional(Schema.String),
+});
+
+const RuntimeDisplayTimelineSubagentToolDisplay = Schema.Struct({
+  kind: Schema.Literal("subagent"),
+  mode: SubagentMode,
+  agentScope: SubagentScope,
+  projectAgentsDir: Schema.NullOr(Schema.String),
+  runs: Schema.Array(SubagentRunSnapshot),
+  activities: Schema.Array(SubagentActivityDetails),
+});
+
+const RuntimeDisplayTimelineUnknownToolDisplay = Schema.Struct({
+  kind: Schema.Literal("unknown"),
+  toolName: TrimmedNonEmptyString,
+  output: Schema.optional(Schema.String),
+});
+
+export const RuntimeDisplayTimelineToolDisplay = Schema.Union([
+  RuntimeDisplayTimelineShellToolDisplay,
+  RuntimeDisplayTimelineReadToolDisplay,
+  RuntimeDisplayTimelineGrepToolDisplay,
+  RuntimeDisplayTimelineEditToolDisplay,
+  RuntimeDisplayTimelineMcpToolDisplay,
+  RuntimeDisplayTimelineSubagentToolDisplay,
+  RuntimeDisplayTimelineUnknownToolDisplay,
+]);
+export type RuntimeDisplayTimelineToolDisplay =
+  typeof RuntimeDisplayTimelineToolDisplay.Type;
+
+export const RuntimeDisplayTimelineMessageItem = Schema.Struct({
+  ...RuntimeDisplayTimelineItemBaseFields,
+  kind: Schema.Literal("message"),
+  source: Schema.Literals(["session-entry", "live-event"]),
+  entryId: Schema.optional(RuntimeItemId),
+  threadEntryId: Schema.optional(ThreadEntryId),
+  parentEntryId: Schema.optional(Schema.NullOr(RuntimeItemId)),
+  parentThreadEntryId: Schema.optional(Schema.NullOr(ThreadEntryId)),
+  role: SessionMessageRole,
+  turnId: Schema.optional(TurnId),
+  clientMessageId: Schema.optional(MessageId),
+  eventIds: Schema.Array(EventId).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  streaming: Schema.optional(Schema.Boolean),
+  text: Schema.optional(Schema.String),
+  thinking: Schema.optional(Schema.String),
+});
+export type RuntimeDisplayTimelineMessageItem =
+  typeof RuntimeDisplayTimelineMessageItem.Type;
+
+export const RuntimeDisplayTimelineCustomMessageItem = Schema.Struct({
+  ...RuntimeDisplayTimelineItemBaseFields,
+  kind: Schema.Literal("custom-message"),
+  entryId: RuntimeItemId,
+  threadEntryId: ThreadEntryId,
+  parentEntryId: Schema.NullOr(RuntimeItemId),
+  parentThreadEntryId: Schema.NullOr(ThreadEntryId),
+  turnId: Schema.optional(TurnId),
+  customType: TrimmedNonEmptyString,
+  content: Schema.Unknown,
+  display: Schema.Boolean,
+  details: Schema.optional(Schema.Unknown),
+  text: Schema.optional(Schema.String),
+});
+export type RuntimeDisplayTimelineCustomMessageItem =
+  typeof RuntimeDisplayTimelineCustomMessageItem.Type;
+
+export const RuntimeDisplayTimelineToolItem = Schema.Struct({
+  ...RuntimeDisplayTimelineItemBaseFields,
+  kind: Schema.Literal("tool"),
+  toolCallId: TrimmedNonEmptyString,
+  toolName: TrimmedNonEmptyString,
+  turnId: Schema.optional(TurnId),
+  status: RuntimeDisplayTimelineToolStatus,
+  eventIds: Schema.Array(EventId),
+  args: Schema.optional(Schema.Unknown),
+  argsComplete: Schema.optional(Schema.Boolean),
+  executionStarted: Schema.optional(Schema.Boolean),
+  isPartial: Schema.optional(Schema.Boolean),
+  isError: Schema.optional(Schema.Boolean),
+  result: Schema.optional(Schema.Unknown),
+  details: Schema.optional(Schema.Unknown),
+  summary: Schema.optional(Schema.String),
+  display: RuntimeDisplayTimelineToolDisplay,
+  command: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+});
+export type RuntimeDisplayTimelineToolItem = typeof RuntimeDisplayTimelineToolItem.Type;
+
+export const RuntimeDisplayTimelineExtensionUiRequestItem = Schema.Struct({
+  ...RuntimeDisplayTimelineItemBaseFields,
+  kind: Schema.Literal("extension-ui-request"),
+  requestId: TrimmedNonEmptyString,
+  requestKind: DesktopExtensionUiRequestKind,
+  status: RuntimeDisplayTimelineExtensionUiStatus,
+  threadId: ThreadId,
+  runtimeSessionId: RuntimeSessionId,
+  eventIds: Schema.Array(EventId).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  title: TrimmedNonEmptyString,
+  message: Schema.optional(Schema.String),
+  placeholder: Schema.optional(Schema.String),
+  options: Schema.optional(Schema.Array(Schema.String)),
+  value: Schema.optional(Schema.Unknown),
+  turnId: Schema.optional(TurnId),
+});
+export type RuntimeDisplayTimelineExtensionUiRequestItem =
+  typeof RuntimeDisplayTimelineExtensionUiRequestItem.Type;
+
+export const RuntimeDisplayTimelineProposedPlanItem = Schema.Struct({
+  ...RuntimeDisplayTimelineItemBaseFields,
+  kind: Schema.Literal("proposed-plan"),
+  planId: TrimmedNonEmptyString,
+  turnId: Schema.optional(TurnId),
+  planMarkdown: Schema.String,
+  summary: Schema.optional(Schema.String),
+});
+export type RuntimeDisplayTimelineProposedPlanItem =
+  typeof RuntimeDisplayTimelineProposedPlanItem.Type;
+
+export const RuntimeDisplayTimelineItem = Schema.Union([
+  RuntimeDisplayTimelineMessageItem,
+  RuntimeDisplayTimelineCustomMessageItem,
+  RuntimeDisplayTimelineToolItem,
+  RuntimeDisplayTimelineExtensionUiRequestItem,
+  RuntimeDisplayTimelineProposedPlanItem,
+]);
+export type RuntimeDisplayTimelineItem = typeof RuntimeDisplayTimelineItem.Type;
+
+export const RuntimeDisplayTimelineProjection = Schema.Struct({
+  threadId: ThreadId,
+  runtimeSessionId: RuntimeSessionId,
+  items: Schema.Array(RuntimeDisplayTimelineItem),
+});
+export type RuntimeDisplayTimelineProjection =
+  typeof RuntimeDisplayTimelineProjection.Type;
+
 export const MultiRuntimeHostSnapshot = Schema.Struct({
   preferences: AgentPreferences,
   authStatuses: Schema.Array(AgentAuthStatus).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
@@ -440,6 +636,9 @@ export const MultiRuntimeHostSnapshot = Schema.Struct({
   ),
   runtimeEvents: Schema.Array(AgentRuntimeEvent).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   sessionTrees: Schema.Array(SessionTreeProjection).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  displayTimelines: Schema.Array(RuntimeDisplayTimelineProjection).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
   pendingExtensionUiRequests: Schema.Array(DesktopExtensionUiRequest).pipe(
@@ -462,6 +661,10 @@ export const MultiRuntimeHostEvent = Schema.Union([
     tree: SessionTreeProjection,
   }),
   Schema.Struct({
+    type: Schema.Literal("display-timeline"),
+    timeline: RuntimeDisplayTimelineProjection,
+  }),
+  Schema.Struct({
     type: Schema.Literal("pending-extension-ui"),
     requests: Schema.Array(DesktopExtensionUiRequest),
   }),
@@ -479,6 +682,7 @@ export interface MultiRuntimeApi {
   configureCredential: (
     input: AgentCredentialConfigureInput,
   ) => Promise<MultiRuntimeHostSnapshot>;
+  hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;
   respondToExtensionUiRequest: (input: DesktopExtensionUiRespondInput) => Promise<void>;

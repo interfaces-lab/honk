@@ -48,8 +48,8 @@ import type {
 } from "./terminal";
 import type { ServerUpsertKeybindingInput } from "./server";
 import type {
-  ClientOrchestrationCommand,
   DispatchResult,
+  ClientOrchestrationCommand,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,

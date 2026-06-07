@@ -1,27 +1,34 @@
 "use client";
 
 import type { GitFilePatchResult } from "@multi/contracts";
+import { Virtualizer as DiffVirtualizer } from "@pierre/diffs/react";
 import {
   IconBarsThree,
-  IconBranch,
   IconChevronRightMedium,
   IconDotGrid1x3Horizontal,
-  IconFolder1,
   IconSplit,
   IconStepBack,
   IconStop,
 } from "central-icons";
 import {
-  type ComponentType,
   type RefObject,
+  memo,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@multi/multikit/button";
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@multi/multikit/menu";
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuTrigger,
+} from "@multi/multikit/menu";
 import {
   Dialog,
   DialogDescription,
@@ -50,8 +57,13 @@ import { cn } from "~/lib/utils";
 import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
 import { GitChangesFileTree } from "./git-changes-file-tree";
 import { GitDiffCard } from "./git-diff-card";
-import { WorkbenchChromeRow } from "../shell/workbench-chrome-row";
-import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
+import {
+  WorkbenchChromeActionGroup,
+  WorkbenchChromeLabel,
+  WorkbenchChromeRow,
+  workbenchChromeTextControlVariants,
+} from "@multi/multikit/workbench-chrome-row";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 type GitChangesFilter = "uncommitted" | "unstaged" | "staged" | "branch";
@@ -72,6 +84,10 @@ const GIT_CHANGES_FILTER_LABELS: Record<GitChangesFilter, string> = {
   staged: "Staged",
   branch: "All commits",
 };
+const GIT_DIFF_VIRTUALIZER_CONFIG = {
+  intersectionObserverMargin: 600,
+  overscrollSize: 1_000,
+} as const;
 
 function showGitActionErrorToast(title: string, error: unknown): void {
   toastManager.add({
@@ -187,13 +203,15 @@ function InitGitButton({ git }: { git: GitPanelModel }) {
   };
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       onClick={handleClick}
-      className="select-none rounded-multi-control border border-multi-border/60 bg-multi-active/40 px-3 py-2 text-body font-medium text-foreground transition-colors hover:bg-multi-hover"
+      className="bg-multi-active/40 text-body font-medium text-foreground hover:bg-multi-hover"
     >
       Init Git
-    </button>
+    </Button>
   );
 }
 
@@ -219,13 +237,13 @@ function GitPanelChangesRail({
   );
 }
 
-function GitDiffCardRow({
+const GitDiffCardRow = memo(function GitDiffCardRow({
   file,
   selected,
   expanded,
   diffStyle,
-  diffLayoutKey,
   patch,
+  diffRequested,
   loaded,
   loading,
   error,
@@ -239,8 +257,8 @@ function GitDiffCardRow({
   selected: boolean;
   expanded: boolean;
   diffStyle: "unified" | "split";
-  diffLayoutKey: string;
   patch: GitFilePatchResult | null;
+  diffRequested: boolean;
   loaded: boolean;
   loading: boolean;
   error: string | null;
@@ -267,6 +285,7 @@ function GitDiffCardRow({
       expanded={expanded}
       onExpandedChange={onExpandedChange}
       patch={patch}
+      diffRequested={diffRequested}
       loaded={loaded}
       loading={loading}
       error={error}
@@ -275,10 +294,9 @@ function GitDiffCardRow({
       onToggleViewed={handleToggleViewed}
       onRevert={handleRevert}
       requestPrefetchForIdRef={requestPrefetchForIdRef}
-      diffLayoutKey={diffLayoutKey}
     />
   );
-}
+});
 
 function GitPanelInner(props: {
   git: GitPanelModel;
@@ -291,25 +309,32 @@ function GitPanelInner(props: {
   const git = props.git;
   const files = git.rows;
   const viewed = useGitViewed(git.cwd);
-  const { open: gitRailOpen, width: gitRailWidth } = useSecondaryRail(props.workspaceKey, "git");
+  const { open: gitRailOpen } = useSecondaryRail(props.workspaceKey, "git");
   const [diffStyle, setDiffStyle] = useDiffStylePreference();
   const [pending, setPending] = useState<DiffRow | null>(null);
   const [discardAllPending, setDiscardAllPending] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [changesFilter, setChangesFilter] = useState<GitChangesFilter>("uncommitted");
-  const visibleFiles =
-    changesFilter === "unstaged"
-      ? files.filter((row) => row.unstaged)
-      : changesFilter === "staged"
-        ? files.filter((row) => row.staged)
-        : files;
-  const visibleTotals = visibleFiles.reduce(
-    (totals, row) => ({
-      add: totals.add + row.add,
-      del: totals.del + row.del,
-    }),
-    { add: 0, del: 0 },
+  const visibleFiles = useMemo(
+    () =>
+      changesFilter === "unstaged"
+        ? files.filter((row) => row.unstaged)
+        : changesFilter === "staged"
+          ? files.filter((row) => row.staged)
+          : files,
+    [changesFilter, files],
+  );
+  const visibleTotals = useMemo(
+    () =>
+      visibleFiles.reduce(
+        (totals, row) => ({
+          add: totals.add + row.add,
+          del: totals.del + row.del,
+        }),
+        { add: 0, del: 0 },
+      ),
+    [visibleFiles],
   );
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     resolveGitPanelSelectedId({
@@ -330,7 +355,6 @@ function GitPanelInner(props: {
   }, [git.focusId, visibleFiles]);
   const allDiffCardsCollapsed =
     visibleFiles.length > 0 && visibleFiles.every((row) => !git.expandedIds.has(row.id));
-  const diffLayoutKey = gitRailOpen ? `rail:${gitRailWidth}` : "rail:closed";
   const gitRef = useRef(git);
   gitRef.current = git;
 
@@ -366,6 +390,7 @@ function GitPanelInner(props: {
   };
 
   const handleSelectFile = (file: DiffRow) => {
+    git.requestDiff(file.id);
     setSelectedId(file.id);
   };
 
@@ -460,7 +485,11 @@ function GitPanelInner(props: {
                     : "No files to compare."}
               </div>
             ) : (
-              <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [overflow-anchor:none] scrollbar-gutter-stable">
+              <DiffVirtualizer
+                className="git-diff-scroll-root h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [overflow-anchor:none] scrollbar-gutter-stable"
+                contentClassName="min-w-0"
+                config={GIT_DIFF_VIRTUALIZER_CONFIG}
+              >
                 {visibleFiles.map((file) => (
                   <GitDiffCardRow
                     key={file.id}
@@ -468,6 +497,7 @@ function GitPanelInner(props: {
                     selected={selectedId === file.id}
                     expanded={git.expandedIds.has(file.id)}
                     patch={git.patchesByPath.get(file.path) ?? null}
+                    diffRequested={git.activeDiffIds.has(file.id)}
                     loaded={git.patchesByPath.has(file.path)}
                     loading={git.diffLoadingByPath.has(file.path)}
                     error={git.diffErrorByPath.get(file.path) ?? null}
@@ -476,11 +506,10 @@ function GitPanelInner(props: {
                     onToggleViewed={viewed.toggleViewed}
                     onRevert={handleRevertFile}
                     requestPrefetchForIdRef={prefetchRef}
-                    diffLayoutKey={diffLayoutKey}
                     gitRef={gitRef}
                   />
                 ))}
-              </div>
+              </DiffVirtualizer>
             )}
           </div>
         </RightWorkbenchLayout>
@@ -501,25 +530,65 @@ function GitPanelInner(props: {
   );
 }
 
+function scrollDiffCardIntoView(scroller: HTMLElement, target: HTMLElement): void {
+  const scrollerRect = scroller.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const padding = 8;
+  const viewportTop = scrollerRect.top + padding;
+  const viewportBottom = scrollerRect.bottom - padding;
+  let nextTop = scroller.scrollTop;
+
+  if (targetRect.height >= viewportBottom - viewportTop || targetRect.top < viewportTop) {
+    nextTop -= viewportTop - targetRect.top;
+  } else if (targetRect.bottom > viewportBottom) {
+    nextTop += targetRect.bottom - viewportBottom;
+  } else {
+    return;
+  }
+
+  scroller.scrollTo({ top: Math.max(0, nextTop) });
+}
+
 function SelectedGitDiffSync(props: {
   readonly selectedId: string;
   readonly deckRootRef: { readonly current: HTMLDivElement | null };
   readonly gitRef: { readonly current: GitPanelModel };
 }) {
   useMountEffect(() => {
+    let settleFrame: number | null = null;
     const frame = requestAnimationFrame(() => {
       props.gitRef.current.toggleExpand(props.selectedId, true);
-      const root = props.deckRootRef.current;
-      if (!root) return;
 
-      const escaped = CSS.escape(props.selectedId);
-      root.querySelector(`[data-diff-card-id="${escaped}"]`)?.scrollIntoView({
-        block: "nearest",
-        behavior: "smooth",
-      });
+      const scrollMountedCard = (remainingFrames: number) => {
+        const root = props.deckRootRef.current;
+        if (!root) return;
+
+        const escaped = CSS.escape(props.selectedId);
+        const target = root.querySelector<HTMLElement>(`[data-diff-card-id="${escaped}"]`);
+        if (!target) {
+          if (remainingFrames > 0) {
+            settleFrame = requestAnimationFrame(() => scrollMountedCard(remainingFrames - 1));
+          }
+          return;
+        }
+
+        const scroller = root.querySelector<HTMLElement>(".git-diff-scroll-root");
+        if (scroller) {
+          scrollDiffCardIntoView(scroller, target);
+          return;
+        }
+
+        target.scrollIntoView({ block: "nearest", behavior: "auto" });
+      };
+      settleFrame = requestAnimationFrame(() => scrollMountedCard(3));
     });
 
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      if (settleFrame !== null) {
+        cancelAnimationFrame(settleFrame);
+      }
+    };
   });
 
   return null;
@@ -543,18 +612,9 @@ function LocalBranchBarTrailing(props: {
     : null;
   const isAgentActionPending = props.pendingAgentAction !== null;
 
-  const toggleEditorMenu = () => {
-    props.onEditorMenuOpen(!props.editorMenuOpen);
-  };
-  const closeEditorMenu = () => {
-    props.onEditorMenuOpen(false);
-  };
-  const selectUnifiedDiff = () => {
-    props.onDiffStyle("unified");
-    props.onEditorMenuOpen(false);
-  };
-  const selectSplitDiff = () => {
-    props.onDiffStyle("split");
+  const handleDiffStyleChange = (value: string) => {
+    if (value !== "unified" && value !== "split") return;
+    props.onDiffStyle(value);
     props.onEditorMenuOpen(false);
   };
   const handlePrimaryCommitAction = () => {
@@ -565,61 +625,50 @@ function LocalBranchBarTrailing(props: {
     props.onCommitMenuOpen(false);
     props.onCommitAndPush();
   };
-  const toggleCommitMenu = () => {
-    if (isAgentActionPending) return;
-    props.onCommitMenuOpen(!props.commitMenuOpen);
-  };
-  const closeCommitMenu = () => {
-    props.onCommitMenuOpen(false);
+  const handleCommitMenuOpenChange = (open: boolean) => {
+    if (isAgentActionPending && open) return;
+    props.onCommitMenuOpen(open);
   };
 
   return (
-    <div className="no-drag flex shrink-0 items-center gap-(--multi-workbench-sub-chrome-action-gap)">
+    <WorkbenchChromeActionGroup gap="sub">
       <div className="no-drag relative shrink-0">
-        <WorkbenchIconButton
-          onClick={toggleEditorMenu}
-          aria-label="Editor Options"
-          title="Editor Options"
-          chrome="panel"
-        >
-          <IconDotGrid1x3Horizontal className="size-4" />
-        </WorkbenchIconButton>
-        {props.editorMenuOpen ? (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-40 cursor-default border-0 bg-transparent p-0"
-              aria-label="Close editor options"
-              onClick={closeEditorMenu}
-            />
-            <div
-              className="absolute top-full right-0 z-50 mt-1 min-w-44 rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-elevated p-[3px] text-multi-fg-primary shadow-multi-popup"
-              role="menu"
-            >
-              <MenuItem
-                label="Unified Diff"
-                active={props.diffStyle === "unified"}
-                icon={UnifiedDiffMenuIcon}
-                onClick={selectUnifiedDiff}
-              />
-              <MenuItem
-                label="Split Diff"
-                active={props.diffStyle === "split"}
-                icon={SplitDiffMenuIcon}
-                onClick={selectSplitDiff}
-              />
-            </div>
-          </>
-        ) : null}
+        <Menu open={props.editorMenuOpen} onOpenChange={props.onEditorMenuOpen}>
+          <MenuTrigger
+            type="button"
+            className={workbenchIconButtonVariants({ chrome: "panel" })}
+            aria-label="Editor Options"
+            title="Editor Options"
+            data-active={false}
+            data-chrome="panel"
+            data-slot="workbench-icon-button"
+            data-tab-system={false}
+          >
+            <IconDotGrid1x3Horizontal className="size-4" />
+          </MenuTrigger>
+          <MenuPopup align="end" variant="workbench">
+            <MenuRadioGroup value={props.diffStyle} onValueChange={handleDiffStyleChange}>
+              <MenuRadioItem value="unified" variant="workbench">
+                <IconBarsThree className="size-3" />
+                Unified Diff
+              </MenuRadioItem>
+              <MenuRadioItem value="split" variant="workbench">
+                <IconSplit className="size-3" />
+                Split Diff
+              </MenuRadioItem>
+            </MenuRadioGroup>
+          </MenuPopup>
+        </Menu>
       </div>
-      <div className="no-drag relative min-w-0 shrink-0">
+      <Menu open={props.commitMenuOpen} onOpenChange={handleCommitMenuOpenChange}>
         <div
-          className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none overflow-hidden rounded-multi-control border border-primary bg-primary text-body font-medium text-primary-foreground shadow-sm data-[pending=true]:border-rose-500/90 data-[pending=true]:bg-rose-500/90"
+          className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none overflow-hidden rounded-multi-control border border-primary bg-primary text-body font-medium text-primary-foreground shadow-sm data-[pending=true]:border-destructive data-[pending=true]:bg-destructive"
           data-pending={isAgentActionPending || undefined}
         >
-          <button
+          <Button
             type="button"
-            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-1.5 px-2 text-inherit transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent group-data-[pending=true]:hover:bg-rose-500/90"
+            variant={isAgentActionPending ? "destructive" : "default"}
+            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--multi-workbench-text-control-gap) rounded-none border-0 px-(--multi-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent group-data-[pending=true]:hover:bg-destructive/90"
             disabled={
               isAgentActionPending &&
               (props.onStopAgentAction === null || props.stoppingAgentAction)
@@ -632,47 +681,30 @@ function LocalBranchBarTrailing(props: {
             {props.stoppingAgentAction
               ? "Stopping..."
               : (pendingActionDetails?.loadingLabel ?? "Commit & Push")}
-          </button>
-          <button
+          </Button>
+          <MenuTrigger
             type="button"
-            className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-primary-foreground/18 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[open=true]:bg-primary/90"
+            className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-primary-foreground/18 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[popup-open]:bg-primary/90"
             disabled={isAgentActionPending}
-            onClick={toggleCommitMenu}
             aria-label="Open commit menu"
-            aria-expanded={props.commitMenuOpen}
-            aria-haspopup="menu"
-            data-open={props.commitMenuOpen || undefined}
             title="Open commit menu"
           >
             <IconChevronRightMedium className="size-3 rotate-90" />
-          </button>
+          </MenuTrigger>
         </div>
-        {props.commitMenuOpen ? (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-40 cursor-default border-0 bg-transparent p-0"
-              aria-label="Close commit menu"
-              onClick={closeCommitMenu}
+        <MenuPopup align="end" variant="workbench">
+          {GIT_AGENT_ACTION_ORDER.map((action) => (
+            <GitAgentActionMenuItem
+              key={action}
+              action={action}
+              pendingAgentAction={props.pendingAgentAction}
+              onAgentAction={props.onAgentAction}
+              onCommitMenuOpen={props.onCommitMenuOpen}
             />
-            <div
-              className="absolute top-full right-0 z-50 mt-1 min-w-44 rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-elevated p-[3px] text-multi-fg-primary shadow-multi-popup"
-              role="menu"
-            >
-              {GIT_AGENT_ACTION_ORDER.map((action) => (
-                <GitAgentActionMenuItem
-                  key={action}
-                  action={action}
-                  pendingAgentAction={props.pendingAgentAction}
-                  onAgentAction={props.onAgentAction}
-                  onCommitMenuOpen={props.onCommitMenuOpen}
-                />
-              ))}
-            </div>
-          </>
-        ) : null}
-      </div>
-    </div>
+          ))}
+        </MenuPopup>
+      </Menu>
+    </WorkbenchChromeActionGroup>
   );
 }
 
@@ -689,7 +721,9 @@ function GitAgentActionMenuItem(props: {
   };
 
   return (
-    <MenuItem label={GIT_AGENT_ACTIONS[props.action].label} onClick={handleClick} />
+    <MenuItem onClick={handleClick} variant="workbench">
+      {GIT_AGENT_ACTIONS[props.action].label}
+    </MenuItem>
   );
 }
 
@@ -715,19 +749,17 @@ function LocalBranchBar(props: {
   const trailing = <LocalBranchBarTrailing {...props} />;
 
   return (
-    <WorkbenchChromeRow variant="panel" gap="loose" trailing={trailing}>
-      <span className="no-drag inline-flex h-(--multi-workbench-action-size) shrink-0 items-center text-body font-medium text-multi-fg-secondary">
-        Local
-      </span>
-      <button
+    <WorkbenchChromeRow variant="panel" trailing={trailing}>
+      <WorkbenchChromeLabel>Local</WorkbenchChromeLabel>
+      <Button
         type="button"
+        variant="ghost"
         onClick={copyBranch}
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none items-center gap-(--multi-workbench-sub-chrome-action-gap) overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-primary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+        className={workbenchChromeTextControlVariants({ tone: "primary" })}
         title="Copy branch name"
       >
-        <IconBranch className="size-4 shrink-0 text-multi-icon-tertiary" />
-        <span className="truncate font-mono">{props.branch ?? "detached"}</span>
-      </button>
+        <span className="truncate">{props.branch ?? "detached"}</span>
+      </Button>
     </WorkbenchChromeRow>
   );
 }
@@ -742,7 +774,7 @@ function ChangesHeaderTrailing(props: {
   const toggleAllLabel = props.allCollapsed ? "Expand all" : "Collapse all";
 
   return (
-    <div className="flex shrink-0 items-center gap-(--multi-workbench-sub-chrome-action-gap)">
+    <WorkbenchChromeActionGroup gap="sub">
       <WorkbenchIconButton
         onClick={props.onDiscardAll}
         aria-label="Discard all changes"
@@ -763,7 +795,7 @@ function ChangesHeaderTrailing(props: {
           <IconChevronRightMedium className="size-3" />
         )}
       </WorkbenchIconButton>
-    </div>
+    </WorkbenchChromeActionGroup>
   );
 }
 
@@ -791,7 +823,7 @@ function ChangesHeader(props: {
   );
 
   return (
-    <WorkbenchChromeRow variant="panel" gap="loose" trailing={trailing}>
+    <WorkbenchChromeRow variant="panel" trailing={trailing}>
       <WorkbenchIconButton
         onClick={props.onToggleRail}
         aria-label={props.railOpen ? "Hide changes list" : "Show changes list"}
@@ -830,10 +862,9 @@ function ChangesFilterMenu(props: {
     <Menu>
       <MenuTrigger
         type="button"
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 max-w-64 select-none items-center gap-1 overflow-hidden rounded-multi-control px-1.5 text-body font-medium text-multi-fg-secondary tabular-nums outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-popup-open:bg-multi-bg-quaternary data-popup-open:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className={cn(workbenchChromeTextControlVariants({ tabular: true }), "max-w-64")}
         aria-label="Change filter"
       >
-        <IconFolder1 className="size-4 shrink-0 text-multi-icon-tertiary" aria-hidden />
         <span className="min-w-0 truncate">{label}</span>
         <IconChevronRightMedium
           className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary"
@@ -855,7 +886,7 @@ function ChangesFilterMenu(props: {
 
 function DiffTotals(props: { add: number; del: number }) {
   return (
-    <div className="flex h-(--multi-workbench-action-size) shrink-0 items-center gap-1.5 text-body font-medium tabular-nums">
+    <WorkbenchChromeActionGroup gap="sub" className="tabular-nums">
       <span
         className={cn(
           "inline-flex justify-end text-multi-diff-addition",
@@ -872,40 +903,7 @@ function DiffTotals(props: { add: number; del: number }) {
       >
         -{props.del}
       </span>
-    </div>
-  );
-}
-
-function UnifiedDiffMenuIcon() {
-  return <IconBarsThree className="size-3" />;
-}
-
-function SplitDiffMenuIcon() {
-  return <IconSplit className="size-3" />;
-}
-
-function MenuItem(props: {
-  label: string;
-  onClick: () => void;
-  active?: boolean | undefined;
-  icon?: ComponentType<{ className?: string | undefined }> | undefined;
-}) {
-  const Icon = props.icon;
-  return (
-    <button
-      type="button"
-      onClick={props.onClick}
-      role="menuitem"
-      className="group flex w-full min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-1 text-left text-detail text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-[active=true]:bg-multi-bg-quaternary data-[active=true]:text-multi-fg-primary"
-      data-active={props.active || undefined}
-    >
-      {Icon ? (
-        <span className="inline-flex w-3.5 shrink-0 justify-center text-multi-icon-tertiary group-data-[active=true]:text-multi-icon-primary">
-          <Icon className="size-3" />
-        </span>
-      ) : null}
-      <span className="min-w-0 flex-1 truncate">{props.label}</span>
-    </button>
+    </WorkbenchChromeActionGroup>
   );
 }
 

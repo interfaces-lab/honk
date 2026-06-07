@@ -98,8 +98,6 @@ function applyChromeRoot() {
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);
   root.style.setProperty("--multi-ui-font-size-user", `${uiPx}px`);
   root.style.setProperty("--multi-code-font-size-user", `${codePx}px`);
-  root.style.removeProperty("--multi-sidebar-label-size-user");
-  root.style.removeProperty("--multi-sidebar-label-leading-user");
 
   const uiFont = localStorage.getItem(STORAGE_UI_FONT)?.trim() ?? "";
   const codeFont = localStorage.getItem(STORAGE_CODE_FONT)?.trim() ?? "";

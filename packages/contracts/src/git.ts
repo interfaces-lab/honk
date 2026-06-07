@@ -362,11 +362,21 @@ export const GitFilePatchResult = Schema.Union([
     message: Schema.String,
   }),
   Schema.Struct({
+    kind: Schema.Literal("non_text"),
+    fileType: Schema.Literals(["image", "video", "audio", "archive", "document", "font", "binary"]),
+    message: Schema.String,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("large"),
+    message: Schema.String,
+  }),
+  Schema.Struct({
     kind: Schema.Literal("empty"),
     message: Schema.String,
   }),
 ]);
 export type GitFilePatchResult = typeof GitFilePatchResult.Type;
+export type GitNonTextFileType = Extract<GitFilePatchResult, { kind: "non_text" }>["fileType"];
 
 // RPC / domain errors
 export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()("GitCommandError", {

@@ -126,6 +126,6 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).not.toContain("Supervised");
     expect(html).not.toContain("Runtime diagnostics");
     expect(html).not.toContain("No runtime diagnostics reported");
-    expect(html).not.toContain("Desktop runtime host unavailable");
+    expect(html).not.toContain("Runtime host unavailable");
   });
 });

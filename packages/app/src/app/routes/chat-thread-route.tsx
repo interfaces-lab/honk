@@ -1,9 +1,20 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Spinner } from "@multi/multikit/spinner";
+import { useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import ChatView from "~/components/chat/view/chat-view";
-import { threadHasStarted } from "~/components/chat/view/thread-lifecycle";
-import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/stores/chat-drafts";
+import {
+  type DraftPromotionRouteTarget,
+  resolveDraftPromotionRouteTarget,
+  threadHasRenderableUserStart,
+} from "~/components/chat/view/thread-lifecycle";
+import {
+  DraftId,
+  finalizePromotedDraftThreadByRef,
+  useComposerDraftStore,
+  type DraftThreadState,
+} from "~/stores/chat-drafts";
 import {
   selectEnvironmentSnapshotSource,
   selectEnvironmentState,
@@ -24,17 +35,32 @@ import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";
 const routeApi = getRouteApi("/_chat/$environmentId/$threadId");
 type ThreadRouteRef = NonNullable<ReturnType<typeof resolveThreadRouteRef>>;
 
-function ChatThreadMainPanel(props: { threadRef: ThreadRouteRef }) {
-  const { threadRef } = props;
+function ChatThreadMainPanel(props: {
+  readonly draftThread: DraftThreadState | null;
+  readonly routeTarget: DraftPromotionRouteTarget | null;
+  readonly threadRef: ThreadRouteRef;
+}) {
+  const draftRouteTarget = props.routeTarget?.kind === "draft" ? props.routeTarget : null;
+  const draftThread = draftRouteTarget ? props.draftThread : null;
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ChatView
-        environmentId={threadRef.environmentId}
-        threadId={threadRef.threadId}
-        reserveTitleBarControlInset={false}
-        routeKind="server"
-      />
+      {draftRouteTarget && draftThread ? (
+        <ChatView
+          draftId={draftRouteTarget.draftId}
+          environmentId={draftThread.environmentId}
+          threadId={draftThread.threadId}
+          reserveTitleBarControlInset={false}
+          routeKind="draft"
+        />
+      ) : (
+        <ChatView
+          environmentId={props.threadRef.environmentId}
+          threadId={props.threadRef.threadId}
+          reserveTitleBarControlInset={false}
+          routeKind="server"
+        />
+      )}
     </div>
   );
 }
@@ -45,6 +71,40 @@ function threadRouteRefKey(threadRef: ThreadRouteRef): string {
 
 function isDesktopRuntimeThreadRoute(threadRef: ThreadRouteRef): boolean {
   return threadRef.environmentId === DESKTOP_RUNTIME_ENVIRONMENT_ID;
+}
+
+function threadRefsEqual(
+  left: ThreadRouteRef | null | undefined,
+  right: ThreadRouteRef | null | undefined,
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.environmentId === right.environmentId &&
+      left.threadId === right.threadId,
+  );
+}
+
+function findDraftRouteMatch(
+  draftThreadsByThreadKey: Record<string, DraftThreadState>,
+  threadRef: ThreadRouteRef | null,
+): { readonly draftRouteId: DraftId | null; readonly draftThread: DraftThreadState | null } {
+  if (!threadRef) {
+    return { draftRouteId: null, draftThread: null };
+  }
+  for (const [draftId, draftThread] of Object.entries(draftThreadsByThreadKey)) {
+    if (
+      threadRefsEqual(draftThread.promotedTo, threadRef) ||
+      (draftThread.environmentId === threadRef.environmentId &&
+        draftThread.threadId === threadRef.threadId)
+    ) {
+      return {
+        draftRouteId: DraftId.make(draftId),
+        draftThread,
+      };
+    }
+  }
+  return { draftRouteId: null, draftThread: null };
 }
 
 export function ChatThreadRouteView() {
@@ -63,11 +123,8 @@ export function ChatThreadRouteView() {
   const environmentHasServerThreads = useStore(
     (store) => selectEnvironmentState(store, threadRef?.environmentId ?? null).threadIds.length > 0,
   );
-  const draftThreadExists = useComposerDraftStore((store) =>
-    threadRef ? store.getDraftThreadByRef(threadRef) !== null : false,
-  );
-  const draftThread = useComposerDraftStore((store) =>
-    threadRef ? store.getDraftThreadByRef(threadRef) : null,
+  const draftRouteMatch = useComposerDraftStore(
+    useShallow((store) => findDraftRouteMatch(store.draftThreadsByThreadKey, threadRef)),
   );
   const environmentHasDraftThreads = useComposerDraftStore((store) => {
     if (!threadRef) {
@@ -75,8 +132,13 @@ export function ChatThreadRouteView() {
     }
     return store.hasDraftThreadsInEnvironment(threadRef.environmentId);
   });
-  const routeThreadExists = threadExists || draftThreadExists;
-  const serverThreadStarted = threadHasStarted(serverThread);
+  const routeThreadExists = threadExists || draftRouteMatch.draftThread !== null;
+  const serverThreadRenderable = threadHasRenderableUserStart(serverThread);
+  const routeTarget = resolveDraftPromotionRouteTarget({
+    draftRouteId: draftRouteMatch.draftRouteId,
+    serverThread,
+    serverThreadRef: threadRef,
+  });
   const environmentHasAnyThreads = environmentHasServerThreads || environmentHasDraftThreads;
   const desktopRuntimeRoute = threadRef ? isDesktopRuntimeThreadRoute(threadRef) : false;
   const hasRenderableSnapshot = snapshotSource !== "none" || desktopRuntimeRoute;
@@ -89,29 +151,37 @@ export function ChatThreadRouteView() {
 
   if (!hasRenderableSnapshot) {
     return (
-      <ChatThreadRouteSync
-        key={`${threadRouteKey}:source:${snapshotSource}`}
-        environmentHasAnyThreads={environmentHasAnyThreads}
-        navigate={navigate}
-        routeThreadExists={routeThreadExists}
-        snapshotSource={snapshotSource}
-        threadRef={threadRef}
-      />
+      <>
+        <ChatThreadRouteSync
+          key={`${threadRouteKey}:source:${snapshotSource}`}
+          environmentHasAnyThreads={environmentHasAnyThreads}
+          navigate={navigate}
+          routeThreadExists={routeThreadExists}
+          routePersistenceTarget={routeTarget}
+          snapshotSource={snapshotSource}
+          threadRef={threadRef}
+        />
+        <ChatThreadRouteLoadingPanel />
+      </>
     );
   }
 
   if (!routeThreadExists) {
     return (
-      <ChatThreadRouteSync
-        key={`${threadRouteKey}:missing:${snapshotSource}:${
-          environmentHasAnyThreads ? "any" : "empty"
-        }`}
-        environmentHasAnyThreads={environmentHasAnyThreads}
-        navigate={navigate}
-        routeThreadExists={routeThreadExists}
-        snapshotSource={snapshotSource}
-        threadRef={threadRef}
-      />
+      <>
+        <ChatThreadRouteSync
+          key={`${threadRouteKey}:missing:${snapshotSource}:${
+            environmentHasAnyThreads ? "any" : "empty"
+          }`}
+          environmentHasAnyThreads={environmentHasAnyThreads}
+          navigate={navigate}
+          routeThreadExists={routeThreadExists}
+          routePersistenceTarget={routeTarget}
+          snapshotSource={snapshotSource}
+          threadRef={threadRef}
+        />
+        <ChatThreadRouteLoadingPanel />
+      </>
     );
   }
 
@@ -122,14 +192,32 @@ export function ChatThreadRouteView() {
         environmentHasAnyThreads={environmentHasAnyThreads}
         navigate={navigate}
         routeThreadExists={routeThreadExists}
+        routePersistenceTarget={routeTarget}
         snapshotSource={snapshotSource}
         threadRef={threadRef}
       />
-      {snapshotSource === "server" && serverThreadStarted && draftThread?.promotedTo ? (
+      {snapshotSource === "server" &&
+      serverThreadRenderable &&
+      draftRouteMatch.draftThread?.promotedTo ? (
         <PromotedDraftFinalizer key={`${threadRouteKey}:promoted`} threadRef={threadRef} />
       ) : null}
-      <ChatThreadMainPanel threadRef={threadRef} />
+      <ChatThreadMainPanel
+        draftThread={draftRouteMatch.draftThread}
+        routeTarget={routeTarget}
+        threadRef={threadRef}
+      />
     </>
+  );
+}
+
+function ChatThreadRouteLoadingPanel() {
+  return (
+    <div
+      className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+      aria-busy="true"
+    >
+      <Spinner className="size-5 text-muted-foreground" />
+    </div>
   );
 }
 
@@ -137,17 +225,26 @@ function ChatThreadRouteSync(props: {
   readonly environmentHasAnyThreads: boolean;
   readonly navigate: ReturnType<typeof useNavigate>;
   readonly routeThreadExists: boolean;
+  readonly routePersistenceTarget: ReturnType<typeof resolveDraftPromotionRouteTarget>;
   readonly snapshotSource: EnvironmentSnapshotSource;
   readonly threadRef: ThreadRouteRef;
 }) {
-  useMountEffect(() => {
+  const routePersistenceTarget = props.routePersistenceTarget;
+  const routePersistenceTargetKey =
+    routePersistenceTarget?.kind === "draft"
+      ? `draft:${routePersistenceTarget.draftId}`
+      : routePersistenceTarget?.kind === "server"
+        ? `server:${routePersistenceTarget.threadRef.environmentId}:${routePersistenceTarget.threadRef.threadId}`
+        : "none";
+
+  useEffect(() => {
     const desktopRuntimeRoute = isDesktopRuntimeThreadRoute(props.threadRef);
     if (props.snapshotSource === "none" && !desktopRuntimeRoute) {
       return;
     }
 
-    if (props.routeThreadExists) {
-      writeLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
+    if (props.routeThreadExists && props.routePersistenceTarget) {
+      writeLastChatRouteTarget(props.routePersistenceTarget);
       return;
     }
 
@@ -163,7 +260,15 @@ function ChatThreadRouteSync(props: {
 
     clearLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
     void openChatIndex(props.navigate, { replace: true });
-  });
+  }, [
+    props.environmentHasAnyThreads,
+    props.navigate,
+    props.routeThreadExists,
+    props.snapshotSource,
+    props.threadRef.environmentId,
+    props.threadRef.threadId,
+    routePersistenceTargetKey,
+  ]);
 
   return null;
 }

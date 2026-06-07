@@ -28,7 +28,6 @@ export function ContextWindowRing(props: {
   const usedPercentage = formatContextUsagePercentage(usage.usedPercentage);
   const { normalizedPercentage, circumference, dashOffset } = getContextWindowRingMetrics(usage);
   const dimension = size === "sm" ? "size-5" : "size-6";
-  const innerLabel = size === "sm" ? "size-2.5 text-[7px]" : "size-3.5 text-[8px]";
 
   return (
     <span
@@ -67,15 +66,11 @@ export function ContextWindowRing(props: {
       {size === "md" ? (
         <span
           className={cn(
-            "relative flex items-center justify-center rounded-full bg-background font-medium tabular-nums",
-            innerLabel,
-            "text-muted-foreground",
+            "relative size-2 rounded-full bg-muted-foreground/70",
+            usage.usedPercentage !== null && normalizedPercentage >= 85 && "bg-warning",
           )}
-        >
-          {usage.usedPercentage !== null
-            ? Math.round(normalizedPercentage)
-            : formatContextWindowTokens(usage.usedTokens)}
-        </span>
+          aria-hidden
+        />
       ) : null}
       {size === "sm" ? (
         <span className="sr-only">

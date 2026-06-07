@@ -2,9 +2,12 @@ import type { ScopedThreadRef } from "@multi/contracts";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import ChatView from "~/components/chat/view/chat-view";
-import { threadHasStarted } from "~/components/chat/view/thread-lifecycle";
+import { resolveRenderableDraftCanonicalThreadRef } from "~/components/chat/view/thread-lifecycle";
 import { useComposerDraftStore, DraftId } from "~/stores/chat-drafts";
-import { createThreadSelectorAcrossEnvironments } from "~/stores/thread-selectors";
+import {
+  createThreadSelectorAcrossEnvironments,
+  createThreadSelectorByRef,
+} from "~/stores/thread-selectors";
 import { useStore } from "~/stores/thread-store";
 import {
   clearLastChatRouteTarget,
@@ -24,22 +27,19 @@ export function DraftChatThreadRouteView() {
   const { draftId: rawDraftId } = routeApi.useParams();
   const draftId = DraftId.make(rawDraftId);
   const draftSession = useComposerDraftStore((store) => store.getDraftSession(draftId));
+  const promotedThreadRef = draftSession?.promotedTo ?? null;
   const serverThreadSelector = useMemo(
-    () => createThreadSelectorAcrossEnvironments(draftSession?.threadId ?? null),
-    [draftSession?.threadId],
+    () =>
+      promotedThreadRef
+        ? createThreadSelectorByRef(promotedThreadRef)
+        : createThreadSelectorAcrossEnvironments(draftSession?.threadId ?? null),
+    [draftSession?.threadId, promotedThreadRef?.environmentId, promotedThreadRef?.threadId],
   );
   const serverThread = useStore(serverThreadSelector);
-  const serverThreadStarted = threadHasStarted(serverThread);
-  const canonicalThreadRef = draftSession?.promotedTo
-    ? serverThreadStarted
-      ? draftSession.promotedTo
-      : null
-    : serverThread
-      ? {
-          environmentId: serverThread.environmentId,
-          threadId: serverThread.id,
-        }
-      : null;
+  const canonicalThreadRef = resolveRenderableDraftCanonicalThreadRef({
+    promotedTo: draftSession?.promotedTo,
+    serverThread,
+  });
   if (canonicalThreadRef) {
     return (
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

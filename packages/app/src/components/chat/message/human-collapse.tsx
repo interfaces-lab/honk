@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Button } from "@multi/multikit/button";
 import { cn } from "~/lib/utils";
 
 const COLLAPSED_MAX_PX = 72;
@@ -43,11 +44,12 @@ export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
         <div ref={measureElement}>{children}</div>
       </div>
       {overflows ? (
-        <button
-          type="button"
+        <Button
           data-human-message-collapse-toggle=""
+          size="xs"
+          variant="link"
           className={cn(
-            "mt-1 text-left text-detail font-medium text-muted-foreground/80",
+            "mt-1 h-auto justify-start p-0 text-left text-detail font-medium text-muted-foreground/80",
             "hover:text-muted-foreground hover:underline",
           )}
           onClick={(event) => {
@@ -56,7 +58,7 @@ export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
           }}
         >
           {expanded ? "Show less" : "Show more"}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

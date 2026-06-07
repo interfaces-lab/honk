@@ -25,6 +25,8 @@ const EMPTY_ACTIVITY_MAP: Record<string, Thread["activities"][number]> = {};
 const EMPTY_PROPOSED_PLAN_MAP: Record<string, ProposedPlan> = {};
 const EMPTY_TURN_DIFF_MAP: Record<TurnId, TurnDiffSummary> = {};
 
+const collectByIdsCache = new WeakMap<readonly string[], WeakMap<object, unknown[]>>();
+
 const threadCache = new WeakMap<
   ThreadShell,
   {
@@ -51,10 +53,22 @@ function collectByIds<TKey extends string, TValue>(
     return emptyValue;
   }
 
-  return ids.flatMap((id) => {
+  let byIdCache = collectByIdsCache.get(ids);
+  if (!byIdCache) {
+    byIdCache = new WeakMap<object, unknown[]>();
+    collectByIdsCache.set(ids, byIdCache);
+  }
+  const cached = byIdCache.get(byId);
+  if (cached) {
+    return cached as TValue[];
+  }
+
+  const result = ids.flatMap((id) => {
     const value = byId[id];
     return value ? [value] : [];
   });
+  byIdCache.set(byId, result);
+  return result;
 }
 
 function selectThreadMessages(state: EnvironmentState, threadId: ThreadId): Thread["messages"] {

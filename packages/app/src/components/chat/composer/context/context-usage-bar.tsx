@@ -1,5 +1,6 @@
 import { cn } from "~/lib/utils";
 import { formatContextUsageSummary, type ContextWindowSnapshot } from "~/lib/context-window";
+import { Button } from "@multi/multikit/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
 import { ContextWindowRing, ContextWindowUsageDetails } from "./context-window-meter";
 
@@ -17,19 +18,19 @@ export function ComposerContextUsageBar(props: { usage: ContextWindowSnapshot })
           delay={150}
           closeDelay={0}
           render={
-            <button
-              type="button"
+            <Button
               data-clickable=""
+              size="xs"
+              variant="ghost"
               className={cn(
-                "inline-flex h-5 max-w-full select-none items-center gap-1 rounded px-1",
-                "text-xs text-muted-foreground opacity-65 transition-opacity duration-150",
+                "h-5 max-w-full gap-1 rounded px-1 text-caption text-muted-foreground opacity-65",
                 "hover:text-foreground hover:opacity-100",
               )}
               aria-label={`Context window: ${summary}`}
             >
               <ContextWindowRing usage={usage} size="sm" />
               <span className="truncate tabular-nums">{summary}</span>
-            </button>
+            </Button>
           }
         />
         <PopoverPopup tooltipStyle side="top" align="end" className="w-max max-w-none px-3 py-2">

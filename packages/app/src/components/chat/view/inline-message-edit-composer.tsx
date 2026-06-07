@@ -1,5 +1,6 @@
 import type { MessageId } from "@multi/contracts";
 import { useRef } from "react";
+import { Button } from "@multi/multikit/button";
 
 import {
   type ComposerImageAttachment,
@@ -96,13 +97,9 @@ export function InlineMessageEditComposer({
   };
 
   const cancelButton = (
-    <button
-      type="button"
-      className="rounded-full px-2.5 py-1 text-body text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-      onClick={handleCancel}
-    >
+    <Button className="rounded-full px-2.5" size="sm" variant="ghost" onClick={handleCancel}>
       Cancel
-    </button>
+    </Button>
   );
 
   return (

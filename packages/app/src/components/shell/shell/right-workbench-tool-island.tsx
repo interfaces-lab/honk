@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { WorkbenchChromeRow } from "./workbench-chrome-row";
+import { WorkbenchChromeRow } from "@multi/multikit/workbench-chrome-row";
 
 /**
  * Fixed-height workbench tool row: leading cluster (tab tools + tab-specific UI),

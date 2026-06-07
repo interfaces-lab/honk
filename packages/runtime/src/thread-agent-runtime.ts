@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type {
   AccountId,
@@ -25,6 +26,7 @@ import {
   type ToolDefinition,
   DefaultResourceLoader,
   ModelRegistry,
+  SessionManager,
   createAgentSession,
 } from "@earendil-works/pi-coding-agent";
 import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
@@ -66,6 +68,7 @@ export interface ThreadAgentRuntimeOptions {
   readonly resourceLoader?: ResourceLoader;
   readonly authStorage?: AuthStorage;
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"];
+  readonly sessionManager?: CreateAgentSessionOptions["sessionManager"];
   readonly policy: AgentModelPolicy;
 }
 
@@ -160,6 +163,8 @@ export class ThreadAgentRuntime {
       cwd: options.cwd,
     };
     sessionOptions.agentDir = options.agentDir;
+    sessionOptions.sessionManager =
+      options.sessionManager ?? createThreadSessionManager(options.threadId, options.cwd, options.agentDir);
     if (effectiveModel) sessionOptions.model = effectiveModel;
     if (effectiveThinkingLevel) {
       sessionOptions.thinkingLevel = effectiveThinkingLevel;
@@ -310,6 +315,7 @@ export class ThreadAgentRuntime {
       this.pendingPromptClientMessages.push(pendingClientMessage);
     }
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
+    this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId));
     const interactionMode = this.interactionModeQueue.enqueue(options.interactionMode);
     try {
       const piImages = toPiImageContent(images);
@@ -467,6 +473,26 @@ export class ThreadAgentRuntime {
       createdAt: new Date().toISOString(),
       ...(summary ? { summary } : {}),
       ...(data !== undefined ? { data } : {}),
+    };
+  }
+
+  private createPromptUserMessageEvent(
+    text: string,
+    turnId: TurnId,
+    clientMessageId: MessageId | null,
+  ): AgentRuntimeEvent {
+    return {
+      id: makeRuntimeEventId(this.nextEventSequence()),
+      type: "message.completed",
+      agentRuntime: "pi",
+      threadId: this.threadId,
+      runtimeSessionId: this.runtimeSessionId,
+      turnId,
+      createdAt: new Date().toISOString(),
+      summary: "User message sent",
+      messageRole: "user",
+      text,
+      ...(clientMessageId ? { data: { clientMessageId } } : {}),
     };
   }
 
@@ -644,6 +670,16 @@ export class ThreadAgentRuntime {
 
 function proposedPlanIdForTurn(threadId: ThreadId, turnId: TurnId): string {
   return `plan:${threadId}:${turnId}`;
+}
+
+function createThreadSessionManager(threadId: ThreadId, cwd: string, agentDir: string): SessionManager {
+  const sessionDir = join(agentDir, "multi-thread-sessions", encodeThreadIdForPath(threadId));
+  mkdirSync(sessionDir, { recursive: true });
+  return SessionManager.continueRecent(cwd, sessionDir);
+}
+
+function encodeThreadIdForPath(threadId: ThreadId): string {
+  return Buffer.from(threadId, "utf8").toString("base64url");
 }
 
 function resolvePolicyModel(input: {

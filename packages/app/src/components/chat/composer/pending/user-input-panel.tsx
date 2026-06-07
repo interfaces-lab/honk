@@ -1,4 +1,5 @@
 import { type ApprovalRequestId } from "@multi/contracts";
+import { Button } from "@multi/multikit/button";
 import { type KeyboardEvent } from "react";
 import { type PendingUserInput } from "../../../../session-logic";
 import {
@@ -120,16 +121,17 @@ function ComposerPendingUserInputCard({
           const isSelected = progress.selectedOptionLabels.includes(option.label);
           const shortcutKey = index < 9 ? index + 1 : null;
           return (
-            <button
+            <Button
               key={`${activeQuestion.id}:${option.label}`}
               type="button"
+              variant="ghost"
               disabled={isResponding}
               role={activeQuestion.multiSelect ? undefined : "radio"}
               aria-checked={activeQuestion.multiSelect ? undefined : isSelected}
               aria-pressed={activeQuestion.multiSelect ? isSelected : undefined}
               onClick={() => handleOptionSelection(activeQuestion.id, option.label)}
               className={cn(
-                "group flex min-h-9 w-full select-none items-center gap-2.5 rounded-multi-control border px-2.5 py-2 text-left transition-colors duration-100",
+                "group flex h-auto min-h-9 w-full justify-start whitespace-normal rounded-multi-control px-2.5 py-2 text-left transition-colors duration-100",
                 isSelected
                   ? "border-multi-stroke-focused bg-multi-bg-tertiary text-multi-fg-primary"
                   : "border-transparent bg-multi-bg-quaternary/60 text-multi-fg-secondary hover:border-multi-stroke-tertiary hover:bg-multi-bg-tertiary hover:text-multi-fg-primary",
@@ -157,7 +159,7 @@ function ComposerPendingUserInputCard({
                 ) : null}
               </div>
               {isSelected ? <IconCheckmark1 className="size-3.5 shrink-0 text-blue-400" /> : null}
-            </button>
+            </Button>
           );
         })}
       </div>

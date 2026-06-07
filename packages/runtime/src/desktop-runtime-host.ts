@@ -13,8 +13,10 @@ import {
   type MultiRuntimeApi,
   type MultiRuntimeHostEvent,
   type MultiRuntimeHostSnapshot,
+  type RuntimeDisplayTimelineProjection,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
+  type ThreadAgentRuntimeHydrateInput,
   type ThreadAgentRuntimeSendTurnInput,
 } from "@multi/contracts";
 import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai";
@@ -22,6 +24,10 @@ import { AuthStorage, type AuthStatus, type ExtensionFactory } from "@earendil-w
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
+import {
+  projectRuntimeDisplayTimeline,
+  projectRuntimeDisplayTimelineEvent,
+} from "./display-timeline-projection";
 
 const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   agentMode: "deep",
@@ -55,6 +61,8 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     },
   ],
 };
+
+const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
 
 function describeAuthSource(status: AuthStatus | undefined): string | null {
   switch (status?.source) {
@@ -111,7 +119,9 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     | null;
   private readonly runtimes = new Map<string, RuntimeEntry>();
   private readonly runtimeEvents: AgentRuntimeEvent[] = [];
+  private readonly runtimeEventsByThreadId = new Map<string, AgentRuntimeEvent[]>();
   private readonly sessionTrees = new Map<string, SessionTreeProjection>();
+  private readonly displayTimelines = new Map<string, RuntimeDisplayTimelineProjection>();
   private readonly credentialAuthFlows = new Map<string, AgentCredentialAuthFlow>();
   private readonly listeners = new Set<(event: MultiRuntimeHostEvent) => void>();
   private readonly startOperations = new Map<string, Promise<void>>();
@@ -139,8 +149,9 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
       authStatuses: this.getAuthStatuses(),
       credentialAuthFlows: [...this.credentialAuthFlows.values()],
       diagnostics: [],
-      runtimeEvents: this.runtimeEvents,
+      runtimeEvents: this.getRuntimeEventsSnapshot(),
       sessionTrees: [...this.sessionTrees.values()],
+      displayTimelines: this.getDisplayTimelines(),
       pendingExtensionUiRequests: this.getPendingExtensionUiRequests(),
     };
   }
@@ -323,13 +334,19 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
       const ui = createDesktopExtensionUi();
       const unsubscribeRuntime = runtime.subscribe((event) => {
         this.runtimeEvents.push(event);
+        this.pushRuntimeEventForThread(event);
         this.emit({ type: "runtime-event", event });
+        this.emit({
+          type: "display-timeline",
+          timeline: this.applyRuntimeEventToDisplayTimeline(runtime, event),
+        });
         if (event.type === "tree.updated") {
           this.publishSessionTree(runtime);
         }
       });
       const unsubscribeUi = ui.onPendingRequestsChanged(() => {
         this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
+        this.emit({ type: "display-timeline", timeline: this.refreshDisplayTimeline(runtime) });
       });
       const unsubscribe = () => {
         unsubscribeRuntime();
@@ -365,6 +382,14 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
       expandPromptTemplates: null,
       source: null,
       streamingBehavior: null,
+    });
+  }
+
+  async hydrateThread(input: ThreadAgentRuntimeHydrateInput): Promise<void> {
+    await this.startThread({
+      threadId: input.threadId,
+      cwd: input.cwd,
+      policy: input.policy,
     });
   }
 
@@ -417,6 +442,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     }
     entry.ui.resolveRequest(input.requestId, input.value);
     this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
+    this.emit({ type: "display-timeline", timeline: this.refreshDisplayTimeline(entry.runtime) });
   }
 
   onHostEvent(listener: (event: MultiRuntimeHostEvent) => void): () => void {
@@ -437,16 +463,78 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     const tree = runtime.getSessionTree();
     this.sessionTrees.set(runtime.threadId, tree);
     this.emit({ type: "session-tree", tree });
+    this.emit({ type: "display-timeline", timeline: this.refreshDisplayTimeline(runtime) });
     this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
+  }
+
+  private getDisplayTimelines(): RuntimeDisplayTimelineProjection[] {
+    for (const entry of this.runtimes.values()) {
+      this.refreshDisplayTimeline(entry.runtime);
+    }
+    return [...this.displayTimelines.values()];
+  }
+
+  private getRuntimeEventsSnapshot(): AgentRuntimeEvent[] {
+    return this.runtimeEvents.length <= MAX_RUNTIME_EVENTS_IN_SNAPSHOT
+      ? [...this.runtimeEvents]
+      : this.runtimeEvents.slice(this.runtimeEvents.length - MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
+  }
+
+  private refreshDisplayTimeline(runtime: ThreadAgentRuntime): RuntimeDisplayTimelineProjection {
+    const tree = this.sessionTrees.get(runtime.threadId) ?? runtime.getSessionTree();
+    const timeline = projectRuntimeDisplayTimeline({
+      threadId: runtime.threadId,
+      runtimeSessionId: runtime.runtimeSessionId,
+      sessionTree: tree,
+      runtimeEvents: this.runtimeEventsByThreadId.get(runtime.threadId) ?? [],
+      pendingExtensionUiRequests: this.getPendingExtensionUiRequestsForRuntime(runtime),
+    });
+    this.displayTimelines.set(runtime.threadId, timeline);
+    return timeline;
+  }
+
+  private applyRuntimeEventToDisplayTimeline(
+    runtime: ThreadAgentRuntime,
+    event: AgentRuntimeEvent,
+  ): RuntimeDisplayTimelineProjection {
+    const timeline = projectRuntimeDisplayTimelineEvent({
+      previousTimeline: this.displayTimelines.get(runtime.threadId),
+      threadId: runtime.threadId,
+      runtimeSessionId: runtime.runtimeSessionId,
+      sessionTree: this.sessionTrees.get(runtime.threadId) ?? runtime.getSessionTree(),
+      event,
+      pendingExtensionUiRequests: this.getPendingExtensionUiRequestsForRuntime(runtime),
+    });
+    this.displayTimelines.set(runtime.threadId, timeline);
+    return timeline;
+  }
+
+  private pushRuntimeEventForThread(event: AgentRuntimeEvent): void {
+    const events = this.runtimeEventsByThreadId.get(event.threadId);
+    if (events) {
+      events.push(event);
+      return;
+    }
+    this.runtimeEventsByThreadId.set(event.threadId, [event]);
+  }
+
+  private getPendingExtensionUiRequestsForRuntime(
+    runtime: ThreadAgentRuntime,
+  ): DesktopExtensionUiRequest[] {
+    const entry = this.runtimes.get(runtime.threadId);
+    if (!entry) {
+      return [];
+    }
+    return entry.ui.pendingRequests.map((request) => ({
+      ...request,
+      threadId: runtime.threadId,
+      runtimeSessionId: runtime.runtimeSessionId,
+    }));
   }
 
   private getPendingExtensionUiRequests(): DesktopExtensionUiRequest[] {
     return [...this.runtimes.values()].flatMap((entry) =>
-      entry.ui.pendingRequests.map((request) => ({
-        ...request,
-        threadId: entry.runtime.threadId,
-        runtimeSessionId: entry.runtime.runtimeSessionId,
-      })),
+      this.getPendingExtensionUiRequestsForRuntime(entry.runtime),
     );
   }
 
@@ -493,6 +581,8 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     entry.runtime.dispose();
     this.runtimes.delete(threadId);
     this.sessionTrees.delete(threadId);
+    this.runtimeEventsByThreadId.delete(threadId);
+    this.displayTimelines.delete(threadId);
     for (let index = this.runtimeEvents.length - 1; index >= 0; index -= 1) {
       if (this.runtimeEvents[index]?.threadId === threadId) {
         this.runtimeEvents.splice(index, 1);

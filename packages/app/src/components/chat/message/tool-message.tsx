@@ -1,4 +1,10 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
+import {
+  type EnvironmentId,
+  type RuntimeDisplayTimelineExtensionUiRequestItem,
+  type RuntimeDisplayTimelineToolItem,
+  type ThreadId,
+} from "@multi/contracts";
+import { Button } from "@multi/multikit/button";
 import {
   IconBubbleQuestion,
   IconChevronRightMedium,
@@ -12,9 +18,12 @@ import {
   type ToolDisplayArtifact,
   type WorkLogEntry,
   type WorkLogSubagent,
+  type WorkLogSubagentLog,
+  type SubagentTranscriptItem,
 } from "../../../session-logic";
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
+import { MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES } from "~/lib/runtime-tool-display";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 import { cn } from "~/lib/utils";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -26,6 +35,10 @@ import {
 } from "../../../stores/subagent-tray-store";
 
 type ToolCallStatus = "loading" | "completed" | "error";
+type RuntimeToolDisplay = NonNullable<RuntimeDisplayTimelineToolItem["display"]>;
+type RuntimeSubagentDisplay = Extract<RuntimeToolDisplay, { kind: "subagent" }>;
+type RuntimeSubagentRun = RuntimeSubagentDisplay["runs"][number];
+type RuntimeSubagentActivity = RuntimeSubagentDisplay["activities"][number];
 
 function stopSubagentStatusRowKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
   event.stopPropagation();
@@ -103,6 +116,104 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   );
 });
 
+export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
+  tool,
+  projectRoot,
+  activeThreadId,
+  environmentId,
+  subagentDetailsEnabled = true,
+}: {
+  tool: RuntimeDisplayTimelineToolItem;
+  projectRoot?: string | undefined;
+  activeThreadId?: ThreadId | undefined;
+  environmentId?: EnvironmentId | undefined;
+  subagentDetailsEnabled?: boolean | undefined;
+}) {
+  const status = resolveRuntimeToolStatus(tool);
+  const isLoading = status === "loading";
+  const toolCall = useMemo(() => runtimeToolItemToToolCall(tool), [tool]);
+  const runtimeSubagents = useMemo(
+    () => runtimeToolDisplayToSubagents(tool.display),
+    [tool.display],
+  );
+  const canRenderSubagents =
+    runtimeSubagents.length > 0 && activeThreadId !== undefined && environmentId !== undefined;
+  const subagentStatusSurface = canRenderSubagents ? (
+    <SubagentStatusSurface
+      activeThreadId={activeThreadId}
+      embeddedInTask
+      environmentId={environmentId}
+      projectRoot={projectRoot}
+      subagentDetailsEnabled={subagentDetailsEnabled}
+      subagents={runtimeSubagents}
+    />
+  ) : null;
+
+  return (
+    <div
+      className="flex w-full min-w-0 max-w-full flex-col gap-1"
+      data-tool-call-id={tool.toolCallId}
+      data-runtime-tool-call=""
+      data-runtime-tool-name={tool.toolName}
+      data-tool-status={status}
+      data-tool-has-error={status === "error" ? "true" : undefined}
+    >
+      <ToolCallRenderer
+        toolCall={toolCall}
+        callId={tool.toolCallId}
+        loading={isLoading}
+        startedAtMs={Date.parse(tool.createdAt)}
+        hasError={status === "error"}
+        conversationDensity="minimal"
+        subagentConversation={subagentStatusSurface}
+        defaultExpanded={tool.display?.kind === "subagent"}
+      />
+    </div>
+  );
+});
+
+export function RuntimeExtensionUiRequestMessage({
+  request,
+}: {
+  request: RuntimeDisplayTimelineExtensionUiRequestItem;
+}) {
+  const active = request.status === "pending";
+  const detail = request.message?.trim();
+  const label = active ? `Waiting for ${request.title}` : `Answered ${request.title}`;
+  return (
+    <div
+      data-extension-ui-request=""
+      data-extension-ui-request-id={request.requestId}
+      data-extension-ui-request-kind={request.requestKind}
+      data-extension-ui-request-active={active ? "true" : undefined}
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
+    >
+      <IconBubbleQuestion
+        className={cn(
+          "mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary",
+          active && "tool-call-shimmer text-multi-icon-accent-primary",
+        )}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <div
+          className={cn(
+            "min-w-0 break-words font-medium text-multi-fg-primary wrap-anywhere",
+            active && "tool-call-shimmer",
+          )}
+        >
+          {label}
+        </div>
+        {detail ? (
+          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary wrap-anywhere">
+            {detail}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ExtensionUiRequestRow({
   workEntry,
   active,
@@ -144,6 +255,516 @@ function ExtensionUiRequestRow({
   );
 }
 
+function runtimeToolItemToToolCall(tool: RuntimeDisplayTimelineToolItem): ToolCallModel {
+  return runtimeToolDisplayToToolCall(tool, tool.display);
+}
+
+function runtimeToolDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: RuntimeToolDisplay,
+): ToolCallModel {
+  switch (display.kind) {
+    case "shell":
+      return runtimeShellDisplayToToolCall(tool, display);
+    case "read":
+      return runtimeReadDisplayToToolCall(tool, display);
+    case "grep":
+      return runtimeGrepDisplayToToolCall(tool, display);
+    case "edit":
+      return runtimeEditDisplayToToolCall(tool, display);
+    case "mcp":
+      return {
+        tool: {
+          case: "mcpToolCall",
+          value: {
+            action: runtimeToolAction(tool),
+            details: display.providerIdentifier ?? tool.toolName,
+          },
+        },
+      };
+    case "subagent":
+      return runtimeSubagentDisplayToToolCall(tool, display);
+    case "unknown":
+      return {
+        tool: {
+          case: "unknownToolCall",
+          value: {
+            action: runtimeToolAction(tool),
+            details: display.toolName,
+            output: display.output ?? null,
+            ...(display.output
+              ? { artifacts: [{ type: "raw", text: display.output } satisfies ToolDisplayArtifact] }
+              : {}),
+          },
+        },
+      };
+  }
+}
+
+function runtimeSubagentDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: RuntimeSubagentDisplay,
+): ToolCallModel {
+  return {
+    tool: {
+      case: "taskToolCall",
+      value: {
+        action: "Task",
+        details: runtimeSubagentDisplayDetails(tool, display),
+      },
+    },
+  };
+}
+
+function runtimeSubagentDisplayDetails(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: RuntimeSubagentDisplay,
+): string {
+  if (display.runs.length === 1) {
+    const run = display.runs[0]!;
+    const prompt = run.prompt.trim();
+    if (prompt) {
+      return prompt;
+    }
+    return runtimeSubagentTitle(run.nickname, run.role);
+  }
+  return runtimeSubagentDisplaySummary(tool, display);
+}
+
+function runtimeSubagentDisplaySummary(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: RuntimeSubagentDisplay,
+): string {
+  if (display.runs.length === 0) {
+    return tool.summary?.trim() || "No subagents ran";
+  }
+  const running = display.runs.filter((run) => run.state === "running").length;
+  const completed = display.runs.filter((run) => run.state === "completed").length;
+  const failed = display.runs.filter((run) => run.state === "failed").length;
+  const aborted = display.runs.filter((run) => run.state === "aborted").length;
+  const parts = [`${completed}/${display.runs.length} completed`];
+  if (running > 0) {
+    parts.push(`${running} running`);
+  }
+  if (failed > 0) {
+    parts.push(`${failed} failed`);
+  }
+  if (aborted > 0) {
+    parts.push(`${aborted} aborted`);
+  }
+  return parts.join(", ");
+}
+
+export function runtimeToolItemToSubagents(
+  tool: RuntimeDisplayTimelineToolItem,
+): WorkLogSubagent[] {
+  return runtimeToolDisplayToSubagents(tool.display);
+}
+
+function runtimeToolDisplayToSubagents(
+  display: RuntimeDisplayTimelineToolItem["display"],
+): WorkLogSubagent[] {
+  if (display?.kind !== "subagent") {
+    return [];
+  }
+  const activitiesBySubagentThreadId = new Map<string, WorkLogSubagentLog[]>();
+  const transcriptBySubagentThreadId = new Map<string, SubagentTranscriptItem[]>();
+  const promptBySubagentThreadId = new Map(
+    display.runs.map((run) => [run.subagentThreadId, run.prompt.trim()] as const),
+  );
+  for (const activity of recentRuntimeSubagentActivities(display)) {
+    const log = runtimeSubagentActivityToLog(activity);
+    const existing = activitiesBySubagentThreadId.get(activity.payload.subagentThreadId) ?? [];
+    existing.push(log);
+    activitiesBySubagentThreadId.set(activity.payload.subagentThreadId, existing);
+
+    const transcriptItem = runtimeSubagentActivityToTranscriptItem(
+      activity,
+      promptBySubagentThreadId.get(activity.payload.subagentThreadId) ?? "",
+    );
+    if (transcriptItem) {
+      const existingTranscript =
+        transcriptBySubagentThreadId.get(activity.payload.subagentThreadId) ?? [];
+      existingTranscript.push(transcriptItem);
+      transcriptBySubagentThreadId.set(activity.payload.subagentThreadId, existingTranscript);
+    }
+  }
+
+  return display.runs.map((run): WorkLogSubagent => {
+    const logs = activitiesBySubagentThreadId.get(run.subagentThreadId) ?? [];
+    const transcriptItems = transcriptBySubagentThreadId.get(run.subagentThreadId) ?? [];
+    const title = runtimeSubagentTitle(run.nickname, run.role);
+    return {
+      threadId: run.subagentThreadId,
+      subagentThreadId: run.subagentThreadId,
+      agentId: run.agentId,
+      nickname: run.nickname,
+      role: run.role,
+      ...(run.model ? { model: run.model } : {}),
+      prompt: run.prompt,
+      rawStatus: run.state,
+      latestUpdate: runtimeSubagentLatestUpdate(run, logs),
+      title,
+      statusLabel: runtimeSubagentStatusLabel(run.state),
+      isActive: run.state === "running",
+      logs,
+      ...(transcriptItems.length > 0 ? { transcriptItems } : {}),
+      hasDetails: logs.length > 0 || transcriptItems.length > 0,
+    };
+  });
+}
+
+function recentRuntimeSubagentActivities(
+  display: RuntimeSubagentDisplay,
+): RuntimeSubagentActivity[] {
+  const runThreadIds = new Set(display.runs.map((run) => run.subagentThreadId));
+  if (runThreadIds.size === 0 || display.activities.length === 0) {
+    return [];
+  }
+
+  const retainedActivities: RuntimeSubagentActivity[] = [];
+  const retainedCountByThreadId = new Map<string, number>();
+  const cappedThreadIds = new Set<string>();
+  for (let index = display.activities.length - 1; index >= 0; index -= 1) {
+    const activity = display.activities[index];
+    if (!activity || !runThreadIds.has(activity.payload.subagentThreadId)) {
+      continue;
+    }
+    const retainedCount = retainedCountByThreadId.get(activity.payload.subagentThreadId) ?? 0;
+    if (retainedCount >= MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES) {
+      continue;
+    }
+    retainedActivities.push(activity);
+    const nextRetainedCount = retainedCount + 1;
+    retainedCountByThreadId.set(activity.payload.subagentThreadId, nextRetainedCount);
+    if (nextRetainedCount >= MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES) {
+      cappedThreadIds.add(activity.payload.subagentThreadId);
+    }
+    if (cappedThreadIds.size === runThreadIds.size) {
+      break;
+    }
+  }
+  return retainedActivities.toReversed();
+}
+
+function runtimeSubagentActivityToLog(
+  activity: RuntimeSubagentActivity,
+): WorkLogSubagentLog {
+  const payload = activity.payload;
+  return {
+    id: activity.id,
+    createdAt: activity.createdAt,
+    kind: activity.kind,
+    label: payload.title ?? activity.summary,
+    ...(payload.itemId ? { itemId: payload.itemId } : {}),
+    ...(payload.detail
+      ? { detail: payload.detail }
+      : payload.status
+        ? { detail: payload.status }
+        : payload.state
+          ? { detail: payload.state }
+          : {}),
+    ...(payload.itemType ? { itemType: payload.itemType } : {}),
+    ...(payload.status ? { status: payload.status } : {}),
+  };
+}
+
+function runtimeSubagentActivityToTranscriptItem(
+  activity: RuntimeSubagentActivity,
+  runPrompt: string,
+): SubagentTranscriptItem | null {
+  const payload = activity.payload;
+  if (!payload.itemId || !payload.itemType) {
+    return null;
+  }
+  const kind = runtimeSubagentTranscriptKind(payload.itemType);
+  const text = payload.detail?.trim();
+  if (
+    payload.itemType === "user_message" &&
+    text &&
+    runPrompt &&
+    normalizedRuntimePromptText(text) === normalizedRuntimePromptText(runPrompt)
+  ) {
+    return null;
+  }
+  const data = runtimeRecord(payload.data);
+  const command = runtimeSubagentActivityCommand(data);
+  const output = kind === "command" ? text : undefined;
+  const role = runtimeSubagentTranscriptRole(payload.itemType);
+  return {
+    id: activity.id,
+    itemId: payload.itemId,
+    kind,
+    ...(role ? { role } : {}),
+    ...(payload.title ? { title: payload.title } : {}),
+    ...(text && kind !== "command" ? { text } : {}),
+    ...(command ? { command } : {}),
+    ...(output ? { output } : {}),
+    itemType: payload.itemType,
+    ...(payload.status ? { status: payload.status } : {}),
+    loading: payload.status === "running" || activity.kind !== "subagent.item.completed",
+    createdAt: activity.createdAt,
+    sequence: activity.sequence,
+  };
+}
+
+function runtimeSubagentTranscriptKind(
+  itemType: string,
+): SubagentTranscriptItem["kind"] {
+  switch (itemType) {
+    case "assistant_message":
+    case "user_message":
+      return "message";
+    case "command_execution":
+      return "command";
+    case "reasoning":
+      return "reasoning";
+    case "plan":
+      return "plan";
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+      return "status";
+    default:
+      return "tool";
+  }
+}
+
+function runtimeSubagentTranscriptRole(
+  itemType: string,
+): SubagentTranscriptItem["role"] {
+  switch (itemType) {
+    case "assistant_message":
+      return "assistant";
+    case "user_message":
+      return "user";
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+      return "system";
+    default:
+      return undefined;
+  }
+}
+
+function runtimeSubagentActivityCommand(data: Record<string, unknown> | null): string | undefined {
+  const args = runtimeRecord(data?.args);
+  return runtimeString(args?.command) ?? runtimeString(data?.command);
+}
+
+function runtimeRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function runtimeString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function normalizedRuntimePromptText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function runtimeSubagentLatestUpdate(
+  run: RuntimeSubagentRun,
+  logs: ReadonlyArray<WorkLogSubagentLog>,
+): string | undefined {
+  if (run.state === "completed" && run.finalText) {
+    return run.finalText;
+  }
+  if ((run.state === "failed" || run.state === "aborted") && run.errorMessage) {
+    return run.errorMessage;
+  }
+  const latestDetail = logs.at(-1)?.detail ?? logs.at(-1)?.label;
+  if (latestDetail) {
+    return latestDetail;
+  }
+  return run.finalText ?? run.errorMessage ?? undefined;
+}
+
+function runtimeSubagentTitle(nickname: string | undefined, role: string | undefined): string {
+  return nickname?.trim() || role?.trim() || "Subagent";
+}
+
+function runtimeSubagentStatusLabel(
+  state: RuntimeSubagentRun["state"],
+): string {
+  switch (state) {
+    case "running":
+      return "Running";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "aborted":
+      return "Aborted";
+  }
+}
+
+function runtimeShellDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "shell" }>,
+): ToolCallModel {
+  const command = runtimeTrimmedString(display.command);
+  const output = runtimeTrimmedString(display.output);
+  if (!command) {
+    return {
+      tool: {
+        case: "unknownToolCall",
+        value: {
+          action: runtimeToolAction(tool),
+          details: tool.toolName,
+          output: output ?? null,
+          ...(output
+            ? { artifacts: [{ type: "raw", text: output } satisfies ToolDisplayArtifact] }
+            : {}),
+        },
+      },
+    };
+  }
+  const artifact: ToolDisplayArtifact = {
+    type: "command",
+    command,
+    ...(output ? { output } : {}),
+    ...(display.exitCode !== undefined ? { exitCode: display.exitCode } : {}),
+    isPartial: tool.isPartial === true,
+  };
+  return {
+    tool: {
+      case: "shellToolCall",
+      value: {
+        action: runtimeToolAction(tool),
+        details: command,
+        command,
+        output: output ?? null,
+        artifacts: [artifact],
+      },
+    },
+  };
+}
+
+function runtimeReadDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "read" }>,
+): ToolCallModel {
+  const path = runtimeTrimmedString(display.path);
+  const output = runtimeTrimmedString(display.output);
+  const artifact: ToolDisplayArtifact = {
+    type: "read",
+    ...(path ? { path } : {}),
+    ...(output ? { output } : {}),
+    isPartial: tool.isPartial === true,
+  };
+  return {
+    tool: {
+      case: "readToolCall",
+      value: {
+        action: runtimeToolAction(tool),
+        details: runtimeReadDisplayDetails(display, path ?? tool.toolName),
+        path: path ?? null,
+        output: output ?? null,
+        artifacts: [artifact],
+      },
+    },
+  };
+}
+
+function runtimeGrepDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "grep" }>,
+): ToolCallModel {
+  const query = runtimeTrimmedString(display.query);
+  const path = runtimeTrimmedString(display.path);
+  const output = runtimeTrimmedString(display.output);
+  const artifact: ToolDisplayArtifact = {
+    type: "search",
+    ...(query ? { query } : {}),
+    ...(output ? { output } : {}),
+    ...(display.matchedFiles ? { matchedFiles: display.matchedFiles } : {}),
+    isPartial: tool.isPartial === true,
+  };
+  return {
+    tool: {
+      case: "grepToolCall",
+      value: {
+        action: runtimeToolAction(tool),
+        details: query ?? path ?? tool.toolName,
+        path: path ?? null,
+        output: output ?? null,
+        artifacts: [artifact],
+      },
+    },
+  };
+}
+
+function runtimeEditDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "edit" }>,
+): ToolCallModel {
+  const path = runtimeTrimmedString(display.path);
+  const output = runtimeTrimmedString(display.output);
+  const stats =
+    display.additions !== undefined || display.deletions !== undefined
+      ? {
+          additions: display.additions,
+          deletions: display.deletions,
+        }
+      : null;
+
+  return {
+    tool: {
+      case: "editToolCall",
+      value: {
+        action: runtimeToolAction(tool),
+        details: path ?? tool.toolName,
+        path: path ?? null,
+        output: output ?? null,
+        ...(stats ? { stats } : {}),
+      },
+    },
+  };
+}
+
+function runtimeReadDisplayDetails(
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "read" }>,
+  label: string,
+): string {
+  if (display.startLine === undefined && display.endLine === undefined) {
+    return label;
+  }
+  const startLine = display.startLine ?? 1;
+  return display.endLine === undefined
+    ? `${label}:${startLine}`
+    : `${label}:${startLine}-${display.endLine}`;
+}
+
+function runtimeToolAction(tool: RuntimeDisplayTimelineToolItem): string {
+  const summary = tool.summary?.trim();
+  if (summary) {
+    return summary;
+  }
+  return tool.toolName;
+}
+
+function resolveRuntimeToolStatus(tool: RuntimeDisplayTimelineToolItem): ToolCallStatus {
+  if (tool.status === "error" || tool.isError === true) {
+    return "error";
+  }
+  if (tool.status === "running") {
+    return "loading";
+  }
+  return "completed";
+}
+
+function runtimeTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function ToolSummaryRow({ text }: { text: string }) {
   const trimmed = text.trim();
   if (trimmed.length === 0) {
@@ -165,12 +786,14 @@ function ToolSummaryRow({ text }: { text: string }) {
 
 function SubagentStatusSurface({
   activeThreadId,
+  embeddedInTask = false,
   environmentId,
   projectRoot,
   subagentDetailsEnabled,
   subagents,
 }: {
   activeThreadId: ThreadId;
+  embeddedInTask?: boolean | undefined;
   environmentId: EnvironmentId;
   projectRoot: string | undefined;
   subagentDetailsEnabled: boolean;
@@ -184,8 +807,12 @@ function SubagentStatusSurface({
   return (
     <div
       data-subagent-status-container=""
+      data-subagent-status-embedded={embeddedInTask ? "" : undefined}
       data-subagent-open={hasOpenTray ? "" : undefined}
-      className="w-full min-w-0 max-w-full px-3 py-1 text-conversation"
+      className={cn(
+        "w-full min-w-0 max-w-full text-conversation",
+        embeddedInTask ? "py-0" : "px-3 py-1",
+      )}
     >
       <div data-subagent-status-stack="" className="flex w-full min-w-0 flex-col items-start gap-1">
         {subagents.map((subagent) => (
@@ -257,11 +884,12 @@ function SubagentStatusRow({
   return (
     <>
       {trayUpdateSync}
-      <button
+      <Button
         type="button"
+        variant="ghost"
         className={cn(
           "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
-          "border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary",
+          "h-auto border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
           hasDetails &&
             "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
           isTrayOpen && hasDetails && "text-multi-fg-primary",
@@ -318,7 +946,7 @@ function SubagentStatusRow({
             <IconChevronRightMedium className="size-3" />
           </span>
         ) : null}
-      </button>
+      </Button>
     </>
   );
 }
@@ -586,7 +1214,9 @@ function resolveToolDetails(
   projectRoot: string | undefined,
 ): string | null {
   const toolCase = resolveToolCase(workEntry);
-  if (toolCase === "shellToolCall" && workEntry.command) return workEntry.command;
+  if (toolCase === "shellToolCall") {
+    return workEntry.command ?? workEntry.rawCommand ?? null;
+  }
   if (toolCase === "editToolCall" && (workEntry.changedFiles?.length ?? 0) > 0) {
     return resolveSummary(workEntry, projectRoot);
   }

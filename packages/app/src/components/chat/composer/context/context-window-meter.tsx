@@ -3,6 +3,7 @@ import {
   formatContextUsagePercentage,
   formatContextWindowTokens,
 } from "~/lib/context-window";
+import { Button } from "@multi/multikit/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
 import { ContextWindowRing } from "./context-window-ring";
 import { ContextWindowUsageDetails } from "./context-window-usage-details";
@@ -18,9 +19,10 @@ export function ContextWindowMeter(props: { usage: ContextWindowSnapshot }) {
         delay={150}
         closeDelay={0}
         render={
-          <button
-            type="button"
-            className="group inline-flex select-none items-center justify-center rounded-full transition-opacity hover:opacity-85"
+          <Button
+            className="group rounded-full p-0 transition-opacity hover:opacity-85"
+            size="icon-sm"
+            variant="ghost"
             aria-label={
               usage.maxTokens !== null && usedPercentage
                 ? `Context window ${usedPercentage} used`
@@ -28,7 +30,7 @@ export function ContextWindowMeter(props: { usage: ContextWindowSnapshot }) {
             }
           >
             <ContextWindowRing usage={usage} size="md" />
-          </button>
+          </Button>
         }
       />
       <PopoverPopup tooltipStyle side="top" align="end" className="w-max max-w-none px-3 py-2">

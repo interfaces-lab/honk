@@ -300,13 +300,14 @@ const UserInputResolvedActivityPayload = Schema.Struct({
   answers: ActivityUnknownRecord,
 });
 
-const ExtensionUiActivityRequestKind = Schema.Literals([
+export const ExtensionUiActivityRequestKind = Schema.Literals([
   "select",
   "confirm",
   "input",
   "editor",
   "custom",
 ]);
+export type ExtensionUiActivityRequestKind = typeof ExtensionUiActivityRequestKind.Type;
 
 const ExtensionUiRequestedActivityPayload = Schema.Struct({
   requestId: TrimmedNonEmptyString,
@@ -613,14 +614,26 @@ export const OrchestrationChatTimelineMessageRow = Schema.Struct({
 });
 export type OrchestrationChatTimelineMessageRow = typeof OrchestrationChatTimelineMessageRow.Type;
 
+export const OrchestrationChatTimelineWorkKind = Schema.Literals([
+  "tool",
+  "task",
+  "extension-ui",
+  "activity",
+]);
+export type OrchestrationChatTimelineWorkKind =
+  typeof OrchestrationChatTimelineWorkKind.Type;
+
 export const OrchestrationChatTimelineWorkRow = Schema.Struct({
   ...OrchestrationChatTimelineRowBaseFields,
   kind: Schema.Literal("work"),
   workId: TrimmedNonEmptyString,
   activityIds: Schema.Array(EventId),
   turnId: Schema.NullOr(TurnId),
+  workKind: Schema.optional(OrchestrationChatTimelineWorkKind),
   toolCallId: Schema.optional(TrimmedNonEmptyString),
   taskId: Schema.optional(RuntimeTaskId),
+  extensionUiRequestId: Schema.optional(TrimmedNonEmptyString),
+  extensionUiRequestKind: Schema.optional(ExtensionUiActivityRequestKind),
 });
 export type OrchestrationChatTimelineWorkRow = typeof OrchestrationChatTimelineWorkRow.Type;
 
@@ -930,6 +943,15 @@ const ThreadTurnInterruptCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadTurnStartFailedCommand = Schema.Struct({
+  type: Schema.Literal("thread.turn.start.failed"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  messageId: MessageId,
+  detail: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+
 const ThreadApprovalRespondCommand = Schema.Struct({
   type: Schema.Literal("thread.approval.respond"),
   commandId: CommandId,
@@ -985,6 +1007,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadInteractionModeSetCommand,
   ThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
+  ThreadTurnStartFailedCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
   ThreadSessionStopCommand,
@@ -1007,6 +1030,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadInteractionModeSetCommand,
   ClientThreadTurnStartCommand,
   ThreadTurnInterruptCommand,
+  ThreadTurnStartFailedCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
   ThreadSessionStopCommand,
@@ -1419,7 +1443,7 @@ export type OrchestrationReplayEventsResult = typeof OrchestrationReplayEventsRe
 
 export const OrchestrationRpcSchemas = {
   dispatchCommand: {
-    input: ClientOrchestrationCommand,
+    input: OrchestrationCommand,
     output: DispatchResult,
   },
   replayEvents: {

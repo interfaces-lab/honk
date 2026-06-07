@@ -31,8 +31,8 @@ import {
   ThreadId,
   MessageId,
   RuntimeItemId,
-  resolveLeafIdAfterThreadMessage,
   RuntimeTaskId,
+  resolveLeafIdAfterThreadMessage,
   TurnId,
 } from "@multi/contracts";
 import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
@@ -648,10 +648,6 @@ function buildMessageSlice(thread: Thread): {
   };
 }
 
-function assistantMessageIdForAgentRuntimeEvent(event: AgentRuntimeEvent): MessageId {
-  return MessageId.make(`assistant:${event.turnId ?? event.id}`);
-}
-
 function thinkingTaskIdForTurn(turnId: TurnId): RuntimeTaskId {
   return RuntimeTaskId.make(`pi-thinking:${turnId}`);
 }
@@ -1043,7 +1039,7 @@ function normalizeRuntimeSubagentThreadState(
   }
 }
 
-function runtimeSubagentActivitiesForToolEvent(
+export function runtimeSubagentActivitiesForToolEvent(
   event: AgentRuntimeEvent,
 ): OrchestrationThreadActivity[] {
   const data = asRecord(event.data);
@@ -1194,153 +1190,6 @@ function clearLiveAssistantTurnsForThread(
     liveAssistantTurnIdsByThreadId,
     liveAssistantTurnByThreadId,
   };
-}
-
-function upsertLiveAgentAssistantTurn(
-  state: EnvironmentState,
-  event: AgentRuntimeEvent,
-): EnvironmentState {
-  if (
-    event.messageRole !== "assistant" ||
-    event.turnId === undefined ||
-    event.text === undefined ||
-    event.text.length === 0
-  ) {
-    return state;
-  }
-  const threadId = event.threadId;
-  if (!state.threadShellById[threadId]) {
-    return state;
-  }
-  const turnId = TurnId.make(event.turnId);
-  const currentByTurnId = state.liveAssistantTurnByThreadId[threadId] ?? {};
-  const previousTurn = currentByTurnId[turnId];
-  const nextTurn: LiveAssistantTurn = {
-    turnId,
-    messageId: previousTurn?.messageId ?? assistantMessageIdForAgentRuntimeEvent(event),
-    text: event.text,
-    createdAt: previousTurn?.createdAt ?? event.createdAt,
-    updatedAt: event.createdAt,
-  };
-  return {
-    ...state,
-    liveAssistantTurnIdsByThreadId: {
-      ...state.liveAssistantTurnIdsByThreadId,
-      [threadId]: appendId(state.liveAssistantTurnIdsByThreadId[threadId] ?? [], turnId),
-    },
-    liveAssistantTurnByThreadId: {
-      ...state.liveAssistantTurnByThreadId,
-      [threadId]: {
-        ...currentByTurnId,
-        [turnId]: nextTurn,
-      },
-    },
-  };
-}
-
-function upsertAgentThinkingActivities(
-  state: EnvironmentState,
-  event: AgentRuntimeEvent,
-): EnvironmentState {
-  const thinking = event.thinking?.trim();
-  if (!thinking || event.turnId === undefined) {
-    return state;
-  }
-  const turnId = TurnId.make(event.turnId);
-  const taskId = thinkingTaskIdForTurn(turnId);
-  return updateThreadState(state, event.threadId, (thread) => {
-    const startedId = thinkingActivityId(turnId, "started");
-    const existingStarted = thread.activities.find((activity) => activity.id === startedId);
-    const startedActivity: OrchestrationThreadActivity =
-      existingStarted ??
-      {
-        id: startedId,
-        kind: "task.started",
-        tone: "info",
-        summary: "Thinking",
-        turnId,
-        sequence: 0,
-        createdAt: event.createdAt,
-        payload: {
-          taskId,
-          taskType: "thinking",
-          detail: "Thinking",
-        },
-      };
-    const nextActivity: OrchestrationThreadActivity =
-      event.type === "message.completed"
-        ? {
-            id: thinkingActivityId(turnId, "completed"),
-            kind: "task.completed",
-            tone: "info",
-            summary: "Task completed",
-            turnId,
-            sequence: 2,
-            createdAt: event.createdAt,
-            payload: {
-              taskId,
-              taskType: "thinking",
-              status: "completed",
-              detail: thinking,
-            },
-          }
-        : {
-            id: thinkingActivityId(turnId, "progress"),
-            kind: "task.progress",
-            tone: "info",
-            summary: "Thinking",
-            turnId,
-            sequence: 1,
-            createdAt: event.createdAt,
-            payload: {
-              taskId,
-              detail: thinking,
-              summary: "Thinking",
-            },
-          };
-    return {
-      ...thread,
-      activities: replaceActivities(thread.activities, [startedActivity, nextActivity]),
-      updatedAt: event.createdAt,
-    };
-  });
-}
-
-function upsertAgentToolActivity(
-  state: EnvironmentState,
-  event: AgentRuntimeEvent,
-): EnvironmentState {
-  const data = asRecord(event.data);
-  const toolCallId = asTrimmedString(data?.toolCallId);
-  const toolName = asTrimmedString(data?.toolName);
-  if (!toolCallId || !toolName || event.turnId === undefined) {
-    return state;
-  }
-  const args = data?.args;
-  const result = event.type === "tool.completed" ? data?.result : data?.partialResult;
-  const phase =
-    event.type === "tool.started"
-      ? "started"
-      : event.type === "tool.completed"
-        ? "completed"
-        : "updated";
-  const activity = buildToolLifecycleActivity({
-    toolCallId,
-    toolName,
-    phase,
-    turnId: TurnId.make(event.turnId),
-    createdAt: event.createdAt,
-    ...(args !== undefined ? { args } : {}),
-    ...(result !== undefined ? { result } : {}),
-    isError: data?.isError === true,
-    ...(event.summary !== undefined ? { summary: event.summary } : {}),
-    runtimeEvent: data,
-  });
-  return updateThreadState(state, event.threadId, (thread) => ({
-    ...thread,
-    activities: replaceActivities(thread.activities, [activity]),
-    updatedAt: event.createdAt,
-  }));
 }
 
 function upsertAgentSubagentActivities(
@@ -2670,12 +2519,12 @@ function applyAgentRuntimeEventToEnvironment(
     case "message.started":
     case "message.updated":
     case "message.completed":
-      return upsertAgentThinkingActivities(upsertLiveAgentAssistantTurn(state, event), event);
+      return state;
 
     case "tool.started":
     case "tool.updated":
     case "tool.completed":
-      return upsertAgentSubagentActivities(upsertAgentToolActivity(state, event), event);
+      return upsertAgentSubagentActivities(state, event);
 
     case "session.started":
     case "session.ready":

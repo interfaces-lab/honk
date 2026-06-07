@@ -3,7 +3,7 @@
 import type { ComponentProps } from "react";
 
 import { Button } from "./button";
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
 
 type SidebarButtonProps = Omit<ComponentProps<typeof Button>, "type" | "variant">;
 
@@ -11,6 +11,46 @@ type SidebarItemProps = Omit<ComponentProps<typeof Button>, "variant"> & {
   interactive?: boolean;
   selected?: boolean;
 };
+
+function SidebarTray({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("ui-tray font-multi text-detail text-multi-fg-primary", className)}
+      data-slot="sidebar-tray"
+      {...props}
+    />
+  );
+}
+
+function SidebarTrayHeader({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "ui-tray-header flex min-h-9 min-w-0 items-center justify-between gap-2 px-2.5 py-1.5",
+        className,
+      )}
+      data-slot="sidebar-tray-header"
+      {...props}
+    />
+  );
+}
+
+function SidebarTrayHeaderButton({ className, ...props }: Omit<ComponentProps<typeof Button>, "variant">) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        "flex min-w-0 flex-1 items-center gap-2 rounded-multi-control px-1.5 py-1 text-left text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none",
+        "bg-transparent shadow-none before:hidden",
+        controlTransitionClassName,
+        className,
+      )}
+      data-slot="sidebar-tray-header-button"
+      {...props}
+    />
+  );
+}
 
 function SidebarItem({
   className,
@@ -23,12 +63,14 @@ function SidebarItem({
     <Button
       variant="ghost"
       data-selected={selected}
+      data-slot="sidebar-item"
       draggable={draggable}
       className={cn(
-        "font-multi flex min-h-6 w-full min-w-0 select-none items-center justify-start gap-1.5 rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) [-webkit-user-drag:none]",
+        "font-multi flex min-h-(--multi-sidebar-item-height) w-full min-w-0 select-none items-center justify-start gap-(--multi-sidebar-item-gap) rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) [-webkit-user-drag:none]",
         interactive &&
           cn(
-            "cursor-(--multi-button-cursor) outline-none ring-offset-0 transition-[background-color,color] hover:bg-multi-bg-quaternary data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
+            "outline-none ring-offset-0 transition-[background-color,color] hover:bg-multi-bg-quaternary data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
+            interactiveControlCursorClassName,
             controlTransitionClassName,
           ),
         "data-[selected=true]:bg-multi-bg-quaternary data-[selected=true]:hover:bg-multi-bg-quaternary",
@@ -56,13 +98,18 @@ function SidebarButton(
     <Button
       type="button"
       variant="ghost"
+      data-slot={`sidebar-button-${variant}`}
       className={cn(
         variant === "chrome"
           ? cn(
-              "font-multi flex min-h-6.5 w-full cursor-(--multi-button-cursor) select-none items-center justify-start gap-1.5 rounded-multi-control border border-transparent px-2 py-1 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-muted-foreground transition-colors [-webkit-user-drag:none]",
+              "font-multi flex min-h-(--multi-sidebar-item-height) w-full select-none items-center justify-start gap-(--multi-sidebar-item-gap) rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-muted-foreground transition-colors [-webkit-user-drag:none]",
+              interactiveControlCursorClassName,
               controlTransitionClassName,
             )
-          : "min-h-0 min-w-0 flex-1 cursor-(--multi-button-cursor) select-none justify-start border-0 bg-transparent p-0 text-left font-normal shadow-none outline-none ring-offset-0 before:hidden transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent [-webkit-user-drag:none]",
+          : cn(
+              "min-h-0 min-w-0 flex-1 select-none justify-start border-0 bg-transparent p-0 text-left font-normal shadow-none outline-none ring-offset-0 before:hidden transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent [-webkit-user-drag:none]",
+              interactiveControlCursorClassName,
+            ),
         className,
       )}
       {...rest}
@@ -70,4 +117,61 @@ function SidebarButton(
   );
 }
 
-export { SidebarButton, SidebarItem };
+function SidebarTrayRow({ className, ...props }: SidebarItemProps) {
+  return (
+    <SidebarItem
+      className={cn(
+        "ui-tray-row group/sidebar-item h-auto data-[selected=true]:focus-within:bg-multi-bg-tertiary",
+        className,
+      )}
+      data-slot="sidebar-tray-row"
+      {...props}
+    />
+  );
+}
+
+function SidebarTrayRowContent({ className, ...props }: SidebarButtonProps) {
+  return (
+    <SidebarButton
+      className={cn("ui-tray-row__content overflow-hidden disabled:opacity-100", className)}
+      data-slot="sidebar-tray-row-content"
+      variant="inset"
+      {...props}
+    />
+  );
+}
+
+function SidebarTrayRowLabel({ className, ...props }: ComponentProps<"span">) {
+  return (
+    <span
+      className={cn("ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary", className)}
+      data-slot="sidebar-tray-row-label"
+      {...props}
+    />
+  );
+}
+
+function SidebarTrayRowStatus({ className, ...props }: ComponentProps<"span">) {
+  return (
+    <span
+      className={cn(
+        "ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary",
+        className,
+      )}
+      data-slot="sidebar-tray-row-status"
+      {...props}
+    />
+  );
+}
+
+export {
+  SidebarButton,
+  SidebarItem,
+  SidebarTray,
+  SidebarTrayHeader,
+  SidebarTrayHeaderButton,
+  SidebarTrayRow,
+  SidebarTrayRowContent,
+  SidebarTrayRowLabel,
+  SidebarTrayRowStatus,
+};

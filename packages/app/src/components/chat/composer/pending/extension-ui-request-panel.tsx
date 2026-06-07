@@ -55,14 +55,16 @@ export function ComposerPendingExtensionUiRequestPanel({
     return (
       <div className="px-4 py-3.5 sm:px-5 sm:py-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm tracking-[0.2em] uppercase">Pending request</span>
-          <span className="text-sm font-medium">{request.title}</span>
+          <span className="text-caption font-medium uppercase text-muted-foreground">
+            Pending request
+          </span>
+          <span className="text-detail font-medium">{request.title}</span>
           {pendingCount > 1 ? (
-            <span className="text-xs text-muted-foreground">1/{pendingCount}</span>
+            <span className="text-caption text-muted-foreground">1/{pendingCount}</span>
           ) : null}
         </div>
         {request.message ? (
-          <p className="mt-2 text-sm text-muted-foreground">{request.message}</p>
+          <p className="mt-2 text-detail text-muted-foreground">{request.message}</p>
         ) : null}
         {request.kind === "select" ? (
           <div className="mt-3 flex flex-wrap gap-1.5">

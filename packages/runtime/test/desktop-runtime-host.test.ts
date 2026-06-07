@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -324,6 +324,23 @@ describe("DesktopRuntimeHost", () => {
     host.dispose();
   });
 
+  it("keeps same-cwd Multi threads in distinct Pi session directories", async () => {
+    const tempDir = createTempDir();
+    const agentDir = join(tempDir, "pi-agent");
+    const firstThreadId = ThreadId.make("thread:same-cwd:first");
+    const secondThreadId = ThreadId.make("thread:same-cwd:second");
+    const host = new DesktopRuntimeHost({ agentDir });
+
+    await host.hydrateThread({ threadId: firstThreadId, cwd: tempDir, policy: testPolicy });
+    await host.hydrateThread({ threadId: secondThreadId, cwd: tempDir, policy: testPolicy });
+
+    const sessionDirs = readdirSync(join(agentDir, "multi-thread-sessions"));
+    expect(sessionDirs).toHaveLength(2);
+    expect(new Set(sessionDirs).size).toBe(2);
+
+    host.dispose();
+  });
+
   it("cleans up a partially started session when extension binding fails", async () => {
     const tempDir = createTempDir();
     const threadId = ThreadId.make("thread:broken-session");
@@ -398,6 +415,33 @@ describe("DesktopRuntimeHost", () => {
     expect(snapshot.runtimeEvents.filter((event) => event.threadId === threadId)).toEqual([
       expect.objectContaining({ type: "thinking.changed", summary: "Thinking low" }),
     ]);
+
+    host.dispose();
+  });
+
+  it("caps raw runtime events in host snapshots", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:capped-runtime-events");
+    let emitThinkingChange!: (index: number) => void;
+    const host = new DesktopRuntimeHost({
+      agentDir: join(tempDir, "pi-agent"),
+      bindExtensions: async (runtime) => {
+        emitThinkingChange = (index) => {
+          runtime.setThinkingLevel(index % 2 === 0 ? "low" : "medium");
+        };
+      },
+    });
+
+    await host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
+    for (let index = 1; index <= 505; index += 1) {
+      emitThinkingChange(index);
+    }
+
+    const snapshot = await host.getHostSnapshot();
+    const runtimeEvents = snapshot.runtimeEvents.filter((event) => event.threadId === threadId);
+    expect(runtimeEvents).toHaveLength(500);
+    expect(runtimeEvents[0]?.summary).toBe("Thinking low");
+    expect(runtimeEvents.at(-1)?.summary).toBe("Thinking medium");
 
     host.dispose();
   });

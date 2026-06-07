@@ -1,4 +1,5 @@
 import {
+  type AgentInteractionMode,
   type EnvironmentId,
   type MessageId,
   type ProjectScript,
@@ -35,6 +36,9 @@ import {
   acknowledgedPendingTimelineRows,
   pendingTimelineRowMessages,
 } from "./pending-timeline-rows";
+import { hydrateRuntimeThread } from "../../../lib/runtime-turn-dispatch";
+
+const RUNTIME_HYDRATION_IDLE_TIMEOUT_MS = 1200;
 
 /**
  * Lifecycle effect components used by `ChatView`. Each component runs a single
@@ -90,6 +94,65 @@ export function RetainServerThreadDetailSync({
   });
 
   return null;
+}
+
+export function RuntimeThreadHydrationSync({
+  cwd,
+  interactionMode,
+  routeKind,
+  threadId,
+}: {
+  cwd: string | null | undefined;
+  interactionMode: AgentInteractionMode;
+  routeKind: "server" | "draft";
+  threadId: ThreadId;
+}) {
+  useMountEffect(() => {
+    if (routeKind !== "server" || !cwd) {
+      return;
+    }
+    return scheduleRuntimeHydrationAfterFirstPaint(() => {
+      void hydrateRuntimeThread({
+        threadId,
+        cwd,
+        interactionMode,
+      }).catch(() => undefined);
+    });
+  });
+
+  return null;
+}
+
+function scheduleRuntimeHydrationAfterFirstPaint(hydrate: () => void): () => void {
+  let secondFrameId: number | null = null;
+  let timeoutId: number | null = null;
+  let idleCallbackId: number | null = null;
+
+  const firstFrameId = window.requestAnimationFrame(() => {
+    secondFrameId = window.requestAnimationFrame(() => {
+      if (typeof window.requestIdleCallback === "function") {
+        idleCallbackId = window.requestIdleCallback(hydrate, {
+          timeout: RUNTIME_HYDRATION_IDLE_TIMEOUT_MS,
+        });
+        return;
+      }
+
+      timeoutId = window.setTimeout(hydrate, 32);
+    });
+  });
+
+  return () => {
+    window.cancelAnimationFrame(firstFrameId);
+    if (secondFrameId !== null) {
+      window.cancelAnimationFrame(secondFrameId);
+    }
+    if (idleCallbackId !== null && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(idleCallbackId);
+    }
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  };
 }
 
 export function MarkSettledServerThreadVisitedSync({
@@ -166,12 +229,14 @@ export function ActiveThreadComposerFocusSync({
 }
 
 export function PendingTimelineRowsServerAckSync({
+  acknowledgedMessageIds,
   handoffAttachmentPreviews,
   pendingTimelineRows,
   removePendingTimelineRows,
   serverMessages,
   threadKey,
 }: {
+  acknowledgedMessageIds?: ReadonlySet<MessageId> | undefined;
   handoffAttachmentPreviews: (messageId: MessageId, previewUrls: string[]) => void;
   pendingTimelineRows: ReadonlyArray<PendingTimelineRow>;
   removePendingTimelineRows: (
@@ -182,12 +247,14 @@ export function PendingTimelineRowsServerAckSync({
   threadKey: string;
 }) {
   useMountEffect(() => {
-    if (!serverMessages || serverMessages.length === 0) {
+    const committedMessages = serverMessages ?? [];
+    if (committedMessages.length === 0 && (acknowledgedMessageIds?.size ?? 0) === 0) {
       return;
     }
     const removedRows = acknowledgedPendingTimelineRows({
       pendingRows: pendingTimelineRows,
-      committedMessages: serverMessages,
+      committedMessages,
+      acknowledgedMessageIds,
     });
     if (removedRows.length === 0) {
       return;

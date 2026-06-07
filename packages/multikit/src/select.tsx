@@ -12,13 +12,14 @@ import {
   workbenchMenuPopupClassName,
   workbenchMenuViewportClassName,
 } from "./menu";
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
 
 const Select = SelectPrimitive.Root;
 
 const selectTriggerVariants = cva(
   cn(
-    "relative inline-flex cursor-pointer select-none items-center justify-between gap-2 border rounded-lg text-left text-base outline-none transition-[color,box-shadow,background-color] data-disabled:pointer-events-none data-disabled:opacity-64 sm:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4",
+    "relative inline-flex select-none items-center justify-between gap-2 border rounded-lg text-left text-base outline-none transition-[color,box-shadow,background-color] data-disabled:pointer-events-none data-disabled:opacity-64 sm:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4",
+    interactiveControlCursorClassName,
     controlTransitionClassName,
   ),
   {
@@ -39,11 +40,11 @@ const selectTriggerVariants = cva(
       size: {
         /** Dense `rounded-multi-control` trigger (composer / toolbar height). */
         control:
-          "h-7 gap-1.5 rounded-multi-control px-2 text-[12px]/[16px] [&_svg:not([class*='size-'])]:size-3.5",
+          "h-7 gap-1.5 rounded-multi-control px-2 text-body [&_svg:not([class*='size-'])]:size-3.5",
         default: "min-h-9 px-3 sm:min-h-8",
         lg: "min-h-10 px-3 sm:min-h-9",
         sm: "min-h-8 gap-1.5 px-2.5 sm:min-h-7",
-        xs: "h-7 min-h-7 gap-1 rounded-multi-control px-2.5 font-multi text-[12px]/[16px] before:rounded-[calc(var(--multi-radius-control)-1px)] [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
+        xs: "h-7 min-h-7 gap-1 rounded-multi-control px-2.5 font-multi text-body before:rounded-[calc(var(--multi-radius-control)-1px)] [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
       },
     },
   },
@@ -75,7 +76,9 @@ function SelectButton({ className, size, variant, render, children, ...props }: 
       </>
     ),
     className: cn(selectTriggerVariants({ size, variant }), "min-w-none", className),
+    "data-size": size ?? "default",
     "data-slot": "select-button",
+    "data-variant": variant ?? "default",
     type: typeValue,
   };
 
@@ -96,7 +99,9 @@ function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(selectTriggerVariants({ size, variant }), className)}
+      data-size={size}
       data-slot="select-trigger"
+      data-variant={variant}
       {...props}
     >
       {children}
@@ -235,7 +240,7 @@ function SelectGroup(props: SelectPrimitive.Group.Props) {
 function SelectGroupLabel(props: SelectPrimitive.GroupLabel.Props) {
   return (
     <SelectPrimitive.GroupLabel
-      className="px-2 py-1.5 font-medium text-muted-foreground text-xs"
+      className="px-2 py-1.5 text-detail font-medium text-muted-foreground"
       data-slot="select-group-label"
       {...props}
     />

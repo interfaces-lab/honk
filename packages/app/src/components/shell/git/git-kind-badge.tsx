@@ -54,7 +54,7 @@ export function GitKindBadge(props: { state: GitFileState }) {
     <span
       aria-label={badge.title}
       className={cn(
-        "inline-flex min-w-3.5 shrink-0 justify-center text-[12px]/4 font-medium tabular-nums",
+        "inline-flex min-w-3.5 shrink-0 justify-center text-detail font-medium tabular-nums",
         badge.className,
       )}
       title={badge.title}

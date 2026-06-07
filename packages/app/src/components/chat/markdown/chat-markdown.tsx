@@ -30,6 +30,7 @@ import {
 import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
+import { Button } from "@multi/multikit/button";
 import { Dialog, DialogPopup } from "@multi/multikit/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { toastManager } from "~/app/toast";
@@ -337,15 +338,17 @@ function MermaidIconButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
-      className="inline-flex size-6 min-h-6 min-w-6 flex-[0_0_24px] cursor-pointer appearance-none items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-(--cursor-text-secondary) leading-none transition-colors duration-150 ease-out hover:bg-(--vscode-list-hoverBackground) hover:text-(--cursor-text-primary) [&_svg]:size-3.5 [&_svg]:shrink-0"
+      size="icon-sm"
+      variant="ghost"
+      className="size-6 min-h-6 min-w-6 flex-[0_0_24px] rounded-[4px] border-0 bg-transparent p-0 text-(--cursor-text-secondary) hover:bg-(--vscode-list-hoverBackground) hover:text-(--cursor-text-primary) [&_svg]:size-3.5 [&_svg]:shrink-0"
       aria-label={label}
       title={label}
       onClick={onClick}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -508,15 +511,17 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
 
   return (
     <div className="chat-markdown-codeblock relative my-[0.625em] mb-[0.85em] text-sm/5">
-      <button
+      <Button
         type="button"
-        className="chat-markdown-copy-button pointer-events-none absolute top-2 right-2 z-[1] inline-flex size-6 items-center justify-center rounded-[3px] border border-(--multi-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 transition-[opacity,color,border-color] duration-150 ease-out hover:border-[color-mix(in_srgb,var(--multi-markdown-request-border)_70%,var(--foreground))] hover:text-foreground"
+        size="icon-sm"
+        variant="outline"
+        className="chat-markdown-copy-button pointer-events-none absolute top-2 right-2 z-[1] size-6 rounded-[3px] border-(--multi-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 hover:border-[color-mix(in_srgb,var(--multi-markdown-request-border)_70%,var(--foreground))] hover:text-foreground [&_svg]:size-3"
         onClick={handleCopy}
         title={copied ? "Copied" : "Copy code"}
         aria-label={copied ? "Copied" : "Copy code"}
       >
         {copied ? <IconCheckmark1 className="size-3" /> : <IconClipboard className="size-3" />}
-      </button>
+      </Button>
       {children}
     </div>
   );
@@ -985,7 +990,7 @@ function ChatMarkdownHeading1({
     <h1
       {...props}
       className={cn(
-        "mt-4 mb-1.5 text-[clamp(18px,calc(var(--conversation-text-font-size)*1.45),22px)]/[1.25] font-semibold text-foreground text-balance",
+        "mt-4 mb-1.5 text-heading font-semibold text-foreground text-balance",
         className,
       )}
     />
@@ -1001,7 +1006,7 @@ function ChatMarkdownHeading2({
     <h2
       {...props}
       className={cn(
-        "mt-4 mb-2 flex items-center gap-3 text-[max(13px,calc(var(--conversation-text-font-size)*1.02))]/[1.35] font-semibold text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] text-balance after:h-px after:min-w-6 after:flex-1 after:bg-(--multi-markdown-rule-color) after:content-['']",
+        "mt-4 mb-2 flex items-center gap-3 text-title font-semibold text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] text-balance after:h-px after:min-w-6 after:flex-1 after:bg-(--multi-markdown-rule-color) after:content-['']",
         className,
       )}
     />
@@ -1017,7 +1022,7 @@ function ChatMarkdownHeading3({
     <h3
       {...props}
       className={cn(
-        "mt-3 mb-1 text-[max(13px,var(--conversation-text-font-size))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_74%,transparent)] text-balance",
+        "mt-3 mb-1 text-body font-[550] text-[color-mix(in_srgb,var(--foreground)_74%,transparent)] text-balance",
         className,
       )}
     />
@@ -1049,7 +1054,7 @@ function ChatMarkdownHeading5({
     <h5
       {...props}
       className={cn(
-        "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] text-balance",
+        "mt-2.5 mb-1 text-detail font-[550] text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] text-balance",
         className,
       )}
     />
@@ -1065,7 +1070,7 @@ function ChatMarkdownHeading6({
     <h6
       {...props}
       className={cn(
-        "mt-2.5 mb-1 text-[max(12px,calc(var(--conversation-text-font-size)*0.92))]/[1.4] font-[550] text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] text-balance",
+        "mt-2.5 mb-1 text-detail font-[550] text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] text-balance",
         className,
       )}
     />

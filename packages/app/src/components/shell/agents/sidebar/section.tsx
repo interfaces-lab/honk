@@ -223,7 +223,7 @@ export function AgentSidebarSection(props: {
         onArchiveAll={archiveSectionThreads}
         onRemoveFromSidebar={removeSectionProject}
       >
-        <div className="group/sidebar-section px-2 outline-none" tabIndex={-1}>
+        <div className="group/sidebar-section outline-none" tabIndex={-1}>
           <SidebarItem
             render={<div />}
             className={cn(
@@ -248,7 +248,7 @@ export function AgentSidebarSection(props: {
               aria-expanded={open}
               aria-controls={open ? panelId : undefined}
               onClick={toggleOpen}
-              className="relative m-0 flex min-h-6 w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-1.5 border-0 bg-transparent p-0 text-inherit shadow-none outline-none focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
+              className="relative m-0 flex min-h-(--multi-sidebar-item-height) w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-(--multi-sidebar-item-gap) border-0 bg-transparent p-0 text-inherit shadow-none outline-none focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
             >
               <span
                 className="relative flex size-4 shrink-0 items-center justify-center text-multi-icon-tertiary"
@@ -301,7 +301,7 @@ export function AgentSidebarSection(props: {
       {open ? (
         <div
           id={panelId}
-          className="flex min-w-0 flex-col gap-px px-2 pb-[11px]"
+          className="flex min-w-0 flex-col gap-px"
           role="region"
           aria-labelledby={labelId}
         >

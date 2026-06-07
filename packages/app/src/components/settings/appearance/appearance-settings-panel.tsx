@@ -236,31 +236,6 @@ export function AppearanceSettingsPanel() {
             />
           }
         />
-        <SettingsRow
-          title="Chat Max Width"
-          description="Maximum width of Agent Window chat content in pixels."
-          resetAction={
-            settings.agentWindowChatMaxWidth !==
-            DEFAULT_UNIFIED_SETTINGS.agentWindowChatMaxWidth ? (
-              <SettingResetButton
-                label="Agent Window chat max width"
-                onClick={() =>
-                  updateSettings({
-                    agentWindowChatMaxWidth: DEFAULT_UNIFIED_SETTINGS.agentWindowChatMaxWidth,
-                  })
-                }
-              />
-            ) : null
-          }
-          control={
-            <NumberStepper
-              label="Agent Window Chat Max Width"
-              min={1}
-              value={settings.agentWindowChatMaxWidth}
-              onChange={(value) => updateSettings({ agentWindowChatMaxWidth: value })}
-            />
-          }
-        />
       </SettingsSection>
     </SettingsPageContainer>
   );

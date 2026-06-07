@@ -34,4 +34,28 @@ describe("pending thread send store", () => {
       row,
     ]);
   });
+
+  it("copies local dispatch to a promoted thread key", () => {
+    const draftThreadKey = "draft:thread";
+    const promotedThreadKey = "environment:local:thread:server";
+    const dispatch = {
+      startedAt: createdAt,
+      preparingWorktree: false,
+      latestTurnTurnId: null,
+      latestTurnRequestedAt: null,
+      latestTurnStartedAt: null,
+      latestTurnCompletedAt: null,
+      sessionOrchestrationStatus: null,
+      sessionUpdatedAt: null,
+    };
+
+    const store = usePendingThreadSendStore.getState();
+    store.setLocalDispatch(draftThreadKey, dispatch);
+    store.copyLocalDispatch(draftThreadKey, promotedThreadKey);
+
+    expect(usePendingThreadSendStore.getState().localDispatchByThreadKey).toEqual({
+      [draftThreadKey]: dispatch,
+      [promotedThreadKey]: dispatch,
+    });
+  });
 });

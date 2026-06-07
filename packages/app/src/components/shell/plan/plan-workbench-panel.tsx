@@ -12,6 +12,7 @@ import {
 } from "@multi/multikit/dialog";
 import { Input } from "@multi/multikit/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@multi/multikit/menu";
+import { ScrollArea } from "@multi/multikit/scroll-area";
 import type { EnvironmentId } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
 import {
@@ -142,8 +143,8 @@ export function PlanWorkbenchPanel({
 
   return (
     <div className="plan-tab-content min-h-0 min-w-0 flex-1 text-title">
-      <div className="plan-tab-header no-drag flex h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) shrink-0 items-center justify-between gap-2 border-b border-(--cursor-stroke-tertiary) px-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="plan-tab-header no-drag flex h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) shrink-0 items-center justify-between gap-(--multi-workbench-chrome-action-gap) border-b border-(--cursor-stroke-tertiary) px-(--multi-workbench-chrome-padding-inline)">
+        <div className="flex min-w-0 items-center gap-(--multi-workbench-text-control-gap)">
           <IconFileText className="size-4 shrink-0 text-(--cursor-text-secondary)" aria-hidden />
           <span className="min-w-0 truncate text-detail font-medium text-(--cursor-text-primary)">
             {title}
@@ -189,7 +190,7 @@ export function PlanWorkbenchPanel({
       </div>
 
       <div className="plan-tab-editor-region min-h-0 flex-1">
-        <div className="plan-tab-scroll ui-scroll-area min-h-0 flex-1 overflow-y-auto">
+        <ScrollArea className="plan-tab-scroll min-h-0 flex-1" scrollFade>
           <div className="composer-plan-container">
             <div className="composer-plan-content mx-auto flex w-full max-w-[840px] flex-col px-3 py-3">
               {planMarkdown ? (
@@ -263,7 +264,7 @@ export function PlanWorkbenchPanel({
               ) : null}
             </div>
           </div>
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );

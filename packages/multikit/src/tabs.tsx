@@ -10,7 +10,7 @@ import type {
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { createContext, useContext, type ReactNode } from "react";
 
-import { cn } from "./utils";
+import { cn, interactiveControlCursorClassName } from "./utils";
 
 const TabsIndicatorSegmentedContext = createContext(false);
 const TabsIndicatorUnderlineContext = createContext(false);
@@ -25,7 +25,7 @@ function TabsIndicatorRender(props: React.ComponentProps<"div">) {
       {...props}
       className={cn(
         props.className,
-        "absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-all duration-150",
+        "absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-[width,translate,top,height,opacity,scale] duration-150 ease-out motion-reduce:transition-none",
         "data-[rendered=false]:scale-95 data-[rendered=false]:opacity-0",
         isSegmented &&
           "top-(--active-tab-top) h-(--active-tab-height) rounded-[5px] bg-multi-bg-tertiary shadow-sm ring-1 ring-multi-stroke-secondary",
@@ -103,7 +103,10 @@ function TabsTab({ className, ...props }: TabsTabPrimitive.Props) {
   return (
     <TabsPrimitive.Tab
       className={mergeStatefulClassName(
-        "relative flex cursor-pointer items-center whitespace-nowrap bg-transparent outline-none transition-colors focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40",
+        cn(
+          "relative flex items-center whitespace-nowrap bg-transparent outline-none transition-colors focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40",
+          interactiveControlCursorClassName,
+        ),
         className,
       )}
       data-slot="tabs-tab"
@@ -182,7 +185,7 @@ function Tabs({
             value={tab.value}
             render={tab.render}
             className={cn(
-              "relative z-[2] rounded-[5px] text-[12px]/[16px]",
+              "relative z-[2] rounded-[5px] text-body",
               isSegmented &&
                 "h-6 px-2 text-multi-fg-secondary hover:text-multi-fg-primary aria-selected:text-multi-fg-primary focus-visible:ring-inset",
               isUnderline &&

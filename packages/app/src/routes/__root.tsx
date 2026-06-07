@@ -7,12 +7,14 @@ import {
   ensurePrimaryEnvironmentReady,
   resolveInitialServerAuthGateState,
 } from "~/environments/primary";
-import { ensureDesktopRuntimeHostReady, isDesktopRuntimeApiAvailable } from "~/lib/multi-runtime-api";
+import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/multi-runtime-api";
 
 function isStandaloneDevRoute(pathname: string): boolean {
   return (
     import.meta.env.DEV &&
-    (pathname === "/dev/queued-message-demo" || pathname === "/dev/multikit")
+    (pathname === "/dev/queued-message-demo" ||
+      pathname === "/dev/multikit" ||
+      pathname === "/dev/cursor-agent-window-demo")
   );
 }
 
@@ -28,7 +30,7 @@ export const Route = createRootRouteWithContext<{
     }
 
     if (isDesktopRuntimeApiAvailable()) {
-      await Promise.all([ensurePrimaryEnvironmentReady(), ensureDesktopRuntimeHostReady()]);
+      await Promise.all([ensurePrimaryEnvironmentReady(), assertRuntimeHostAvailable()]);
       return {
         authGateState: { status: "authenticated" } as const,
         devStandalone: false,

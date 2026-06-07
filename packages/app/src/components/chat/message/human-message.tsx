@@ -1,4 +1,5 @@
 import { type MessageId } from "@multi/contracts";
+import { Button } from "@multi/multikit/button";
 import {
   IconBranch,
   IconCloudUpload,
@@ -72,9 +73,10 @@ export function HumanMessage({
             className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-message-bubble-background)"
           >
             {image.previewUrl ? (
-              <button
+              <Button
                 type="button"
-                className="block size-full cursor-zoom-in border-0 bg-transparent p-0"
+                variant="ghost"
+                className="block size-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
                 aria-label={`Preview ${image.name}`}
                 onClick={() => {
                   const preview = buildExpandedImagePreview(userImages, image.id);
@@ -87,7 +89,7 @@ export function HumanMessage({
                   alt={image.name}
                   className="block h-8 w-full object-cover"
                 />
-              </button>
+              </Button>
             ) : (
               <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-multi-fg-tertiary">
                 {image.name}

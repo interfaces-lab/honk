@@ -6,6 +6,7 @@ import {
   MultiRuntimeHostEvent,
   MultiRuntimeHostSnapshot,
   ThreadAgentRuntimeAbortInput,
+  ThreadAgentRuntimeHydrateInput,
   ThreadAgentRuntimeSendTurnInput,
   TurnId,
 } from "@multi/contracts";
@@ -108,6 +109,14 @@ export const configureRuntimeCredential = makeIpcMethod({
       const callbacks = createRuntimeCredentialLoginCallbacks(shell);
       return yield* Effect.promise(() => host.configureCredential(input, callbacks));
     }),
+});
+
+export const hydrateRuntimeThread = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_HYDRATE_THREAD_CHANNEL,
+  payload: ThreadAgentRuntimeHydrateInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.hydrateThread(input))),
 });
 
 export const sendRuntimeTurn = makeIpcMethod({

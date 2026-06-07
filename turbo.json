@@ -12,6 +12,7 @@
     "MULTI_OTLP_EXPORT_INTERVAL_MS",
     "MULTI_OTLP_SERVICE_NAME"
   ],
+  "cacheMaxAge": "1d",
   "globalPassThroughEnv": ["PATHEXT"],
   "tasks": {
     "build": {

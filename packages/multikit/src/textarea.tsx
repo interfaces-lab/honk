@@ -51,11 +51,18 @@ function TextareaFieldControlRender(defaultProps: React.ComponentProps<"textarea
 }
 
 type TextareaProps = React.ComponentProps<"textarea"> & {
+  controlClassName?: string;
   size?: "sm" | "default" | "lg" | number;
   unstyled?: boolean;
 };
 
-function Textarea({ className, size = "default", unstyled = false, ...props }: TextareaProps) {
+function Textarea({
+  className,
+  controlClassName,
+  size = "default",
+  unstyled = false,
+  ...props
+}: TextareaProps) {
   return (
     <span
       className={
@@ -68,7 +75,7 @@ function Textarea({ className, size = "default", unstyled = false, ...props }: T
       data-size={size}
       data-slot="textarea-control"
     >
-      <TextareaControlPropsContext.Provider value={props}>
+      <TextareaControlPropsContext.Provider value={{ ...props, className: controlClassName }}>
         <TextareaControlSizeContext.Provider value={size}>
           <FieldPrimitive.Control render={TextareaFieldControlRender} />
         </TextareaControlSizeContext.Provider>

@@ -1,3 +1,4 @@
+import { Button } from "@multi/multikit/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
@@ -95,9 +96,14 @@ export function ComposerCommandChip({
       data-type="commandNode"
       spellCheck={false}
     >
-      <button type="button" tabIndex={-1} className="truncate text-left hover:underline">
+      <Button
+        type="button"
+        variant="ghost"
+        tabIndex={-1}
+        className="h-auto min-w-0 justify-start truncate border-0 bg-transparent p-0 text-left text-inherit shadow-none before:hidden hover:bg-transparent hover:underline data-pressed:bg-transparent"
+      >
         {label}
-      </button>
+      </Button>
     </span>
   );
 

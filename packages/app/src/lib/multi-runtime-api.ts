@@ -56,13 +56,14 @@ export function createEmptyRuntimeHostSnapshot(
     diagnostics: [
       {
         state: "warning",
-        title: "Desktop runtime host unavailable",
-        message: "No MultiRuntimeApi has been exposed by the desktop preload yet.",
+        title: "Runtime host unavailable",
+        message: "No MultiRuntimeApi has been exposed yet.",
         updatedAt: now(),
       },
     ],
     runtimeEvents: [],
     sessionTrees: [],
+    displayTimelines: [],
     pendingExtensionUiRequests: [],
   };
 }
@@ -79,7 +80,7 @@ function applyPreferencesPatch(
 }
 
 function runtimeHostUnavailable(): Error {
-  return new Error("Desktop runtime host unavailable.");
+  return new Error("Runtime host unavailable.");
 }
 
 const fallbackRuntimeApi: MultiRuntimeApi = {
@@ -90,6 +91,7 @@ const fallbackRuntimeApi: MultiRuntimeApi = {
     return fallbackPreferences;
   },
   configureCredential: async () => createEmptyRuntimeHostSnapshot(),
+  hydrateThread: async () => undefined,
   sendTurn: async () => {
     throw runtimeHostUnavailable();
   },
@@ -112,6 +114,13 @@ export function isDesktopRuntimeApiAvailable(): boolean {
   );
 }
 
-export async function ensureDesktopRuntimeHostReady(): Promise<void> {
+export function assertRuntimeApiAvailable(): void {
+  if (!isDesktopRuntimeApiAvailable()) {
+    throw runtimeHostUnavailable();
+  }
+}
+
+export async function assertRuntimeHostAvailable(): Promise<void> {
+  assertRuntimeApiAvailable();
   await readMultiRuntimeApi().getHostSnapshot();
 }

@@ -1,4 +1,5 @@
 import { Alert, AlertAction, AlertDescription } from "@multi/multikit/alert";
+import { Button } from "@multi/multikit/button";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 
 export function ThreadErrorBanner({
@@ -18,14 +19,15 @@ export function ThreadErrorBanner({
         </AlertDescription>
         {onDismiss && (
           <AlertAction>
-            <button
-              type="button"
+            <Button
               aria-label="Dismiss error"
-              className="inline-flex size-6 items-center justify-center rounded-md text-destructive/60 transition-colors hover:text-destructive"
+              className="text-destructive/60 hover:text-destructive"
+              size="icon-sm"
+              variant="ghost"
               onClick={onDismiss}
             >
               <IconCrossMediumDefault className="size-3.5" />
-            </button>
+            </Button>
           </AlertAction>
         )}
       </Alert>

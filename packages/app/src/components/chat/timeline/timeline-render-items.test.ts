@@ -1,4 +1,4 @@
-import { MessageId } from "@multi/contracts";
+import { MessageId, RuntimeSessionId, ThreadId } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
@@ -173,6 +173,167 @@ describe("deriveTimelineRenderItems", () => {
         kind: "waitingGroup",
         id: "working-indicator-row",
         createdAt: "2026-06-05T16:00:00.000Z",
+      }),
+    ]);
+  });
+
+  it("groups adjacent runtime thinking and runtime tool rows without legacy work entries", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "runtime-thinking",
+          id: "message:assistant:thinking",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          message: {
+            id: "message:assistant",
+            kind: "message",
+            source: "live-event",
+            orderKey: "2026-06-05T16:00:01.000Z:message:assistant",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            role: "assistant",
+            eventIds: [],
+            streaming: true,
+            thinking: "Inspecting repo",
+          },
+        },
+        {
+          kind: "runtime-tool",
+          id: "tool:toolu-runtime",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          tool: {
+            id: "tool:toolu-runtime",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:02.000Z:tool:toolu-runtime",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            toolCallId: "toolu-runtime",
+            toolName: "shell",
+            status: "completed",
+            eventIds: [],
+            args: { command: "git status --short" },
+            result: { content: [{ type: "text", text: "M file.ts" }] },
+            display: {
+              kind: "shell",
+              command: "git status --short",
+              output: "M file.ts",
+            },
+          },
+        },
+        {
+          kind: "runtime-tool",
+          id: "tool:toolu-runtime-2",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          tool: {
+            id: "tool:toolu-runtime-2",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:03.000Z:tool:toolu-runtime-2",
+            createdAt: "2026-06-05T16:00:03.000Z",
+            toolCallId: "toolu-runtime-2",
+            toolName: "read",
+            status: "running",
+            eventIds: [],
+            display: {
+              kind: "shell",
+              command: "pnpm test",
+              output: "running",
+            },
+          },
+        },
+      ],
+      isWorking: true,
+      activeTurnStartedAt: null,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "message:assistant:thinking",
+        group: expect.objectContaining({
+          entries: [],
+          isRunning: true,
+          summary: {
+            action: "Working",
+            details: "1 thought, 2 tools",
+          },
+          steps: [
+            expect.objectContaining({ kind: "runtime-thinking" }),
+            expect.objectContaining({
+              kind: "runtime-tool",
+              tool: expect.objectContaining({ toolCallId: "toolu-runtime" }),
+            }),
+            expect.objectContaining({
+              kind: "runtime-tool",
+              tool: expect.objectContaining({ toolCallId: "toolu-runtime-2" }),
+            }),
+          ],
+        }),
+      }),
+    ]);
+  });
+
+  it("keeps runtime extension UI requests outside runtime groups", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "runtime-tool",
+          id: "tool:toolu-runtime",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          tool: {
+            id: "tool:toolu-runtime",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:02.000Z:tool:toolu-runtime",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            toolCallId: "toolu-runtime",
+            toolName: "shell",
+            status: "running",
+            eventIds: [],
+            display: {
+              kind: "shell",
+              command: "git status --short",
+            },
+          },
+        },
+        {
+          kind: "runtime-extension-ui-request",
+          id: "extension-ui:request",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          request: {
+            id: "extension-ui:request",
+            kind: "extension-ui-request",
+            orderKey: "2026-06-05T16:00:03.000Z:extension-ui:request",
+            createdAt: "2026-06-05T16:00:03.000Z",
+            requestId: "request",
+            requestKind: "select",
+            status: "pending",
+            threadId: ThreadId.make("thread:runtime-extension-ui"),
+            runtimeSessionId: RuntimeSessionId.make("runtime:runtime-extension-ui"),
+            eventIds: [],
+            title: "Allow?",
+            message: "Run command?",
+          },
+        },
+      ],
+      isWorking: true,
+      activeTurnStartedAt: null,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "tool:toolu-runtime",
+        group: expect.objectContaining({
+          steps: [expect.objectContaining({ kind: "runtime-tool" })],
+        }),
+      }),
+      expect.objectContaining({
+        kind: "single",
+        id: "extension-ui:request",
+        step: expect.objectContaining({ kind: "runtime-extension-ui-request" }),
+      }),
+      expect.objectContaining({
+        kind: "waitingGroup",
+        id: "working-indicator-row",
       }),
     ]);
   });

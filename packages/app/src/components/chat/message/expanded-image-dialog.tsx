@@ -57,9 +57,10 @@ export function ExpandedImageDialog({
       aria-label="Expanded image preview"
       onKeyDown={handleKeyDown}
     >
-      <button
+      <Button
         type="button"
-        className="absolute inset-0 z-0 cursor-zoom-out"
+        variant="ghost"
+        className="absolute inset-0 z-0 cursor-zoom-out rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
         aria-label="Close image preview"
         onClick={onClose}
       />

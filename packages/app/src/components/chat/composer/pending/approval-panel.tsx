@@ -14,10 +14,12 @@ export function ComposerPendingApprovalPanel({
   return (
     <div className="px-4 py-3.5 sm:px-5 sm:py-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="uppercase text-sm tracking-[0.2em]">PENDING APPROVAL</span>
-        <span className="text-sm font-medium">{approvalSummary}</span>
+        <span className="text-caption font-medium uppercase text-muted-foreground">
+          Pending approval
+        </span>
+        <span className="text-detail font-medium">{approvalSummary}</span>
         {pendingCount > 1 ? (
-          <span className="text-xs text-muted-foreground">1/{pendingCount}</span>
+          <span className="text-caption text-muted-foreground">1/{pendingCount}</span>
         ) : null}
       </div>
     </div>

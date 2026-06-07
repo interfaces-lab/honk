@@ -4,7 +4,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { IconCheckmark1, IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 import * as React from "react";
 
-import { cn } from "./utils";
+import { cn, interactiveControlCursorClassName } from "./utils";
 import { Input, InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
@@ -111,7 +111,8 @@ function ComboboxInput({
       {showTrigger && (
         <ComboboxTrigger
           className={cn(
-            "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-opacity pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=combobox-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+            "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-opacity pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=combobox-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+            interactiveControlCursorClassName,
             sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
           )}
         >
@@ -123,7 +124,8 @@ function ComboboxInput({
       {showClear && (
         <ComboboxClear
           className={cn(
-            "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-opacity pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=combobox-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+            "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-opacity pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=combobox-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+            interactiveControlCursorClassName,
             sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
           )}
         >
@@ -251,7 +253,7 @@ function ComboboxGroup({ className, ...props }: ComboboxPrimitive.Group.Props) {
 function ComboboxGroupLabel({ className, ...props }: ComboboxPrimitive.GroupLabel.Props) {
   return (
     <ComboboxPrimitive.GroupLabel
-      className={cn("px-2 py-1.5 font-medium text-muted-foreground text-xs", className)}
+      className={cn("px-2 py-1.5 text-detail font-medium text-muted-foreground", className)}
       data-slot="combobox-group-label"
       {...props}
     />
@@ -262,7 +264,7 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
   return (
     <ComboboxPrimitive.Empty
       className={cn(
-        "not-empty:p-2 text-center text-base text-muted-foreground sm:text-sm",
+        "not-empty:p-2 text-center text-body text-muted-foreground",
         className,
       )}
       data-slot="combobox-empty"
@@ -316,7 +318,7 @@ function ComboboxStatus({ className, ...props }: ComboboxPrimitive.Status.Props)
   return (
     <ComboboxPrimitive.Status
       className={cn(
-        "px-3 py-2 font-medium text-muted-foreground text-xs empty:m-0 empty:p-0",
+        "px-3 py-2 text-detail font-medium text-muted-foreground empty:m-0 empty:p-0",
         className,
       )}
       data-slot="combobox-status"
@@ -380,7 +382,10 @@ function ComboboxChipRemove(props: ComboboxPrimitive.ChipRemove.Props) {
   return (
     <ComboboxPrimitive.ChipRemove
       aria-label="Remove"
-      className="h-full shrink-0 cursor-pointer px-1.5 opacity-80 hover:opacity-100 [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5"
+      className={cn(
+        "h-full shrink-0 px-1.5 opacity-80 hover:opacity-100 [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
+        interactiveControlCursorClassName,
+      )}
       data-slot="combobox-chip-remove"
       {...props}
     >

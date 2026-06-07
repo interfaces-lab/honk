@@ -2,7 +2,7 @@
 
 import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible";
 
-import { cn } from "./utils";
+import { cn, interactiveControlCursorClassName } from "./utils";
 
 function CollapsibleRoot(props: CollapsiblePrimitive.Root.Props) {
   return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />;
@@ -11,7 +11,7 @@ function CollapsibleRoot(props: CollapsiblePrimitive.Root.Props) {
 function CollapsibleTrigger({ className, ...props }: CollapsiblePrimitive.Trigger.Props) {
   return (
     <CollapsiblePrimitive.Trigger
-      className={cn("cursor-pointer", className)}
+      className={cn(interactiveControlCursorClassName, className)}
       data-slot="collapsible-trigger"
       {...props}
     />

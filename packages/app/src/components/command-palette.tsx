@@ -13,6 +13,7 @@ import {
   IconFolderAddRight,
   IconPencil,
   IconSettingsGear2,
+  IconWindowCursor,
 } from "central-icons";
 import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -84,6 +85,7 @@ import {
   CommandPanel,
   CommandShortcut,
 } from "@multi/multikit/command";
+import { Button } from "@multi/multikit/button";
 import { Kbd, KbdGroup } from "@multi/multikit/kbd";
 import { toastManager } from "~/app/toast";
 import {
@@ -750,44 +752,6 @@ function OpenCommandPaletteDialog() {
 
     actionItems.push({
       kind: "action",
-      value: "action:dev:branching-ui-prototypes",
-      searchTerms: [
-        "branching",
-        "branching ui",
-        "branching prototypes",
-        "ui prototypes",
-        "design",
-        "dev",
-      ],
-      title: "Open branching UI prototypes",
-      description: "Compare branching UI prototypes (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        await navigate({ to: "/dev/branching-ui-prototypes" });
-      },
-    });
-
-    actionItems.push({
-      kind: "action",
-      value: "action:dev:archive-ui-example",
-      searchTerms: [
-        "archive",
-        "archived",
-        "archive ui",
-        "ui examples",
-        "design",
-        "sidebar archive",
-      ],
-      title: "Open archive UI examples",
-      description: "Compare archived-thread layouts (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        await navigate({ to: "/dev/archive-ui-example" });
-      },
-    });
-
-    actionItems.push({
-      kind: "action",
       value: "action:dev:queued-message-demo",
       searchTerms: [
         "queue",
@@ -803,6 +767,26 @@ function OpenCommandPaletteDialog() {
       icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
       run: async () => {
         await navigate({ to: "/dev/queued-message-demo" });
+      },
+    });
+
+    actionItems.push({
+      kind: "action",
+      value: "action:dev:cursor-agent-window-demo",
+      searchTerms: [
+        "cursor",
+        "agent window",
+        "cursor agent",
+        "cursor chat parity",
+        "screenshot",
+        "demo",
+        "dev",
+      ],
+      title: "Open Cursor agent window demo",
+      description: "Inspect the Cursor-style agent window parity mock (dev)",
+      icon: <IconWindowCursor className="size-4 text-muted-foreground/80" />,
+      run: async () => {
+        await navigate({ to: "/dev/cursor-agent-window-demo" });
       },
     });
   }
@@ -885,14 +869,16 @@ function OpenCommandPaletteDialog() {
             {...(isSubmenu
               ? {
                   startAddon: (
-                    <button
+                    <Button
                       type="button"
-                      className="flex cursor-pointer items-center"
+                      size="icon-xs"
+                      variant="ghost"
+                      className="shrink-0"
                       aria-label="Back"
                       onClick={popView}
                     >
                       <IconChevronLeftMedium />
-                    </button>
+                    </Button>
                   ),
                 }
               : {})}

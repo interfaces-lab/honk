@@ -1,17 +1,17 @@
 export const BRAND_ASSET_PATHS = {
   productionMacIconPng: "packages/desktop/resources/icon.png",
-  productionLinuxIconPng: "assets/prod/multi-production-linux-icon-1024.png",
-  productionWebFaviconIco: "assets/prod/multi-black-web-favicon.ico",
-  productionWebFavicon16Png: "assets/prod/multi-black-web-favicon-16x16.png",
-  productionWebFavicon32Png: "assets/prod/multi-black-web-favicon-32x32.png",
-  productionSplashIconPng: "assets/prod/multi-production-splash-icon-180.png",
+  productionLinuxIconPng: "assets/brand/generated/prod/multi-production-linux-icon-1024.png",
+  productionWebFaviconIco: "assets/brand/generated/prod/multi-black-web-favicon.ico",
+  productionWebFavicon16Png: "assets/brand/generated/prod/multi-black-web-favicon-16x16.png",
+  productionWebFavicon32Png: "assets/brand/generated/prod/multi-black-web-favicon-32x32.png",
+  productionSplashIconPng: "assets/brand/generated/prod/multi-production-splash-icon-180.png",
 
-  developmentMacIconIcns: "assets/dev/multi-development-macos-icon.icns",
-  developmentDesktopIconPng: "assets/dev/multi-development-desktop-icon-1024.png",
-  developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",
-  developmentWebFavicon16Png: "assets/dev/blueprint-web-favicon-16x16.png",
-  developmentWebFavicon32Png: "assets/dev/blueprint-web-favicon-32x32.png",
-  developmentSplashIconPng: "assets/dev/multi-development-splash-icon-180.png",
+  developmentMacIconIcns: "assets/brand/generated/dev/multi-development-macos-icon.icns",
+  developmentDesktopIconPng: "assets/brand/generated/dev/multi-development-desktop-icon-1024.png",
+  developmentWebFaviconIco: "assets/brand/generated/dev/blueprint-web-favicon.ico",
+  developmentWebFavicon16Png: "assets/brand/generated/dev/blueprint-web-favicon-16x16.png",
+  developmentWebFavicon32Png: "assets/brand/generated/dev/blueprint-web-favicon-32x32.png",
+  developmentSplashIconPng: "assets/brand/generated/dev/multi-development-splash-icon-180.png",
 } as const;
 
 export interface IconOverride {

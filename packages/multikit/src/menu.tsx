@@ -4,7 +4,7 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
 
 const MenuCreateHandle = MenuPrimitive.createHandle;
 
@@ -13,31 +13,33 @@ const Menu = MenuPrimitive.Root;
 const MenuPortal = MenuPrimitive.Portal;
 
 const workbenchMenuPopupClassName =
-  "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-[12px]/[16px] text-multi-fg-primary shadow-multi-popup outline-none backdrop-blur-xl focus:outline-none focus-visible:outline-none";
+  "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup outline-none backdrop-blur-xl focus:outline-none focus-visible:outline-none";
 
 const workbenchMenuViewportClassName = "max-h-(--available-height) w-full overflow-y-auto p-1";
 
 const workbenchMenuItemClassName =
   cn(
-    "flex min-h-6 cursor-pointer select-none items-center gap-1.5 rounded-[4px] px-1 py-[3px] text-[12px]/[16px] text-multi-fg-secondary outline-none transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
+    "flex min-h-6 select-none items-center gap-1.5 rounded-[4px] px-1 py-[3px] text-body text-multi-fg-secondary outline-none transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
+    interactiveControlCursorClassName,
     controlTransitionClassName,
   );
 
 const workbenchMenuIconSlotClassName =
   "inline-flex h-4 w-4 shrink-0 items-center justify-center text-multi-fg-tertiary [&>svg]:size-3 [&>svg]:shrink-0";
 
-const workbenchMenuPrimaryTextClassName = "truncate text-[12px]/[16px] text-multi-fg-primary";
+const workbenchMenuPrimaryTextClassName = "truncate text-body text-multi-fg-primary";
 
-const workbenchMenuMetaTextClassName = "truncate text-[11px]/[14px] text-multi-fg-tertiary";
+const workbenchMenuMetaTextClassName = "truncate text-detail text-multi-fg-tertiary";
 
 const workbenchMenuLabelClassName =
-  "px-1 pt-1.5 pb-0.5 font-normal text-[11px]/[14px] text-multi-fg-tertiary first:pt-0.5";
+  "px-1 pt-1.5 pb-0.5 font-normal text-detail text-multi-fg-tertiary first:pt-0.5";
 
 const workbenchMenuSeparatorClassName = "mx-0 my-1 h-px shrink-0 bg-multi-stroke-tertiary";
 
 const workbenchMenuRadioItemClassName =
   cn(
-    "grid min-h-6 cursor-pointer select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-[12px]/[16px] text-multi-fg-secondary outline-none transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "grid min-h-6 select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-body text-multi-fg-secondary outline-none transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    interactiveControlCursorClassName,
     controlTransitionClassName,
   );
 

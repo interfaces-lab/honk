@@ -1,4 +1,6 @@
 import { Fragment, type ReactNode } from "react";
+import { Code, Pre } from "@multi/multikit/code";
+import { Link } from "@multi/multikit/link";
 
 type RichTextRecord = Record<string, unknown>;
 
@@ -71,7 +73,14 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
     case "blockquote":
       return <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">{children}</blockquote>;
     case "codeBlock":
-      return <pre key={key} className="m-0 overflow-x-auto whitespace-pre-wrap rounded-multi-control bg-multi-bg-tertiary px-2 py-1 font-mono text-detail">{plainTextFromTiptap(record)}</pre>;
+      return (
+        <Pre
+          key={key}
+          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-multi-bg-tertiary px-2 py-1 text-detail"
+        >
+          {plainTextFromTiptap(record)}
+        </Pre>
+      );
     case "hardBreak":
       return <br key={key} />;
     case "text": {
@@ -119,13 +128,22 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
     case "quote":
       return <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">{children}</blockquote>;
     case "code":
-      return <pre key={key} className="m-0 overflow-x-auto whitespace-pre-wrap rounded-multi-control bg-multi-bg-tertiary px-2 py-1 font-mono text-detail">{lexicalPlainText(record)}</pre>;
+      return (
+        <Pre
+          key={key}
+          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-multi-bg-tertiary px-2 py-1 text-detail"
+        >
+          {lexicalPlainText(record)}
+        </Pre>
+      );
     case "linebreak":
       return <br key={key} />;
     case "link": {
       const url = safeHref(stringField(record, "url"));
       return url ? (
-        <a key={key} href={url} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>
+        <Link key={key} href={url} target="_blank" rel="noreferrer" tone="inherit">
+          {children}
+        </Link>
       ) : (
         <Fragment key={key}>{children}</Fragment>
       );
@@ -162,10 +180,14 @@ function applyTiptapMarks(text: string, marks: unknown[]): ReactNode {
       case "strike":
         return <s>{node}</s>;
       case "code":
-        return <code className="rounded-multi-control bg-multi-bg-tertiary px-1 font-mono text-detail">{node}</code>;
+        return <Code className="rounded-multi-control px-1 py-0 text-detail">{node}</Code>;
       case "link": {
         const href = safeHref(stringField(asRecord(record.attrs), "href"));
-        return href ? <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">{node}</a> : node;
+        return href ? (
+          <Link href={href} target="_blank" rel="noreferrer" tone="inherit">
+            {node}
+          </Link>
+        ) : node;
       }
       default:
         return node;
@@ -180,7 +202,7 @@ function applyLexicalFormat(text: string, format: number): ReactNode {
   if ((format & 4) !== 0) node = <s>{node}</s>;
   if ((format & 8) !== 0) node = <span className="underline underline-offset-2">{node}</span>;
   if ((format & 16) !== 0) {
-    node = <code className="rounded-multi-control bg-multi-bg-tertiary px-1 font-mono text-detail">{node}</code>;
+    node = <Code className="rounded-multi-control px-1 py-0 text-detail">{node}</Code>;
   }
   return node;
 }

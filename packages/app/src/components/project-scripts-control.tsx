@@ -35,6 +35,11 @@ import {
 } from "@multi/multikit/alert-dialog";
 import { Button } from "@multi/multikit/button";
 import {
+  WorkbenchIconButton,
+  workbenchIconButtonVariants,
+} from "@multi/multikit/workbench-button";
+import { WorkbenchChromeActionGroup } from "@multi/multikit/workbench-chrome-row";
+import {
   Dialog,
   DialogDescription,
   DialogFooter,
@@ -182,12 +187,6 @@ function keybindingValueForCommand(
   return null;
 }
 
-const headerActionButtonClassName =
-  "h-(--multi-titlebar-control-height) min-h-(--multi-titlebar-control-height) shrink-0 rounded-multi-control px-1.5 shadow-none before:hidden";
-
-const headerActionIconButtonClassName =
-  "size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden";
-
 export default function ProjectScriptsControl({
   scripts,
   keybindings,
@@ -309,33 +308,28 @@ export default function ProjectScriptsControl({
   return (
     <>
       {primaryScript ? (
-        <div
-          className="flex shrink-0 items-center gap-0.5"
+        <WorkbenchChromeActionGroup
+          gap="sub"
           role="group"
           aria-label="Project actions"
         >
-          <Button
-            size="xs"
-            variant="ghost"
-            className={headerActionButtonClassName}
+          <WorkbenchIconButton
+            aria-label={`Run ${primaryScript.name}`}
             onClick={() => onRunScript(primaryScript)}
             title={`Run ${primaryScript.name}`}
           >
             <ScriptIcon icon={primaryScript.icon} />
-            <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
-              {primaryScript.name}
-            </span>
-          </Button>
+          </WorkbenchIconButton>
           <Menu highlightItemOnHover={false}>
             <MenuTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  className={headerActionIconButtonClassName}
-                  aria-label="Project action menu"
-                />
-              }
+              type="button"
+              className={workbenchIconButtonVariants()}
+              aria-label="Project action menu"
+              title="Project action menu"
+              data-active={false}
+              data-chrome="tool"
+              data-slot="workbench-icon-button"
+              data-tab-system={false}
             >
               <IconChevronRightMedium className="size-4 shrink-0 rotate-90" />
             </MenuTrigger>
@@ -392,20 +386,15 @@ export default function ProjectScriptsControl({
               </MenuItem>
             </MenuPopup>
           </Menu>
-        </div>
+        </WorkbenchChromeActionGroup>
       ) : (
-        <Button
-          size="xs"
-          variant="ghost"
-          className={headerActionButtonClassName}
+        <WorkbenchIconButton
+          aria-label="Add project action"
           onClick={openAddDialog}
           title="Add action"
         >
           <IconPlusLarge className="size-4 shrink-0" />
-          <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
-            Add project action
-          </span>
-        </Button>
+        </WorkbenchIconButton>
       )}
 
       <Dialog
