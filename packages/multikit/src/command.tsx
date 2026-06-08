@@ -32,7 +32,7 @@ function CommandDialogBackdrop({ className, ...props }: CommandDialogPrimitive.B
   return (
     <CommandDialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-[90] bg-background/45 transition-opacity duration-150 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-[90] bg-transparent transition-opacity duration-150 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="command-dialog-backdrop"
@@ -45,7 +45,7 @@ function CommandDialogViewport({ className, ...props }: CommandDialogPrimitive.V
   return (
     <CommandDialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-[91] flex flex-col items-center justify-start overflow-hidden px-4 py-4 pt-[10vh]",
+        "fixed inset-0 z-[91] flex flex-col items-center justify-start overflow-hidden px-4 py-4 pt-[8vh]",
         className,
       )}
       data-slot="command-dialog-viewport"
@@ -61,7 +61,7 @@ function CommandDialogPopup({ className, children, ...props }: CommandDialogPrim
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup
           className={cn(
-            "relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-xl flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-multi-fg-primary shadow-multi-popup outline-none transition-[scale,opacity,translate] duration-150 ease-out data-ending-style:-translate-y-4 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:-translate-y-4 data-starting-style:scale-95 data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+            "relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-[640px] flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-(--multi-command-palette-surface-background) font-multi text-body text-multi-fg-primary shadow-multi-popup outline-hidden backdrop-blur-xl transition-[scale,opacity,translate] duration-150 ease-out data-ending-style:-translate-y-3 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:-translate-y-3 data-starting-style:scale-[0.98] data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
             className,
           )}
           data-slot="command-dialog-popup"
@@ -99,7 +99,12 @@ function CommandInput({
   wrapperClassName?: string | undefined;
 }) {
   return (
-    <div className={cn("px-2 py-1.5", wrapperClassName)}>
+    <div
+      className={cn(
+        "relative border-b border-multi-stroke-tertiary bg-transparent px-2 py-1",
+        wrapperClassName,
+      )}
+    >
       <AutocompleteInput
         autoFocus
         className={cn(
@@ -107,7 +112,6 @@ function CommandInput({
           className,
         )}
         placeholder={placeholder}
-        size="lg"
         startAddon={commandSearchAddon}
         {...props}
       />
@@ -118,7 +122,7 @@ function CommandInput({
 function CommandList({ className, ...props }: React.ComponentProps<typeof AutocompleteList>) {
   return (
     <AutocompleteList
-      className={cn("not-empty:scroll-py-1 not-empty:p-1.5", className)}
+      className={cn("not-empty:scroll-py-1.5 not-empty:p-1.5", className)}
       data-slot="command-list"
       {...props}
     />
@@ -139,7 +143,7 @@ function CommandPanel({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "relative min-h-0 border-t border-multi-border/45 bg-transparent **:data-[slot=scroll-area-scrollbar]:mt-2",
+        "relative min-h-0 bg-transparent **:data-[slot=scroll-area-scrollbar]:mt-2",
         className,
       )}
       {...props}
@@ -156,7 +160,11 @@ function CommandGroupLabel({
   ...props
 }: React.ComponentProps<typeof AutocompleteGroupLabel>) {
   return (
-    <AutocompleteGroupLabel className={className} data-slot="command-group-label" {...props} />
+    <AutocompleteGroupLabel
+      className={cn("px-2 py-1 text-caption text-multi-fg-tertiary", className)}
+      data-slot="command-group-label"
+      {...props}
+    />
   );
 }
 
@@ -165,7 +173,16 @@ function CommandCollection({ ...props }: React.ComponentProps<typeof Autocomplet
 }
 
 function CommandItem({ className, ...props }: React.ComponentProps<typeof AutocompleteItem>) {
-  return <AutocompleteItem className={cn("py-1", className)} data-slot="command-item" {...props} />;
+  return (
+    <AutocompleteItem
+      className={cn(
+        "min-h-7 gap-2 rounded-[6px] px-2 py-1 text-multi-fg-primary transition-[background-color,color] hover:bg-multi-bg-quaternary data-highlighted:bg-multi-bg-tertiary data-selected:bg-multi-bg-tertiary [&_svg]:shrink-0 [&_svg]:text-multi-icon-tertiary [&[data-highlighted][data-selected]]:bg-multi-bg-tertiary",
+        className,
+      )}
+      data-slot="command-item"
+      {...props}
+    />
+  );
 }
 
 function CommandSeparator({
@@ -185,10 +202,23 @@ function CommandShortcut({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd
       className={cn(
-        "ms-auto font-multi text-caption font-medium tracking-normal text-muted-foreground/64",
+        "ms-auto inline-flex items-center gap-0.5 font-multi text-caption font-medium tracking-normal text-multi-fg-tertiary",
         className,
       )}
       data-slot="command-shortcut"
+      {...props}
+    />
+  );
+}
+
+function CommandShortcutKey({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-w-3 items-center justify-center rounded-[3px] bg-multi-bg-quinary px-1 leading-4 text-multi-fg-tertiary shadow-[inset_0_0_0_1px_var(--multi-stroke-tertiary)]",
+        className,
+      )}
+      data-slot="command-shortcut-key"
       {...props}
     />
   );
@@ -198,7 +228,7 @@ function CommandFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex min-h-9 items-center justify-between gap-2 border-t border-multi-stroke-tertiary px-3 py-2 font-multi text-detail text-multi-fg-secondary",
+        "flex min-h-9 items-center justify-between gap-2 border-t border-multi-stroke-tertiary/70 bg-multi-bg-quinary/55 px-3 py-2 font-multi text-detail text-multi-fg-secondary",
         className,
       )}
       data-slot="command-footer"
@@ -224,4 +254,5 @@ export {
   CommandPanel,
   CommandSeparator,
   CommandShortcut,
+  CommandShortcutKey,
 };

@@ -2,6 +2,7 @@ import {
   EnvironmentId,
   EventId,
   MessageId,
+  ProjectId,
   RuntimeItemId,
   RuntimeSessionId,
   ThreadEntryId,
@@ -9,15 +10,23 @@ import {
   TurnId,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
+  type OrchestrationThreadActivity,
+  type OrchestrationThread,
   type SessionTreeProjection,
 } from "@multi/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { getThreadFromEnvironmentState } from "../thread-derivation";
+import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
+import {
+  selectSubagentProjection,
+  useSubagentActivityStore,
+} from "./subagent-activity-store";
 import { initialState, selectEnvironmentState, useStore } from "./thread-store";
 
 const environmentId = EnvironmentId.make("environment:pi-runtime-store");
 const threadId = ThreadId.make("thread:pi-runtime-store");
+const projectId = ProjectId.make("project:pi-runtime-store");
 const runtimeSessionId = RuntimeSessionId.make("runtime:pi-runtime-store");
 const turnId = TurnId.make("turn:pi-runtime-store");
 const modelEntryId = RuntimeItemId.make("runtime-item:model");
@@ -30,11 +39,13 @@ const infoEntryId = RuntimeItemId.make("runtime-item:session-info");
 const modelThreadEntryId = ThreadEntryId.make("thread-entry:model");
 const thinkingThreadEntryId = ThreadEntryId.make("thread-entry:thinking");
 const userThreadEntryId = ThreadEntryId.make("thread-entry:user");
+const serverUserThreadEntryId = ThreadEntryId.make("thread-entry:server-user");
 const toolCallThreadEntryId = ThreadEntryId.make("thread-entry:assistant-tool-call");
 const toolResultThreadEntryId = ThreadEntryId.make("thread-entry:tool-result");
 const assistantThreadEntryId = ThreadEntryId.make("thread-entry:assistant");
 const infoThreadEntryId = ThreadEntryId.make("thread-entry:session-info");
 const seededToolCallId = "tool-call-seeded";
+const subagentParentItemId = RuntimeItemId.make("tool-call-subagent");
 const modelEntryCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 11, 59, 58)),
 );
@@ -61,6 +72,13 @@ const messageUpdatedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026,
 const toolStartedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 12, 0, 12)));
 const extensionUiRequestedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 0, 25)),
+);
+const subagentUpdatedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 12, 0, 26)));
+const subagentSnapshotUpdatedAt = Date.prototype.toISOString.call(
+  new Date(Date.UTC(2026, 5, 1, 12, 0, 27)),
+);
+const subagentSnapshotUpdatedAgainAt = Date.prototype.toISOString.call(
+  new Date(Date.UTC(2026, 5, 1, 12, 0, 28)),
 );
 const queueUpdatedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 12, 0, 30)));
 const turnInterruptedAt = Date.prototype.toISOString.call(
@@ -321,6 +339,288 @@ const turnCompletedEvent = {
   turnId,
   createdAt: turnCompletedAt,
 } satisfies AgentRuntimeEvent;
+const subagentThreadId = "thread:pi-runtime-store:subagent";
+const otherThreadId = ThreadId.make("thread:pi-runtime-store:other");
+const otherSubagentThreadId = "thread:pi-runtime-store:other:subagent";
+const siblingSubagentThreadId = "thread:pi-runtime-store:sibling-subagent";
+
+function subagentToolUpdatedEvent(detail: string, createdAt = subagentUpdatedAt): AgentRuntimeEvent {
+  return {
+    id: EventId.make(`runtime-event:subagent-tool.updated:${detail}`),
+    type: "tool.updated",
+    agentRuntime: "pi",
+    threadId,
+    runtimeSessionId,
+    turnId,
+    createdAt,
+    data: {
+      toolName: "subagent",
+      partialResult: {
+        details: {
+          activities: [
+            {
+              id: "runtime-subagent:start",
+              kind: "subagent.thread.started",
+              tone: "info",
+              summary: "Started review",
+              sequence: 1,
+              createdAt,
+              payload: {
+                subagentThreadId,
+                parentThreadId: threadId,
+                parentItemId: "tool-call-subagent",
+                agentId: "agent:review",
+                nickname: "Review renderer",
+                role: "reviewer",
+                model: "gpt-5.5",
+                prompt: "Review the renderer",
+              },
+            },
+            {
+              id: "runtime-subagent:assistant",
+              kind: "subagent.item.updated",
+              tone: "info",
+              summary: "Subagent response",
+              sequence: 2,
+              createdAt,
+              payload: {
+                subagentThreadId,
+                parentThreadId: threadId,
+                parentItemId: "tool-call-subagent",
+                agentId: "agent:review",
+                nickname: "Review renderer",
+                role: "reviewer",
+                model: "gpt-5.5",
+                prompt: "Review the renderer",
+                itemType: "assistant_message",
+                itemId: "assistant:review",
+                status: "running",
+                title: "Assistant",
+                detail,
+              },
+            },
+          ],
+        },
+      },
+    },
+  } satisfies AgentRuntimeEvent;
+}
+
+function otherThreadSubagentToolUpdatedEvent(
+  detail: string,
+  createdAt = subagentUpdatedAt,
+): AgentRuntimeEvent {
+  return {
+    id: EventId.make(`runtime-event:other-subagent-tool.updated:${detail}`),
+    type: "tool.updated",
+    agentRuntime: "pi",
+    threadId: otherThreadId,
+    runtimeSessionId,
+    turnId,
+    createdAt,
+    data: {
+      toolName: "subagent",
+      partialResult: {
+        details: {
+          activities: [
+            {
+              id: "runtime-subagent:other:start",
+              kind: "subagent.thread.started",
+              tone: "info",
+              summary: "Started other review",
+              sequence: 1,
+              createdAt,
+              payload: {
+                subagentThreadId: otherSubagentThreadId,
+                parentThreadId: otherThreadId,
+                parentItemId: "tool-call-other-subagent",
+                agentId: "agent:other-review",
+                nickname: "Other reviewer",
+                role: "reviewer",
+                model: "gpt-5.5",
+                prompt: "Review the other renderer",
+              },
+            },
+            {
+              id: "runtime-subagent:other:assistant",
+              kind: "subagent.item.updated",
+              tone: "info",
+              summary: "Other subagent response",
+              sequence: 2,
+              createdAt,
+              payload: {
+                subagentThreadId: otherSubagentThreadId,
+                parentThreadId: otherThreadId,
+                parentItemId: "tool-call-other-subagent",
+                agentId: "agent:other-review",
+                nickname: "Other reviewer",
+                role: "reviewer",
+                model: "gpt-5.5",
+                prompt: "Review the other renderer",
+                itemType: "assistant_message",
+                itemId: "assistant:other-review",
+                status: "running",
+                title: "Assistant",
+                detail,
+              },
+            },
+          ],
+        },
+      },
+    },
+  } satisfies AgentRuntimeEvent;
+}
+
+function subagentProjectionActivities(
+  streamingDetail: string,
+): ReadonlyArray<OrchestrationThreadActivity> {
+  return [
+    {
+      id: EventId.make("projection-subagent:start"),
+      kind: "subagent.thread.started",
+      tone: "info",
+      summary: "Started review",
+      sequence: 1,
+      createdAt: subagentUpdatedAt,
+      turnId,
+      payload: {
+        subagentThreadId,
+        parentThreadId: threadId,
+        parentItemId: subagentParentItemId,
+        agentId: "agent:review",
+        nickname: "Review renderer",
+        role: "reviewer",
+        model: "gpt-5.5",
+        prompt: "Review the renderer",
+      },
+    },
+    {
+      id: EventId.make("projection-subagent:stable"),
+      kind: "subagent.item.completed",
+      tone: "info",
+      summary: "Stable subagent response",
+      sequence: 2,
+      createdAt: subagentUpdatedAt,
+      turnId,
+      payload: {
+        subagentThreadId,
+        parentThreadId: threadId,
+        parentItemId: subagentParentItemId,
+        agentId: "agent:review",
+        nickname: "Review renderer",
+        role: "reviewer",
+        model: "gpt-5.5",
+        prompt: "Review the renderer",
+        itemType: "assistant_message",
+        itemId: "assistant:stable",
+        status: "completed",
+        title: "Assistant",
+        detail: "stable child response",
+      },
+    },
+    {
+      id: EventId.make("projection-subagent:streaming"),
+      kind: "subagent.item.updated",
+      tone: "info",
+      summary: "Streaming subagent response",
+      sequence: 3,
+      createdAt: subagentUpdatedAt,
+      turnId,
+      payload: {
+        subagentThreadId,
+        parentThreadId: threadId,
+        parentItemId: subagentParentItemId,
+        agentId: "agent:review",
+        nickname: "Review renderer",
+        role: "reviewer",
+        model: "gpt-5.5",
+        prompt: "Review the renderer",
+        itemType: "assistant_message",
+        itemId: "assistant:streaming",
+        status: "running",
+        title: "Assistant",
+        detail: streamingDetail,
+      },
+    },
+  ];
+}
+
+function siblingSubagentProjectionActivities(): ReadonlyArray<OrchestrationThreadActivity> {
+  return [
+    {
+      id: EventId.make("projection-sibling-subagent:start"),
+      kind: "subagent.thread.started",
+      tone: "info",
+      summary: "Started sibling review",
+      sequence: 10,
+      createdAt: subagentUpdatedAt,
+      turnId,
+      payload: {
+        subagentThreadId: siblingSubagentThreadId,
+        parentThreadId: threadId,
+        parentItemId: RuntimeItemId.make("tool-call-sibling-subagent"),
+        agentId: "agent:sibling-review",
+        nickname: "Sibling reviewer",
+        role: "reviewer",
+        model: "gpt-5.5",
+        prompt: "Review the sibling renderer",
+      },
+    },
+    {
+      id: EventId.make("projection-sibling-subagent:stable"),
+      kind: "subagent.item.completed",
+      tone: "info",
+      summary: "Stable sibling response",
+      sequence: 11,
+      createdAt: subagentUpdatedAt,
+      turnId,
+      payload: {
+        subagentThreadId: siblingSubagentThreadId,
+        parentThreadId: threadId,
+        parentItemId: RuntimeItemId.make("tool-call-sibling-subagent"),
+        agentId: "agent:sibling-review",
+        nickname: "Sibling reviewer",
+        role: "reviewer",
+        model: "gpt-5.5",
+        prompt: "Review the sibling renderer",
+        itemType: "assistant_message",
+        itemId: "assistant:sibling",
+        status: "completed",
+        title: "Assistant",
+        detail: "stable sibling response",
+      },
+    },
+  ];
+}
+
+function subagentContentDeltaActivity(input: {
+  id: string;
+  delta: string;
+  sequence: number;
+}): OrchestrationThreadActivity {
+  return {
+    id: EventId.make(`projection-subagent:delta:${input.id}`),
+    kind: "subagent.content.delta",
+    tone: "info",
+    summary: "Streaming assistant text",
+    sequence: input.sequence,
+    createdAt: subagentUpdatedAt,
+    turnId,
+    payload: {
+      subagentThreadId,
+      parentThreadId: threadId,
+      parentItemId: subagentParentItemId,
+      agentId: "agent:review",
+      nickname: "Review renderer",
+      role: "reviewer",
+      model: "gpt-5.5",
+      prompt: "Review the renderer",
+      streamKind: "assistant_text",
+      itemId: "assistant:delta",
+      delta: input.delta,
+    },
+  };
+}
 
 function currentThread() {
   const environmentState = selectEnvironmentState(useStore.getState(), environmentId);
@@ -329,9 +629,103 @@ function currentThread() {
   return { environmentState, thread: thread! };
 }
 
+function serverThreadDetailWithSubagent(detail: string, updatedAt: string): OrchestrationThread {
+  const userMessageId = MessageId.make("message:server-user");
+  return {
+    id: threadId,
+    projectId,
+    title: "Pi runtime thread",
+    modelSelection: {
+      instanceId: "codex",
+      model: "gpt-5.5",
+    },
+    runtimeMode: DEFAULT_RUNTIME_MODE,
+    interactionMode: DEFAULT_INTERACTION_MODE,
+    branch: null,
+    worktreePath: null,
+    latestTurn: null,
+    createdAt: userMessageCreatedAt,
+    updatedAt,
+    archivedAt: null,
+    deletedAt: null,
+    messages: [
+      {
+        id: userMessageId,
+        role: "user",
+        text: "Start",
+        turnId: null,
+        streaming: false,
+        createdAt: userMessageCreatedAt,
+        updatedAt: userMessageCreatedAt,
+      },
+    ],
+    leafId: serverUserThreadEntryId,
+    entries: [
+      {
+        id: serverUserThreadEntryId,
+        threadId,
+        parentEntryId: null,
+        kind: "message",
+        messageId: userMessageId,
+        turnId: null,
+        createdAt: userMessageCreatedAt,
+      },
+    ],
+    proposedPlans: [],
+    activities: [
+      {
+        id: EventId.make("server-subagent:start"),
+        kind: "subagent.thread.started",
+        tone: "info",
+        summary: "Started review",
+        turnId,
+        sequence: 1,
+        createdAt: subagentSnapshotUpdatedAt,
+        payload: {
+          subagentThreadId,
+          parentThreadId: threadId,
+          parentItemId: subagentParentItemId,
+          agentId: "agent:review",
+          nickname: "Review renderer",
+          role: "reviewer",
+          model: "gpt-5.5",
+          prompt: "Review the renderer",
+        },
+      },
+      {
+        id: EventId.make("server-subagent:assistant"),
+        kind: "subagent.item.updated",
+        tone: "info",
+        summary: "Subagent response",
+        turnId,
+        sequence: 2,
+        createdAt: updatedAt,
+        payload: {
+          subagentThreadId,
+          parentThreadId: threadId,
+          parentItemId: subagentParentItemId,
+          agentId: "agent:review",
+          nickname: "Review renderer",
+          role: "reviewer",
+          model: "gpt-5.5",
+          prompt: "Review the renderer",
+          itemType: "assistant_message",
+          itemId: "assistant:review",
+          status: "running",
+          title: "Assistant",
+          detail,
+        },
+      },
+    ],
+    chatTimelineRows: [],
+    session: null,
+  };
+}
+
 describe("Pi runtime thread sync", () => {
   beforeEach(() => {
     useStore.setState(initialState);
+    useSubagentActivityStore.getState().reset();
   });
 
   it("projects Pi session trees into normalized thread state", () => {
@@ -471,5 +865,269 @@ describe("Pi runtime thread sync", () => {
     thread = currentThread().thread;
     expect(thread.latestTurn?.state).toBe("interrupted");
     expect(thread.latestTurn?.completedAt).toBe(turnInterruptedAt);
+  });
+
+  it("routes live subagent tool activity outside the main thread store", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    const previousState = useStore.getState();
+    const previousThread = currentThread().thread;
+    let storeUpdateCount = 0;
+    const unsubscribe = useStore.subscribe(() => {
+      storeUpdateCount += 1;
+    });
+
+    useStore.getState().applyAgentRuntimeEvent(subagentToolUpdatedEvent("child says hi"), environmentId);
+    unsubscribe();
+
+    expect(useStore.getState()).toBe(previousState);
+    expect(currentThread().thread).toBe(previousThread);
+    expect(storeUpdateCount).toBe(0);
+    const projection = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const subagent = projection.subagentById[subagentThreadId];
+    expect(subagent).toMatchObject({
+      subagentThreadId,
+      title: "Review renderer",
+      rawStatus: "running",
+      isActive: true,
+    });
+    expect(subagent?.transcriptItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemId: "assistant:review",
+          text: "child says hi",
+          loading: true,
+        }),
+      ]),
+    );
+  });
+
+  it("does not notify the main thread store during repeated subagent stream updates", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    const previousState = useStore.getState();
+    let storeUpdateCount = 0;
+    const unsubscribe = useStore.subscribe(() => {
+      storeUpdateCount += 1;
+    });
+
+    for (let index = 0; index < 100; index += 1) {
+      useStore
+        .getState()
+        .applyAgentRuntimeEvent(
+          subagentToolUpdatedEvent(`child stream chunk ${index}`, subagentUpdatedAt),
+          environmentId,
+        );
+    }
+    unsubscribe();
+
+    expect(useStore.getState()).toBe(previousState);
+    expect(storeUpdateCount).toBe(0);
+    const projection = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    expect(projection.activityIds).toHaveLength(2);
+    expect(projection.subagentById[subagentThreadId]?.transcriptItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemId: "assistant:review",
+          text: "child stream chunk 99",
+        }),
+      ]),
+    );
+  });
+
+  it("does not notify the subagent projection store for duplicate stream snapshots", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    let mainStoreUpdateCount = 0;
+    let subagentStoreUpdateCount = 0;
+    const unsubscribeMainStore = useStore.subscribe(() => {
+      mainStoreUpdateCount += 1;
+    });
+    const unsubscribeSubagentStore = useSubagentActivityStore.subscribe(() => {
+      subagentStoreUpdateCount += 1;
+    });
+
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent(subagentToolUpdatedEvent("duplicate child snapshot"), environmentId);
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent(subagentToolUpdatedEvent("duplicate child snapshot"), environmentId);
+    unsubscribeMainStore();
+    unsubscribeSubagentStore();
+
+    expect(mainStoreUpdateCount).toBe(0);
+    expect(subagentStoreUpdateCount).toBe(1);
+  });
+
+  it("keeps the active subagent projection stable while another thread streams", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    useStore.getState().applyAgentRuntimeEvent(subagentToolUpdatedEvent("active child"), environmentId);
+    const activeProjectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    let mainStoreUpdateCount = 0;
+    const unsubscribeMainStore = useStore.subscribe(() => {
+      mainStoreUpdateCount += 1;
+    });
+
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent(otherThreadSubagentToolUpdatedEvent("other child"), environmentId);
+    unsubscribeMainStore();
+
+    const activeProjectionAfter = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const otherProjection = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId: otherThreadId,
+    });
+    expect(mainStoreUpdateCount).toBe(0);
+    expect(activeProjectionAfter).toBe(activeProjectionBefore);
+    expect(otherProjection.subagentById[otherSubagentThreadId]?.transcriptItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemId: "assistant:other-review",
+          text: "other child",
+        }),
+      ]),
+    );
+  });
+
+  it("preserves unchanged transcript row objects when one subagent item streams", () => {
+    const store = useSubagentActivityStore.getState();
+    store.upsertActivities(
+      { environmentId, threadId },
+      subagentProjectionActivities("streaming child part 1"),
+    );
+    const projectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const itemsBefore = projectionBefore.subagentById[subagentThreadId]?.transcriptItems ?? [];
+    const stableItemBefore = itemsBefore.find((item) => item.itemId === "assistant:stable");
+    const streamingItemBefore = itemsBefore.find((item) => item.itemId === "assistant:streaming");
+
+    store.upsertActivities(
+      { environmentId, threadId },
+      subagentProjectionActivities("streaming child part 2"),
+    );
+
+    const projectionAfter = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const itemsAfter = projectionAfter.subagentById[subagentThreadId]?.transcriptItems ?? [];
+    const stableItemAfter = itemsAfter.find((item) => item.itemId === "assistant:stable");
+    const streamingItemAfter = itemsAfter.find((item) => item.itemId === "assistant:streaming");
+    expect(stableItemAfter).toBe(stableItemBefore);
+    expect(streamingItemAfter).not.toBe(streamingItemBefore);
+    expect(streamingItemAfter?.text).toBe("streaming child part 2");
+  });
+
+  it("preserves sibling subagent objects when one subagent item streams", () => {
+    const store = useSubagentActivityStore.getState();
+    store.upsertActivities(
+      { environmentId, threadId },
+      [...subagentProjectionActivities("streaming child part 1"), ...siblingSubagentProjectionActivities()],
+    );
+    const projectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const activeSubagentBefore = projectionBefore.subagentById[subagentThreadId];
+    const siblingSubagentBefore = projectionBefore.subagentById[siblingSubagentThreadId];
+
+    store.upsertActivities(
+      { environmentId, threadId },
+      subagentProjectionActivities("streaming child part 2"),
+    );
+
+    const projectionAfter = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    expect(projectionAfter.subagentById[subagentThreadId]).not.toBe(activeSubagentBefore);
+    expect(projectionAfter.subagentById[siblingSubagentThreadId]).toBe(siblingSubagentBefore);
+  });
+
+  it("preserves sibling subagent objects during content delta streams", () => {
+    const store = useSubagentActivityStore.getState();
+    store.upsertActivities(
+      { environmentId, threadId },
+      [
+        subagentProjectionActivities("seed child item")[0]!,
+        subagentContentDeltaActivity({ id: "1", delta: "first", sequence: 2 }),
+        ...siblingSubagentProjectionActivities(),
+      ],
+    );
+    const projectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const siblingSubagentBefore = projectionBefore.subagentById[siblingSubagentThreadId];
+
+    store.upsertActivities(
+      { environmentId, threadId },
+      [subagentContentDeltaActivity({ id: "2", delta: " second", sequence: 3 })],
+    );
+
+    const projectionAfter = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    const deltaItem = projectionAfter.subagentById[subagentThreadId]?.transcriptItems?.find(
+      (item) => item.itemId === "assistant:delta",
+    );
+    expect(deltaItem?.text).toBe("first second");
+    expect(projectionAfter.subagentById[siblingSubagentThreadId]).toBe(siblingSubagentBefore);
+  });
+
+  it("routes server subagent detail snapshots outside the main thread store", () => {
+    useStore
+      .getState()
+      .syncServerThreadDetail(
+        serverThreadDetailWithSubagent("server child says hi", subagentSnapshotUpdatedAt),
+        environmentId,
+      );
+    const previousState = useStore.getState();
+    const previousThread = currentThread().thread;
+    let storeUpdateCount = 0;
+    const unsubscribe = useStore.subscribe(() => {
+      storeUpdateCount += 1;
+    });
+
+    useStore
+      .getState()
+      .syncServerThreadDetail(
+        serverThreadDetailWithSubagent(
+          "server child says hi again",
+          subagentSnapshotUpdatedAgainAt,
+        ),
+        environmentId,
+      );
+    unsubscribe();
+
+    expect(useStore.getState()).toBe(previousState);
+    expect(currentThread().thread).toBe(previousThread);
+    expect(storeUpdateCount).toBe(0);
+    const projection = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    expect(projection.subagentById[subagentThreadId]?.transcriptItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemId: "assistant:review",
+          text: "server child says hi again",
+        }),
+      ]),
+    );
   });
 });

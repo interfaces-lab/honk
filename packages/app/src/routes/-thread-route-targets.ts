@@ -19,59 +19,6 @@ type ThreadRouteParams = Partial<
   Record<"environmentId" | "threadId" | "draftId", string | undefined>
 >;
 
-type ThreadRouteTargetSnapshot =
-  | {
-      kind: "server";
-      environmentId: string;
-      threadId: string;
-    }
-  | {
-      kind: "draft";
-      draftId: string;
-    };
-
-function stringParam(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function paramsRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function resolveRouteTargetSnapshotFromMatches(
-  matches: ReadonlyArray<{ readonly params: unknown }>,
-): ThreadRouteTargetSnapshot | null {
-  const params = paramsRecord(matches[matches.length - 1]?.params);
-  const environmentId = stringParam(params.environmentId);
-  const threadId = stringParam(params.threadId);
-  if (environmentId && threadId) {
-    return { kind: "server", environmentId, threadId };
-  }
-  const draftId = stringParam(params.draftId);
-  return draftId ? { kind: "draft", draftId } : null;
-}
-
-function hydrateRouteTarget(snapshot: ThreadRouteTargetSnapshot | null): ThreadRouteTarget | null {
-  if (!snapshot) {
-    return null;
-  }
-
-  if (snapshot.kind === "server") {
-    return {
-      kind: "server",
-      threadRef: scopeThreadRef(
-        EnvironmentId.make(snapshot.environmentId),
-        ThreadId.make(snapshot.threadId),
-      ),
-    };
-  }
-
-  return {
-    kind: "draft",
-    draftId: DraftId.make(snapshot.draftId),
-  };
-}
-
 export function buildThreadRouteParams(ref: ScopedThreadRef): {
   environmentId: EnvironmentId;
   threadId: ThreadId;
@@ -128,13 +75,14 @@ export function getCurrentRouteTarget(input: {
     }>;
   };
 }): ThreadRouteTarget | null {
-  return hydrateRouteTarget(resolveRouteTargetSnapshotFromMatches(input.state.matches));
+  return resolveThreadRouteTarget((input.state.matches.at(-1)?.params ?? {}) as ThreadRouteParams);
 }
 
 export function useRouteTarget(): ThreadRouteTarget | null {
-  const snapshot = useRouterState({
+  const params = useRouterState({
     select: (state: { readonly matches: ReadonlyArray<{ readonly params: unknown }> }) =>
-      resolveRouteTargetSnapshotFromMatches(state.matches),
+      state.matches.at(-1)?.params as ThreadRouteParams | undefined,
+    structuralSharing: true,
   });
-  return useMemo(() => hydrateRouteTarget(snapshot), [snapshot]);
+  return useMemo(() => resolveThreadRouteTarget(params ?? {}), [params]);
 }

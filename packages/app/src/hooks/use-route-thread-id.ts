@@ -1,4 +1,4 @@
-import { useRouteTarget } from "~/app/routes/thread-route-targets";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 
 export function resolveRouteThreadId(params: { threadId?: string | null } | null | undefined) {
   if (!params?.threadId) {

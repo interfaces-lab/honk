@@ -16,6 +16,7 @@ import {
   type SetStateAction,
 } from "react";
 import { Button } from "@multi/multikit/button";
+import { Spinner } from "@multi/multikit/spinner";
 import {
   Menu,
   MenuGroupLabel,
@@ -168,7 +169,7 @@ function nextPromptSyncState(
 type ActiveComposerInteractionMode = Exclude<AgentInteractionMode, "agent">;
 
 const interactionModeChipClass = cva(
-  "inline-flex h-6 w-fit max-w-full shrink-0 items-center gap-1 overflow-hidden rounded-full border-0 px-2 pr-1 text-(length:--multi-text-body) leading-none font-medium shadow-none [&_svg]:size-3 [&_svg]:shrink-0",
+  "inline-flex h-6 w-fit max-w-full shrink-0 items-center gap-1 overflow-hidden rounded-full border-0 px-2 pr-1 text-body font-medium shadow-none [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       mode: {
@@ -662,7 +663,7 @@ function formatPendingPrimaryActionLabel(input: {
 }
 
 const composerActionButtonClass = cva(
-  "flex size-6 items-center justify-center rounded-full bg-transparent transition-[background-color,color,opacity] duration-100",
+  "rounded-full bg-transparent transition-[background-color,color,opacity] duration-100",
   {
     variants: {
       action: {
@@ -824,11 +825,6 @@ function PrimaryActionControls(props: {
     );
   }
 
-  const spinnerSize = props.dockSingleRow ? 12 : 14;
-  const spinnerCenter = spinnerSize / 2;
-  const spinnerRadius = props.dockSingleRow ? 4.5 : 5.5;
-  const spinnerDash = props.dockSingleRow ? "17 10" : "20 12";
-
   return (
     <ComposerActionButton
       type="submit"
@@ -847,24 +843,10 @@ function PrimaryActionControls(props: {
       title={props.submitActionLabel ?? "Send message"}
     >
       {props.isConnecting || props.isSendBusy ? (
-        <svg
-          width={spinnerSize}
-          height={spinnerSize}
-          viewBox={`0 0 ${spinnerSize} ${spinnerSize}`}
-          fill="none"
-          className="animate-spin motion-reduce:animate-none"
+        <Spinner
           aria-hidden="true"
-        >
-          <circle
-            cx={spinnerCenter}
-            cy={spinnerCenter}
-            r={spinnerRadius}
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeDasharray={spinnerDash}
-          />
-        </svg>
+          className={cn("text-current", props.dockSingleRow ? "size-3" : "size-3.5")}
+        />
       ) : (
         <IconArrowUp className="size-3.5" />
       )}
@@ -1009,6 +991,8 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       keybindings,
       terminalOpen,
       gitCwd,
+      branchName,
+      executionModeLabel,
       promptRef,
       composerImagesRef,
       footerSecondaryAction,
@@ -1088,17 +1072,15 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
     const setRuntimeSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
-    const visibleContextWindow = useMemo(() => {
-      if (!activeContextWindow || settings.agentWindowUsageSummaryDisplay === "never") {
+    const statusContextWindow = useMemo(() => {
+      if (settings.agentWindowUsageSummaryDisplay === "never") {
         return null;
       }
-      if (settings.agentWindowUsageSummaryDisplay === "always") {
-        return activeContextWindow;
-      }
-      return activeContextWindow.usedPercentage !== null && activeContextWindow.usedPercentage >= 50
-        ? activeContextWindow
-        : null;
+      return activeContextWindow ?? null;
     }, [activeContextWindow, settings.agentWindowUsageSummaryDisplay]);
+    const showContextUsageTrigger = settings.agentWindowUsageSummaryDisplay !== "never";
+    const composerStatusBranchName = branchName?.trim() || null;
+    const composerStatusExecutionModeLabel = executionModeLabel?.trim() || null;
 
     // ------------------------------------------------------------------
     // Composer-local state
@@ -1437,6 +1419,11 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       : isNewAgentComposer
         ? "new-agent"
         : "thread";
+    const showThreadStatusBar =
+      composerShellMode === "thread" &&
+      (composerStatusBranchName !== null ||
+        composerStatusExecutionModeLabel !== null ||
+        showContextUsageTrigger);
 
     const showPlanTray =
       !isInlineEditComposer &&
@@ -2057,9 +2044,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
                     type="button"
                     size="icon-sm"
                     variant="ghost"
-                    className={cn(
-                      "size-6 shrink-0 rounded-full bg-multi-bg-tertiary p-0 text-multi-icon-tertiary hover:bg-multi-bg-secondary hover:text-multi-icon-secondary disabled:opacity-35",
-                    )}
+                    className="rounded-full bg-multi-bg-tertiary text-multi-icon-tertiary hover:bg-multi-bg-secondary hover:text-multi-icon-secondary disabled:opacity-35"
                     aria-label="Attach images"
                     disabled={pendingUserInputs.length > 0 || isConnecting}
                     onClick={() => composerImageInputRef.current?.click()}
@@ -2183,8 +2168,13 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
               )}
             </div>
           </div>
-          {!isInlineEditComposer && visibleContextWindow ? (
-            <ComposerContextUsageBar usage={visibleContextWindow} />
+          {showThreadStatusBar ? (
+            <ComposerContextUsageBar
+              branchName={composerStatusBranchName}
+              executionModeLabel={composerStatusExecutionModeLabel}
+              showContextUsageTrigger={showContextUsageTrigger}
+              usage={statusContextWindow}
+            />
           ) : null}
         </div>
         <ComposerCommandMenuPositioned

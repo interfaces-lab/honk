@@ -26,11 +26,10 @@ import { formatContextWindowTokens } from "~/lib/context-window";
 import { MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES } from "~/lib/runtime-tool-display";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 import { cn } from "~/lib/utils";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 import ChatMarkdown from "../markdown/chat-markdown";
 import {
   subagentTrayKey,
-  subagentTrayUpdateSignature,
+  subagentTraySelection,
   useSubagentTrayStore,
 } from "../../../stores/subagent-tray-store";
 
@@ -847,7 +846,6 @@ function SubagentStatusRow({
   subagentDetailsEnabled: boolean;
 }) {
   const openTray = useSubagentTrayStore((state) => state.openTray);
-  const updateTraySubagent = useSubagentTrayStore((state) => state.updateTraySubagent);
   const key = subagentTrayKey(subagent);
   const subagentThreadId = subagent.subagentThreadId?.trim() ?? "";
   const hasSubagentThread = subagentThreadId.length > 0;
@@ -857,112 +855,87 @@ function SubagentStatusRow({
   const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
   const statusText = subagent.latestUpdate ?? subagent.statusLabel;
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
-  const trayUpdateSignature = isTrayOpen ? subagentTrayUpdateSignature(subagent) : "";
 
   const handleOpenTray = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (!hasDetails) {
       return;
     }
-    openTray({
-      key,
-      activeThreadId,
-      environmentId,
-      projectRoot,
-      subagent,
-    });
+    openTray(
+      subagentTraySelection({
+        activeThreadId,
+        environmentId,
+        projectRoot,
+        subagent,
+      }),
+    );
   };
 
-  const trayUpdateSync = isTrayOpen ? (
-    <SubagentTrayUpdateSync
-      key={trayUpdateSignature}
-      subagent={subagent}
-      updateTraySubagent={updateTraySubagent}
-    />
-  ) : null;
-
   return (
-    <>
-      {trayUpdateSync}
-      <Button
-        type="button"
-        variant="ghost"
-        className={cn(
-          "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
-          "h-auto border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
-          hasDetails &&
-            "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-none",
-          isTrayOpen && hasDetails && "text-multi-fg-primary",
-        )}
-        data-subagent-row=""
-        data-subagent-state={rowState}
-        data-subagent-thread-id={hasSubagentThread ? subagentThreadId : undefined}
-        disabled={!hasDetails}
-        aria-label={hasDetails ? `Open ${title} details` : undefined}
-        aria-pressed={hasDetails ? isTrayOpen : undefined}
-        onClick={handleOpenTray}
-        onKeyDown={stopSubagentStatusRowKeyDown}
-      >
-        <SubagentStatusIndicator subagent={subagent} />
-        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5 overflow-hidden">
-          <span
-            data-subagent-name=""
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-multi-fg-primary"
-          >
-            {title}
-          </span>
-          {subagent.model ? (
-            <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
-              {subagent.model}
-            </span>
-          ) : null}
-          {statusText ? (
-            <span
-              data-subagent-task=""
-              className={cn(
-                "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
-                subagent.isActive && "tool-call-shimmer",
-              )}
-            >
-              {statusText}
-            </span>
-          ) : null}
-          {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
-            <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
-              {formatSubagentUsageLabel(subagent)}
-            </span>
-          ) : null}
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
+        "h-auto border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
+        hasDetails &&
+          "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-hidden focus-visible:shadow-[0_0_0_1px_var(--multi-stroke-focused)]",
+        isTrayOpen && hasDetails && "text-multi-fg-primary",
+      )}
+      data-subagent-row=""
+      data-subagent-state={rowState}
+      data-subagent-thread-id={hasSubagentThread ? subagentThreadId : undefined}
+      disabled={!hasDetails}
+      aria-label={hasDetails ? `Open ${title} details` : undefined}
+      aria-pressed={hasDetails ? isTrayOpen : undefined}
+      onClick={handleOpenTray}
+      onKeyDown={stopSubagentStatusRowKeyDown}
+    >
+      <SubagentStatusIndicator subagent={subagent} />
+      <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5 overflow-hidden">
+        <span
+          data-subagent-name=""
+          className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-multi-fg-primary"
+        >
+          {title}
         </span>
-        {hasDetails ? (
-          <span
-            className={cn(
-              "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
-              "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
-              isTrayOpen && "opacity-100",
-            )}
-            data-subagent-open=""
-            aria-hidden="true"
-          >
-            <IconChevronRightMedium className="size-3" />
+        {subagent.model ? (
+          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+            {subagent.model}
           </span>
         ) : null}
-      </Button>
-    </>
+        {statusText ? (
+          <span
+            data-subagent-task=""
+            className={cn(
+              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
+              subagent.isActive && "tool-call-shimmer",
+            )}
+          >
+            {statusText}
+          </span>
+        ) : null}
+        {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
+          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+            {formatSubagentUsageLabel(subagent)}
+          </span>
+        ) : null}
+      </span>
+      {hasDetails ? (
+        <span
+          className={cn(
+            "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
+            "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
+            isTrayOpen && "opacity-100",
+          )}
+          data-subagent-open=""
+          aria-hidden="true"
+        >
+          <IconChevronRightMedium className="size-3" />
+        </span>
+      ) : null}
+    </Button>
   );
-}
-
-function SubagentTrayUpdateSync({
-  subagent,
-  updateTraySubagent,
-}: {
-  subagent: WorkLogSubagent;
-  updateTraySubagent: (subagent: WorkLogSubagent) => void;
-}) {
-  useMountEffect(() => {
-    updateTraySubagent(subagent);
-  });
-
-  return null;
 }
 
 function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {

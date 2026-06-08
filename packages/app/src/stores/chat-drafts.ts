@@ -576,10 +576,6 @@ function getComposerDraftState(
   return state.draftsByThreadKey[threadKey] ?? null;
 }
 
-function isComposerThreadKeyInUse(mappings: Record<string, string>, threadKey: string): boolean {
-  return Object.values(mappings).includes(threadKey);
-}
-
 function toProjectDraftSession(
   draftId: DraftId,
   draftSession: DraftThreadState,
@@ -1228,28 +1224,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               ...state.draftThreadsByThreadKey,
               [draftId]: nextDraftThread,
             };
-            let nextDraftsByThreadKey = state.draftsByThreadKey;
-            const previousDraftThread =
-              previousThreadKeyForProjectless === undefined
-                ? undefined
-                : nextDraftThreadsByThreadKey[previousThreadKeyForProjectless];
-            if (
-              previousThreadKeyForProjectless &&
-              previousThreadKeyForProjectless !== draftId &&
-              !isComposerThreadKeyInUse(
-                nextLogicalProjectDraftThreadKeyByLogicalProjectKey,
-                previousThreadKeyForProjectless,
-              ) &&
-              !isDraftThreadPromoting(previousDraftThread)
-            ) {
-              delete nextDraftThreadsByThreadKey[previousThreadKeyForProjectless];
-              if (state.draftsByThreadKey[previousThreadKeyForProjectless] !== undefined) {
-                nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-                delete nextDraftsByThreadKey[previousThreadKeyForProjectless];
-              }
-            }
             return {
-              draftsByThreadKey: nextDraftsByThreadKey,
               draftThreadsByThreadKey: nextDraftThreadsByThreadKey,
               logicalProjectDraftThreadKeyByLogicalProjectKey:
                 nextLogicalProjectDraftThreadKeyByLogicalProjectKey,
@@ -1284,28 +1259,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               ...state.draftThreadsByThreadKey,
               [draftId]: nextDraftThread,
             };
-            let nextDraftsByThreadKey = state.draftsByThreadKey;
-            const previousDraftThread =
-              previousThreadKeyForLogicalProject === undefined
-                ? undefined
-                : nextDraftThreadsByThreadKey[previousThreadKeyForLogicalProject];
-            if (
-              previousThreadKeyForLogicalProject &&
-              previousThreadKeyForLogicalProject !== draftId &&
-              !isComposerThreadKeyInUse(
-                nextLogicalProjectDraftThreadKeyByLogicalProjectKey,
-                previousThreadKeyForLogicalProject,
-              ) &&
-              !isDraftThreadPromoting(previousDraftThread)
-            ) {
-              delete nextDraftThreadsByThreadKey[previousThreadKeyForLogicalProject];
-              if (state.draftsByThreadKey[previousThreadKeyForLogicalProject] !== undefined) {
-                nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-                delete nextDraftsByThreadKey[previousThreadKeyForLogicalProject];
-              }
-            }
             return {
-              draftsByThreadKey: nextDraftsByThreadKey,
               draftThreadsByThreadKey: nextDraftThreadsByThreadKey,
               logicalProjectDraftThreadKeyByLogicalProjectKey:
                 nextLogicalProjectDraftThreadKeyByLogicalProjectKey,
@@ -1928,29 +1882,33 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
 
 export const useComposerDraftStore = composerDraftStore;
 
-const EMPTY_STATE_DRAFT_PREFIX = "empty-state-draft";
+const NEW_THREAD_DRAFT_PREFIX = "new-thread-draft";
 
-function emptyStateDraftIdForProject(projectRef: ScopedProjectRef): DraftId {
+export function isNewThreadDraftId(draftId: DraftId): boolean {
+  return draftId.startsWith(`${NEW_THREAD_DRAFT_PREFIX}:`);
+}
+
+function newThreadDraftIdForProject(projectRef: ScopedProjectRef): DraftId {
   return DraftId.make(
-    `${EMPTY_STATE_DRAFT_PREFIX}:project:${projectRef.environmentId}:${projectRef.projectId}`,
+    `${NEW_THREAD_DRAFT_PREFIX}:project:${projectRef.environmentId}:${projectRef.projectId}`,
   );
 }
 
-function emptyStateThreadIdForProject(projectRef: ScopedProjectRef): ThreadId {
+function newThreadDraftThreadIdForProject(projectRef: ScopedProjectRef): ThreadId {
   return ThreadId.make(
-    `${EMPTY_STATE_DRAFT_PREFIX}:thread:project:${projectRef.environmentId}:${projectRef.projectId}`,
+    `${NEW_THREAD_DRAFT_PREFIX}:thread:project:${projectRef.environmentId}:${projectRef.projectId}`,
   );
 }
 
-function emptyStateDraftIdForEnvironment(environmentId: EnvironmentId): DraftId {
-  return DraftId.make(`${EMPTY_STATE_DRAFT_PREFIX}:projectless:${environmentId}`);
+function newThreadDraftIdForEnvironment(environmentId: EnvironmentId): DraftId {
+  return DraftId.make(`${NEW_THREAD_DRAFT_PREFIX}:projectless:${environmentId}`);
 }
 
-function emptyStateThreadIdForEnvironment(environmentId: EnvironmentId): ThreadId {
-  return ThreadId.make(`${EMPTY_STATE_DRAFT_PREFIX}:thread:projectless:${environmentId}`);
+function newThreadDraftThreadIdForEnvironment(environmentId: EnvironmentId): ThreadId {
+  return ThreadId.make(`${NEW_THREAD_DRAFT_PREFIX}:thread:projectless:${environmentId}`);
 }
 
-export function ensureProjectEmptyStateDraftSession(
+export function ensureProjectNewThreadDraftSession(
   projectRef: ScopedProjectRef,
   options?: { logicalProjectKey?: string | null },
 ): ProjectDraftSession {
@@ -1977,9 +1935,9 @@ export function ensureProjectEmptyStateDraftSession(
     return existingDraft;
   }
 
-  const draftId = emptyStateDraftIdForProject(projectRef);
+  const draftId = newThreadDraftIdForProject(projectRef);
   const draftOptions = {
-    threadId: emptyStateThreadIdForProject(projectRef),
+    threadId: newThreadDraftThreadIdForProject(projectRef),
     createdAt: new Date().toISOString(),
     interactionMode: DEFAULT_INTERACTION_MODE,
     envMode: "local" as const,
@@ -1994,12 +1952,12 @@ export function ensureProjectEmptyStateDraftSession(
     ? useComposerDraftStore.getState().getDraftSessionByLogicalProjectKey(logicalProjectKey)
     : useComposerDraftStore.getState().getDraftSessionByProjectRef(projectRef);
   if (!ensuredDraft) {
-    throw new Error("Could not create workspace empty-state draft.");
+    throw new Error("Could not create workspace new-thread draft.");
   }
   return ensuredDraft;
 }
 
-export function ensureProjectlessEmptyStateDraftSession(
+export function ensureProjectlessNewThreadDraftSession(
   environmentId: EnvironmentId,
 ): ProjectDraftSession {
   const store = useComposerDraftStore.getState();
@@ -2008,16 +1966,16 @@ export function ensureProjectlessEmptyStateDraftSession(
     return existingDraft;
   }
 
-  const draftId = emptyStateDraftIdForEnvironment(environmentId);
+  const draftId = newThreadDraftIdForEnvironment(environmentId);
   store.setProjectlessDraftThreadId(environmentId, draftId, {
-    threadId: emptyStateThreadIdForEnvironment(environmentId),
+    threadId: newThreadDraftThreadIdForEnvironment(environmentId),
     createdAt: new Date().toISOString(),
     interactionMode: DEFAULT_INTERACTION_MODE,
   });
 
   const ensuredDraft = useComposerDraftStore.getState().getProjectlessDraftSession(environmentId);
   if (!ensuredDraft) {
-    throw new Error("Could not create projectless empty-state draft.");
+    throw new Error("Could not create projectless new-thread draft.");
   }
   return ensuredDraft;
 }
@@ -2075,15 +2033,18 @@ export function markPromotedDraftThreadsByRef(serverThreadRefs: Iterable<ScopedT
   }
 }
 
-export function finalizePromotedDraftThreadByRef(threadRef: ScopedThreadRef): void {
+export function finalizePromotedDraftThreadByRef(threadRef: ScopedThreadRef): ScopedThreadRef[] {
   const draftStore = useComposerDraftStore.getState();
+  const finalizedDraftRefs: ScopedThreadRef[] = [];
   for (const [draftId, draftThread] of Object.entries(draftStore.draftThreadsByThreadKey)) {
     if (
       draftThread.promotedTo &&
       draftThread.promotedTo.environmentId === threadRef.environmentId &&
       draftThread.promotedTo.threadId === threadRef.threadId
     ) {
+      finalizedDraftRefs.push(scopeThreadRef(draftThread.environmentId, draftThread.threadId));
       draftStore.finalizePromotedDraftThread(DraftId.make(draftId));
     }
   }
+  return finalizedDraftRefs;
 }

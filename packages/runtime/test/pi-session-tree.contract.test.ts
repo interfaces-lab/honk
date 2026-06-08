@@ -1,6 +1,6 @@
 import { fauxAssistantMessage, fauxText, fauxThinking, type UserMessage } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import { MessageId } from "@multi/contracts";
+import { MessageId, threadEntryIdForMessageId } from "@multi/contracts";
 import {
   createRuntimeHarness,
   EMPTY_SEND_MESSAGE_OPTIONS,
@@ -58,8 +58,15 @@ describe("Pi session tree contract", () => {
     expect(tree.entries.find((entry) => entry.text === "first")?.clientMessageId).toBe(
       firstClientMessageId,
     );
+    expect(tree.entries.find((entry) => entry.text === "first")?.threadEntryId).toBe(
+      threadEntryIdForMessageId(firstClientMessageId),
+    );
     expect(tree.nodes.at(-1)?.isActiveLeaf).toBe(true);
-    expect(tree.nodes.every((node) => node.threadEntryId.startsWith("runtime:"))).toBe(true);
+    expect(
+      tree.nodes.find(
+        (node) => node.threadEntryId === threadEntryIdForMessageId(firstClientMessageId),
+      ),
+    ).toBeDefined();
   });
 
   it("projects the client message id before turn-completed tree publication", async () => {

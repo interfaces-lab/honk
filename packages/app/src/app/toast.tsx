@@ -26,7 +26,7 @@ import {
 } from "@multi/multikit/toast";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
-import { useRouteTarget } from "~/app/routes/thread-route-targets";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 export type ThreadToastData = {

@@ -11,7 +11,8 @@ import {
   type DraftId as DraftIdType,
   type DraftThreadState,
 } from "../../../stores/chat-drafts";
-import { selectThreadByRef, useStore } from "../../../stores/thread-store";
+import { useStore } from "../../../stores/thread-store";
+import { selectThreadRouteLifecycleSurfaceByRef } from "../../../stores/thread-selectors";
 import {
   DEFAULT_RUNTIME_MODE,
   type SessionPhase,
@@ -117,7 +118,22 @@ export function threadHasStarted(thread: Thread | null | undefined): boolean {
       (thread.latestTurn !== null ||
         thread.messages.length > 0 ||
         thread.session !== null ||
-        (thread.chatTimelineRows?.length ?? 0) > 0),
+      (thread.chatTimelineRows?.length ?? 0) > 0),
+  );
+}
+
+export function isNewThreadHeroDraft(input: {
+  readonly activeThread: Thread | null | undefined;
+  readonly isLocalDraftThread: boolean;
+  readonly pendingLocalSendCount: number;
+  readonly promotedTo: ScopedThreadRef | null | undefined;
+}): boolean {
+  return Boolean(
+    input.activeThread &&
+      input.isLocalDraftThread &&
+      !threadHasStarted(input.activeThread) &&
+      input.pendingLocalSendCount === 0 &&
+      !input.promotedTo,
   );
 }
 
@@ -186,10 +202,10 @@ export async function waitForStartedServerThread(
   threadRef: ScopedThreadRef,
   timeoutMs = 1_000,
 ): Promise<boolean> {
-  const getThread = () => selectThreadByRef(useStore.getState(), threadRef);
-  const thread = getThread();
+  const getThreadHasStarted = () =>
+    selectThreadRouteLifecycleSurfaceByRef(useStore.getState(), threadRef)?.hasStarted ?? false;
 
-  if (threadHasStarted(thread)) {
+  if (getThreadHasStarted()) {
     return true;
   }
 
@@ -209,13 +225,13 @@ export async function waitForStartedServerThread(
     };
 
     const unsubscribe = useStore.subscribe((state) => {
-      if (!threadHasStarted(selectThreadByRef(state, threadRef))) {
+      if (!(selectThreadRouteLifecycleSurfaceByRef(state, threadRef)?.hasStarted ?? false)) {
         return;
       }
       finish(true);
     });
 
-    if (threadHasStarted(getThread())) {
+    if (getThreadHasStarted()) {
       finish(true);
       return;
     }

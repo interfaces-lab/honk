@@ -9,6 +9,7 @@ import {
   type ThreadEntryId,
   type ThreadId,
   type TurnId,
+  threadEntryIdForMessageId,
 } from "@multi/contracts";
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Schema } from "effect";
@@ -83,8 +84,21 @@ function parentEntryId(entry: SessionEntry): RuntimeItemId | null {
   return entry.parentId ? makeRuntimeItemId(entry.parentId) : null;
 }
 
-function parentThreadEntryId(entry: SessionEntry): ThreadEntryId | null {
-  return entry.parentId ? makeThreadEntryIdForRuntimeEntry(entry.parentId) : null;
+function projectedThreadEntryId(
+  entryId: string,
+  clientMessageIdByEntryId: ReadonlyMap<string, MessageId> | undefined,
+): ThreadEntryId {
+  const clientMessageId = clientMessageIdByEntryId?.get(entryId);
+  return clientMessageId
+    ? threadEntryIdForMessageId(clientMessageId)
+    : makeThreadEntryIdForRuntimeEntry(entryId);
+}
+
+function parentThreadEntryId(
+  entry: SessionEntry,
+  clientMessageIdByEntryId: ReadonlyMap<string, MessageId> | undefined,
+): ThreadEntryId | null {
+  return entry.parentId ? projectedThreadEntryId(entry.parentId, clientMessageIdByEntryId) : null;
 }
 
 export function projectRuntimeSessionEntry(
@@ -100,9 +114,9 @@ export function projectRuntimeSessionEntry(
   const thinking = entryThinking(entry);
   return {
     id: makeRuntimeItemId(entry.id),
-    threadEntryId: makeThreadEntryIdForRuntimeEntry(entry.id),
+    threadEntryId: projectedThreadEntryId(entry.id, input?.clientMessageIdByEntryId),
     parentId: parentEntryId(entry),
-    parentThreadEntryId: parentThreadEntryId(entry),
+    parentThreadEntryId: parentThreadEntryId(entry, input?.clientMessageIdByEntryId),
     kind: entryKind(entry),
     ...(messageRole(entry) ? { role: messageRole(entry) } : {}),
     ...(clientMessageId ? { clientMessageId } : {}),
@@ -120,12 +134,16 @@ function pushProjectedNode(input: {
   readonly depth: number;
   readonly leafId: string | null;
   readonly activeEntryIds: ReadonlySet<string>;
+  readonly clientMessageIdByEntryId?: ReadonlyMap<string, MessageId>;
   readonly output: SessionTreeNode[];
 }): void {
   const entryId = makeRuntimeItemId(input.node.entry.id);
   input.output.push({
     entryId,
-    threadEntryId: makeThreadEntryIdForRuntimeEntry(input.node.entry.id),
+    threadEntryId: projectedThreadEntryId(
+      input.node.entry.id,
+      input.clientMessageIdByEntryId,
+    ),
     parentEntryId: input.parentEntryId,
     depth: input.depth,
     isActivePath: input.activeEntryIds.has(input.node.entry.id),
@@ -140,6 +158,9 @@ function pushProjectedNode(input: {
       depth: input.depth + 1,
       leafId: input.leafId,
       activeEntryIds: input.activeEntryIds,
+      ...(input.clientMessageIdByEntryId
+        ? { clientMessageIdByEntryId: input.clientMessageIdByEntryId }
+        : {}),
       output: input.output,
     });
   }
@@ -163,6 +184,9 @@ export function projectRuntimeSessionTree(input: {
       depth: 0,
       leafId,
       activeEntryIds,
+      ...(input.clientMessageIdByEntryId
+        ? { clientMessageIdByEntryId: input.clientMessageIdByEntryId }
+        : {}),
       output: nodes,
     });
   }

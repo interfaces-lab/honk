@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { SettingsRouteLayout } from "~/app/routes/settings-route";
+import { SettingsRouteLayout } from "~/routes/-settings-route";
 import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 
 export const Route = createFileRoute("/settings")({

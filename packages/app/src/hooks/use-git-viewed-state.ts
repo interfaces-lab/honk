@@ -27,9 +27,14 @@ export function useGitViewed(gitRoot: string | null) {
     });
   };
 
+  const unmarkViewed = (paths: string[]) => {
+    const pathsToClear = new Set(paths);
+    setViewed((prev) => prev.filter((path) => !pathsToClear.has(path)));
+  };
+
   const clearViewed = () => {
     setViewed([]);
   };
 
-  return { viewed, isViewed, toggleViewed, markAllViewed, clearViewed };
+  return { viewed, isViewed, toggleViewed, markAllViewed, unmarkViewed, clearViewed };
 }

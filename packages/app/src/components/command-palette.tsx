@@ -2,28 +2,37 @@
 
 import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
 import { type ResolvedKeybindingsConfig } from "@multi/contracts";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   IconChevronLeftMedium,
   IconChevronRightMedium,
-  IconBubbleText,
+  IconAgent,
+  IconBug,
   IconClipboard,
-  IconCode,
   IconFolder1,
   IconFolderAddRight,
-  IconPencil,
+  IconFolderOpen,
+  IconKeyboard,
+  IconProjects,
   IconSettingsGear2,
+  IconSettingsSliderHor,
+  IconSquareChecklist,
+  IconThread,
   IconWindowCursor,
 } from "central-icons";
 import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useCommandPaletteStore } from "../stores/ui/command-palette-store";
 import { usePrimaryEnvironmentId } from "../environments/primary";
-import { useHandleNewThread } from "../hooks/use-handle-new-thread";
+import {
+  useNewThreadHandler,
+  useNewThreadProjectDefaults,
+} from "../hooks/use-handle-new-thread";
 import { useMountEffect } from "../hooks/use-mount-effect";
 import { useSettings } from "../hooks/use-settings";
 import { readLocalApi } from "../local-api";
 import {
+  readThreadActionContext,
   startNewThreadInProjectFromContext,
   startNewThreadFromContext,
 } from "../lib/chat-thread-actions";
@@ -36,15 +45,16 @@ import {
   findWorkspaceProjectForSource,
   getLatestWorkspaceThreadForProject,
 } from "../lib/workspace-target";
-import { cn } from "../lib/utils";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
   useStore,
 } from "../stores/thread-store";
+import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
+import { useComposerDraftStore } from "../stores/chat-drafts";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
 import { openThread } from "~/app/chat-navigation";
-import { useRouteTarget } from "~/app/routes/thread-route-targets";
+import { getCurrentRouteTarget, useRouteTarget } from "~/routes/-thread-route-targets";
 import {
   buildProjectActionItems,
   buildRootGroups,
@@ -64,6 +74,7 @@ import { formatSchemaBackedTransportErrorDescription } from "~/rpc/transport-err
 import {
   useServerAvailableEditors,
   useServerKeybindings,
+  useServerKeybindingsConfigPath,
   useServerObservability,
 } from "../rpc/server-state";
 import {
@@ -76,7 +87,6 @@ import {
   CommandCollection,
   CommandDialog,
   CommandDialogPopup,
-  CommandFooter,
   CommandGroup,
   CommandGroupLabel,
   CommandInput,
@@ -84,9 +94,9 @@ import {
   CommandList,
   CommandPanel,
   CommandShortcut,
+  CommandShortcutKey,
 } from "@multi/multikit/command";
 import { Button } from "@multi/multikit/button";
-import { Kbd, KbdGroup } from "@multi/multikit/kbd";
 import { toastManager } from "~/app/toast";
 import {
   ComposerHandleContext,
@@ -104,7 +114,6 @@ function joinFileSystemPath(basePath: string, ...segments: string[]): string {
 
 interface CommandPaletteResultsProps {
   readonly groups: ReadonlyArray<CommandPaletteGroup>;
-  readonly highlightedItemValue?: string | null;
   readonly isActionsOnly: boolean;
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
@@ -114,7 +123,51 @@ interface CommandPaletteSessionState {
   readonly sessionId: number;
   readonly viewStack: CommandPaletteView[];
   readonly query: string;
-  readonly highlightedItemValue: string | null;
+}
+
+const MAC_SHORTCUT_MODIFIER_SYMBOLS = new Set(["⌃", "⌥", "⇧", "⌘"]);
+
+interface ShortcutLabelPart {
+  readonly id: string;
+  readonly label: string;
+}
+
+function shortcutLabelParts(label: string): ShortcutLabelPart[] {
+  if (label.includes("+")) {
+    let offset = 0;
+    return label
+      .split("+")
+      .filter((part) => part.length > 0)
+      .map((part) => {
+        offset = label.indexOf(part, offset);
+        const id = `${offset}:${part}`;
+        offset += part.length;
+        return { id, label: part };
+      });
+  }
+
+  const parts: ShortcutLabelPart[] = [];
+  let consumedLabel = "";
+  let keyPart = "";
+  for (const character of Array.from(label)) {
+    if (MAC_SHORTCUT_MODIFIER_SYMBOLS.has(character)) {
+      if (keyPart.length > 0) {
+        consumedLabel += keyPart;
+        parts.push({ id: consumedLabel, label: keyPart });
+        keyPart = "";
+      }
+      consumedLabel += character;
+      parts.push({ id: consumedLabel, label: character });
+    } else {
+      keyPart += character;
+    }
+  }
+  if (keyPart.length > 0) {
+    consumedLabel += keyPart;
+    parts.push({ id: consumedLabel, label: keyPart });
+  }
+
+  return parts.length > 0 ? parts : [{ id: label, label }];
 }
 
 function CommandPaletteResults(props: CommandPaletteResultsProps) {
@@ -139,7 +192,6 @@ function CommandPaletteResults(props: CommandPaletteResultsProps) {
                 item={item}
                 key={item.value}
                 keybindings={props.keybindings}
-                isActive={props.highlightedItemValue === item.value}
                 onExecuteItem={props.onExecuteItem}
               />
             )}
@@ -152,7 +204,6 @@ function CommandPaletteResults(props: CommandPaletteResultsProps) {
 
 function CommandPaletteResultRow(props: {
   readonly item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
-  readonly isActive: boolean;
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
 }) {
@@ -163,10 +214,7 @@ function CommandPaletteResultRow(props: {
   return (
     <CommandItem
       value={props.item.value}
-      className={cn(
-        "cursor-pointer gap-2 hover:bg-transparent hover:text-inherit data-highlighted:bg-transparent data-highlighted:text-inherit data-selected:bg-transparent data-selected:text-inherit [&[data-highlighted][data-selected]]:bg-transparent [&[data-highlighted][data-selected]]:text-inherit",
-        props.isActive && "bg-multi-hover! text-foreground!",
-      )}
+      className="cursor-pointer"
       onMouseDown={(event) => {
         event.preventDefault();
       }}
@@ -177,58 +225,66 @@ function CommandPaletteResultRow(props: {
       {props.item.icon}
       {props.item.description ? (
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body text-foreground">{props.item.title}</span>
-          <span className="truncate text-detail text-muted-foreground/64">
+          <span className="truncate text-body text-multi-fg-primary">{props.item.title}</span>
+          <span className="truncate text-detail text-multi-fg-tertiary">
             {props.item.description}
           </span>
         </span>
       ) : (
-        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-multi-fg-primary">
           <span className="truncate">{props.item.title}</span>
         </span>
       )}
       {props.item.timestamp ? (
-        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-muted-foreground/62">
+        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-multi-fg-tertiary">
           {props.item.timestamp}
         </span>
       ) : null}
-      {shortcutLabel ? <CommandShortcut>{shortcutLabel}</CommandShortcut> : null}
+      {shortcutLabel ? (
+        <CommandShortcut aria-label={shortcutLabel}>
+          {shortcutLabelParts(shortcutLabel).map((part) => (
+            <CommandShortcutKey key={part.id}>{part.label}</CommandShortcutKey>
+          ))}
+        </CommandShortcut>
+      ) : null}
       {props.item.kind === "submenu" ? (
-        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-muted-foreground/50" />
+        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-multi-icon-tertiary" />
       ) : null}
     </CommandItem>
   );
 }
 
 export function CommandPalette({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const open = useCommandPaletteStore((store) => store.open);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
   const toggleOpen = useCommandPaletteStore((store) => store.toggleOpen);
   const keybindings = useServerKeybindings();
   const composerHandleRef = useRef<ComposerInputHandle | null>(null);
   const keybindingsRef = useRef(keybindings);
-  const terminalOpenRef = useRef(false);
+  const routerRef = useRef(router);
   const toggleOpenRef = useRef(toggleOpen);
   const activeKeybindings =
     keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
-  const routeTarget = useRouteTarget();
-  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
-  const terminalOpen = useTerminalStateStore((state) =>
-    routeThreadRef
-      ? selectThreadTerminalState(state.terminalStateByThreadKey, routeThreadRef).terminalOpen
-      : false,
-  );
   keybindingsRef.current = activeKeybindings;
-  terminalOpenRef.current = terminalOpen;
+  routerRef.current = router;
   toggleOpenRef.current = toggleOpen;
 
   useMountEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
+      const routeTarget = getCurrentRouteTarget(routerRef.current);
+      const terminalOpen =
+        routeTarget?.kind === "server"
+          ? selectThreadTerminalState(
+              useTerminalStateStore.getState().terminalStateByThreadKey,
+              routeTarget.threadRef,
+            ).terminalOpen
+          : false;
       const command = resolveShortcutCommand(event, keybindingsRef.current, {
         context: {
           terminalFocus: isTerminalFocused(),
-          terminalOpen: terminalOpenRef.current,
+          terminalOpen,
         },
       });
       if (command !== "commandPalette.toggle") {
@@ -253,11 +309,12 @@ export function CommandPalette({ children }: { children: ReactNode }) {
 }
 
 function CommandPaletteDialog() {
+  const open = useCommandPaletteStore((store) => store.open);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
 
   useMountEffect(() => () => setOpen(false));
 
-  return <OpenCommandPaletteDialog />;
+  return open ? <OpenCommandPaletteDialog /> : null;
 }
 
 async function copyPathToClipboard(path: string, successTitle: string) {
@@ -282,30 +339,42 @@ function projectCommandPaletteIcon(project: Project): ReactNode {
     <ProjectFavicon
       environmentId={project.environmentId}
       cwd={project.cwd}
-      className="size-4 text-muted-foreground/80"
+      className="size-4 text-multi-icon-tertiary"
     />
   );
 }
 
 function OpenCommandPaletteDialog() {
   const navigate = useNavigate();
-  const open = useCommandPaletteStore((store) => store.open);
+  const router = useRouter();
   const openSessionId = useCommandPaletteStore((store) => store.openSessionId);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
   const openIntent = useCommandPaletteStore((store) => store.openIntent);
   const composerHandleRef = useComposerHandleContext();
   const openAddProjectFlowRef = useRef<() => void>(() => undefined);
   const settings = useSettings();
-  const {
-    activeDraftThread,
-    activeThread,
-    defaultLogicalProjectKey,
-    defaultProjectRef,
-    handleNewThread,
-  } = useHandleNewThread();
+  const routeTarget = useRouteTarget();
+  const { defaultLogicalProjectKey, defaultProjectRef } = useNewThreadProjectDefaults();
+  const { handleNewThread } = useNewThreadHandler();
+  const activeThread = useStore(
+    useShallow((store) =>
+      routeTarget?.kind === "server"
+        ? selectThreadWorkspaceSurfaceByRef(store, routeTarget.threadRef)
+        : undefined,
+    ),
+  );
+  const activeDraftThread = useComposerDraftStore((store) => {
+    if (!routeTarget) {
+      return null;
+    }
+    return routeTarget.kind === "server"
+      ? store.getDraftThread(routeTarget.threadRef)
+      : store.getDraftSession(routeTarget.draftId);
+  });
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const threads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const keybindings = useServerKeybindings();
+  const keybindingsConfigPath = useServerKeybindingsConfigPath();
   const availableEditors = useServerAvailableEditors();
   const observability = useServerObservability();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -333,7 +402,7 @@ function OpenCommandPaletteDialog() {
       sortOrder: settings.sidebarThreadSortOrder,
     });
     if (latestThread) {
-      await openThread(navigate, scopeThreadRef(latestThread.environmentId, latestThread.id));
+      await openThread(router, scopeThreadRef(latestThread.environmentId, latestThread.id));
       return;
     }
 
@@ -375,15 +444,14 @@ function OpenCommandPaletteDialog() {
     icon: projectCommandPaletteIcon,
     runProject: async (project) => {
       await startNewThreadInProjectFromContext(
-        {
-          activeDraftThread,
-          activeThread,
+        readThreadActionContext({
           defaultLogicalProjectKey,
           defaultProjectRef,
           defaultThreadEnvMode: settings.defaultThreadEnvMode,
           handleNewThread,
           projects,
-        },
+          routeTarget,
+        }),
         scopeProjectRef(project.environmentId, project.id),
       );
     },
@@ -394,7 +462,7 @@ function OpenCommandPaletteDialog() {
     ...(activeThreadId ? { activeThreadId } : {}),
     projectTitleForThread: (thread) => findWorkspaceProjectForSource(projects, thread)?.name,
     sortOrder: settings.sidebarThreadSortOrder,
-    icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+    icon: <IconThread className="size-4 text-multi-icon-tertiary" />,
     runThread: async (thread) => {
       const selectedThread =
         threads.find(
@@ -407,7 +475,7 @@ function OpenCommandPaletteDialog() {
       if (selectedProject) {
         persistProjectSelection(selectedProject);
       }
-      await openThread(navigate, scopeThreadRef(thread.environmentId, thread.id));
+      await openThread(router, scopeThreadRef(thread.environmentId, thread.id));
     },
   });
   const recentThreadItems = allThreadItems.slice(0, RECENT_THREAD_LIMIT);
@@ -456,7 +524,7 @@ function OpenCommandPaletteDialog() {
         sortOrder: settings.sidebarThreadSortOrder,
       });
       if (latestThread) {
-        await openThread(navigate, scopeThreadRef(latestThread.environmentId, latestThread.id));
+        await openThread(router, scopeThreadRef(latestThread.environmentId, latestThread.id));
       } else {
         await handleNewThread(selection.projectRef, {
           envMode: settings.defaultThreadEnvMode,
@@ -537,7 +605,7 @@ function OpenCommandPaletteDialog() {
           searchTerms: ["add project", "add project", "folder", "directory"],
           title: "Add Project",
           description: "Choose a folder",
-          icon: <IconFolderAddRight className="size-4 text-muted-foreground/80" />,
+          icon: <IconFolderAddRight className="size-4 text-multi-icon-tertiary" />,
           keepOpen: true,
           run: async () => {
             openAddProjectFlow();
@@ -564,7 +632,6 @@ function OpenCommandPaletteDialog() {
       sessionId: openSessionId,
       viewStack,
       query: "",
-      highlightedItemValue: null,
     };
   }
 
@@ -575,7 +642,7 @@ function OpenCommandPaletteDialog() {
   if (activeSessionState !== sessionState) {
     setSessionState(activeSessionState);
   }
-  const { query, highlightedItemValue, viewStack } = activeSessionState;
+  const { query, viewStack } = activeSessionState;
   const deferredQuery = useDeferredValue(query);
   const isActionsOnly = deferredQuery.startsWith(">");
   const currentView = viewStack.at(-1) ?? null;
@@ -602,7 +669,6 @@ function OpenCommandPaletteDialog() {
           ...(view.placeholder ? { placeholder: view.placeholder } : {}),
         },
       ],
-      highlightedItemValue: null,
       query: view.initialQuery ?? "",
     }));
   }
@@ -620,7 +686,6 @@ function OpenCommandPaletteDialog() {
     setSessionState((previousState) => ({
       ...previousState,
       viewStack: previousState.viewStack.slice(0, -1),
-      highlightedItemValue: null,
       query: "",
     }));
   }
@@ -632,20 +697,14 @@ function OpenCommandPaletteDialog() {
         return {
           ...previousState,
           viewStack: previousState.viewStack.slice(0, -1),
-          highlightedItemValue: null,
           query: "",
         };
       }
       return {
         ...previousState,
-        highlightedItemValue: null,
         query: nextQuery,
       };
     });
-  }
-
-  if (!open) {
-    return null;
   }
 
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
@@ -663,18 +722,19 @@ function OpenCommandPaletteDialog() {
             New thread in <span className="font-semibold">{activeProjectTitle}</span>
           </>
         ),
-        icon: <IconPencil className="size-4 text-muted-foreground/80" />,
+        icon: <IconAgent className="size-4 text-multi-icon-tertiary" />,
         shortcutCommand: "chat.new",
         run: async () => {
-          await startNewThreadFromContext({
-            activeDraftThread,
-            activeThread,
-            defaultLogicalProjectKey,
-            defaultProjectRef,
-            defaultThreadEnvMode: settings.defaultThreadEnvMode,
-            handleNewThread,
-            projects,
-          });
+          await startNewThreadFromContext(
+            readThreadActionContext({
+              defaultLogicalProjectKey,
+              defaultProjectRef,
+              defaultThreadEnvMode: settings.defaultThreadEnvMode,
+              handleNewThread,
+              projects,
+              routeTarget,
+            }),
+          );
         },
       });
     }
@@ -684,8 +744,8 @@ function OpenCommandPaletteDialog() {
       value: "action:new-thread-in",
       searchTerms: ["new thread", "project", "pick", "choose", "select"],
       title: "New thread in...",
-      icon: <IconPencil className="size-4 text-muted-foreground/80" />,
-      addonIcon: <IconPencil className="size-4" />,
+      icon: <IconProjects className="size-4 text-multi-icon-tertiary" />,
+      addonIcon: <IconProjects className="size-4" />,
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
   }
@@ -695,21 +755,67 @@ function OpenCommandPaletteDialog() {
     value: "action:add-project",
     searchTerms: ["add project", "folder", "directory"],
     title: "Add project",
-    icon: <IconFolderAddRight className="size-4 text-muted-foreground/80" />,
+    icon: <IconFolderAddRight className="size-4 text-multi-icon-tertiary" />,
     keepOpen: true,
     run: async () => {
       openAddProjectFlow();
     },
   });
 
+  if (currentProjectCwd) {
+    actionItems.push({
+      kind: "action",
+      value: "action:open-workspace-in-editor",
+      searchTerms: ["open workspace in editor", "open project in editor", "editor", "code"],
+      title: "Open workspace in editor",
+      description: currentProjectCwd,
+      icon: <IconFolderOpen className="size-4 text-multi-icon-tertiary" />,
+      run: async () => {
+        await openPathInPreferredEditor(currentProjectCwd, "Unable to open workspace");
+      },
+    });
+
+    actionItems.push({
+      kind: "action",
+      value: "action:copy-workspace-path",
+      searchTerms: ["copy workspace path", "copy project path", "path", "clipboard"],
+      title: "Copy workspace path",
+      description: currentProjectCwd,
+      icon: <IconClipboard className="size-4 text-multi-icon-tertiary" />,
+      run: async () => {
+        await copyPathToClipboard(currentProjectCwd, "Copied workspace path");
+      },
+    });
+  }
+
   actionItems.push({
     kind: "action",
     value: "action:settings",
     searchTerms: ["settings", "preferences", "configuration", "keybindings"],
     title: "Open settings",
-    icon: <IconSettingsGear2 className="size-4 text-muted-foreground/80" />,
+    icon: <IconSettingsGear2 className="size-4 text-multi-icon-tertiary" />,
     run: async () => {
       await navigate({ to: "/settings" });
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:keybindings",
+    searchTerms: ["keyboard shortcuts", "keybindings", "shortcuts", "hotkeys"],
+    title: "Open keyboard shortcuts",
+    description: keybindingsConfigPath ?? "Keybindings file path unavailable",
+    icon: <IconKeyboard className="size-4 text-multi-icon-tertiary" />,
+    run: async () => {
+      if (!keybindingsConfigPath) {
+        toastManager.add({
+          type: "error",
+          title: "Unable to open keyboard shortcuts",
+          description: "The keybindings file path is unavailable.",
+        });
+        return;
+      }
+      await openPathInPreferredEditor(keybindingsConfigPath, "Unable to open keybindings file");
     },
   });
 
@@ -720,7 +826,7 @@ function OpenCommandPaletteDialog() {
       searchTerms: ["copy server trace path", "copy trace path", "debug", "trace", "logs"],
       title: "Copy server trace path",
       description: "Local server trace NDJSON file",
-      icon: <IconClipboard className="size-4 text-muted-foreground/80" />,
+      icon: <IconBug className="size-4 text-multi-icon-tertiary" />,
       run: async () => {
         await copyPathToClipboard(serverTracePath, "Copied server trace path");
       },
@@ -744,7 +850,7 @@ function OpenCommandPaletteDialog() {
       ],
       title: "Open Multikit",
       description: "Browse the Multikit design system with DialKit (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+      icon: <IconSettingsSliderHor className="size-4 text-multi-icon-tertiary" />,
       run: async () => {
         await navigate({ to: "/dev/multikit" });
       },
@@ -764,7 +870,7 @@ function OpenCommandPaletteDialog() {
       ],
       title: "Open queued message demo",
       description: "Exercise queued follow-up panel states (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+      icon: <IconSquareChecklist className="size-4 text-multi-icon-tertiary" />,
       run: async () => {
         await navigate({ to: "/dev/queued-message-demo" });
       },
@@ -784,14 +890,18 @@ function OpenCommandPaletteDialog() {
       ],
       title: "Open Cursor agent window demo",
       description: "Inspect the Cursor-style agent window parity mock (dev)",
-      icon: <IconWindowCursor className="size-4 text-muted-foreground/80" />,
+      icon: <IconWindowCursor className="size-4 text-multi-icon-tertiary" />,
       run: async () => {
         await navigate({ to: "/dev/cursor-agent-window-demo" });
       },
     });
   }
 
-  const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
+  const rootGroups = buildRootGroups({
+    projectItems: projectProjectItems,
+    actionItems,
+    recentThreadItems,
+  });
   const activeGroups = currentView ? currentView.groups : rootGroups;
 
   const filteredGroups = filterCommandPaletteGroups({
@@ -851,12 +961,6 @@ function OpenCommandPaletteDialog() {
         aria-label="Command palette"
         autoHighlight="always"
         mode="none"
-        onItemHighlighted={(value) => {
-          setSessionState((previousState) => ({
-            ...previousState,
-            highlightedItemValue: typeof value === "string" ? value : null,
-          }));
-        }}
         onValueChange={handleQueryChange}
         value={query}
       >
@@ -888,39 +992,11 @@ function OpenCommandPaletteDialog() {
         <CommandPanel className="max-h-[min(28rem,70vh)]">
           <CommandPaletteResults
             groups={displayedGroups}
-            highlightedItemValue={highlightedItemValue}
             isActionsOnly={isActionsOnly}
             keybindings={keybindings}
             onExecuteItem={executeItem}
           />
         </CommandPanel>
-        <CommandFooter className="gap-3 max-sm:flex-col max-sm:items-start">
-          <div className="flex items-center gap-3">
-            <KbdGroup className="items-center gap-1.5">
-              <Kbd>
-                <IconChevronRightMedium className="-rotate-90" />
-              </Kbd>
-              <Kbd>
-                <IconChevronRightMedium className="rotate-90" />
-              </Kbd>
-              <span className={cn("text-muted-foreground/80")}>Navigate</span>
-            </KbdGroup>
-            <KbdGroup className="items-center gap-1.5">
-              <Kbd>Enter</Kbd>
-              <span className={cn("text-muted-foreground/80")}>Select</span>
-            </KbdGroup>
-            {isSubmenu ? (
-              <KbdGroup className="items-center gap-1.5">
-                <Kbd>Backspace</Kbd>
-                <span className={cn("text-muted-foreground/80")}>Back</span>
-              </KbdGroup>
-            ) : null}
-            <KbdGroup className="items-center gap-1.5">
-              <Kbd>Esc</Kbd>
-              <span className={cn("text-muted-foreground/80")}>Close</span>
-            </KbdGroup>
-          </div>
-        </CommandFooter>
       </Command>
     </CommandDialogPopup>
   );

@@ -13,7 +13,7 @@ import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
 import { startEnvironmentConnectionService } from "~/environments/runtime";
 import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
-import { RootStatusPage } from "./root-status-page";
+import { RootStatusPage } from "./-root-status-page";
 
 const routeApi = getRouteApi("__root__");
 

@@ -8,7 +8,7 @@ import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@multi/co
 import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { useNewThreadHandler } from "./use-handle-new-thread";
@@ -26,7 +26,7 @@ import {
 } from "../stores/thread-store";
 import { useTerminalStateStore } from "../terminal-state-store";
 import { openChatIndex, openThread } from "~/app/chat-navigation";
-import { getCurrentRouteTarget as getCurrentRouteTargetFromRouter } from "~/app/routes/thread-route-targets";
+import { getCurrentRouteTarget as getCurrentRouteTargetFromRouter } from "~/routes/-thread-route-targets";
 import {
   formatWorktreePathForDisplay,
   getOrphanedWorktreePathForThread,
@@ -206,15 +206,15 @@ export function useThreadActions() {
   handleNewThreadRef.current = handleNewThread;
   const queryClient = useQueryClient();
 
-  const getCurrentRouteTarget = () => {
+  const getCurrentRouteTarget = useCallback(() => {
     return getCurrentRouteTargetFromRouter(router);
-  };
-  const getCurrentRouteThreadRef = () => {
+  }, [router]);
+  const getCurrentRouteThreadRef = useCallback(() => {
     const target = getCurrentRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;
-  };
+  }, [getCurrentRouteTarget]);
 
-  const undoArchiveThreads = (targets: readonly ScopedThreadRef[]) => {
+  const undoArchiveThreads = useCallback((targets: readonly ScopedThreadRef[]) => {
     for (const target of targets) {
       void unarchiveThread(target).catch((error) => {
         toastManager.add({
@@ -224,9 +224,10 @@ export function useThreadActions() {
         });
       });
     }
-  };
+  }, []);
 
-  const archiveThread = async (target: ScopedThreadRef) => {
+  const archiveThread = useCallback(
+    async (target: ScopedThreadRef) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
       const resolved = resolveThreadTarget(target);
@@ -261,9 +262,12 @@ export function useThreadActions() {
           scopeProjectRef(workspaceProject.environmentId, workspaceProject.id),
         );
       }
-  };
+    },
+    [getCurrentRouteThreadRef, router, undoArchiveThreads],
+  );
 
-  const archiveThreads = async (targets: readonly ScopedThreadRef[]) => {
+  const archiveThreads = useCallback(
+    async (targets: readonly ScopedThreadRef[]) => {
       const state = useStore.getState();
       const targetByKey = new Map<string, ScopedThreadRef>();
       for (const target of targets) {
@@ -356,9 +360,12 @@ export function useThreadActions() {
       }
 
       await openChatIndex(router, { replace: true });
-  };
+    },
+    [getCurrentRouteThreadRef, router, sidebarThreadSortOrder, undoArchiveThreads],
+  );
 
-  const removeProjectFromSidebar = async (target: ScopedProjectRef) => {
+  const removeProjectFromSidebar = useCallback(
+    async (target: ScopedProjectRef) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
 
@@ -400,12 +407,12 @@ export function useThreadActions() {
       }
 
       await openChatIndex(router, { replace: true });
-  };
+    },
+    [getCurrentRouteTarget, router],
+  );
 
-  const deleteThread = async (
-    target: ScopedThreadRef,
-    opts: { deletedThreadKeys?: ReadonlySet<string> } = {},
-  ) => {
+  const deleteThread = useCallback(
+    async (target: ScopedThreadRef, opts: { deletedThreadKeys?: ReadonlySet<string> } = {}) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
       const resolved = resolveThreadTarget(target);
@@ -503,12 +510,18 @@ export function useThreadActions() {
               scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
               { replace: true },
             );
-          } else {
-            await openChatIndex(router, { replace: true });
+            return;
           }
-        } else {
-          await openChatIndex(router, { replace: true });
         }
+
+        if (threadProject) {
+          await handleNewThreadRef.current(
+            scopeProjectRef(threadProject.environmentId, threadProject.id),
+          );
+          return;
+        }
+
+        await openChatIndex(router, { replace: true });
       }
 
       if (!shouldDeleteWorktree || !orphanedWorktreePath || !threadProject) {
@@ -541,9 +554,20 @@ export function useThreadActions() {
           description: `Could not remove ${displayWorktreePath ?? orphanedWorktreePath}. ${message}`,
         });
       }
-  };
+    },
+    [
+      clearComposerDraftForThread,
+      clearProjectDraftThreadById,
+      clearTerminalState,
+      getCurrentRouteThreadRef,
+      queryClient,
+      router,
+      sidebarThreadSortOrder,
+    ],
+  );
 
-  const confirmAndDeleteThread = async (target: ScopedThreadRef) => {
+  const confirmAndDeleteThread = useCallback(
+    async (target: ScopedThreadRef) => {
       const api = readEnvironmentApi(target.environmentId);
       if (!api) return;
       const localApi = readLocalApi();
@@ -564,15 +588,20 @@ export function useThreadActions() {
       }
 
       await deleteThread(target);
-  };
+    },
+    [confirmThreadDelete, deleteThread],
+  );
 
-  return {
-    commitRename,
-    archiveThread,
-    archiveThreads,
-    unarchiveThread,
-    deleteThread,
-    confirmAndDeleteThread,
-    removeProjectFromSidebar,
-  };
+  return useMemo(
+    () => ({
+      commitRename,
+      archiveThread,
+      archiveThreads,
+      unarchiveThread,
+      deleteThread,
+      confirmAndDeleteThread,
+      removeProjectFromSidebar,
+    }),
+    [archiveThread, archiveThreads, confirmAndDeleteThread, deleteThread, removeProjectFromSidebar],
+  );
 }

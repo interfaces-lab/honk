@@ -43,15 +43,15 @@
   --multi-vibrancy-editor-mix: var(--multi-vibrancy-chat-mix);
   --multi-glass-surface-background: hsl(0 0% 100% / 0.16);
 
-  --background: var(--multi-base-editor);
+  --background: var(--cursor-bg-editor);
   --multi-base-foreground: #141414;
   --multi-cursor-base: var(--multi-base-foreground);
   --foreground: var(--multi-base-foreground);
   --multi-swatch-inset-shadow: inset 0 0 0 1px
     color-mix(in srgb, var(--foreground) 16%, transparent);
-  --card: var(--multi-base-editor);
+  --card: var(--cursor-bg-editor);
   --card-foreground: var(--foreground);
-  --popover: var(--multi-base-editor);
+  --popover: var(--cursor-bg-editor);
   --popover-foreground: var(--foreground);
 
   --secondary: color-mix(in srgb, var(--foreground) 4%, transparent);
@@ -59,12 +59,20 @@
   --muted: color-mix(in srgb, var(--foreground) 4%, transparent);
   --muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);
 
-  /* Tint bases (Cursor surface split): TS owns user hue / intensity math. */
-  --multi-base-sidebar: #f3f3f3;
-  --multi-base-chrome: #f8f8f8;
-  --multi-base-editor: #fcfcfc;
-  --multi-base-accent: #3685bf;
-  --multi-base-focus: #3685bf;
+  /* Cursor core glass tokens. TS only emits scoped overrides when intensity is active. */
+  --cursor-sidebar: #f3f3f3;
+  --cursor-chrome: #f8f8f8;
+  --cursor-editor: #fcfcfc;
+  --cursor-accent: #3685bf;
+  --cursor-focus: #3685bf;
+  --cursor-bg-sidebar: var(--cursor-sidebar);
+  --cursor-bg-chrome: var(--cursor-chrome);
+  --cursor-bg-editor: var(--cursor-editor);
+  --multi-base-sidebar: var(--cursor-sidebar);
+  --multi-base-chrome: var(--cursor-chrome);
+  --multi-base-editor: var(--cursor-editor);
+  --multi-base-accent: var(--cursor-accent);
+  --multi-base-focus: var(--cursor-focus);
   --multi-shadow-primary: color-mix(in srgb, #000000 6%, transparent);
 
   --accent: var(--multi-bg-secondary);
@@ -78,7 +86,7 @@
   --warning-foreground: oklch(0.28 0.06 88);
 
   --border: var(--multi-stroke-tertiary);
-  --input: var(--multi-base-editor);
+  --input: var(--cursor-bg-editor);
 
   --primary: var(--multi-base-accent);
   --primary-foreground: #fcfcfc;
@@ -94,17 +102,17 @@
   --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 15%, transparent);
   --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 15%, transparent);
 
-  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
+  --multi-color-sidebar-opaque: var(--cursor-bg-sidebar);
   --multi-color-sidebar: var(--multi-color-sidebar-opaque);
-  --multi-color-chat-opaque: var(--multi-base-chrome);
+  --multi-color-chat-opaque: var(--cursor-bg-chrome);
   --multi-color-chat: var(--multi-color-chat-opaque);
-  --multi-color-editor-opaque: var(--multi-base-editor);
+  --multi-color-editor-opaque: var(--cursor-bg-editor);
   --multi-color-editor: var(--multi-color-editor-opaque);
-  --multi-color-surface-opaque: var(--multi-base-editor);
+  --multi-color-surface-opaque: var(--cursor-bg-editor);
   --multi-color-surface: var(--multi-color-surface-opaque);
-  --multi-color-elevated-opaque: var(--multi-base-editor);
+  --multi-color-elevated-opaque: var(--cursor-bg-editor);
   --multi-color-elevated: var(--multi-color-elevated-opaque);
-  --multi-color-menubar-opaque: var(--multi-base-editor);
+  --multi-color-menubar-opaque: var(--cursor-bg-editor);
   --multi-color-menubar: var(--multi-color-menubar-opaque);
 
   --multi-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
@@ -125,15 +133,15 @@
   --app-background: var(--background);
   --multi-glass-surface-background: rgb(0 0 0 / 0.42);
 
-  --background: var(--multi-base-editor);
+  --background: var(--cursor-bg-editor);
   --multi-base-foreground: #e4e4e4;
   --multi-cursor-base: var(--multi-base-foreground);
   --foreground: var(--multi-base-foreground);
   --multi-swatch-inset-shadow: inset 0 0 0 1px
     color-mix(in srgb, var(--foreground) 16%, transparent);
-  --card: var(--multi-base-editor);
+  --card: var(--cursor-bg-editor);
   --card-foreground: var(--foreground);
-  --popover: var(--multi-base-editor);
+  --popover: var(--cursor-bg-editor);
   --popover-foreground: var(--foreground);
 
   --secondary: color-mix(in srgb, var(--foreground) 8%, transparent);
@@ -141,11 +149,19 @@
   --muted: color-mix(in srgb, var(--foreground) 6%, transparent);
   --muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);
 
-  --multi-base-sidebar: #181818;
-  --multi-base-chrome: #141414;
-  --multi-base-editor: #181818;
-  --multi-base-accent: #599ce7;
-  --multi-base-focus: #e4e4e4;
+  --cursor-sidebar: #181818;
+  --cursor-chrome: #141414;
+  --cursor-editor: #181818;
+  --cursor-accent: #599ce7;
+  --cursor-focus: #e4e4e4;
+  --cursor-bg-sidebar: var(--cursor-sidebar);
+  --cursor-bg-chrome: var(--cursor-chrome);
+  --cursor-bg-editor: var(--cursor-editor);
+  --multi-base-sidebar: var(--cursor-sidebar);
+  --multi-base-chrome: var(--cursor-chrome);
+  --multi-base-editor: var(--cursor-editor);
+  --multi-base-accent: var(--cursor-accent);
+  --multi-base-focus: var(--cursor-focus);
   --multi-shadow-primary: color-mix(in srgb, #000000 20%, transparent);
 
   --accent: var(--multi-bg-secondary);
@@ -159,7 +175,7 @@
   --warning-foreground: oklch(0.2 0.04 88);
 
   --border: var(--multi-stroke-tertiary);
-  --input: var(--multi-base-editor);
+  --input: var(--cursor-bg-editor);
 
   --primary: var(--multi-base-accent);
   --primary-foreground: #191c22;
@@ -175,17 +191,17 @@
   --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 18%, transparent);
   --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 18%, transparent);
 
-  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
+  --multi-color-sidebar-opaque: var(--cursor-bg-sidebar);
   --multi-color-sidebar: var(--multi-color-sidebar-opaque);
-  --multi-color-chat-opaque: var(--multi-base-chrome);
+  --multi-color-chat-opaque: var(--cursor-bg-chrome);
   --multi-color-chat: var(--multi-color-chat-opaque);
-  --multi-color-editor-opaque: var(--multi-base-editor);
+  --multi-color-editor-opaque: var(--cursor-bg-editor);
   --multi-color-editor: var(--multi-color-editor-opaque);
-  --multi-color-surface-opaque: var(--multi-base-editor);
+  --multi-color-surface-opaque: var(--cursor-bg-editor);
   --multi-color-surface: var(--multi-color-surface-opaque);
-  --multi-color-elevated-opaque: var(--multi-base-editor);
+  --multi-color-elevated-opaque: var(--cursor-bg-editor);
   --multi-color-elevated: var(--multi-color-elevated-opaque);
-  --multi-color-menubar-opaque: var(--multi-base-editor);
+  --multi-color-menubar-opaque: var(--cursor-bg-editor);
   --multi-color-menubar: var(--multi-color-menubar-opaque);
 
   --multi-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
@@ -322,11 +338,13 @@ html {
   --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
   --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
   --multi-bg-elevated: var(--multi-color-elevated-opaque);
+  --multi-command-palette-surface-background: var(--multi-bg-elevated);
   --multi-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
   --multi-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
   --multi-bg-green-primary: var(--success);
   --vscode-editor-background: var(--background);
   --vscode-foreground: var(--foreground);
+  --vscode-sideBar-background: var(--multi-color-sidebar-opaque);
   --vscode-widget-border: var(--multi-stroke-tertiary);
   --vscode-list-hoverBackground: var(--multi-bg-quaternary);
   --cursor-yellow: var(--warning);
@@ -428,9 +446,14 @@ html.dark {
  * Reduce Transparency remaps semantic tokens to opaque colors.
  */
 body[data-multi-glass-mode="true"] [data-component="root"] {
-  --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);
-  --multi-vibrancy-off-chat-surface-background: var(--multi-color-chat-opaque);
-  --multi-vibrancy-off-editor-surface-background: var(--multi-color-chat-opaque);
+  --multi-glass-sidebar-surface-background: var(--cursor-bg-sidebar);
+  --multi-glass-chat-surface-background: var(--cursor-bg-chrome);
+  --multi-glass-editor-surface-background: var(--cursor-bg-chrome);
+  --multi-vibrancy-off-sidebar-surface-background: var(
+    --multi-glass-sidebar-surface-background
+  );
+  --multi-vibrancy-off-chat-surface-background: var(--multi-glass-chat-surface-background);
+  --multi-vibrancy-off-editor-surface-background: var(--multi-glass-editor-surface-background);
   --multi-vibrancy-on-sidebar-surface-background: color-mix(
     in srgb,
     var(--multi-color-sidebar-opaque) var(--multi-vibrancy-sidebar-mix),
@@ -448,21 +471,38 @@ body[data-multi-glass-mode="true"] [data-component="root"] {
   );
   --multi-sidebar-surface-background: var(--multi-vibrancy-off-sidebar-surface-background);
   --multi-chat-surface-background: var(--multi-vibrancy-off-chat-surface-background);
+  --multi-color-editor: var(--multi-vibrancy-off-editor-surface-background);
   --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
+  --multi-shell-surface-bg: var(--multi-chat-surface-background);
   --multi-color-sidebar: var(--multi-sidebar-surface-background);
   --multi-color-chat: var(--multi-chat-surface-background);
   --multi-workbench-editor-surface-background: var(--multi-vibrancy-off-editor-surface-background);
   --multi-message-bubble-background: var(--multi-input-surface);
+  background: var(--multi-glass-surface-background);
+}
+
+body[data-multi-glass-mode="true"] {
+  --multi-command-palette-surface-background: var(--cursor-bg-chrome);
 }
 
 body.multi-os-vibrancy-on[data-multi-glass-mode="true"] [data-component="root"] {
   --multi-sidebar-surface-background: var(--multi-vibrancy-on-sidebar-surface-background);
   --multi-chat-surface-background: var(--multi-vibrancy-on-chat-surface-background);
+  --multi-color-editor: var(--multi-vibrancy-on-editor-surface-background);
   --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
+  --multi-shell-surface-bg: var(--multi-chat-surface-background);
   --multi-color-sidebar: var(--multi-sidebar-surface-background);
   --multi-color-chat: var(--multi-chat-surface-background);
   --multi-workbench-editor-surface-background: var(--multi-vibrancy-on-editor-surface-background);
   --multi-message-bubble-background: var(--multi-input-surface);
+}
+
+body.multi-os-vibrancy-on[data-multi-glass-mode="true"] {
+  --multi-command-palette-surface-background: color-mix(
+    in srgb,
+    var(--cursor-bg-chrome) var(--multi-vibrancy-chat-mix),
+    transparent
+  );
 }
 
 @supports (color: color-mix(in lab, red, red)) {
@@ -485,13 +525,13 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="ro
   --multi-color-menubar: var(--multi-color-menubar-opaque);
   --multi-composer-surface-background: var(--multi-composer-surface-opaque-background);
   --multi-message-bubble-background: var(--multi-input-surface-opaque);
-  --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
+  --multi-workbench-editor-surface-background: var(--multi-color-chat-opaque);
   --multi-workbench-surface-background: var(--multi-color-surface-opaque);
   --multi-bg-elevated: var(--multi-color-elevated-opaque);
   --multi-shell-blur: 0px;
   --multi-shell-saturate: 100%;
   --multi-shell-sidebar-bg: var(--multi-color-sidebar-opaque);
-  --multi-shell-surface-bg: var(--multi-color-surface-opaque);
+  --multi-shell-surface-bg: var(--multi-color-chat-opaque);
   --multi-sidebar-surface-background: var(--multi-color-sidebar-opaque);
   --multi-chat-surface-background: var(--multi-color-chat-opaque);
   --multi-composer-blur: 0px;
@@ -500,6 +540,10 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="ro
   --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
   --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
   --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+body.multi-reduce-transparency[data-multi-glass-mode="true"] {
+  --multi-command-palette-surface-background: var(--multi-color-chat-opaque);
 }
 
 @keyframes tool-call-line-shine {

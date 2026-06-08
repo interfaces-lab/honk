@@ -2,6 +2,7 @@ import {
   MessageId,
   RuntimeSessionId,
   ThreadId,
+  TurnId,
   type RuntimeDisplayTimelineProjection,
 } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
@@ -25,11 +26,12 @@ function userMessage(id: string | MessageId, text = "Do the thing"): ChatMessage
   };
 }
 
-function assistantMessage(id: string, text = "Done."): ChatMessage {
+function assistantMessage(id: string, text = "Done.", turnId: ChatMessage["turnId"] = null): ChatMessage {
   return {
     id: MessageId.make(id),
     role: "assistant",
     text,
+    turnId,
     createdAt,
     streaming: false,
   };
@@ -109,7 +111,7 @@ describe("buildChatDisplayTimeline", () => {
     ]);
   });
 
-  it("uses runtime entries once runtime display contains a response", () => {
+  it("keeps committed assistant rows visible when runtime display contains only a tool response", () => {
     const committedAssistant = assistantMessage("message:committed-assistant");
     const runtimeTimeline = {
       threadId,
@@ -142,6 +144,55 @@ describe("buildChatDisplayTimeline", () => {
         id: "tool:runtime",
         kind: "runtime-tool",
         tool: expect.objectContaining({ toolCallId: "toolu-runtime" }),
+      }),
+      expect.objectContaining({
+        id: "message:message:committed-assistant",
+        kind: "message",
+        message: committedAssistant,
+      }),
+    ]);
+  });
+
+  it("does not duplicate committed assistant rows already covered by a live runtime assistant", () => {
+    const turnId = TurnId.make("turn:assistant-live");
+    const committedAssistant = assistantMessage(
+      "message:committed-assistant",
+      "Done.",
+      turnId,
+    );
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:runtime-assistant",
+          kind: "message",
+          source: "live-event",
+          orderKey: `${createdAt}:message:runtime-assistant`,
+          createdAt,
+          role: "assistant",
+          turnId,
+          eventIds: [],
+          streaming: true,
+          text: "Done",
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    expect(
+      buildTimeline({
+        messages: [committedAssistant],
+        runtimeTimeline,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        id: "message:message:runtime-assistant",
+        kind: "message",
+        message: expect.objectContaining({
+          role: "assistant",
+          turnId,
+          text: "Done",
+        }),
       }),
     ]);
   });

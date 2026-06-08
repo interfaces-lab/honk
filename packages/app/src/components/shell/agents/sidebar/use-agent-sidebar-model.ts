@@ -4,8 +4,10 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import { type ScopedProjectRef } from "@multi/contracts";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
+import { useRouter } from "@tanstack/react-router";
+import { useCallback, useMemo, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import {
   openDraft,
@@ -14,6 +16,7 @@ import {
   prefetchThreadNavigation,
 } from "~/app/chat-navigation";
 import {
+  type ChatThreadActionContext,
   startNewThreadFromContext,
   startNewThreadInProjectFromContext,
 } from "~/lib/chat-thread-actions";
@@ -24,6 +27,7 @@ import {
 } from "~/lib/workspace-target";
 import { getProjectOrderKey, deriveSidebarProjectStateKey } from "~/stores/project-identity";
 import {
+  type ComposerThreadDraftState,
   type DraftThreadEnvMode,
   type DraftThreadState,
   useComposerDraftStore,
@@ -43,6 +47,37 @@ type HandleNewThread = (
     logicalProjectKey?: string | null;
   },
 ) => Promise<void>;
+
+type ActiveThreadActionSource = Pick<
+  Thread,
+  "environmentId" | "projectId" | "branch" | "worktreePath"
+>;
+
+interface VisibleSidebarDraftShell {
+  readonly id: string;
+  readonly environmentId: EnvironmentId;
+  readonly projectId: ProjectId | null;
+  readonly createdAt: string;
+  readonly worktreePath: string | null;
+}
+
+interface SidebarThreadVisitInput {
+  readonly id: StoreSidebarThreadSummary["id"];
+  readonly key: string;
+  readonly latestReadableAt: string | null | undefined;
+}
+
+type VisibleSidebarDraftShellTuple = readonly [draftId: string, draftThread: DraftThreadState];
+type VisibleSidebarDraftShellEntry = string | DraftThreadState;
+
+function composerDraftHasVisibleContent(draft: ComposerThreadDraftState | undefined): boolean {
+  return Boolean(
+    draft &&
+    (draft.prompt.trim().length > 0 ||
+      draft.images.length > 0 ||
+      draft.persistedAttachments.length > 0),
+  );
+}
 
 function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefined): boolean {
   if (!sidebarThread) return false;
@@ -114,150 +149,231 @@ export function useAgentSidebarModel(input: {
   handleNewThread: HandleNewThread;
   projectlessCwd: string;
   projects: readonly Project[];
-  routeActiveThread: Thread | null;
+  routeActiveThread: ActiveThreadActionSource | null;
+  selectedId: string | null;
   sidebarThreads: readonly StoreSidebarThreadSummary[];
 }) {
-  const navigate = useNavigate();
   const router = useRouter();
-  const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
-  const composerDraftsByThreadKey = useComposerDraftStore((store) => store.draftsByThreadKey);
-  const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
-  const pinnedThreadKeys = useUiStateStore((store) => store.pinnedThreadKeys);
+  const visibleDraftShellEntries = useComposerDraftStore(
+    useShallow((store) => {
+      const entries: VisibleSidebarDraftShellEntry[] = [];
+      for (const [draftId, draftThread] of Object.entries(store.draftThreadsByThreadKey)) {
+        if (draftThread.promotedTo != null) {
+          continue;
+        }
+        if (!composerDraftHasVisibleContent(store.draftsByThreadKey[draftId])) {
+          continue;
+        }
+        entries.push(...([draftId, draftThread] satisfies VisibleSidebarDraftShellTuple));
+      }
+      return entries;
+    }),
+  );
+  const visibleDraftShells = useMemo(() => {
+    const shells: VisibleSidebarDraftShell[] = [];
+    for (let index = 0; index < visibleDraftShellEntries.length; index += 2) {
+      const draftId = visibleDraftShellEntries[index];
+      const draftThread = visibleDraftShellEntries[index + 1];
+      if (typeof draftId !== "string" || typeof draftThread === "string" || !draftThread) {
+        continue;
+      }
+      shells.push({
+        id: draftId,
+        environmentId: draftThread.environmentId,
+        projectId: draftThread.projectId,
+        createdAt: draftThread.createdAt,
+        worktreePath: draftThread.worktreePath,
+      });
+    }
+    return shells;
+  }, [visibleDraftShellEntries]);
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
   const projectlessCwd = input.projectlessCwd;
+  const defaultProjectEnvironmentId = input.defaultProjectRef?.environmentId ?? null;
+  const defaultProjectId = input.defaultProjectRef?.projectId ?? null;
+  const defaultProjectRef = useMemo(
+    () =>
+      defaultProjectEnvironmentId && defaultProjectId
+        ? scopeProjectRef(defaultProjectEnvironmentId, defaultProjectId)
+        : null,
+    [defaultProjectEnvironmentId, defaultProjectId],
+  );
 
-  function persistProjectSelection(project: Project) {
+  const newThreadContextRef = useRef<ChatThreadActionContext>({
+    activeDraftThread: input.activeDraftThread,
+    activeThread: input.routeActiveThread ?? undefined,
+    defaultLogicalProjectKey: input.defaultLogicalProjectKey,
+    defaultProjectRef,
+    defaultThreadEnvMode: input.defaultThreadEnvMode,
+    handleNewThread: input.handleNewThread,
+    projects: input.projects,
+  });
+  newThreadContextRef.current = {
+    activeDraftThread: input.activeDraftThread,
+    activeThread: input.routeActiveThread ?? undefined,
+    defaultLogicalProjectKey: input.defaultLogicalProjectKey,
+    defaultProjectRef,
+    defaultThreadEnvMode: input.defaultThreadEnvMode,
+    handleNewThread: input.handleNewThread,
+    projects: input.projects,
+  };
+
+  const persistProjectSelection = useCallback((project: Project) => {
     writeStoredProjectSelection({
       environmentId: project.environmentId,
       projectId: project.id,
       cwd: project.cwd,
     });
-  }
+  }, []);
 
-  function persistDefaultProjectSelection(): void {
-    if (!input.defaultProjectRef || !input.defaultProjectCwd) {
+  const persistDefaultProjectSelection = useCallback(() => {
+    if (!defaultProjectRef || !input.defaultProjectCwd) {
       return;
     }
     writeStoredProjectSelection({
-      environmentId: input.defaultProjectRef.environmentId,
-      projectId: input.defaultProjectRef.projectId,
+      environmentId: defaultProjectRef.environmentId,
+      projectId: defaultProjectRef.projectId,
       cwd: input.defaultProjectCwd,
     });
-  }
+  }, [defaultProjectRef, input.defaultProjectCwd]);
 
-  const drafts: SidebarDraftSummary[] = Object.entries(draftThreadsByThreadKey)
-    .filter(([, draftThread]) => draftThread.promotedTo == null)
-    .flatMap(([draftId, draftThread]): SidebarDraftSummary[] => {
-      const composerDraft = composerDraftsByThreadKey[draftId];
-      const hasVisibleDraftContent =
-        composerDraft &&
-        (composerDraft.prompt.trim().length > 0 ||
-          composerDraft.images.length > 0 ||
-          composerDraft.persistedAttachments.length > 0);
-      if (!hasVisibleDraftContent) {
-        return [];
-      }
-      if (draftThread.projectId === null) {
-        const firstAttachment = composerDraft?.images[0] ?? composerDraft?.persistedAttachments[0];
+  const drafts: SidebarDraftSummary[] = useMemo(
+    () =>
+      visibleDraftShells.flatMap((draftShell): SidebarDraftSummary[] => {
+        if (draftShell.projectId === null) {
+          return [
+            {
+              id: draftShell.id,
+              cwd: projectlessCwd,
+              environmentId: draftShell.environmentId,
+              projectId: null,
+              workspaceProjectRef: null,
+              projectCwd: projectlessCwd,
+              updatedAt: draftShell.createdAt,
+            },
+          ];
+        }
+        const project = findWorkspaceProjectForSource(input.projects, draftShell);
+        const projectRef = project
+          ? scopeProjectRef(project.environmentId, project.id)
+          : isSourceForWorkspaceProjectRef({
+                projectRef: defaultProjectRef,
+                source: draftShell,
+              })
+            ? defaultProjectRef
+            : null;
+        const projectCwd = project?.cwd ?? (projectRef ? input.defaultProjectCwd : null);
+        if (!projectRef || !projectCwd) {
+          return [];
+        }
         return [
           {
-            id: draftId,
-            text: composerDraft?.prompt ?? "",
-            attachmentCount:
-              (composerDraft?.images.length ?? 0) +
-              (composerDraft?.persistedAttachments.length ?? 0),
-            firstAttachmentName: firstAttachment?.name ?? null,
-            cwd: projectlessCwd,
-            environmentId: draftThread.environmentId,
-            projectId: null,
-            workspaceProjectRef: null,
-            projectCwd: projectlessCwd,
-            updatedAt: draftThread.createdAt,
+            id: draftShell.id,
+            cwd: draftShell.worktreePath ?? projectCwd,
+            environmentId: draftShell.environmentId,
+            projectId: draftShell.projectId,
+            workspaceProjectRef: projectRef,
+            projectCwd,
+            updatedAt: draftShell.createdAt,
           },
         ];
-      }
-      const project = findWorkspaceProjectForSource(input.projects, draftThread);
-      const projectRef = project
-        ? scopeProjectRef(project.environmentId, project.id)
-        : isSourceForWorkspaceProjectRef({
-              projectRef: input.defaultProjectRef,
-              source: draftThread,
-            })
-          ? input.defaultProjectRef
-          : null;
-      const projectCwd = project?.cwd ?? (projectRef ? input.defaultProjectCwd : null);
-      if (!projectRef || !projectCwd) {
+      }),
+    [
+      defaultProjectRef,
+      input.defaultProjectCwd,
+      input.projects,
+      projectlessCwd,
+      visibleDraftShells,
+    ],
+  );
+
+  const summaries = useMemo(
+    () =>
+      input.sidebarThreads.flatMap((thread) => {
+        if (thread.archivedAt !== null) {
+          return [];
+        }
+        if (thread.projectId === null) {
+          return [toSummaryFromSidebarThread(thread, null, projectlessCwd)];
+        }
+        const project = findWorkspaceProjectForSource(input.projects, thread);
+        if (project) {
+          return [toSummaryFromSidebarThread(thread, project, projectlessCwd)];
+        }
+        if (
+          isSourceForWorkspaceProjectRef({
+            projectRef: defaultProjectRef,
+            source: thread,
+          }) &&
+          input.defaultProjectCwd
+        ) {
+          return [
+            {
+              ...toSummaryFromSidebarThread(thread, null, input.defaultProjectCwd),
+              workspaceProjectRef: defaultProjectRef,
+              projectCwd: input.defaultProjectCwd,
+              cwd: thread.worktreePath ?? input.defaultProjectCwd,
+              path: thread.worktreePath ?? input.defaultProjectCwd,
+            },
+          ];
+        }
         return [];
-      }
-      const firstAttachment = composerDraft?.images[0] ?? composerDraft?.persistedAttachments[0];
-      const attachmentCount =
-        (composerDraft?.images.length ?? 0) + (composerDraft?.persistedAttachments.length ?? 0);
-      return [
-        {
-          id: draftId,
-          text: composerDraft?.prompt ?? "",
-          attachmentCount,
-          firstAttachmentName: firstAttachment?.name ?? null,
-          cwd: draftThread.worktreePath ?? projectCwd,
-          environmentId: draftThread.environmentId,
-          projectId: draftThread.projectId,
-          workspaceProjectRef: projectRef,
-          projectCwd,
-          updatedAt: draftThread.createdAt,
-        },
-      ];
-    });
+      }),
+    [
+      defaultProjectRef,
+      input.defaultProjectCwd,
+      input.projects,
+      input.sidebarThreads,
+      projectlessCwd,
+    ],
+  );
 
-  const summaries = input.sidebarThreads.flatMap((thread) => {
-    if (thread.archivedAt !== null) {
-      return [];
-    }
-    if (thread.projectId === null) {
-      return [toSummaryFromSidebarThread(thread, null, projectlessCwd)];
-    }
-    const project = findWorkspaceProjectForSource(input.projects, thread);
-    if (project) {
-      return [toSummaryFromSidebarThread(thread, project, projectlessCwd)];
-    }
-    if (
-      isSourceForWorkspaceProjectRef({
-        projectRef: input.defaultProjectRef,
-        source: thread,
-      }) &&
-      input.defaultProjectCwd
-    ) {
-      return [
-        {
-          ...toSummaryFromSidebarThread(thread, null, input.defaultProjectCwd),
-          workspaceProjectRef: input.defaultProjectRef,
-          projectCwd: input.defaultProjectCwd,
-          cwd: thread.worktreePath ?? input.defaultProjectCwd,
-          path: thread.worktreePath ?? input.defaultProjectCwd,
-        },
-      ];
-    }
-    return [];
-  });
+  const sidebarThreadVisitInputs = useMemo(
+    () =>
+      input.sidebarThreads.map((thread): SidebarThreadVisitInput => {
+        const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
+        return {
+          id: thread.id,
+          key: threadKey,
+          latestReadableAt: thread.latestTurn?.completedAt ?? null,
+        };
+      }),
+    [input.sidebarThreads],
+  );
+  const sidebarThreadVisitedAt = useUiStateStore(
+    useShallow((store) =>
+      sidebarThreadVisitInputs.map((thread) => store.threadLastVisitedAtById[thread.key] ?? null),
+    ),
+  );
+  const pinnedSidebarThreadKeys = useUiStateStore(
+    useShallow((store) => {
+      const pinnedThreadKeys = new Set(store.pinnedThreadKeys);
+      return sidebarThreadVisitInputs.flatMap((thread) =>
+        pinnedThreadKeys.has(thread.key) ? [thread.key] : [],
+      );
+    }),
+  );
 
-  const unreadIds = (() => {
+  const unreadIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const thread of input.sidebarThreads) {
-      const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
-      if (
-        isUnreadFromVisitBoundary(
-          thread.latestTurn?.completedAt,
-          threadLastVisitedAtById[threadKey],
-        )
-      ) {
+    for (let index = 0; index < sidebarThreadVisitInputs.length; index += 1) {
+      const thread = sidebarThreadVisitInputs[index];
+      if (!thread) {
+        continue;
+      }
+      if (isUnreadFromVisitBoundary(thread.latestReadableAt, sidebarThreadVisitedAt[index])) {
         ids.add(thread.id);
       }
     }
     return ids;
-  })();
-  const pinnedThreadKeySet = new Set(pinnedThreadKeys);
+  }, [sidebarThreadVisitInputs, sidebarThreadVisitedAt]);
+  const pinnedThreadKeySet = useMemo(
+    () => new Set(pinnedSidebarThreadKeys),
+    [pinnedSidebarThreadKeys],
+  );
 
-  const sections = (() => {
+  const sections = useMemo(() => {
     const projectStateKeyByCwd = new Map(
       input.projects.map(
         (project) => [project.cwd, deriveSidebarProjectStateKey(project)] as const,
@@ -307,7 +423,9 @@ export function useAgentSidebarModel(input: {
     const projectKeysWithThreads = new Set(
       input.sidebarThreads.flatMap((thread) => {
         const project = findWorkspaceProjectForSource(input.projects, thread);
-        return project ? [scopedProjectKey(scopeProjectRef(project.environmentId, project.id))] : [];
+        return project
+          ? [scopedProjectKey(scopeProjectRef(project.environmentId, project.id))]
+          : [];
       }),
     );
     const retainedSidebarProjects = orderedSidebarProjects.filter((project) =>
@@ -325,10 +443,7 @@ export function useAgentSidebarModel(input: {
       pinnedThreadKeySet,
       retainedSidebarProjects,
     ).map((section) => {
-      const sectionProjectKey =
-        section.projectRef
-          ? scopedProjectKey(section.projectRef)
-          : null;
+      const sectionProjectKey = section.projectRef ? scopedProjectKey(section.projectRef) : null;
       const projectStateKey =
         (sectionProjectKey ? projectStateKeyByProjectKey.get(sectionProjectKey) : undefined) ??
         (section.projectCwd ? projectStateKeyByCwd.get(section.projectCwd) : undefined);
@@ -343,91 +458,117 @@ export function useAgentSidebarModel(input: {
       }
       return Object.assign(section, { projectOrderKeys, projectStateKey });
     });
-  })();
+  }, [
+    drafts,
+    input.activeCwd,
+    input.projects,
+    input.sidebarThreads,
+    pinnedThreadKeySet,
+    projectOrder,
+    summaries,
+    unreadIds,
+  ]);
 
-  const create = (cwd?: string) => {
-    const context = {
-      activeDraftThread: input.activeDraftThread,
-      activeThread: input.routeActiveThread ?? undefined,
-      defaultLogicalProjectKey: input.defaultLogicalProjectKey,
-      defaultProjectRef: input.defaultProjectRef,
-      defaultThreadEnvMode: input.defaultThreadEnvMode,
-      handleNewThread: input.handleNewThread,
-      projects: input.projects,
-    };
-    const project =
-      cwd && cwd.length > 0 ? input.projects.find((candidate) => candidate.cwd === cwd) : null;
-    if (project) {
-      persistProjectSelection(project);
-      void startNewThreadInProjectFromContext(
-        context,
-        scopeProjectRef(project.environmentId, project.id),
-      );
-      return;
-    }
-    void startNewThreadFromContext(context);
-  };
-
-  const select = (id: string) => {
-    const draft = drafts.find((entry) => entry.id === id);
-    if (draft) {
-      if (draft.projectId !== null) {
-        const project = findWorkspaceProjectForSource(input.projects, draft);
-        if (project) {
-          persistProjectSelection(project);
-        } else if (
-          isSourceForWorkspaceProjectRef({
-            projectRef: input.defaultProjectRef,
-            source: draft,
-          })
-        ) {
-          persistDefaultProjectSelection();
-        }
+  const create = useCallback(
+    (cwd?: string) => {
+      const context = newThreadContextRef.current;
+      const project =
+        cwd && cwd.length > 0 ? context.projects.find((candidate) => candidate.cwd === cwd) : null;
+      if (project) {
+        persistProjectSelection(project);
+        void startNewThreadInProjectFromContext(
+          context,
+          scopeProjectRef(project.environmentId, project.id),
+        );
+        return;
       }
-      void openDraft(navigate, id);
-      return;
-    }
-    const summary = summaries.find((entry) => entry.id === id);
-    if (summary) {
-      markThreadVisited(scopedThreadKey(scopeThreadRef(summary.environmentId, summary.id)));
-      if (summary.projectId !== null && summary.cwd) {
-        const project = findWorkspaceProjectForSource(input.projects, summary);
-        if (project) {
-          persistProjectSelection(project);
-        } else if (
-          isSourceForWorkspaceProjectRef({
-            projectRef: input.defaultProjectRef,
-            source: summary,
-          })
-        ) {
-          persistDefaultProjectSelection();
-        }
+      void startNewThreadFromContext(context);
+    },
+    [persistProjectSelection],
+  );
+
+  const select = useCallback(
+    (id: string) => {
+      if (id === input.selectedId) {
+        return;
       }
-      void openThread(navigate, scopeThreadRef(summary.environmentId, summary.id));
-    }
-  };
-
-  const prefetchAgent = (id: string) => {
-    if (drafts.some((draft) => draft.id === id)) {
-      prefetchDraftNavigation(router, id);
-      return;
-    }
-
-    const summary = summaries.find((entry) => entry.id === id);
-    if (!summary || summary.projectId === null) {
-      return;
-    }
-
-    prefetchThreadNavigation({
+      const draft = drafts.find((entry) => entry.id === id);
+      if (draft) {
+        if (draft.projectId !== null) {
+          const project = findWorkspaceProjectForSource(input.projects, draft);
+          if (project) {
+            persistProjectSelection(project);
+          } else if (
+            isSourceForWorkspaceProjectRef({
+              projectRef: defaultProjectRef,
+              source: draft,
+            })
+          ) {
+            persistDefaultProjectSelection();
+          }
+        }
+        void openDraft(router, id);
+        return;
+      }
+      const summary = summaries.find((entry) => entry.id === id);
+      if (summary) {
+        markThreadVisited(scopedThreadKey(scopeThreadRef(summary.environmentId, summary.id)));
+        if (summary.projectId !== null && summary.cwd) {
+          const project = findWorkspaceProjectForSource(input.projects, summary);
+          if (project) {
+            persistProjectSelection(project);
+          } else if (
+            isSourceForWorkspaceProjectRef({
+              projectRef: defaultProjectRef,
+              source: summary,
+            })
+          ) {
+            persistDefaultProjectSelection();
+          }
+        }
+        void openThread(router, scopeThreadRef(summary.environmentId, summary.id));
+      }
+    },
+    [
+      drafts,
+      defaultProjectRef,
+      input.projects,
+      input.selectedId,
+      markThreadVisited,
+      persistDefaultProjectSelection,
+      persistProjectSelection,
       router,
-      thread: { environmentId: summary.environmentId, id: summary.id },
-    });
-  };
+      summaries,
+    ],
+  );
 
-  return {
-    create,
-    prefetchAgent,
-    sections,
-    select,
-  };
+  const prefetchAgent = useCallback(
+    (id: string) => {
+      if (drafts.some((draft) => draft.id === id)) {
+        prefetchDraftNavigation(router, id);
+        return;
+      }
+
+      const summary = summaries.find((entry) => entry.id === id);
+      if (!summary || summary.projectId === null) {
+        return;
+      }
+
+      prefetchThreadNavigation({
+        router,
+        thread: { environmentId: summary.environmentId, id: summary.id },
+      });
+    },
+    [drafts, router, summaries],
+  );
+
+  return useMemo(
+    () => ({
+      create,
+      prefetchAgent,
+      sections,
+      select,
+    }),
+    [create, prefetchAgent, sections, select],
+  );
 }

@@ -59,9 +59,11 @@ function shortProjectPathLabel(path: string, home: string | null): string {
   return segments[0] ?? "Project";
 }
 
-export function deriveSidebarDraftTitle(
-  draft: Pick<SidebarDraftSummary, "attachmentCount" | "firstAttachmentName" | "text">,
-) {
+export function deriveSidebarDraftTitle(draft: {
+  readonly attachmentCount: number;
+  readonly firstAttachmentName: string | null;
+  readonly text: string;
+}) {
   const text = compactSerializedSkillPreviewTokens(draft.text).trim();
   if (text) {
     const line = text.split("\n")[0]?.trim();
@@ -115,7 +117,7 @@ function buildDraftChat(draft: SidebarDraftSummary) {
   return {
     id: draft.id,
     kind: "draft",
-    title: deriveSidebarDraftTitle(draft),
+    title: "New chat",
     state: "draft",
     unread: false,
     updatedAt: draft.updatedAt,

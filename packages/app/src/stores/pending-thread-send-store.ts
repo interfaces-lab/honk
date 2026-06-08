@@ -23,6 +23,7 @@ interface PendingThreadSendStoreState {
   clearPendingRows: (threadKey: string) => PendingTimelineRow[];
   setLocalDispatch: (threadKey: string, snapshot: LocalDispatchSnapshot) => void;
   clearLocalDispatch: (threadKey: string) => void;
+  clearLocalSendArtifactsForThread: (threadKey: string) => PendingTimelineRow[];
   resetForTests: () => void;
 }
 
@@ -152,6 +153,12 @@ export const usePendingThreadSendStore = create<PendingThreadSendStoreState>((se
       delete nextByThreadKey[threadKey];
       return { localDispatchByThreadKey: nextByThreadKey };
     });
+  },
+
+  clearLocalSendArtifactsForThread: (threadKey) => {
+    const removedRows = get().clearPendingRows(threadKey);
+    get().clearLocalDispatch(threadKey);
+    return removedRows;
   },
 
   resetForTests: () => {

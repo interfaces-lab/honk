@@ -1,7 +1,18 @@
 import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@multi/contracts";
-import { DraftId, type DraftId as DraftIdType } from "~/stores/chat-drafts";
+import {
+  DraftId,
+  isNewThreadDraftId,
+  useComposerDraftStore,
+  type DraftId as DraftIdType,
+} from "~/stores/chat-drafts";
 import type { AppRouter } from "~/router";
-import { buildDraftThreadRouteParams, buildThreadRouteParams } from "~/app/routes/thread-route-targets";
+import {
+  buildDraftThreadRouteParams,
+  buildThreadRouteParams,
+  getCurrentRouteTarget,
+} from "~/routes/-thread-route-targets";
+import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
+import { usePendingThreadSendStore } from "~/stores/pending-thread-send-store";
 
 type ChatNavigationOptions = {
   readonly replace?: boolean;
@@ -30,7 +41,18 @@ type ChatIndexNavigateOptions = {
 type ChatNavigateOptions = DraftNavigateOptions | ThreadNavigateOptions | ChatIndexNavigateOptions;
 type ChatNavigate = (options: ChatNavigateOptions) => unknown;
 
-type ChatNavigator = ChatNavigate | { readonly navigate: ChatNavigate };
+type ChatRouterNavigator = {
+  readonly navigate: ChatNavigate;
+  readonly state?: {
+    readonly location?: {
+      readonly pathname?: string;
+    };
+    readonly matches: ReadonlyArray<{
+      readonly params: unknown;
+    }>;
+  };
+};
+type ChatNavigator = ChatNavigate | ChatRouterNavigator;
 
 function navigationOptions(options: ChatNavigationOptions): ChatNavigationOptions {
   return options.replace === undefined ? {} : { replace: options.replace };
@@ -40,14 +62,37 @@ function navigateWith(target: ChatNavigator, options: ChatNavigateOptions): unkn
   return typeof target === "function" ? target(options) : target.navigate(options);
 }
 
+function readCurrentTarget(target: ChatNavigator) {
+  if (typeof target === "function" || !target.state) {
+    return null;
+  }
+  return getCurrentRouteTarget({ state: target.state });
+}
+
+function isCurrentChatIndex(target: ChatNavigator): boolean {
+  if (typeof target === "function" || !target.state) {
+    return false;
+  }
+  return (
+    target.state?.location?.pathname === "/" &&
+    getCurrentRouteTarget({ state: target.state }) === null
+  );
+}
+
 export function openDraft(
   target: ChatNavigator,
   draftId: DraftIdType | string,
   options: ChatNavigationOptions = {},
 ): unknown {
+  const targetDraftId = toDraftId(draftId);
+  clearNewThreadDraftSendArtifacts(targetDraftId);
+  const currentTarget = readCurrentTarget(target);
+  if (currentTarget?.kind === "draft" && currentTarget.draftId === targetDraftId) {
+    return undefined;
+  }
   return navigateWith(target, {
     to: "/draft/$draftId",
-    params: buildDraftThreadRouteParams(toDraftId(draftId)),
+    params: buildDraftThreadRouteParams(targetDraftId),
     ...navigationOptions(options),
   });
 }
@@ -57,6 +102,14 @@ export function openThread(
   threadRef: ScopedThreadRef,
   options: ChatNavigationOptions = {},
 ): unknown {
+  const currentTarget = readCurrentTarget(target);
+  if (
+    currentTarget?.kind === "server" &&
+    currentTarget.threadRef.environmentId === threadRef.environmentId &&
+    currentTarget.threadRef.threadId === threadRef.threadId
+  ) {
+    return undefined;
+  }
   return navigateWith(target, {
     to: "/$environmentId/$threadId",
     params: buildThreadRouteParams(threadRef),
@@ -68,6 +121,9 @@ export function openChatIndex(
   target: ChatNavigator,
   options: ChatNavigationOptions = {},
 ): unknown {
+  if (isCurrentChatIndex(target)) {
+    return undefined;
+  }
   return navigateWith(target, {
     to: "/",
     ...navigationOptions(options),
@@ -96,6 +152,22 @@ export function prefetchThreadNavigation(input: {
       },
     })
     .catch(() => undefined);
+}
+
+export function clearNewThreadDraftSendArtifacts(draftId: DraftIdType | string): void {
+  const targetDraftId = toDraftId(draftId);
+  if (!isNewThreadDraftId(targetDraftId)) {
+    return;
+  }
+  const draftSession = useComposerDraftStore.getState().getDraftSession(targetDraftId);
+  if (!draftSession) {
+    return;
+  }
+  usePendingThreadSendStore
+    .getState()
+    .clearLocalSendArtifactsForThread(
+      scopedThreadKey(scopeThreadRef(draftSession.environmentId, draftSession.threadId)),
+    );
 }
 
 function toDraftId(draftId: DraftIdType | string): DraftIdType {

@@ -1,6 +1,9 @@
 import {
+  type ClientOrchestrationCommand,
+  CommandId,
   type DesktopExtensionUiRequest,
   type EnvironmentId,
+  type EnvironmentApi,
   EnvironmentId as EnvironmentIdSchema,
   EventId,
   MessageId,
@@ -9,17 +12,18 @@ import {
   type OrchestrationThreadActivity,
   type RuntimeDisplayTimelineItem,
   type RuntimeDisplayTimelineProjection,
+  type SessionTreeProjection,
+  type SessionTreeEntry,
   type ThreadId,
-  type TurnId,
+  TurnId,
 } from "@multi/contracts";
 import { create } from "zustand";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
 import { createEmptyRuntimeHostSnapshot, readMultiRuntimeApi } from "../lib/multi-runtime-api";
-import { runtimeToolDisplaySignature } from "../lib/runtime-tool-display";
+import { runtimeParentToolDisplaySignature } from "../lib/runtime-tool-display";
 import { readEnvironmentApi } from "../environment-api";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
-import { newCommandId } from "../lib/utils";
 import { useComposerDraftStore } from "./chat-drafts";
 import { runtimeSubagentActivitiesForToolEvent } from "./thread-sync";
 import { useStore, type EnvironmentState } from "./thread-store";
@@ -39,7 +43,8 @@ let lastPendingExtensionUiRequestsSource: ReadonlyArray<DesktopExtensionUiReques
 let lastPendingExtensionUiRequestsThreadId: ThreadId | null | undefined;
 let lastPendingExtensionUiRequestsResult: readonly DesktopExtensionUiRequest[] =
   EMPTY_PENDING_EXTENSION_UI_REQUESTS;
-const persistedRuntimeEventIds = new Set<EventId>();
+const persistedRuntimeEventKeys = new Set<string>();
+const persistedRuntimeAssistantEntryKeys = new Set<string>();
 
 function resolveRuntimeThreadEnvironmentId(threadId: ThreadId): EnvironmentId {
   const store = useStore.getState();
@@ -67,6 +72,38 @@ function applyRuntimeSessionTreeToThreadStore(
   store.applyRuntimeSessionTreeProjection(tree, environmentId);
 }
 
+function persistRuntimeSessionTreeToOrchestration(
+  tree: MultiRuntimeHostSnapshot["sessionTrees"][number],
+): void {
+  const environmentId = resolveRuntimeThreadEnvironmentId(tree.threadId);
+  const api = readEnvironmentApi(environmentId);
+  if (!api) {
+    return;
+  }
+
+  const entryById = new Map(tree.entries.map((entry) => [entry.id, entry] as const));
+  for (const entry of tree.entries) {
+    const command = runtimeSessionTreeAssistantCompleteCommand({
+      tree,
+      entry,
+      entryById,
+    });
+    if (!command) {
+      continue;
+    }
+    const entryKey = runtimeAssistantEntryPersistenceKey(tree, entry);
+    if (persistedRuntimeAssistantEntryKeys.has(entryKey)) {
+      continue;
+    }
+    dispatchRuntimePersistenceCommand({
+      api,
+      command,
+      persistenceKey: entryKey,
+      persistedKeys: persistedRuntimeAssistantEntryKeys,
+    });
+  }
+}
+
 function applyRuntimeEventToThreadStore(
   event: MultiRuntimeHostSnapshot["runtimeEvents"][number],
 ): void {
@@ -78,13 +115,13 @@ function applyRuntimeEventToThreadStore(
 function persistRuntimeEventToOrchestration(
   event: MultiRuntimeHostSnapshot["runtimeEvents"][number],
 ): void {
-  if (persistedRuntimeEventIds.has(event.id)) {
+  const eventKey = runtimeEventPersistenceKey(event);
+  if (persistedRuntimeEventKeys.has(eventKey)) {
     return;
   }
-  if (event.type !== "message.completed" && event.type !== "tool.completed") {
+  if (event.type !== "tool.completed") {
     return;
   }
-  persistedRuntimeEventIds.add(event.id);
 
   const environmentId = resolveRuntimeThreadEnvironmentId(event.threadId);
   const api = readEnvironmentApi(environmentId);
@@ -92,59 +129,128 @@ function persistRuntimeEventToOrchestration(
     return;
   }
 
-  if (event.type === "message.completed") {
-    const command = runtimeAssistantCompleteCommand(event);
-    if (!command) {
-      return;
-    }
-    void api.orchestration.dispatchCommand(command as never).catch(() => undefined);
-    return;
-  }
-
   const activities = runtimeToolCompletedActivities(event);
   if (activities.length === 0) {
     return;
   }
+  persistedRuntimeEventKeys.add(eventKey);
   for (const activity of activities) {
-    void api.orchestration
-      .dispatchCommand({
+    dispatchRuntimePersistenceCommand({
+      api,
+      command: {
         type: "thread.activity.append",
-        commandId: newCommandId(),
+        commandId: runtimeToolActivityCommandId(event, activity),
         threadId: event.threadId,
         activity,
         createdAt: event.createdAt,
-    } as never)
-      .catch(() => undefined);
+      },
+      persistenceKey: eventKey,
+      persistedKeys: persistedRuntimeEventKeys,
+    });
   }
 }
 
-function runtimeAssistantCompleteCommand(
+function dispatchRuntimePersistenceCommand(input: {
+  readonly api: EnvironmentApi;
+  readonly command: ClientOrchestrationCommand;
+  readonly persistenceKey: string;
+  readonly persistedKeys: Set<string>;
+}): void {
+  input.persistedKeys.add(input.persistenceKey);
+  void input.api.orchestration.dispatchCommand(input.command).catch((error: unknown) => {
+    input.persistedKeys.delete(input.persistenceKey);
+    console.error("Runtime orchestration persistence failed", error);
+  });
+}
+
+function runtimeEventPersistenceKey(
   event: MultiRuntimeHostSnapshot["runtimeEvents"][number],
-) {
+): string {
+  return `${event.threadId}:${event.runtimeSessionId}:${event.id}`;
+}
+
+function runtimeAssistantEntryPersistenceKey(
+  tree: SessionTreeProjection,
+  entry: SessionTreeEntry,
+): string {
+  return `${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`;
+}
+
+function runtimeSessionTreeAssistantCompleteCommand(input: {
+  readonly tree: SessionTreeProjection;
+  readonly entry: SessionTreeEntry;
+  readonly entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>;
+}): ClientOrchestrationCommand | null {
   if (
-    event.type !== "message.completed" ||
-    event.messageRole !== "assistant" ||
-    !event.turnId ||
-    (event.text?.trim().length ?? 0) === 0
+    input.entry.role !== "assistant" ||
+    !input.entry.turnId ||
+    (input.entry.text?.trim().length ?? 0) === 0
   ) {
     return null;
   }
 
-  const parentEntryId = findTurnUserEntryId(event.threadId, event.turnId);
+  const turnId = TurnId.make(input.entry.turnId);
+  const parentEntryId =
+    findSessionTreeUserAncestorEntryId(input.entry, input.entryById) ??
+    findTurnUserEntryId(input.tree.threadId, turnId);
   if (!parentEntryId) {
     return null;
   }
 
   return {
-    type: "thread.message.assistant.complete" as const,
-    commandId: newCommandId(),
-    threadId: event.threadId,
-    messageId: MessageId.make(`message:${event.id}`),
-    text: event.text ?? "",
-    turnId: event.turnId,
+    type: "thread.message.assistant.complete",
+    commandId: runtimeAssistantCompleteCommandId(input.tree, input.entry),
+    threadId: input.tree.threadId,
+    messageId: runtimeAssistantMessageId(input.tree, input.entry),
+    text: input.entry.text ?? "",
+    turnId,
     parentEntryId,
-    createdAt: event.createdAt,
+    createdAt: input.entry.createdAt,
   };
+}
+
+function findSessionTreeUserAncestorEntryId(
+  entry: SessionTreeEntry,
+  entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>,
+) {
+  const seen = new Set<SessionTreeEntry["id"]>();
+  let cursor = entry.parentId;
+  while (cursor) {
+    if (seen.has(cursor)) {
+      return null;
+    }
+    seen.add(cursor);
+    const parent = entryById.get(cursor);
+    if (!parent) {
+      return null;
+    }
+    if (parent.role === "user" && parent.clientMessageId) {
+      return parent.threadEntryId;
+    }
+    cursor = parent.parentId;
+  }
+  return null;
+}
+
+function runtimeAssistantCompleteCommandId(
+  tree: SessionTreeProjection,
+  entry: SessionTreeEntry,
+): CommandId {
+  return CommandId.make(`runtime-assistant:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`);
+}
+
+function runtimeAssistantMessageId(
+  tree: SessionTreeProjection,
+  entry: SessionTreeEntry,
+): MessageId {
+  return MessageId.make(`runtime:${tree.runtimeSessionId}:${entry.id}`);
+}
+
+function runtimeToolActivityCommandId(
+  event: MultiRuntimeHostSnapshot["runtimeEvents"][number],
+  activity: OrchestrationThreadActivity,
+): CommandId {
+  return CommandId.make(`runtime-tool:${event.threadId}:${event.runtimeSessionId}:${activity.id}`);
 }
 
 function findTurnUserEntryId(threadId: ThreadId, turnId: TurnId) {
@@ -321,9 +427,11 @@ function syncRuntimeSnapshotToThreadStore(
   clearStaleRuntimeThreadsFromThreadStore(snapshot, previousSnapshot);
   for (const tree of snapshot.sessionTrees) {
     applyRuntimeSessionTreeToThreadStore(tree);
+    persistRuntimeSessionTreeToOrchestration(tree);
   }
   for (const event of snapshot.runtimeEvents) {
     applyRuntimeEventToThreadStore(event);
+    persistRuntimeEventToOrchestration(event);
   }
   syncPendingExtensionUiRequestsToThreadStore(snapshot.pendingExtensionUiRequests);
 }
@@ -346,6 +454,7 @@ function applyRuntimeHostEventToThreadStore(
   }
   if (event.type === "session-tree") {
     applyRuntimeSessionTreeToThreadStore(event.tree);
+    persistRuntimeSessionTreeToOrchestration(event.tree);
     return;
   }
   if (event.type === "pending-extension-ui") {
@@ -584,7 +693,10 @@ function areRuntimeToolVisibleDetailsEqual(
   left: Extract<RuntimeDisplayTimelineItem, { kind: "tool" }>,
   right: Extract<RuntimeDisplayTimelineItem, { kind: "tool" }>,
 ): boolean {
-  return runtimeToolDisplaySignature(left.display) === runtimeToolDisplaySignature(right.display);
+  return (
+    runtimeParentToolDisplaySignature(left.display) ===
+    runtimeParentToolDisplaySignature(right.display)
+  );
 }
 
 function runtimeCustomMessageVisibleText(

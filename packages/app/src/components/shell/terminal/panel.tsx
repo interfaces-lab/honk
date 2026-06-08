@@ -100,14 +100,6 @@ function TerminalPanelSession({
   useMountEffect(() => {
     const el = ref.current;
     const api = readWorkbenchTerminalApi(environmentId);
-    console.log("[workspace.terminal.mount]", {
-      cwd,
-      workspaceKey,
-      environmentId: environmentId ?? null,
-      terminalId,
-      hasElement: el !== null,
-      hasApi: api !== null,
-    });
     if (!el) {
       return;
     }
@@ -310,15 +302,6 @@ function TerminalPanelSession({
         rows: activeTerminal.rows,
       });
       size.current = { thread, ...openSize };
-      console.log("[workspace.terminal.open.start]", {
-        cwd,
-        workspaceKey,
-        environmentId: environmentId ?? null,
-        terminalId: termId,
-        threadId: thread,
-        cols: openSize.cols,
-        rows: openSize.rows,
-      });
 
       try {
         const snap = await api.open({
@@ -330,25 +313,9 @@ function TerminalPanelSession({
         });
         if (!live) return;
         openSession.current = { thread, terminalId: termId };
-        console.log("[workspace.terminal.open.success]", {
-          cwd,
-          workspaceKey,
-          environmentId: environmentId ?? null,
-          terminalId: termId,
-          threadId: thread,
-          historyLength: snap.history.length,
-        });
         hydrate(snap.history);
         syncPtySize(activeTerminal);
       } catch (err) {
-        console.log("[workspace.terminal.open.error]", {
-          cwd,
-          workspaceKey,
-          environmentId: environmentId ?? null,
-          terminalId: termId,
-          threadId: thread,
-          error: err instanceof Error ? { name: err.name, message: err.message } : String(err),
-        });
         if (dev) console.warn("[TerminalPanel] terminal.open failed", err);
         if (live) {
           openSession.current = null;

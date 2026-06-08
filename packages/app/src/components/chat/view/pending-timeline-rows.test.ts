@@ -1,10 +1,10 @@
-import { MessageId } from "@multi/contracts";
+import { MessageId, TurnId } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "../../../types";
 import {
+  appendMissingRuntimeTimelineMessageEntries,
   appendPendingUserTimelineEntries,
-  appendRuntimeUserTimelineEntries,
   appendTransientTimelineEntries,
   createPendingTimelineRow,
   materializePendingUserTimelineEntries,
@@ -23,11 +23,16 @@ function userMessage(input: { id: string; text: string }): ChatMessage {
   };
 }
 
-function assistantMessage(input: { id: string; text: string }): ChatMessage {
+function assistantMessage(input: {
+  id: string;
+  text: string;
+  turnId?: ChatMessage["turnId"];
+}): ChatMessage {
   return {
     id: MessageId.make(input.id),
     role: "assistant",
     text: input.text,
+    ...(input.turnId !== undefined ? { turnId: input.turnId } : {}),
     createdAt,
     streaming: true,
   };
@@ -166,7 +171,7 @@ describe("appendPendingUserTimelineEntries", () => {
   });
 });
 
-describe("appendRuntimeUserTimelineEntries", () => {
+describe("appendMissingRuntimeTimelineMessageEntries", () => {
   it("keeps committed user messages visible while runtime display timeline lags", () => {
     const message = userMessage({
       id: "message:runtime-committed-before-display",
@@ -174,7 +179,7 @@ describe("appendRuntimeUserTimelineEntries", () => {
     });
 
     expect(
-      appendRuntimeUserTimelineEntries({
+      appendMissingRuntimeTimelineMessageEntries({
         entries: [],
         messages: [message],
         pendingRows: [],
@@ -189,19 +194,26 @@ describe("appendRuntimeUserTimelineEntries", () => {
     ]);
   });
 
-  it("does not append assistant messages during runtime startup gaps", () => {
+  it("keeps committed assistant messages visible while runtime display timeline has only tool rows", () => {
     const message = assistantMessage({
       id: "message:assistant-before-display",
-      text: "Thinking",
+      text: "Done.",
     });
 
     expect(
-      appendRuntimeUserTimelineEntries({
+      appendMissingRuntimeTimelineMessageEntries({
         entries: [],
         messages: [message],
         pendingRows: [],
       }),
-    ).toEqual([]);
+    ).toEqual([
+      {
+        id: "message:message:assistant-before-display",
+        kind: "message",
+        createdAt,
+        message,
+      },
+    ]);
   });
 
   it("does not duplicate user messages already represented by runtime entries", () => {
@@ -217,9 +229,37 @@ describe("appendRuntimeUserTimelineEntries", () => {
     };
 
     expect(
-      appendRuntimeUserTimelineEntries({
+      appendMissingRuntimeTimelineMessageEntries({
         entries: [runtimeEntry],
         messages: [message],
+        pendingRows: [],
+      }),
+    ).toEqual([runtimeEntry]);
+  });
+
+  it("does not duplicate committed assistant messages already represented by runtime message entries", () => {
+    const turnId = TurnId.make("turn:runtime-assistant");
+    const committedMessage = assistantMessage({
+      id: "message:committed-assistant",
+      text: "Final answer",
+      turnId,
+    });
+    const runtimeMessage = assistantMessage({
+      id: "message:runtime-assistant",
+      text: "Final",
+      turnId,
+    });
+    const runtimeEntry = {
+      id: "message:runtime-assistant",
+      kind: "message" as const,
+      createdAt,
+      message: runtimeMessage,
+    };
+
+    expect(
+      appendMissingRuntimeTimelineMessageEntries({
+        entries: [runtimeEntry],
+        messages: [committedMessage],
         pendingRows: [],
       }),
     ).toEqual([runtimeEntry]);

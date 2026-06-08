@@ -310,59 +310,9 @@ export function useEnvironmentGitPanel(
     if (!enabled || !cwd || !gitApi || !environmentId) {
       return;
     }
-    console.log("[workspace.git.refresh.start]", {
-      cwd,
-      environmentId,
-    });
     void refreshGitStatus({ environmentId, cwd }, gitApi, { force: true })
-      .then((result) => {
-        console.log("[workspace.git.refresh.done]", {
-          cwd,
-          environmentId,
-          hasResult: result !== null,
-          isRepo: result?.isRepo ?? null,
-          branch: result?.branch ?? null,
-          fileCount: result?.workingTree.files.length ?? null,
-        });
-      })
-      .catch((error: unknown) => {
-        console.log("[workspace.git.refresh.error]", {
-          cwd,
-          environmentId,
-          error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
-        });
-      });
+      .catch(() => undefined);
   }, [cwd, enabled, environmentId, gitApi]);
-  useEffect(() => {
-    const queryError =
-      status.error instanceof Error
-        ? { name: status.error.name, message: status.error.message }
-        : status.error
-          ? String(status.error)
-          : null;
-    console.log("[workspace.git.status]", {
-      enabled,
-      cwd,
-      environmentId,
-      hasGitApi: gitApi !== null,
-      view: view.kind,
-      queryPending: status.isPending,
-      queryError,
-      hasData: status.data !== null,
-      isRepo: status.data?.isRepo ?? null,
-      branch: status.data?.branch ?? null,
-      fileCount: status.data?.workingTree.files.length ?? null,
-    });
-  }, [
-    cwd,
-    enabled,
-    environmentId,
-    gitApi,
-    status.data,
-    status.error,
-    status.isPending,
-    view.kind,
-  ]);
   const rowReuseRef = useRef<DiffRow[]>([]);
 
   const nextRows =

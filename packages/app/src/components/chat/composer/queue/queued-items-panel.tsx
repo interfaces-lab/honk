@@ -135,7 +135,7 @@ function QueuedComposerItemThumbnails(props: {
           key={image.id}
           src={image.previewUrl}
           alt=""
-          className="queue-row-thumbnail rounded-sm"
+          className="queue-row-thumbnail rounded-xs"
           draggable={false}
         />
       ))}
@@ -193,7 +193,7 @@ function QueuedComposerItemRow(props: {
   return (
     <div className="relative" role="listitem" data-queued-composer-item-wrapper="">
       {showDropBefore ? (
-        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
+        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-xs bg-multi-stroke-focused" />
       ) : null}
       <SidebarTrayRow
         render={<div />}
@@ -250,7 +250,7 @@ function QueuedComposerItemRow(props: {
         )}
       </SidebarTrayRow>
       {showDropAfter ? (
-        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
+        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-xs bg-multi-stroke-focused" />
       ) : null}
     </div>
   );
@@ -306,7 +306,7 @@ function QueuedComposerItemsList(
 
   return (
     <div
-      className="agent-panel-queue-items flex max-h-[200px] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-none"
+      className="agent-panel-queue-items flex max-h-[200px] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-hidden"
       role="list"
       aria-label={QUEUE_PANEL_ARIA_LABEL}
       data-queued-composer-items-list=""

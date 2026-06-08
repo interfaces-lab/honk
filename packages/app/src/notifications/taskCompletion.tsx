@@ -1,10 +1,10 @@
 import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useRef } from "react";
 import { toastManager } from "~/app/toast";
 import { openThread } from "~/app/chat-navigation";
 import { scopeThreadRef } from "~/lib/environment-scope";
-import { useRouteTarget } from "~/app/routes/thread-route-targets";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "../stores/thread-store";
 import type { SidebarThreadSummary } from "../types";
@@ -103,16 +103,16 @@ function markAttentionNotificationSeen(requestId: string): void {
 function focusThread(
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
 ): void {
-  void openThread(navigate, scopeThreadRef(environmentId, threadId));
+  void openThread(router, scopeThreadRef(environmentId, threadId));
 }
 
 async function showSystemThreadNotification(
   copy: ThreadNotificationCopy,
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
 ): Promise<boolean> {
   const { body, title } = copy;
 
@@ -126,7 +126,7 @@ async function showSystemThreadNotification(
   });
   notification.addEventListener("click", () => {
     window.focus();
-    focusThread(environmentId, threadId, navigate);
+    focusThread(environmentId, threadId, router);
   });
   return true;
 }
@@ -136,7 +136,7 @@ function showThreadToast(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   tone: "success" | "warning",
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
 ): void {
   const { body, title } = copy;
   toastManager.add({
@@ -149,7 +149,7 @@ function showThreadToast(
     },
     actionProps: {
       children: "Open",
-      onClick: () => focusThread(environmentId, threadId, navigate),
+      onClick: () => focusThread(environmentId, threadId, router),
     },
   });
 }
@@ -291,11 +291,11 @@ function useVisibleThreadIdsFromRoute(): ReadonlySet<ThreadId> {
 }
 
 export function TaskCompletionNotifications() {
-  const navigate = useNavigate();
-  const navigateRef = useRef(navigate);
+  const router = useRouter();
+  const routerRef = useRef(router);
   const visibleThreadIds = useVisibleThreadIdsFromRoute();
   const visibleThreadIdsRef = useRef(visibleThreadIds);
-  navigateRef.current = navigate;
+  routerRef.current = router;
   visibleThreadIdsRef.current = visibleThreadIds;
 
   useMountEffect(() => {
@@ -306,7 +306,7 @@ export function TaskCompletionNotifications() {
       emitTaskCompletionNotifications(
         previousThreads,
         threads,
-        navigateRef.current,
+        routerRef.current,
         visibleThreadIdsRef.current,
       );
       previousThreads = threads;
@@ -319,7 +319,7 @@ export function TaskCompletionNotifications() {
 function emitTaskCompletionNotifications(
   previousThreads: readonly SidebarThreadSummary[],
   threads: readonly SidebarThreadSummary[],
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
   visibleThreadIds: ReadonlySet<ThreadId>,
 ): void {
   const completions = collectCompletedSummaryCandidates(previousThreads, threads);
@@ -340,7 +340,7 @@ function emitTaskCompletionNotifications(
         copy,
         completion.environmentId,
         completion.threadId,
-        navigate,
+        router,
       );
     }
   }
@@ -362,14 +362,14 @@ function emitTaskCompletionNotifications(
     }
 
     const copy = buildInputNeededCopy(candidate);
-    showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", navigate);
+    showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", router);
 
     if (shouldAttemptSystemNotification) {
       void showSystemThreadNotification(
         copy,
         candidate.environmentId,
         candidate.threadId,
-        navigate,
+        router,
       );
     }
   }

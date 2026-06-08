@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
 import { DraftId } from "~/stores/chat-drafts";
-import { getCurrentRouteTarget, resolveThreadRouteTarget } from "./thread-route-targets";
+import { getCurrentRouteTarget, resolveThreadRouteTarget } from "./-thread-route-targets";
 
 const environmentId = EnvironmentId.make("environment:test");
 const threadId = ThreadId.make("thread:test");

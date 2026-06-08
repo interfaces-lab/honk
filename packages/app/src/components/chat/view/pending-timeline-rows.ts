@@ -160,22 +160,20 @@ export function appendPendingUserTimelineEntries(input: {
   );
 }
 
-export function appendRuntimeUserTimelineEntries(input: {
+export function appendMissingRuntimeTimelineMessageEntries(input: {
   entries: ReadonlyArray<TimelineEntry>;
   messages: ReadonlyArray<ChatMessage>;
   pendingRows: ReadonlyArray<PendingTimelineRow>;
 }): ReadonlyArray<TimelineEntry> {
-  const existingMessageIds = new Set(
-    input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
-  );
-  const userEntries: TimelineEntry[] = [];
+  const coverage = runtimeTimelineMessageCoverage(input.entries);
+  const missingMessageEntries: TimelineEntry[] = [];
 
   for (const message of input.messages) {
-    if (message.role !== "user" || existingMessageIds.has(message.id)) {
+    if (runtimeTimelineCoversMessage(coverage, message)) {
       continue;
     }
-    existingMessageIds.add(message.id);
-    userEntries.push({
+    coverage.messageIds.add(message.id);
+    missingMessageEntries.push({
       id: timelineMessageRowId(message.id),
       kind: "message",
       createdAt: message.createdAt,
@@ -184,11 +182,11 @@ export function appendRuntimeUserTimelineEntries(input: {
   }
 
   for (const row of input.pendingRows) {
-    if (existingMessageIds.has(row.clientSendKey)) {
+    if (coverage.messageIds.has(row.clientSendKey)) {
       continue;
     }
-    existingMessageIds.add(row.clientSendKey);
-    userEntries.push({
+    coverage.messageIds.add(row.clientSendKey);
+    missingMessageEntries.push({
       id: row.id,
       kind: "message",
       createdAt: row.message.createdAt,
@@ -196,13 +194,50 @@ export function appendRuntimeUserTimelineEntries(input: {
     });
   }
 
-  if (userEntries.length === 0) {
+  if (missingMessageEntries.length === 0) {
     return input.entries;
   }
   return mergeTransientTimelineEntries(
     input.entries,
-    userEntries.toSorted(compareTransientEntries),
+    missingMessageEntries.toSorted(compareTransientEntries),
   );
+}
+
+function runtimeTimelineMessageCoverage(entries: ReadonlyArray<TimelineEntry>): {
+  messageIds: Set<MessageId>;
+  nonUserTurnKeys: Set<string>;
+} {
+  const messageIds = new Set<MessageId>();
+  const nonUserTurnKeys = new Set<string>();
+  for (const entry of entries) {
+    if (entry.kind !== "message") {
+      continue;
+    }
+    messageIds.add(entry.message.id);
+    const turnKey = nonUserTurnCoverageKey(entry.message);
+    if (turnKey) {
+      nonUserTurnKeys.add(turnKey);
+    }
+  }
+  return { messageIds, nonUserTurnKeys };
+}
+
+function runtimeTimelineCoversMessage(
+  coverage: ReturnType<typeof runtimeTimelineMessageCoverage>,
+  message: ChatMessage,
+): boolean {
+  if (coverage.messageIds.has(message.id)) {
+    return true;
+  }
+  const turnKey = nonUserTurnCoverageKey(message);
+  return turnKey !== null && coverage.nonUserTurnKeys.has(turnKey);
+}
+
+function nonUserTurnCoverageKey(message: ChatMessage): string | null {
+  if (message.role === "user" || !message.turnId) {
+    return null;
+  }
+  return `${message.role}:${message.turnId}`;
 }
 
 export function acknowledgedPendingTimelineRows(input: {

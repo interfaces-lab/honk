@@ -7,6 +7,7 @@ import {
   configureRuntimeCredential,
   getRuntimeHostSnapshot,
   getRuntimePreferences,
+  hydrateRuntimeThread,
   installRuntimeHostEventBridge,
   respondToRuntimeExtensionUiRequest,
   sendRuntimeTurn,
@@ -43,6 +44,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(getRuntimePreferences);
   yield* ipc.handle(updateRuntimePreferences);
   yield* ipc.handle(configureRuntimeCredential);
+  yield* ipc.handle(hydrateRuntimeThread);
   yield* ipc.handle(sendRuntimeTurn);
   yield* ipc.handle(abortRuntimeThread);
   yield* ipc.handle(respondToRuntimeExtensionUiRequest);

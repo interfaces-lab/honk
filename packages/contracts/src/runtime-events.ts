@@ -35,10 +35,18 @@ export const CanonicalItemType = Schema.Literals([
 ]);
 export type CanonicalItemType = typeof CanonicalItemType.Type;
 
+export const ThreadTokenUsageCategory = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString,
+  tokens: NonNegativeInt,
+});
+export type ThreadTokenUsageCategory = typeof ThreadTokenUsageCategory.Type;
+
 export const ThreadTokenUsageSnapshot = Schema.Struct({
   usedTokens: NonNegativeInt,
   totalProcessedTokens: Schema.optional(NonNegativeInt),
   maxTokens: Schema.optional(PositiveInt),
+  categories: Schema.optional(Schema.Array(ThreadTokenUsageCategory)),
   inputTokens: Schema.optional(NonNegativeInt),
   cachedInputTokens: Schema.optional(NonNegativeInt),
   outputTokens: Schema.optional(NonNegativeInt),

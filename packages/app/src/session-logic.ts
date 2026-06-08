@@ -776,7 +776,9 @@ export function deriveWorkLogEntries(
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
   const subagentUsageBySubagentThreadId = deriveSubagentUsageBySubagentThreadId(ordered);
-  const subagentDetailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered);
+  const subagentDetailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered, {
+    includeTranscript: false,
+  });
   const subagentDetailsByParentItemId = deriveSubagentDetailsByParentItemId(
     subagentDetailsBySubagentThreadId,
   );
@@ -854,6 +856,84 @@ export function deriveWorkLogEntries(
   return workLogEntries;
 }
 
+export interface WorkLogSubagentLookup {
+  readonly key?: string | undefined;
+  readonly subagentThreadId?: string | undefined;
+  readonly threadId?: string | undefined;
+  readonly agentId?: string | undefined;
+}
+
+export function deriveWorkLogSubagent(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+  lookup: WorkLogSubagentLookup,
+): WorkLogSubagent | null {
+  return findWorkLogSubagent(deriveWorkLogSubagents(activities), lookup);
+}
+
+export function deriveWorkLogSubagents(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): Map<string, WorkLogSubagent> {
+  return deriveWorkLogSubagentsFromOrderedActivities(
+    [...activities].toSorted(compareActivitiesByOrder),
+  );
+}
+
+export function deriveWorkLogSubagentFromOrderedActivities(
+  ordered: ReadonlyArray<OrchestrationThreadActivity>,
+  lookup: WorkLogSubagentLookup,
+): WorkLogSubagent | null {
+  return findWorkLogSubagent(deriveWorkLogSubagentsFromOrderedActivities(ordered), lookup);
+}
+
+function findWorkLogSubagent(
+  subagentsBySubagentThreadId: ReadonlyMap<string, WorkLogSubagent>,
+  lookup: WorkLogSubagentLookup,
+): WorkLogSubagent | null {
+  const ids = new Set(
+    [lookup.key, lookup.subagentThreadId, lookup.threadId, lookup.agentId]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (ids.size === 0) {
+    return null;
+  }
+
+  for (const subagent of subagentsBySubagentThreadId.values()) {
+    if (
+      subagent &&
+      [subagent.subagentThreadId, subagent.threadId, subagent.agentId].some((id) =>
+        id ? ids.has(id) : false,
+      )
+    ) {
+      return subagent;
+    }
+  }
+
+  return null;
+}
+
+export function deriveWorkLogSubagentsFromOrderedActivities(
+  ordered: ReadonlyArray<OrchestrationThreadActivity>,
+): Map<string, WorkLogSubagent> {
+  const usageBySubagentThreadId = deriveSubagentUsageBySubagentThreadId(ordered);
+  const detailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered, {
+    includeTranscript: true,
+  });
+  const subagentsBySubagentThreadId = new Map<string, WorkLogSubagent>();
+
+  for (const details of detailsBySubagentThreadId.values()) {
+    const subagent = applySubagentUsage(
+      [subagentFromDerivedDetails(details)],
+      usageBySubagentThreadId,
+    )[0];
+    if (subagent) {
+      subagentsBySubagentThreadId.set(details.subagentThreadId, subagent);
+    }
+  }
+
+  return subagentsBySubagentThreadId;
+}
+
 function shouldOmitWorkLogEntry(
   workEntry: WorkLogEntry,
   subagents: ReadonlyArray<WorkLogSubagent>,
@@ -901,6 +981,10 @@ interface DerivedSubagentDetails {
   readonly transcriptItems: ReadonlyArray<SubagentTranscriptItem>;
 }
 
+interface SubagentDetailProjectionOptions {
+  readonly includeTranscript: boolean;
+}
+
 interface MutableTranscriptContext {
   readonly itemsById: Map<string, SubagentTranscriptItem>;
   readonly itemsOrdered: SubagentTranscriptItem[];
@@ -917,6 +1001,7 @@ function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boole
 
 function deriveSubagentDetailsBySubagentThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentDetailProjectionOptions,
 ): Map<string, DerivedSubagentDetails> {
   const detailsBySubagentThreadId = new Map<string, DerivedSubagentDetails>();
   const transcriptBySubagentThreadId = new Map<string, MutableTranscriptContext>();
@@ -936,7 +1021,9 @@ function deriveSubagentDetailsBySubagentThreadId(
     const identity = deriveSubagentIdentityDetails(subagentThreadId, payload, previous);
 
     if (activity.kind === "subagent.content.delta") {
-      reduceTranscriptDelta(transcriptBySubagentThreadId, subagentThreadId, activity, payload);
+      if (options.includeTranscript) {
+        reduceTranscriptDelta(transcriptBySubagentThreadId, subagentThreadId, activity, payload);
+      }
       detailsBySubagentThreadId.set(subagentThreadId, {
         ...identity,
         rawStatus: previous?.rawStatus,
@@ -955,7 +1042,10 @@ function deriveSubagentDetailsBySubagentThreadId(
     const latestUpdate = resolveSubagentLatestUpdate(activity, log, previous?.latestUpdate);
     const logs = [...(previous?.logs ?? []), log].slice(-200);
 
-    if (activity.kind === "subagent.item.started" || activity.kind === "subagent.item.updated") {
+    if (
+      options.includeTranscript &&
+      (activity.kind === "subagent.item.started" || activity.kind === "subagent.item.updated")
+    ) {
       reduceTranscriptItemLifecycle(
         transcriptBySubagentThreadId,
         subagentThreadId,
@@ -963,7 +1053,7 @@ function deriveSubagentDetailsBySubagentThreadId(
         payload,
         false,
       );
-    } else if (activity.kind === "subagent.item.completed") {
+    } else if (options.includeTranscript && activity.kind === "subagent.item.completed") {
       reduceTranscriptItemLifecycle(
         transcriptBySubagentThreadId,
         subagentThreadId,
@@ -1134,7 +1224,7 @@ function reduceTranscriptItemLifecycle(
             ...(output ? { output: capTranscriptText(output) } : {}),
           }
         : detail
-          ? { text: capTranscriptText(mergeSubagentTranscriptText(existing.text, detail)) }
+          ? { text: capTranscriptText(detail) }
           : {}),
       loading: !isCompletedStatus,
     };
@@ -2107,25 +2197,6 @@ function shouldPreservePreviousTaskLabel(
     next.label === "Task stopped" ||
     next.label === "Completed task"
   );
-}
-
-function mergeSubagentTranscriptText(
-  previous: string | undefined,
-  next: string,
-): string {
-  if (!previous) {
-    return next;
-  }
-  if (next === previous || previous.startsWith(next) || previous.endsWith(next)) {
-    return previous;
-  }
-  if (next.startsWith(previous)) {
-    return next;
-  }
-  if (next.length < previous.length) {
-    return previous;
-  }
-  return mergeStreamText(previous, next) ?? previous;
 }
 
 function mergeStreamText(

@@ -29,6 +29,39 @@ function expectRecord(value: unknown): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value));
 }
 
+function subagentRunRecordsFromToolUpdate(event: AgentRuntimeEvent): Record<string, unknown>[] {
+  if (event.type !== "tool.updated") {
+    return [];
+  }
+  const data = event.data;
+  if (typeof data !== "object" || data === null) {
+    return [];
+  }
+  const dataRecord = Object.fromEntries(Object.entries(data)) as Record<string, unknown>;
+  if (dataRecord.toolName !== "subagent") {
+    return [];
+  }
+  const partialResult = dataRecord.partialResult;
+  if (typeof partialResult !== "object" || partialResult === null) {
+    return [];
+  }
+  const partialResultRecord = Object.fromEntries(Object.entries(partialResult)) as Record<
+    string,
+    unknown
+  >;
+  const details = partialResultRecord.details;
+  if (typeof details !== "object" || details === null) {
+    return [];
+  }
+  const detailsRecord = Object.fromEntries(Object.entries(details)) as Record<string, unknown>;
+  if (!Array.isArray(detailsRecord.runs)) {
+    return [];
+  }
+  return detailsRecord.runs.flatMap((run: unknown) =>
+    typeof run === "object" && run !== null ? [Object.fromEntries(Object.entries(run))] : [],
+  );
+}
+
 function waitForPendingExtensionUiRequest(
   ui: DesktopExtensionUiController,
 ): Promise<DesktopExtensionUiRequest> {
@@ -266,7 +299,12 @@ describe("ThreadAgentRuntime tools", () => {
     const details = expectRecord(result.details);
     const runs = details.runs;
     const activities = details.activities;
+    const runningRunSnapshots = events
+      .flatMap(subagentRunRecordsFromToolUpdate)
+      .filter((run) => run.state === "running");
 
+    expect(runningRunSnapshots.length).toBeGreaterThan(0);
+    expect(runningRunSnapshots.every((run) => run.finalText === null)).toBe(true);
     expect(Array.isArray(runs) ? runs[0] : undefined).toMatchObject({
       subagentThreadId: expect.stringContaining(":subagent:"),
       agentId: expect.stringContaining(":subagent:"),

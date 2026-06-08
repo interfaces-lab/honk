@@ -106,6 +106,10 @@ function isStalePendingApprovalFailureDetail(detail: string | null): boolean {
   );
 }
 
+function isSubagentActivityKind(kind: string): boolean {
+  return kind.startsWith("subagent.");
+}
+
 function derivePendingUserInputCountFromActivities(
   activities: ReadonlyArray<ProjectionThreadActivity>,
 ): number {
@@ -542,6 +546,12 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         case "thread.activity-appended":
         case "thread.approval-response-requested":
         case "thread.user-input-response-requested": {
+          if (
+            event.type === "thread.activity-appended" &&
+            isSubagentActivityKind(event.payload.activity.kind)
+          ) {
+            return;
+          }
           const existingRow = yield* projectionThreadRepository.getById({
             threadId: event.payload.threadId,
           });

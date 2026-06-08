@@ -69,6 +69,7 @@ interface SubagentExecutionState {
   readonly projectAgentsDir: string | null;
   readonly runs: MutableSubagentRun[];
   readonly activities: SubagentActivityDetails[];
+  readonly activityIndexById: Map<string, number>;
   sequence: number;
 }
 
@@ -111,6 +112,7 @@ function createExecutionState(mode: SubagentMode): SubagentExecutionState {
     projectAgentsDir: null,
     runs: [],
     activities: [],
+    activityIndexById: new Map(),
     sequence: 0,
   };
 }
@@ -170,16 +172,51 @@ function pushActivity(
   summary: string,
   payload: Partial<SubagentActivityPayload>,
 ): void {
-  state.sequence += 1;
-  state.activities.push({
-    id: `runtime-subagent:${run.parentItemId}:${run.subagentThreadId}:${state.sequence}`,
+  const id = subagentActivityId(run, kind, payload);
+  const existingIndex = state.activityIndexById.get(id);
+  const previousActivity =
+    existingIndex !== undefined ? state.activities[existingIndex] : undefined;
+  const sequence = previousActivity?.sequence ?? nextActivitySequence(state);
+  const activity: SubagentActivityDetails = {
+    id,
     kind,
     tone: kind === "subagent.thread.state.changed" && payload.state === "failed" ? "error" : "info",
     summary,
     createdAt: nowIso(),
-    sequence: state.sequence,
+    sequence,
     payload: basePayload(run, payload),
-  });
+  };
+  if (existingIndex !== undefined && state.activities[existingIndex]) {
+    state.activities[existingIndex] = activity;
+    return;
+  }
+  state.activityIndexById.set(id, state.activities.length);
+  state.activities.push(activity);
+}
+
+function nextActivitySequence(state: SubagentExecutionState): number {
+  state.sequence += 1;
+  return state.sequence;
+}
+
+function subagentActivityId(
+  run: MutableSubagentRun,
+  kind: SubagentActivityKind,
+  payload: Partial<SubagentActivityPayload>,
+): string {
+  const base = `runtime-subagent:${run.parentItemId}:${run.subagentThreadId}`;
+  switch (kind) {
+    case "subagent.thread.started":
+      return `${base}:thread`;
+    case "subagent.thread.state.changed":
+      return `${base}:state`;
+    case "subagent.item.started":
+    case "subagent.item.updated":
+    case "subagent.item.completed": {
+      const itemId = payload.itemId?.trim();
+      return `${base}:item:${itemId ?? "missing"}`;
+    }
+  }
 }
 
 function modelLabel(ctx: ExtensionContext): string | null {
@@ -281,41 +318,53 @@ function captureChildEvent(
   event: AgentRuntimeEvent,
 ): void {
   if (event.type === "message.updated" || event.type === "message.completed") {
-    const text = event.text?.trim();
-    if (text && text !== run.lastAssistantText) {
-      run.lastAssistantText = text;
-      run.finalText = text;
-      pushActivity(
-        state,
-        run,
-        event.type === "message.completed" ? "subagent.item.completed" : "subagent.item.updated",
-        "Subagent response",
-        {
-          itemType: "assistant_message",
-          itemId: `assistant:${event.turnId ?? event.id}`,
-          status: event.type === "message.completed" ? "completed" : "running",
-          title: "Assistant",
-          detail: text,
-        },
-      );
+    const eventText = event.text?.trim();
+    const text = eventText || (event.type === "message.completed" ? run.lastAssistantText : null);
+    if (text) {
+      const textChanged = text !== run.lastAssistantText;
+      if (textChanged) {
+        run.lastAssistantText = text;
+      }
+      if (textChanged || event.type === "message.completed") {
+        pushActivity(
+          state,
+          run,
+          event.type === "message.completed" ? "subagent.item.completed" : "subagent.item.updated",
+          "Subagent response",
+          {
+            itemType: "assistant_message",
+            itemId: `assistant:${event.turnId ?? event.id}`,
+            status: event.type === "message.completed" ? "completed" : "running",
+            title: "Assistant",
+            detail: text,
+          },
+        );
+      }
     }
 
-    const thinking = event.thinking?.trim();
-    if (thinking && thinking !== run.lastThinkingText) {
-      run.lastThinkingText = thinking;
-      pushActivity(
-        state,
-        run,
-        event.type === "message.completed" ? "subagent.item.completed" : "subagent.item.updated",
-        "Subagent reasoning",
-        {
-          itemType: "reasoning",
-          itemId: `reasoning:${event.turnId ?? event.id}`,
-          status: event.type === "message.completed" ? "completed" : "running",
-          title: "Reasoning",
-          detail: thinking,
-        },
-      );
+    const eventThinking = event.thinking?.trim();
+    const thinking =
+      eventThinking || (event.type === "message.completed" ? run.lastThinkingText : null);
+    if (thinking) {
+      const thinkingChanged = thinking !== run.lastThinkingText;
+      if (thinkingChanged) {
+        run.lastThinkingText = thinking;
+      }
+      if (thinkingChanged || event.type === "message.completed") {
+        pushActivity(
+          state,
+          run,
+          event.type === "message.completed" ? "subagent.item.completed" : "subagent.item.updated",
+          "Subagent reasoning",
+          {
+            itemType: "reasoning",
+            itemId: `reasoning:${event.turnId ?? event.id}`,
+            status: event.type === "message.completed" ? "completed" : "running",
+            title: "Reasoning",
+            detail: thinking,
+          },
+        );
+      }
     }
   }
 
@@ -443,6 +492,7 @@ async function runSubagentTask(input: {
       streamingBehavior: null,
     });
     await runtime.session.agent.waitForIdle();
+    run.finalText = run.lastAssistantText.trim().length > 0 ? run.lastAssistantText : null;
     run.state = input.signal?.aborted ? "aborted" : "completed";
     pushActivity(input.state, run, "subagent.thread.state.changed", `Completed ${title}`, {
       state: run.state,

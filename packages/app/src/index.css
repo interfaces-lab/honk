@@ -275,10 +275,6 @@
     @apply text-foreground relative;
     background-color: var(--app-background);
   }
-  html[data-electron] body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) {
-    background-color: transparent;
-    background-image: none;
-  }
 }
 
 @layer utilities {

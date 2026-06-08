@@ -1,12 +1,11 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
-import type { ScopedThreadRef } from "@multi/contracts";
+import type { ScopedProjectRef, ScopedThreadRef } from "@multi/contracts";
 import { SidebarItem } from "@multi/multikit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, memo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
-import { useThreadActions } from "~/hooks/use-thread-actions";
 import { readLocalApi } from "~/local-api";
 import { cn } from "~/lib/utils";
 import { useUiStateStore } from "~/stores/ui-state-store";
@@ -22,6 +21,15 @@ import { createSectionItemIdsKey, createThreadRefsKey } from "./keys";
 import { SectionPrefetchSync, SectionVisibleThreadRefsSync } from "./section-sync";
 import { AgentSidebarThreadItem } from "./thread-item";
 import type { SidebarSectionModel } from "./types";
+
+type CommitThreadRename = (
+  target: ScopedThreadRef,
+  nextTitle: string,
+  originalTitle: string,
+) => Promise<void>;
+type ArchiveThread = (target: ScopedThreadRef) => Promise<void>;
+type ArchiveThreads = (targets: readonly ScopedThreadRef[]) => Promise<void>;
+type RemoveProjectFromSidebar = (target: ScopedProjectRef) => Promise<void>;
 
 function minVisibleForSelection(
   items: readonly SidebarSectionModel["items"][number][],
@@ -47,7 +55,7 @@ function useCallbackIdentityVersion<TCallback extends ((...args: never[]) => unk
   return versionRef.current;
 }
 
-export function AgentSidebarSection(props: {
+export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
   section: SidebarSectionModel;
   selectedId: string | null;
   dragPayload: SidebarDragPayload | null;
@@ -56,6 +64,10 @@ export function AgentSidebarSection(props: {
   onSidebarDragOver: (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => void;
   onSidebarDragStart: (event: DragEvent<HTMLElement>, payload: SidebarDragPayload) => void;
   onSidebarDrop: (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => void;
+  archiveThread: ArchiveThread;
+  archiveThreads: ArchiveThreads;
+  commitRename: CommitThreadRename;
+  removeProjectFromSidebar: RemoveProjectFromSidebar;
   onSelectAgent: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
   onPrefetchAgent?: (id: string) => void;
@@ -63,15 +75,14 @@ export function AgentSidebarSection(props: {
 }) {
   const { onPrefetchAgent, section } = props;
   const prefetchAgentVersion = useCallbackIdentityVersion(onPrefetchAgent);
-  const { archiveThreads, removeProjectFromSidebar } = useThreadActions();
-  const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
+  const savedOpen = useUiStateStore((store) =>
+    section.projectStateKey ? (store.projectExpandedById[section.projectStateKey] ?? true) : true,
+  );
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
   const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
   const [localOpen, setLocalOpen] = useState(true);
   const [extra, setExtra] = useState(0);
-  const open = section.projectStateKey
-    ? (projectExpandedById[section.projectStateKey] ?? true)
-    : localOpen;
+  const open = section.projectStateKey ? savedOpen : localOpen;
   const labelId = `agent-section-label-${section.id}`;
   const panelId = `agent-section-panel-${section.id}`;
   const minVisible = minVisibleForSelection(section.items, props.selectedId);
@@ -99,9 +110,7 @@ export function AgentSidebarSection(props: {
   const projectDropPosition =
     props.dropTarget?.sectionId === section.id ? props.dropTarget.position : null;
   const draggingProject = props.dragPayload?.sectionId === section.id;
-  const canRemoveProject =
-    section.projectRef !== undefined &&
-    section.projectCwd !== undefined;
+  const canRemoveProject = section.projectRef !== undefined && section.projectCwd !== undefined;
   const visibleThreadRefs = open
     ? section.items
         .slice(0, visible)
@@ -143,7 +152,7 @@ export function AgentSidebarSection(props: {
   };
 
   const archiveSectionThreads = () => {
-    void archiveThreads(section.threadRefs).catch((error) => {
+    void props.archiveThreads(section.threadRefs).catch((error) => {
       toast.error("Failed to archive threads", {
         description: error instanceof Error ? error.message : "An error occurred.",
       });
@@ -154,7 +163,7 @@ export function AgentSidebarSection(props: {
     if (!section.projectRef) {
       return;
     }
-    void removeProjectFromSidebar(section.projectRef).catch((error) => {
+    void props.removeProjectFromSidebar(section.projectRef).catch((error) => {
       toast.error("Failed to remove project", {
         description: error instanceof Error ? error.message : "An error occurred.",
       });
@@ -223,7 +232,7 @@ export function AgentSidebarSection(props: {
         onArchiveAll={archiveSectionThreads}
         onRemoveFromSidebar={removeSectionProject}
       >
-        <div className="group/sidebar-section outline-none" tabIndex={-1}>
+        <div className="group/sidebar-section outline-hidden" tabIndex={-1}>
           <SidebarItem
             render={<div />}
             className={cn(
@@ -248,7 +257,7 @@ export function AgentSidebarSection(props: {
               aria-expanded={open}
               aria-controls={open ? panelId : undefined}
               onClick={toggleOpen}
-              className="relative m-0 flex min-h-(--multi-sidebar-item-height) w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-(--multi-sidebar-item-gap) border-0 bg-transparent p-0 text-inherit shadow-none outline-none focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
+              className="relative m-0 flex min-h-(--multi-sidebar-item-height) w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-(--multi-sidebar-item-gap) border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
             >
               <span
                 className="relative flex size-4 shrink-0 items-center justify-center text-multi-icon-tertiary"
@@ -290,7 +299,7 @@ export function AgentSidebarSection(props: {
                 }}
                 aria-label={`New agent in ${section.label}`}
                 title={`New agent in ${section.label}`}
-                className="relative mr-0 flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-inherit outline-none touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
+                className="relative mr-0 flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-inherit outline-hidden touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
               >
                 <span aria-hidden>+</span>
               </button>
@@ -310,6 +319,8 @@ export function AgentSidebarSection(props: {
               key={item.id}
               item={item}
               selected={props.selectedId === item.id}
+              archiveThread={props.archiveThread}
+              commitRename={props.commitRename}
               onSelectAgent={props.onSelectAgent}
               {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
             />
@@ -330,4 +341,4 @@ export function AgentSidebarSection(props: {
       ) : null}
     </section>
   );
-}
+});

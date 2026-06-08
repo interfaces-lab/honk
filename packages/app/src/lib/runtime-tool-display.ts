@@ -49,28 +49,43 @@ export function runtimeToolDisplaySignature(
       return [display.kind, display.providerIdentifier ?? ""].join("\u0000");
     case "subagent":
       return [
-        display.kind,
-        display.mode,
-        display.agentScope,
-        display.projectAgentsDir ?? "",
-        ...display.runs.map((run) =>
-          [
-            run.subagentThreadId,
-            run.agentId,
-            run.nickname,
-            run.role,
-            run.model ?? "",
-            run.prompt,
-            run.state,
-            run.finalText ?? "",
-            run.errorMessage ?? "",
-          ].join("\u0001"),
-        ),
+        runtimeSubagentRunSignature(display),
         ...recentSubagentSignatureActivities(display).map(subagentActivitySignature),
       ].join("\u0000");
     case "unknown":
       return [display.kind, display.toolName, display.output ?? ""].join("\u0000");
   }
+}
+
+export function runtimeParentToolDisplaySignature(
+  display: RuntimeDisplayTimelineToolDisplay | undefined,
+): string {
+  if (display?.kind === "subagent") {
+    return runtimeSubagentRunSignature(display);
+  }
+  return runtimeToolDisplaySignature(display);
+}
+
+function runtimeSubagentRunSignature(display: RuntimeSubagentDisplay): string {
+  return [
+    display.kind,
+    display.mode,
+    display.agentScope,
+    display.projectAgentsDir ?? "",
+    ...display.runs.map((run) =>
+      [
+        run.subagentThreadId,
+        run.agentId,
+        run.nickname,
+        run.role,
+        run.model ?? "",
+        run.prompt,
+        run.state,
+        run.finalText ?? "",
+        run.errorMessage ?? "",
+      ].join("\u0001"),
+    ),
+  ].join("\u0000");
 }
 
 function recentSubagentSignatureActivities(

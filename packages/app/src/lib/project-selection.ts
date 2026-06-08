@@ -19,11 +19,6 @@ export interface EnsuredProjectSelection {
 }
 
 export function persistProjectSelection(project: Pick<Project, "environmentId" | "id" | "cwd">) {
-  console.log("[workspace.project-selection.persist]", {
-    environmentId: project.environmentId,
-    projectId: project.id,
-    cwd: project.cwd,
-  });
   writeStoredProjectSelection({
     environmentId: project.environmentId,
     projectId: project.id,
@@ -38,16 +33,7 @@ export async function openWorkspaceFolder(input: {
   readonly defaultModelSelection: ModelSelection | null;
 }): Promise<EnsuredProjectSelection | null> {
   const cwd = input.rawCwd.trim();
-  console.log("[workspace.project-selection.ensure.start]", {
-    environmentId: input.environmentId,
-    rawCwd: input.rawCwd,
-    cwd,
-    projectCount: input.projects.length,
-  });
   if (cwd.length === 0) {
-    console.log("[workspace.project-selection.ensure.empty-cwd]", {
-      rawCwd: input.rawCwd,
-    });
     return null;
   }
 
@@ -56,11 +42,6 @@ export async function openWorkspaceFolder(input: {
     cwd,
   );
   if (existing) {
-    console.log("[workspace.project-selection.ensure.existing]", {
-      environmentId: existing.environmentId,
-      projectId: existing.id,
-      cwd: existing.cwd,
-    });
     persistProjectSelection(existing);
     return {
       projectRef: scopeProjectRef(existing.environmentId, existing.id),
@@ -77,14 +58,6 @@ export async function openWorkspaceFolder(input: {
   const commandId = newCommandId();
   const title = inferProjectTitleFromPath(cwd);
   const createdAt = new Date().toISOString();
-  console.log("[workspace.project-selection.ensure.create]", {
-    environmentId: input.environmentId,
-    projectId,
-    commandId,
-    cwd,
-    title,
-    hasEnvironmentApi: api !== null,
-  });
   writeStoredProjectSelection({
     environmentId: input.environmentId,
     projectId,
@@ -110,32 +83,10 @@ export async function openWorkspaceFolder(input: {
         defaultModelSelection: input.defaultModelSelection,
         createdAt,
       })
-      .then((result) => {
-        console.log("[workspace.project-selection.ensure.remote-dispatch.complete]", {
-          environmentId: input.environmentId,
-          projectId,
-          commandId,
-          sequence: result.sequence,
-        });
-      })
-      .catch((error: unknown) => {
-        console.log("[workspace.project-selection.ensure.remote-dispatch.error]", {
-          environmentId: input.environmentId,
-          projectId,
-          commandId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
+      .catch(() => undefined);
   }
 
   const project = selectProjectByRef(useStore.getState(), projectRef) ?? null;
-  console.log("[workspace.project-selection.ensure.created-result]", {
-    environmentId: projectRef.environmentId,
-    projectId: projectRef.projectId,
-    cwd,
-    projectAvailable: project !== null,
-    projectCwd: project?.cwd ?? null,
-  });
 
   return {
     projectRef,

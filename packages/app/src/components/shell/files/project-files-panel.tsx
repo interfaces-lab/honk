@@ -81,30 +81,6 @@ function ProjectFilesPanelContent(props: {
     shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
   }, [fileRailInitialized, isFilesPanelActive, props.workspaceKey]);
 
-  useEffect(() => {
-    console.log("[workspace.panel.files-target]", {
-      cwd: props.cwd,
-      environmentId: props.environmentId,
-      workspaceKey: props.workspaceKey,
-      active: isFilesPanelActive,
-      rightWorkbenchOpen: runtime.open,
-      activeTab: runtime.activeTab,
-      fileRailInitialized,
-      fileRailOpen,
-      selectedPath,
-    });
-  }, [
-    fileRailInitialized,
-    fileRailOpen,
-    isFilesPanelActive,
-    props.cwd,
-    props.environmentId,
-    props.workspaceKey,
-    runtime.activeTab,
-    runtime.open,
-    selectedPath,
-  ]);
-
   const openPreviewPath = (relativePath: string) => {
     setHistory((current) => pushPreviewHistory(current, relativePath));
   };

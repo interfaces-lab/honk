@@ -1,5 +1,6 @@
 import {
   AuthProviderId,
+  type EnvironmentApi,
   EventId,
   MessageId,
   RuntimeItemId,
@@ -7,12 +8,17 @@ import {
   ThreadEntryId,
   ThreadId,
   TurnId,
+  threadEntryIdForMessageId,
   type DesktopExtensionUiRequest,
   type SessionTreeProjection,
   type RuntimeDisplayTimelineProjection,
 } from "@multi/contracts";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  __resetEnvironmentApiOverridesForTests,
+  __setEnvironmentApiOverrideForTests,
+} from "../environment-api";
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
 import { createEmptyRuntimeHostSnapshot } from "../lib/multi-runtime-api";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
@@ -108,6 +114,83 @@ const pendingExtensionUiRequestPrototype = {
   createdAt: turnStartedAt,
 } satisfies DesktopExtensionUiRequest;
 
+function installRuntimePersistenceApi() {
+  const dispatchedCommands: unknown[] = [];
+  const dispatchCommand = vi.fn((command: unknown) => {
+    dispatchedCommands.push(command);
+    return Promise.resolve(undefined);
+  });
+  vi.stubGlobal("window", {});
+  __setEnvironmentApiOverrideForTests(DESKTOP_RUNTIME_ENVIRONMENT_ID, {
+    orchestration: { dispatchCommand },
+  } as unknown as EnvironmentApi);
+  return { dispatchedCommands };
+}
+
+function runtimePersistenceSessionTree(input: {
+  readonly threadId: ThreadId;
+  readonly runtimeSessionId: RuntimeSessionId;
+  readonly clientMessageId: MessageId;
+  readonly text: string;
+  readonly assistantText: string;
+  readonly turnId: TurnId;
+}): SessionTreeProjection {
+  const threadEntryId = threadEntryIdForMessageId(input.clientMessageId);
+  const assistantEntryId = RuntimeItemId.make(`runtime-item:assistant:${input.clientMessageId}`);
+  const assistantThreadEntryId = ThreadEntryId.make(`runtime:assistant:${input.clientMessageId}`);
+  return {
+    threadId: input.threadId,
+    runtimeSessionId: input.runtimeSessionId,
+    leafEntryId: assistantEntryId,
+    entries: [
+      {
+        id: userEntryId,
+        threadEntryId,
+        parentId: null,
+        parentThreadEntryId: null,
+        kind: "message",
+        role: "user",
+        clientMessageId: input.clientMessageId,
+        text: input.text,
+        createdAt: userMessageCreatedAt,
+        rawEntry: {},
+      },
+      {
+        id: assistantEntryId,
+        threadEntryId: assistantThreadEntryId,
+        parentId: userEntryId,
+        parentThreadEntryId: threadEntryId,
+        kind: "message",
+        role: "assistant",
+        turnId: input.turnId,
+        text: input.assistantText,
+        createdAt: "2026-06-01T13:00:20.000Z",
+        rawEntry: {},
+      },
+    ],
+    nodes: [
+      {
+        entryId: userEntryId,
+        threadEntryId,
+        parentEntryId: null,
+        depth: 0,
+        isActivePath: true,
+        isActiveLeaf: false,
+        childCount: 1,
+      },
+      {
+        entryId: assistantEntryId,
+        threadEntryId: assistantThreadEntryId,
+        parentEntryId: userEntryId,
+        depth: 1,
+        isActivePath: true,
+        isActiveLeaf: true,
+        childCount: 0,
+      },
+    ],
+  };
+}
+
 function currentThread() {
   const environmentState = selectEnvironmentState(useStore.getState(), DESKTOP_RUNTIME_ENVIRONMENT_ID);
   const thread = getThreadFromEnvironmentState(environmentState, threadId);
@@ -117,11 +200,18 @@ function currentThread() {
 
 describe("agent runtime store", () => {
   beforeEach(() => {
+    __resetEnvironmentApiOverridesForTests();
+    vi.unstubAllGlobals();
     useStore.setState(initialState);
     useAgentRuntimeStore.setState({
       snapshot: createEmptyRuntimeHostSnapshot(),
       localRuntimeThreadIds: new Set(),
     });
+  });
+
+  afterEach(() => {
+    __resetEnvironmentApiOverridesForTests();
+    vi.unstubAllGlobals();
   });
 
   it("closes stale Pi sessions when host snapshots remove the runtime thread", () => {
@@ -307,6 +397,108 @@ describe("agent runtime store", () => {
     unsubscribe();
 
     expect(useAgentRuntimeStore.getState().snapshot).toBe(initialSnapshot);
+    expect(storeUpdateCount).toBe(0);
+  });
+
+  it("does not update display timelines for subagent activity-only changes", () => {
+    const timeline = {
+      ...displayTimelinePrototype,
+      items: [
+        {
+          id: "tool:toolu-subagent-stream",
+          kind: "tool",
+          orderKey: `${turnStartedAt}:tool:toolu-subagent-stream`,
+          createdAt: turnStartedAt,
+          toolCallId: "toolu-subagent-stream",
+          toolName: "subagent",
+          turnId,
+          status: "running",
+          eventIds: [EventId.make("runtime-event:subagent-started")],
+          display: {
+            kind: "subagent",
+            mode: "single",
+            agentScope: "user",
+            projectAgentsDir: null,
+            runs: [
+              {
+                subagentThreadId: "thread:agent-store:child",
+                agentId: "thread:agent-store:child",
+                nickname: "Review renderer",
+                role: "general-purpose",
+                model: "gpt-5.5",
+                prompt: "Review renderer",
+                state: "running",
+                finalText: null,
+                errorMessage: null,
+              },
+            ],
+            activities: [
+              {
+                id: "runtime-subagent:toolu-subagent-stream:thread:agent-store:child:item:assistant",
+                kind: "subagent.item.updated",
+                tone: "info",
+                summary: "Subagent response",
+                createdAt: turnStartedAt,
+                sequence: 1,
+                payload: {
+                  subagentThreadId: "thread:agent-store:child",
+                  parentThreadId: threadId,
+                  parentItemId: "toolu-subagent-stream",
+                  agentId: "thread:agent-store:child",
+                  nickname: "Review renderer",
+                  role: "general-purpose",
+                  model: "gpt-5.5",
+                  prompt: "Review renderer",
+                  state: null,
+                  itemType: "assistant_message",
+                  itemId: "assistant:turn:child",
+                  status: "running",
+                  title: "Assistant",
+                  detail: "partial response",
+                  data: null,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    useAgentRuntimeStore.getState().applyHostEvent({ type: "display-timeline", timeline });
+    const initialSnapshot = useAgentRuntimeStore.getState().snapshot;
+    const initialTimeline = initialSnapshot.displayTimelines[0];
+    let storeUpdateCount = 0;
+    const unsubscribe = useAgentRuntimeStore.subscribe(() => {
+      storeUpdateCount += 1;
+    });
+
+    useAgentRuntimeStore.getState().applyHostEvent({
+      type: "display-timeline",
+      timeline: {
+        ...timeline,
+        items: [
+          {
+            ...timeline.items[0]!,
+            display: {
+              ...timeline.items[0]!.display,
+              activities: [
+                {
+                  ...timeline.items[0]!.display.activities[0]!,
+                  payload: {
+                    ...timeline.items[0]!.display.activities[0]!.payload,
+                    detail: "longer streamed response",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    unsubscribe();
+
+    expect(useAgentRuntimeStore.getState().snapshot).toBe(initialSnapshot);
+    expect(useAgentRuntimeStore.getState().snapshot.displayTimelines[0]).toBe(initialTimeline);
     expect(storeUpdateCount).toBe(0);
   });
 
@@ -657,6 +849,81 @@ describe("agent runtime store", () => {
     expect(useAgentRuntimeStore.getState().snapshot).toBe(initialSnapshot);
     expect(useAgentRuntimeStore.getState().snapshot.runtimeEvents).toEqual([]);
     expect(storeUpdateCount).toBe(0);
+  });
+
+  it("persists assistant completions from host snapshot session trees", () => {
+    const { dispatchedCommands } = installRuntimePersistenceApi();
+    const clientMessageId = MessageId.make("message:agent-store:persist-user");
+
+    useAgentRuntimeStore.getState().setSnapshot({
+      ...emptyHostSnapshotPrototype,
+      sessionTrees: [
+        runtimePersistenceSessionTree({
+          threadId,
+          runtimeSessionId,
+          clientMessageId,
+          text: "Start",
+          assistantText: "Persisted answer",
+          turnId,
+        }),
+      ],
+    });
+
+    expect(dispatchedCommands).toEqual([
+      expect.objectContaining({
+        type: "thread.message.assistant.complete",
+        threadId,
+        text: "Persisted answer",
+        turnId,
+        parentEntryId: threadEntryIdForMessageId(clientMessageId),
+      }),
+    ]);
+  });
+
+  it("dedupes runtime assistant persistence by thread and runtime session", () => {
+    const { dispatchedCommands } = installRuntimePersistenceApi();
+    const secondThreadId = ThreadId.make("thread:agent-runtime-store:second");
+    const secondRuntimeSessionId = RuntimeSessionId.make("runtime:agent-runtime-store:second");
+    const secondTurnId = TurnId.make("turn:agent-runtime-store:second");
+    const firstClientMessageId = MessageId.make("message:agent-store:first-user");
+    const secondClientMessageId = MessageId.make("message:agent-store:second-user");
+
+    useAgentRuntimeStore.getState().setSnapshot({
+      ...emptyHostSnapshotPrototype,
+      sessionTrees: [
+        runtimePersistenceSessionTree({
+          threadId,
+          runtimeSessionId,
+          clientMessageId: firstClientMessageId,
+          text: "First",
+          assistantText: "First answer",
+          turnId,
+        }),
+        runtimePersistenceSessionTree({
+          threadId: secondThreadId,
+          runtimeSessionId: secondRuntimeSessionId,
+          clientMessageId: secondClientMessageId,
+          text: "Second",
+          assistantText: "Second answer",
+          turnId: secondTurnId,
+        }),
+      ],
+    });
+
+    expect(dispatchedCommands).toEqual([
+      expect.objectContaining({
+        type: "thread.message.assistant.complete",
+        threadId,
+        text: "First answer",
+        parentEntryId: threadEntryIdForMessageId(firstClientMessageId),
+      }),
+      expect.objectContaining({
+        type: "thread.message.assistant.complete",
+        threadId: secondThreadId,
+        text: "Second answer",
+        parentEntryId: threadEntryIdForMessageId(secondClientMessageId),
+      }),
+    ]);
   });
 
   it("caps incoming host snapshot runtime events before storing", () => {

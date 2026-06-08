@@ -1,6 +1,9 @@
 import { scopeProjectRef } from "~/lib/environment-scope";
 import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
-import type { DraftThreadEnvMode } from "../stores/chat-drafts";
+import { type DraftThreadEnvMode, useComposerDraftStore } from "../stores/chat-drafts";
+import type { ThreadRouteTarget } from "~/routes/-thread-route-targets";
+import { useStore } from "../stores/thread-store";
+import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
 import {
   findWorkspaceProjectForSource,
   isSourceForWorkspaceProject,
@@ -43,6 +46,34 @@ export interface ChatThreadActionContext {
   readonly defaultThreadEnvMode: DraftThreadEnvMode;
   readonly handleNewThread: NewThreadHandler;
   readonly projects: readonly Project[];
+}
+
+export function readThreadActionContext(input: {
+  readonly defaultLogicalProjectKey: string | null;
+  readonly defaultProjectRef: ScopedProjectRef | null;
+  readonly defaultThreadEnvMode: DraftThreadEnvMode;
+  readonly handleNewThread: NewThreadHandler;
+  readonly projects: readonly Project[];
+  readonly routeTarget: ThreadRouteTarget | null;
+}): ChatThreadActionContext {
+  const draftStore = useComposerDraftStore.getState();
+  return {
+    activeDraftThread:
+      input.routeTarget?.kind === "server"
+        ? draftStore.getDraftThread(input.routeTarget.threadRef)
+        : input.routeTarget?.kind === "draft"
+          ? draftStore.getDraftSession(input.routeTarget.draftId)
+          : null,
+    activeThread:
+      input.routeTarget?.kind === "server"
+        ? selectThreadWorkspaceSurfaceByRef(useStore.getState(), input.routeTarget.threadRef)
+        : undefined,
+    defaultLogicalProjectKey: input.defaultLogicalProjectKey,
+    defaultProjectRef: input.defaultProjectRef,
+    defaultThreadEnvMode: input.defaultThreadEnvMode,
+    handleNewThread: input.handleNewThread,
+    projects: input.projects,
+  };
 }
 
 export function resolveThreadActionProjectRef(
@@ -95,9 +126,9 @@ function projectRefsEqual(
 ): boolean {
   return Boolean(
     left &&
-      right &&
-      left.environmentId === right.environmentId &&
-      left.projectId === right.projectId,
+    right &&
+    left.environmentId === right.environmentId &&
+    left.projectId === right.projectId,
   );
 }
 
@@ -105,12 +136,6 @@ function buildProjectThreadOptions(
   context: ChatThreadActionContext,
   projectRef: ScopedProjectRef,
 ): NewThreadOptions {
-  if (context.defaultThreadEnvMode === "worktree") {
-    return {
-      envMode: "worktree",
-    };
-  }
-
   const activeDraftThread = context.activeDraftThread;
   if (
     activeDraftThread &&
@@ -143,6 +168,12 @@ function buildProjectThreadOptions(
     };
   }
 
+  if (context.defaultThreadEnvMode === "worktree") {
+    return {
+      envMode: "worktree",
+    };
+  }
+
   const activeThread = context.activeThread;
   if (
     activeThread &&
@@ -170,14 +201,35 @@ function buildProjectThreadOptions(
   };
 }
 
+function activeDraftBelongsToProject(
+  context: ChatThreadActionContext,
+  projectRef: ScopedProjectRef,
+): boolean {
+  return Boolean(
+    context.activeDraftThread &&
+    (isSourceForWorkspaceProject({
+      project: projectRef,
+      projects: context.projects,
+      source: context.activeDraftThread,
+    }) ||
+      isSourceForWorkspaceProjectRef({
+        projectRef,
+        source: context.activeDraftThread,
+      })),
+  );
+}
+
 export async function startNewThreadInProjectFromContext(
   context: ChatThreadActionContext,
   projectRef: ScopedProjectRef,
 ): Promise<void> {
-  await context.handleNewThread(projectRef, {
-    ...buildProjectThreadOptions(context, projectRef),
-    reuseExistingDraft: false,
-  });
+  const options = buildProjectThreadOptions(context, projectRef);
+  await context.handleNewThread(
+    projectRef,
+    activeDraftBelongsToProject(context, projectRef)
+      ? options
+      : { ...options, reuseExistingDraft: false },
+  );
 }
 
 export async function startNewThreadFromContext(

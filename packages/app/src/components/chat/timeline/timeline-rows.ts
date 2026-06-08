@@ -1,7 +1,7 @@
 import { type MessageId } from "@multi/contracts";
 
 import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
-import { runtimeToolDisplaySignature } from "../../../lib/runtime-tool-display";
+import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
 import {
   computeMessageDurationStart,
   deriveTimelineRenderItems,
@@ -268,7 +268,8 @@ function areRuntimeToolVisibleDetailsUnchanged(
 ): boolean {
   if (a.tool.display || b.tool.display) {
     return (
-      runtimeToolDisplaySignature(a.tool.display) === runtimeToolDisplaySignature(b.tool.display)
+      runtimeParentToolDisplaySignature(a.tool.display) ===
+      runtimeParentToolDisplaySignature(b.tool.display)
     );
   }
   return a.tool.command === b.tool.command && a.tool.output === b.tool.output;

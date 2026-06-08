@@ -1,11 +1,11 @@
 import type { ScopedThreadRef, ThreadId } from "@multi/contracts";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { useComposerDraftStore } from "../../../stores/chat-drafts";
 import { readEnvironmentApi } from "../../../environment-api";
-import { createThreadSelectorByRef } from "../../../stores/thread-selectors";
+import { selectThreadWorkspaceSurfaceByRef } from "../../../stores/thread-selectors";
 import { selectThreadTerminalState, useTerminalStateStore } from "../../../terminal-state-store";
 import { selectProjectsAcrossEnvironments, useStore } from "../../../stores/thread-store";
 import { randomUUID } from "~/lib/utils";
@@ -38,11 +38,9 @@ export function PersistentThreadTerminalDrawer(props: {
     newShortcutLabel,
     closeShortcutLabel,
   } = props;
-  const serverThreadSelector = useMemo(
-    () => createThreadSelectorByRef(threadRef),
-    [threadRef.environmentId, threadRef.threadId],
+  const serverThread = useStore(
+    useShallow((store) => selectThreadWorkspaceSurfaceByRef(store, threadRef) ?? null),
   );
-  const serverThread = useStore(serverThreadSelector);
   const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const project = findWorkspaceProjectForSource(projects, serverThread ?? draftThread);

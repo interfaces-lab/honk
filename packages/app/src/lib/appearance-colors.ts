@@ -13,6 +13,20 @@ type CursorCoreToken = "sidebar" | "chrome" | "editor" | "accent" | "focus";
 
 type CursorCoreColors = Record<CursorCoreToken, string>;
 
+type CursorCoreTokenName =
+  | "--cursor-sidebar"
+  | "--cursor-chrome"
+  | "--cursor-editor"
+  | "--cursor-accent"
+  | "--cursor-focus";
+
+type MultiCursorTokenName =
+  | "--multi-cursor-sidebar"
+  | "--multi-cursor-chrome"
+  | "--multi-cursor-editor"
+  | "--multi-cursor-accent"
+  | "--multi-cursor-focus";
+
 type HslColor = {
   readonly h: number;
   readonly s: number;
@@ -49,6 +63,32 @@ const TINT_TOKENS: readonly TintTokenConfig[] = [
   { token: "accent", hueShift: true },
   { token: "focus", hueShift: true },
 ];
+
+const APPEARANCE_BASE_TOKEN_NAMES: readonly AppearanceBaseTokenName[] = [
+  "--multi-base-sidebar",
+  "--multi-base-chrome",
+  "--multi-base-editor",
+  "--multi-base-accent",
+  "--multi-base-focus",
+];
+
+const MULTI_CURSOR_TOKEN_NAMES: readonly MultiCursorTokenName[] = [
+  "--multi-cursor-sidebar",
+  "--multi-cursor-chrome",
+  "--multi-cursor-editor",
+  "--multi-cursor-accent",
+  "--multi-cursor-focus",
+];
+
+const CURSOR_CORE_TOKEN_NAMES: readonly CursorCoreTokenName[] = [
+  "--cursor-sidebar",
+  "--cursor-chrome",
+  "--cursor-editor",
+  "--cursor-accent",
+  "--cursor-focus",
+];
+
+const APPEARANCE_TINT_STYLE_ID = "multi-custom-tint-tokens";
 
 export const DEFAULT_APPEARANCE_TINT_HUE = 261;
 export const DEFAULT_APPEARANCE_TINT_INTENSITY = 20;
@@ -137,6 +177,27 @@ export function getAppearanceThemeMode(root: Pick<Element, "classList">): Appear
   return root.classList.contains("dark") ? "dark" : "light";
 }
 
+function getAppearanceTintStyleElement(root: HTMLElement) {
+  const ownerDocument = root.ownerDocument;
+  const existing = ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID);
+  if (existing instanceof HTMLStyleElement) return existing;
+
+  const style = ownerDocument.createElement("style");
+  style.id = APPEARANCE_TINT_STYLE_ID;
+  ownerDocument.head.append(style);
+  return style;
+}
+
+function removeAppearanceTintStyleElement(root: HTMLElement) {
+  root.ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID)?.remove();
+}
+
+function removeLegacyInlineTintTokens(root: HTMLElement) {
+  for (const token of APPEARANCE_BASE_TOKEN_NAMES) root.style.removeProperty(token);
+  for (const token of MULTI_CURSOR_TOKEN_NAMES) root.style.removeProperty(token);
+  for (const token of CURSOR_CORE_TOKEN_NAMES) root.style.removeProperty(token);
+}
+
 export function buildAppearanceBaseColors(
   mode: AppearanceThemeMode,
   hue: number,
@@ -171,9 +232,23 @@ export function applyAppearanceBaseColors(
   hue: number,
   intensity: number,
 ) {
-  const colors = buildAppearanceBaseColors(mode, hue, intensity);
-  for (const [token, value] of Object.entries(colors)) {
-    root.style.setProperty(token, value);
-    root.style.setProperty(token.replace("--multi-base-", "--multi-cursor-"), value);
+  if (normalizeIntensity(intensity) <= 0) {
+    removeLegacyInlineTintTokens(root);
+    removeAppearanceTintStyleElement(root);
+    return;
   }
+
+  const colors = buildAppearanceBaseColors(mode, hue, intensity);
+  const lines: string[] = [];
+
+  for (const [token, value] of Object.entries(colors) as Array<[AppearanceBaseTokenName, string]>) {
+    lines.push(`  ${token}: ${value};`);
+    lines.push(`  ${token.replace("--multi-base-", "--multi-cursor-")}: ${value};`);
+    lines.push(`  ${token.replace("--multi-base-", "--cursor-")}: ${value};`);
+  }
+
+  removeLegacyInlineTintTokens(root);
+  getAppearanceTintStyleElement(root).textContent = `body[data-multi-glass-mode="true"] {\n${lines.join(
+    "\n",
+  )}\n}`;
 }

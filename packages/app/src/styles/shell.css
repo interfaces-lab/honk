@@ -78,21 +78,19 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-sideba
 body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-surface {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  background: var(--multi-color-surface-opaque);
 }
 
 body {
-  background:
-    radial-gradient(
-      1200px 420px at 50% -12%,
-      color-mix(in srgb, var(--foreground) 4%, transparent),
-      transparent 58%
-    ),
-    var(--multi-color-surface);
+  background: color-mix(
+    in srgb,
+    var(--vscode-sideBar-background, var(--multi-color-sidebar-opaque)) 80%,
+    transparent
+  );
 }
 
 html[data-electron] body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) {
   background: transparent;
+  background-image: none;
 }
 
 body.multi-reduce-transparency {

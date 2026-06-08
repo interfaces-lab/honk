@@ -442,7 +442,7 @@ function DemoLeftRail() {
         className="pointer-events-none absolute inset-x-0 top-0 h-(--multi-shell-sidebar-content-top-offset,var(--multi-electron-traffic-padding-top))"
         aria-hidden="true"
       />
-      <ShellSidebarHeader onNewChat={() => undefined} onAddProject={() => undefined} />
+      <ShellSidebarHeader onNewChat={() => undefined} />
       <div className="relative z-30 flex shrink-0 select-none flex-col gap-1 px-2 pb-1.5">
         <DemoSidebarAction icon={IconSquareChecklist} label="Automations" />
         <DemoSidebarAction icon={IconSettingsSliderHor} label="Customize" />
@@ -454,6 +454,7 @@ function DemoLeftRail() {
         selectedId={threadId(1)}
         onSelectAgent={() => undefined}
         onPrefetchAgent={() => undefined}
+        onOpenWorkspace={() => undefined}
       />
       <DemoAccountFooter />
       <ShellSidebarFooter />
@@ -616,7 +617,7 @@ function DemoTerminalPanel() {
         <span className="min-w-0 flex-1 truncate text-body text-multi-fg-primary">Terminal</span>
         <span className="text-caption text-multi-fg-tertiary">bigrefactor</span>
       </div>
-      <pre className="min-h-0 flex-1 overflow-hidden p-4 font-mono text-detail leading-5 text-multi-fg-secondary">
+      <pre className="min-h-0 flex-1 overflow-hidden p-4 font-mono text-detail/[1.25rem] text-multi-fg-secondary">
 {`pnpm --filter @multi/app run typecheck
 
 Test Files  4 passed (4)

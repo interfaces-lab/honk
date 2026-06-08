@@ -188,7 +188,8 @@ export function filterCommandPaletteGroups(input: {
 
   const searchableGroups = [...baseGroups];
   if (!input.isInSubmenu && !isActionsFilter) {
-    if (input.projectSearchItems.length > 0) {
+    const hasProjectGroup = baseGroups.some((group) => group.value === "projects");
+    if (!hasProjectGroup && input.projectSearchItems.length > 0) {
       searchableGroups.push({
         value: "projects-search",
         label: "Projects",
@@ -240,12 +241,13 @@ export function getCommandPaletteMode(input: {
 }
 
 export function buildRootGroups(input: {
+  projectItems: ReadonlyArray<CommandPaletteActionItem>;
   actionItems: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
   recentThreadItems: ReadonlyArray<CommandPaletteActionItem>;
 }): CommandPaletteGroup[] {
   const groups: CommandPaletteGroup[] = [];
-  if (input.actionItems.length > 0) {
-    groups.push({ value: "actions", label: "Actions", items: input.actionItems });
+  if (input.projectItems.length > 0) {
+    groups.push({ value: "projects", label: "Workspaces", items: input.projectItems });
   }
   if (input.recentThreadItems.length > 0) {
     groups.push({
@@ -253,6 +255,9 @@ export function buildRootGroups(input: {
       label: "Recent Threads",
       items: input.recentThreadItems,
     });
+  }
+  if (input.actionItems.length > 0) {
+    groups.push({ value: "actions", label: "Commands", items: input.actionItems });
   }
   return groups;
 }

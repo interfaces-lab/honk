@@ -1,32 +1,41 @@
 "use client";
 
 import type { GitFilePatchResult } from "@multi/contracts";
-import { Virtualizer as DiffVirtualizer } from "@pierre/diffs/react";
 import {
+  type ChangeTypes,
+  type CodeViewItem,
+  type CodeViewLayout,
+  type CodeViewOptions,
+  type FileDiffMetadata,
+  processFile,
+} from "@pierre/diffs";
+import { CodeView, type CodeViewHandle } from "@pierre/diffs/react";
+import {
+  IconArrowUndoUp,
   IconBarsThree,
+  IconCheckmark1,
   IconChevronRightMedium,
   IconDotGrid1x3Horizontal,
-  IconSplit,
-  IconStepBack,
+  IconFolderOpen,
+  IconStudioDisplay1,
   IconStop,
 } from "central-icons";
-import {
-  type RefObject,
-  memo,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@multi/multikit/button";
 import {
   Menu,
+  MenuCheckboxItem,
   MenuItem,
   MenuPopup,
   MenuRadioGroup,
   MenuRadioItem,
+  MenuSeparator,
+  MenuShortcut,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
   MenuTrigger,
 } from "@multi/multikit/menu";
 import {
@@ -53,15 +62,20 @@ import {
 } from "~/lib/git-agent-actions";
 import { toastManager } from "~/app/toast";
 import { useGitViewed } from "~/hooks/use-git-viewed-state";
+import { useTheme } from "~/hooks/use-theme";
+import {
+  buildPatchCacheKey,
+  resolveDiffThemeName,
+  WORKBENCH_CODE_UNSAFE_CSS,
+  WORKBENCH_DIFF_LINE_HEIGHT,
+} from "~/lib/diff-rendering";
 import { cn } from "~/lib/utils";
 import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
 import { GitChangesFileTree } from "./git-changes-file-tree";
-import { GitDiffCard } from "./git-diff-card";
+import { GitDiffCardHeader } from "./git-diff-card";
 import {
   WorkbenchChromeActionGroup,
-  WorkbenchChromeLabel,
   WorkbenchChromeRow,
-  workbenchChromeTextControlVariants,
 } from "@multi/multikit/workbench-chrome-row";
 import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
@@ -82,12 +96,61 @@ const GIT_CHANGES_FILTER_LABELS: Record<GitChangesFilter, string> = {
   uncommitted: "Uncommitted",
   unstaged: "Unstaged",
   staged: "Staged",
-  branch: "All commits",
+  branch: "Branch",
 };
-const GIT_DIFF_VIRTUALIZER_CONFIG = {
-  intersectionObserverMargin: 600,
-  overscrollSize: 1_000,
-} as const;
+const EMPTY_BRANCH_COMMIT_OPTIONS: readonly BranchCommitOption[] = [];
+type GitCodeViewAnnotation = never;
+type GitCodeViewItem = CodeViewItem<GitCodeViewAnnotation>;
+
+interface BranchCommitOption {
+  readonly id: string;
+  readonly subject: string;
+  readonly shortSha: string;
+}
+
+interface GitCodeViewRowMeta {
+  readonly error: string | null;
+  readonly expanded: boolean;
+  readonly file: DiffRow;
+  readonly loaded: boolean;
+  readonly loading: boolean;
+  readonly patch: GitFilePatchResult | null;
+  readonly viewed: boolean;
+}
+
+interface GitCodeViewData {
+  readonly items: readonly GitCodeViewItem[];
+  readonly metaById: ReadonlyMap<string, GitCodeViewRowMeta>;
+}
+
+interface GitCodeViewFileDiffCacheEntry {
+  readonly signature: string;
+  readonly fileDiff: FileDiffMetadata;
+}
+
+interface GitCodeViewItemCacheEntry {
+  readonly signature: string;
+  readonly item: GitCodeViewItem;
+  readonly version: number;
+}
+
+const GIT_CODE_VIEW_DIFF_HEADER_HEIGHT = 32;
+const GIT_CODE_VIEW_LAYOUT = {
+  paddingTop: 0,
+  gap: 0,
+  paddingBottom: 0,
+} as const satisfies CodeViewLayout;
+const GIT_CODE_VIEW_UNSAFE_CSS = `${WORKBENCH_CODE_UNSAFE_CSS}
+  [data-diffs-header='custom'] {
+    min-height: ${GIT_CODE_VIEW_DIFF_HEADER_HEIGHT}px;
+    background-color: var(--multi-chat-surface-background);
+    overflow: hidden;
+  }
+
+  [data-diffs-header='custom']::slotted(*) {
+    width: 100%;
+  }
+`;
 
 function showGitActionErrorToast(title: string, error: unknown): void {
   toastManager.add({
@@ -184,7 +247,7 @@ export function GitPanel(props: {
 function GitPanelNoRepo({ git }: { git: GitPanelModel }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-      <div className="space-y-1 px-4 py-3">
+      <div className="flex flex-col gap-1 px-4 py-3">
         <p className="text-body font-medium text-foreground/85">No repository</p>
         <p className="max-w-72 text-detail text-muted-foreground/72">
           Initialize Git in this project to track changes and review diffs.
@@ -197,9 +260,9 @@ function GitPanelNoRepo({ git }: { git: GitPanelModel }) {
 
 function InitGitButton({ git }: { git: GitPanelModel }) {
   const handleClick = () => {
-    void git.init().catch((error: unknown) =>
-      showGitActionErrorToast("Could not initialize Git", error),
-    );
+    void git
+      .init()
+      .catch((error: unknown) => showGitActionErrorToast("Could not initialize Git", error));
   };
 
   return (
@@ -237,66 +300,247 @@ function GitPanelChangesRail({
   );
 }
 
-const GitDiffCardRow = memo(function GitDiffCardRow({
-  file,
-  selected,
-  expanded,
-  diffStyle,
-  patch,
-  diffRequested,
-  loaded,
-  loading,
-  error,
-  viewed,
-  onToggleViewed,
-  onRevert,
-  requestPrefetchForIdRef,
-  gitRef,
-}: {
-  file: DiffRow;
-  selected: boolean;
-  expanded: boolean;
-  diffStyle: "unified" | "split";
-  patch: GitFilePatchResult | null;
-  diffRequested: boolean;
-  loaded: boolean;
-  loading: boolean;
-  error: string | null;
-  viewed: boolean;
-  onToggleViewed: (path: string) => void;
-  onRevert: (file: DiffRow) => void;
-  requestPrefetchForIdRef: RefObject<(id: string) => void>;
-  gitRef: RefObject<GitPanelModel>;
+function isRenderablePatch(
+  patch: GitFilePatchResult | null,
+): patch is Extract<GitFilePatchResult, { kind: "patch" | "untracked" }> {
+  return (patch?.kind === "patch" || patch?.kind === "untracked") && patch.patch.trim().length > 0;
+}
+
+function gitRowChangeType(file: DiffRow, patch: GitFilePatchResult | null): ChangeTypes {
+  if (patch?.kind === "rename_only" || file.state === "renamed") {
+    return "rename-pure";
+  }
+  if (file.state === "added" || file.state === "untracked") {
+    return "new";
+  }
+  if (file.state === "deleted") {
+    return "deleted";
+  }
+  return "change";
+}
+
+function createHeaderOnlyFileDiff(
+  file: DiffRow,
+  patch: GitFilePatchResult | null,
+): FileDiffMetadata {
+  const cacheKey = [
+    "git-panel-header",
+    file.id,
+    file.path,
+    file.prevPath ?? "",
+    file.state,
+    patch?.kind ?? "none",
+  ].join(":");
+  const prevName = file.prevPath ?? undefined;
+
+  return {
+    name: file.path,
+    ...(prevName !== undefined ? { prevName } : {}),
+    type: gitRowChangeType(file, patch),
+    hunks: [],
+    splitLineCount: 0,
+    unifiedLineCount: 0,
+    isPartial: true,
+    deletionLines: [],
+    additionLines: [],
+    cacheKey,
+  };
+}
+
+function normalizeParsedFileDiff(
+  file: DiffRow,
+  patch: Extract<GitFilePatchResult, { kind: "patch" | "untracked" }>,
+  fileDiff: FileDiffMetadata,
+  cacheKey: string,
+): FileDiffMetadata {
+  const prevName =
+    file.prevPath ??
+    (fileDiff.type === "rename-pure" || fileDiff.type === "rename-changed"
+      ? fileDiff.prevName
+      : undefined);
+
+  return {
+    ...fileDiff,
+    name: file.path,
+    ...(prevName !== undefined ? { prevName } : {}),
+    type: patch.kind === "untracked" ? "new" : fileDiff.type,
+    cacheKey,
+  };
+}
+
+function resolveGitCodeViewFileDiff(
+  file: DiffRow,
+  patch: GitFilePatchResult | null,
+  cache: Map<string, GitCodeViewFileDiffCacheEntry>,
+): FileDiffMetadata {
+  if (!isRenderablePatch(patch)) {
+    const signature = `header:${file.path}:${file.prevPath ?? ""}:${file.state}:${patch?.kind ?? "none"}`;
+    const cached = cache.get(file.id);
+    if (cached?.signature === signature) {
+      return cached.fileDiff;
+    }
+
+    const fileDiff = createHeaderOnlyFileDiff(file, patch);
+    cache.set(file.id, { signature, fileDiff });
+    return fileDiff;
+  }
+
+  const patchText = patch.patch.trim();
+  const cacheKey = buildPatchCacheKey(`${file.path}\0${patchText}`, "git-panel");
+  const signature = `patch:${patch.kind}:${cacheKey}`;
+  const cached = cache.get(file.id);
+  if (cached?.signature === signature) {
+    return cached.fileDiff;
+  }
+
+  const parsedFileDiff = processFile(patchText, {
+    cacheKey,
+    isGitDiff: true,
+  });
+  const fileDiff =
+    parsedFileDiff === undefined
+      ? createHeaderOnlyFileDiff(file, patch)
+      : normalizeParsedFileDiff(file, patch, parsedFileDiff, cacheKey);
+  cache.set(file.id, { signature, fileDiff });
+  return fileDiff;
+}
+
+function buildGitCodeViewData(input: {
+  readonly diffErrorByPath: ReadonlyMap<string, string>;
+  readonly diffLoadingByPath: ReadonlySet<string>;
+  readonly expandedIds: ReadonlySet<string>;
+  readonly fileDiffCache: Map<string, GitCodeViewFileDiffCacheEntry>;
+  readonly itemCache: Map<string, GitCodeViewItemCacheEntry>;
+  readonly patchesByPath: ReadonlyMap<string, GitFilePatchResult>;
+  readonly viewedPaths: readonly string[];
+  readonly visibleFiles: readonly DiffRow[];
+}): GitCodeViewData {
+  const items: GitCodeViewItem[] = [];
+  const metaById = new Map<string, GitCodeViewRowMeta>();
+  const viewedPathSet = new Set(input.viewedPaths);
+  const seenIds = new Set<string>();
+
+  for (const file of input.visibleFiles) {
+    seenIds.add(file.id);
+    const patch = input.patchesByPath.get(file.path) ?? null;
+    const fileDiff = resolveGitCodeViewFileDiff(file, patch, input.fileDiffCache);
+    const expanded = input.expandedIds.has(file.id);
+    const renderBody = expanded && isRenderablePatch(patch);
+    const collapsed = !renderBody;
+    const itemSignature = `${fileDiff.cacheKey ?? file.id}:${collapsed ? "collapsed" : "expanded"}`;
+    const cachedItem = input.itemCache.get(file.id);
+    const item =
+      cachedItem?.signature === itemSignature
+        ? cachedItem.item
+        : ({
+            id: file.id,
+            type: "diff",
+            fileDiff,
+            collapsed,
+            version: (cachedItem?.version ?? -1) + 1,
+          } satisfies GitCodeViewItem);
+
+    if (cachedItem?.signature !== itemSignature) {
+      input.itemCache.set(file.id, {
+        signature: itemSignature,
+        item,
+        version: item.version ?? 0,
+      });
+    }
+
+    items.push(item);
+    metaById.set(file.id, {
+      error: input.diffErrorByPath.get(file.path) ?? null,
+      expanded,
+      file,
+      loaded: input.patchesByPath.has(file.path),
+      loading: input.diffLoadingByPath.has(file.path),
+      patch,
+      viewed: viewedPathSet.has(file.path),
+    });
+  }
+
+  for (const id of input.fileDiffCache.keys()) {
+    if (!seenIds.has(id)) {
+      input.fileDiffCache.delete(id);
+    }
+  }
+  for (const id of input.itemCache.keys()) {
+    if (!seenIds.has(id)) {
+      input.itemCache.delete(id);
+    }
+  }
+
+  return { items, metaById };
+}
+
+function gitHeaderStatus(meta: GitCodeViewRowMeta): {
+  label: string;
+  tone: "muted" | "danger";
+} | null {
+  if (meta.error !== null) {
+    return { label: "Error", tone: "danger" };
+  }
+  if (meta.expanded && meta.loading) {
+    return { label: "Loading", tone: "muted" };
+  }
+  if (meta.patch?.kind === "rename_only") {
+    return { label: "Rename", tone: "muted" };
+  }
+  if (meta.patch?.kind === "empty") {
+    return { label: "No patch", tone: "muted" };
+  }
+  if (meta.patch?.kind === "large") {
+    return { label: "Large", tone: "muted" };
+  }
+  if (meta.patch?.kind === "non_text") {
+    return { label: meta.patch.fileType, tone: "muted" };
+  }
+  return null;
+}
+
+function GitCodeViewHeader(props: {
+  readonly meta: GitCodeViewRowMeta;
+  readonly onCopyPath: (path: string) => void;
+  readonly onExpandedChange: (id: string, open?: boolean) => void;
+  readonly onRevert: (file: DiffRow) => void;
+  readonly onToggleViewed: (path: string) => void;
+  readonly requestDiff: (id: string) => void;
+  readonly showViewed: boolean;
 }) {
-  const onExpandedChange = (open: boolean) => {
-    gitRef.current.toggleExpand(file.id, open);
-  };
+  const { meta } = props;
+
+  useMountEffect(() => {
+    if (meta.expanded && !meta.loaded && meta.error === null) {
+      props.requestDiff(meta.file.id);
+    }
+  });
+
+  const status = gitHeaderStatus(meta);
+  const handleCopyPath = () => props.onCopyPath(meta.file.path);
+  const handleRevert = () => props.onRevert(meta.file);
+  const handleToggleExpanded = () => props.onExpandedChange(meta.file.id);
   const handleToggleViewed = () => {
-    onToggleViewed(file.path);
-  };
-  const handleRevert = () => {
-    onRevert(file);
+    props.onToggleViewed(meta.file.path);
+    props.onExpandedChange(meta.file.id, false);
   };
 
   return (
-    <GitDiffCard
-      file={file}
-      selected={selected}
-      expanded={expanded}
-      onExpandedChange={onExpandedChange}
-      patch={patch}
-      diffRequested={diffRequested}
-      loaded={loaded}
-      loading={loading}
-      error={error}
-      diffStyle={diffStyle}
-      viewed={viewed}
-      onToggleViewed={handleToggleViewed}
+    <GitDiffCardHeader
+      file={meta.file}
+      patch={meta.patch}
+      expanded={meta.expanded}
+      viewed={meta.viewed}
+      showViewed={props.showViewed}
+      statusLabel={status?.label}
+      statusTone={status?.tone}
+      onCopyPath={handleCopyPath}
       onRevert={handleRevert}
-      requestPrefetchForIdRef={requestPrefetchForIdRef}
+      onToggleExpanded={handleToggleExpanded}
+      onToggleViewed={handleToggleViewed}
     />
   );
-});
+}
 
 function GitPanelInner(props: {
   git: GitPanelModel;
@@ -315,6 +559,7 @@ function GitPanelInner(props: {
   const [discardAllPending, setDiscardAllPending] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(true);
   const [changesFilter, setChangesFilter] = useState<GitChangesFilter>("uncommitted");
   const visibleFiles = useMemo(
     () =>
@@ -353,18 +598,123 @@ function GitPanelInner(props: {
       }),
     );
   }, [git.focusId, visibleFiles]);
-  const allDiffCardsCollapsed =
-    visibleFiles.length > 0 && visibleFiles.every((row) => !git.expandedIds.has(row.id));
+  const visiblePaths = useMemo(() => visibleFiles.map((row) => row.path), [visibleFiles]);
+  const viewedPathSet = useMemo(() => new Set(viewed.viewed), [viewed.viewed]);
+  const allVisibleFilesViewed =
+    visibleFiles.length > 0 && visibleFiles.every((row) => viewedPathSet.has(row.path));
   const gitRef = useRef(git);
   gitRef.current = git;
 
-  const deckRootRef = useRef<HTMLDivElement>(null);
-  const prefetchRef = useRef<(id: string) => void>((id) => {
-    void id;
-  });
-  prefetchRef.current = (id: string) => {
-    git.requestDiff(id);
-  };
+  const { resolvedTheme } = useTheme();
+  const diffTheme = resolveDiffThemeName(resolvedTheme);
+  const codeViewRef = useRef<CodeViewHandle<GitCodeViewAnnotation>>(null);
+  const fileDiffCacheRef = useRef<Map<string, GitCodeViewFileDiffCacheEntry>>(new Map());
+  const itemCacheRef = useRef<Map<string, GitCodeViewItemCacheEntry>>(new Map());
+  const handleCodeViewContainerRef = useCallback((node: HTMLDivElement | null) => {
+    node?.setAttribute("data-diffs-container", "");
+  }, []);
+  const codeViewOptions = useMemo(
+    () =>
+      ({
+        theme: diffTheme,
+        themeType: resolvedTheme,
+        unsafeCSS: GIT_CODE_VIEW_UNSAFE_CSS,
+        diffStyle,
+        overflow: "wrap",
+        disableBackground: false,
+        disableLineNumbers: false,
+        diffIndicators: "none",
+        lineDiffType: "none",
+        expandUnchanged: false,
+        hunkSeparators: "simple",
+        preferredHighlighter: "shiki-js",
+        stickyHeaders: false,
+        layout: GIT_CODE_VIEW_LAYOUT,
+        itemMetrics: {
+          lineHeight: WORKBENCH_DIFF_LINE_HEIGHT,
+          diffHeaderHeight: GIT_CODE_VIEW_DIFF_HEADER_HEIGHT,
+          spacing: 0,
+        },
+      }) satisfies CodeViewOptions<GitCodeViewAnnotation>,
+    [diffStyle, diffTheme, resolvedTheme],
+  );
+  const codeViewData = useMemo(
+    () =>
+      buildGitCodeViewData({
+        diffErrorByPath: git.diffErrorByPath,
+        diffLoadingByPath: git.diffLoadingByPath,
+        expandedIds: git.expandedIds,
+        fileDiffCache: fileDiffCacheRef.current,
+        itemCache: itemCacheRef.current,
+        patchesByPath: git.patchesByPath,
+        viewedPaths: viewed.viewed,
+        visibleFiles,
+      }),
+    [
+      git.diffErrorByPath,
+      git.diffLoadingByPath,
+      git.expandedIds,
+      git.patchesByPath,
+      viewed.viewed,
+      visibleFiles,
+    ],
+  );
+  const handleCopyPath = useCallback((path: string) => {
+    void navigator.clipboard.writeText(path);
+    toast.success("Path copied");
+  }, []);
+  const handleExpandedChange = useCallback((id: string, open?: boolean) => {
+    gitRef.current.toggleExpand(id, open);
+  }, []);
+  const handleRevertFile = useCallback((file: DiffRow) => {
+    setPending(file);
+  }, []);
+  const handleToggleViewed = useCallback(
+    (path: string) => {
+      viewed.toggleViewed(path);
+    },
+    [viewed],
+  );
+  const handleToggleAllViewed = useCallback(() => {
+    if (visiblePaths.length === 0) return;
+    if (allVisibleFilesViewed) {
+      viewed.unmarkViewed(visiblePaths);
+      return;
+    }
+    viewed.markAllViewed(visiblePaths);
+  }, [allVisibleFilesViewed, viewed, visiblePaths]);
+  const handleRequestDiff = useCallback((id: string) => {
+    gitRef.current.requestDiff(id);
+  }, []);
+  const renderGitCodeViewHeader = useCallback(
+    (item: GitCodeViewItem) => {
+      const meta = codeViewData.metaById.get(item.id);
+      if (meta === undefined) {
+        return null;
+      }
+
+      return (
+        <GitCodeViewHeader
+          meta={meta}
+          onCopyPath={handleCopyPath}
+          onExpandedChange={handleExpandedChange}
+          onRevert={handleRevertFile}
+          onToggleViewed={handleToggleViewed}
+          requestDiff={handleRequestDiff}
+          showViewed={changesFilter !== "branch"}
+        />
+      );
+    },
+    [
+      codeViewData.metaById,
+      changesFilter,
+      handleCopyPath,
+      handleExpandedChange,
+      handleRequestDiff,
+      handleRevertFile,
+      handleToggleViewed,
+    ],
+  );
 
   const pendingDiscardPaths = pending === null ? null : [pending.path];
 
@@ -406,10 +756,6 @@ function GitPanelInner(props: {
     void git.refresh();
   };
 
-  const handleRevertFile = (file: DiffRow) => {
-    setPending(file);
-  };
-
   const handlePendingDialogOpenChange = (open: boolean) => {
     if (!open) setPending(null);
   };
@@ -431,6 +777,8 @@ function GitPanelInner(props: {
     <>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <LocalBranchBar
+          railOpen={gitRailOpen}
+          onToggleRail={handleToggleRail}
           branch={git.branch}
           onCommitAndPush={handleCommitAndPush}
           onAgentAction={props.onAgentAction}
@@ -438,25 +786,26 @@ function GitPanelInner(props: {
           stoppingAgentAction={props.stoppingAgentAction}
           diffStyle={diffStyle}
           onDiffStyle={setDiffStyle}
+          ignoreWhitespace={ignoreWhitespace}
+          onIgnoreWhitespaceChange={setIgnoreWhitespace}
           editorMenuOpen={editorMenuOpen}
           onEditorMenuOpen={setEditorMenuOpen}
           commitMenuOpen={commitMenuOpen}
           onCommitMenuOpen={setCommitMenuOpen}
           pendingAgentAction={props.pendingAgentAction}
+          onCollapseAll={git.collapseAll}
+          onRefreshChanges={handleRefresh}
         />
         <ChangesHeader
-          railOpen={gitRailOpen}
-          onToggleRail={handleToggleRail}
           filter={changesFilter}
           onFilterChange={setChangesFilter}
           count={visibleFiles.length}
-          add={visibleTotals.add}
-          del={visibleTotals.del}
-          onExpandAll={git.expandAll}
-          onCollapseAll={git.collapseAll}
-          allCollapsed={allDiffCardsCollapsed}
+          totalAdd={visibleTotals.add}
+          totalDel={visibleTotals.del}
+          branchCommits={EMPTY_BRANCH_COMMIT_OPTIONS}
+          allViewed={allVisibleFilesViewed}
           onDiscardAll={handleDiscardAll}
-          onRefresh={handleRefresh}
+          onToggleAllViewed={handleToggleAllViewed}
         />
         <RightWorkbenchLayout
           workspaceKey={props.workspaceKey}
@@ -464,15 +813,12 @@ function GitPanelInner(props: {
           railHostClassName="bg-(--multi-shell-sidebar-bg) shadow-[inset_-1px_0_0_color-mix(in_srgb,var(--multi-stroke-quaternary)_78%,transparent)]"
           rail={changesRail}
         >
-          <div
-            ref={deckRootRef}
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)"
-          >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)">
             {selectedId ? (
               <SelectedGitDiffSync
                 key={selectedId}
                 selectedId={selectedId}
-                deckRootRef={deckRootRef}
+                codeViewRef={codeViewRef}
                 gitRef={gitRef}
               />
             ) : null}
@@ -485,31 +831,14 @@ function GitPanelInner(props: {
                     : "No files to compare."}
               </div>
             ) : (
-              <DiffVirtualizer
-                className="git-diff-scroll-root h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [overflow-anchor:none] scrollbar-gutter-stable"
-                contentClassName="min-w-0"
-                config={GIT_DIFF_VIRTUALIZER_CONFIG}
-              >
-                {visibleFiles.map((file) => (
-                  <GitDiffCardRow
-                    key={file.id}
-                    file={file}
-                    selected={selectedId === file.id}
-                    expanded={git.expandedIds.has(file.id)}
-                    patch={git.patchesByPath.get(file.path) ?? null}
-                    diffRequested={git.activeDiffIds.has(file.id)}
-                    loaded={git.patchesByPath.has(file.path)}
-                    loading={git.diffLoadingByPath.has(file.path)}
-                    error={git.diffErrorByPath.get(file.path) ?? null}
-                    diffStyle={diffStyle}
-                    viewed={viewed.isViewed(file.path)}
-                    onToggleViewed={viewed.toggleViewed}
-                    onRevert={handleRevertFile}
-                    requestPrefetchForIdRef={prefetchRef}
-                    gitRef={gitRef}
-                  />
-                ))}
-              </DiffVirtualizer>
+              <CodeView<GitCodeViewAnnotation>
+                ref={codeViewRef}
+                containerRef={handleCodeViewContainerRef}
+                items={codeViewData.items}
+                className="git-diff-scroll-root web-component relative h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [contain:strict] [overflow-anchor:none] scrollbar-gutter-stable"
+                options={codeViewOptions}
+                renderCustomHeader={renderGitCodeViewHeader}
+              />
             )}
           </div>
         </RightWorkbenchLayout>
@@ -530,28 +859,9 @@ function GitPanelInner(props: {
   );
 }
 
-function scrollDiffCardIntoView(scroller: HTMLElement, target: HTMLElement): void {
-  const scrollerRect = scroller.getBoundingClientRect();
-  const targetRect = target.getBoundingClientRect();
-  const padding = 8;
-  const viewportTop = scrollerRect.top + padding;
-  const viewportBottom = scrollerRect.bottom - padding;
-  let nextTop = scroller.scrollTop;
-
-  if (targetRect.height >= viewportBottom - viewportTop || targetRect.top < viewportTop) {
-    nextTop -= viewportTop - targetRect.top;
-  } else if (targetRect.bottom > viewportBottom) {
-    nextTop += targetRect.bottom - viewportBottom;
-  } else {
-    return;
-  }
-
-  scroller.scrollTo({ top: Math.max(0, nextTop) });
-}
-
 function SelectedGitDiffSync(props: {
   readonly selectedId: string;
-  readonly deckRootRef: { readonly current: HTMLDivElement | null };
+  readonly codeViewRef: { readonly current: CodeViewHandle<GitCodeViewAnnotation> | null };
   readonly gitRef: { readonly current: GitPanelModel };
 }) {
   useMountEffect(() => {
@@ -559,28 +869,24 @@ function SelectedGitDiffSync(props: {
     const frame = requestAnimationFrame(() => {
       props.gitRef.current.toggleExpand(props.selectedId, true);
 
-      const scrollMountedCard = (remainingFrames: number) => {
-        const root = props.deckRootRef.current;
-        if (!root) return;
-
-        const escaped = CSS.escape(props.selectedId);
-        const target = root.querySelector<HTMLElement>(`[data-diff-card-id="${escaped}"]`);
-        if (!target) {
+      const scrollMountedItem = (remainingFrames: number) => {
+        const codeView = props.codeViewRef.current;
+        if (codeView === null) {
           if (remainingFrames > 0) {
-            settleFrame = requestAnimationFrame(() => scrollMountedCard(remainingFrames - 1));
+            settleFrame = requestAnimationFrame(() => scrollMountedItem(remainingFrames - 1));
           }
           return;
         }
 
-        const scroller = root.querySelector<HTMLElement>(".git-diff-scroll-root");
-        if (scroller) {
-          scrollDiffCardIntoView(scroller, target);
-          return;
-        }
-
-        target.scrollIntoView({ block: "nearest", behavior: "auto" });
+        codeView.scrollTo({
+          type: "item",
+          id: props.selectedId,
+          align: "nearest",
+          behavior: "instant",
+          offset: -8,
+        });
       };
-      settleFrame = requestAnimationFrame(() => scrollMountedCard(3));
+      settleFrame = requestAnimationFrame(() => scrollMountedItem(3));
     });
 
     return () => {
@@ -601,21 +907,37 @@ function LocalBranchBarTrailing(props: {
   stoppingAgentAction: boolean;
   diffStyle: "unified" | "split";
   onDiffStyle: (next: "unified" | "split") => void;
+  ignoreWhitespace: boolean;
+  onIgnoreWhitespaceChange: (next: boolean) => void;
   editorMenuOpen: boolean;
   onEditorMenuOpen: (open: boolean) => void;
   commitMenuOpen: boolean;
   onCommitMenuOpen: (open: boolean) => void;
   pendingAgentAction: GitAgentAction | null;
+  onCollapseAll: () => void;
+  onRefreshChanges: () => void;
 }) {
   const pendingActionDetails = props.pendingAgentAction
     ? GIT_AGENT_ACTIONS[props.pendingAgentAction]
     : null;
   const isAgentActionPending = props.pendingAgentAction !== null;
+  const diffStyleLabel = props.diffStyle === "split" ? "Split" : "Unified";
 
   const handleDiffStyleChange = (value: string) => {
     if (value !== "unified" && value !== "split") return;
     props.onDiffStyle(value);
     props.onEditorMenuOpen(false);
+  };
+  const handleIgnoreWhitespaceChange = (checked: boolean | "indeterminate") => {
+    props.onIgnoreWhitespaceChange(checked === true);
+  };
+  const handleCollapseAll = () => {
+    props.onEditorMenuOpen(false);
+    props.onCollapseAll();
+  };
+  const handleRefreshChanges = () => {
+    props.onEditorMenuOpen(false);
+    props.onRefreshChanges();
   };
   const handlePrimaryCommitAction = () => {
     if (isAgentActionPending) {
@@ -646,29 +968,82 @@ function LocalBranchBarTrailing(props: {
           >
             <IconDotGrid1x3Horizontal className="size-4" />
           </MenuTrigger>
-          <MenuPopup align="end" variant="workbench">
-            <MenuRadioGroup value={props.diffStyle} onValueChange={handleDiffStyleChange}>
-              <MenuRadioItem value="unified" variant="workbench">
-                <IconBarsThree className="size-3" />
-                Unified Diff
-              </MenuRadioItem>
-              <MenuRadioItem value="split" variant="workbench">
-                <IconSplit className="size-3" />
-                Split Diff
-              </MenuRadioItem>
-            </MenuRadioGroup>
+          <MenuPopup
+            align="end"
+            className="min-w-56 rounded-[12px]"
+            positionerClassName="z-[100]"
+            sideOffset={4}
+            variant="workbench"
+          >
+            <MenuSub>
+              <MenuSubTrigger className="min-h-8 rounded-[7px] px-3 py-1.5" variant="workbench">
+                <span className="min-w-0 flex-1 truncate">Layout</span>
+                <span className="shrink-0 text-multi-fg-tertiary">{diffStyleLabel}</span>
+              </MenuSubTrigger>
+              <MenuSubPopup
+                className="min-w-44 rounded-[12px]"
+                positionerClassName="z-[120]"
+                sideOffset={6}
+                variant="workbench"
+              >
+                <MenuRadioGroup value={props.diffStyle} onValueChange={handleDiffStyleChange}>
+                  <MenuRadioItem
+                    className="min-h-8 rounded-[7px] px-2 py-1.5"
+                    value="unified"
+                    variant="workbench"
+                  >
+                    Unified
+                  </MenuRadioItem>
+                  <MenuRadioItem
+                    className="min-h-8 rounded-[7px] px-2 py-1.5"
+                    value="split"
+                    variant="workbench"
+                  >
+                    Split
+                  </MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuSubPopup>
+            </MenuSub>
+            <MenuCheckboxItem
+              checked={props.ignoreWhitespace}
+              className="min-h-8 rounded-[7px] px-3 py-1.5"
+              onCheckedChange={handleIgnoreWhitespaceChange}
+              variant="workbench-switch"
+            >
+              Ignore Whitespace
+            </MenuCheckboxItem>
+            <MenuSeparator className="my-1" variant="workbench" />
+            <MenuItem className="min-h-8 rounded-[7px] px-3 py-1.5" disabled variant="workbench">
+              <span className="min-w-0 flex-1 truncate">Find in Diff</span>
+              <MenuShortcut className="text-detail tracking-normal">⌘F</MenuShortcut>
+            </MenuItem>
+            <MenuItem
+              className="min-h-8 rounded-[7px] px-3 py-1.5"
+              onClick={handleCollapseAll}
+              variant="workbench"
+            >
+              Collapse All
+            </MenuItem>
+            <MenuItem
+              className="min-h-8 rounded-[7px] px-3 py-1.5"
+              onClick={handleRefreshChanges}
+              variant="workbench"
+            >
+              <span className="min-w-0 flex-1 truncate">Refresh Changes</span>
+              <MenuShortcut className="text-detail tracking-normal">⌘R</MenuShortcut>
+            </MenuItem>
           </MenuPopup>
         </Menu>
       </div>
       <Menu open={props.commitMenuOpen} onOpenChange={handleCommitMenuOpenChange}>
         <div
-          className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none overflow-hidden rounded-multi-control border border-primary bg-primary text-body font-medium text-primary-foreground shadow-sm data-[pending=true]:border-destructive data-[pending=true]:bg-destructive"
+          className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none overflow-hidden rounded-multi-control border border-foreground/10 bg-foreground text-body font-medium text-background shadow-xs"
           data-pending={isAgentActionPending || undefined}
         >
           <Button
             type="button"
-            variant={isAgentActionPending ? "destructive" : "default"}
-            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--multi-workbench-text-control-gap) rounded-none border-0 px-(--multi-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent group-data-[pending=true]:hover:bg-destructive/90"
+            variant="ghost"
+            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--multi-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--multi-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-background/10 hover:text-inherit disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent"
             disabled={
               isAgentActionPending &&
               (props.onStopAgentAction === null || props.stoppingAgentAction)
@@ -684,7 +1059,7 @@ function LocalBranchBarTrailing(props: {
           </Button>
           <MenuTrigger
             type="button"
-            className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-primary-foreground/18 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[popup-open]:bg-primary/90"
+            className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-background/20 text-background transition-colors hover:bg-background/10 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[popup-open]:bg-background/10"
             disabled={isAgentActionPending}
             aria-label="Open commit menu"
             title="Open commit menu"
@@ -728,6 +1103,8 @@ function GitAgentActionMenuItem(props: {
 }
 
 function LocalBranchBar(props: {
+  railOpen: boolean;
+  onToggleRail: () => void;
   branch: string | null;
   onCommitAndPush: () => void;
   onAgentAction: (action: GitAgentAction) => void;
@@ -735,11 +1112,15 @@ function LocalBranchBar(props: {
   stoppingAgentAction: boolean;
   diffStyle: "unified" | "split";
   onDiffStyle: (next: "unified" | "split") => void;
+  ignoreWhitespace: boolean;
+  onIgnoreWhitespaceChange: (next: boolean) => void;
   editorMenuOpen: boolean;
   onEditorMenuOpen: (open: boolean) => void;
   commitMenuOpen: boolean;
   onCommitMenuOpen: (open: boolean) => void;
   pendingAgentAction: GitAgentAction | null;
+  onCollapseAll: () => void;
+  onRefreshChanges: () => void;
 }) {
   const copyBranch = () => {
     if (!props.branch) return;
@@ -749,81 +1130,7 @@ function LocalBranchBar(props: {
   const trailing = <LocalBranchBarTrailing {...props} />;
 
   return (
-    <WorkbenchChromeRow variant="panel" trailing={trailing}>
-      <WorkbenchChromeLabel>Local</WorkbenchChromeLabel>
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={copyBranch}
-        className={workbenchChromeTextControlVariants({ tone: "primary" })}
-        title="Copy branch name"
-      >
-        <span className="truncate">{props.branch ?? "detached"}</span>
-      </Button>
-    </WorkbenchChromeRow>
-  );
-}
-
-function ChangesHeaderTrailing(props: {
-  allCollapsed: boolean;
-  onDiscardAll: () => void;
-  onExpandAll: () => void;
-  onCollapseAll: () => void;
-}) {
-  const toggleAll = props.allCollapsed ? props.onExpandAll : props.onCollapseAll;
-  const toggleAllLabel = props.allCollapsed ? "Expand all" : "Collapse all";
-
-  return (
-    <WorkbenchChromeActionGroup gap="sub">
-      <WorkbenchIconButton
-        onClick={props.onDiscardAll}
-        aria-label="Discard all changes"
-        title="Discard all changes"
-        chrome="panel"
-      >
-        <IconStepBack className="size-4 shrink-0" />
-      </WorkbenchIconButton>
-      <WorkbenchIconButton
-        onClick={toggleAll}
-        aria-label={toggleAllLabel}
-        title={toggleAllLabel}
-        chrome="panel"
-      >
-        {props.allCollapsed ? (
-          <IconChevronRightMedium className="size-3 rotate-90" />
-        ) : (
-          <IconChevronRightMedium className="size-3" />
-        )}
-      </WorkbenchIconButton>
-    </WorkbenchChromeActionGroup>
-  );
-}
-
-function ChangesHeader(props: {
-  railOpen: boolean;
-  onToggleRail: () => void;
-  filter: GitChangesFilter;
-  onFilterChange: (filter: GitChangesFilter) => void;
-  count: number;
-  add: number;
-  del: number;
-  onExpandAll: () => void;
-  onCollapseAll: () => void;
-  allCollapsed: boolean;
-  onDiscardAll: () => void;
-  onRefresh: () => void;
-}) {
-  const trailing = (
-    <ChangesHeaderTrailing
-      allCollapsed={props.allCollapsed}
-      onDiscardAll={props.onDiscardAll}
-      onExpandAll={props.onExpandAll}
-      onCollapseAll={props.onCollapseAll}
-    />
-  );
-
-  return (
-    <WorkbenchChromeRow variant="panel" trailing={trailing}>
+    <WorkbenchChromeRow gap="loose" variant="panel" trailing={trailing}>
       <WorkbenchIconButton
         onClick={props.onToggleRail}
         aria-label={props.railOpen ? "Hide changes list" : "Show changes list"}
@@ -834,14 +1141,112 @@ function ChangesHeader(props: {
       >
         <IconBarsThree className="size-4 shrink-0" aria-hidden />
       </WorkbenchIconButton>
-      <ChangesFilterMenu
-        count={props.count}
-        filter={props.filter}
-        onFilterChange={props.onFilterChange}
-      />
-      <DiffTotals add={props.add} del={props.del} />
+      <span className="inline-flex h-(--multi-workbench-action-size) shrink-0 items-center gap-1.5 rounded-full bg-multi-bg-tertiary px-2 text-body font-medium text-multi-fg-primary">
+        <IconStudioDisplay1 className="size-3.5 shrink-0 text-multi-icon-secondary" aria-hidden />
+        <span>Local</span>
+      </span>
+      <button
+        type="button"
+        onClick={copyBranch}
+        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none items-center justify-start overflow-hidden rounded-full border-0 bg-multi-bg-tertiary px-2 text-body font-medium text-multi-fg-tertiary outline-hidden transition-[background-color,color] hover:bg-multi-bg-secondary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        title="Copy branch name"
+      >
+        <span className="truncate">{props.branch ?? "detached"}</span>
+      </button>
     </WorkbenchChromeRow>
   );
+}
+
+function ChangesHeaderTrailing(props: {
+  allViewed: boolean;
+  showViewAll: boolean;
+  onDiscardAll: () => void;
+  onToggleAllViewed: () => void;
+}) {
+  const viewAllLabel = props.allViewed ? "Unview all" : "View all";
+
+  return (
+    <WorkbenchChromeActionGroup gap="sub">
+      <WorkbenchIconButton
+        onClick={props.onDiscardAll}
+        aria-label="Discard all changes"
+        title="Discard all changes"
+        chrome="panel"
+      >
+        <IconArrowUndoUp className="size-4 shrink-0" />
+      </WorkbenchIconButton>
+      {props.showViewAll ? (
+        <WorkbenchIconButton
+          onClick={props.onToggleAllViewed}
+          aria-label={viewAllLabel}
+          title={viewAllLabel}
+          chrome="panel"
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "inline-flex size-4 shrink-0 items-center justify-center rounded-multi-control border transition-colors",
+              props.allViewed
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-multi-stroke-tertiary bg-multi-bg-quinary text-transparent",
+            )}
+          >
+            <IconCheckmark1 className="size-3 shrink-0" />
+          </span>
+        </WorkbenchIconButton>
+      ) : null}
+    </WorkbenchChromeActionGroup>
+  );
+}
+
+function ChangesHeader(props: {
+  filter: GitChangesFilter;
+  onFilterChange: (filter: GitChangesFilter) => void;
+  count: number;
+  totalAdd: number;
+  totalDel: number;
+  branchCommits: readonly BranchCommitOption[];
+  allViewed: boolean;
+  onDiscardAll: () => void;
+  onToggleAllViewed: () => void;
+}) {
+  const trailing = (
+    <ChangesHeaderTrailing
+      allViewed={props.allViewed}
+      showViewAll={props.filter !== "branch"}
+      onDiscardAll={props.onDiscardAll}
+      onToggleAllViewed={props.onToggleAllViewed}
+    />
+  );
+
+  return (
+    <WorkbenchChromeRow variant="panel" trailing={trailing}>
+      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+        <ChangesFilterMenu
+          count={props.count}
+          filter={props.filter}
+          onFilterChange={props.onFilterChange}
+        />
+        {props.filter === "branch" ? (
+          <BranchCommitFilterMenu commits={props.branchCommits} />
+        ) : null}
+        <ChangeTotals totalAdd={props.totalAdd} totalDel={props.totalDel} />
+      </div>
+    </WorkbenchChromeRow>
+  );
+}
+
+function changeCountLabel(count: number, filter: GitChangesFilter): string {
+  const changeWord = count === 1 ? "Change" : "Changes";
+  if (filter === "branch") {
+    return `${count} Branch ${changeWord}`;
+  }
+  return `${count} ${GIT_CHANGES_FILTER_LABELS[filter]} ${changeWord}`;
+}
+
+function changeFilterMenuItemLabel(filter: GitChangesFilter): string {
+  if (filter === "branch") return "Branch Changes";
+  return `${GIT_CHANGES_FILTER_LABELS[filter]} Changes`;
 }
 
 function ChangesFilterMenu(props: {
@@ -849,10 +1254,7 @@ function ChangesFilterMenu(props: {
   filter: GitChangesFilter;
   onFilterChange: (filter: GitChangesFilter) => void;
 }) {
-  const label =
-    props.filter === "branch"
-      ? GIT_CHANGES_FILTER_LABELS.branch
-      : `${props.count} ${GIT_CHANGES_FILTER_LABELS[props.filter]} Change${props.count === 1 ? "" : "s"}`;
+  const label = changeCountLabel(props.count, props.filter);
   const handleFilterChange = (value: string) => {
     if (!isGitChangesFilter(value) || value === props.filter) return;
     props.onFilterChange(value);
@@ -862,20 +1264,18 @@ function ChangesFilterMenu(props: {
     <Menu>
       <MenuTrigger
         type="button"
-        className={cn(workbenchChromeTextControlVariants({ tabular: true }), "max-w-64")}
+        className="inline-flex h-(--multi-workbench-action-size) max-w-full min-w-0 select-none items-center justify-start gap-1.5 overflow-hidden rounded-multi-control border-0 bg-transparent px-1.5 text-body font-medium text-multi-fg-secondary shadow-none outline-hidden before:hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
         aria-label="Change filter"
       >
+        <IconFolderOpen className="size-4 shrink-0 text-multi-icon-secondary" aria-hidden />
         <span className="min-w-0 truncate">{label}</span>
-        <IconChevronRightMedium
-          className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary"
-          aria-hidden
-        />
+        <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary" />
       </MenuTrigger>
       <MenuPopup align="start" variant="workbench">
         <MenuRadioGroup value={props.filter} onValueChange={handleFilterChange}>
           {GIT_CHANGES_FILTERS.map((filter) => (
             <MenuRadioItem key={filter} value={filter} variant="workbench">
-              {GIT_CHANGES_FILTER_LABELS[filter]}
+              {changeFilterMenuItemLabel(filter)}
             </MenuRadioItem>
           ))}
         </MenuRadioGroup>
@@ -884,26 +1284,59 @@ function ChangesFilterMenu(props: {
   );
 }
 
-function DiffTotals(props: { add: number; del: number }) {
+function BranchCommitFilterMenu(props: { commits: readonly BranchCommitOption[] }) {
   return (
-    <WorkbenchChromeActionGroup gap="sub" className="tabular-nums">
-      <span
-        className={cn(
-          "inline-flex justify-end text-multi-diff-addition",
-          props.add === 0 && "invisible",
-        )}
+    <Menu>
+      <MenuTrigger
+        type="button"
+        className="inline-flex h-(--multi-workbench-action-size) max-w-40 min-w-0 select-none items-center justify-start gap-1.5 overflow-hidden rounded-multi-control border-0 bg-transparent px-1.5 text-body font-medium text-multi-fg-tertiary shadow-none outline-hidden before:hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        aria-label="Commit filter"
       >
-        +{props.add}
-      </span>
-      <span
-        className={cn(
-          "inline-flex justify-end text-multi-diff-deletion",
-          props.del === 0 && "invisible",
-        )}
+        <span className="min-w-0 truncate">All Commits</span>
+        <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary" />
+      </MenuTrigger>
+      <MenuPopup
+        align="start"
+        className="min-w-80 rounded-[12px]"
+        sideOffset={4}
+        variant="workbench"
       >
-        -{props.del}
-      </span>
-    </WorkbenchChromeActionGroup>
+        <MenuItem className="min-h-9 gap-3 px-3 py-1.5 text-body" variant="workbench">
+          <span className="min-w-0 flex-1 truncate text-multi-fg-primary">All Commits</span>
+          <IconCheckmark1 className="size-4 shrink-0 text-multi-fg-primary" />
+        </MenuItem>
+        {props.commits.map((commit) => (
+          <MenuItem
+            key={commit.id}
+            className="min-h-9 gap-3 px-3 py-1.5 text-body"
+            variant="workbench"
+          >
+            <span className="min-w-0 flex-1 truncate text-multi-fg-primary">{commit.subject}</span>
+            <span className="shrink-0 font-multi-mono text-detail text-multi-fg-tertiary">
+              {commit.shortSha}
+            </span>
+            <IconCheckmark1 className="size-4 shrink-0 text-multi-fg-primary" />
+          </MenuItem>
+        ))}
+      </MenuPopup>
+    </Menu>
+  );
+}
+
+function ChangeTotals(props: { totalAdd: number; totalDel: number }) {
+  if (props.totalAdd === 0 && props.totalDel === 0) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 font-multi-mono text-body tabular-nums">
+      {props.totalAdd > 0 ? (
+        <span className="text-(--multi-diff-addition)">+{props.totalAdd}</span>
+      ) : null}
+      {props.totalDel > 0 ? (
+        <span className="text-(--multi-diff-deletion)">-{props.totalDel}</span>
+      ) : null}
+    </span>
   );
 }
 

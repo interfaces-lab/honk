@@ -100,6 +100,8 @@ export interface ComposerInputProps {
   keybindings: ResolvedKeybindingsConfig;
   terminalOpen: boolean;
   gitCwd: string | null;
+  branchName?: string | null | undefined;
+  executionModeLabel?: string | null | undefined;
 
   promptRef: RefObject<string>;
   composerImagesRef: RefObject<ComposerImageAttachment[]>;

@@ -142,6 +142,14 @@ export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings)
   return selector ? selector(merged) : (merged as T);
 }
 
+export function readSettings(): UnifiedSettings {
+  return {
+    ...DEFAULT_UNIFIED_SETTINGS,
+    ...(getServerConfig()?.settings ?? {}),
+    ...getClientSettingsSnapshot(),
+  };
+}
+
 /**
  * Returns an updater that routes each key to the correct backing store.
  *

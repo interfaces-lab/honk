@@ -1,11 +1,17 @@
 import {
   EventId,
+  threadEntryIdForMessageId,
   type AgentInteractionMode,
+  type ChatAttachment,
   type EnvironmentId,
+  type MessageId,
   type ModelSelection,
   type OrchestrationEvent,
+  type OrchestrationMessageRichText,
   type ProjectId,
   type RuntimeMode,
+  type SourceProposedPlanReference,
+  type ThreadEntryId,
   type ThreadId,
 } from "@multi/contracts";
 
@@ -106,4 +112,72 @@ export function applyLocalThreadCreated(input: {
     },
   } satisfies OrchestrationEvent;
   useStore.getState().applyOrchestrationEvent(event, input.environmentId);
+}
+
+export function applyLocalThreadTurnStartRequested(input: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly message: {
+    readonly messageId: MessageId;
+    readonly text: string;
+    readonly richText?: OrchestrationMessageRichText;
+    readonly attachments: readonly ChatAttachment[];
+  };
+  readonly modelSelection?: ModelSelection;
+  readonly titleSeed?: string;
+  readonly runtimeMode: RuntimeMode;
+  readonly interactionMode: AgentInteractionMode;
+  readonly parentEntryId: ThreadEntryId | null;
+  readonly sourceProposedPlan?: SourceProposedPlanReference;
+  readonly createdAt: string;
+}): void {
+  const userEntryId = threadEntryIdForMessageId(input.message.messageId);
+  const messageSentEvent = {
+    ...localEventBase({
+      aggregateKind: "thread",
+      aggregateId: input.threadId,
+      occurredAt: input.createdAt,
+    }),
+    type: "thread.message-sent",
+    payload: {
+      threadId: input.threadId,
+      messageId: input.message.messageId,
+      entryId: userEntryId,
+      parentEntryId: input.parentEntryId,
+      role: "user",
+      text: input.message.text,
+      ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),
+      attachments: [...input.message.attachments],
+      turnId: null,
+      streaming: false,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+    },
+  } satisfies OrchestrationEvent;
+  const turnStartRequestedEvent = {
+    ...localEventBase({
+      aggregateKind: "thread",
+      aggregateId: input.threadId,
+      occurredAt: input.createdAt,
+    }),
+    causationEventId: messageSentEvent.eventId,
+    type: "thread.turn-start-requested",
+    payload: {
+      threadId: input.threadId,
+      messageId: input.message.messageId,
+      userEntryId,
+      ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+      ...(input.titleSeed !== undefined ? { titleSeed: input.titleSeed } : {}),
+      runtimeMode: input.runtimeMode,
+      interactionMode: input.interactionMode,
+      ...(input.sourceProposedPlan !== undefined
+        ? { sourceProposedPlan: input.sourceProposedPlan }
+        : {}),
+      createdAt: input.createdAt,
+    },
+  } satisfies OrchestrationEvent;
+
+  useStore
+    .getState()
+    .applyOrchestrationEvents([messageSentEvent, turnStartRequestedEvent], input.environmentId);
 }

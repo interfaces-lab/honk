@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseWorkbenchPanelSearch } from "./workbench-panel-search";
+import { parseWorkbenchPanelSearch } from "./-workbench-panel-search";
 
 describe("workbench panel search", () => {
   it("keeps valid workbench panel values", () => {

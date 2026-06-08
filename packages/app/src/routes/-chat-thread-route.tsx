@@ -1,14 +1,10 @@
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useRouter } from "@tanstack/react-router";
 import { Spinner } from "@multi/multikit/spinner";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import ChatView from "~/components/chat/view/chat-view";
-import {
-  type DraftPromotionRouteTarget,
-  resolveDraftPromotionRouteTarget,
-  threadHasRenderableUserStart,
-} from "~/components/chat/view/thread-lifecycle";
+import { type DraftPromotionRouteTarget } from "~/components/chat/view/thread-lifecycle";
 import {
   DraftId,
   finalizePromotedDraftThreadByRef,
@@ -22,15 +18,16 @@ import {
   useStore,
   type EnvironmentSnapshotSource,
 } from "~/stores/thread-store";
-import { createThreadSelectorByRef } from "~/stores/thread-selectors";
+import { selectThreadRouteLifecycleSurfaceByRef } from "~/stores/thread-selectors";
 import {
   clearLastChatRouteTarget,
   writeLastChatRouteTarget,
-} from "~/app/routes/chat-route-persistence";
+} from "~/routes/-chat-route-persistence";
 import { openChatIndex } from "~/app/chat-navigation";
-import { resolveThreadRouteRef } from "~/app/routes/thread-route-targets";
+import { resolveThreadRouteRef } from "~/routes/-thread-route-targets";
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";
+import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopedThreadKey } from "~/lib/environment-scope";
+import { usePendingThreadSendStore } from "~/stores/pending-thread-send-store";
 
 const routeApi = getRouteApi("/_chat/$environmentId/$threadId");
 type ThreadRouteRef = NonNullable<ReturnType<typeof resolveThreadRouteRef>>;
@@ -110,15 +107,13 @@ function findDraftRouteMatch(
 export function ChatThreadRouteView() {
   const routeParams = routeApi.useParams();
   const threadRef = resolveThreadRouteRef(routeParams);
-  const navigate = useNavigate();
+  const router = useRouter();
   const snapshotSource = useStore((store) =>
     selectEnvironmentSnapshotSource(store, threadRef?.environmentId ?? null),
   );
-  const serverThreadSelector = useMemo(
-    () => createThreadSelectorByRef(threadRef),
-    [threadRef?.environmentId, threadRef?.threadId],
+  const serverThreadLifecycle = useStore(
+    useShallow((store) => selectThreadRouteLifecycleSurfaceByRef(store, threadRef) ?? null),
   );
-  const serverThread = useStore(serverThreadSelector);
   const threadExists = useStore((store) => selectThreadExistsByRef(store, threadRef));
   const environmentHasServerThreads = useStore(
     (store) => selectEnvironmentState(store, threadRef?.environmentId ?? null).threadIds.length > 0,
@@ -133,12 +128,13 @@ export function ChatThreadRouteView() {
     return store.hasDraftThreadsInEnvironment(threadRef.environmentId);
   });
   const routeThreadExists = threadExists || draftRouteMatch.draftThread !== null;
-  const serverThreadRenderable = threadHasRenderableUserStart(serverThread);
-  const routeTarget = resolveDraftPromotionRouteTarget({
-    draftRouteId: draftRouteMatch.draftRouteId,
-    serverThread,
-    serverThreadRef: threadRef,
-  });
+  const serverThreadRenderable = serverThreadLifecycle?.hasRenderableUserStart ?? false;
+  const routeTarget: DraftPromotionRouteTarget | null =
+    threadRef === null
+      ? null
+      : draftRouteMatch.draftRouteId !== null && !serverThreadRenderable
+        ? { kind: "draft", draftId: draftRouteMatch.draftRouteId }
+        : { kind: "server", threadRef };
   const environmentHasAnyThreads = environmentHasServerThreads || environmentHasDraftThreads;
   const desktopRuntimeRoute = threadRef ? isDesktopRuntimeThreadRoute(threadRef) : false;
   const hasRenderableSnapshot = snapshotSource !== "none" || desktopRuntimeRoute;
@@ -155,7 +151,7 @@ export function ChatThreadRouteView() {
         <ChatThreadRouteSync
           key={`${threadRouteKey}:source:${snapshotSource}`}
           environmentHasAnyThreads={environmentHasAnyThreads}
-          navigate={navigate}
+          router={router}
           routeThreadExists={routeThreadExists}
           routePersistenceTarget={routeTarget}
           snapshotSource={snapshotSource}
@@ -174,7 +170,7 @@ export function ChatThreadRouteView() {
             environmentHasAnyThreads ? "any" : "empty"
           }`}
           environmentHasAnyThreads={environmentHasAnyThreads}
-          navigate={navigate}
+          router={router}
           routeThreadExists={routeThreadExists}
           routePersistenceTarget={routeTarget}
           snapshotSource={snapshotSource}
@@ -190,7 +186,7 @@ export function ChatThreadRouteView() {
       <ChatThreadRouteSync
         key={`${threadRouteKey}:exists:${snapshotSource}`}
         environmentHasAnyThreads={environmentHasAnyThreads}
-        navigate={navigate}
+        router={router}
         routeThreadExists={routeThreadExists}
         routePersistenceTarget={routeTarget}
         snapshotSource={snapshotSource}
@@ -223,9 +219,9 @@ function ChatThreadRouteLoadingPanel() {
 
 function ChatThreadRouteSync(props: {
   readonly environmentHasAnyThreads: boolean;
-  readonly navigate: ReturnType<typeof useNavigate>;
+  readonly router: ReturnType<typeof useRouter>;
   readonly routeThreadExists: boolean;
-  readonly routePersistenceTarget: ReturnType<typeof resolveDraftPromotionRouteTarget>;
+  readonly routePersistenceTarget: DraftPromotionRouteTarget | null;
   readonly snapshotSource: EnvironmentSnapshotSource;
   readonly threadRef: ThreadRouteRef;
 }) {
@@ -254,16 +250,16 @@ function ChatThreadRouteSync(props: {
 
     if (props.environmentHasAnyThreads) {
       clearLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
-      void openChatIndex(props.navigate, { replace: true });
+      void openChatIndex(props.router, { replace: true });
       return;
     }
 
     clearLastChatRouteTarget({ kind: "server", threadRef: props.threadRef });
-    void openChatIndex(props.navigate, { replace: true });
+    void openChatIndex(props.router, { replace: true });
   }, [
     props.environmentHasAnyThreads,
-    props.navigate,
     props.routeThreadExists,
+    props.router,
     props.snapshotSource,
     props.threadRef.environmentId,
     props.threadRef.threadId,
@@ -275,7 +271,11 @@ function ChatThreadRouteSync(props: {
 
 function PromotedDraftFinalizer(props: { readonly threadRef: ThreadRouteRef }) {
   useMountEffect(() => {
-    finalizePromotedDraftThreadByRef(props.threadRef);
+    const finalizedDraftRefs = finalizePromotedDraftThreadByRef(props.threadRef);
+    const pendingThreadSendStore = usePendingThreadSendStore.getState();
+    for (const draftThreadRef of finalizedDraftRefs) {
+      pendingThreadSendStore.clearLocalSendArtifactsForThread(scopedThreadKey(draftThreadRef));
+    }
   });
 
   return null;

@@ -192,11 +192,6 @@ async function loadProjectDirectory(input: {
     return;
   }
   loadingDirectories.add(normalizedRelativeDir);
-  console.log("[workspace.files.load.start]", {
-    cwd,
-    environmentId,
-    relativeDir: normalizedRelativeDir,
-  });
   try {
     const result = await input.queryClient.fetchQuery(
       projectListDirectoryQueryOptions({
@@ -211,16 +206,6 @@ async function loadProjectDirectory(input: {
 
     loadedDirectories.add(normalizedRelativeDir);
     input.setLoadError(null);
-    console.log("[workspace.files.load.success]", {
-      cwd,
-      environmentId,
-      relativeDir: normalizedRelativeDir,
-      entryCount: result.entries.length,
-      firstEntries: result.entries.slice(0, 5).map((entry) => ({
-        kind: entry.kind,
-        path: entry.path,
-      })),
-    });
     input.setTreePaths((currentPaths) => {
       const nextPaths = new Set(
         currentPaths.filter((path) => path !== directoryPlaceholderPath(normalizedRelativeDir)),
@@ -231,12 +216,6 @@ async function loadProjectDirectory(input: {
       return [...nextPaths];
     });
   } catch (error) {
-    console.log("[workspace.files.load.error]", {
-      cwd,
-      environmentId,
-      relativeDir: normalizedRelativeDir,
-      error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
-    });
     if (input.mountedRef.current) {
       input.setLoadError(error);
     }
@@ -425,7 +404,7 @@ export const ProjectFileTree = forwardRef<
               >
                 <button
                   type="button"
-                  className="flex min-h-6 w-full items-center rounded-sm px-2 text-left text-muted-foreground hover:bg-multi-hover hover:text-foreground"
+                  className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground hover:bg-multi-hover hover:text-foreground"
                   onClick={() => {
                     context.close();
                     openProjectFilePath({

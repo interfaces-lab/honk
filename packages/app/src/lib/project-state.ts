@@ -72,6 +72,16 @@ export function subscribeStoredProjectSelection(listener: () => void): () => voi
 
 export function writeStoredProjectSelection(selection: StoredProjectSelection): void {
   if (typeof window === "undefined") return;
+  const currentSelection = readStoredProjectSelection();
+  const currentCwd = window.localStorage.getItem(PROJECT_KEY);
+  if (
+    currentSelection?.environmentId === selection.environmentId &&
+    currentSelection.projectId === selection.projectId &&
+    currentSelection.cwd === selection.cwd &&
+    currentCwd === selection.cwd
+  ) {
+    return;
+  }
   window.localStorage.setItem(
     SELECTED_PROJECT_KEY,
     JSON.stringify({

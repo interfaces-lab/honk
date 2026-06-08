@@ -1017,28 +1017,6 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
 
-export const ClientOrchestrationCommand = Schema.Union([
-  ProjectCreateCommand,
-  ProjectMetaUpdateCommand,
-  ProjectDeleteCommand,
-  ThreadCreateCommand,
-  ThreadDeleteCommand,
-  ThreadArchiveCommand,
-  ThreadUnarchiveCommand,
-  ThreadMetaUpdateCommand,
-  ThreadRuntimeModeSetCommand,
-  ThreadInteractionModeSetCommand,
-  ClientThreadTurnStartCommand,
-  ThreadTurnInterruptCommand,
-  ThreadTurnStartFailedCommand,
-  ThreadApprovalRespondCommand,
-  ThreadUserInputRespondCommand,
-  ThreadSessionStopCommand,
-  ThreadTreeNavigateCommand,
-  ThreadProposedPlanUpdateCommand,
-]);
-export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
-
 const ThreadSessionSetCommand = Schema.Struct({
   type: Schema.Literal("thread.session.set"),
   commandId: CommandId,
@@ -1087,6 +1065,29 @@ export const OrchestrationCommand = Schema.Union([
   InternalOrchestrationCommand,
 ]);
 export type OrchestrationCommand = typeof OrchestrationCommand.Type;
+
+export const ClientOrchestrationCommand = Schema.Union([
+  ProjectCreateCommand,
+  ProjectMetaUpdateCommand,
+  ProjectDeleteCommand,
+  ThreadCreateCommand,
+  ThreadDeleteCommand,
+  ThreadArchiveCommand,
+  ThreadUnarchiveCommand,
+  ThreadMetaUpdateCommand,
+  ThreadRuntimeModeSetCommand,
+  ThreadInteractionModeSetCommand,
+  ClientThreadTurnStartCommand,
+  ThreadTurnInterruptCommand,
+  ThreadTurnStartFailedCommand,
+  ThreadApprovalRespondCommand,
+  ThreadUserInputRespondCommand,
+  ThreadSessionStopCommand,
+  ThreadTreeNavigateCommand,
+  ThreadProposedPlanUpdateCommand,
+  InternalOrchestrationCommand,
+]);
+export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
 export const OrchestrationEventType = Schema.Literals([
   "project.created",

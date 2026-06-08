@@ -103,15 +103,17 @@ export function syncBrowserChromeTheme() {
   const backgroundColor = surfaceColor ?? fallbackColor;
   if (!backgroundColor && !wantsGlassBackground) return;
 
-  const rendererBackgroundColor = wantsGlassBackground
-    ? "transparent"
-    : (backgroundColor ?? "");
-  if (!rendererBackgroundColor) return;
   const desktopBackgroundColor = wantsGlassBackground
     ? getElectronGlassBackgroundColor()
-    : rendererBackgroundColor;
-  document.documentElement.style.backgroundColor = rendererBackgroundColor;
-  document.body.style.backgroundColor = rendererBackgroundColor;
+    : (backgroundColor ?? "");
+  if (!desktopBackgroundColor) return;
+  if (wantsGlassBackground) {
+    document.documentElement.style.removeProperty("background-color");
+    document.body.style.removeProperty("background-color");
+  } else {
+    document.documentElement.style.backgroundColor = desktopBackgroundColor;
+    document.body.style.backgroundColor = desktopBackgroundColor;
+  }
   if (backgroundColor) {
     ensureThemeColorMetaTag().setAttribute("content", backgroundColor);
   }

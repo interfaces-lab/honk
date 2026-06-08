@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EnvironmentId, ThreadId } from "@multi/contracts";
 
-import { ChatThreadRouteView } from "~/app/routes/chat-thread-route";
+import { ChatThreadRouteView } from "~/routes/-chat-thread-route";
 
 export const Route = createFileRoute("/_chat/$environmentId/$threadId")({
   params: {

@@ -11,9 +11,6 @@ import type { HarnessKind } from "~/lib/ui-session-types";
 
 export interface SidebarDraftSummary {
   id: string;
-  text: string;
-  attachmentCount: number;
-  firstAttachmentName: string | null;
   cwd: string;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
@@ -102,6 +99,7 @@ export interface AgentSidebarProps {
   selectedId: string | null;
   onSelectAgent: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
+  onOpenWorkspace?: () => void;
   onPrefetchAgent?: (id: string) => void;
   loading?: boolean;
   error?: boolean;

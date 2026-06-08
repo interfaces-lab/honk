@@ -1,10 +1,10 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
+import type { ScopedThreadRef } from "@multi/contracts";
 import { SidebarButton, SidebarItem } from "@multi/multikit/sidebar";
 import { IconArchive1, IconPin, IconUnpin } from "central-icons";
-import { type KeyboardEvent, type MouseEvent, useRef, useState } from "react";
+import { type KeyboardEvent, memo, type MouseEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { useThreadActions } from "~/hooks/use-thread-actions";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { ThreadContextMenu } from "./context-menu";
@@ -14,6 +14,13 @@ import type { SidebarChatItem } from "./types";
 import { deriveSidebarDraftTitle } from "./view-model";
 
 type DraftSidebarChatItem = Extract<SidebarChatItem, { kind: "draft" }>;
+type ThreadSidebarChatItem = Extract<SidebarChatItem, { kind: "thread" }>;
+type CommitThreadRename = (
+  target: ScopedThreadRef,
+  nextTitle: string,
+  originalTitle: string,
+) => Promise<void>;
+type ArchiveThread = (target: ScopedThreadRef) => Promise<void>;
 
 function useDraftSidebarTitle(item: DraftSidebarChatItem): string {
   return useComposerDraftStore((store) => {
@@ -28,7 +35,7 @@ function useDraftSidebarTitle(item: DraftSidebarChatItem): string {
   });
 }
 
-function AgentSidebarDraftItem(props: {
+const AgentSidebarDraftItem = memo(function AgentSidebarDraftItem(props: {
   item: DraftSidebarChatItem;
   selected: boolean;
   onSelectAgent: (id: string) => void;
@@ -54,7 +61,7 @@ function AgentSidebarDraftItem(props: {
       <SidebarItemTime ago={props.item.ago} selected={props.selected} />
     </SidebarButton>
   );
-}
+});
 
 function focusRenameInput(node: HTMLInputElement | null) {
   if (!node) return;
@@ -62,15 +69,47 @@ function focusRenameInput(node: HTMLInputElement | null) {
   node.select();
 }
 
-export function AgentSidebarThreadItem(props: {
+export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props: {
   item: SidebarChatItem;
   selected: boolean;
+  archiveThread: ArchiveThread;
+  commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
 }) {
-  const { commitRename, archiveThread } = useThreadActions();
+  if (props.item.kind === "draft") {
+    return (
+      <AgentSidebarDraftItem
+        item={props.item}
+        selected={props.selected}
+        onSelectAgent={props.onSelectAgent}
+        {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
+      />
+    );
+  }
+
+  return (
+    <AgentSidebarServerThreadItem
+      item={props.item}
+      selected={props.selected}
+      archiveThread={props.archiveThread}
+      commitRename={props.commitRename}
+      onSelectAgent={props.onSelectAgent}
+      {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
+    />
+  );
+});
+
+const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(props: {
+  item: ThreadSidebarChatItem;
+  selected: boolean;
+  archiveThread: ArchiveThread;
+  commitRename: CommitThreadRename;
+  onSelectAgent: (id: string) => void;
+  onPrefetchAgent?: (id: string) => void;
+}) {
   const { item, onSelectAgent } = props;
-  const targetThreadRef = props.item.kind === "thread" ? props.item.threadRef : null;
+  const targetThreadRef = props.item.threadRef;
   const markThreadUnread = useUiStateStore((store) => store.markThreadUnread);
   const setThreadPinned = useUiStateStore((store) => store.setThreadPinned);
   const [renaming, setRenaming] = useState(false);
@@ -87,11 +126,6 @@ export function AgentSidebarThreadItem(props: {
   };
 
   const applyRename = async () => {
-    if (props.item.kind !== "thread") return;
-    if (!targetThreadRef) {
-      finishRename();
-      return;
-    }
     const next = renameValue.trim();
     if (next.length === 0) {
       toast.warning("Thread title cannot be empty");
@@ -103,7 +137,7 @@ export function AgentSidebarThreadItem(props: {
       return;
     }
     try {
-      await commitRename(targetThreadRef, next, props.item.title);
+      await props.commitRename(targetThreadRef, next, props.item.title);
     } catch (error) {
       toast.error("Failed to rename thread", {
         description: error instanceof Error ? error.message : "An error occurred.",
@@ -114,7 +148,6 @@ export function AgentSidebarThreadItem(props: {
   };
 
   const onBlur = () => {
-    if (props.item.kind !== "thread") return;
     if (committedRef.current) {
       committedRef.current = false;
       return;
@@ -137,25 +170,11 @@ export function AgentSidebarThreadItem(props: {
     }
   };
 
-  if (props.item.kind === "draft") {
-    return (
-      <AgentSidebarDraftItem
-        item={props.item}
-        selected={props.selected}
-        onSelectAgent={props.onSelectAgent}
-        {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
-      />
-    );
-  }
-
   const threadItem = props.item;
   const archiveCurrentThread = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!targetThreadRef) {
-      return;
-    }
-    void archiveThread(targetThreadRef).catch((error) => {
+    void props.archiveThread(targetThreadRef).catch((error) => {
       toast.error("Failed to archive thread", {
         description: error instanceof Error ? error.message : "An error occurred.",
       });
@@ -164,9 +183,6 @@ export function AgentSidebarThreadItem(props: {
   const togglePinnedThread = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!targetThreadRef) {
-      return;
-    }
     setThreadPinned(scopedThreadKey(targetThreadRef), !threadItem.pinned);
   };
   if (renaming) {
@@ -187,7 +203,7 @@ export function AgentSidebarThreadItem(props: {
           onKeyDown={onRenameKeyDown}
           onBlur={onBlur}
           onClick={(e) => e.stopPropagation()}
-          className="min-w-0 flex-1 select-text bg-transparent text-foreground outline-none ring-0"
+          className="min-w-0 flex-1 select-text bg-transparent text-foreground outline-hidden ring-0"
           aria-label="Rename thread"
         />
         <SidebarItemTime ago={props.item.ago} selected={props.selected} />
@@ -203,14 +219,10 @@ export function AgentSidebarThreadItem(props: {
         setRenameValue(threadItem.title);
       }}
       onMarkUnread={() => {
-        if (!targetThreadRef) {
-          return;
-        }
         markThreadUnread(scopedThreadKey(targetThreadRef), threadItem.latestReadableAt);
       }}
       onArchive={() => {
-        if (!targetThreadRef) return;
-        void archiveThread(targetThreadRef).catch((error) => {
+        void props.archiveThread(targetThreadRef).catch((error) => {
           toast.error("Failed to archive thread", {
             description: error instanceof Error ? error.message : "An error occurred.",
           });
@@ -259,4 +271,4 @@ export function AgentSidebarThreadItem(props: {
       </SidebarItem>
     </ThreadContextMenu>
   );
-}
+});

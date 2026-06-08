@@ -2,7 +2,7 @@ import { type QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import { APP_DISPLAY_NAME } from "~/app/branding";
-import { RootRouteErrorView, RootRouteNotFoundView, RootRouteView } from "~/app/routes/root-route";
+import { RootRouteErrorView, RootRouteNotFoundView, RootRouteView } from "~/routes/-root-route";
 import {
   ensurePrimaryEnvironmentReady,
   resolveInitialServerAuthGateState,

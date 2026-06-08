@@ -121,9 +121,9 @@ export function filterMessagesToBranch(
 }
 
 export function filterActivitiesToBranch(
-  activities: OrchestrationThreadActivity[],
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
   branchView: ThreadBranchView,
-): OrchestrationThreadActivity[] {
+): ReadonlyArray<OrchestrationThreadActivity> {
   const turnIds = branchView.turnIds;
   if (branchView.status === "invalid") {
     return [];

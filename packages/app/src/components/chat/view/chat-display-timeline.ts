@@ -8,7 +8,7 @@ import {
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, PendingTimelineRow, ProposedPlan } from "../../../types";
 import {
-  appendRuntimeUserTimelineEntries,
+  appendMissingRuntimeTimelineMessageEntries,
   appendTransientTimelineEntries,
 } from "./pending-timeline-rows";
 import {
@@ -61,7 +61,7 @@ export function buildChatDisplayTimeline(input: {
   ) {
     return committedEntriesWithTransientRows;
   }
-  return appendRuntimeUserTimelineEntries({
+  return appendMissingRuntimeTimelineMessageEntries({
     entries: runtimeEntries,
     messages: input.timelineMessages,
     pendingRows: input.transientPendingTimelineRows,

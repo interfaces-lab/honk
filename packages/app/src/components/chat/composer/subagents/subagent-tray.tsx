@@ -6,7 +6,7 @@ import {
   type ToolLifecycleItemType,
 } from "@multi/contracts";
 import { IconCrossSmall } from "central-icons";
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { Button } from "@multi/multikit/button";
 import { ToolCallLine } from "@multi/multikit/tool-call";
 import { ExpandableToolMetadataLine } from "../../message/tool-renderer";
@@ -14,14 +14,18 @@ import { cn } from "~/lib/utils";
 import {
   type SubagentTranscriptItem,
   type WorkLogEntry,
+  type WorkLogSubagent,
   type WorkLogSubagentLog,
 } from "../../../../session-logic";
 import {
   isSubagentTrayLogVisible,
-  subagentTrayKey,
   useSubagentTrayStore,
   type SubagentTraySelection,
 } from "../../../../stores/subagent-tray-store";
+import {
+  selectSubagentProjection,
+  useSubagentActivityStore,
+} from "../../../../stores/subagent-activity-store";
 import {
   StepRenderer,
   type StepRendererContext,
@@ -126,27 +130,26 @@ function SubagentTray(props: {
   onClose: () => void;
 }) {
   const { selection, onClose } = props;
-  const subagent = selection.subagent;
-  const title = subagent.title ?? subagent.nickname ?? subagent.role;
+  const subagent = useFocusedSubagent(selection);
+  const title = subagent?.title ?? subagent?.nickname ?? subagent?.role ?? "Subagent";
+  const subagentThreadId = subagent?.subagentThreadId ?? selection.subagentThreadId;
 
   return (
     <div
       className="flex w-full min-w-0 flex-col overflow-hidden text-multi-fg-primary"
       data-subagent-tray-container=""
-      data-subagent-thread-id={subagent.subagentThreadId}
+      data-subagent-thread-id={subagentThreadId}
     >
       <div
         className="flex min-w-0 shrink-0 items-center gap-2 px-3 py-2"
         data-subagent-tray-header=""
       >
-        {title ? (
-          <div
-            className="min-w-0 flex-1 truncate text-title font-medium text-multi-fg-primary"
-            title={title}
-          >
-            {title}
-          </div>
-        ) : null}
+        <div
+          className="min-w-0 flex-1 truncate text-title font-medium text-multi-fg-primary"
+          title={title}
+        >
+          {title}
+        </div>
         <Button
           className="ml-auto shrink-0 text-multi-icon-secondary hover:text-multi-icon-primary"
           size="icon-sm"
@@ -158,31 +161,37 @@ function SubagentTray(props: {
           <IconCrossSmall className="size-3.5" aria-hidden="true" />
         </Button>
       </div>
-      <SubagentTrayBody key={subagentTrayBodyKey(selection)} selection={selection} />
+      <SubagentTrayBody
+        key={subagentTrayBodyKey(selection)}
+        selection={selection}
+        subagent={subagent}
+      />
     </div>
   );
 }
 
 function subagentTrayBodyKey(selection: SubagentTraySelection): string {
-  const subagent = selection.subagent;
   return [
     selection.activeThreadId,
     selection.environmentId,
-    subagentTrayKey(subagent),
-    subagent.subagentThreadId?.trim() ?? "",
-    subagent.isActive === true ? "1" : "0",
+    selection.key,
+    selection.subagentThreadId?.trim() ?? "",
+    selection.threadId ?? "",
+    selection.agentId ?? "",
   ].join("\u001f");
 }
 
 function SubagentTrayBody(props: {
   selection: SubagentTraySelection;
+  subagent: WorkLogSubagent | null;
 }) {
-  const { activeThreadId, environmentId, projectRoot, subagent } = props.selection;
-  const transcriptItems = subagent.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
+  const { activeThreadId, environmentId, projectRoot } = props.selection;
+  const { subagent } = props;
+  const transcriptItems = subagent?.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
   const renderableTranscriptItems = transcriptItems.filter(hasRenderableSubagentTranscriptItem);
   const hasActivityTranscript = renderableTranscriptItems.length > 0;
   const hasCanonicalTranscript = hasActivityTranscript;
-  const logs = subagent.logs ?? EMPTY_SUBAGENT_LOGS;
+  const logs = subagent?.logs ?? EMPTY_SUBAGENT_LOGS;
   const runningLogs = deriveVisibleSubagentLogs(logs, hasCanonicalTranscript);
   const streamingLogId = runningLogs.at(-1)?.id;
 
@@ -195,7 +204,7 @@ function SubagentTrayBody(props: {
         <SubagentActivityTranscriptSection
           activeThreadId={activeThreadId}
           environmentId={environmentId}
-          isStreaming={subagent.isActive === true}
+          isStreaming={subagent?.isActive === true}
           items={renderableTranscriptItems}
           projectRoot={projectRoot}
         />
@@ -219,6 +228,28 @@ function SubagentTrayBody(props: {
         <div className="py-1 text-detail text-multi-fg-tertiary">No thread content yet.</div>
       ) : null}
     </div>
+  );
+}
+
+function useFocusedSubagent(selection: SubagentTraySelection): WorkLogSubagent | null {
+  return useSubagentActivityStore((state) => {
+    const subagentThreadId = selectedSubagentThreadId(selection);
+    if (!subagentThreadId) {
+      return null;
+    }
+    return selectSubagentProjection(state, {
+      environmentId: selection.environmentId,
+      threadId: selection.activeThreadId,
+    }).subagentById[subagentThreadId] ?? null;
+  });
+}
+
+function selectedSubagentThreadId(selection: SubagentTraySelection): string | null {
+  return (
+    selection.subagentThreadId?.trim() ||
+    selection.threadId?.trim() ||
+    selection.key.trim() ||
+    null
   );
 }
 
@@ -254,19 +285,21 @@ function SubagentActivityTranscriptSection({
   );
 }
 
-export function SubagentTranscriptItemRow({
-  activeThreadId,
-  environmentId,
-  isStreaming,
-  item,
-  projectRoot,
-}: {
+interface SubagentTranscriptItemRowProps {
   activeThreadId: ThreadId;
   environmentId: EnvironmentId;
   isStreaming: boolean;
   item: SubagentTranscriptItem;
   projectRoot: string | undefined;
-}) {
+}
+
+export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow({
+  activeThreadId,
+  environmentId,
+  isStreaming,
+  item,
+  projectRoot,
+}: SubagentTranscriptItemRowProps) {
   const detail = item.text;
   const messageRole = subagentTranscriptMessageRole(item);
 
@@ -351,6 +384,42 @@ export function SubagentTranscriptItemRow({
       detail={detail}
       loading={isStreaming}
     />
+  );
+}, areSameSubagentTranscriptItemRowProps);
+
+function areSameSubagentTranscriptItemRowProps(
+  previous: SubagentTranscriptItemRowProps,
+  next: SubagentTranscriptItemRowProps,
+): boolean {
+  return (
+    previous.activeThreadId === next.activeThreadId &&
+    previous.environmentId === next.environmentId &&
+    previous.isStreaming === next.isStreaming &&
+    previous.projectRoot === next.projectRoot &&
+    areSameSubagentTranscriptItem(previous.item, next.item)
+  );
+}
+
+function areSameSubagentTranscriptItem(
+  previous: SubagentTranscriptItem,
+  next: SubagentTranscriptItem,
+): boolean {
+  return (
+    previous.id === next.id &&
+    previous.itemId === next.itemId &&
+    previous.kind === next.kind &&
+    previous.role === next.role &&
+    previous.title === next.title &&
+    previous.text === next.text &&
+    previous.command === next.command &&
+    previous.rawCommand === next.rawCommand &&
+    previous.output === next.output &&
+    previous.itemType === next.itemType &&
+    previous.status === next.status &&
+    previous.streamKind === next.streamKind &&
+    previous.loading === next.loading &&
+    previous.createdAt === next.createdAt &&
+    previous.sequence === next.sequence
   );
 }
 

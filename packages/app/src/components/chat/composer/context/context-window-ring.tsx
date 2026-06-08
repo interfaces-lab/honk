@@ -21,13 +21,13 @@ function getContextWindowRingMetrics(usage: ContextWindowSnapshot) {
 
 export function ContextWindowRing(props: {
   usage: ContextWindowSnapshot;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   className?: string;
 }) {
   const { usage, size = "md", className } = props;
   const usedPercentage = formatContextUsagePercentage(usage.usedPercentage);
   const { normalizedPercentage, circumference, dashOffset } = getContextWindowRingMetrics(usage);
-  const dimension = size === "sm" ? "size-5" : "size-6";
+  const dimension = size === "xs" ? "size-4" : size === "sm" ? "size-5" : "size-6";
 
   return (
     <span
@@ -72,7 +72,7 @@ export function ContextWindowRing(props: {
           aria-hidden
         />
       ) : null}
-      {size === "sm" ? (
+      {size !== "md" ? (
         <span className="sr-only">
           {usedPercentage ?? `${formatContextWindowTokens(usage.usedTokens)} tokens used`}
         </span>

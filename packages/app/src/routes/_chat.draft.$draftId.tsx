@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { DraftChatThreadRouteView } from "~/app/routes/chat-draft-route";
+import {
+  createDraftRouteSession,
+  DraftChatThreadRouteView,
+} from "~/routes/-chat-draft-route";
 import { DraftId } from "~/stores/chat-drafts";
 
 export const Route = createFileRoute("/_chat/draft/$draftId")({
@@ -11,6 +14,9 @@ export const Route = createFileRoute("/_chat/draft/$draftId")({
     stringify: ({ draftId }) => ({
       draftId,
     }),
+  },
+  beforeLoad: ({ params }) => {
+    createDraftRouteSession(params.draftId);
   },
   component: DraftChatThreadRouteView,
 });

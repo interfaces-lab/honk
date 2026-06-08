@@ -2,7 +2,7 @@ import { ScopedThreadRef } from "@multi/contracts";
 import { Option, Schema } from "effect";
 
 import { DraftId } from "~/stores/chat-drafts";
-import type { ThreadRouteTarget } from "./thread-route-targets";
+import type { ThreadRouteTarget } from "./-thread-route-targets";
 
 const LAST_CHAT_ROUTE_KEY = "multi:last-chat-route";
 

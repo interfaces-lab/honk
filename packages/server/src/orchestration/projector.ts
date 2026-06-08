@@ -486,13 +486,13 @@ export function projectEvent(
           ]
             .toSorted(compareThreadActivities)
             .slice(-500);
+          const threadPatch: ThreadPatch = payload.activity.kind.startsWith("subagent.")
+            ? { activities }
+            : { activities, updatedAt: event.occurredAt };
 
           return {
             ...nextBase,
-            threads: updateThread(nextBase.threads, payload.threadId, {
-              activities,
-              updatedAt: event.occurredAt,
-            }),
+            threads: updateThread(nextBase.threads, payload.threadId, threadPatch),
           };
         }),
       );

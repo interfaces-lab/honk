@@ -1,6 +1,11 @@
 "use client";
 
-import { IconSidebar, IconSidebarHiddenLeftWide, IconSidebarHiddenRightWide } from "central-icons";
+import {
+  IconMagnifyingGlass,
+  IconSidebar,
+  IconSidebarHiddenLeftWide,
+  IconSidebarHiddenRightWide,
+} from "central-icons";
 import { TabsPanel, TabsRoot } from "@multi/multikit/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
@@ -16,9 +21,12 @@ import {
 } from "react";
 
 import { isElectronHost } from "~/env";
+import { COMMAND_PALETTE_FALLBACK_KEYBINDINGS, shortcutLabelForCommand } from "~/keybindings";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
+import { useServerKeybindings } from "~/rpc/server-state";
+import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import {
   RIGHT_WORKBENCH_WIDTH_LIMITS,
   SHELL_LEFT_PANEL_WIDTH_LIMITS,
@@ -277,10 +285,12 @@ function RightAside(props: {
     return () => window.cancelAnimationFrame(frame);
   }, [rightOpen]);
 
-  const runtimeValue: RightWorkbenchPanelRuntime = {
-    activeTab: effectiveActiveTab,
-    open: rightOpen,
-  };
+  const runtimeValue: RightWorkbenchPanelRuntime | null = rightOpen
+    ? {
+        activeTab: effectiveActiveTab,
+        open: true,
+      }
+    : null;
 
   return (
     <aside
@@ -300,18 +310,12 @@ function RightAside(props: {
       aria-hidden={!rightOpen ? true : undefined}
       inert={!rightOpen}
     >
-      <RightWorkbenchPanelRuntimeContext.Provider
-        // oxlint-disable-next-line react/jsx-no-constructed-context-values -- React Compiler memoizes context values
-        value={runtimeValue}
-      >
-        <>
+      {runtimeValue ? (
+        <RightWorkbenchPanelRuntimeContext.Provider value={runtimeValue}>
           <TabsRoot
             value={effectiveActiveTab}
             onValueChange={handleWorkbenchTabChange}
-            className={cn(
-              "relative z-10 flex h-full min-h-0 w-full flex-col bg-(--multi-workbench-editor-surface-background)",
-              rightOpen ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
+            className="relative z-10 flex h-full min-h-0 w-full flex-col bg-(--multi-workbench-editor-surface-background) opacity-100"
           >
             <RightAsideHeader
               workspaceKey={props.workspaceKey}
@@ -325,18 +329,16 @@ function RightAside(props: {
               workspaceKey={props.workspaceKey ?? "none"}
             />
           </TabsRoot>
-          {rightOpen ? (
-            <div
-              aria-label="Resize project panel width"
-              aria-orientation="vertical"
-              className="pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--multi-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--multi-shell-sash-hover-shade) focus-visible:after:bg-(--multi-shell-sash-hover-shade) data-[active=true]:after:bg-(--multi-shell-sash-hover-shade) motion-reduce:after:transition-none"
-              data-active={resize.dragging ? "true" : undefined}
-              {...resize.sashProps}
-              role="separator"
-            />
-          ) : null}
-        </>
-      </RightWorkbenchPanelRuntimeContext.Provider>
+          <div
+            aria-label="Resize project panel width"
+            aria-orientation="vertical"
+            className="pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--multi-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--multi-shell-sash-hover-shade) focus-visible:after:bg-(--multi-shell-sash-hover-shade) data-[active=true]:after:bg-(--multi-shell-sash-hover-shade) motion-reduce:after:transition-none"
+            data-active={resize.dragging ? "true" : undefined}
+            {...resize.sashProps}
+            role="separator"
+          />
+        </RightWorkbenchPanelRuntimeContext.Provider>
+      ) : null}
     </aside>
   );
 }
@@ -384,6 +386,8 @@ function ShellHeaderControls(props: {
   const leftOpen = useLeftOpen();
   const storedRightOpen = useRightOpen(props.workspaceKey);
   const muted = useIsMuted(props.workspaceKey);
+  const setCommandPaletteOpen = useCommandPaletteStore((store) => store.setOpen);
+  const keybindings = useServerKeybindings();
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
     routeThreadId: props.routeThreadId,
@@ -391,6 +395,15 @@ function ShellHeaderControls(props: {
     muted,
   });
 
+  const activeKeybindings =
+    keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
+  const commandPaletteShortcutLabel = shortcutLabelForCommand(
+    activeKeybindings,
+    "commandPalette.toggle",
+  );
+  const commandPaletteTitle = commandPaletteShortcutLabel
+    ? `Search (${commandPaletteShortcutLabel})`
+    : "Search";
   const rightPanelLabel = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
 
   return (
@@ -399,7 +412,7 @@ function ShellHeaderControls(props: {
         <button
           type="button"
           onClick={() => shellPanelsActions.toggleLeft()}
-          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
+          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
           aria-label={leftOpen ? "Collapse chats" : "Expand chats"}
         >
           {leftOpen ? (
@@ -408,13 +421,22 @@ function ShellHeaderControls(props: {
             <IconSidebar className="size-4 shrink-0" />
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => setCommandPaletteOpen(true)}
+          className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.94] [&_svg]:block"
+          aria-label="Search"
+          title={commandPaletteTitle}
+        >
+          <IconMagnifyingGlass className="size-3.5 shrink-0" />
+        </button>
       </div>
       {props.showRight ? (
         <div className="multi-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-40 flex h-(--multi-titlebar-control-height) shrink-0 items-center">
           <button
             type="button"
             onClick={() => setRightPanelOpen(!rightOpen, props.workspaceKey)}
-            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 leading-none text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
+            className="flex h-(--multi-titlebar-control-height) w-(--multi-titlebar-control-height) shrink-0 items-center justify-center rounded-multi-control bg-transparent p-0 text-multi-fg-secondary transition-[background-color,color,transform] hover:bg-multi-bg-quaternary hover:text-multi-fg-primary active:scale-[0.96] [&_svg]:block"
             aria-label={rightPanelLabel}
             aria-pressed={rightOpen}
             title={rightPanelLabel}

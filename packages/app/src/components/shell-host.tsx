@@ -4,19 +4,20 @@ import {
   type EnvironmentId,
   type MessageId,
   type AgentInteractionMode,
+  type OrchestrationThreadActivity,
   type SourceProposedPlanReference,
   type ThreadId,
 } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
-import { Outlet, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Outlet, useRouter } from "@tanstack/react-router";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { IconBranch, IconConsole, IconFileText, IconSquareChecklist } from "central-icons";
 
 import { openChatIndex, openDraft, openThread } from "~/app/chat-navigation";
-import { readLastChatRouteTarget } from "~/app/routes/chat-route-persistence";
+import { readLastChatRouteTarget } from "~/routes/-chat-route-persistence";
 import { toastManager } from "~/app/toast";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import { isElectron } from "~/env";
@@ -71,9 +72,15 @@ import {
   selectSidebarThreadsAcrossEnvironments,
   useStore,
 } from "~/stores/thread-store";
-import { createThreadSelectorAcrossEnvironments } from "~/stores/thread-selectors";
-import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "~/types";
-import { useRouteTarget } from "~/app/routes/thread-route-targets";
+import {
+  selectThreadGitAgentSurfaceByRef,
+  selectThreadPlanSurfaceAcrossEnvironments,
+  selectThreadPlanSurfaceByRef,
+  type ThreadGitAgentSurface,
+  type ThreadPlanSurface,
+} from "~/stores/thread-selectors";
+import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 import { GitPanel } from "./shell/git/panel";
 import { ProjectFilesPanel } from "./shell/files/panel";
 import {
@@ -132,27 +139,31 @@ async function sendRuntimeShellTurn(input: {
   await sendRuntimeTurn({ ...input, images: [] });
 }
 
-function hasGitAgentStartFailure(thread: Thread, action: GitAgentAction): boolean {
-  const latestUserMessage = thread.messages.findLast((message) => message.role === "user");
+function hasGitAgentStartFailure(
+  thread: ThreadGitAgentSurface,
+  action: GitAgentAction,
+): boolean {
+  const latestUserMessage = thread.latestUserMessage;
   if (!latestUserMessage || resolveGitAgentActionFromPrompt(latestUserMessage.text) !== action) {
     return false;
   }
-  return thread.activities.some(
+  return thread.startFailureActivities.some(
     (activity) =>
       activity.kind === "runtime.turn.start.failed" &&
       activity.createdAt >= latestUserMessage.createdAt,
   );
 }
 
-function hasGitAgentActionMessage(thread: Thread, handoff: GitAgentActionHandoff): boolean {
-  return thread.messages.some(
-    (message) => message.role === "user" && message.id === handoff.optimisticMessage.id,
-  );
+function hasGitAgentActionMessage(
+  thread: ThreadGitAgentSurface,
+  handoff: GitAgentActionHandoff,
+): boolean {
+  return thread.userMessageIds.includes(handoff.optimisticMessage.id);
 }
 
 function resolveActiveGitAgentHandoff(input: {
   activeRun: GitAgentRun | null;
-  activeThread: Thread | null;
+  activeThread: ThreadGitAgentSurface | null;
   mutationIsPending: boolean;
   orchestrationHandoff: GitAgentActionHandoff | null;
 }): GitAgentActionHandoff | null {
@@ -193,7 +204,7 @@ function resolveActiveGitAgentHandoff(input: {
   return input.orchestrationHandoff;
 }
 
-const EMPTY_THREAD_ACTIVITIES: Thread["activities"] = [];
+const EMPTY_PLAN_ACTIVITIES: readonly OrchestrationThreadActivity[] = [];
 
 type PlanWorkbenchLabel = "Plan" | "Tasks";
 
@@ -224,22 +235,22 @@ export function ShellHost(props: { children?: ReactNode; mode: "chat" | "setting
 }
 
 function SettingsShellHost(props: { children?: ReactNode }) {
-  const navigate = useNavigate();
+  const router = useRouter();
   const firstProjectCwd = useStore(
     (store) => selectProjectsAcrossEnvironments(store)[0]?.cwd ?? null,
   );
   const backToChat = () => {
     const lastChatRouteTarget = readLastChatRouteTarget();
     if (lastChatRouteTarget?.kind === "draft") {
-      void openDraft(navigate, lastChatRouteTarget.draftId);
+      void openDraft(router, lastChatRouteTarget.draftId);
       return;
     }
     if (lastChatRouteTarget?.kind === "server") {
-      void openThread(navigate, lastChatRouteTarget.threadRef);
+      void openThread(router, lastChatRouteTarget.threadRef);
       return;
     }
 
-    void openChatIndex(navigate);
+    void openChatIndex(router);
   };
 
   const settingsLeft = (
@@ -267,7 +278,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
 }
 
 function ChatShellHost(props: { children?: ReactNode }) {
-  const navigate = useNavigate();
+  const router = useRouter();
   const openAddProject = useCommandPaletteStore((store) => store.openAddProject);
   const routeThreadId = useRouteThreadId();
   const routeTarget = useRouteTarget();
@@ -295,18 +306,25 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const selectedId =
     routeTarget?.kind === "draft" ? routeTarget.draftId : (routeTarget?.threadRef.threadId ?? null);
 
+  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = routeActiveThread ?? null;
+  const activePlanThread = useStore(
+    useShallow((store) => selectThreadPlanSurfaceByRef(store, routeThreadRef) ?? null),
+  );
+  const activeGitAgentThread = useStore(
+    useShallow((store) => selectThreadGitAgentSurfaceByRef(store, routeThreadRef) ?? null),
+  );
   const gitAgentActionInFlightRef = useRef(false);
 
   const activeGitAgentRun = (() => {
-    if (!activeThread) {
+    if (!activeGitAgentThread) {
       return null;
     }
-    const status = activeThread.session?.orchestrationStatus ?? null;
+    const status = activeGitAgentThread.session?.orchestrationStatus ?? null;
     if (status !== "starting" && status !== "running") {
       return null;
     }
-    const latestUserMessage = activeThread.messages.findLast((message) => message.role === "user");
+    const latestUserMessage = activeGitAgentThread.latestUserMessage;
     const action = latestUserMessage
       ? resolveGitAgentActionFromPrompt(latestUserMessage.text)
       : null;
@@ -316,8 +334,8 @@ function ChatShellHost(props: { children?: ReactNode }) {
     return {
       action,
       target: {
-        environmentId: activeThread.environmentId,
-        threadId: activeThread.id,
+        environmentId: activeGitAgentThread.environmentId,
+        threadId: activeGitAgentThread.id,
       },
     };
   })();
@@ -339,63 +357,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
     projectlessCwd,
     fallbackEnvironmentId: storeActiveEnvironmentId,
   });
-  useEffect(() => {
-    const sourceProjectIdMatchCount = workspaceSource?.projectId
-      ? projects.filter((project) => project.id === workspaceSource.projectId).length
-      : 0;
-    const sourceExactProjectMatchCount = workspaceSource?.projectId
-      ? projects.filter(
-          (project) =>
-            project.environmentId === workspaceSource.environmentId &&
-            project.id === workspaceSource.projectId,
-        ).length
-      : 0;
-    const targetDebugPayload = {
-      routeKind: routeTarget?.kind ?? null,
-      routeEnvironmentId:
-        routeTarget?.kind === "server" ? routeTarget.threadRef.environmentId : null,
-      routeThreadId: routeTarget?.kind === "server" ? routeTarget.threadRef.threadId : null,
-      routeDraftId: routeTarget?.kind === "draft" ? routeTarget.draftId : null,
-      projectCount: projects.length,
-      sourceProjectIdMatchCount,
-      sourceExactProjectMatchCount,
-      sourceEnvironmentId: workspaceSource?.environmentId ?? null,
-      sourceProjectId: workspaceSource?.projectId ?? null,
-      sourceWorktreePath: workspaceSource?.worktreePath ?? null,
-      defaultProjectEnvironmentId: defaultProject?.environmentId ?? null,
-      defaultProjectId: defaultProject?.id ?? null,
-      defaultProjectCwd: defaultProject?.cwd ?? null,
-      targetEnvironmentId: workspaceTarget.environmentId,
-      targetRpcEnvironmentId: workspaceTarget.rpcEnvironmentId,
-      targetProjectEnvironmentId: workspaceTarget.project?.environmentId ?? null,
-      targetProjectId: workspaceTarget.project?.id ?? null,
-      targetProjectCwd: workspaceTarget.projectCwd,
-      targetCwd: workspaceTarget.cwd,
-      targetWorktreePath: workspaceTarget.worktreePath,
-      workspaceKey: workspaceTarget.workspaceKey,
-    };
-    console.log("[workspace.target.shell-host]", targetDebugPayload);
-  }, [
-    defaultProject?.cwd,
-    defaultProject?.environmentId,
-    defaultProject?.id,
-    routeTarget?.kind,
-    routeTarget?.kind === "draft" ? routeTarget.draftId : null,
-    routeTarget?.kind === "server" ? routeTarget.threadRef.environmentId : null,
-    routeTarget?.kind === "server" ? routeTarget.threadRef.threadId : null,
-    projects,
-    workspaceSource?.environmentId,
-    workspaceSource?.projectId,
-    workspaceSource?.worktreePath,
-    workspaceTarget.cwd,
-    workspaceTarget.environmentId,
-    workspaceTarget.project?.environmentId,
-    workspaceTarget.project?.id,
-    workspaceTarget.projectCwd,
-    workspaceTarget.rpcEnvironmentId,
-    workspaceTarget.worktreePath,
-    workspaceTarget.workspaceKey,
-  ]);
   const activeCwd = workspaceTarget.cwd;
   const activeRpcEnvironmentId = workspaceTarget.rpcEnvironmentId;
 
@@ -409,23 +370,24 @@ function ChatShellHost(props: { children?: ReactNode }) {
     activeLatestTurn.sourceProposedPlan.threadId !== activeThread?.id
       ? activeLatestTurn.sourceProposedPlan.threadId
       : null;
-  const sourceProposedPlanThreadSelector = useMemo(
-    () => createThreadSelectorAcrossEnvironments(sourceProposedPlanThreadId),
-    [sourceProposedPlanThreadId],
+  const sourceProposedPlanThread = useStore(
+    useShallow(
+      (store) =>
+        selectThreadPlanSurfaceAcrossEnvironments(store, sourceProposedPlanThreadId) ?? null,
+    ),
   );
-  const sourceProposedPlanThread = useStore(sourceProposedPlanThreadSelector);
   const planThreads = (() => {
-    const threads: Thread[] = [];
-    if (activeThread) {
-      threads.push(activeThread);
+    const threads: Array<Pick<ThreadPlanSurface, "id" | "proposedPlans">> = [];
+    if (activePlanThread) {
+      threads.push(activePlanThread);
     }
-    if (sourceProposedPlanThread && sourceProposedPlanThread.id !== activeThread?.id) {
+    if (sourceProposedPlanThread && sourceProposedPlanThread.id !== activePlanThread?.id) {
       threads.push(sourceProposedPlanThread);
     }
     return threads;
   })();
   const activePlan = deriveActivePlanState(
-    activeThread?.activities ?? EMPTY_THREAD_ACTIVITIES,
+    activePlanThread?.planActivities ?? EMPTY_PLAN_ACTIVITIES,
     activeLatestTurn?.turnId ?? undefined,
   );
   const activeProposedPlan = findSidebarProposedPlan({
@@ -563,6 +525,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     projectlessCwd,
     projects,
     routeActiveThread: routeActiveThread ?? null,
+    selectedId,
     sidebarThreads,
   });
 
@@ -702,7 +665,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         clientMessageId: messageId,
       });
 
-      await openThread(navigate, scopeThreadRef(targetThreadEnvironmentId, threadId));
+      await openThread(router, scopeThreadRef(targetThreadEnvironmentId, threadId));
     } catch (error) {
       setGitAgentOrchestrationHandoff(null);
       if (draftPromotionMarked && promotedDraftId) {
@@ -727,7 +690,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   });
   const activeGitAgentHandoff = resolveActiveGitAgentHandoff({
     activeRun: activeGitAgentRun,
-    activeThread,
+    activeThread: activeGitAgentThread,
     mutationIsPending: gitAgentActionMutation.isPending,
     orchestrationHandoff: gitAgentOrchestrationHandoff,
   });
@@ -764,10 +727,22 @@ function ChatShellHost(props: { children?: ReactNode }) {
     mutationVariables: gitAgentActionMutation.variables,
     orchestrationHandoff: activeGitAgentHandoff,
   });
+  const runGitAgentAction = useCallback(
+    (action: GitAgentAction) => gitAgentActionMutation.mutate(action),
+    [gitAgentActionMutation.mutate],
+  );
   const gitAgentStopTarget = activeGitAgentRun?.target ?? activeGitAgentHandoff?.target ?? null;
-  const stopGitAgentAction = gitAgentStopTarget
-    ? () => stopGitAgentActionMutation.mutate(gitAgentStopTarget)
-    : null;
+  const stopGitAgentActionHandler = useCallback(() => {
+    if (!gitAgentStopTarget) {
+      return;
+    }
+    stopGitAgentActionMutation.mutate(gitAgentStopTarget);
+  }, [
+    gitAgentStopTarget?.environmentId,
+    gitAgentStopTarget?.threadId,
+    stopGitAgentActionMutation.mutate,
+  ]);
+  const stopGitAgentAction = gitAgentStopTarget ? stopGitAgentActionHandler : null;
   const stoppingGitAgentAction =
     stopGitAgentActionMutation.isPending && pendingGitAgentAction !== null;
   const center = (
@@ -783,7 +758,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         aria-hidden="true"
       />
       <div className={cn("shrink-0", isElectron && "no-drag")}>
-        <ShellSidebarHeader onNewChat={sidebarModel.create} onAddProject={openAddProject} />
+        <ShellSidebarHeader onNewChat={sidebarModel.create} />
       </div>
       <AgentSidebar
         loading={false}
@@ -793,6 +768,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         onSelectAgent={sidebarModel.select}
         onPrefetchAgent={sidebarModel.prefetchAgent}
         onNewAgent={sidebarModel.create}
+        onOpenWorkspace={openAddProject}
       />
       <ShellSidebarFooter />
     </div>
@@ -808,7 +784,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       environmentId={activeRpcEnvironmentId}
       availableEditors={availableEditors}
       plan={planWorkbench}
-      onGitAgentAction={(action) => gitAgentActionMutation.mutate(action)}
+      onGitAgentAction={runGitAgentAction}
       onStopGitAgentAction={stopGitAgentAction}
       stoppingGitAgentAction={stoppingGitAgentAction}
       pendingGitAgentAction={pendingGitAgentAction}
@@ -823,21 +799,6 @@ function TerminalWorkbenchPanel(props: {
 }) {
   const terminalState = useTerminalSessions(props.workspaceKey);
   const { open: terminalRailOpen } = useSecondaryRail(props.workspaceKey, "terminal");
-  useEffect(() => {
-    console.log("[workspace.panel.terminal-target]", {
-      cwd: props.cwd,
-      environmentId: props.environmentId,
-      workspaceKey: props.workspaceKey,
-      activeTerminalId: terminalState.activeId,
-      sessionCount: terminalState.sessions.length,
-    });
-  }, [
-    props.cwd,
-    props.environmentId,
-    props.workspaceKey,
-    terminalState.activeId,
-    terminalState.sessions.length,
-  ]);
   return (
     <WorkbenchPanel className="overflow-hidden">
       <TerminalWorkbenchSubChrome
@@ -883,29 +844,6 @@ function GitWorkbenchPanel(props: {
   const runtime = useRightWorkbenchPanelRuntime();
   const active = runtime.open && runtime.activeTab === "git";
   const git = useEnvironmentGitPanel(props.environmentId, props.cwd, { enabled: active });
-  useEffect(() => {
-    console.log("[workspace.panel.git-target]", {
-      cwd: props.cwd,
-      environmentId: props.environmentId,
-      workspaceKey: props.workspaceKey,
-      active,
-      rightWorkbenchOpen: runtime.open,
-      activeTab: runtime.activeTab,
-      gitView: git.view.kind,
-      gitBranch: git.branch,
-      gitCount: git.count,
-    });
-  }, [
-    active,
-    git.branch,
-    git.count,
-    git.view.kind,
-    props.cwd,
-    props.environmentId,
-    props.workspaceKey,
-    runtime.activeTab,
-    runtime.open,
-  ]);
 
   return (
     <WorkbenchPanel>
@@ -937,7 +875,7 @@ function ChatWorkbenchShellHost(props: {
   pendingGitAgentAction: GitAgentAction | null;
 }) {
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
-  const workbenchTabs: WorkbenchTabMeta[] = (() => {
+  const workbenchTabs: WorkbenchTabMeta[] = useMemo(() => {
     const tabs: WorkbenchTabMeta[] = planTabAvailable
       ? [
           {
@@ -957,9 +895,9 @@ function ChatWorkbenchShellHost(props: {
       { id: "files", label: "Files", icon: IconFileText },
     );
     return tabs;
-  })();
+  }, [planTabAvailable, props.plan.label]);
 
-  const right: RightWorkbenchDefinition = (() => {
+  const right: RightWorkbenchDefinition = useMemo(() => {
     const panels: RightWorkbenchDefinition["panels"] = {
       files: (
         <WorkbenchPanel>
@@ -1011,7 +949,28 @@ function ChatWorkbenchShellHost(props: {
     }
 
     return { tabs: workbenchTabs, panels };
-  })();
+  }, [
+    planTabAvailable,
+    props.availableEditors,
+    props.cwd,
+    props.environmentId,
+    props.onGitAgentAction,
+    props.onStopGitAgentAction,
+    props.pendingGitAgentAction,
+    props.plan.activePlan,
+    props.plan.activeProposedPlan,
+    props.plan.canImplementPlan,
+    props.plan.environmentId,
+    props.plan.isImplementingPlan,
+    props.plan.label,
+    props.plan.markdownCwd,
+    props.plan.onImplementPlan,
+    props.plan.onSaveProposedPlan,
+    props.plan.timestampFormat,
+    props.stoppingGitAgentAction,
+    props.workspaceKey,
+    workbenchTabs,
+  ]);
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
