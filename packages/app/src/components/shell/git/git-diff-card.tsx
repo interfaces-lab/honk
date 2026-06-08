@@ -173,7 +173,7 @@ export function GitDiffCardHeader(props: {
         type="button"
         variant="ghost"
         onClick={props.onToggleExpanded}
-        className="group/git-diff-toggle h-full min-w-0 flex-1 justify-start gap-1.5 overflow-hidden rounded-none border-0 px-1 py-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
+        className="group/git-diff-toggle h-full min-w-0 flex-1 justify-start gap-1.5 overflow-hidden rounded-none border-0 px-1 py-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent [&_[data-truncate-content=overflow]]:whitespace-normal"
         aria-label={`${props.expanded ? "Collapse" : "Expand"} ${props.file.path}`}
         aria-expanded={props.expanded}
         title={props.file.path}
@@ -185,7 +185,7 @@ export function GitDiffCardHeader(props: {
           <MiddleTruncate
             split="leaf-path"
             priority="end"
-            className="min-w-0 flex-1 font-normal text-multi-fg-primary [--truncate-marker-background-color:var(--multi-git-diff-editor-background)]"
+            className="min-w-0 flex-1 whitespace-normal font-normal text-multi-fg-primary [--truncate-marker-background-color:var(--multi-git-diff-editor-background)]"
           >
             {props.file.path}
           </MiddleTruncate>
