@@ -1,6 +1,8 @@
 import {
   MessageId,
+  RuntimeItemId,
   RuntimeSessionId,
+  ThreadEntryId,
   ThreadId,
   TurnId,
   type RuntimeDisplayTimelineProjection,
@@ -390,6 +392,7 @@ describe("buildChatDisplayTimeline", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,
       isWorking: true,
+      isTurnRunning: true,
       activeTurnStartedAt: createdAt,
       editableUserMessageIds: new Set(),
     });
@@ -425,5 +428,85 @@ describe("buildChatDisplayTimeline", () => {
         request: expect.objectContaining({ requestId: "request-golden" }),
       }),
     );
+  });
+
+  it("drops redundant git-agent custom messages when the user prompt row is already present", () => {
+    const gitPrompt = [
+      "GitAction: commitAndPush",
+      "Run this Git action from Source Control.",
+      "Action: Commit & Push",
+    ].join("\n");
+    const clientMessageId = MessageId.make("message:git-agent-user");
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:git-agent-user",
+          kind: "message",
+          source: "session-entry",
+          orderKey: `${createdAt}:message:git-agent-user`,
+          createdAt,
+          entryId: RuntimeItemId.make("runtime:git-agent-user"),
+          threadEntryId: ThreadEntryId.make("thread-entry:git-agent-user"),
+          parentEntryId: null,
+          parentThreadEntryId: null,
+          role: "user",
+          clientMessageId,
+          text: gitPrompt,
+          eventIds: [],
+          streaming: false,
+        },
+        {
+          id: "custom-message:runtime:git-agent-action",
+          kind: "custom-message",
+          orderKey: `${createdAt}:custom-message:runtime:git-agent-action`,
+          createdAt,
+          entryId: RuntimeItemId.make("runtime:git-agent-action"),
+          threadEntryId: ThreadEntryId.make("thread-entry:git-agent-action"),
+          parentEntryId: RuntimeItemId.make("runtime:git-agent-user"),
+          parentThreadEntryId: ThreadEntryId.make("thread-entry:git-agent-user"),
+          customType: "git-agent-action",
+          content: "**Commit & Push** queued",
+          display: true,
+          text: "**Commit & Push** queued",
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    expect(
+      buildTimeline({
+        messages: [userMessage(clientMessageId, gitPrompt)],
+        runtimeTimeline,
+      }).map((entry) => entry.kind),
+    ).toEqual(["message"]);
+  });
+
+  it("dedupes duplicate user rows that share timestamp and text under different ids", () => {
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:runtime-user",
+          kind: "message",
+          source: "live-event",
+          orderKey: `${createdAt}:message:runtime-user`,
+          createdAt,
+          role: "user",
+          clientMessageId: MessageId.make("message:runtime-user"),
+          text: "hi",
+          eventIds: [],
+          streaming: false,
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    expect(
+      buildTimeline({
+        messages: [userMessage("message:committed-user", "hi")],
+        runtimeTimeline,
+      }).filter((entry) => entry.kind === "message" && entry.message.role === "user"),
+    ).toHaveLength(1);
   });
 });

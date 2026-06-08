@@ -169,6 +169,7 @@ export function computeMessageDurationStart(
 export function deriveTimelineRenderItems(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
+  isTurnRunning: boolean;
   activeTurnStartedAt: string | null;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
@@ -209,6 +210,9 @@ export function deriveTimelineRenderItems(input: {
       }
       const firstStep = steps[0]!;
       const analysis = analyzeWorkGroup(entries);
+      if (!input.isTurnRunning) {
+        analysis.running = false;
+      }
       const group: GroupedSteps = {
         id: firstStep.id,
         createdAt: firstStep.createdAt,
@@ -255,7 +259,7 @@ export function deriveTimelineRenderItems(input: {
           step,
         });
       } else {
-        const group = summarizeRuntimeGroup(steps);
+        const group = summarizeRuntimeGroup(steps, { isTurnRunning: input.isTurnRunning });
         items.push({
           kind: "group",
           id: group.id,
@@ -400,9 +404,10 @@ function runtimeTimelineEntryToStep(
 
 function summarizeRuntimeGroup(
   steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+  input: { isTurnRunning: boolean },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = steps.some(isRunningRuntimeStep);
+  const running = input.isTurnRunning && steps.some(isRunningRuntimeStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const toolSteps = steps.filter((step) => step.kind === "runtime-tool");
   const commandCount = toolSteps.filter(isRuntimeCommandToolStep).length;

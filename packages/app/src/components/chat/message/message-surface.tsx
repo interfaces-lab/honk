@@ -174,7 +174,7 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
     : {};
 
   return (
-    <div className="box-border flex w-full min-w-0">
+    <div className="box-border flex w-full min-w-0 justify-end">
       <div
         className={cn(
           humanMessageBubbleVariants({ editable: props.editable }),

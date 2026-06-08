@@ -34,10 +34,12 @@ import {
   RuntimeItemId,
   RuntimeTaskId,
   resolveLeafIdAfterThreadMessage,
+  threadEntryIdForMessageId,
   TurnId,
 } from "@multi/contracts";
 import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
 import { normalizeModelSlug } from "@multi/shared/model";
+import { toJsonValue } from "@multi/shared/schema-json";
 import type {
   ChatMessage,
   LiveAssistantTurn,
@@ -465,7 +467,10 @@ function threadFromRuntimeSessionTree(
   const projectedThreadEntryIdByRuntimeId = new Map(
     tree.entries
       .filter(isDisplayableRuntimeMessageEntry)
-      .map((entry) => [entry.id, entry.threadEntryId] as const),
+      .map((entry) => [
+        entry.id,
+        threadEntryIdForMessageId(runtimeSessionTreeMessageId(tree, entry)),
+      ] as const),
   );
 
   for (const entry of tree.entries) {
@@ -480,7 +485,8 @@ function threadFromRuntimeSessionTree(
     }
 
     if (isDisplayableRuntimeMessageEntry(entry)) {
-      const messageId = entry.clientMessageId ?? MessageId.make(entry.threadEntryId);
+      const messageId = runtimeSessionTreeMessageId(tree, entry);
+      const threadEntryId = threadEntryIdForMessageId(messageId);
       projectedMessages.push({
         id: messageId,
         role: entry.role,
@@ -496,16 +502,16 @@ function threadFromRuntimeSessionTree(
         projectedThreadEntryIdByRuntimeId,
       });
       const existingEntry = previousThread?.entries.find(
-        (threadEntry) => threadEntry.id === entry.threadEntryId,
+        (threadEntry) => threadEntry.id === threadEntryId,
       );
       const previousLeafParentId =
         previousThread?.leafId &&
-        previousThread.leafId !== entry.threadEntryId &&
+        previousThread.leafId !== threadEntryId &&
         previousEntryById.has(previousThread.leafId)
           ? previousThread.leafId
           : null;
       projectedEntries.push({
-        id: entry.threadEntryId,
+        id: threadEntryId,
         threadId: tree.threadId,
         parentEntryId:
           projectedParentEntryId ?? existingEntry?.parentEntryId ?? previousLeafParentId,
@@ -561,6 +567,13 @@ function threadFromRuntimeSessionTree(
     activities: upsertThreadActivities(previousThread?.activities ?? [], sessionTreeActivities),
     chatTimelineRows: [],
   };
+}
+
+function runtimeSessionTreeMessageId(
+  tree: SessionTreeProjection,
+  entry: ProjectedRuntimeMessageEntry,
+): MessageId {
+  return entry.clientMessageId ?? MessageId.make(`${tree.runtimeSessionId}:${entry.id}`);
 }
 
 function mergeRuntimeSessionMessages(
@@ -1009,8 +1022,12 @@ function asInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) ? value : null;
 }
 
-function asNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+function asNonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function asPositiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 }
 
 function toolResultText(value: unknown): string | null {
@@ -1126,7 +1143,7 @@ function compactRuntimeSubagentItemPayload(
   const status = asTrimmedString(payload?.status);
   const title = asTrimmedString(payload?.title);
   const detail = asTrimmedString(payload?.detail);
-  const data = payload?.data;
+  const data = toJsonValue(payload?.data);
   return {
     ...identity,
     ...(itemType && isCanonicalItemType(itemType) ? { itemType } : {}),
@@ -1172,11 +1189,11 @@ function compactRuntimeSubagentUsagePayload(
   if (!identity) {
     return null;
   }
-  const usedTokens = asNumber(payload?.usedTokens);
+  const usedTokens = asNonNegativeInteger(payload?.usedTokens);
   if (usedTokens === null) {
     return null;
   }
-  const maxTokens = asNumber(payload?.maxTokens);
+  const maxTokens = asPositiveInteger(payload?.maxTokens);
   return {
     ...identity,
     usedTokens,
@@ -1261,10 +1278,7 @@ export function runtimeSubagentActivitiesForToolEvent(
     const summary = asTrimmedString(activity.summary) ?? "Subagent update";
     const createdAt = asTrimmedString(activity.createdAt) ?? event.createdAt;
     const payload = asRecord(activity.payload);
-    const sequence =
-      typeof activity.sequence === "number" && Number.isInteger(activity.sequence)
-        ? activity.sequence
-        : undefined;
+    const sequence = asNonNegativeInteger(activity.sequence) ?? undefined;
 
     switch (kind) {
       case "subagent.thread.started": {
@@ -1301,7 +1315,9 @@ export function runtimeSubagentActivitiesForToolEvent(
           payload: {
             ...identity,
             state,
-            ...(payload?.detail !== undefined ? { detail: payload.detail } : {}),
+            ...(payload?.detail !== undefined
+              ? { detail: toJsonValue(payload.detail) ?? null }
+              : {}),
           },
         });
         break;

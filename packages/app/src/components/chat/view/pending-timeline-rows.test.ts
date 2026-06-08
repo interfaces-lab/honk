@@ -216,6 +216,31 @@ describe("appendMissingRuntimeTimelineMessageEntries", () => {
     ]);
   });
 
+  it("does not duplicate user messages that match runtime rows by timestamp and text", () => {
+    const message = userMessage({
+      id: "message:committed-user",
+      text: "hi",
+    });
+    const runtimeMessage = userMessage({
+      id: "message:runtime-user",
+      text: "hi",
+    });
+    const runtimeEntry = {
+      id: "message:runtime-entry",
+      kind: "message" as const,
+      createdAt,
+      message: runtimeMessage,
+    };
+
+    expect(
+      appendMissingRuntimeTimelineMessageEntries({
+        entries: [runtimeEntry],
+        messages: [message],
+        pendingRows: [],
+      }),
+    ).toEqual([runtimeEntry]);
+  });
+
   it("does not duplicate user messages already represented by runtime entries", () => {
     const message = userMessage({
       id: "message:runtime-canonical-user",

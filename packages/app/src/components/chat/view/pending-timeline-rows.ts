@@ -205,10 +205,12 @@ export function appendMissingRuntimeTimelineMessageEntries(input: {
 
 function runtimeTimelineMessageCoverage(entries: ReadonlyArray<TimelineEntry>): {
   messageIds: Set<MessageId>;
+  userTimestampTextKeys: Set<string>;
   nonUserTurnKeys: Set<string>;
   nonUserTimestampTextKeys: Set<string>;
 } {
   const messageIds = new Set<MessageId>();
+  const userTimestampTextKeys = new Set<string>();
   const nonUserTurnKeys = new Set<string>();
   const nonUserTimestampTextKeys = new Set<string>();
   for (const entry of entries) {
@@ -216,6 +218,10 @@ function runtimeTimelineMessageCoverage(entries: ReadonlyArray<TimelineEntry>): 
       continue;
     }
     messageIds.add(entry.message.id);
+    const userTimestampTextKey = userTimestampTextCoverageKey(entry.message);
+    if (userTimestampTextKey) {
+      userTimestampTextKeys.add(userTimestampTextKey);
+    }
     const turnKey = nonUserTurnCoverageKey(entry.message);
     if (turnKey) {
       nonUserTurnKeys.add(turnKey);
@@ -225,7 +231,7 @@ function runtimeTimelineMessageCoverage(entries: ReadonlyArray<TimelineEntry>): 
       nonUserTimestampTextKeys.add(timestampTextKey);
     }
   }
-  return { messageIds, nonUserTurnKeys, nonUserTimestampTextKeys };
+  return { messageIds, userTimestampTextKeys, nonUserTurnKeys, nonUserTimestampTextKeys };
 }
 
 function runtimeTimelineCoversMessage(
@@ -233,6 +239,10 @@ function runtimeTimelineCoversMessage(
   message: ChatMessage,
 ): boolean {
   if (coverage.messageIds.has(message.id)) {
+    return true;
+  }
+  const userTimestampTextKey = userTimestampTextCoverageKey(message);
+  if (userTimestampTextKey !== null && coverage.userTimestampTextKeys.has(userTimestampTextKey)) {
     return true;
   }
   const turnKey = nonUserTurnCoverageKey(message);
@@ -248,6 +258,17 @@ function nonUserTurnCoverageKey(message: ChatMessage): string | null {
     return null;
   }
   return `${message.role}:${message.turnId}`;
+}
+
+export function userTimestampTextCoverageKey(message: ChatMessage): string | null {
+  if (message.role !== "user") {
+    return null;
+  }
+  const text = message.text.trim();
+  if (text.length === 0) {
+    return null;
+  }
+  return `user:${message.createdAt}:${text}`;
 }
 
 function nonUserTimestampTextCoverageKey(message: ChatMessage): string | null {

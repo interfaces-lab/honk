@@ -13,7 +13,7 @@ import {
 import type { TimestampFormat } from "@multi/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
 import { Outlet, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { IconBranch, IconConsole, IconFileText, IconSquareChecklist } from "central-icons";
@@ -703,7 +703,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         interactionMode,
         branch: projectScopedBranch,
         worktreePath: projectScopedWorktreePath,
-        createdAt,
+        createdAt: currentDraftThread?.createdAt ?? createdAt,
       });
       localThreadAnnounced = true;
     };
@@ -785,7 +785,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
                   interactionMode,
                   branch: projectScopedBranch,
                   worktreePath: projectScopedWorktreePath,
-                  createdAt,
+                  createdAt: currentDraftThread?.createdAt ?? createdAt,
                 },
               },
             }
@@ -1000,6 +1000,16 @@ function GitWorkbenchPanel(props: {
   const runtime = useRightWorkbenchPanelRuntime();
   const active = runtime.open && runtime.activeTab === "git";
   const git = useEnvironmentGitPanel(props.environmentId, props.cwd, { enabled: active });
+  const previousPendingAgentActionRef = useRef<GitAgentAction | null>(props.pendingAgentAction);
+
+  useEffect(() => {
+    const previousPendingAgentAction = previousPendingAgentActionRef.current;
+    previousPendingAgentActionRef.current = props.pendingAgentAction;
+
+    if (previousPendingAgentAction !== null && props.pendingAgentAction === null) {
+      void git.refresh().catch(() => undefined);
+    }
+  }, [git, props.pendingAgentAction]);
 
   return (
     <WorkbenchPanel>

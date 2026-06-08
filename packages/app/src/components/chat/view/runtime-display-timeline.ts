@@ -2,7 +2,9 @@ import {
   MessageId,
   OrchestrationProposedPlanId,
   type RuntimeDisplayTimelineItem,
+  type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineProjection,
+  type RuntimeSessionId,
 } from "@multi/contracts";
 
 import type { TimelineEntry } from "../../../session-logic";
@@ -22,7 +24,12 @@ export function materializeTimelineEntriesFromRuntimeDisplayTimeline(input: {
 
   for (const item of input.timeline.items) {
     entries.push(
-      ...runtimeDisplayTimelineItemToTimelineEntries(item, messagesById, proposedPlansById),
+      ...runtimeDisplayTimelineItemToTimelineEntries(
+        item,
+        input.timeline.runtimeSessionId,
+        messagesById,
+        proposedPlansById,
+      ),
     );
   }
 
@@ -63,7 +70,7 @@ export function runtimeDisplayTimelineRenderableUserMessageIds(
     if ((item.text?.trim().length ?? 0) === 0) {
       continue;
     }
-    messageIds.add(item.clientMessageId ?? MessageId.make(item.threadEntryId ?? item.id));
+    messageIds.add(runtimeDisplayTimelineMessageId(timeline.runtimeSessionId, item));
   }
   return messageIds;
 }
@@ -88,14 +95,14 @@ export function shouldUseRuntimeDisplayTimelineEntries(input: {
 
 function runtimeDisplayTimelineItemToTimelineEntries(
   item: RuntimeDisplayTimelineItem,
+  runtimeSessionId: RuntimeSessionId,
   messagesById: ReadonlyMap<MessageId, ChatMessage>,
   proposedPlansById: ReadonlyMap<OrchestrationProposedPlanId, ProposedPlan>,
 ): TimelineEntry[] {
   switch (item.kind) {
     case "message": {
       const entries: TimelineEntry[] = [];
-      const messageId =
-        item.clientMessageId ?? MessageId.make(item.threadEntryId ?? item.id);
+      const messageId = runtimeDisplayTimelineMessageId(runtimeSessionId, item);
       const existingMessage = messagesById.get(messageId);
       const role = runtimeDisplayMessageRole(item.role);
       if (!role) {
@@ -171,6 +178,19 @@ function runtimeDisplayTimelineItemToTimelineEntries(
       }];
     }
   }
+}
+
+function runtimeDisplayTimelineMessageId(
+  runtimeSessionId: RuntimeSessionId,
+  item: RuntimeDisplayTimelineMessageItem,
+): MessageId {
+  if (item.clientMessageId) {
+    return item.clientMessageId;
+  }
+  if (item.entryId) {
+    return MessageId.make(`${runtimeSessionId}:${item.entryId}`);
+  }
+  return MessageId.make(item.threadEntryId ?? item.id);
 }
 
 function shouldMaterializeRuntimeMessageText(

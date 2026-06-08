@@ -1,5 +1,7 @@
 import {
   AuthProviderId,
+  type ClientOrchestrationCommand,
+  ClientOrchestrationCommand as ClientOrchestrationCommandSchema,
   type EnvironmentApi,
   EventId,
   MessageId,
@@ -13,6 +15,7 @@ import {
   type SessionTreeProjection,
   type RuntimeDisplayTimelineProjection,
 } from "@multi/contracts";
+import { Schema } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -113,11 +116,12 @@ const pendingExtensionUiRequestPrototype = {
   options: ["Allow", "Deny"],
   createdAt: turnStartedAt,
 } satisfies DesktopExtensionUiRequest;
+const decodeClientOrchestrationCommand = Schema.decodeUnknownSync(ClientOrchestrationCommandSchema);
 
 function installRuntimePersistenceApi() {
-  const dispatchedCommands: unknown[] = [];
+  const dispatchedCommands: ClientOrchestrationCommand[] = [];
   const dispatchCommand = vi.fn((command: unknown) => {
-    dispatchedCommands.push(command);
+    dispatchedCommands.push(decodeClientOrchestrationCommand(command));
     return Promise.resolve(undefined);
   });
   vi.stubGlobal("window", {});
@@ -924,6 +928,114 @@ describe("agent runtime store", () => {
         parentEntryId: threadEntryIdForMessageId(secondClientMessageId),
       }),
     ]);
+  });
+
+  it("persists tool completion activities with contract-safe payload values", () => {
+    const { dispatchedCommands } = installRuntimePersistenceApi();
+
+    useAgentRuntimeStore.getState().applyHostEvent({
+      type: "runtime-event",
+      event: {
+        ...turnStartedEventPrototype,
+        id: EventId.make("runtime-event:agent-store:tool-completed"),
+        type: "tool.completed",
+        summary: "   ",
+        data: {
+          toolCallId: "   ",
+          toolName: "   ",
+          isError: false,
+          args: {
+            count: 1n,
+            skipped: undefined,
+          },
+          result: {
+            value: Number.POSITIVE_INFINITY,
+          },
+        },
+      },
+    });
+
+    expect(dispatchedCommands).toHaveLength(1);
+    const command = dispatchedCommands[0];
+    expect(command).toEqual(
+      expect.objectContaining({
+        type: "thread.activity.append",
+        threadId,
+        activity: expect.objectContaining({
+          kind: "tool.completed",
+          summary: "Tool completed",
+          payload: expect.objectContaining({
+            itemId: "runtime-event:agent-store:tool-completed",
+            title: "tool",
+            data: {
+              toolCallId: "runtime-event:agent-store:tool-completed",
+              toolName: "tool",
+              isError: false,
+              args: {
+                count: "1",
+              },
+              result: {
+                value: null,
+              },
+            },
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("normalizes subagent usage activities before persistence", () => {
+    const { dispatchedCommands } = installRuntimePersistenceApi();
+
+    useAgentRuntimeStore.getState().applyHostEvent({
+      type: "runtime-event",
+      event: {
+        ...turnStartedEventPrototype,
+        id: EventId.make("runtime-event:agent-store:subagent-usage"),
+        type: "tool.completed",
+        data: {
+          toolName: "subagent",
+          result: {
+            details: {
+              activities: [
+                {
+                  id: "runtime-subagent:usage",
+                  kind: "subagent.usage.updated",
+                  summary: "Usage update",
+                  createdAt: turnStartedAt,
+                  sequence: -1,
+                  payload: {
+                    subagentThreadId: "thread:agent-runtime-store:child",
+                    usedTokens: 42,
+                    maxTokens: 0,
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(dispatchedCommands).toHaveLength(1);
+    const command = dispatchedCommands[0];
+    expect(command).toEqual(
+      expect.objectContaining({
+        type: "thread.activity.append",
+        activity: expect.objectContaining({
+          kind: "subagent.usage.updated",
+          payload: {
+            subagentThreadId: "thread:agent-runtime-store:child",
+            parentTurnId: turnId,
+            usedTokens: 42,
+          },
+        }),
+      }),
+    );
+    if (command?.type !== "thread.activity.append") {
+      throw new Error("expected thread activity append command");
+    }
+    expect(command.activity).not.toHaveProperty("sequence");
   });
 
   it("caps incoming host snapshot runtime events before storing", () => {

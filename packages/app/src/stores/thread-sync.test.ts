@@ -733,6 +733,12 @@ const gitActionAssistantThreadEntryId = ThreadEntryId.make("thread-entry:git-act
 const gitActionTurnId = TurnId.make("turn:git-action");
 const gitActionUserRuntimeItemId = RuntimeItemId.make("runtime-item:git-action-user");
 const gitActionAssistantRuntimeItemId = RuntimeItemId.make("runtime-item:git-action-assistant");
+const userClientThreadEntryId = threadEntryIdForMessageId(MessageId.make("message:user"));
+const assistantRuntimeThreadEntryId = runtimeSessionThreadEntryId(assistantEntryId);
+const gitActionUserRuntimeThreadEntryId = runtimeSessionThreadEntryId(gitActionUserRuntimeItemId);
+const gitActionAssistantRuntimeThreadEntryId = runtimeSessionThreadEntryId(
+  gitActionAssistantRuntimeItemId,
+);
 const gitActionUserCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 1, 0)),
 );
@@ -740,6 +746,10 @@ const gitActionAssistantCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 1, 1)),
 );
 const gitActionPrompt = "GitAction: commitAndPush\nAction: Commit & Push";
+
+function runtimeSessionThreadEntryId(entryId: RuntimeItemId): ThreadEntryId {
+  return threadEntryIdForMessageId(MessageId.make(`runtime:${runtimeSessionId}:${entryId}`));
+}
 
 function serverThreadDetailWithExistingTranscript(input?: {
   readonly includeGitActionUser?: boolean;
@@ -909,10 +919,10 @@ describe("Pi runtime thread sync", () => {
     expect(thread.title).toBe("Pi runtime thread");
     expect(thread.session?.status).toBe("ready");
     expect(thread.session?.orchestrationStatus).toBe("ready");
-    expect(thread.leafId).toBe(assistantThreadEntryId);
+    expect(thread.leafId).toBe(assistantRuntimeThreadEntryId);
     expect(thread.entries.map((entry) => [entry.id, entry.parentEntryId])).toEqual([
-      [userThreadEntryId, null],
-      [assistantThreadEntryId, userThreadEntryId],
+      [userClientThreadEntryId, null],
+      [assistantRuntimeThreadEntryId, userClientThreadEntryId],
     ]);
     expect(thread.messages.map((message) => [message.role, message.text])).toEqual([
       ["user", "Start"],
@@ -971,10 +981,10 @@ describe("Pi runtime thread sync", () => {
     expect(thread.entries.map((entry) => [entry.id, entry.parentEntryId])).toEqual([
       [existingUserThreadEntryId, null],
       [existingAssistantThreadEntryId, existingUserThreadEntryId],
-      [ThreadEntryId.make("thread-entry:runtime-git-action-user"), existingAssistantThreadEntryId],
-      [gitActionAssistantThreadEntryId, ThreadEntryId.make("thread-entry:runtime-git-action-user")],
+      [gitActionUserRuntimeThreadEntryId, existingAssistantThreadEntryId],
+      [gitActionAssistantRuntimeThreadEntryId, gitActionUserRuntimeThreadEntryId],
     ]);
-    expect(thread.leafId).toBe(gitActionAssistantThreadEntryId);
+    expect(thread.leafId).toBe(gitActionAssistantRuntimeThreadEntryId);
   });
 
   it("does not duplicate an optimistic runtime user message with the same client message id", () => {

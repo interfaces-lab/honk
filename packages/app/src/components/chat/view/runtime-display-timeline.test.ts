@@ -650,7 +650,7 @@ describe("runtime display timeline materialization", () => {
         }),
       }),
       expect.objectContaining({
-        id: "message:thread-entry:assistant-committed",
+        id: "message:runtime:runtime-display-materialize:runtime:assistant-committed",
         kind: "message",
         message: expect.objectContaining({
           role: "assistant",

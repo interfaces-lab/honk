@@ -643,7 +643,7 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
-  it("keeps live assistant message events until committed content matches", () => {
+  it("uses committed assistant session entries instead of stale live events", () => {
     const events = [
       runtimeEvent({
         id: "runtime-event:message-updated",
@@ -695,14 +695,6 @@ describe("runtime display timeline projection", () => {
     });
 
     expect(committedProjection.items).toEqual([
-      expect.objectContaining({
-        id: `message:${turnId}:assistant`,
-        kind: "message",
-        source: "live-event",
-        role: "assistant",
-        text: "Streaming answer",
-        streaming: true,
-      }),
       expect.objectContaining({
         id: "message:runtime:assistant-entry",
         kind: "message",

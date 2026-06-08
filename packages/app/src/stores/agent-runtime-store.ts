@@ -1,5 +1,6 @@
 import {
   type ClientOrchestrationCommand,
+  ClientOrchestrationCommand as ClientOrchestrationCommandSchema,
   CommandId,
   type DesktopExtensionUiRequest,
   type EnvironmentId,
@@ -17,6 +18,8 @@ import {
   type ThreadId,
   TurnId,
 } from "@multi/contracts";
+import { formatSchemaError, formatSchemaIssues, toJsonValue } from "@multi/shared/schema-json";
+import { Exit, Schema } from "effect";
 import { create } from "zustand";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
@@ -45,6 +48,7 @@ let lastPendingExtensionUiRequestsResult: readonly DesktopExtensionUiRequest[] =
   EMPTY_PENDING_EXTENSION_UI_REQUESTS;
 const persistedRuntimeEventKeys = new Set<string>();
 const persistedRuntimeAssistantEntryKeys = new Set<string>();
+const decodeRuntimePersistenceCommand = Schema.decodeUnknownExit(ClientOrchestrationCommandSchema);
 
 function resolveRuntimeThreadEnvironmentId(threadId: ThreadId): EnvironmentId {
   const store = useStore.getState();
@@ -156,11 +160,33 @@ function dispatchRuntimePersistenceCommand(input: {
   readonly persistenceKey: string;
   readonly persistedKeys: Set<string>;
 }): void {
+  const decoded = decodeRuntimePersistenceCommand(input.command, {
+    errors: "all",
+    propertyOrder: "original",
+  });
+  if (Exit.isFailure(decoded)) {
+    input.persistedKeys.delete(input.persistenceKey);
+    console.error("Runtime orchestration persistence command failed schema validation", {
+      issue: formatSchemaError(decoded.cause),
+      issues: formatSchemaIssues(decoded.cause),
+      command: runtimePersistenceCommandDebugInfo(input.command),
+    });
+    return;
+  }
+
   input.persistedKeys.add(input.persistenceKey);
-  void input.api.orchestration.dispatchCommand(input.command).catch((error: unknown) => {
+  void input.api.orchestration.dispatchCommand(decoded.value).catch((error: unknown) => {
     input.persistedKeys.delete(input.persistenceKey);
     console.error("Runtime orchestration persistence failed", error);
   });
+}
+
+function runtimePersistenceCommandDebugInfo(command: ClientOrchestrationCommand) {
+  return {
+    type: command.type,
+    commandId: command.commandId,
+    ...("threadId" in command ? { threadId: command.threadId } : {}),
+  };
 }
 
 function runtimeEventPersistenceKey(
@@ -290,24 +316,36 @@ function runtimeToolCompletedActivities(
   }
   const data = event.data && typeof event.data === "object" ? event.data : {};
   const record = data as Record<string, unknown>;
-  const toolName = typeof record.toolName === "string" ? record.toolName : "tool";
-  const toolCallId = typeof record.toolCallId === "string" ? record.toolCallId : event.id;
+  const toolName = asTrimmedString(record.toolName) ?? "tool";
+  const toolCallId = asTrimmedString(record.toolCallId) ?? event.id;
   const isError = record.isError === true;
+  const summary = asTrimmedString(event.summary) ?? (isError ? "Tool failed" : "Tool completed");
+  const detail = typeof event.summary === "string" ? event.summary : undefined;
   return [{
     id: EventId.make(`runtime-activity:${event.id}`),
     tone: isError ? ("error" as const) : ("tool" as const),
     kind: "tool.completed",
-    summary: event.summary ?? (isError ? "Tool failed" : "Tool completed"),
+    summary,
     payload: {
       itemId: toolCallId,
       status: isError ? "error" : "completed",
       title: toolName,
-      detail: event.summary,
-      data: event.data ?? null,
+      ...(detail !== undefined ? { detail } : {}),
+      data: toJsonValue({
+        toolCallId,
+        toolName,
+        isError,
+        ...(record.args !== undefined ? { args: record.args } : {}),
+        ...(record.result !== undefined ? { result: record.result } : {}),
+      }) ?? null,
     },
     turnId: event.turnId ?? null,
     createdAt: event.createdAt,
   }];
+}
+
+function asTrimmedString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 function hasPendingExtensionUiActivity(

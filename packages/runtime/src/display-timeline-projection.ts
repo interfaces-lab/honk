@@ -422,6 +422,9 @@ function projectLiveMessageItems(
     }
     const roleKey = messageLifecycleKey(event.turnId, role);
     const committedMessage = committedMessagesByKey.get(roleKey);
+    if (committedMessage && role !== "user") {
+      continue;
+    }
     if (committedMessage && committedMessageCoversLiveMessageEvent(committedMessage, event)) {
       continue;
     }

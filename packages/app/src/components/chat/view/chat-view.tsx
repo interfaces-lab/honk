@@ -952,6 +952,7 @@ export default function ChatView(props: ChatViewProps) {
     !runtimeTimelineHasResponse;
   const isWorking =
     phase === "running" || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
+  const isTurnRunning = activeRunningTurnId !== null;
   const {
     queuedComposerItems,
     editingQueuedComposerItemId,
@@ -2099,7 +2100,7 @@ export default function ChatView(props: ChatViewProps) {
           interactionMode: interactionModeForSend,
           branch: threadBranch,
           worktreePath: threadWorktreePath,
-          createdAt: messageCreatedAt,
+          createdAt: activeThread.createdAt,
         });
         localThreadAnnounced = true;
       };
@@ -2212,7 +2213,7 @@ export default function ChatView(props: ChatViewProps) {
                             interactionMode: interactionModeForSend,
                             branch: threadBranch,
                             worktreePath: threadWorktreePath,
-                            createdAt: messageCreatedAt,
+                            createdAt: activeThread.createdAt,
                           },
                         }
                       : {}),
@@ -3101,6 +3102,7 @@ export default function ChatView(props: ChatViewProps) {
                 <MessagesTimeline
                   key={activeTimelineCacheKey}
                   isWorking={isWorking}
+                  isTurnRunning={isTurnRunning}
                   editUserMessagesDisabled={isWorking}
                   activeTurnStartedAt={activeWorkStartedAt}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}

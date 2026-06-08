@@ -7,9 +7,11 @@ import {
 
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, PendingTimelineRow, ProposedPlan } from "../../../types";
+import { resolveGitAgentActionFromPrompt } from "~/lib/git-agent-actions";
 import {
   appendMissingRuntimeTimelineMessageEntries,
   appendTransientTimelineEntries,
+  userTimestampTextCoverageKey,
 } from "./pending-timeline-rows";
 import {
   materializeTimelineEntriesFromRuntimeDisplayTimeline,
@@ -42,10 +44,10 @@ export function buildChatDisplayTimeline(input: {
     pendingRows: input.transientPendingTimelineRows,
   });
   if (input.runtimeDisplayRegressedToUserOnly) {
-    return committedEntriesWithTransientRows;
+    return normalizeDisplayTimelineEntries(committedEntriesWithTransientRows);
   }
   if (!input.activeRuntimeDisplayTimeline) {
-    return committedEntriesWithTransientRows;
+    return normalizeDisplayTimelineEntries(committedEntriesWithTransientRows);
   }
 
   const runtimeEntries = materializeTimelineEntriesFromRuntimeDisplayTimeline({
@@ -59,11 +61,57 @@ export function buildChatDisplayTimeline(input: {
       committedEntries: committedEntriesWithTransientRows,
     })
   ) {
-    return committedEntriesWithTransientRows;
+    return normalizeDisplayTimelineEntries(committedEntriesWithTransientRows);
   }
-  return appendMissingRuntimeTimelineMessageEntries({
-    entries: runtimeEntries,
-    messages: input.timelineMessages,
-    pendingRows: input.transientPendingTimelineRows,
+  return normalizeDisplayTimelineEntries(
+    appendMissingRuntimeTimelineMessageEntries({
+      entries: runtimeEntries,
+      messages: input.timelineMessages,
+      pendingRows: input.transientPendingTimelineRows,
+    }),
+  );
+}
+
+function normalizeDisplayTimelineEntries(
+  entries: ReadonlyArray<TimelineEntry>,
+): TimelineEntry[] {
+  return dedupeUserMessagesByTimestampText(filterRedundantGitAgentCustomMessages(entries));
+}
+
+function filterRedundantGitAgentCustomMessages(
+  entries: ReadonlyArray<TimelineEntry>,
+): TimelineEntry[] {
+  const hasGitAgentUserMessage = entries.some(
+    (entry) =>
+      entry.kind === "message" &&
+      entry.message.role === "user" &&
+      resolveGitAgentActionFromPrompt(entry.message.text) !== null,
+  );
+  if (!hasGitAgentUserMessage) {
+    return [...entries];
+  }
+  return entries.filter(
+    (entry) =>
+      entry.kind !== "custom-message" || entry.customMessage.customType !== "git-agent-action",
+  );
+}
+
+function dedupeUserMessagesByTimestampText(
+  entries: ReadonlyArray<TimelineEntry>,
+): TimelineEntry[] {
+  const seenUserTimestampTextKeys = new Set<string>();
+  return entries.filter((entry) => {
+    if (entry.kind !== "message" || entry.message.role !== "user") {
+      return true;
+    }
+    const key = userTimestampTextCoverageKey(entry.message);
+    if (key === null) {
+      return true;
+    }
+    if (seenUserTimestampTextKeys.has(key)) {
+      return false;
+    }
+    seenUserTimestampTextKeys.add(key);
+    return true;
   });
 }

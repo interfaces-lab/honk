@@ -82,6 +82,7 @@ export interface MessagesTimelineController {
 
 interface MessagesTimelineProps {
   isWorking: boolean;
+  isTurnRunning: boolean;
   editUserMessagesDisabled: boolean;
   activeTurnStartedAt: string | null;
   bottomClearancePx?: number | undefined;
@@ -107,6 +108,7 @@ interface MessagesTimelineProps {
 
 export function MessagesTimeline({
   isWorking,
+  isTurnRunning,
   editUserMessagesDisabled,
   activeTurnStartedAt,
   bottomClearancePx = 0,
@@ -132,17 +134,21 @@ export function MessagesTimeline({
       deriveMessagesTimelineRows({
         timelineEntries,
         isWorking,
+        isTurnRunning,
         activeTurnStartedAt,
         editableUserMessageIds,
         projectRoot,
       }),
-    [activeTurnStartedAt, editableUserMessageIds, isWorking, projectRoot, timelineEntries],
+    [
+      activeTurnStartedAt,
+      editableUserMessageIds,
+      isTurnRunning,
+      isWorking,
+      projectRoot,
+      timelineEntries,
+    ],
   );
-  const loadingStableRows = useLoadingStableGroupedRows(rawRows, {
-    isWorking,
-    cacheKey: timelineCacheKey,
-  });
-  const rows = useStableRows(loadingStableRows);
+  const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -965,52 +971,6 @@ function timelineRowToolHasError(row: TimelineRow): boolean {
 }
 
 // Reuse old row references when data has not changed.
-
-function useLoadingStableGroupedRows(
-  rows: MessagesTimelineRow[],
-  input: { isWorking: boolean; cacheKey: string },
-): MessagesTimelineRow[] {
-  const frozenGroupRef = useRef<{
-    cacheKey: string;
-    row: Extract<MessagesTimelineRow, { kind: "work" }> | null;
-  }>({ cacheKey: input.cacheKey, row: null });
-
-  if (frozenGroupRef.current.cacheKey !== input.cacheKey) {
-    frozenGroupRef.current = { cacheKey: input.cacheKey, row: null };
-  }
-
-  const activeGroup = rows.findLast(isActiveGroupedTail);
-  if (activeGroup) {
-    frozenGroupRef.current.row = activeGroup;
-    return rows;
-  }
-
-  if (!input.isWorking) {
-    frozenGroupRef.current.row = null;
-    return rows;
-  }
-
-  const frozenGroup = frozenGroupRef.current.row;
-  if (!frozenGroup || rows.some((row) => row.id === frozenGroup.id)) {
-    return rows;
-  }
-
-  const workingRowIndex = rows.findIndex((row) => row.kind === "working");
-  if (workingRowIndex === -1) {
-    return [...rows, frozenGroup];
-  }
-  return [
-    ...rows.slice(0, workingRowIndex),
-    frozenGroup,
-    ...rows.slice(workingRowIndex),
-  ];
-}
-
-function isActiveGroupedTail(
-  row: MessagesTimelineRow,
-): row is Extract<MessagesTimelineRow, { kind: "work" }> {
-  return row.kind === "work" && row.isRunning;
-}
 
 function useStableRows(rows: MessagesTimelineRow[]): MessagesTimelineRow[] {
   const prevState = useRef<StableMessagesTimelineRowsState>({

@@ -64,6 +64,7 @@ describe("deriveTimelineRenderItems", () => {
         },
       ],
       isWorking: false,
+      isTurnRunning: false,
       activeTurnStartedAt: null,
       editableUserMessageIds: new Set([userId]),
     });
@@ -139,6 +140,7 @@ describe("deriveTimelineRenderItems", () => {
         },
       ],
       isWorking: true,
+      isTurnRunning: true,
       activeTurnStartedAt: "2026-06-05T16:00:00.000Z",
       editableUserMessageIds: new Set(),
       projectRoot: "/repo",
@@ -240,6 +242,7 @@ describe("deriveTimelineRenderItems", () => {
         },
       ],
       isWorking: true,
+      isTurnRunning: true,
       activeTurnStartedAt: null,
       editableUserMessageIds: new Set(),
     });
@@ -267,6 +270,120 @@ describe("deriveTimelineRenderItems", () => {
             }),
           ],
         }),
+      }),
+    ]);
+  });
+
+  it("closes legacy work previews when the timeline is busy but the turn is no longer running", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "work",
+          id: "work:stale-running-command",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          entry: workEntry({
+            id: "stale-running-command",
+            createdAt: "2026-06-05T16:00:03.000Z",
+            status: "running",
+            itemType: "command_execution",
+            artifacts: [{ type: "command", durationMs: 1_000 }],
+          }),
+        },
+      ],
+      isWorking: true,
+      isTurnRunning: false,
+      activeTurnStartedAt: null,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "work:stale-running-command",
+        group: expect.objectContaining({
+          completedDurationLabel: "1 second",
+          isRunning: false,
+          summary: {
+            action: "Ran",
+            details: "1 command",
+          },
+        }),
+      }),
+      expect.objectContaining({
+        kind: "waitingGroup",
+        id: "working-indicator-row",
+      }),
+    ]);
+  });
+
+  it("closes runtime work previews when the timeline is busy but the turn is no longer running", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "runtime-thinking",
+          id: "message:stale-running-assistant:thinking",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          message: {
+            id: "message:stale-running-assistant",
+            kind: "message",
+            source: "live-event",
+            orderKey: "2026-06-05T16:00:01.000Z:message:stale-running-assistant",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            role: "assistant",
+            eventIds: [],
+            streaming: true,
+            thinking: "Wrapping up",
+          },
+        },
+        {
+          kind: "runtime-tool",
+          id: "tool:stale-running-shell",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          tool: {
+            id: "tool:stale-running-shell",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:02.000Z:tool:stale-running-shell",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            toolCallId: "toolu-stale-running-shell",
+            toolName: "shell",
+            status: "running",
+            eventIds: [],
+            display: {
+              kind: "shell",
+              command: "git push",
+            },
+          },
+        },
+      ],
+      isWorking: true,
+      isTurnRunning: false,
+      activeTurnStartedAt: null,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "message:stale-running-assistant:thinking",
+        group: expect.objectContaining({
+          completedDurationLabel: "1 second",
+          isRunning: false,
+          summary: {
+            action: "Worked",
+            details: "1 thought, 1 tool",
+          },
+          steps: [
+            expect.objectContaining({ kind: "runtime-thinking" }),
+            expect.objectContaining({
+              kind: "runtime-tool",
+              tool: expect.objectContaining({ status: "running" }),
+            }),
+          ],
+        }),
+      }),
+      expect.objectContaining({
+        kind: "waitingGroup",
+        id: "working-indicator-row",
       }),
     ]);
   });
@@ -314,6 +431,7 @@ describe("deriveTimelineRenderItems", () => {
         },
       ],
       isWorking: true,
+      isTurnRunning: true,
       activeTurnStartedAt: null,
       editableUserMessageIds: new Set(),
     });

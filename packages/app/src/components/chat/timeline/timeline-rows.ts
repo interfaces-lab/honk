@@ -92,6 +92,7 @@ export interface StableMessagesTimelineRowsState {
 export function deriveMessagesTimelineRows(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
+  isTurnRunning: boolean;
   activeTurnStartedAt: string | null;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
