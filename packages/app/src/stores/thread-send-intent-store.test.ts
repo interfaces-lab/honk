@@ -1,38 +1,37 @@
 import { MessageId } from "@multi/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { createPendingTimelineRow } from "../components/chat/view/pending-timeline-rows";
-import { usePendingThreadSendStore } from "./pending-thread-send-store";
+import { createThreadSendIntent, useThreadSendIntentStore } from "./thread-send-intent-store";
 
 const createdAt = "2026-06-05T18:30:00.000Z";
 
-describe("pending thread send store", () => {
+describe("thread send intent store", () => {
   beforeEach(() => {
-    usePendingThreadSendStore.getState().resetForTests();
+    useThreadSendIntentStore.getState().resetForTests();
   });
 
-  it("copies optimistic rows to a promoted thread key without removing the draft row", () => {
+  it("copies send intents to a promoted thread key without removing the draft intent", () => {
     const draftThreadKey = "draft:thread";
     const promotedThreadKey = "environment:local:thread:server";
     const messageId = MessageId.make("message:first-send");
-    const row = createPendingTimelineRow({
+    const intent = createThreadSendIntent({
       messageId,
       text: "fix the chat",
       createdAt,
       parentEntryId: null,
     });
 
-    const store = usePendingThreadSendStore.getState();
-    store.appendPendingRow(draftThreadKey, row);
-    store.copyPendingRows(draftThreadKey, promotedThreadKey, new Set([messageId]));
-    store.copyPendingRows(draftThreadKey, promotedThreadKey, new Set([messageId]));
+    const store = useThreadSendIntentStore.getState();
+    store.appendSendIntent(draftThreadKey, intent);
+    store.copySendIntents(draftThreadKey, promotedThreadKey, new Set([messageId]));
+    store.copySendIntents(draftThreadKey, promotedThreadKey, new Set([messageId]));
 
-    expect(usePendingThreadSendStore.getState().pendingRowsByThreadKey[draftThreadKey]).toEqual([
-      row,
+    expect(useThreadSendIntentStore.getState().sendIntentsByThreadKey[draftThreadKey]).toEqual([
+      intent,
     ]);
-    expect(usePendingThreadSendStore.getState().pendingRowsByThreadKey[promotedThreadKey]).toEqual([
-      row,
-    ]);
+    expect(
+      useThreadSendIntentStore.getState().sendIntentsByThreadKey[promotedThreadKey],
+    ).toEqual([intent]);
   });
 
   it("copies local dispatch to a promoted thread key", () => {
@@ -49,11 +48,11 @@ describe("pending thread send store", () => {
       sessionUpdatedAt: null,
     };
 
-    const store = usePendingThreadSendStore.getState();
+    const store = useThreadSendIntentStore.getState();
     store.setLocalDispatch(draftThreadKey, dispatch);
     store.copyLocalDispatch(draftThreadKey, promotedThreadKey);
 
-    expect(usePendingThreadSendStore.getState().localDispatchByThreadKey).toEqual({
+    expect(useThreadSendIntentStore.getState().localDispatchByThreadKey).toEqual({
       [draftThreadKey]: dispatch,
       [promotedThreadKey]: dispatch,
     });

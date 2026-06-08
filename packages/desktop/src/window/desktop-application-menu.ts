@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 
 import type * as Electron from "electron";
 
-import * as DesktopObservability from "../app/desktop-observability";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as ElectronApp from "../electron/electron-app";
 import * as ElectronDialog from "../electron/electron-dialog";
 import * as ElectronMenu from "../electron/electron-menu";
@@ -28,9 +28,8 @@ type DesktopApplicationMenuRuntimeServices =
   | DesktopWindow.DesktopWindow
   | ElectronDialog.ElectronDialog;
 
-const { logInfo: logUpdaterInfo } = DesktopObservability.makeComponentLogger("desktop-updater");
-
-const { logError: logMenuError } = DesktopObservability.makeComponentLogger("desktop-menu");
+const updaterLog = EffectLogger.create({ service: "desktop-updater" });
+const menuLog = EffectLogger.create({ service: "desktop-menu" });
 
 const dispatchMenuAction = Effect.fn("desktop.menu.dispatchMenuAction")(function* (
   action: string,
@@ -76,7 +75,7 @@ const handleCheckForUpdatesMenuClick: Effect.Effect<
   const electronDialog = yield* ElectronDialog.ElectronDialog;
   const disabledReason = yield* updates.disabledReason;
   if (Option.isSome(disabledReason)) {
-    yield* logUpdaterInfo("manual update check requested, but updates are disabled", {
+    yield* updaterLog.info("manual update check requested, but updates are disabled", {
       disabledReason: disabledReason.value,
     });
     yield* electronDialog.showMessageBox({
@@ -111,7 +110,7 @@ const make = Effect.gen(function* () {
         Effect.annotateLogs({ action }),
         Effect.withSpan("desktop.menu.action"),
         Effect.catchCause((cause) =>
-          logMenuError("desktop menu action failed", {
+          menuLog.error("desktop menu action failed", {
             action,
             cause: Cause.pretty(cause),
           }),

@@ -18,12 +18,9 @@ import {
   type ToolDisplayArtifact,
   type WorkLogEntry,
   type WorkLogSubagent,
-  type WorkLogSubagentLog,
-  type SubagentTranscriptItem,
 } from "../../../session-logic";
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
-import { MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES } from "~/lib/runtime-tool-display";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 import { cn } from "~/lib/utils";
 import ChatMarkdown from "../markdown/chat-markdown";
@@ -37,7 +34,6 @@ type ToolCallStatus = "loading" | "completed" | "error";
 type RuntimeToolDisplay = NonNullable<RuntimeDisplayTimelineToolItem["display"]>;
 type RuntimeSubagentDisplay = Extract<RuntimeToolDisplay, { kind: "subagent" }>;
 type RuntimeSubagentRun = RuntimeSubagentDisplay["runs"][number];
-type RuntimeSubagentActivity = RuntimeSubagentDisplay["activities"][number];
 
 function stopSubagentStatusRowKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
   event.stopPropagation();
@@ -166,6 +162,57 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
         conversationDensity="minimal"
         subagentConversation={subagentStatusSurface}
         defaultExpanded={tool.display?.kind === "subagent"}
+      />
+    </div>
+  );
+});
+
+export const RuntimeSubagentTaskMessage = memo(function RuntimeSubagentTaskMessage({
+  tool,
+  projectRoot,
+  activeThreadId,
+  environmentId,
+  subagentDetailsEnabled = true,
+}: {
+  tool: RuntimeDisplayTimelineToolItem;
+  projectRoot?: string | undefined;
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  subagentDetailsEnabled?: boolean | undefined;
+}) {
+  const status = resolveRuntimeToolStatus(tool);
+  const subagents = useMemo(() => runtimeToolDisplayToSubagents(tool.display), [tool.display]);
+
+  if (subagents.length === 0) {
+    return (
+      <RuntimeToolCallMessage
+        tool={tool}
+        projectRoot={projectRoot}
+        activeThreadId={activeThreadId}
+        environmentId={environmentId}
+        subagentDetailsEnabled={subagentDetailsEnabled}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="flex w-full min-w-0 max-w-full flex-col gap-1"
+      data-runtime-task=""
+      data-runtime-task-kind="subagent"
+      data-runtime-tool-call=""
+      data-runtime-tool-name={tool.toolName}
+      data-tool-call-id={tool.toolCallId}
+      data-tool-status={status}
+      data-tool-has-error={status === "error" ? "true" : undefined}
+    >
+      <SubagentStatusSurface
+        activeThreadId={activeThreadId}
+        embeddedInTask
+        environmentId={environmentId}
+        projectRoot={projectRoot}
+        subagentDetailsEnabled={subagentDetailsEnabled}
+        subagents={subagents}
       />
     </div>
   );
@@ -366,32 +413,7 @@ function runtimeToolDisplayToSubagents(
   if (display?.kind !== "subagent") {
     return [];
   }
-  const activitiesBySubagentThreadId = new Map<string, WorkLogSubagentLog[]>();
-  const transcriptBySubagentThreadId = new Map<string, SubagentTranscriptItem[]>();
-  const promptBySubagentThreadId = new Map(
-    display.runs.map((run) => [run.subagentThreadId, run.prompt.trim()] as const),
-  );
-  for (const activity of recentRuntimeSubagentActivities(display)) {
-    const log = runtimeSubagentActivityToLog(activity);
-    const existing = activitiesBySubagentThreadId.get(activity.payload.subagentThreadId) ?? [];
-    existing.push(log);
-    activitiesBySubagentThreadId.set(activity.payload.subagentThreadId, existing);
-
-    const transcriptItem = runtimeSubagentActivityToTranscriptItem(
-      activity,
-      promptBySubagentThreadId.get(activity.payload.subagentThreadId) ?? "",
-    );
-    if (transcriptItem) {
-      const existingTranscript =
-        transcriptBySubagentThreadId.get(activity.payload.subagentThreadId) ?? [];
-      existingTranscript.push(transcriptItem);
-      transcriptBySubagentThreadId.set(activity.payload.subagentThreadId, existingTranscript);
-    }
-  }
-
   return display.runs.map((run): WorkLogSubagent => {
-    const logs = activitiesBySubagentThreadId.get(run.subagentThreadId) ?? [];
-    const transcriptItems = transcriptBySubagentThreadId.get(run.subagentThreadId) ?? [];
     const title = runtimeSubagentTitle(run.nickname, run.role);
     return {
       threadId: run.subagentThreadId,
@@ -402,182 +424,22 @@ function runtimeToolDisplayToSubagents(
       ...(run.model ? { model: run.model } : {}),
       prompt: run.prompt,
       rawStatus: run.state,
-      latestUpdate: runtimeSubagentLatestUpdate(run, logs),
+      latestUpdate: runtimeSubagentLatestUpdate(run),
       title,
       statusLabel: runtimeSubagentStatusLabel(run.state),
       isActive: run.state === "running",
-      logs,
-      ...(transcriptItems.length > 0 ? { transcriptItems } : {}),
-      hasDetails: logs.length > 0 || transcriptItems.length > 0,
+      logs: [],
+      hasDetails: true,
     };
   });
 }
 
-function recentRuntimeSubagentActivities(
-  display: RuntimeSubagentDisplay,
-): RuntimeSubagentActivity[] {
-  const runThreadIds = new Set(display.runs.map((run) => run.subagentThreadId));
-  if (runThreadIds.size === 0 || display.activities.length === 0) {
-    return [];
-  }
-
-  const retainedActivities: RuntimeSubagentActivity[] = [];
-  const retainedCountByThreadId = new Map<string, number>();
-  const cappedThreadIds = new Set<string>();
-  for (let index = display.activities.length - 1; index >= 0; index -= 1) {
-    const activity = display.activities[index];
-    if (!activity || !runThreadIds.has(activity.payload.subagentThreadId)) {
-      continue;
-    }
-    const retainedCount = retainedCountByThreadId.get(activity.payload.subagentThreadId) ?? 0;
-    if (retainedCount >= MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES) {
-      continue;
-    }
-    retainedActivities.push(activity);
-    const nextRetainedCount = retainedCount + 1;
-    retainedCountByThreadId.set(activity.payload.subagentThreadId, nextRetainedCount);
-    if (nextRetainedCount >= MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES) {
-      cappedThreadIds.add(activity.payload.subagentThreadId);
-    }
-    if (cappedThreadIds.size === runThreadIds.size) {
-      break;
-    }
-  }
-  return retainedActivities.toReversed();
-}
-
-function runtimeSubagentActivityToLog(
-  activity: RuntimeSubagentActivity,
-): WorkLogSubagentLog {
-  const payload = activity.payload;
-  return {
-    id: activity.id,
-    createdAt: activity.createdAt,
-    kind: activity.kind,
-    label: payload.title ?? activity.summary,
-    ...(payload.itemId ? { itemId: payload.itemId } : {}),
-    ...(payload.detail
-      ? { detail: payload.detail }
-      : payload.status
-        ? { detail: payload.status }
-        : payload.state
-          ? { detail: payload.state }
-          : {}),
-    ...(payload.itemType ? { itemType: payload.itemType } : {}),
-    ...(payload.status ? { status: payload.status } : {}),
-  };
-}
-
-function runtimeSubagentActivityToTranscriptItem(
-  activity: RuntimeSubagentActivity,
-  runPrompt: string,
-): SubagentTranscriptItem | null {
-  const payload = activity.payload;
-  if (!payload.itemId || !payload.itemType) {
-    return null;
-  }
-  const kind = runtimeSubagentTranscriptKind(payload.itemType);
-  const text = payload.detail?.trim();
-  if (
-    payload.itemType === "user_message" &&
-    text &&
-    runPrompt &&
-    normalizedRuntimePromptText(text) === normalizedRuntimePromptText(runPrompt)
-  ) {
-    return null;
-  }
-  const data = runtimeRecord(payload.data);
-  const command = runtimeSubagentActivityCommand(data);
-  const output = kind === "command" ? text : undefined;
-  const role = runtimeSubagentTranscriptRole(payload.itemType);
-  return {
-    id: activity.id,
-    itemId: payload.itemId,
-    kind,
-    ...(role ? { role } : {}),
-    ...(payload.title ? { title: payload.title } : {}),
-    ...(text && kind !== "command" ? { text } : {}),
-    ...(command ? { command } : {}),
-    ...(output ? { output } : {}),
-    itemType: payload.itemType,
-    ...(payload.status ? { status: payload.status } : {}),
-    loading: payload.status === "running" || activity.kind !== "subagent.item.completed",
-    createdAt: activity.createdAt,
-    sequence: activity.sequence,
-  };
-}
-
-function runtimeSubagentTranscriptKind(
-  itemType: string,
-): SubagentTranscriptItem["kind"] {
-  switch (itemType) {
-    case "assistant_message":
-    case "user_message":
-      return "message";
-    case "command_execution":
-      return "command";
-    case "reasoning":
-      return "reasoning";
-    case "plan":
-      return "plan";
-    case "review_entered":
-    case "review_exited":
-    case "context_compaction":
-    case "error":
-      return "status";
-    default:
-      return "tool";
-  }
-}
-
-function runtimeSubagentTranscriptRole(
-  itemType: string,
-): SubagentTranscriptItem["role"] {
-  switch (itemType) {
-    case "assistant_message":
-      return "assistant";
-    case "user_message":
-      return "user";
-    case "review_entered":
-    case "review_exited":
-    case "context_compaction":
-    case "error":
-      return "system";
-    default:
-      return undefined;
-  }
-}
-
-function runtimeSubagentActivityCommand(data: Record<string, unknown> | null): string | undefined {
-  const args = runtimeRecord(data?.args);
-  return runtimeString(args?.command) ?? runtimeString(data?.command);
-}
-
-function runtimeRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-function runtimeString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-function normalizedRuntimePromptText(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function runtimeSubagentLatestUpdate(
-  run: RuntimeSubagentRun,
-  logs: ReadonlyArray<WorkLogSubagentLog>,
-): string | undefined {
+function runtimeSubagentLatestUpdate(run: RuntimeSubagentRun): string | undefined {
   if (run.state === "completed" && run.finalText) {
     return run.finalText;
   }
   if ((run.state === "failed" || run.state === "aborted") && run.errorMessage) {
     return run.errorMessage;
-  }
-  const latestDetail = logs.at(-1)?.detail ?? logs.at(-1)?.label;
-  if (latestDetail) {
-    return latestDetail;
   }
   return run.finalText ?? run.errorMessage ?? undefined;
 }

@@ -11,9 +11,9 @@ import {
 import { writeLastChatRouteTarget } from "~/routes/-chat-route-persistence";
 import { openThread } from "~/app/chat-navigation";
 import {
-  readNewThreadProjectDefaults,
-  useNewThreadProjectDefaults,
-} from "~/hooks/use-handle-new-thread";
+  readSelectedWorkspaceProject,
+  useSelectedWorkspaceProject,
+} from "~/lib/selected-workspace-project";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { scopedProjectKey } from "~/lib/environment-scope";
@@ -31,8 +31,8 @@ export function createDraftRouteSession(draftId: DraftId): boolean {
     return true;
   }
 
-  const { defaultLogicalProjectKey, defaultProjectRef } = readNewThreadProjectDefaults();
-  if (!defaultProjectRef) {
+  const { logicalProjectKey, projectRef: selectedProjectRef } = readSelectedWorkspaceProject();
+  if (!selectedProjectRef) {
     const projectlessEnvironmentId = readProjectlessDraftEnvironmentId();
     if (!projectlessEnvironmentId) {
       return false;
@@ -47,8 +47,8 @@ export function createDraftRouteSession(draftId: DraftId): boolean {
 
   const currentComposerDraft = store.getComposerDraft(draftId);
   store.setLogicalProjectDraftThreadId(
-    defaultLogicalProjectKey ?? scopedProjectKey(defaultProjectRef),
-    defaultProjectRef,
+    logicalProjectKey ?? scopedProjectKey(selectedProjectRef),
+    selectedProjectRef,
     draftId,
     {
       createdAt: new Date().toISOString(),
@@ -160,16 +160,16 @@ function DraftThreadRouteMaterializeSync(props: { readonly draftId: DraftId }) {
   const projectCount = useStore(
     (store) => selectEnvironmentState(store, activeEnvironmentId).projectIds.length,
   );
-  const { defaultProjectRef } = useNewThreadProjectDefaults();
-  const defaultProjectEnvironmentId = defaultProjectRef?.environmentId ?? null;
-  const defaultProjectId = defaultProjectRef?.projectId ?? null;
+  const { projectRef: selectedProjectRef } = useSelectedWorkspaceProject();
+  const selectedProjectEnvironmentId = selectedProjectRef?.environmentId ?? null;
+  const selectedProjectId = selectedProjectRef?.projectId ?? null;
 
   useLayoutSyncEffect(() => {
     createDraftRouteSession(props.draftId);
   }, [
     activeEnvironmentId,
-    defaultProjectEnvironmentId,
-    defaultProjectId,
+    selectedProjectEnvironmentId,
+    selectedProjectId,
     projectCount,
     props.draftId,
     snapshotSource,

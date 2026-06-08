@@ -1,4 +1,4 @@
-import { useRouteTarget } from "~/routes/-thread-route-targets";
+import { useChatRouteTarget } from "~/app/chat-route-state";
 
 export function resolveRouteThreadId(params: { threadId?: string | null } | null | undefined) {
   if (!params?.threadId) {
@@ -14,6 +14,6 @@ export function resolveRouteThreadId(params: { threadId?: string | null } | null
 }
 
 export function useRouteThreadId() {
-  const routeTarget = useRouteTarget();
+  const routeTarget = useChatRouteTarget();
   return routeTarget?.kind === "server" ? routeTarget.threadRef.threadId : null;
 }

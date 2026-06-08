@@ -115,7 +115,7 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(secondState.result[0]).toBe(first);
   });
 
-  it("reuses runtime tool rows when legacy command fields change but typed display does not", () => {
+  it("reuses runtime tool rows when stale command fields change but typed display does not", () => {
     const first = runtimeToolRow("running");
     const firstState = computeStableMessagesTimelineRows([first], emptyState());
     const baseSecond = runtimeToolRow("running") as Extract<
@@ -159,7 +159,7 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(secondState.result[0]).toBe(next);
   });
 
-  it("replaces runtime tool rows when subagent run state changes", () => {
+  it("replaces runtime task rows when subagent run state changes", () => {
     const first = runtimeSubagentToolRow("running");
     const firstState = computeStableMessagesTimelineRows([first], emptyState());
     const completed = runtimeSubagentToolRow("completed");
@@ -227,28 +227,6 @@ describe("computeStableMessagesTimelineRows", () => {
 
     expect(secondState).toBe(firstState);
     expect(secondState.result[0]).toBe(first);
-  });
-
-  it("reuses runtime custom message rows when recreated content has the same visible text", () => {
-    const first = runtimeCustomMessageRow([{ type: "text", text: "Queued branch handoff" }]);
-    const firstState = computeStableMessagesTimelineRows([first], emptyState());
-    const second = runtimeCustomMessageRow([{ type: "text", text: "Queued branch handoff" }]);
-    const secondState = computeStableMessagesTimelineRows([second], firstState);
-
-    expect(secondState).toBe(firstState);
-    expect(secondState.result[0]).toBe(first);
-  });
-
-  it("replaces runtime custom message rows when visible text changes", () => {
-    const firstState = computeStableMessagesTimelineRows(
-      [runtimeCustomMessageRow([{ type: "text", text: "Queued branch handoff" }])],
-      emptyState(),
-    );
-    const updated = runtimeCustomMessageRow([{ type: "text", text: "Committed branch" }]);
-    const secondState = computeStableMessagesTimelineRows([updated], firstState);
-
-    expect(secondState).not.toBe(firstState);
-    expect(secondState.result[0]).toBe(updated);
   });
 
   it("reuses runtime thinking rows when projection object identity changes without data changes", () => {
@@ -371,9 +349,11 @@ function runtimeToolRow(
   };
 }
 
-function runtimeSubagentToolRow(state: "running" | "completed" | "failed" | "aborted"): MessagesTimelineRow {
+function runtimeSubagentToolRow(
+  state: "running" | "completed" | "failed" | "aborted",
+): MessagesTimelineRow {
   return {
-    kind: "runtime-tool",
+    kind: "runtime-task",
     id: "tool:toolu-subagent-row-stability",
     createdAt,
     tool: {
@@ -444,28 +424,6 @@ function groupedRuntimeToolRow(status: "running" | "completed"): MessagesTimelin
         steps: [toolStep],
         entries: [],
       },
-    },
-  };
-}
-
-function runtimeCustomMessageRow(content: unknown): MessagesTimelineRow {
-  return {
-    kind: "custom-message",
-    id: "custom-message:row-stability",
-    createdAt,
-    customMessage: {
-      id: "custom-message:row-stability",
-      kind: "custom-message",
-      orderKey: `${createdAt}:custom-message:row-stability`,
-      createdAt,
-      entryId: RuntimeItemId.make("runtime:custom-message-row-stability"),
-      threadEntryId: ThreadEntryId.make("thread-entry:custom-message-row-stability"),
-      parentEntryId: null,
-      parentThreadEntryId: null,
-      customType: "git-agent-action",
-      content,
-      display: true,
-      details: { observedAt: createdAt },
     },
   };
 }

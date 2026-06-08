@@ -4,6 +4,7 @@ import {
   type AuthPairingCredentialResult,
   type AuthSessionState,
 } from "@multi/contracts";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import { DateTime, Effect, Layer } from "effect";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 
@@ -23,6 +24,8 @@ import {
   SessionCredentialService,
 } from "./SessionCredentialService.service.ts";
 import { AuthControlPlaneLive, AuthCoreLive } from "./AuthControlPlane.ts";
+
+const elog = EffectLogger.create({ service: "server.auth" });
 
 const AUTHORIZATION_PREFIX = "Bearer ";
 
@@ -67,11 +70,9 @@ export const makeServerAuth = Effect.gen(function* () {
   const authenticateToken = (token: string): Effect.Effect<AuthenticatedSession, AuthError> =>
     sessions.verify(token).pipe(
       Effect.tapError((cause: SessionCredentialError) =>
-        Effect.logWarning("Rejected authenticated session credential.").pipe(
-          Effect.annotateLogs({
-            reason: cause.message,
-          }),
-        ),
+        elog.warn("Rejected authenticated session credential.", {
+          reason: cause.message,
+        }),
       ),
       Effect.map((session) => ({
         sessionId: session.sessionId,

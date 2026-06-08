@@ -4,6 +4,7 @@ import { RouterProvider, type createBrowserHistory } from "@tanstack/react-route
 
 import "./dev/react-grab";
 import "./app/appearance-boot";
+import "./local-api";
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
 import "@multi/multikit/styles.css";

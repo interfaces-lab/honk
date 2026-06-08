@@ -1,7 +1,6 @@
 import type {
   EnvironmentId,
   ModelSelection,
-  OrchestrationChatTimelineRow,
   OrchestrationLatestTurn,
   OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
@@ -64,11 +63,13 @@ export interface LiveAssistantTurn {
   updatedAt: string;
 }
 
-export interface PendingTimelineRow {
-  id: string;
-  clientSendKey: MessageId;
+export interface ThreadSendIntent {
+  clientMessageId: MessageId;
   parentEntryId: ThreadEntryId | null;
-  message: ChatMessage & { role: "user"; streaming: false };
+  text: string;
+  richText?: OrchestrationMessageRichText | undefined;
+  attachments?: ChatAttachment[] | undefined;
+  createdAt: string;
 }
 
 export type ThreadTreeEntry = OrchestrationThreadEntry;
@@ -134,7 +135,6 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
-  chatTimelineRows?: OrchestrationChatTimelineRow[];
 }
 
 export interface ThreadShell {

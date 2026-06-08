@@ -28,7 +28,6 @@ interface NewThreadHandler {
     projectRef: ScopedProjectRef,
     options?: {
       branch?: string | null;
-      reuseExistingDraft?: boolean;
       worktreePath?: string | null;
       envMode?: DraftThreadEnvMode;
       logicalProjectKey?: string | null;
@@ -41,17 +40,17 @@ type NewThreadOptions = NonNullable<Parameters<NewThreadHandler>[1]>;
 export interface ChatThreadActionContext {
   readonly activeDraftThread: DraftThreadContextLike | null;
   readonly activeThread: ThreadContextLike | undefined;
-  readonly defaultLogicalProjectKey: string | null;
-  readonly defaultProjectRef: ScopedProjectRef | null;
-  readonly defaultThreadEnvMode: DraftThreadEnvMode;
+  readonly selectedLogicalProjectKey: string | null;
+  readonly selectedProjectRef: ScopedProjectRef | null;
+  readonly threadEnvMode: DraftThreadEnvMode;
   readonly handleNewThread: NewThreadHandler;
   readonly projects: readonly Project[];
 }
 
 export function readThreadActionContext(input: {
-  readonly defaultLogicalProjectKey: string | null;
-  readonly defaultProjectRef: ScopedProjectRef | null;
-  readonly defaultThreadEnvMode: DraftThreadEnvMode;
+  readonly selectedLogicalProjectKey: string | null;
+  readonly selectedProjectRef: ScopedProjectRef | null;
+  readonly threadEnvMode: DraftThreadEnvMode;
   readonly handleNewThread: NewThreadHandler;
   readonly projects: readonly Project[];
   readonly routeTarget: ThreadRouteTarget | null;
@@ -68,9 +67,9 @@ export function readThreadActionContext(input: {
       input.routeTarget?.kind === "server"
         ? selectThreadWorkspaceSurfaceByRef(useStore.getState(), input.routeTarget.threadRef)
         : undefined,
-    defaultLogicalProjectKey: input.defaultLogicalProjectKey,
-    defaultProjectRef: input.defaultProjectRef,
-    defaultThreadEnvMode: input.defaultThreadEnvMode,
+    selectedLogicalProjectKey: input.selectedLogicalProjectKey,
+    selectedProjectRef: input.selectedProjectRef,
+    threadEnvMode: input.threadEnvMode,
     handleNewThread: input.handleNewThread,
     projects: input.projects,
   };
@@ -90,17 +89,17 @@ export function resolveThreadActionProjectRef(
   if (activeDraftProject) {
     return scopeProjectRef(activeDraftProject.environmentId, activeDraftProject.id);
   }
-  return context.defaultProjectRef;
+  return context.selectedProjectRef;
 }
 
 function buildContextualThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
   const logicalProjectKey =
     context.activeDraftThread?.logicalProjectKey ??
     (isSourceForWorkspaceProjectRef({
-      projectRef: context.defaultProjectRef,
+      projectRef: context.selectedProjectRef,
       source: context.activeThread,
     })
-      ? context.defaultLogicalProjectKey
+      ? context.selectedLogicalProjectKey
       : null);
   return {
     branch: context.activeThread?.branch ?? context.activeDraftThread?.branch ?? null,
@@ -113,10 +112,10 @@ function buildContextualThreadOptions(context: ChatThreadActionContext): NewThre
   };
 }
 
-function buildDefaultThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
+function buildLocalThreadOptions(context: ChatThreadActionContext): NewThreadOptions {
   return {
-    envMode: context.defaultThreadEnvMode,
-    logicalProjectKey: context.defaultLogicalProjectKey,
+    envMode: context.threadEnvMode,
+    logicalProjectKey: context.selectedLogicalProjectKey,
   };
 }
 
@@ -168,7 +167,7 @@ function buildProjectThreadOptions(
     };
   }
 
-  if (context.defaultThreadEnvMode === "worktree") {
+  if (context.threadEnvMode === "worktree") {
     return {
       envMode: "worktree",
     };
@@ -187,49 +186,25 @@ function buildProjectThreadOptions(
       branch: activeThread.branch,
       worktreePath: activeThread.worktreePath,
       envMode: activeThread.worktreePath ? "worktree" : "local",
-      logicalProjectKey: projectRefsEqual(projectRef, context.defaultProjectRef)
-        ? context.defaultLogicalProjectKey
+      logicalProjectKey: projectRefsEqual(projectRef, context.selectedProjectRef)
+        ? context.selectedLogicalProjectKey
         : null,
     };
   }
 
   return {
-    envMode: context.defaultThreadEnvMode,
-    logicalProjectKey: projectRefsEqual(projectRef, context.defaultProjectRef)
-      ? context.defaultLogicalProjectKey
+    envMode: context.threadEnvMode,
+    logicalProjectKey: projectRefsEqual(projectRef, context.selectedProjectRef)
+      ? context.selectedLogicalProjectKey
       : null,
   };
-}
-
-function activeDraftBelongsToProject(
-  context: ChatThreadActionContext,
-  projectRef: ScopedProjectRef,
-): boolean {
-  return Boolean(
-    context.activeDraftThread &&
-    (isSourceForWorkspaceProject({
-      project: projectRef,
-      projects: context.projects,
-      source: context.activeDraftThread,
-    }) ||
-      isSourceForWorkspaceProjectRef({
-        projectRef,
-        source: context.activeDraftThread,
-      })),
-  );
 }
 
 export async function startNewThreadInProjectFromContext(
   context: ChatThreadActionContext,
   projectRef: ScopedProjectRef,
 ): Promise<void> {
-  const options = buildProjectThreadOptions(context, projectRef);
-  await context.handleNewThread(
-    projectRef,
-    activeDraftBelongsToProject(context, projectRef)
-      ? options
-      : { ...options, reuseExistingDraft: false },
-  );
+  await context.handleNewThread(projectRef, buildProjectThreadOptions(context, projectRef));
 }
 
 export async function startNewThreadFromContext(
@@ -252,6 +227,6 @@ export async function startNewLocalThreadFromContext(
     return false;
   }
 
-  await context.handleNewThread(projectRef, buildDefaultThreadOptions(context));
+  await context.handleNewThread(projectRef, buildLocalThreadOptions(context));
   return true;
 }

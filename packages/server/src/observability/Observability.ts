@@ -17,7 +17,7 @@ export const ObservabilityLive = Layer.unwrap(
     const processMetadata = configureMultiProcessMetadata("server");
 
     configureMultiEvlog({
-      logsDir: path.join(config.logsDir, "evlog"),
+      filePath: path.join(config.logsDir, "server.log.ndjson"),
       service: "multi-server",
       environment: config.mode,
       minLevel: effectLogLevel(config.logLevel),

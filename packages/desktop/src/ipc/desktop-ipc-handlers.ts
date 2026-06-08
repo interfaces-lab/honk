@@ -9,10 +9,12 @@ import {
   getRuntimePreferences,
   hydrateRuntimeThread,
   installRuntimeHostEventBridge,
+  installRuntimeIngestion,
   respondToRuntimeExtensionUiRequest,
   sendRuntimeTurn,
   updateRuntimePreferences,
 } from "./methods/runtime";
+import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
 import { getServerExposureState, setServerExposureMode } from "./methods/server-exposure";
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
@@ -35,6 +37,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handleSync(getAppBranding);
   yield* ipc.handleSync(getLocalEnvironmentBootstrap);
   yield* ipc.handleSync(getWindowChromeState);
+  yield* installRuntimeIngestion;
   yield* installRuntimeHostEventBridge;
 
   yield* ipc.handle(getClientSettings);
@@ -65,4 +68,5 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(downloadUpdate);
   yield* ipc.handle(installUpdate);
   yield* ipc.handle(checkForUpdate);
+  yield* ipc.handle(logRendererDiagnostic);
 }).pipe(Effect.withSpan("desktop.ipc.installHandlers"));

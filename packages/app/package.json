@@ -25,6 +25,7 @@
     "@lexical/react": "^0.45.0",
     "@lexical/selection": "^0.45.0",
     "@lexical/utils": "^0.45.0",
+    "@multi/client-runtime": "workspace:*",
     "@multi/contracts": "workspace:*",
     "@multi/multikit": "workspace:*",
     "@multi/shared": "workspace:*",

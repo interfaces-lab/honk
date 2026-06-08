@@ -24,6 +24,7 @@ import {
   WS_METHODS,
   WsRpcGroup,
 } from "@multi/contracts";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import { clamp } from "effect/Number";
 import { HttpRouter, HttpServerRequest } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
@@ -43,6 +44,8 @@ import {
   observeRpcStreamEffect,
 } from "./observability/RpcInstrumentation";
 import { ServerLifecycleEvents } from "./server-lifecycle-events";
+
+const elog = EffectLogger.create({ service: "orchestration.ws" });
 import { ServerRuntimeStartup } from "./server-runtime-startup";
 import { ServerSettingsService } from "./server-settings";
 import { TerminalManager } from "./terminal/Manager.service";
@@ -337,6 +340,11 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                     )
                   : false;
               const result = yield* dispatchNormalizedCommand(normalizedCommand);
+              yield* elog.debug("orchestration dispatch completed", {
+                commandType: normalizedCommand.type,
+                sequence: result.sequence,
+                ...threadRpcAttributes(normalizedCommand),
+              });
               if (
                 normalizedCommand.type === "thread.turn.start" &&
                 normalizedCommand.bootstrap?.prepareWorktree &&
@@ -360,7 +368,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                     yield* dispatchNormalizedCommand(stopCommand);
                   }).pipe(
                     Effect.catchCause((cause) =>
-                      Effect.logWarning("failed to stop runtime session during archive", {
+                      elog.warn("failed to stop runtime session during archive", {
                         threadId: normalizedCommand.threadId,
                         cause,
                       }),
@@ -370,7 +378,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
 
                 yield* terminalManager.close({ threadId: normalizedCommand.threadId }).pipe(
                   Effect.catch((error) =>
-                    Effect.logWarning("failed to close thread terminals after archive", {
+                    elog.warn("failed to close thread terminals after archive", {
                       threadId: normalizedCommand.threadId,
                       error: error.message,
                     }),

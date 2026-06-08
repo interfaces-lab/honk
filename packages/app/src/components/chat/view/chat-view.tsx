@@ -37,11 +37,12 @@ import {
 import { getGitStatusSnapshot, useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
 import { usePrimaryEnvironmentId } from "../../../environments/primary";
+import { type PreparedRuntimeTurnPolicy, prepareRuntimeTurnPolicy } from "~/lib/runtime-turn-dispatch";
+import { debugAgentLog } from "~/lib/debug-agent-log";
 import {
-  type PreparedRuntimeTurnPolicy,
-  prepareRuntimeTurnPolicy,
-  sendRuntimeTurnWithPreparedPolicy,
-} from "~/lib/runtime-turn-dispatch";
+  coordinateTurnSend,
+  dispatchTurnStartFailure,
+} from "~/lib/turn-send-coordinator";
 import { isElectron } from "../../../env";
 import { readLocalApi } from "../../../local-api";
 import {
@@ -65,6 +66,7 @@ import {
 import {
   selectEnvironmentState,
   selectProjectsAcrossEnvironments,
+  selectThreadExistsByRef,
   selectThreadKeysAcrossEnvironments,
   useStore,
 } from "../../../stores/thread-store";
@@ -87,9 +89,9 @@ import {
   DEFAULT_RUNTIME_MODE,
   MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
-  type PendingTimelineRow,
   type ProposedPlan,
   type SessionPhase,
+  type ThreadSendIntent,
   type Thread,
 } from "../../../types";
 import { useTheme } from "../../../hooks/use-theme";
@@ -103,12 +105,10 @@ import {
   decodeProjectScriptKeybindingRule,
   nextProjectScriptId,
 } from "~/lib/project-scripts";
-import { newCommandId, newMessageId } from "~/lib/utils";
+import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { useSettings } from "../../../hooks/use-settings";
-import {
-  useNewThreadHandler,
-  useNewThreadProjectDefaults,
-} from "../../../hooks/use-handle-new-thread";
+import { useNewThreadHandler } from "../../../hooks/use-handle-new-thread";
+import { useSelectedWorkspaceProject } from "../../../lib/selected-workspace-project";
 import { readMultiRuntimeApi } from "../../../lib/multi-runtime-api";
 import { openWorkspaceFolder } from "../../../lib/project-selection";
 import { resolveProjectlessCwd, writeStoredProjectSelection } from "../../../lib/project-state";
@@ -119,7 +119,6 @@ import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
   DraftId,
-  ensureProjectNewThreadDraftSession,
   useComposerDraftStore,
   type DraftId as ComposerDraftId,
 } from "../../../stores/chat-drafts";
@@ -139,10 +138,6 @@ import {
 } from "~/components/shell/terminal/workbench-terminal";
 import { ComposerInput, type ComposerInputHandle } from "../composer/input";
 import { useSubagentTrayStore } from "../../../stores/subagent-tray-store";
-import {
-  EMPTY_PENDING_TIMELINE_ROWS,
-  usePendingThreadSendStore,
-} from "../../../stores/pending-thread-send-store";
 import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
@@ -176,6 +171,8 @@ import {
   type LocalDispatchSnapshot,
   type PullRequestDialogState,
   shouldWriteThreadErrorToCurrentServerThread,
+  threadExistsBeforeSend,
+  threadHasRenderableUserStart,
 } from "./thread-lifecycle";
 import { useLocalStorage } from "~/hooks/use-local-storage";
 import { useComposerHandleContext } from "../composer/context/handle-context";
@@ -200,17 +197,13 @@ import {
   assertActiveThread,
   nextComposerInteractionMode,
 } from "./chat-view.logic";
-import { activeTimelineCacheKey as resolveActiveTimelineCacheKey } from "./chat-view-timeline-cache";
 import {
   containsThreadEntry,
   deriveThreadBranchView,
-  deriveWorkLogEntriesForChatTimelineRows,
   filterActivitiesToBranch,
-  filterChatTimelineRowsToBranch,
   filterMessagesToBranch,
   findThreadMessageEntry,
 } from "./thread-branch-view";
-import { buildChatDisplayTimeline } from "./chat-display-timeline";
 import { useThreadBranchWorktree } from "./use-thread-branch-worktree";
 import { useThreadComposerQueue } from "./use-thread-composer-queue";
 import { useThreadPendingUserInput } from "./use-thread-pending-user-input";
@@ -220,7 +213,6 @@ import {
   ChatViewKeyboardShortcutsSync,
   MarkSettledServerThreadVisitedSync,
   MountedTerminalThreadsSync,
-  PendingTimelineRowsServerAckSync,
   RetainServerThreadDetailSync,
   RuntimeThreadHydrationSync,
   TerminalLaunchActiveThreadSync,
@@ -229,21 +221,22 @@ import {
   TerminalLaunchStoredSettledSync,
   TerminalOpenFocusSync,
   ThreadMediaResetSync,
+  ThreadSendIntentsServerAckSync,
 } from "./chat-view-lifecycle-sync";
 import {
-  appendPendingTimelineRowsToMessages,
-  createPendingTimelineRow,
-  filterPendingTimelineRowsToBranch,
-  pendingTimelineRowMessages,
-  unacknowledgedPendingTimelineRows,
-} from "./pending-timeline-rows";
-import {
+  filterThreadSendIntentsToBranch,
+  projectThreadTimeline,
   runtimeDisplayTimelineHasResponseItem,
   runtimeDisplayTimelineRenderableUserMessageIds,
-} from "./runtime-display-timeline";
+  threadSendIntentMessages,
+} from "./thread-timeline-projector";
+import {
+  createThreadSendIntent,
+  EMPTY_THREAD_SEND_INTENTS,
+  useThreadSendIntentStore,
+} from "~/stores/thread-send-intent-store";
 
 const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
-const EMPTY_CHAT_TIMELINE_ROWS: NonNullable<Thread["chatTimelineRows"]> = [];
 const EMPTY_PENDING_APPROVALS: PendingApproval[] = [];
 const EMPTY_THREAD_MESSAGES: ChatMessage[] = [];
 const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
@@ -399,16 +392,16 @@ function useLocalDispatchState(input: {
   activePendingUserInput: ApprovalRequestId | null;
   threadError: string | null | undefined;
 }) {
-  const localDispatch = usePendingThreadSendStore(
+  const localDispatch = useThreadSendIntentStore(
     (store) => store.localDispatchByThreadKey[input.threadKey] ?? null,
   );
-  const setStoredLocalDispatch = usePendingThreadSendStore((store) => store.setLocalDispatch);
-  const clearStoredLocalDispatch = usePendingThreadSendStore((store) => store.clearLocalDispatch);
+  const setStoredLocalDispatch = useThreadSendIntentStore((store) => store.setLocalDispatch);
+  const clearStoredLocalDispatch = useThreadSendIntentStore((store) => store.clearLocalDispatch);
 
   const beginLocalDispatch = (options?: { preparingWorktree?: boolean }) => {
     const preparingWorktree = Boolean(options?.preparingWorktree);
     const currentDispatch =
-      usePendingThreadSendStore.getState().localDispatchByThreadKey[input.threadKey] ?? null;
+      useThreadSendIntentStore.getState().localDispatchByThreadKey[input.threadKey] ?? null;
     if (currentDispatch) {
       if (currentDispatch.preparingWorktree !== preparingWorktree) {
         setStoredLocalDispatch(input.threadKey, { ...currentDispatch, preparingWorktree });
@@ -460,7 +453,7 @@ export default function ChatView(props: ChatViewProps) {
   const routeThreadKey = scopedThreadKey(routeThreadRef);
   const editComposerDraftTarget = DraftId.make(`inline-message-edit:${routeThreadKey}`);
   const composerDraftTarget: ScopedThreadRef | ComposerDraftId =
-    routeKind === "server" ? routeThreadRef : props.draftId;
+    routeKind === "draft" ? props.draftId : routeThreadRef;
   const serverThreadSelector = useMemo(
     () => createThreadSelectorByRef(routeKind === "server" ? routeThreadRef : null),
     [routeKind, routeThreadRef],
@@ -481,14 +474,14 @@ export default function ChatView(props: ChatViewProps) {
   const settings = useSettings();
   const workspaceProjects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const { defaultProjectCwd, defaultProjectEnvironmentId, defaultProjectRef } =
-    useNewThreadProjectDefaults();
+  const { projectCwd: selectedProjectCwd, projectEnvironmentId: selectedProjectEnvironmentId, projectRef: selectedProjectRef } =
+    useSelectedWorkspaceProject();
   const { handleNewThread: handleWorkspaceNewThread } = useNewThreadHandler();
-  const defaultWorkspaceProjectSelector = useMemo(
-    () => createProjectSelectorByRef(defaultProjectRef),
-    [defaultProjectRef?.environmentId, defaultProjectRef?.projectId],
+  const selectedWorkspaceProjectSelector = useMemo(
+    () => createProjectSelectorByRef(selectedProjectRef),
+    [selectedProjectRef?.environmentId, selectedProjectRef?.projectId],
   );
-  const defaultWorkspaceProject = useStore(defaultWorkspaceProjectSelector);
+  const selectedWorkspaceProject = useStore(selectedWorkspaceProjectSelector);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
@@ -516,13 +509,12 @@ export default function ChatView(props: ChatViewProps) {
   );
   const subagentTrayPresented = useSubagentTrayStore((state) => state.presented);
   const closeSubagentTray = useSubagentTrayStore((state) => state.closeTray);
-  const draftThread = useComposerDraftStore((store) =>
-    routeKind === "server"
-      ? store.getDraftSessionByRef(routeThreadRef)
-      : draftId
-        ? store.getDraftSession(draftId)
-        : null,
-  );
+  const draftThread = useComposerDraftStore((store) => {
+    if (routeKind === "draft" && draftId) {
+      return store.getDraftSession(draftId);
+    }
+    return null;
+  });
   const promptRef = useRef("");
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
   const localComposerRef = useRef<ComposerInputHandle | null>(null);
@@ -530,24 +522,24 @@ export default function ChatView(props: ChatViewProps) {
   const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
-  const pendingTimelineRows = usePendingThreadSendStore(
-    (store) => store.pendingRowsByThreadKey[routeThreadKey] ?? EMPTY_PENDING_TIMELINE_ROWS,
+  const threadSendIntents = useThreadSendIntentStore(
+    (store) => store.sendIntentsByThreadKey[routeThreadKey] ?? EMPTY_THREAD_SEND_INTENTS,
   );
-  const appendPendingTimelineRow = usePendingThreadSendStore((store) => store.appendPendingRow);
-  const copyPendingTimelineRows = usePendingThreadSendStore((store) => store.copyPendingRows);
-  const copyLocalDispatch = usePendingThreadSendStore((store) => store.copyLocalDispatch);
-  const clearPendingLocalDispatch = usePendingThreadSendStore((store) => store.clearLocalDispatch);
-  const removePendingTimelineRows = usePendingThreadSendStore((store) => store.removePendingRows);
+  const appendThreadSendIntent = useThreadSendIntentStore((store) => store.appendSendIntent);
+  const copyThreadSendIntents = useThreadSendIntentStore((store) => store.copySendIntents);
+  const copyLocalDispatch = useThreadSendIntentStore((store) => store.copyLocalDispatch);
+  const clearThreadLocalDispatch = useThreadSendIntentStore((store) => store.clearLocalDispatch);
+  const removeThreadSendIntents = useThreadSendIntentStore((store) => store.removeSendIntents);
   const markLocalRuntimeThread = useAgentRuntimeStore((store) => store.markLocalRuntimeThread);
   const clearLocalRuntimeThread = useAgentRuntimeStore((store) => store.clearLocalRuntimeThread);
-  const revokePendingTimelineMessages = (rows: ReadonlyArray<PendingTimelineRow>) => {
-    for (const message of pendingTimelineRowMessages(rows)) {
+  const revokeThreadSendIntentMessages = (intents: ReadonlyArray<ThreadSendIntent>) => {
+    for (const message of threadSendIntentMessages(intents)) {
       revokeUserMessagePreviewUrls(message);
     }
   };
-  const removePendingTimelineRowsByClientSendKey = (messageId: MessageId) => {
-    const removedRows = removePendingTimelineRows(routeThreadKey, new Set([messageId]));
-    revokePendingTimelineMessages(removedRows);
+  const removeThreadSendIntentsByClientMessageId = (messageId: MessageId) => {
+    const removedIntents = removeThreadSendIntents(routeThreadKey, new Set([messageId]));
+    revokeThreadSendIntentMessages(removedIntents);
   };
   const clearUnconfirmedLocalTurnStart = (
     targetEnvironmentId: EnvironmentId,
@@ -628,7 +620,9 @@ export default function ChatView(props: ChatViewProps) {
         localDraftError,
       )
     : undefined;
-  const isServerThread = routeKind === "server" && serverThread !== undefined;
+  const composerUsesLocalDraftThread = routeKind === "draft";
+  const isServerThread =
+    routeKind === "server" && serverThread !== undefined && !composerUsesLocalDraftThread;
   const activeThread = isServerThread ? serverThread : localDraftThread;
   const interactionMode =
     composerInteractionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
@@ -637,7 +631,7 @@ export default function ChatView(props: ChatViewProps) {
   const isNewThreadHero = isNewThreadHeroDraft({
     activeThread,
     isLocalDraftThread,
-    pendingLocalSendCount: pendingTimelineRows.length,
+    pendingLocalSendCount: threadSendIntents.length,
     promotedTo: draftThread?.promotedTo,
   });
   const terminalState = useTerminalStateStore((state) =>
@@ -760,7 +754,7 @@ export default function ChatView(props: ChatViewProps) {
     const activeProjectRef = scopeProjectRef(workspaceProject.environmentId, workspaceProject.id);
     const logicalProjectKey = deriveLogicalProjectKey(workspaceProject);
     const storedDraftSession = getDraftSessionByLogicalProjectKey(logicalProjectKey);
-    if (storedDraftSession) {
+    if (storedDraftSession && storedDraftSession.promotedTo == null) {
       setDraftThreadContext(storedDraftSession.draftId, input);
       setLogicalProjectDraftThreadId(
         logicalProjectKey,
@@ -789,17 +783,22 @@ export default function ChatView(props: ChatViewProps) {
       return activeDraftSession.threadId;
     }
 
-    const nextDraftSession = ensureProjectNewThreadDraftSession(activeProjectRef, {
-      logicalProjectKey,
-    });
-    setDraftThreadContext(nextDraftSession.draftId, input);
-    setLogicalProjectDraftThreadId(logicalProjectKey, activeProjectRef, nextDraftSession.draftId, {
-      threadId: nextDraftSession.threadId,
-      createdAt: nextDraftSession.createdAt,
-      interactionMode: nextDraftSession.interactionMode,
+    const nextDraftId = DraftId.make(
+      `new-thread-draft:project:${activeProjectRef.environmentId}:${activeProjectRef.projectId}`,
+    );
+    setLogicalProjectDraftThreadId(logicalProjectKey, activeProjectRef, nextDraftId, {
+      threadId: newThreadId(),
+      createdAt: new Date().toISOString(),
+      interactionMode: DEFAULT_INTERACTION_MODE,
       ...input,
     });
-    await openDraft(router, nextDraftSession.draftId);
+    clearComposerDraftContent(nextDraftId);
+    setDraftThreadContext(nextDraftId, input);
+    await openDraft(router, nextDraftId);
+    const nextDraftSession = getDraftSession(nextDraftId);
+    if (!nextDraftSession) {
+      throw new Error("Could not open a new project draft thread.");
+    }
     return nextDraftSession.threadId;
   };
 
@@ -818,7 +817,6 @@ export default function ChatView(props: ChatViewProps) {
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
   const sharedThreadActivities = useSharedChatActivities(threadActivities);
   const activeContextWindow = useStableLatestContextWindowSnapshot(sharedThreadActivities);
-  const chatTimelineRows = activeThread?.chatTimelineRows ?? EMPTY_CHAT_TIMELINE_ROWS;
   const leafId = activeThread?.leafId ?? null;
   const branchViewEntryId = containsThreadEntry(activeThread ?? null, leafId) ? leafId : null;
   const branchView = useMemo(
@@ -828,10 +826,6 @@ export default function ChatView(props: ChatViewProps) {
   const visibleThreadActivities = useMemo(
     () => filterActivitiesToBranch(sharedThreadActivities, branchView),
     [branchView, sharedThreadActivities],
-  );
-  const visibleChatTimelineRows = useMemo(
-    () => filterChatTimelineRowsToBranch(chatTimelineRows, branchView),
-    [branchView, chatTimelineRows],
   );
   const activeRunningTurnId =
     activeThread?.session?.orchestrationStatus === "running"
@@ -845,16 +839,6 @@ export default function ChatView(props: ChatViewProps) {
     [activeRunningTurnId, visibleThreadActivities],
   );
   const workLogEntries = useStableCompletedWorkLogEntries(derivedWorkLogEntries);
-  const derivedTimelineWorkLogEntries = useMemo(
-    () =>
-      deriveWorkLogEntriesForChatTimelineRows({
-        rows: visibleChatTimelineRows,
-        activities: sharedThreadActivities,
-        workLogOptions: { activeRunningTurnId },
-      }),
-    [activeRunningTurnId, sharedThreadActivities, visibleChatTimelineRows],
-  );
-  const timelineWorkLogEntries = useStableCompletedWorkLogEntries(derivedTimelineWorkLogEntries);
   const pendingApprovals = useMemo(
     () =>
       latestTurnSettled
@@ -930,29 +914,14 @@ export default function ChatView(props: ChatViewProps) {
     () => runtimeDisplayTimelineHasResponseItem(activeRuntimeDisplayTimeline),
     [activeRuntimeDisplayTimeline],
   );
-  const runtimeResponseSeenRef = useRef({ threadKey: routeThreadKey, seen: false });
-  if (runtimeResponseSeenRef.current.threadKey !== routeThreadKey) {
-    runtimeResponseSeenRef.current = { threadKey: routeThreadKey, seen: false };
-  }
-  const runtimeResponseSeenForThread =
-    runtimeResponseSeenRef.current.seen || runtimeTimelineHasResponse;
-  if (runtimeTimelineHasResponse && !runtimeResponseSeenRef.current.seen) {
-    runtimeResponseSeenRef.current = { threadKey: routeThreadKey, seen: true };
-  }
-  const runtimeDisplayRegressedToUserOnly =
-    activeThreadIsRuntimeOwned &&
-    activeRuntimeDisplayTimeline !== null &&
-    !latestTurnSettled &&
-    runtimeResponseSeenForThread &&
-    !runtimeTimelineHasResponse;
   const waitingForRuntimeFirstResponse =
     activeThreadIsRuntimeOwned &&
     activeRuntimeDisplayTimeline !== null &&
     !latestTurnSettled &&
     !runtimeTimelineHasResponse;
-  const isWorking =
-    phase === "running" || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const isTurnRunning = activeRunningTurnId !== null;
+  const isWorking =
+    isTurnRunning || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const {
     queuedComposerItems,
     editingQueuedComposerItemId,
@@ -990,57 +959,37 @@ export default function ChatView(props: ChatViewProps) {
     clearAttachmentPreviewHandoffs,
     handoffAttachmentPreviews,
   } = useAttachmentPreviewHandoff({ serverMessages });
-  const visiblePendingTimelineRows = useMemo(
-    () => filterPendingTimelineRowsToBranch(pendingTimelineRows, branchView),
-    [branchView, pendingTimelineRows],
+  const visibleThreadSendIntents = useMemo(
+    () => filterThreadSendIntentsToBranch(threadSendIntents, branchView),
+    [branchView, threadSendIntents],
   );
-  const renderPendingTimelineRows = useMemo(
-    () =>
-      unacknowledgedPendingTimelineRows({
-        pendingRows: visiblePendingTimelineRows,
-        committedMessages: serverMessages,
-      }),
-    [serverMessages, visiblePendingTimelineRows],
-  );
-  const timelineMessages = useMemo(() => {
-    const serverMessagesWithPreviewHandoff = applyAttachmentPreviewHandoff(serverMessages);
-    return appendPendingTimelineRowsToMessages(
-      serverMessagesWithPreviewHandoff,
-      renderPendingTimelineRows,
-    );
-  }, [applyAttachmentPreviewHandoff, renderPendingTimelineRows, serverMessages]);
-  const transientPendingTimelineRows = useMemo(
-    () =>
-      unacknowledgedPendingTimelineRows({
-        pendingRows: renderPendingTimelineRows,
-        committedMessages: serverMessages,
-        acknowledgedMessageIds: runtimeRenderableUserMessageIds,
-      }),
-    [renderPendingTimelineRows, runtimeRenderableUserMessageIds, serverMessages],
+  const committedTimelineMessages = useMemo(
+    () => applyAttachmentPreviewHandoff(serverMessages),
+    [applyAttachmentPreviewHandoff, serverMessages],
   );
   const timelineEntries = useMemo(() => {
     const proposedPlans = activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS;
-    return buildChatDisplayTimeline({
-      visibleChatTimelineRows,
-      timelineMessages,
+    return projectThreadTimeline({
+      committedMessages: committedTimelineMessages,
       proposedPlans,
-      threadActivities: sharedThreadActivities,
-      timelineWorkLogEntries,
-      activeRunningTurnId,
-      transientPendingTimelineRows,
+      workLogEntries,
+      sendIntents: visibleThreadSendIntents,
+      runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
       activeRuntimeDisplayTimeline,
-      runtimeDisplayRegressedToUserOnly,
+      isWorking,
+      isTurnActive: isTurnRunning,
+      activeTurnStartedAt: activeWorkStartedAt,
     });
   }, [
-    activeRunningTurnId,
+    activeWorkStartedAt,
     activeRuntimeDisplayTimeline,
     activeThread?.proposedPlans,
-    runtimeDisplayRegressedToUserOnly,
-    sharedThreadActivities,
-    timelineWorkLogEntries,
-    timelineMessages,
-    transientPendingTimelineRows,
-    visibleChatTimelineRows,
+    committedTimelineMessages,
+    isTurnRunning,
+    isWorking,
+    runtimeRenderableUserMessageIds,
+    visibleThreadSendIntents,
+    workLogEntries,
   ]);
   const editableUserMessageIds = useMemo(() => {
     if (!activeThread || activeThread.entries.length === 0) {
@@ -1065,7 +1014,7 @@ export default function ChatView(props: ChatViewProps) {
   const activeEditingUserMessageId =
     editingUserMessageId &&
     editableUserMessageIds.has(editingUserMessageId) &&
-    timelineMessages.some(
+    committedTimelineMessages.some(
       (message) => message.id === editingUserMessageId && message.role === "user",
     )
       ? editingUserMessageId
@@ -1119,10 +1068,10 @@ export default function ChatView(props: ChatViewProps) {
   const workspaceSource = activeThread ?? draftThread ?? null;
   const workspaceTarget = resolveWorkspaceTarget({
     source: workspaceSource,
-    defaultProject: defaultWorkspaceProject ?? null,
-    defaultProjectCwd,
-    defaultProjectEnvironmentId,
-    defaultProjectRef,
+    defaultProject: selectedWorkspaceProject ?? null,
+    defaultProjectCwd: selectedProjectCwd,
+    defaultProjectEnvironmentId: selectedProjectEnvironmentId,
+    defaultProjectRef: selectedProjectRef,
     projects: workspaceProjects,
     projectlessCwd,
     fallbackEnvironmentId: environmentId,
@@ -1718,7 +1667,7 @@ export default function ChatView(props: ChatViewProps) {
     const { images: composerImages } = input.sendContext;
     const compiledTurn = compileComposerSubmitTurn(input.sendContext);
     const { hasSendableContent } = compiledTurn;
-    const originalMessage = timelineMessages.find(
+    const originalMessage = committedTimelineMessages.find(
       (message) => message.id === messageId && message.role === "user",
     );
     const originalEntry = findThreadMessageEntry(activeThread, messageId);
@@ -1760,31 +1709,10 @@ export default function ChatView(props: ChatViewProps) {
     let serverTurnStartSucceeded = false;
     let runtimeSendSucceeded = false;
     let localTurnStartAnnounced = false;
-    let runtimeSendPromise: Promise<void> | null = null;
     let turnAttachmentsPromise: ReturnType<typeof readTurnAttachments> | null = null;
     const getTurnAttachments = () => {
       turnAttachmentsPromise ??= readTurnAttachments();
       return turnAttachmentsPromise;
-    };
-    const startRuntimeTurn = () => {
-      runtimeSendPromise ??= getTurnAttachments()
-        .then((turnAttachments) =>
-          sendRuntimeTurnWithPreparedPolicy({
-            threadId: threadIdForSend,
-            cwd: runtimeCwd,
-            text: compiledTurn.outgoingMessageText,
-            interactionMode: input.interactionMode,
-            sourceProposedPlan: null,
-            clientMessageId: messageIdForSend,
-            images: turnAttachments,
-            preparedPolicy: preparedRuntimePolicy,
-          }),
-        )
-        .then(() => {
-          runtimeSendSucceeded = true;
-        });
-      void runtimeSendPromise.catch(() => undefined);
-      return runtimeSendPromise;
     };
 
     sendInFlightRef.current = true;
@@ -1816,54 +1744,47 @@ export default function ChatView(props: ChatViewProps) {
         createdAt: messageCreatedAt,
       });
       localTurnStartAnnounced = true;
-      void startRuntimeTurn();
-
-      let serverPersistenceError: unknown = null;
-      const captureServerPersistenceError = (err: unknown) => {
-        if (serverPersistenceError === null) {
-          serverPersistenceError = err;
-        }
-      };
-      const settingsPersistencePromise = persistThreadSettingsForNextTurn({
-        threadId: threadIdForSend,
-        createdAt: messageCreatedAt,
-        interactionMode: input.interactionMode,
-      }).catch(captureServerPersistenceError);
 
       setEditingUserMessageId((current) => (current === messageId ? null : current));
       clearComposerDraftContent(editComposerDraftTarget);
-      const turnAttachments = await getTurnAttachments();
-      await api.orchestration
-        .dispatchCommand({
-          type: "thread.turn.start",
-          commandId: newCommandId(),
-          threadId: threadIdForSend,
-          message: {
-            messageId: messageIdForSend,
-            role: "user",
-            text: compiledTurn.outgoingMessageText,
-            ...(compiledTurn.outgoingRichText !== undefined
-              ? { richText: compiledTurn.outgoingRichText }
-              : {}),
-            attachments: turnAttachments,
-          },
-          modelSelection: activeThread.modelSelection,
-          titleSeed: activeThread.title,
-          runtimeMode: DEFAULT_RUNTIME_MODE,
-          interactionMode: input.interactionMode,
-          parentEntryId,
-          createdAt: messageCreatedAt,
-        })
-        .then(() => {
-          serverTurnStartSucceeded = true;
-        })
-        .catch(captureServerPersistenceError);
-      await settingsPersistencePromise;
-      await startRuntimeTurn();
-      if (serverPersistenceError) {
+
+      const turnResult = await coordinateTurnSend({
+        environmentId,
+        threadKey: routeThreadKey,
+        threadId: threadIdForSend,
+        clientMessageId: messageIdForSend,
+        createdAt: messageCreatedAt,
+        message: {
+          text: compiledTurn.outgoingMessageText,
+          ...(compiledTurn.outgoingRichText !== undefined
+            ? { richText: compiledTurn.outgoingRichText }
+            : {}),
+          optimisticAttachments,
+          getTurnAttachments,
+        },
+        parentEntryId,
+        modelSelection: activeThread.modelSelection,
+        titleSeed: activeThread.title,
+        interactionMode: input.interactionMode,
+        cwd: runtimeCwd,
+        preparedPolicy: preparedRuntimePolicy,
+        api,
+        appendSendIntent: false,
+        applyLocalTurnStart: false,
+        startRuntimeBeforePersistence: true,
+        persistBeforeDispatch: () =>
+          persistThreadSettingsForNextTurn({
+            threadId: threadIdForSend,
+            createdAt: messageCreatedAt,
+            interactionMode: input.interactionMode,
+          }),
+      });
+      serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
+      runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      if (turnResult.serverPersistenceError) {
         const detail =
-          serverPersistenceError instanceof Error
-            ? serverPersistenceError.message
+          turnResult.serverPersistenceError instanceof Error
+            ? turnResult.serverPersistenceError.message
             : "Failed to save thread.";
         setThreadError(threadIdForSend, `Message sent, but failed to save thread. ${detail}`);
       }
@@ -1872,17 +1793,12 @@ export default function ChatView(props: ChatViewProps) {
       clearLocalRuntimeThread(threadIdForSend);
       const errorMessage = err instanceof Error ? err.message : "Failed to submit edited message.";
       if (serverTurnStartSucceeded) {
-        await api.orchestration
-          .dispatchCommand({
-            type: "thread.turn.start.failed",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-            messageId: messageIdForSend,
-            detail:
-              errorMessage.trim().length > 0 ? errorMessage : "Failed to submit edited message.",
-            createdAt: new Date().toISOString(),
-          })
-          .catch(() => undefined);
+        await dispatchTurnStartFailure({
+          api,
+          threadId: threadIdForSend,
+          messageId: messageIdForSend,
+          detail: errorMessage,
+        });
       }
       if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
         clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
@@ -1950,6 +1866,37 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     const threadIdForSend = activeThread.id;
+    const threadRefForSend = scopeThreadRef(environmentId, threadIdForSend);
+    const threadAlreadyExistsBeforeSend = threadExistsBeforeSend({
+      serverThreadExists: selectThreadExistsByRef(useStore.getState(), threadRefForSend),
+      draftPromotedTo: draftThread?.promotedTo,
+      targetThreadRef: threadRefForSend,
+    });
+    debugAgentLog(
+      "chat-view.tsx:submitComposerSendSnapshot",
+      "composer send starting",
+      {
+        routeKind,
+        draftId,
+        routeThreadId: threadId,
+        routeThreadKey,
+        composerDraftTarget:
+          typeof composerDraftTarget === "string"
+            ? composerDraftTarget
+            : `${composerDraftTarget.environmentId}:${composerDraftTarget.threadId}`,
+        isServerThread,
+        isLocalDraftThread,
+        activeThreadId: activeThread.id,
+        threadIdForSend,
+        threadExistsBeforeSend: threadAlreadyExistsBeforeSend,
+        shouldBootstrapCreateThread: isLocalDraftThread && !threadAlreadyExistsBeforeSend,
+        serverThreadId: serverThread?.id ?? null,
+        draftThreadId: draftThread?.threadId ?? null,
+        draftPromotedTo: draftThread?.promotedTo?.threadId ?? null,
+        serverThreadMessageCount: serverThread?.messages.length ?? null,
+      },
+      "H1-H4",
+    );
     const isFirstMessage = !isServerThread || activeThread.messages.length === 0;
     const currentSendEnvMode = resolveSendEnvMode({
       requestedEnvMode: envMode,
@@ -2022,21 +1969,18 @@ export default function ChatView(props: ChatViewProps) {
     setShowScrollToBottom(false);
     messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
 
-    const shouldUsePendingTimelineRow = Boolean(baseBranchForWorktree);
     markLocalRuntimeThread(threadIdForSend);
-    if (shouldUsePendingTimelineRow) {
-      appendPendingTimelineRow(
-        routeThreadKey,
-        createPendingTimelineRow({
-          messageId: messageIdForSend,
-          text: compiledTurn.outgoingMessageText,
-          richText: compiledTurn.outgoingRichText,
-          attachments: optimisticAttachments,
-          createdAt: messageCreatedAt,
-          parentEntryId: branchView.entryId,
-        }),
-      );
-    }
+    appendThreadSendIntent(
+      routeThreadKey,
+      createThreadSendIntent({
+        messageId: messageIdForSend,
+        text: compiledTurn.outgoingMessageText,
+        richText: compiledTurn.outgoingRichText,
+        attachments: optimisticAttachments,
+        createdAt: messageCreatedAt,
+        parentEntryId: branchView.entryId,
+      }),
+    );
 
     setThreadError(threadIdForSend, null);
     if (clearComposerOnSubmit) {
@@ -2053,9 +1997,8 @@ export default function ChatView(props: ChatViewProps) {
     let localTurnStartAnnounced = false;
     await (async () => {
       const title = compiledTurn.title;
-      let runtimeCwd = initialRuntimeCwd;
-      let threadBranch = activeThreadBranch;
-      let threadWorktreePath = activeThread.worktreePath;
+      const threadBranch = activeThreadBranch;
+      const threadWorktreePath = activeThread.worktreePath;
       const worktreeBranch = baseBranchForWorktree ? buildTemporaryWorktreeBranchName() : null;
       const shouldDispatchTurnStart = Boolean(api);
       const canStartRuntimeBeforePersistence = !baseBranchForWorktree;
@@ -2065,29 +2008,8 @@ export default function ChatView(props: ChatViewProps) {
         turnAttachmentsPromise ??= readTurnAttachments();
         return turnAttachmentsPromise;
       };
-      let runtimeSendPromise: Promise<void> | null = null;
-      const startRuntimeTurn = () => {
-        runtimeSendPromise ??= getTurnAttachments()
-          .then((turnAttachments) =>
-            sendRuntimeTurnWithPreparedPolicy({
-              threadId: threadIdForSend,
-              cwd: runtimeCwd,
-              text: compiledTurn.outgoingMessageText,
-              interactionMode: interactionModeForSend,
-              sourceProposedPlan: null,
-              clientMessageId: messageIdForSend,
-              images: turnAttachments,
-              preparedPolicy: preparedRuntimePolicy,
-            }),
-          )
-          .then(() => {
-            runtimeSendSucceeded = true;
-          });
-        void runtimeSendPromise.catch(() => undefined);
-        return runtimeSendPromise;
-      };
       const applyLocalBootstrapThread = () => {
-        if (!isLocalDraftThread) {
+        if (!isLocalDraftThread || threadAlreadyExistsBeforeSend) {
           return;
         }
         applyLocalThreadCreated({
@@ -2131,10 +2053,19 @@ export default function ChatView(props: ChatViewProps) {
         }
         const promotedThreadRef = scopeThreadRef(environmentId, threadIdForSend);
         const promotedThreadKey = scopedThreadKey(promotedThreadRef);
+        debugAgentLog(
+          "chat-view.tsx:promoteLocalDraft",
+          "draft promotion",
+          {
+            draftId,
+            routeThreadKey,
+            promotedThreadId: threadIdForSend,
+            promotedThreadKey,
+          },
+          "H5",
+        );
         markDraftThreadPromoting(draftId, promotedThreadRef);
-        if (shouldUsePendingTimelineRow) {
-          copyPendingTimelineRows(routeThreadKey, promotedThreadKey, new Set([messageIdForSend]));
-        }
+        copyThreadSendIntents(routeThreadKey, promotedThreadKey, new Set([messageIdForSend]));
         copyLocalDispatch(routeThreadKey, promotedThreadKey);
         promotedLocalSendThreadKey = promotedThreadKey;
         promotedDraftOptimistically = true;
@@ -2164,112 +2095,105 @@ export default function ChatView(props: ChatViewProps) {
         }
       };
 
+      const buildTurnBootstrap = () => {
+        if (
+          !shouldDispatchTurnStart ||
+          (!isLocalDraftThread && !(baseBranchForWorktree && workspaceProject && worktreeBranch))
+        ) {
+          return undefined;
+        }
+        return {
+          ...(isLocalDraftThread && !threadAlreadyExistsBeforeSend
+            ? {
+                createThread: {
+                  projectId: threadProjectId,
+                  title,
+                  modelSelection: threadCreateModelSelection,
+                  runtimeMode: DEFAULT_RUNTIME_MODE,
+                  interactionMode: interactionModeForSend,
+                  branch: threadBranch,
+                  worktreePath: threadWorktreePath,
+                  createdAt: activeThread.createdAt,
+                },
+              }
+            : {}),
+          ...(baseBranchForWorktree && workspaceProject && worktreeBranch
+            ? {
+                prepareWorktree: {
+                  projectCwd: workspaceProject.cwd,
+                  baseBranch: baseBranchForWorktree,
+                  branch: worktreeBranch,
+                },
+                runSetupScript: true,
+              }
+            : {}),
+        };
+      };
+
       if (canStartRuntimeBeforePersistence) {
         applyLocalBootstrapThread();
         applyLocalTurnStartRequest();
         promoteLocalDraft();
-        void startRuntimeTurn();
       }
 
       const metadataPersistencePromise = canStartRuntimeBeforePersistence
         ? persistThreadMetadataForSend().catch(captureServerPersistenceError)
         : null;
-      if (!canStartRuntimeBeforePersistence) {
-        await persistThreadMetadataForSend();
+
+      const turnBootstrap = buildTurnBootstrap();
+      const turnResult = await coordinateTurnSend({
+        environmentId,
+        threadKey: routeThreadKey,
+        threadId: threadIdForSend,
+        clientMessageId: messageIdForSend,
+        createdAt: messageCreatedAt,
+        message: {
+          text: compiledTurn.outgoingMessageText,
+          ...(compiledTurn.outgoingRichText !== undefined
+            ? { richText: compiledTurn.outgoingRichText }
+            : {}),
+          optimisticAttachments,
+          getTurnAttachments,
+        },
+        parentEntryId: branchView.entryId,
+        modelSelection: activeThread.modelSelection,
+        titleSeed: title,
+        runtimeMode: DEFAULT_RUNTIME_MODE,
+        interactionMode: interactionModeForSend,
+        ...(turnBootstrap ? { bootstrap: turnBootstrap } : {}),
+        cwd: initialRuntimeCwd,
+        preparedPolicy: preparedRuntimePolicy,
+        api: shouldDispatchTurnStart ? api : undefined,
+        appendSendIntent: false,
+        applyLocalTurnStart: false,
+        startRuntimeBeforePersistence: canStartRuntimeBeforePersistence,
+        ...(canStartRuntimeBeforePersistence
+          ? {}
+          : { persistBeforeDispatch: persistThreadMetadataForSend }),
+      });
+
+      serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
+      runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      if (turnResult.serverPersistenceError) {
+        serverPersistenceError = turnResult.serverPersistenceError;
       }
 
-      if (shouldDispatchTurnStart && api) {
-        let dispatchResolved = false;
-        const turnAttachments = await getTurnAttachments();
-        const dispatchResult = await api.orchestration
-          .dispatchCommand({
-            type: "thread.turn.start",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-            message: {
-              messageId: messageIdForSend,
-              role: "user",
-              text: compiledTurn.outgoingMessageText,
-              ...(compiledTurn.outgoingRichText !== undefined
-                ? { richText: compiledTurn.outgoingRichText }
-                : {}),
-              attachments: turnAttachments,
-            },
-            modelSelection: activeThread.modelSelection,
-            titleSeed: title,
-            runtimeMode: DEFAULT_RUNTIME_MODE,
-            interactionMode: interactionModeForSend,
-            parentEntryId: branchView.entryId,
-            ...(isLocalDraftThread || (baseBranchForWorktree && workspaceProject && worktreeBranch)
-              ? {
-                  bootstrap: {
-                    ...(isLocalDraftThread
-                      ? {
-                          createThread: {
-                            projectId: threadProjectId,
-                            title,
-                            modelSelection: threadCreateModelSelection,
-                            runtimeMode: DEFAULT_RUNTIME_MODE,
-                            interactionMode: interactionModeForSend,
-                            branch: threadBranch,
-                            worktreePath: threadWorktreePath,
-                            createdAt: activeThread.createdAt,
-                          },
-                        }
-                      : {}),
-                    ...(baseBranchForWorktree && workspaceProject && worktreeBranch
-                      ? {
-                          prepareWorktree: {
-                            projectCwd: workspaceProject.cwd,
-                            baseBranch: baseBranchForWorktree,
-                            branch: worktreeBranch,
-                          },
-                          runSetupScript: true,
-                        }
-                      : {}),
-                  },
-                }
-              : {}),
-            createdAt: messageCreatedAt,
-          })
-          .then((result) => {
-            dispatchResolved = true;
-            return result;
-          })
-          .catch((err: unknown) => {
-            if (!canStartRuntimeBeforePersistence) {
-              throw err;
-            }
-            captureServerPersistenceError(err);
-            return null;
-          });
-        serverTurnStartSucceeded = dispatchResolved;
+      if (baseBranchForWorktree && turnResult.serverTurnStartSucceeded && !turnResult.preparedWorktree) {
+        throw new Error("New worktree was created, but no prepared worktree was returned.");
+      }
 
-        if (dispatchResult && baseBranchForWorktree) {
-          if (!dispatchResult.preparedWorktree) {
-            throw new Error("New worktree was created, but no prepared worktree was returned.");
-          }
-          runtimeCwd = dispatchResult.preparedWorktree.worktreePath;
-          threadBranch = dispatchResult.preparedWorktree.branch;
-          threadWorktreePath = dispatchResult.preparedWorktree.worktreePath;
+      if (!canStartRuntimeBeforePersistence) {
+        if (isLocalDraftThread) {
+          applyLocalBootstrapThread();
         }
-      } else if (isLocalDraftThread && !canStartRuntimeBeforePersistence) {
-        applyLocalBootstrapThread();
+        beginLocalDispatch({ preparingWorktree: false });
+        promoteLocalDraft();
       }
 
       if (metadataPersistencePromise) {
         await metadataPersistencePromise;
       }
 
-      if (!canStartRuntimeBeforePersistence) {
-        beginLocalDispatch({ preparingWorktree: false });
-      }
-      promoteLocalDraft();
-      if (!canStartRuntimeBeforePersistence) {
-        await startRuntimeTurn();
-      } else if (runtimeSendPromise) {
-        await runtimeSendPromise;
-      }
       if (serverPersistenceError) {
         const detail =
           serverPersistenceError instanceof Error
@@ -2281,16 +2205,12 @@ export default function ChatView(props: ChatViewProps) {
       clearLocalRuntimeThread(threadIdForSend);
       const errorMessage = err instanceof Error ? err.message : "Failed to send message.";
       if (serverTurnStartSucceeded && api) {
-        await api.orchestration
-          .dispatchCommand({
-            type: "thread.turn.start.failed",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-            messageId: messageIdForSend,
-            detail: errorMessage.trim().length > 0 ? errorMessage : "Failed to send message.",
-            createdAt: new Date().toISOString(),
-          })
-          .catch(() => undefined);
+        await dispatchTurnStartFailure({
+          api,
+          threadId: threadIdForSend,
+          messageId: messageIdForSend,
+          detail: errorMessage,
+        });
       }
       if (promotedDraftOptimistically && draftId) {
         cancelDraftThreadPromotion(draftId);
@@ -2307,15 +2227,15 @@ export default function ChatView(props: ChatViewProps) {
         composerImagesRef.current.length === 0
       ) {
         if (promotedLocalSendThreadKey !== null) {
-          const removedPromotedRows = removePendingTimelineRows(
+          const removedPromotedIntents = removeThreadSendIntents(
             promotedLocalSendThreadKey,
             new Set([messageIdForSend]),
           );
-          revokePendingTimelineMessages(removedPromotedRows);
-          removePendingTimelineRows(routeThreadKey, new Set([messageIdForSend]));
-          clearPendingLocalDispatch(promotedLocalSendThreadKey);
+          revokeThreadSendIntentMessages(removedPromotedIntents);
+          removeThreadSendIntents(routeThreadKey, new Set([messageIdForSend]));
+          clearThreadLocalDispatch(promotedLocalSendThreadKey);
         } else {
-          removePendingTimelineRowsByClientSendKey(messageIdForSend);
+          removeThreadSendIntentsByClientMessageId(messageIdForSend);
         }
         promptRef.current = promptForSend;
         const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
@@ -2329,7 +2249,7 @@ export default function ChatView(props: ChatViewProps) {
         });
       }
       if (!serverTurnStartSucceeded && promotedLocalSendThreadKey !== null) {
-        clearPendingLocalDispatch(promotedLocalSendThreadKey);
+        clearThreadLocalDispatch(promotedLocalSendThreadKey);
       }
       setThreadError(threadIdForSend, errorMessage);
     });
@@ -2397,7 +2317,7 @@ export default function ChatView(props: ChatViewProps) {
       planFollowUp === null &&
       !editingQueuedComposerItemId &&
       queuedComposerItems.length > 0 &&
-      phase !== "running" &&
+      !isTurnRunning &&
       !isConnecting &&
       !isSendBusy &&
       !sendInFlightRef.current
@@ -2435,7 +2355,7 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     if (
-      phase === "running" &&
+      isTurnRunning &&
       (sendWhileStreamingBehavior === "queue" || sendWhileStreamingBehavior === "stop-and-send")
     ) {
       const { hasSendableContent } = currentComposerSendState;
@@ -2556,7 +2476,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const onSendQueuedComposerItemNow = (itemId: MessageId) => {
-    if (phase === "running" || isConnecting || isSendBusy || sendInFlightRef.current) {
+    if (isTurnRunning || isConnecting || isSendBusy || sendInFlightRef.current) {
       return;
     }
     const item = takeQueuedComposerItem(routeThreadKey, itemId);
@@ -2677,23 +2597,6 @@ export default function ChatView(props: ChatViewProps) {
     let serverTurnStartSucceeded = false;
     let runtimeSendSucceeded = false;
     let localTurnStartAnnounced = false;
-    let runtimeSendPromise: Promise<void> | null = null;
-    const startRuntimeTurn = () => {
-      runtimeSendPromise ??= sendRuntimeTurnWithPreparedPolicy({
-        threadId: threadIdForSend,
-        cwd: runtimeCwd,
-        text: outgoingMessageText,
-        interactionMode: nextInteractionMode,
-        sourceProposedPlan,
-        clientMessageId: messageIdForSend,
-        images: [],
-        preparedPolicy: preparedRuntimePolicy,
-      }).then(() => {
-        runtimeSendSucceeded = true;
-      });
-      void runtimeSendPromise.catch(() => undefined);
-      return runtimeSendPromise;
-    };
 
     sendInFlightRef.current = true;
     beginLocalDispatch({ preparingWorktree: false });
@@ -2725,78 +2628,66 @@ export default function ChatView(props: ChatViewProps) {
       });
       localTurnStartAnnounced = true;
 
-      let serverPersistenceError: unknown = null;
-      const captureServerPersistenceError = (err: unknown) => {
-        if (serverPersistenceError === null) {
-          serverPersistenceError = err;
-        }
-      };
-      const settingsPersistencePromise = persistThreadSettingsForNextTurn({
-        threadId: threadIdForSend,
-        createdAt: messageCreatedAt,
-        interactionMode: nextInteractionMode,
-      }).catch(captureServerPersistenceError);
-
       // Keep the mode toggle and plan-follow-up banner in sync immediately
       // while the same-thread implementation turn is starting.
       setComposerDraftInteractionMode(
         scopeThreadRef(activeThread.environmentId, threadIdForSend),
         nextInteractionMode,
       );
-      void startRuntimeTurn();
       // Optimistically open the plan sidebar when implementing (not refining).
       // Agent mode here means the agent is executing the plan, which produces
       // step-tracking activities that the workbench Plan/Tasks tab will display.
       if (nextInteractionMode === "agent") {
         shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey);
       }
-      if (api) {
-        await api.orchestration
-          .dispatchCommand({
-            type: "thread.turn.start",
-            commandId: newCommandId(),
+
+      const turnResult = await coordinateTurnSend({
+        environmentId,
+        threadKey: routeThreadKey,
+        threadId: threadIdForSend,
+        clientMessageId: messageIdForSend,
+        createdAt: messageCreatedAt,
+        message: {
+          text: outgoingMessageText,
+          optimisticAttachments: [],
+          getTurnAttachments: async () => [],
+        },
+        parentEntryId: branchView.entryId,
+        modelSelection: activeThread.modelSelection,
+        titleSeed: activeThread.title,
+        interactionMode: nextInteractionMode,
+        sourceProposedPlan,
+        cwd: runtimeCwd,
+        preparedPolicy: preparedRuntimePolicy,
+        api,
+        appendSendIntent: false,
+        applyLocalTurnStart: false,
+        startRuntimeBeforePersistence: true,
+        persistBeforeDispatch: () =>
+          persistThreadSettingsForNextTurn({
             threadId: threadIdForSend,
-            message: {
-              messageId: messageIdForSend,
-              role: "user",
-              text: outgoingMessageText,
-              attachments: [],
-            },
-            modelSelection: activeThread.modelSelection,
-            titleSeed: activeThread.title,
-            runtimeMode: DEFAULT_RUNTIME_MODE,
-            interactionMode: nextInteractionMode,
-            parentEntryId: branchView.entryId,
-            ...(sourceProposedPlan ? { sourceProposedPlan } : {}),
             createdAt: messageCreatedAt,
-          })
-          .then(() => {
-            serverTurnStartSucceeded = true;
-          })
-          .catch(captureServerPersistenceError);
-      }
-      await settingsPersistencePromise;
-      await startRuntimeTurn();
-      if (serverPersistenceError) {
+            interactionMode: nextInteractionMode,
+          }),
+      });
+      serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
+      runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      if (turnResult.serverPersistenceError) {
         const detail =
-          serverPersistenceError instanceof Error
-            ? serverPersistenceError.message
+          turnResult.serverPersistenceError instanceof Error
+            ? turnResult.serverPersistenceError.message
             : "Failed to save thread.";
         setThreadError(threadIdForSend, `Message sent, but failed to save thread. ${detail}`);
       }
     } catch (err) {
       clearLocalRuntimeThread(threadIdForSend);
       if (serverTurnStartSucceeded && api) {
-        await api.orchestration
-          .dispatchCommand({
-            type: "thread.turn.start.failed",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-            messageId: messageIdForSend,
-            detail: err instanceof Error ? err.message : "Failed to send plan follow-up.",
-            createdAt: new Date().toISOString(),
-          })
-          .catch(() => undefined);
+        await dispatchTurnStartFailure({
+          api,
+          threadId: threadIdForSend,
+          messageId: messageIdForSend,
+          detail: err instanceof Error ? err.message : "Failed to send plan follow-up.",
+        });
       }
       if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
         clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
@@ -2844,6 +2735,7 @@ export default function ChatView(props: ChatViewProps) {
           draftId={draftId}
           activeThreadId={activeThreadId}
           phase={phase}
+          isTurnRunning={isTurnRunning}
           isConnecting={isConnecting}
           isSendBusy={isSendBusy}
           isPreparingWorktree={isPreparingWorktree}
@@ -2885,7 +2777,7 @@ export default function ChatView(props: ChatViewProps) {
       activeContextWindow,
     ],
   );
-  const activeTimelineCacheKey = resolveActiveTimelineCacheKey(activeThread);
+  const activeTimelineCacheKey = activeThread?.id ?? "";
   const existingOpenTerminalThreadKeysKey = existingOpenTerminalThreadKeys.join("\0");
   const serverMessagesAcknowledgementKey = committedMessageIdsKey(activeThread?.messages);
   const storeServerTerminalLaunchContextKey = storeServerTerminalLaunchContext
@@ -2934,14 +2826,14 @@ export default function ChatView(props: ChatViewProps) {
   const activeThreadLifecycleSync = isNewThreadHero ? null : (
     <>
       {serverThreadLifecycleSync}
-      <PendingTimelineRowsServerAckSync
-        key={[pendingTimelineRows.length, routeThreadKey, serverMessagesAcknowledgementKey].join(
+      <ThreadSendIntentsServerAckSync
+        key={[threadSendIntents.length, routeThreadKey, serverMessagesAcknowledgementKey].join(
           "\0",
         )}
         handoffAttachmentPreviews={handoffAttachmentPreviews}
-        pendingTimelineRows={pendingTimelineRows}
-        removePendingTimelineRows={removePendingTimelineRows}
+        removeThreadSendIntents={removeThreadSendIntents}
         serverMessages={activeThread?.messages}
+        threadSendIntents={threadSendIntents}
         threadKey={routeThreadKey}
       />
       <TerminalLaunchActiveThreadSync
@@ -3102,9 +2994,8 @@ export default function ChatView(props: ChatViewProps) {
                 <MessagesTimeline
                   key={activeTimelineCacheKey}
                   isWorking={isWorking}
-                  isTurnRunning={isTurnRunning}
+                  isTurnActive={isTurnRunning}
                   editUserMessagesDisabled={isWorking}
-                  activeTurnStartedAt={activeWorkStartedAt}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
                   timelineControllerRef={messagesTimelineControllerRef}
                   timelineEntries={timelineEntries}
@@ -3204,6 +3095,7 @@ export default function ChatView(props: ChatViewProps) {
               draftId={draftId}
               activeThreadId={activeThreadId}
               phase={phase}
+              isTurnRunning={isTurnRunning}
               isConnecting={isConnecting}
               isSendBusy={isSendBusy}
               isPreparingWorktree={isPreparingWorktree}

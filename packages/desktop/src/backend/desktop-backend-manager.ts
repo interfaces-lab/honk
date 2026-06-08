@@ -26,6 +26,7 @@ import {
 
 import * as DesktopBackendConfiguration from "./desktop-backend-configuration";
 import * as DesktopObservability from "../app/desktop-observability";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
 import * as DesktopWindow from "../window/desktop-window";
 
@@ -122,8 +123,7 @@ export class DesktopBackendManager extends Context.Service<
   DesktopBackendManagerShape
 >()("multi/desktop/BackendManager") {}
 
-const { logWarning: logBackendManagerWarning, logError: logBackendManagerError } =
-  DesktopObservability.makeComponentLogger("desktop-backend-manager");
+const elog = EffectLogger.create({ service: "desktop-backend-manager" });
 
 interface ActiveBackendRun {
   readonly id: number;
@@ -460,7 +460,7 @@ const makeDesktopBackendManager = Effect.fn("makeDesktopBackendManager")(functio
           onHttpAvailable: Effect.fn("desktop.backendManager.onHttpAvailable")(function* () {
             yield* desktopWindow.ensureMain.pipe(
               Effect.catch((error) =>
-                logBackendManagerError(
+                elog.error(
                   "failed to open main window after backend http availability",
                   {
                     message: error.message,
@@ -492,14 +492,14 @@ const makeDesktopBackendManager = Effect.fn("makeDesktopBackendManager")(functio
             yield* Ref.set(desktopState.backendReady, true);
             yield* desktopWindow.handleBackendReady.pipe(
               Effect.catch((error) =>
-                logBackendManagerError("failed to open main window after backend readiness", {
+                elog.error("failed to open main window after backend readiness", {
                   message: error.message,
                 }),
               ),
             );
           }),
           onReadinessFailure: (error) =>
-            logBackendManagerWarning("backend readiness check failed during bootstrap", {
+            elog.warn("backend readiness check failed during bootstrap", {
               error: error.message,
             }),
           onOutput: (streamName, chunk) => backendOutputLog.writeOutputChunk(streamName, chunk),
@@ -544,7 +544,7 @@ const makeDesktopBackendManager = Effect.fn("makeDesktopBackendManager")(functio
     yield* Option.match(scheduled, {
       onNone: () => Effect.void,
       onSome: Effect.fn("desktop.backendManager.scheduleRestartFiber")(function* (delay) {
-        yield* logBackendManagerError("backend exited unexpectedly; restart scheduled", {
+        yield* elog.error("backend exited unexpectedly; restart scheduled", {
           reason,
           delayMs: Duration.toMillis(delay),
         });
@@ -564,7 +564,7 @@ const makeDesktopBackendManager = Effect.fn("makeDesktopBackendManager")(functio
             ),
             Effect.flatMap((shouldRestart) => (shouldRestart ? start : Effect.void)),
             Effect.catchCause((cause) =>
-              logBackendManagerError("desktop backend restart fiber failed", {
+              elog.error("desktop backend restart fiber failed", {
                 cause: Cause.pretty(cause),
               }),
             ),

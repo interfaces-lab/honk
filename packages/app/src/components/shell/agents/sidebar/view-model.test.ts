@@ -8,6 +8,8 @@ import type { SidebarThreadSummary } from "./types";
 const primaryEnvironmentId = EnvironmentId.make("environment:primary");
 const projectId = ProjectId.make("project:workspace");
 const threadId = ThreadId.make("thread:pi-runtime");
+const olderThreadId = ThreadId.make("thread:older");
+const newerThreadId = ThreadId.make("thread:newer");
 const projectRef = scopeProjectRef(primaryEnvironmentId, projectId);
 const routeThreadRef = scopeThreadRef(DESKTOP_RUNTIME_ENVIRONMENT_ID, threadId);
 
@@ -64,5 +66,73 @@ describe("buildProjectChatSections", () => {
       threadRef: routeThreadRef,
       workspaceProjectRef: projectRef,
     });
+  });
+
+  it("preserves thread input order while bootstrap is incomplete", () => {
+    const older = threadSummary({
+      id: olderThreadId,
+      modifiedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const newer = threadSummary({
+      id: newerThreadId,
+      modifiedAt: "2026-01-02T00:00:00.000Z",
+    });
+    const sections = buildProjectChatSections(
+      [older, newer],
+      [],
+      "/repo",
+      null,
+      undefined,
+      ["/repo"],
+      undefined,
+      [
+        {
+          id: projectId,
+          environmentId: primaryEnvironmentId,
+          title: "Repo",
+          cwd: "/repo",
+        },
+      ],
+      {
+        sortByRecency: false,
+        itemOrderRank: new Map([
+          [olderThreadId, 0],
+          [newerThreadId, 1],
+        ]),
+      },
+    );
+
+    expect(sections[0]?.items.map((item) => item.id)).toEqual([olderThreadId, newerThreadId]);
+  });
+
+  it("sorts threads by recency after bootstrap completes", () => {
+    const older = threadSummary({
+      id: olderThreadId,
+      modifiedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const newer = threadSummary({
+      id: newerThreadId,
+      modifiedAt: "2026-01-02T00:00:00.000Z",
+    });
+    const sections = buildProjectChatSections(
+      [older, newer],
+      [],
+      "/repo",
+      null,
+      undefined,
+      ["/repo"],
+      undefined,
+      [
+        {
+          id: projectId,
+          environmentId: primaryEnvironmentId,
+          title: "Repo",
+          cwd: "/repo",
+        },
+      ],
+      { sortByRecency: true },
+    );
+
+    expect(sections[0]?.items.map((item) => item.id)).toEqual([newerThreadId, olderThreadId]);
   });
 });

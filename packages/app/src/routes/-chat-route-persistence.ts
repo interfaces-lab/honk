@@ -2,7 +2,7 @@ import { ScopedThreadRef } from "@multi/contracts";
 import { Option, Schema } from "effect";
 
 import { DraftId } from "~/stores/chat-drafts";
-import type { ThreadRouteTarget } from "./-thread-route-targets";
+import type { ChatRouteTarget } from "~/app/chat-route-state";
 
 const LAST_CHAT_ROUTE_KEY = "multi:last-chat-route";
 
@@ -18,7 +18,7 @@ const LastChatRouteTargetSchema = Schema.Union([
 ]);
 const decodeLastChatRouteTargetOption = Schema.decodeUnknownOption(LastChatRouteTargetSchema);
 
-export function readLastChatRouteTarget(): ThreadRouteTarget | null {
+export function readLastChatRouteTarget(): ChatRouteTarget | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -35,7 +35,7 @@ export function readLastChatRouteTarget(): ThreadRouteTarget | null {
   }
 }
 
-export function writeLastChatRouteTarget(target: ThreadRouteTarget): void {
+export function writeLastChatRouteTarget(target: ChatRouteTarget): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -43,7 +43,7 @@ export function writeLastChatRouteTarget(target: ThreadRouteTarget): void {
   window.localStorage.setItem(LAST_CHAT_ROUTE_KEY, JSON.stringify(target));
 }
 
-export function clearLastChatRouteTarget(target: ThreadRouteTarget): void {
+export function clearLastChatRouteTarget(target: ChatRouteTarget): void {
   if (typeof window === "undefined") {
     return;
   }

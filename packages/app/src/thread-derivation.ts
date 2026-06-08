@@ -16,7 +16,6 @@ const EMPTY_MESSAGES: ChatMessage[] = [];
 const EMPTY_LIVE_ASSISTANT_TURNS: LiveAssistantTurn[] = [];
 const EMPTY_ACTIVITIES: Thread["activities"] = [];
 const EMPTY_PROPOSED_PLANS: ProposedPlan[] = [];
-const EMPTY_CHAT_TIMELINE_ROWS: NonNullable<Thread["chatTimelineRows"]> = [];
 const EMPTY_TURN_DIFF_SUMMARIES: TurnDiffSummary[] = [];
 const EMPTY_THREAD_ENTRIES: ThreadTreeEntry[] = [];
 const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
@@ -39,7 +38,6 @@ const threadCache = new WeakMap<
     activities: Thread["activities"];
     proposedPlans: Thread["proposedPlans"];
     turnDiffSummaries: Thread["turnDiffSummaries"];
-    chatTimelineRows: NonNullable<Thread["chatTimelineRows"]>;
     thread: Thread;
   }
 >();
@@ -172,7 +170,6 @@ export function getThreadFromEnvironmentState(
   const activities = selectThreadActivities(state, threadId);
   const proposedPlans = selectThreadProposedPlans(state, threadId);
   const turnDiffSummaries = selectThreadTurnDiffSummaries(state, threadId);
-  const chatTimelineRows = state.chatTimelineRowsByThreadId?.[threadId] ?? EMPTY_CHAT_TIMELINE_ROWS;
   const cached = threadCache.get(shell);
 
   if (
@@ -185,8 +182,7 @@ export function getThreadFromEnvironmentState(
     cached.entries === entries &&
     cached.activities === activities &&
     cached.proposedPlans === proposedPlans &&
-    cached.turnDiffSummaries === turnDiffSummaries &&
-    cached.chatTimelineRows === chatTimelineRows
+    cached.turnDiffSummaries === turnDiffSummaries
   ) {
     return cached.thread;
   }
@@ -202,7 +198,6 @@ export function getThreadFromEnvironmentState(
     activities,
     proposedPlans,
     turnDiffSummaries,
-    chatTimelineRows,
   };
 
   threadCache.set(shell, {
@@ -215,7 +210,6 @@ export function getThreadFromEnvironmentState(
     activities,
     proposedPlans,
     turnDiffSummaries,
-    chatTimelineRows,
     thread,
   });
 

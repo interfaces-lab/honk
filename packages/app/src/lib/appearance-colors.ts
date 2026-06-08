@@ -192,7 +192,7 @@ function removeAppearanceTintStyleElement(root: HTMLElement) {
   root.ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID)?.remove();
 }
 
-function removeLegacyInlineTintTokens(root: HTMLElement) {
+function removeStaleInlineTintTokens(root: HTMLElement) {
   for (const token of APPEARANCE_BASE_TOKEN_NAMES) root.style.removeProperty(token);
   for (const token of MULTI_CURSOR_TOKEN_NAMES) root.style.removeProperty(token);
   for (const token of CURSOR_CORE_TOKEN_NAMES) root.style.removeProperty(token);
@@ -233,7 +233,7 @@ export function applyAppearanceBaseColors(
   intensity: number,
 ) {
   if (normalizeIntensity(intensity) <= 0) {
-    removeLegacyInlineTintTokens(root);
+    removeStaleInlineTintTokens(root);
     removeAppearanceTintStyleElement(root);
     return;
   }
@@ -247,7 +247,7 @@ export function applyAppearanceBaseColors(
     lines.push(`  ${token.replace("--multi-base-", "--cursor-")}: ${value};`);
   }
 
-  removeLegacyInlineTintTokens(root);
+  removeStaleInlineTintTokens(root);
   getAppearanceTintStyleElement(root).textContent = `body[data-multi-glass-mode="true"] {\n${lines.join(
     "\n",
   )}\n}`;

@@ -1,9 +1,32 @@
 import { scopeThreadRef } from "~/lib/environment-scope";
 import { EnvironmentId, ThreadId } from "@multi/contracts";
 import type { ScopedThreadRef } from "@multi/contracts";
-import { DraftId, type DraftId as DraftIdType } from "~/stores/chat-drafts";
+import {
+  DraftId,
+  draftIdFromNewThreadDraftThreadId,
+  draftThreadStateFromNewThreadDraftThreadRef,
+  isNewThreadDraftThreadId,
+  useComposerDraftStore,
+  type DraftId as DraftIdType,
+  type DraftThreadState,
+} from "~/stores/chat-drafts";
 import { useRouterState } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
+import {
+  resolveDraftPromotionRouteTarget,
+  threadHasRenderableUserStart,
+} from "~/components/chat/view/thread-lifecycle";
+import { createThreadSelectorByRef } from "~/stores/thread-selectors";
+import { useStore } from "~/stores/thread-store";
+
+/**
+ * Route-target glossary:
+ * - Pre-thread URL: server-shaped `/$environmentId/$threadId` with synthetic `new-thread-draft:thread:…` id.
+ * - Draft route: `/draft/$draftId`.
+ * - draftIdForRoute: draft id from the store match or derived from a pre-thread URL.
+ * - Promotion: draft session linked to a server thread via `promotedTo`.
+ */
 
 export type ThreadRouteTarget =
   | {
@@ -68,6 +91,108 @@ export function resolveThreadRouteTarget(
   };
 }
 
+function threadRefsEqual(
+  left: ScopedThreadRef | null | undefined,
+  right: ScopedThreadRef | null | undefined,
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.environmentId === right.environmentId &&
+      left.threadId === right.threadId,
+  );
+}
+
+export function resolveDraftSessionForThreadRef(input: {
+  readonly draftIdForRoute: DraftIdType | null;
+  readonly matchedDraftThread: DraftThreadState | null;
+  readonly threadRef: ScopedThreadRef | null;
+}): DraftThreadState | null {
+  if (!input.draftIdForRoute || !input.threadRef) {
+    return null;
+  }
+  if (input.matchedDraftThread) {
+    return input.matchedDraftThread;
+  }
+  const storedDraftThread = useComposerDraftStore.getState().getDraftSession(input.draftIdForRoute);
+  if (storedDraftThread) {
+    return storedDraftThread;
+  }
+  return draftThreadStateFromNewThreadDraftThreadRef(input.threadRef);
+}
+
+export function resolveDraftIdForRoute(input: {
+  readonly threadRef: ScopedThreadRef | null;
+  readonly draftRouteId: DraftIdType | null;
+}): DraftIdType | null {
+  if (input.draftRouteId !== null) {
+    return input.draftRouteId;
+  }
+  if (!input.threadRef || !isNewThreadDraftThreadId(input.threadRef.threadId)) {
+    return null;
+  }
+  return draftIdFromNewThreadDraftThreadId(input.threadRef.threadId);
+}
+
+export function findDraftRouteMatch(
+  draftThreadsByThreadKey: Record<string, DraftThreadState>,
+  threadRef: ScopedThreadRef | null,
+): { readonly draftRouteId: DraftIdType | null; readonly draftThread: DraftThreadState | null } {
+  if (!threadRef) {
+    return { draftRouteId: null, draftThread: null };
+  }
+  for (const [draftId, draftThread] of Object.entries(draftThreadsByThreadKey)) {
+    if (
+      threadRefsEqual(draftThread.promotedTo, threadRef) ||
+      (draftThread.environmentId === threadRef.environmentId &&
+        draftThread.threadId === threadRef.threadId)
+    ) {
+      return {
+        draftRouteId: DraftId.make(draftId),
+        draftThread,
+      };
+    }
+  }
+  return { draftRouteId: null, draftThread: null };
+}
+
+export function resolveSidebarSelectionId(routeTarget: ThreadRouteTarget | null): string | null {
+  if (!routeTarget) {
+    return null;
+  }
+  return routeTarget.kind === "draft" ? routeTarget.draftId : routeTarget.threadRef.threadId;
+}
+
+export function resolveThreadCopyId(threadRef: ScopedThreadRef): string {
+  const draftSession = useComposerDraftStore.getState().getDraftSessionByRef(threadRef);
+  if (draftSession?.promotedTo) {
+    return draftSession.promotedTo.threadId;
+  }
+  return threadRef.threadId;
+}
+
+export function resolvePreThreadServerRouteTarget(input: {
+  readonly baseTarget: Extract<ThreadRouteTarget, { kind: "server" }>;
+  readonly draftRouteId: DraftIdType | null;
+  readonly serverThread: ReturnType<ReturnType<typeof createThreadSelectorByRef>> | undefined;
+}): ThreadRouteTarget {
+  const draftIdForRoute = resolveDraftIdForRoute({
+    threadRef: input.baseTarget.threadRef,
+    draftRouteId: input.draftRouteId,
+  });
+  const serverThreadRenderable = threadHasRenderableUserStart(input.serverThread);
+  if (draftIdForRoute !== null && !serverThreadRenderable) {
+    return { kind: "draft", draftId: draftIdForRoute };
+  }
+  return (
+    resolveDraftPromotionRouteTarget({
+      draftRouteId: draftIdForRoute,
+      serverThread: input.serverThread ?? null,
+      serverThreadRef: input.baseTarget.threadRef,
+    }) ?? input.baseTarget
+  );
+}
+
 export function getCurrentRouteTarget(input: {
   readonly state: {
     readonly matches: ReadonlyArray<{
@@ -75,7 +200,26 @@ export function getCurrentRouteTarget(input: {
     }>;
   };
 }): ThreadRouteTarget | null {
-  return resolveThreadRouteTarget((input.state.matches.at(-1)?.params ?? {}) as ThreadRouteParams);
+  const baseTarget = resolveThreadRouteTarget(
+    (input.state.matches.at(-1)?.params ?? {}) as ThreadRouteParams,
+  );
+  if (baseTarget?.kind !== "server") {
+    return baseTarget;
+  }
+  const draftMatch = findDraftRouteMatch(
+    useComposerDraftStore.getState().draftThreadsByThreadKey,
+    baseTarget.threadRef,
+  );
+  const draftIdForRoute = resolveDraftIdForRoute({
+    threadRef: baseTarget.threadRef,
+    draftRouteId: draftMatch.draftRouteId,
+  });
+  const serverThread = createThreadSelectorByRef(baseTarget.threadRef)(useStore.getState());
+  return resolvePreThreadServerRouteTarget({
+    baseTarget,
+    draftRouteId: draftMatch.draftRouteId,
+    serverThread,
+  });
 }
 
 export function useRouteTarget(): ThreadRouteTarget | null {
@@ -84,5 +228,32 @@ export function useRouteTarget(): ThreadRouteTarget | null {
       state.matches.at(-1)?.params as ThreadRouteParams | undefined,
     structuralSharing: true,
   });
-  return useMemo(() => resolveThreadRouteTarget(params ?? {}), [params]);
+  const baseTarget = useMemo(() => resolveThreadRouteTarget(params ?? {}), [params]);
+  const serverThreadRef = baseTarget?.kind === "server" ? baseTarget.threadRef : null;
+  const serverThreadSelector = useMemo(
+    () => createThreadSelectorByRef(serverThreadRef),
+    [serverThreadRef?.environmentId, serverThreadRef?.threadId],
+  );
+  const serverThread = useStore(serverThreadSelector);
+  const draftRouteMatch = useComposerDraftStore(
+    useShallow((store) => {
+      if (!serverThreadRef) {
+        return { draftRouteId: null, draftThread: null };
+      }
+      return findDraftRouteMatch(store.draftThreadsByThreadKey, serverThreadRef);
+    }),
+  );
+  return useMemo(() => {
+    if (!baseTarget) {
+      return null;
+    }
+    if (baseTarget.kind !== "server") {
+      return baseTarget;
+    }
+    return resolvePreThreadServerRouteTarget({
+      baseTarget,
+      draftRouteId: draftRouteMatch.draftRouteId,
+      serverThread,
+    });
+  }, [baseTarget, draftRouteMatch.draftRouteId, serverThread]);
 }

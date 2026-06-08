@@ -254,6 +254,27 @@ export const PickFolderOptionsSchema = Schema.Struct({
   initialPath: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
 
+export type DesktopRendererDiagnosticLevel = "error" | "warn" | "info" | "debug";
+
+export const DesktopRendererDiagnosticLevelSchema = Schema.Literals([
+  "error",
+  "warn",
+  "info",
+  "debug",
+]);
+
+export interface DesktopRendererDiagnosticInput {
+  level: DesktopRendererDiagnosticLevel;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export const DesktopRendererDiagnosticInputSchema = Schema.Struct({
+  level: DesktopRendererDiagnosticLevelSchema,
+  message: Schema.String,
+  details: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
+});
+
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
@@ -280,6 +301,7 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  logRendererDiagnostic?: (input: DesktopRendererDiagnosticInput) => Promise<void>;
   runtime?: MultiRuntimeApi;
 }
 

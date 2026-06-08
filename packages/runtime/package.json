@@ -18,6 +18,7 @@
     "@earendil-works/pi-ai": "^0.78.1",
     "@earendil-works/pi-coding-agent": "^0.78.1",
     "@multi/contracts": "workspace:*",
+    "@multi/shared": "workspace:*",
     "effect": "catalog:",
     "typebox": "^1.2.0"
   },

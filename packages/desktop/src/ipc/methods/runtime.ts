@@ -11,6 +11,7 @@ import {
   TurnId,
 } from "@multi/contracts";
 import type { DesktopRuntimeHost } from "@multi/runtime";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -20,9 +21,13 @@ import * as ElectronShell from "../../electron/electron-shell";
 import * as ElectronWindow from "../../electron/electron-window";
 import * as IpcChannels from "../channels";
 import { makeIpcMethod } from "../desktop-ipc";
+import { ingestRuntimeHostEvent, installRuntimeIngestion } from "../../runtime/runtime-ingestion";
+
+export { installRuntimeIngestion };
 
 let runtimeHost: DesktopRuntimeHost | null = null;
 const encodeHostEvent = Schema.encodeUnknownSync(MultiRuntimeHostEvent);
+const elog = EffectLogger.create({ service: "desktop.runtime.ipc" });
 
 const getRuntimeHost = Effect.gen(function* () {
   if (runtimeHost) {
@@ -36,14 +41,36 @@ const getRuntimeHost = Effect.gen(function* () {
   runtimeHost = new Runtime.DesktopRuntimeHost({
     agentDir: environment.path.join(userDataPath, "pi-agent"),
   });
+  yield* elog.info("runtime host created");
   return runtimeHost;
 });
+
+const requireRuntimeHost = Effect.flatMap(getRuntimeHost, (host) =>
+  host ? Effect.succeed(host) : Effect.die(new Error("Desktop runtime host is unavailable.")),
+);
+
+const logRuntimeFailure = (message: string, input: { readonly threadId?: string }, error: unknown) =>
+  elog.error(message, {
+    ...(input.threadId ? { threadId: input.threadId } : {}),
+    cause: error instanceof Error ? error.message : String(error),
+  });
 
 export const installRuntimeHostEventBridge = Effect.acquireRelease(
   Effect.gen(function* () {
     const electronWindow = yield* ElectronWindow.ElectronWindow;
     const host = yield* getRuntimeHost;
     return host.onHostEvent((event) => {
+      if (event.type === "runtime-event" && event.event.type === "runtime.error") {
+        void Effect.runPromise(
+          elog.error("runtime host reported error", {
+            threadId: event.event.threadId,
+            runtimeSessionId: event.event.runtimeSessionId,
+            turnId: event.event.turnId,
+            detail: event.event.summary ?? event.event.text,
+          }),
+        );
+      }
+      ingestRuntimeHostEvent(event);
       Effect.runSync(
         electronWindow.sendAll(IpcChannels.RUNTIME_HOST_EVENT_CHANNEL, encodeHostEvent(event)),
       );
@@ -56,14 +83,14 @@ export const getRuntimeHostSnapshot = makeIpcMethod({
   channel: IpcChannels.RUNTIME_GET_HOST_SNAPSHOT_CHANNEL,
   payload: Schema.Void,
   result: MultiRuntimeHostSnapshot,
-  handler: () => Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.getHostSnapshot())),
+  handler: () => Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getHostSnapshot())),
 });
 
 export const getRuntimePreferences = makeIpcMethod({
   channel: IpcChannels.RUNTIME_GET_PREFERENCES_CHANNEL,
   payload: Schema.Void,
   result: AgentPreferences,
-  handler: () => Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.getPreferences())),
+  handler: () => Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getPreferences())),
 });
 
 export const updateRuntimePreferences = makeIpcMethod({
@@ -71,7 +98,7 @@ export const updateRuntimePreferences = makeIpcMethod({
   payload: AgentPreferencesPatch,
   result: AgentPreferences,
   handler: (patch) =>
-    Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.updatePreferences(patch))),
+    Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.updatePreferences(patch))),
 });
 
 function createRuntimeCredentialLoginCallbacks(
@@ -104,10 +131,20 @@ export const configureRuntimeCredential = makeIpcMethod({
   result: MultiRuntimeHostSnapshot,
   handler: (input) =>
     Effect.gen(function* () {
-      const host = yield* getRuntimeHost;
+      yield* elog.info("runtime credential configure started", {
+        authProviderId: input.authProviderId,
+      });
+      const host = yield* requireRuntimeHost;
       const shell = yield* ElectronShell.ElectronShell;
       const callbacks = createRuntimeCredentialLoginCallbacks(shell);
-      return yield* Effect.promise(() => host.configureCredential(input, callbacks));
+      return yield* Effect.tryPromise(() => host.configureCredential(input, callbacks)).pipe(
+        Effect.tapError((error: unknown) =>
+          elog.error("runtime credential configure failed", {
+            authProviderId: input.authProviderId,
+            cause: error instanceof Error ? error.message : String(error),
+          }),
+        ),
+      );
     }),
 });
 
@@ -116,7 +153,13 @@ export const hydrateRuntimeThread = makeIpcMethod({
   payload: ThreadAgentRuntimeHydrateInput,
   result: Schema.Void,
   handler: (input) =>
-    Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.hydrateThread(input))),
+    Effect.gen(function* () {
+      yield* elog.info("runtime thread hydrate started", { threadId: input.threadId });
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.hydrateThread(input)).pipe(
+        Effect.tapError((error) => logRuntimeFailure("runtime thread hydrate failed", input, error)),
+      );
+    }),
 });
 
 export const sendRuntimeTurn = makeIpcMethod({
@@ -124,7 +167,15 @@ export const sendRuntimeTurn = makeIpcMethod({
   payload: ThreadAgentRuntimeSendTurnInput,
   result: TurnId,
   handler: (input) =>
-    Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.sendTurn(input))),
+    Effect.gen(function* () {
+      yield* elog.info("runtime turn send started", { threadId: input.threadId });
+      const host = yield* requireRuntimeHost;
+      const turnId = yield* Effect.promise(() => host.sendTurn(input)).pipe(
+        Effect.tapError((error) => logRuntimeFailure("runtime turn send failed", input, error)),
+      );
+      yield* elog.debug("runtime turn send completed", { threadId: input.threadId, turnId });
+      return turnId;
+    }),
 });
 
 export const abortRuntimeThread = makeIpcMethod({
@@ -132,7 +183,13 @@ export const abortRuntimeThread = makeIpcMethod({
   payload: ThreadAgentRuntimeAbortInput,
   result: Schema.Void,
   handler: (input) =>
-    Effect.flatMap(getRuntimeHost, (host) => Effect.promise(() => host.abort(input))),
+    Effect.gen(function* () {
+      yield* elog.info("runtime thread abort started", { threadId: input.threadId });
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.abort(input)).pipe(
+        Effect.tapError((error) => logRuntimeFailure("runtime thread abort failed", input, error)),
+      );
+    }),
 });
 
 export const respondToRuntimeExtensionUiRequest = makeIpcMethod({
@@ -140,7 +197,11 @@ export const respondToRuntimeExtensionUiRequest = makeIpcMethod({
   payload: DesktopExtensionUiRespondInput,
   result: Schema.Void,
   handler: (input) =>
-    Effect.flatMap(getRuntimeHost, (host) =>
-      Effect.promise(() => host.respondToExtensionUiRequest(input)),
-    ),
+    Effect.gen(function* () {
+      yield* elog.debug("runtime extension ui response", { threadId: input.threadId });
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.respondToExtensionUiRequest(input)).pipe(
+        Effect.tapError((error) => logRuntimeFailure("runtime extension ui response failed", input, error)),
+      );
+    }),
 });

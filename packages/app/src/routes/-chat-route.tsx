@@ -5,9 +5,9 @@ import { useEffect, useRef } from "react";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import {
   openNewThreadWithRouter,
-  readNewThreadProjectDefaults,
   type NewThreadActionOptions,
 } from "~/hooks/use-handle-new-thread";
+import { readSelectedWorkspaceProject } from "~/lib/selected-workspace-project";
 import { ShellHost } from "~/components/shell-host";
 import {
   readThreadActionContext,
@@ -74,14 +74,14 @@ function ChatRouteGlobalShortcuts() {
       if (command === "chat.newLocal") {
         event.preventDefault();
         event.stopPropagation();
-        const newThreadDefaults = readNewThreadProjectDefaults();
+        const selectedProject = readSelectedWorkspaceProject();
         const settings = readSettings();
         const projects = selectProjectsAcrossEnvironments(useStore.getState());
         void startNewLocalThreadFromContext(
           readThreadActionContext({
-            defaultLogicalProjectKey: newThreadDefaults.defaultLogicalProjectKey,
-            defaultProjectRef: newThreadDefaults.defaultProjectRef,
-            defaultThreadEnvMode: settings.defaultThreadEnvMode,
+            selectedLogicalProjectKey: selectedProject.logicalProjectKey,
+            selectedProjectRef: selectedProject.projectRef,
+            threadEnvMode: settings.defaultThreadEnvMode,
             handleNewThread,
             projects,
             routeTarget,
@@ -93,14 +93,14 @@ function ChatRouteGlobalShortcuts() {
       if (command === "chat.new") {
         event.preventDefault();
         event.stopPropagation();
-        const newThreadDefaults = readNewThreadProjectDefaults();
+        const selectedProject = readSelectedWorkspaceProject();
         const settings = readSettings();
         const projects = selectProjectsAcrossEnvironments(useStore.getState());
         void startNewThreadFromContext(
           readThreadActionContext({
-            defaultLogicalProjectKey: newThreadDefaults.defaultLogicalProjectKey,
-            defaultProjectRef: newThreadDefaults.defaultProjectRef,
-            defaultThreadEnvMode: settings.defaultThreadEnvMode,
+            selectedLogicalProjectKey: selectedProject.logicalProjectKey,
+            selectedProjectRef: selectedProject.projectRef,
+            threadEnvMode: settings.defaultThreadEnvMode,
             handleNewThread,
             projects,
             routeTarget,

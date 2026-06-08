@@ -1,10 +1,11 @@
-import type {
-  OrchestrationEvent,
-  OrchestrationReadModel,
-  ProjectId,
-  ThreadId,
+import {
+  OrchestrationCommand,
+  type OrchestrationEvent,
+  type OrchestrationReadModel,
+  type ProjectId,
+  type ThreadId,
 } from "@multi/contracts";
-import { OrchestrationCommand } from "@multi/contracts";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import {
   Cause,
   Deferred,
@@ -54,6 +55,17 @@ const isOrchestrationCommandPreviouslyRejectedError = Schema.is(
   OrchestrationCommandPreviouslyRejectedError,
 );
 const isOrchestrationCommandInvariantError = Schema.is(OrchestrationCommandInvariantError);
+
+const elog = EffectLogger.create({ service: "orchestration.engine" });
+
+function commandLogContext(command: OrchestrationCommand): Record<string, unknown> {
+  return {
+    commandId: command.commandId,
+    commandType: command.type,
+    ...("threadId" in command ? { threadId: command.threadId } : {}),
+    ...("projectId" in command ? { projectId: command.projectId } : {}),
+  };
+}
 
 function commandToAggregateRef(command: OrchestrationCommand): {
   readonly aggregateKind: "project" | "thread";
@@ -234,22 +246,39 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           );
 
           if (Exit.isSuccess(exit)) {
+            yield* elog.debug("orchestration command accepted", {
+              ...commandLogContext(envelope.command),
+              sequence: exit.value.sequence,
+            });
             yield* Deferred.succeed(envelope.result, exit.value);
             return;
           }
 
           const error = Cause.squash(exit.cause) as OrchestrationDispatchError;
+          if (isOrchestrationCommandPreviouslyRejectedError(error)) {
+            yield* elog.debug("orchestration command previously rejected", {
+              ...commandLogContext(envelope.command),
+              detail: error.message,
+            });
+          } else if (isOrchestrationCommandInvariantError(error)) {
+            yield* elog.warn("orchestration command rejected", {
+              ...commandLogContext(envelope.command),
+              detail: error.message,
+            });
+          } else {
+            yield* elog.error("orchestration command failed", {
+              ...commandLogContext(envelope.command),
+              cause: Cause.pretty(exit.cause),
+            });
+          }
+
           if (!isOrchestrationCommandPreviouslyRejectedError(error)) {
             yield* reconcileReadModelAfterDispatchFailure.pipe(
               Effect.catch(() =>
-                Effect.logWarning(
-                  "failed to reconcile orchestration read model after dispatch failure",
-                ).pipe(
-                  Effect.annotateLogs({
-                    commandId: envelope.command.commandId,
-                    snapshotSequence: readModel.snapshotSequence,
-                  }),
-                ),
+                elog.warn("failed to reconcile orchestration read model after dispatch failure", {
+                  commandId: envelope.command.commandId,
+                  snapshotSequence: readModel.snapshotSequence,
+                }),
               ),
             );
 
@@ -279,9 +308,9 @@ const makeOrchestrationEngine = Effect.gen(function* () {
 
   const worker = Effect.forever(Queue.take(commandQueue).pipe(Effect.flatMap(processEnvelope)));
   yield* Effect.forkScoped(worker);
-  yield* Effect.logDebug("orchestration engine started").pipe(
-    Effect.annotateLogs({ sequence: readModel.snapshotSequence }),
-  );
+  yield* elog.debug("orchestration engine started", {
+    sequence: readModel.snapshotSequence,
+  });
 
   const getReadModel: OrchestrationEngineShape["getReadModel"] = () =>
     Effect.sync((): OrchestrationReadModel => readModel);

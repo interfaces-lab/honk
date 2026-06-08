@@ -46,7 +46,6 @@ function thread(): OrchestrationThread {
     entries: [],
     proposedPlans: [],
     activities: [],
-    chatTimelineRows: [],
     session: null,
   };
 }

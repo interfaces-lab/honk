@@ -28,7 +28,7 @@ import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
 import { useGitStatus } from "~/lib/git-status-state";
-import { ensureNativeApi } from "~/lib/native-runtime-api";
+import { ensureLocalApi } from "~/local-api";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import { projectListDirectoryQueryOptions } from "~/lib/project-react-query";
 import { cn } from "~/lib/utils";
@@ -151,7 +151,7 @@ function openProjectFilePath(input: {
 
   const targetPath = joinProjectPath(input.cwd, input.relativePath);
   try {
-    void ensureNativeApi()
+    void ensureLocalApi()
       .shell.openInEditor(targetPath, editor)
       .catch((error: unknown) => toast.error(error instanceof Error ? error.message : String(error)));
   } catch (error) {

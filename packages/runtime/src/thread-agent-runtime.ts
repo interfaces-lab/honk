@@ -43,7 +43,11 @@ import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
 import { extractMessageText } from "./message-text";
 import { CREATE_PLAN_TOOL_NAME, extractCreatePlanToolResultMarkdown } from "./plan-extension";
-import { projectRuntimeSessionTree } from "./session-tree-projection";
+import {
+  CLIENT_MESSAGE_ID_SIDECAR_TYPE,
+  collectClientMessageIdSidecars,
+  projectRuntimeSessionTree,
+} from "./session-tree-projection";
 
 export interface ThreadAgentRuntimeIdentity {
   readonly agentRuntime: "pi";
@@ -223,6 +227,7 @@ export class ThreadAgentRuntime {
         policy,
         interactionModeQueue,
       );
+      runtime.hydrateClientMessageIdSidecars();
       runtime.emit(runtime.createEvent("session.started", "Pi session created"));
       runtime.emit(runtime.createEvent("session.ready", sessionResult.modelFallbackMessage));
       return runtime;
@@ -605,7 +610,52 @@ export class ThreadAgentRuntime {
     }
 
     this.clientMessageIdByEntryId.set(matchingEntry.id, input.clientMessageId);
+    this.persistClientMessageIdSidecar({
+      entryId: matchingEntry.id,
+      clientMessageId: input.clientMessageId,
+    });
     return true;
+  }
+
+  private hydrateClientMessageIdSidecars(): void {
+    const sidecars = collectClientMessageIdSidecars(this.session.sessionManager.getEntries());
+    for (const [entryId, clientMessageId] of sidecars) {
+      this.clientMessageIdByEntryId.set(entryId, clientMessageId);
+    }
+  }
+
+  private persistClientMessageIdSidecar(input: {
+    readonly entryId: string;
+    readonly clientMessageId: MessageId;
+  }): void {
+    const sidecarAlreadyExists = this.session.sessionManager.getEntries().some((entry) => {
+      if (entry.type !== "custom" || entry.customType !== CLIENT_MESSAGE_ID_SIDECAR_TYPE) {
+        return false;
+      }
+      const data = entry.data;
+      return (
+        typeof data === "object" &&
+        data !== null &&
+        "entryId" in data &&
+        "clientMessageId" in data &&
+        data.entryId === input.entryId &&
+        data.clientMessageId === input.clientMessageId
+      );
+    });
+    if (sidecarAlreadyExists) {
+      return;
+    }
+
+    const leafIdBeforeSidecar = this.session.sessionManager.getLeafId();
+    this.session.sessionManager.appendCustomEntry(CLIENT_MESSAGE_ID_SIDECAR_TYPE, {
+      entryId: input.entryId,
+      clientMessageId: input.clientMessageId,
+    });
+    if (leafIdBeforeSidecar) {
+      this.session.sessionManager.branch(leafIdBeforeSidecar);
+    } else {
+      this.session.sessionManager.resetLeaf();
+    }
   }
 
   private removePendingPromptClientMessage(input: PendingPromptClientMessage | null): void {

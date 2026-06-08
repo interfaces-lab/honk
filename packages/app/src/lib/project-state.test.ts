@@ -51,9 +51,9 @@ describe("project-state", () => {
     vi.unstubAllGlobals();
   });
 
-  it("stores selected project identity and mirrors cwd for legacy startup fallback", () => {
+  it("stores selected project identity and mirrors cwd for cwd-only startup fallback", () => {
     const localStorage = stubBrowserStorage();
-    localStorage.setItem(PROJECT_KEY, "/legacy");
+    localStorage.setItem(PROJECT_KEY, "/fallback-cwd");
 
     writeStoredProjectSelection({
       environmentId,
@@ -69,11 +69,11 @@ describe("project-state", () => {
     expect(readStoredProjectCwd()).toBe("/selected");
   });
 
-  it("falls back to legacy cwd-only state", () => {
+  it("falls back to cwd-only stored project state", () => {
     const localStorage = stubBrowserStorage();
-    localStorage.setItem(PROJECT_KEY, "/legacy");
+    localStorage.setItem(PROJECT_KEY, "/fallback-cwd");
 
     expect(readStoredProjectSelection()).toBeNull();
-    expect(readStoredProjectCwd()).toBe("/legacy");
+    expect(readStoredProjectCwd()).toBe("/fallback-cwd");
   });
 });

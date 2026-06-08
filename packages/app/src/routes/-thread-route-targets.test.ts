@@ -1,36 +1,254 @@
-import { EnvironmentId, ThreadId } from "@multi/contracts";
-import { describe, expect, it } from "vitest";
+import { EnvironmentId, ProjectId, ThreadId } from "@multi/contracts";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
-import { DraftId } from "~/stores/chat-drafts";
-import { getCurrentRouteTarget, resolveThreadRouteTarget } from "./-thread-route-targets";
+import {
+  DraftId,
+  useComposerDraftStore,
+  type DraftThreadState,
+} from "~/stores/chat-drafts";
+import { DEFAULT_INTERACTION_MODE } from "~/types";
+import {
+  findDraftRouteMatch,
+  getCurrentRouteTarget,
+  resolvePreThreadServerRouteTarget,
+  resolveDraftIdForRoute,
+  resolveSidebarSelectionId,
+  resolveThreadCopyId,
+  resolveThreadRouteTarget,
+} from "./-thread-route-targets";
 
-const environmentId = EnvironmentId.make("environment:test");
-const threadId = ThreadId.make("thread:test");
-const draftId = DraftId.make("draft:test");
+const environmentId = EnvironmentId.make("environment:route-targets");
+const projectId = ProjectId.make("project:route-targets");
+const draftThreadId = ThreadId.make(
+  `new-thread-draft:thread:project:${environmentId}:${projectId}`,
+);
+const draftId = DraftId.make(`new-thread-draft:project:${environmentId}:${projectId}`);
+const serverThreadId = ThreadId.make("thread:route-targets:server");
+const draftThreadRef = scopeThreadRef(environmentId, draftThreadId);
+const serverThreadRef = scopeThreadRef(environmentId, serverThreadId);
 
-describe("thread route targets", () => {
-  it("parses server thread route params into a scoped thread ref", () => {
-    expect(resolveThreadRouteTarget({ environmentId, threadId })).toEqual({
-      kind: "server",
-      threadRef: scopeThreadRef(environmentId, threadId),
-    });
-  });
+function draftThreadState(
+  input: Partial<DraftThreadState> = {},
+): DraftThreadState {
+  return {
+    threadId: draftThreadId,
+    environmentId,
+    projectId,
+    logicalProjectKey: "git:/repo",
+    createdAt: "2026-06-08T00:00:00.000Z",
+    interactionMode: DEFAULT_INTERACTION_MODE,
+    branch: null,
+    worktreePath: null,
+    envMode: "local",
+    promotedTo: null,
+    ...input,
+  };
+}
 
-  it("parses draft route params into a draft target", () => {
-    expect(resolveThreadRouteTarget({ draftId })).toEqual({
+describe("resolveThreadRouteTarget", () => {
+  it("parses draft routes from draft params", () => {
+    expect(
+      resolveThreadRouteTarget({
+        draftId,
+      }),
+    ).toEqual({
       kind: "draft",
       draftId,
     });
   });
 
-  it("returns null when the current route is not a chat target", () => {
+  it("parses server routes from environment and thread params", () => {
+    expect(
+      resolveThreadRouteTarget({
+        environmentId,
+        threadId: draftThreadId,
+      }),
+    ).toEqual({
+      kind: "server",
+      threadRef: draftThreadRef,
+    });
+  });
+});
+
+describe("resolveDraftIdForRoute", () => {
+  it("derives draft id from pre-thread url when draft store match is missing", () => {
+    expect(
+      resolveDraftIdForRoute({
+        threadRef: draftThreadRef,
+        draftRouteId: null,
+      }),
+    ).toBe(draftId);
+  });
+});
+
+describe("findDraftRouteMatch", () => {
+  it("matches draft sessions by pre-thread thread id", () => {
+    const match = findDraftRouteMatch(
+      {
+        [draftId]: draftThreadState(),
+      },
+      draftThreadRef,
+    );
+
+    expect(match).toEqual({
+      draftRouteId: draftId,
+      draftThread: draftThreadState(),
+    });
+  });
+});
+
+describe("getCurrentRouteTarget", () => {
+  beforeEach(() => {
+    useComposerDraftStore.setState({
+      draftsByThreadKey: {},
+      draftThreadsByThreadKey: {},
+      logicalProjectDraftThreadKeyByLogicalProjectKey: {},
+    });
+  });
+
+  it("shows draft route for pre-thread server urls while the draft session is active", () => {
+    useComposerDraftStore.setState({
+      draftThreadsByThreadKey: {
+        [draftId]: draftThreadState(),
+      },
+    });
+
     expect(
       getCurrentRouteTarget({
         state: {
-          matches: [{ params: {} }],
+          matches: [
+            {
+              params: {
+                environmentId,
+                threadId: draftThreadId,
+              },
+            },
+          ],
         },
       }),
-    ).toBeNull();
+    ).toEqual({
+      kind: "draft",
+      draftId,
+    });
+  });
+});
+
+describe("resolvePreThreadServerRouteTarget", () => {
+  it("shows draft route for pre-thread server urls while the draft session is active", () => {
+    expect(
+      resolvePreThreadServerRouteTarget({
+        baseTarget: {
+          kind: "server",
+          threadRef: draftThreadRef,
+        },
+        draftRouteId: null,
+        activeDraftSession: draftThreadState(),
+        serverThread: {
+          id: draftThreadId,
+          environmentId,
+          messages: [
+            {
+              id: "message:user" as never,
+              role: "user",
+              text: "hello",
+              createdAt: "2026-06-08T00:00:00.000Z",
+              streaming: false,
+            },
+          ],
+        } as never,
+      }),
+    ).toEqual({
+      kind: "draft",
+      draftId,
+    });
+  });
+
+  it("keeps pre-thread server urls on the draft until the server thread is renderable", () => {
+    expect(
+      resolvePreThreadServerRouteTarget({
+        baseTarget: {
+          kind: "server",
+          threadRef: draftThreadRef,
+        },
+        draftRouteId: draftId,
+        activeDraftSession: null,
+        serverThread: undefined,
+      }),
+    ).toEqual({
+      kind: "draft",
+      draftId,
+    });
+  });
+
+  it("targets the server once the promoted thread can render the user start", () => {
+    expect(
+      resolvePreThreadServerRouteTarget({
+        baseTarget: {
+          kind: "server",
+          threadRef: draftThreadRef,
+        },
+        draftRouteId: draftId,
+        activeDraftSession: null,
+        serverThread: {
+          id: draftThreadId,
+          environmentId,
+          messages: [
+            {
+              id: "message:user" as never,
+              role: "user",
+              text: "hello",
+              createdAt: "2026-06-08T00:00:00.000Z",
+              streaming: false,
+            },
+          ],
+        } as never,
+      }),
+    ).toEqual({
+      kind: "server",
+      threadRef: draftThreadRef,
+    });
+  });
+});
+
+describe("resolveSidebarSelectionId", () => {
+  it("uses draft ids for draft routes", () => {
+    expect(
+      resolveSidebarSelectionId({
+        kind: "draft",
+        draftId,
+      }),
+    ).toBe(draftId);
+  });
+
+  it("uses server thread ids for server routes", () => {
+    expect(
+      resolveSidebarSelectionId({
+        kind: "server",
+        threadRef: serverThreadRef,
+      }),
+    ).toBe(serverThreadId);
+  });
+});
+
+describe("resolveThreadCopyId", () => {
+  beforeEach(() => {
+    useComposerDraftStore.setState({
+      draftsByThreadKey: {},
+      draftThreadsByThreadKey: {},
+      logicalProjectDraftThreadKeyByLogicalProjectKey: {},
+    });
+  });
+
+  it("copies the promoted server thread id for pre-thread sidebar rows", () => {
+    useComposerDraftStore.setState({
+      draftThreadsByThreadKey: {
+        [draftId]: draftThreadState({
+          promotedTo: serverThreadRef,
+        }),
+      },
+    });
+
+    expect(resolveThreadCopyId(draftThreadRef)).toBe(serverThreadId);
   });
 });

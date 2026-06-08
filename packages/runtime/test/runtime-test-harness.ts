@@ -75,6 +75,9 @@ export interface RuntimeHarness {
 }
 
 export async function createRuntimeHarness(options: {
+  readonly tempDir?: string;
+  readonly threadId?: ThreadId;
+  readonly removeTempDirOnCleanup?: boolean;
   readonly models?: readonly FauxModelDefinition[];
   readonly customTools?: readonly ToolDefinition[];
   readonly tools?: readonly string[];
@@ -83,7 +86,9 @@ export async function createRuntimeHarness(options: {
   readonly withConfiguredAuth?: boolean;
   readonly policy?: AgentModelPolicy;
 } = {}): Promise<RuntimeHarness> {
-  const tempDir = join(tmpdir(), `multi-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const tempDir =
+    options.tempDir ??
+    join(tmpdir(), `multi-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(tempDir, { recursive: true });
 
   const faux = registerFauxProvider(options.models ? { models: [...options.models] } : {});
@@ -96,7 +101,9 @@ export async function createRuntimeHarness(options: {
   const policy = options.policy ?? createFauxModelPolicy(model);
 
   const runtime = await ThreadAgentRuntime.create({
-    threadId: ThreadId.make(`thread:${Date.now()}:${Math.random().toString(36).slice(2)}`),
+    threadId:
+      options.threadId ??
+      ThreadId.make(`thread:${Date.now()}:${Math.random().toString(36).slice(2)}`),
     cwd: tempDir,
     agentDir: tempDir,
     model,
@@ -117,7 +124,7 @@ export async function createRuntimeHarness(options: {
     cleanup() {
       runtime.dispose();
       faux.unregister();
-      if (existsSync(tempDir)) {
+      if (options.removeTempDirOnCleanup !== false && existsSync(tempDir)) {
         rmSync(tempDir, { recursive: true, force: true });
       }
     },

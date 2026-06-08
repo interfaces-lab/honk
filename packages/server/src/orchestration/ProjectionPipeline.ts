@@ -6,6 +6,7 @@ import {
   resolveLeafIdAfterThreadMessage,
   ThreadId,
 } from "@multi/contracts";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import { Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
@@ -35,6 +36,8 @@ import { ProjectionThreadProposedPlanRepositoryLive } from "../persistence/Proje
 import { ProjectionThreadSessionRepositoryLive } from "../persistence/ProjectionThreadSessions.ts";
 import { ProjectionTurnRepositoryLive } from "../persistence/ProjectionTurns.ts";
 import { ProjectionThreadRepositoryLive } from "../persistence/ProjectionThreads.ts";
+
+const elog = EffectLogger.create({ service: "orchestration.projection" });
 import { ServerConfig } from "../config.ts";
 import {
   OrchestrationProjectionPipeline,
@@ -218,7 +221,7 @@ const runAttachmentSideEffects = Effect.fn("runAttachmentSideEffects")(function*
   ) {
     const threadSegment = toSafeThreadAttachmentSegment(threadId);
     if (!threadSegment) {
-      yield* Effect.logWarning("skipping attachment cleanup for unsafe thread id", {
+      yield* elog.warn("skipping attachment cleanup for unsafe thread id", {
         threadId,
       });
       return;
@@ -275,7 +278,7 @@ const runAttachmentSideEffects = Effect.fn("runAttachmentSideEffects")(function*
 
     const threadSegment = toSafeThreadAttachmentSegment(threadId);
     if (!threadSegment) {
-      yield* Effect.logWarning("skipping attachment prune for unsafe thread id", { threadId });
+      yield* elog.warn("skipping attachment prune for unsafe thread id", { threadId });
       return;
     }
 
@@ -1150,21 +1153,39 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         prunedThreadRelativePaths: new Map<string, Set<string>>(),
       };
 
-      yield* sql.withTransaction(
-        projector.apply(event, attachmentSideEffects).pipe(
-          Effect.flatMap(() =>
-            projectionStateRepository.upsert({
+      yield* sql
+        .withTransaction(
+          projector.apply(event, attachmentSideEffects).pipe(
+            Effect.flatMap(() =>
+              projectionStateRepository.upsert({
+                projector: projector.name,
+                lastAppliedSequence: event.sequence,
+                updatedAt: event.occurredAt,
+              }),
+            ),
+          ),
+        )
+        .pipe(
+          Effect.withSpan("orchestration.projection.apply", {
+            attributes: {
               projector: projector.name,
-              lastAppliedSequence: event.sequence,
-              updatedAt: event.occurredAt,
+              sequence: event.sequence,
+              eventType: event.type,
+            },
+          }),
+          Effect.tapError((cause) =>
+            elog.error("orchestration projection apply failed", {
+              projector: projector.name,
+              sequence: event.sequence,
+              eventType: event.type,
+              cause,
             }),
           ),
-        ),
-      );
+        );
 
       yield* runAttachmentSideEffects(attachmentSideEffects).pipe(
         Effect.catch((cause) =>
-          Effect.logWarning("failed to apply projected attachment side-effects", {
+          elog.warn("failed to apply projected attachment side-effects", {
             projector: projector.name,
             sequence: event.sequence,
             eventType: event.type,
@@ -1213,9 +1234,9 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       Effect.provideService(ServerConfig, serverConfig),
       Effect.asVoid,
       Effect.tap(() =>
-        Effect.logDebug("orchestration projection pipeline bootstrapped").pipe(
-          Effect.annotateLogs({ projectors: projectors.length }),
-        ),
+        elog.debug("orchestration projection pipeline bootstrapped", {
+          projectors: projectors.length,
+        }),
       ),
       Effect.catchTag("SqlError", (sqlError) =>
         Effect.fail(toPersistenceSqlError("ProjectionPipeline.bootstrap:query")(sqlError)),

@@ -29,6 +29,7 @@ type InlineMessageEditComposerProps = Pick<
   | "draftId"
   | "activeThreadId"
   | "phase"
+  | "isTurnRunning"
   | "isConnecting"
   | "isSendBusy"
   | "isPreparingWorktree"

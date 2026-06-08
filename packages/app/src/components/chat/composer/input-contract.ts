@@ -60,6 +60,7 @@ export interface ComposerInputProps {
   activeThreadId: ThreadId | null;
 
   phase: SessionPhase;
+  isTurnRunning: boolean;
   isConnecting: boolean;
   isSendBusy: boolean;
   isPreparingWorktree: boolean;

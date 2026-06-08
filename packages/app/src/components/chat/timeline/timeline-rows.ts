@@ -8,13 +8,13 @@ import {
   isCommandWorkEntry,
   summarizeWorkGroup,
   type GroupedSteps,
-  type TimelineCustomMessageStep,
   type TimelineDurationMessage,
   type TimelineGroupedStep,
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
   type TimelineRenderItem,
   type TimelineRuntimeExtensionUiRequestStep,
+  type TimelineRuntimeTaskStep,
   type TimelineRuntimeThinkingStep,
   type TimelineRuntimeToolStep,
   type TimelineStep,
@@ -56,9 +56,9 @@ export type MessageTimelineRow = TimelineMessageStep;
 
 export type ProposedPlanTimelineRow = TimelineProposedPlanStep;
 
-export type CustomMessageTimelineRow = TimelineCustomMessageStep;
-
 export type RuntimeThinkingTimelineRow = TimelineRuntimeThinkingStep;
+
+export type RuntimeTaskTimelineRow = TimelineRuntimeTaskStep;
 
 export type RuntimeToolTimelineRow = TimelineRuntimeToolStep;
 
@@ -76,8 +76,8 @@ export type BaseMessagesTimelineRow =
   | WorkTimelineRow
   | MessageTimelineRow
   | ProposedPlanTimelineRow
-  | CustomMessageTimelineRow
   | RuntimeThinkingTimelineRow
+  | RuntimeTaskTimelineRow
   | RuntimeToolTimelineRow
   | RuntimeExtensionUiRequestTimelineRow
   | WorkingTimelineRow;
@@ -92,8 +92,7 @@ export interface StableMessagesTimelineRowsState {
 export function deriveMessagesTimelineRows(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
-  isTurnRunning: boolean;
-  activeTurnStartedAt: string | null;
+  isTurnActive: boolean;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
 }): MessagesTimelineRow[] {
@@ -163,11 +162,11 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
     case "proposed-plan":
       return a.proposedPlan === (b as typeof a).proposedPlan;
 
-    case "custom-message":
-      return isCustomMessageRowUnchanged(a, b as typeof a);
-
     case "runtime-tool":
       return isRuntimeToolRowUnchanged(a, b as typeof a);
+
+    case "runtime-task":
+      return isRuntimeTaskRowUnchanged(a, b as typeof a);
 
     case "runtime-thinking":
       return isRuntimeThinkingRowUnchanged(a, b as typeof a);
@@ -231,22 +230,23 @@ function isMessageRowMessageUnchanged(
   );
 }
 
-function isCustomMessageRowUnchanged(
-  a: CustomMessageTimelineRow,
-  b: CustomMessageTimelineRow,
-): boolean {
-  return (
-    a.createdAt === b.createdAt &&
-    a.customMessage.customType === b.customMessage.customType &&
-    a.customMessage.display === b.customMessage.display &&
-    runtimeCustomMessageVisibleText(a.customMessage.content, a.customMessage.text) ===
-      runtimeCustomMessageVisibleText(b.customMessage.content, b.customMessage.text)
-  );
-}
-
 function isRuntimeToolRowUnchanged(
   a: RuntimeToolTimelineRow,
   b: RuntimeToolTimelineRow,
+): boolean {
+  return isRuntimeToolPayloadUnchanged(a, b);
+}
+
+function isRuntimeTaskRowUnchanged(
+  a: RuntimeTaskTimelineRow,
+  b: RuntimeTaskTimelineRow,
+): boolean {
+  return isRuntimeToolPayloadUnchanged(a, b);
+}
+
+function isRuntimeToolPayloadUnchanged(
+  a: Pick<RuntimeToolTimelineRow, "createdAt" | "tool">,
+  b: Pick<RuntimeToolTimelineRow, "createdAt" | "tool">,
 ): boolean {
   return (
     a.createdAt === b.createdAt &&
@@ -264,8 +264,8 @@ function isRuntimeToolRowUnchanged(
 }
 
 function areRuntimeToolVisibleDetailsUnchanged(
-  a: RuntimeToolTimelineRow,
-  b: RuntimeToolTimelineRow,
+  a: Pick<RuntimeToolTimelineRow, "tool">,
+  b: Pick<RuntimeToolTimelineRow, "tool">,
 ): boolean {
   if (a.tool.display || b.tool.display) {
     return (
@@ -292,24 +292,6 @@ function isRuntimeExtensionUiRequestRowUnchanged(
     a.request.placeholder === b.request.placeholder &&
     a.request.turnId === b.request.turnId
   );
-}
-
-function runtimeCustomMessageVisibleText(content: unknown, fallbackText: string | undefined): string {
-  if (typeof content === "string") {
-    return content;
-  }
-  if (Array.isArray(content)) {
-    return content
-      .flatMap((entry) => {
-        if (!entry || typeof entry !== "object") {
-          return [];
-        }
-        const record = entry as Record<string, unknown>;
-        return record.type === "text" && typeof record.text === "string" ? [record.text] : [];
-      })
-      .join("\n");
-  }
-  return fallbackText ?? "";
 }
 
 function areSameAttachments(

@@ -3,8 +3,8 @@ import {
   configureMultiEvlog,
   configureMultiProcessMetadata,
   makeMultiEffectLogger,
-  writeMultiLogEvent,
 } from "@multi/shared/logging";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -42,41 +42,11 @@ const textDecoder = new TextDecoder();
 
 export const desktopProcessMetadata = configureMultiProcessMetadata("desktop-main");
 
-export type DesktopLogAnnotations = Record<string, unknown>;
-
-export interface DesktopComponentLogger {
-  readonly annotate: <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    annotations?: DesktopLogAnnotations,
-  ) => Effect.Effect<A, E, R>;
-  readonly logDebug: (message: string, annotations?: DesktopLogAnnotations) => Effect.Effect<void>;
-  readonly logInfo: (message: string, annotations?: DesktopLogAnnotations) => Effect.Effect<void>;
-  readonly logWarning: (
-    message: string,
-    annotations?: DesktopLogAnnotations,
-  ) => Effect.Effect<void>;
-  readonly logError: (message: string, annotations?: DesktopLogAnnotations) => Effect.Effect<void>;
-}
-
-export function makeComponentLogger(component: string): DesktopComponentLogger {
-  const annotate: DesktopComponentLogger["annotate"] = (effect, annotations) =>
-    effect.pipe(
-      Effect.annotateLogs({
-        component,
-        ...annotations,
-      }),
-    );
-
-  return {
-    annotate,
-    logDebug: (message, annotations) => annotate(Effect.logDebug(message), annotations),
-    logInfo: (message, annotations) => annotate(Effect.logInfo(message), annotations),
-    logWarning: (message, annotations) => annotate(Effect.logWarning(message), annotations),
-    logError: (message, annotations) => annotate(Effect.logError(message), annotations),
-  };
-}
+export * as EffectLogger from "@multi/shared/effect-logger";
 
 const sanitizeLogValue = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+const backendChildLog = EffectLogger.create({ service: "desktop-backend-child" });
 
 const readPersistedOtlpTracesUrl: Effect.Effect<
   Option.Option<string>,
@@ -118,32 +88,21 @@ export const backendOutputLogLayer = Layer.effect(
       writeSessionBoundary: Effect.fn(
         "desktop.observability.backendOutput.writeSessionBoundary",
       )(function* ({ phase, details }) {
-        yield* Effect.sync(() =>
-          writeMultiLogEvent({
-            message: `backend child process session ${phase.toLowerCase()}`,
-            level: "info",
-            service: "desktop-backend-child",
-            fields: {
-              phase,
-              details: sanitizeLogValue(details),
-            },
-          }),
-        ).pipe(Effect.withTracerEnabled(false), Effect.ignore);
+        yield* backendChildLog
+          .info(`backend child process session ${phase.toLowerCase()}`, {
+            phase,
+            details: sanitizeLogValue(details),
+          })
+          .pipe(Effect.withTracerEnabled(false));
       }),
       writeOutputChunk: Effect.fn("desktop.observability.backendOutput.writeOutputChunk")(
         function* (streamName, chunk) {
           yield* writeConsoleOutput(streamName, chunk);
-          yield* Effect.sync(() =>
-            writeMultiLogEvent({
-              message: "backend child process output",
-              level: streamName === "stderr" ? "error" : "info",
-              service: "desktop-backend-child",
-              fields: {
-                stream: streamName,
-                text: textDecoder.decode(chunk),
-              },
-            }),
-          ).pipe(Effect.withTracerEnabled(false), Effect.ignore);
+          const log = streamName === "stderr" ? backendChildLog.error : backendChildLog.info;
+          yield* log("backend child process output", {
+            stream: streamName,
+            text: textDecoder.decode(chunk),
+          }).pipe(Effect.withTracerEnabled(false));
         },
       ),
     } satisfies DesktopBackendOutputLogShape;
@@ -154,7 +113,7 @@ const desktopLoggerLayer = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     configureMultiEvlog({
-      logsDir: environment.path.join(environment.logDir, "evlog"),
+      filePath: environment.path.join(environment.logDir, "desktop.log.ndjson"),
       service: "desktop",
       environment: environment.isDevelopment ? "development" : "production",
       minLevel: "info",

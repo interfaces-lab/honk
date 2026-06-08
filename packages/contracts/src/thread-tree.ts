@@ -94,6 +94,11 @@ export function threadEntryIdForMessageId(messageId: MessageId): ThreadEntryId {
   return ThreadEntryId.make(`message:${messageId}`);
 }
 
+export function isOrchestrationPersistedMessageId(messageId: MessageId): boolean {
+  const value = String(messageId);
+  return !value.includes(":") || value.startsWith("runtime:");
+}
+
 export function isNavigableThreadEntry(entry: Pick<OrchestrationThreadEntry, "kind">): boolean {
   return entry.kind === "message";
 }

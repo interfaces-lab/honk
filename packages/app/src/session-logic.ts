@@ -11,7 +11,6 @@ import {
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
-  type RuntimeDisplayTimelineCustomMessageItem,
   type RuntimeDisplayTimelineExtensionUiRequestItem,
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineToolItem,
@@ -262,12 +261,6 @@ export type TimelineEntry =
     }
   | {
       id: string;
-      kind: "custom-message";
-      createdAt: string;
-      customMessage: RuntimeDisplayTimelineCustomMessageItem;
-    }
-  | {
-      id: string;
       kind: "runtime-thinking";
       createdAt: string;
       message: RuntimeDisplayTimelineMessageItem;
@@ -283,6 +276,11 @@ export type TimelineEntry =
       kind: "runtime-extension-ui-request";
       createdAt: string;
       request: RuntimeDisplayTimelineExtensionUiRequestItem;
+    }
+  | {
+      id: string;
+      kind: "waiting";
+      createdAt: string | null;
     };
 
 export interface FormatDurationOptions {

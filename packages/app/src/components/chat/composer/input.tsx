@@ -965,6 +965,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       draftId,
       activeThreadId,
       phase,
+      isTurnRunning,
       isConnecting,
       isSendBusy,
       isPreparingWorktree,
@@ -1360,7 +1361,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
     const isComposerApprovalState = activePendingApproval !== null;
     const activePendingUserInput = pendingUserInputs[0] ?? null;
     const hasQueuedComposerItems = queuedComposerItems.length > 0;
-    const queuedComposerActionsBusy = isConnecting || isSendBusy || phase === "running";
+    const queuedComposerActionsBusy = isConnecting || isSendBusy || isTurnRunning;
     const canSubmitQueuedComposerItem =
       hasQueuedComposerItems && !isEditingQueuedComposerItem && !queuedComposerActionsBusy;
     const hasComposerHeader = isComposerApprovalState || pendingUserInputs.length > 0;
@@ -1962,7 +1963,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
                 : "mx-auto max-w-agent-chat gap-2",
           )}
           data-menu-open={composerMenuOpen ? "" : undefined}
-          data-running={phase === "running" ? "" : undefined}
+          data-running={isTurnRunning ? "" : undefined}
           data-slash-menu-variant="surface"
           data-variant={composerVariant}
         >
@@ -2153,7 +2154,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
                   secondaryAction={footerSecondaryAction}
                   primaryActionState={{
                     pendingAction: pendingPrimaryAction,
-                    isRunning: phase === "running",
+                    isRunning: isTurnRunning,
                     showPlanFollowUpPrompt:
                       pendingUserInputs.length === 0 &&
                       showPlanFollowUpPrompt &&

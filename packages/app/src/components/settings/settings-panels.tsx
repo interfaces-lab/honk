@@ -328,8 +328,8 @@ export function GeneralSettingsPanel() {
 
   const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
   const diagnosticsDescription = observability?.localTracingEnabled
-    ? "Backend evlog JSONL files and local trace files."
-    : "Backend evlog JSONL files.";
+    ? "Structured logs (JSONL) and local trace files."
+    : "Structured logs (JSONL).";
 
   const openInPreferredEditor = (
     target: "keybindings" | "logsDirectory",

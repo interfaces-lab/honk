@@ -29,3 +29,4 @@ export const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
 export const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
 export const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
 export const RUNTIME_HOST_EVENT_CHANNEL = "desktop:runtime-host-event";
+export const LOG_RENDERER_DIAGNOSTIC_CHANNEL = "desktop:log-renderer-diagnostic";

@@ -86,16 +86,6 @@ describe("runtime display timeline projection", () => {
         clientMessageId: MessageId.make("client:first-send"),
         text: "Commit and push",
       }),
-      expect.objectContaining({
-        id: "custom-message:runtime:custom-entry",
-        kind: "custom-message",
-        entryId: RuntimeItemId.make("runtime:custom-entry"),
-        customType: "git-agent-action",
-        content: "Queued branch handoff",
-        details: { action: "commit-push" },
-        display: true,
-        text: "Queued branch handoff",
-      }),
     ]);
   });
 

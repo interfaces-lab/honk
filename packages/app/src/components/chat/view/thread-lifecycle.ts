@@ -57,7 +57,6 @@ export function buildLocalDraftThread(
     worktreePath: draftThread.worktreePath,
     turnDiffSummaries: [],
     activities: [],
-    chatTimelineRows: [],
     proposedPlans: [],
   };
 }
@@ -117,8 +116,7 @@ export function threadHasStarted(thread: Thread | null | undefined): boolean {
     thread &&
       (thread.latestTurn !== null ||
         thread.messages.length > 0 ||
-        thread.session !== null ||
-      (thread.chatTimelineRows?.length ?? 0) > 0),
+        thread.session !== null),
   );
 }
 
@@ -141,16 +139,9 @@ export function threadHasRenderableUserStart(thread: Thread | null | undefined):
   if (!thread) {
     return false;
   }
-  const renderableUserMessageIds = new Set(
-    thread.messages.flatMap((message) =>
-      message.role === "user" && userMessageHasRenderableContent(message) ? [message.id] : [],
-    ),
+  return thread.messages.some(
+    (message) => message.role === "user" && userMessageHasRenderableContent(message),
   );
-  if (renderableUserMessageIds.size === 0) {
-    return false;
-  }
-  const messageRows = thread.chatTimelineRows?.filter((row) => row.kind === "message") ?? [];
-  return messageRows.some((row) => renderableUserMessageIds.has(row.messageId));
 }
 
 function userMessageHasRenderableContent(message: Thread["messages"][number]): boolean {
@@ -171,15 +162,14 @@ export function resolveRenderableDraftCanonicalThreadRef(input: {
   return input.promotedTo;
 }
 
-export type DraftPromotionRouteTarget =
-  | { readonly kind: "draft"; readonly draftId: DraftIdType }
-  | { readonly kind: "server"; readonly threadRef: ScopedThreadRef };
-
 export function resolveDraftPromotionRouteTarget(input: {
   readonly draftRouteId: DraftIdType | null;
   readonly serverThread: Thread | null | undefined;
   readonly serverThreadRef: ScopedThreadRef | null | undefined;
-}): DraftPromotionRouteTarget | null {
+}):
+  | { readonly kind: "draft"; readonly draftId: DraftIdType }
+  | { readonly kind: "server"; readonly threadRef: ScopedThreadRef }
+  | null {
   if (!input.serverThreadRef) {
     return null;
   }
@@ -187,6 +177,18 @@ export function resolveDraftPromotionRouteTarget(input: {
     return { kind: "draft", draftId: input.draftRouteId };
   }
   return { kind: "server", threadRef: input.serverThreadRef };
+}
+
+export function threadExistsBeforeSend(input: {
+  readonly serverThreadExists: boolean;
+  readonly draftPromotedTo: ScopedThreadRef | null | undefined;
+  readonly targetThreadRef: ScopedThreadRef;
+}): boolean {
+  return (
+    input.serverThreadExists ||
+    (input.draftPromotedTo?.environmentId === input.targetThreadRef.environmentId &&
+      input.draftPromotedTo.threadId === input.targetThreadRef.threadId)
+  );
 }
 
 export async function waitForStartedServerThread(

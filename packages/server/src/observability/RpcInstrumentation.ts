@@ -1,4 +1,5 @@
 import { Cause, Duration, Effect, Exit, Metric, Stream } from "effect";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import { outcomeFromExit } from "@multi/shared/observability";
 
 import { metricAttributes, rpcRequestDuration, rpcRequestsTotal, withMetrics } from "./Metrics.ts";
@@ -34,6 +35,8 @@ const recordRpcStreamMetrics = <E>(
     );
   });
 
+const rpcLog = EffectLogger.create({ service: "server.rpc" });
+
 const logRpcFailure = <A, E>(
   method: string,
   exit: Exit.Exit<A, E>,
@@ -43,7 +46,7 @@ const logRpcFailure = <A, E>(
     return Effect.void;
   }
 
-  return Effect.logError("rpc request failed", {
+  return rpcLog.error("rpc request failed", {
     method,
     ...traceAttributes,
     cause: Cause.pretty(exit.cause),

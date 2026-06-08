@@ -28,7 +28,6 @@ import {
   mapProjectShellRow,
   maxIso,
 } from "./ThreadProjectionAssembly.ts";
-import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
 import {
   decodeReadModel,
   decodeShellSnapshot,
@@ -62,21 +61,6 @@ function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: st
     Schema.isSchemaError(cause)
       ? toPersistenceDecodeError(decodeOperation)(cause)
       : toPersistenceSqlError(sqlOperation)(cause);
-}
-
-function attachChatTimelineRows(
-  thread: Omit<OrchestrationThread, "chatTimelineRows">,
-): OrchestrationThread {
-  return {
-    ...thread,
-    chatTimelineRows: deriveChatTimelineRows({
-      messages: thread.messages,
-      entries: thread.entries,
-      activities: thread.activities,
-      proposedPlans: thread.proposedPlans,
-      activeRunningTurnId: thread.session?.activeTurnId ?? null,
-    }),
-  };
 }
 
 const makeThreadProjection = Effect.gen(function* () {
@@ -740,8 +724,7 @@ const makeThreadProjection = Effect.gen(function* () {
                 deletedAt: row.deletedAt,
               }));
 
-              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) =>
-                attachChatTimelineRows({
+              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) => ({
                   id: row.threadId,
                   projectId: row.projectId,
                   title: row.title,
@@ -761,8 +744,7 @@ const makeThreadProjection = Effect.gen(function* () {
                   proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                   activities: activitiesByThread.get(row.threadId) ?? [],
                   session: sessionsByThread.get(row.threadId) ?? null,
-                }),
-              );
+                }));
 
               const snapshot = {
                 snapshotSequence: computeSnapshotSequence(stateRows),
@@ -1132,7 +1114,7 @@ const makeThreadProjection = Effect.gen(function* () {
 
       return Option.some(
         yield* decodeThread(
-          attachChatTimelineRows({
+          {
             id: threadRow.value.threadId,
             projectId: threadRow.value.projectId,
             title: threadRow.value.title,
@@ -1194,7 +1176,7 @@ const makeThreadProjection = Effect.gen(function* () {
               }),
             ),
             session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
-          }),
+          },
         ).pipe(
           Effect.mapError(
             toPersistenceDecodeError("ThreadProjection.getThreadDetailById:decodeThread"),

@@ -7,6 +7,7 @@ import type {
   DesktopAppBranding,
   DesktopBridge,
   DesktopEnvironmentBootstrap,
+  DesktopRendererDiagnosticInput,
   DesktopUpdateState,
   DesktopWindowChromeState,
   MultiRuntimeHostEvent,
@@ -44,6 +45,7 @@ const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
 const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
 const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
 const RUNTIME_HOST_EVENT_CHANNEL = "desktop:runtime-host-event";
+const LOG_RENDERER_DIAGNOSTIC_CHANNEL = "desktop:log-renderer-diagnostic";
 
 const desktopRuntimeApi = {
   getHostSnapshot: () => ipcRenderer.invoke(RUNTIME_GET_HOST_SNAPSHOT_CHANNEL),
@@ -142,6 +144,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
     };
   },
+  logRendererDiagnostic: (input: DesktopRendererDiagnosticInput) =>
+    ipcRenderer.invoke(LOG_RENDERER_DIAGNOSTIC_CHANNEL, input),
   runtime: desktopRuntimeApi,
 } satisfies DesktopBridge);
 

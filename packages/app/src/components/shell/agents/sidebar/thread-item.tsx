@@ -5,6 +5,7 @@ import { IconArchive1, IconPin, IconUnpin } from "central-icons";
 import { type KeyboardEvent, memo, type MouseEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { resolveThreadCopyId } from "~/routes/-thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { ThreadContextMenu } from "./context-menu";
@@ -213,7 +214,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
 
   return (
     <ThreadContextMenu
-      threadId={threadItem.id}
+      threadId={resolveThreadCopyId(targetThreadRef)}
       onRename={() => {
         setRenaming(true);
         setRenameValue(threadItem.title);

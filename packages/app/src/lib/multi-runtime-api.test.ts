@@ -104,6 +104,7 @@ describe("readMultiRuntimeApi", () => {
     vi.stubGlobal("window", {});
 
     expect(isDesktopRuntimeApiAvailable()).toBe(false);
+    expect(() => readMultiRuntimeApi()).toThrow("Runtime host unavailable.");
     await expect(assertRuntimeHostAvailable()).rejects.toThrow("Runtime host unavailable.");
   });
 });

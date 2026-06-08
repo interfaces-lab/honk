@@ -82,9 +82,8 @@ export interface MessagesTimelineController {
 
 interface MessagesTimelineProps {
   isWorking: boolean;
-  isTurnRunning: boolean;
+  isTurnActive: boolean;
   editUserMessagesDisabled: boolean;
-  activeTurnStartedAt: string | null;
   bottomClearancePx?: number | undefined;
   timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
   timelineEntries: ReadonlyArray<TimelineEntry>;
@@ -108,9 +107,8 @@ interface MessagesTimelineProps {
 
 export function MessagesTimeline({
   isWorking,
-  isTurnRunning,
+  isTurnActive,
   editUserMessagesDisabled,
-  activeTurnStartedAt,
   bottomClearancePx = 0,
   timelineControllerRef,
   timelineEntries,
@@ -134,15 +132,13 @@ export function MessagesTimeline({
       deriveMessagesTimelineRows({
         timelineEntries,
         isWorking,
-        isTurnRunning,
-        activeTurnStartedAt,
+        isTurnActive,
         editableUserMessageIds,
         projectRoot,
       }),
     [
-      activeTurnStartedAt,
       editableUserMessageIds,
-      isTurnRunning,
+      isTurnActive,
       isWorking,
       projectRoot,
       timelineEntries,
@@ -752,15 +748,15 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
     return 180 + VIRTUAL_ROW_GAP_PX;
   }
 
-  if (row.kind === "custom-message") {
-    return 96 + VIRTUAL_ROW_GAP_PX;
-  }
-
   if (row.kind === "runtime-thinking") {
     return 96 + VIRTUAL_ROW_GAP_PX;
   }
 
-  if (row.kind === "runtime-tool" || row.kind === "runtime-extension-ui-request") {
+  if (
+    row.kind === "runtime-task" ||
+    row.kind === "runtime-tool" ||
+    row.kind === "runtime-extension-ui-request"
+  ) {
     return 64 + VIRTUAL_ROW_GAP_PX;
   }
 
@@ -860,7 +856,11 @@ const TimelineRowContent = memo(function TimelineRowContent({
       data-message-kind={timelineRowMessageKind(row)}
       data-message-index={row.kind === "message" ? row.messageIndex : undefined}
       data-message-pair-id={row.kind === "message" ? (row.pairId ?? undefined) : undefined}
-      data-tool-call-id={row.kind === "runtime-tool" ? row.tool.toolCallId : undefined}
+      data-tool-call-id={
+        row.kind === "runtime-task" || row.kind === "runtime-tool"
+          ? row.tool.toolCallId
+          : undefined
+      }
       data-tool-status={timelineRowToolStatus(row)}
       data-tool-has-error={timelineRowToolHasError(row) ? "true" : undefined}
     >
@@ -917,10 +917,9 @@ function TimelineRowBody({
 
 function timelineRowKind(
   row: TimelineRow,
-): "human" | "assistant" | "tool-call" | "custom-message" | "loading" {
+): "human" | "assistant" | "tool-call" | "loading" {
   if (row.kind === "message") return row.message.role === "user" ? "human" : "assistant";
   if (row.kind === "runtime-thinking") return "assistant";
-  if (row.kind === "custom-message") return "custom-message";
   if (row.kind === "working") return "loading";
   return "tool-call";
 }
@@ -933,17 +932,18 @@ function timelineRowMessageKind(row: TimelineRow): "message" | "thinking" | "too
   if (row.kind === "runtime-thinking") return "thinking";
   if (
     row.kind === "work" ||
+    row.kind === "runtime-task" ||
     row.kind === "runtime-tool" ||
     row.kind === "runtime-extension-ui-request"
   ) {
     return "tool";
   }
-  if (row.kind === "custom-message") return "message";
   return undefined;
 }
 
 function timelineRowToolStatus(row: TimelineRow): "loading" | "completed" | "error" | undefined {
   switch (row.kind) {
+    case "runtime-task":
     case "runtime-tool":
       if (row.tool.status === "error" || row.tool.isError === true) return "error";
       return row.tool.status === "running" ? "loading" : "completed";

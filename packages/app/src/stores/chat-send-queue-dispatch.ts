@@ -6,14 +6,20 @@ import type {
 } from "@multi/contracts";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 
-import { sendRuntimeTurn } from "../lib/runtime-turn-dispatch";
-import { resolvePlanFollowUpSubmission } from "../plan/proposed-plan";
-import { useComposerQueueStore, type QueuedComposerItem } from "./chat-send-queue";
-import { selectEnvironmentState, selectThreadByRef, useStore } from "./thread-store";
+import { readEnvironmentApi } from "../environment-api";
 import {
   compileComposerSubmitTurn,
   prepareComposerTurnAttachments,
 } from "../components/chat/composer-submit";
+import { prepareRuntimeTurnPolicy } from "../lib/runtime-turn-dispatch";
+import {
+  coordinateTurnSend,
+  dispatchTurnStartFailure,
+} from "../lib/turn-send-coordinator";
+import { resolvePlanFollowUpSubmission } from "../plan/proposed-plan";
+import { DEFAULT_RUNTIME_MODE } from "../types";
+import { useComposerQueueStore, type QueuedComposerItem } from "./chat-send-queue";
+import { selectEnvironmentState, selectThreadByRef, useStore } from "./thread-store";
 
 const dispatchingThreadKeys = new Set<string>();
 
@@ -21,6 +27,8 @@ type PreparedQueuedTurn = {
   messageText: string;
   interactionMode: AgentInteractionMode;
   sourceProposedPlan: SourceProposedPlanReference | null;
+  optimisticAttachments: ReturnType<typeof compileComposerSubmitTurn>["optimisticAttachments"];
+  richText: ReturnType<typeof compileComposerSubmitTurn>["outgoingRichText"];
 };
 
 function prepareQueuedTurn(item: QueuedComposerItem): PreparedQueuedTurn | null {
@@ -38,6 +46,8 @@ function prepareQueuedTurn(item: QueuedComposerItem): PreparedQueuedTurn | null 
         threadId: item.planFollowUp.planThreadId,
         planId: item.planFollowUp.planId,
       },
+      optimisticAttachments: compiledTurn.optimisticAttachments,
+      richText: compiledTurn.outgoingRichText,
     };
   }
 
@@ -49,10 +59,12 @@ function prepareQueuedTurn(item: QueuedComposerItem): PreparedQueuedTurn | null 
     messageText: compiledTurn.outgoingMessageText,
     interactionMode: item.interactionMode,
     sourceProposedPlan: null,
+    optimisticAttachments: compiledTurn.optimisticAttachments,
+    richText: compiledTurn.outgoingRichText,
   };
 }
 
-async function sendQueuedRuntimeTurn(input: {
+async function sendQueuedTurn(input: {
   environmentId: EnvironmentId;
   threadId: ThreadId;
   item: QueuedComposerItem;
@@ -60,6 +72,7 @@ async function sendQueuedRuntimeTurn(input: {
 }): Promise<void> {
   const state = useStore.getState();
   const threadRef = scopeThreadRef(input.environmentId, input.threadId);
+  const threadKey = scopedThreadKey(threadRef);
   const thread = selectThreadByRef(state, threadRef);
   const environmentState = selectEnvironmentState(state, input.environmentId);
   const project = thread?.projectId ? environmentState.projectById[thread.projectId] : null;
@@ -71,16 +84,48 @@ async function sendQueuedRuntimeTurn(input: {
     throw new Error("Cannot send queued message because the thread is no longer available.");
   }
 
-  const runtimeImages = await prepareComposerTurnAttachments(input.item.sendContext.images);
-  await sendRuntimeTurn({
+  const api = readEnvironmentApi(input.environmentId);
+  const preparedPolicy = prepareRuntimeTurnPolicy({
+    interactionMode: input.prepared.interactionMode,
+  });
+
+  const result = await coordinateTurnSend({
+    environmentId: input.environmentId,
+    threadKey,
     threadId: input.threadId,
-    cwd,
-    text: input.prepared.messageText,
+    clientMessageId: input.item.id,
+    createdAt: input.item.createdAt,
+    message: {
+      text: input.prepared.messageText,
+      ...(input.prepared.richText !== undefined ? { richText: input.prepared.richText } : {}),
+      optimisticAttachments: input.prepared.optimisticAttachments,
+      getTurnAttachments: () => prepareComposerTurnAttachments(input.item.sendContext.images),
+    },
+    parentEntryId: null,
+    modelSelection: thread.modelSelection,
+    titleSeed: thread.title,
+    runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: input.prepared.interactionMode,
     sourceProposedPlan: input.prepared.sourceProposedPlan,
-    clientMessageId: input.item.id,
-    images: runtimeImages,
+    cwd,
+    preparedPolicy,
+    api,
+    startRuntimeBeforePersistence: true,
   });
+
+  if (result.serverPersistenceError) {
+    throw result.serverPersistenceError;
+  }
+
+  if (!result.runtimeSendSucceeded && result.serverTurnStartSucceeded) {
+    await dispatchTurnStartFailure({
+      api,
+      threadId: input.threadId,
+      messageId: input.item.id,
+      detail: "Failed to send queued message.",
+    });
+    throw new Error("Failed to send queued message.");
+  }
 }
 
 export async function dispatchNextQueuedComposerItemForThread(
@@ -121,7 +166,7 @@ export async function dispatchNextQueuedComposerItemForThread(
       return;
     }
 
-    await sendQueuedRuntimeTurn({
+    await sendQueuedTurn({
       environmentId,
       threadId,
       item,

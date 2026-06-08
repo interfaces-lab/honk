@@ -15,6 +15,7 @@ import * as Ref from "effect/Ref";
 import * as DesktopBackendManager from "./desktop-backend-manager";
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as DesktopObservability from "../app/desktop-observability";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as DesktopServerExposure from "./desktop-server-exposure";
 
 export interface DesktopBackendConfigurationShape {
@@ -52,9 +53,7 @@ const DESKTOP_BACKEND_ENV_NAMES = [
 const backendChildEnvPatch = (): Record<string, string | undefined> =>
   Object.fromEntries(DESKTOP_BACKEND_ENV_NAMES.map((name) => [name, undefined]));
 
-const { logWarning: logBackendConfigurationWarning } = DesktopObservability.makeComponentLogger(
-  "desktop-backend-configuration",
-);
+const elog = EffectLogger.create({ service: "desktop-backend-configuration" });
 
 const readPersistedBackendObservabilitySettings: Effect.Effect<
   BackendObservabilitySettings,
@@ -72,7 +71,7 @@ const readPersistedBackendObservabilitySettings: Effect.Effect<
 
   const raw = yield* fileSystem.readFileString(environment.serverSettingsPath).pipe(Effect.option);
   if (Option.isNone(raw)) {
-    yield* logBackendConfigurationWarning(
+    yield* elog.warn(
       "failed to read persisted backend observability settings",
     );
     return emptyBackendObservabilitySettings;

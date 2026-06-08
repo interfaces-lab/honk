@@ -19,7 +19,7 @@ import * as Scope from "effect/Scope";
 import * as DesktopBackendManager from "../backend/desktop-backend-manager";
 import * as DesktopConfig from "../app/desktop-config";
 import * as DesktopEnvironment from "../app/desktop-environment";
-import * as DesktopObservability from "../app/desktop-observability";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
 import * as ElectronUpdater from "../electron/electron-updater";
 import * as ElectronWindow from "../electron/electron-window";
@@ -72,11 +72,7 @@ export class DesktopUpdates extends Context.Service<DesktopUpdates, DesktopUpdat
   "multi/desktop/Updates",
 ) {}
 
-const {
-  logInfo: logUpdaterInfo,
-  logWarning: logUpdaterWarning,
-  logError: logUpdaterError,
-} = DesktopObservability.makeComponentLogger("desktop-updater");
+const elog = EffectLogger.create({ service: "desktop-updater" });
 
 function parseAppUpdateYml(raw: string): Effect.Effect<Option.Option<AppUpdateYmlConfig>> {
   const entries: Record<string, string> = {};
@@ -228,7 +224,7 @@ const make = Effect.gen(function* () {
   )(function* () {
     yield* electronUpdater.setAllowPrerelease(false);
     yield* electronUpdater.setAllowDowngrade(false);
-    yield* logUpdaterInfo("configured update release stream", {
+    yield* elog.info("configured update release stream", {
       allowPrerelease: false,
       allowDowngrade: false,
     });
@@ -244,7 +240,7 @@ const make = Effect.gen(function* () {
 
     const state = yield* Ref.get(updateStateRef);
     if (state.status === "downloading" || state.status === "downloaded") {
-      yield* logUpdaterInfo("skipping update check while update is active", {
+      yield* elog.info("skipping update check while update is active", {
         reason,
         status: state.status,
       });
@@ -254,7 +250,7 @@ const make = Effect.gen(function* () {
     yield* Ref.set(updateCheckInFlightRef, true);
     const checkedAt = yield* currentIsoTimestamp;
     yield* setState(reduceDesktopUpdateStateOnCheckStart(state, checkedAt));
-    yield* logUpdaterInfo("checking for updates", { reason });
+    yield* elog.info("checking for updates", { reason });
 
     return yield* electronUpdater.checkForUpdates.pipe(
       Effect.as(true),
@@ -264,7 +260,7 @@ const make = Effect.gen(function* () {
           yield* updateState((current) =>
             reduceDesktopUpdateStateOnCheckFailure(current, error.message, failedAt),
           );
-          yield* logUpdaterError("failed to check for updates", { message: error.message });
+          yield* elog.error("failed to check for updates", { message: error.message });
           return true;
         }),
       ),
@@ -288,7 +284,7 @@ const make = Effect.gen(function* () {
       yield* electronUpdater.setDisableDifferentialDownload(
         isArm64HostRunningIntelBuild(environment.runtimeInfo),
       );
-      yield* logUpdaterInfo("downloading update");
+      yield* elog.info("downloading update");
       yield* electronUpdater.downloadUpdate;
       return { accepted: true, completed: true };
     }).pipe(
@@ -297,7 +293,7 @@ const make = Effect.gen(function* () {
           yield* updateState((current) =>
             reduceDesktopUpdateStateOnDownloadFailure(current, error.message),
           );
-          yield* logUpdaterError("failed to download update", { message: error.message });
+          yield* elog.error("failed to download update", { message: error.message });
           return { accepted: true, completed: false };
         }),
       ),
@@ -334,7 +330,7 @@ const make = Effect.gen(function* () {
             reduceDesktopUpdateStateOnInstallFailure(current, error.message),
           );
           yield* Ref.set(desktopState.quitting, false);
-          yield* logUpdaterError("failed to install update", { message: error.message });
+          yield* elog.error("failed to install update", { message: error.message });
           return { accepted: true, completed: false };
         }),
       ),
@@ -345,7 +341,7 @@ const make = Effect.gen(function* () {
     yield* Effect.sleep(AUTO_UPDATE_STARTUP_DELAY).pipe(
       Effect.andThen(checkForUpdates("startup")),
       Effect.catchCause((cause) =>
-        logUpdaterError("startup update check failed", { cause: Cause.pretty(cause) }),
+        elog.error("startup update check failed", { cause: Cause.pretty(cause) }),
       ),
       Effect.forkScoped,
     );
@@ -353,7 +349,7 @@ const make = Effect.gen(function* () {
       Effect.andThen(checkForUpdates("poll")),
       Effect.forever,
       Effect.catchCause((cause) =>
-        logUpdaterError("poll update check failed", { cause: Cause.pretty(cause) }),
+        elog.error("poll update check failed", { cause: Cause.pretty(cause) }),
       ),
       Effect.forkScoped,
     );
@@ -371,11 +367,11 @@ const make = Effect.gen(function* () {
             reduceDesktopUpdateStateOnUpdateAvailable(state, info.version, checkedAt),
           );
           yield* Ref.set(lastLoggedDownloadMilestoneRef, -1);
-          yield* logUpdaterInfo("update available", { version: info.version });
+          yield* elog.info("update available", { version: info.version });
         }),
       ),
       Effect.catchCause((cause) =>
-        logUpdaterWarning("ignored malformed update-available event", {
+        elog.warn("ignored malformed update-available event", {
           cause: Cause.pretty(cause),
         }),
       ),
@@ -387,7 +383,7 @@ const make = Effect.gen(function* () {
     const state = yield* Ref.get(updateStateRef);
     yield* setState(reduceDesktopUpdateStateOnNoUpdate(state, checkedAt));
     yield* Ref.set(lastLoggedDownloadMilestoneRef, -1);
-    yield* logUpdaterInfo("no updates available");
+    yield* elog.info("no updates available");
   }).pipe(Effect.withSpan("desktop.updates.handleUpdateNotAvailable"));
 
   const handleUpdaterError = Effect.fn("desktop.updates.handleUpdaterError")(function* (
@@ -398,7 +394,7 @@ const make = Effect.gen(function* () {
       yield* Ref.set(updateInstallInFlightRef, false);
       yield* Ref.set(desktopState.quitting, false);
       yield* updateState((current) => reduceDesktopUpdateStateOnInstallFailure(current, message));
-      yield* logUpdaterError("updater error", { message });
+      yield* elog.error("updater error", { message });
       return;
     }
 
@@ -416,7 +412,7 @@ const make = Effect.gen(function* () {
       }));
     }
 
-    yield* logUpdaterError("updater error", { message });
+    yield* elog.error("updater error", { message });
   });
 
   const handleDownloadProgress = Effect.fn("desktop.updates.handleDownloadProgress")(function* (
@@ -434,12 +430,12 @@ const make = Effect.gen(function* () {
           const lastLoggedMilestone = yield* Ref.get(lastLoggedDownloadMilestoneRef);
           if (milestone > lastLoggedMilestone) {
             yield* Ref.set(lastLoggedDownloadMilestoneRef, milestone);
-            yield* logUpdaterInfo("download progress", { percent });
+            yield* elog.info("download progress", { percent });
           }
         }),
       ),
       Effect.catchCause((cause) =>
-        logUpdaterWarning("ignored malformed download-progress event", {
+        elog.warn("ignored malformed download-progress event", {
           cause: Cause.pretty(cause),
         }),
       ),
@@ -454,11 +450,11 @@ const make = Effect.gen(function* () {
         Effect.fn("desktop.updates.applyUpdateDownloaded")(function* (info) {
           const state = yield* Ref.get(updateStateRef);
           yield* setState(reduceDesktopUpdateStateOnDownloadComplete(state, info.version));
-          yield* logUpdaterInfo("update downloaded", { version: info.version });
+          yield* elog.info("update downloaded", { version: info.version });
         }),
       ),
       Effect.catchCause((cause) =>
-        logUpdaterWarning("ignored malformed update-downloaded event", {
+        elog.warn("ignored malformed update-downloaded event", {
           cause: Cause.pretty(cause),
         }),
       ),
@@ -517,14 +513,14 @@ const make = Effect.gen(function* () {
       );
 
       if (isArm64HostRunningIntelBuild(environment.runtimeInfo)) {
-        yield* logUpdaterInfo(
+        yield* elog.info(
           "Apple Silicon host detected while running Intel build; updates will switch to arm64 packages",
         );
       }
 
       yield* electronUpdater.on("checking-for-update", () => {
         runEffect(
-          logUpdaterInfo("looking for updates").pipe(
+          elog.info("looking for updates").pipe(
             Effect.withSpan("desktop.updates.handleCheckingForUpdate"),
           ),
         );

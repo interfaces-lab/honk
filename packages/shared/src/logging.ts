@@ -1,5 +1,7 @@
-import { createFsDrain } from "evlog/fs";
-import { initLogger, log as evlog, type LoggerConfig } from "evlog";
+// In-house rotating NDJSON file sink for Effect.Logger output (`makeMultiEffectLogger`).
+import fs from "node:fs";
+import path from "node:path";
+
 import { Cause, Logger, References } from "effect";
 
 export const MULTI_RUN_ID_ENV = "MULTI_RUN_ID";
@@ -25,10 +27,10 @@ export interface MultiProcessMetadata {
 }
 
 export interface ConfigureMultiEvlogOptions {
-  readonly logsDir: string;
+  readonly filePath: string;
   readonly service: string;
   readonly environment: string;
-  readonly minLevel?: LoggerConfig["minLevel"];
+  readonly minLevel?: MultiLogLevel;
   readonly maxFiles?: number;
   readonly maxSizePerFile?: number;
 }
@@ -40,11 +42,143 @@ export interface MultiLogEventInput {
   readonly fields?: Record<string, unknown>;
 }
 
+export interface RotatingFileSinkOptions {
+  readonly filePath: string;
+  readonly maxBytes: number;
+  readonly maxFiles: number;
+  readonly throwOnError?: boolean;
+}
+
+const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_LOG_MAX_FILES = 10;
+
 const SECRET_FIELD_PATTERN =
   /(^|[_\-.])(auth|authorization|bearer|cookie|credential|password|secret|sessiontoken|token|api[_\-.]?key)([_\-.]|$)/i;
 const REDACTED = "[redacted]";
 const MAX_SANITIZE_DEPTH = 6;
+
+const LOG_LEVEL_RANK: Record<MultiLogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+};
+
 let processMetadata: MultiProcessMetadata | undefined;
+let logSink: RotatingFileSink | undefined;
+let logConfig:
+  | {
+      readonly service: string;
+      readonly environment: string;
+      readonly minLevel: MultiLogLevel;
+    }
+  | undefined;
+
+export class RotatingFileSink {
+  private readonly filePath: string;
+  private readonly maxBytes: number;
+  private readonly maxFiles: number;
+  private readonly throwOnError: boolean;
+  private currentSize = 0;
+
+  constructor(options: RotatingFileSinkOptions) {
+    if (options.maxBytes < 1) {
+      throw new Error(`maxBytes must be >= 1 (received ${options.maxBytes})`);
+    }
+    if (options.maxFiles < 1) {
+      throw new Error(`maxFiles must be >= 1 (received ${options.maxFiles})`);
+    }
+
+    this.filePath = options.filePath;
+    this.maxBytes = options.maxBytes;
+    this.maxFiles = options.maxFiles;
+    this.throwOnError = options.throwOnError ?? false;
+
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    this.pruneOverflowBackups();
+    this.currentSize = this.readCurrentSize();
+  }
+
+  write(chunk: string | Buffer): void {
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    if (buffer.length === 0) return;
+
+    try {
+      if (this.currentSize > 0 && this.currentSize + buffer.length > this.maxBytes) {
+        this.rotate();
+      }
+
+      fs.appendFileSync(this.filePath, buffer);
+      this.currentSize += buffer.length;
+
+      if (this.currentSize > this.maxBytes) {
+        this.rotate();
+      }
+    } catch {
+      this.currentSize = this.readCurrentSize();
+      if (this.throwOnError) {
+        throw new Error(`Failed to write log chunk to ${this.filePath}`);
+      }
+    }
+  }
+
+  private rotate(): void {
+    try {
+      const oldest = this.withSuffix(this.maxFiles);
+      if (fs.existsSync(oldest)) {
+        fs.rmSync(oldest, { force: true });
+      }
+
+      for (let index = this.maxFiles - 1; index >= 1; index -= 1) {
+        const source = this.withSuffix(index);
+        const target = this.withSuffix(index + 1);
+        if (fs.existsSync(source)) {
+          fs.renameSync(source, target);
+        }
+      }
+
+      if (fs.existsSync(this.filePath)) {
+        fs.renameSync(this.filePath, this.withSuffix(1));
+      }
+
+      this.currentSize = 0;
+    } catch {
+      this.currentSize = this.readCurrentSize();
+      if (this.throwOnError) {
+        throw new Error(`Failed to rotate log file ${this.filePath}`);
+      }
+    }
+  }
+
+  private pruneOverflowBackups(): void {
+    try {
+      const dir = path.dirname(this.filePath);
+      const baseName = path.basename(this.filePath);
+      for (const entry of fs.readdirSync(dir)) {
+        if (!entry.startsWith(`${baseName}.`)) continue;
+        const suffix = Number(entry.slice(baseName.length + 1));
+        if (!Number.isInteger(suffix) || suffix <= this.maxFiles) continue;
+        fs.rmSync(path.join(dir, entry), { force: true });
+      }
+    } catch {
+      if (this.throwOnError) {
+        throw new Error(`Failed to prune log backups for ${this.filePath}`);
+      }
+    }
+  }
+
+  private readCurrentSize(): number {
+    try {
+      return fs.statSync(this.filePath).size;
+    } catch {
+      return 0;
+    }
+  }
+
+  private withSuffix(index: number): string {
+    return `${this.filePath}.${index}`;
+  }
+}
 
 export function configureMultiProcessMetadata(
   processRole: MultiProcessRole,
@@ -67,43 +201,50 @@ export function configureMultiProcessMetadata(
 }
 
 export function configureMultiEvlog(options: ConfigureMultiEvlogOptions): void {
-  initLogger({
-    env: {
-      service: options.service,
-      environment: options.environment,
-    },
-    ...(options.minLevel ? { minLevel: options.minLevel } : {}),
-    pretty: false,
-    silent: true,
-    redact: true,
-    plugins: [
-      {
-        name: "multi-process-metadata",
-        enrich: ({ event }) => {
-          const runId = process.env[MULTI_RUN_ID_ENV];
-          const processRole = process.env[MULTI_PROCESS_ROLE_ENV];
-          const processInstanceId = process.env[MULTI_PROCESS_INSTANCE_ID_ENV];
-          if (runId) event.runId = runId;
-          if (processRole) event.processRole = processRole;
-          if (processInstanceId) event.processInstanceId = processInstanceId;
-        },
-      },
-    ],
-    drain: createFsDrain({
-      dir: options.logsDir,
-      ...(options.maxFiles ? { maxFiles: options.maxFiles } : {}),
-      ...(options.maxSizePerFile ? { maxSizePerFile: options.maxSizePerFile } : {}),
-      pretty: false,
-    }),
+  logSink = new RotatingFileSink({
+    filePath: options.filePath,
+    maxBytes: options.maxSizePerFile ?? DEFAULT_LOG_MAX_BYTES,
+    maxFiles: options.maxFiles ?? DEFAULT_LOG_MAX_FILES,
   });
+  logConfig = {
+    service: options.service,
+    environment: options.environment,
+    minLevel: options.minLevel ?? "debug",
+  };
 }
 
 export function writeMultiLogEvent(input: MultiLogEventInput): void {
-  evlog[input.level]({
-    ...(input.fields ? redactLogFields(input.fields) : {}),
+  if (!logSink || !logConfig) {
+    return;
+  }
+  if (LOG_LEVEL_RANK[input.level] < LOG_LEVEL_RANK[logConfig.minLevel]) {
+    return;
+  }
+
+  const event: Record<string, unknown> = {
+    time: new Date().toISOString(),
+    level: input.level,
     message: input.message,
-    ...(input.service ? { service: input.service } : {}),
-  });
+    service: input.service ?? logConfig.service,
+    environment: logConfig.environment,
+  };
+
+  const runId = process.env[MULTI_RUN_ID_ENV];
+  const processRole = process.env[MULTI_PROCESS_ROLE_ENV];
+  const processInstanceId = process.env[MULTI_PROCESS_INSTANCE_ID_ENV];
+  if (runId) event.runId = runId;
+  if (processRole) event.processRole = processRole;
+  if (processInstanceId) event.processInstanceId = processInstanceId;
+
+  if (input.fields) {
+    Object.assign(event, redactLogFields(input.fields));
+  }
+
+  try {
+    logSink.write(`${JSON.stringify(event)}\n`);
+  } catch {
+    return;
+  }
 }
 
 export function makeMultiEffectLogger(input: { readonly defaultService: string }) {
@@ -124,7 +265,6 @@ export function makeMultiEffectLogger(input: { readonly defaultService: string }
 
     const service = readService(fields) ?? input.defaultService;
     delete fields.service;
-    delete fields.component;
 
     writeMultiLogEvent({
       level: effectLogLevel(options.logLevel),
@@ -172,8 +312,6 @@ function text(input: unknown): string {
 function readService(fields: Record<string, unknown>): string | undefined {
   const service = fields.service;
   if (typeof service === "string" && service.trim().length > 0) return service;
-  const component = fields.component;
-  if (typeof component === "string" && component.trim().length > 0) return component;
   return undefined;
 }
 

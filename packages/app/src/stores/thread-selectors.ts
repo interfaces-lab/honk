@@ -1,5 +1,4 @@
 import {
-  type OrchestrationChatTimelineRow,
   type MessageId,
   type OrchestrationThreadActivity,
   type ScopedProjectRef,
@@ -298,26 +297,14 @@ function selectThreadHasRenderableUserStart(
 ): boolean {
   const messageIds = state.messageIdsByThreadId[threadId];
   const messagesById = state.messageByThreadId[threadId];
-  const timelineRows = state.chatTimelineRowsByThreadId?.[threadId];
-  if (!messageIds || !messagesById || !timelineRows || timelineRows.length === 0) {
+  if (!messageIds || !messagesById) {
     return false;
   }
 
-  const renderableUserMessageIds = new Set<MessageId>();
-  for (const messageId of messageIds) {
+  return messageIds.some((messageId) => {
     const message = messagesById[messageId];
-    if (message?.role === "user" && chatMessageHasRenderableContent(message)) {
-      renderableUserMessageIds.add(message.id);
-    }
-  }
-  if (renderableUserMessageIds.size === 0) {
-    return false;
-  }
-
-  return timelineRows.some(
-    (row: OrchestrationChatTimelineRow) =>
-      row.kind === "message" && renderableUserMessageIds.has(row.messageId),
-  );
+    return message?.role === "user" && chatMessageHasRenderableContent(message);
+  });
 }
 
 export function selectThreadRouteLifecycleSurfaceByRef(
@@ -336,7 +323,6 @@ export function selectThreadRouteLifecycleSurfaceByRef(
 
   const latestTurn = environmentState.threadTurnStateById[ref.threadId]?.latestTurn ?? null;
   const messageCount = environmentState.messageIdsByThreadId[ref.threadId]?.length ?? 0;
-  const timelineRowCount = environmentState.chatTimelineRowsByThreadId?.[ref.threadId]?.length ?? 0;
 
   return {
     id: shell.id,
@@ -344,8 +330,7 @@ export function selectThreadRouteLifecycleSurfaceByRef(
     hasStarted:
       latestTurn !== null ||
       messageCount > 0 ||
-      (environmentState.threadSessionById[ref.threadId] ?? null) !== null ||
-      timelineRowCount > 0,
+      (environmentState.threadSessionById[ref.threadId] ?? null) !== null,
     hasRenderableUserStart: selectThreadHasRenderableUserStart(environmentState, ref.threadId),
   };
 }

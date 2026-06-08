@@ -2,7 +2,6 @@ import type {
   EnvironmentId,
   AgentRuntimeEvent,
   MessageId,
-  OrchestrationChatTimelineRow,
   OrchestrationThreadActivity,
   ThreadEntryId,
   OrchestrationEvent,
@@ -101,7 +100,6 @@ export interface EnvironmentState {
   proposedPlanByThreadId: Record<ThreadId, Record<string, ProposedPlan>>;
   turnDiffIdsByThreadId: Record<ThreadId, TurnId[]>;
   turnDiffSummaryByThreadId: Record<ThreadId, Record<TurnId, TurnDiffSummary>>;
-  chatTimelineRowsByThreadId?: Record<ThreadId, OrchestrationChatTimelineRow[]>;
   sidebarThreadSummaryById: Record<ThreadId, SidebarThreadSummary>;
   snapshotSource: EnvironmentSnapshotSource;
   bootstrapComplete: boolean;
@@ -134,7 +132,6 @@ export const initialEnvironmentState: EnvironmentState = {
   proposedPlanByThreadId: {},
   turnDiffIdsByThreadId: {},
   turnDiffSummaryByThreadId: {},
-  chatTimelineRowsByThreadId: {},
   sidebarThreadSummaryById: {},
   snapshotSource: "none",
   bootstrapComplete: false,

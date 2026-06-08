@@ -24,10 +24,8 @@ import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode 
 import { useShallow } from "zustand/react/shallow";
 import { useCommandPaletteStore } from "../stores/ui/command-palette-store";
 import { usePrimaryEnvironmentId } from "../environments/primary";
-import {
-  useNewThreadHandler,
-  useNewThreadProjectDefaults,
-} from "../hooks/use-handle-new-thread";
+import { useNewThreadHandler } from "../hooks/use-handle-new-thread";
+import { useSelectedWorkspaceProject } from "../lib/selected-workspace-project";
 import { useMountEffect } from "../hooks/use-mount-effect";
 import { useSettings } from "../hooks/use-settings";
 import { readLocalApi } from "../local-api";
@@ -54,7 +52,7 @@ import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
 import { openThread } from "~/app/chat-navigation";
-import { getCurrentRouteTarget, useRouteTarget } from "~/routes/-thread-route-targets";
+import { getCurrentChatRouteTarget, useChatRouteTarget } from "~/app/chat-route-state";
 import {
   buildProjectActionItems,
   buildRootGroups,
@@ -273,7 +271,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   useMountEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      const routeTarget = getCurrentRouteTarget(routerRef.current);
+      const routeTarget = getCurrentChatRouteTarget(routerRef.current);
       const terminalOpen =
         routeTarget?.kind === "server"
           ? selectThreadTerminalState(
@@ -353,8 +351,9 @@ function OpenCommandPaletteDialog() {
   const composerHandleRef = useComposerHandleContext();
   const openAddProjectFlowRef = useRef<() => void>(() => undefined);
   const settings = useSettings();
-  const routeTarget = useRouteTarget();
-  const { defaultLogicalProjectKey, defaultProjectRef } = useNewThreadProjectDefaults();
+  const routeTarget = useChatRouteTarget();
+  const { logicalProjectKey: selectedLogicalProjectKey, projectRef: selectedProjectRef } =
+    useSelectedWorkspaceProject();
   const { handleNewThread } = useNewThreadHandler();
   const activeThread = useStore(
     useShallow((store) =>
@@ -445,9 +444,9 @@ function OpenCommandPaletteDialog() {
     runProject: async (project) => {
       await startNewThreadInProjectFromContext(
         readThreadActionContext({
-          defaultLogicalProjectKey,
-          defaultProjectRef,
-          defaultThreadEnvMode: settings.defaultThreadEnvMode,
+          selectedLogicalProjectKey,
+          selectedProjectRef,
+          threadEnvMode: settings.defaultThreadEnvMode,
           handleNewThread,
           projects,
           routeTarget,
@@ -727,9 +726,9 @@ function OpenCommandPaletteDialog() {
         run: async () => {
           await startNewThreadFromContext(
             readThreadActionContext({
-              defaultLogicalProjectKey,
-              defaultProjectRef,
-              defaultThreadEnvMode: settings.defaultThreadEnvMode,
+              selectedLogicalProjectKey,
+              selectedProjectRef,
+              threadEnvMode: settings.defaultThreadEnvMode,
               handleNewThread,
               projects,
               routeTarget,

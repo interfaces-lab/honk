@@ -66,7 +66,7 @@ describe("Pi session tree contract", () => {
       tree.nodes.find(
         (node) => node.threadEntryId === threadEntryIdForMessageId(firstClientMessageId),
       ),
-    ).toBeDefined();
+    ).toEqual(expect.objectContaining({ childCount: 1 }));
   });
 
   it("projects the client message id before turn-completed tree publication", async () => {
@@ -95,6 +95,40 @@ describe("Pi session tree contract", () => {
     unsubscribe();
 
     expect(turnCompletedUserClientMessageId).toBe(clientMessageId);
+  });
+
+  it("hydrates client message ids from Pi JSONL sidecars after reload", async () => {
+    const firstHarness = await createRuntimeHarness({ removeTempDirOnCleanup: false });
+    harnesses.push(firstHarness);
+    firstHarness.setResponses([fauxAssistantMessage("persisted response")]);
+
+    const clientMessageId = MessageId.make("client:persisted-turn");
+    await waitForEvent(firstHarness.runtime, "tree.updated", () =>
+      firstHarness.runtime.sendMessage("persisted prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId,
+      }),
+    );
+    firstHarness.runtime.dispose();
+
+    const reloadedHarness = await createRuntimeHarness({
+      tempDir: firstHarness.tempDir,
+      threadId: firstHarness.runtime.threadId,
+    });
+    harnesses.push(reloadedHarness);
+
+    const tree = reloadedHarness.runtime.getSessionTree();
+    const userEntry = tree.entries.find(
+      (entry) => entry.role === "user" && entry.text === "persisted prompt",
+    );
+    expect(userEntry?.clientMessageId).toBe(clientMessageId);
+    expect(userEntry?.threadEntryId).toBe(threadEntryIdForMessageId(clientMessageId));
+    expect(tree.entries).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "custom" })]),
+    );
+    expect(
+      tree.nodes.find((node) => node.threadEntryId === threadEntryIdForMessageId(clientMessageId)),
+    ).toBeDefined();
   });
 
   it("converts runtime data URL images into Pi image content", async () => {

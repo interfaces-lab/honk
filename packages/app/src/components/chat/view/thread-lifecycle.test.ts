@@ -2,7 +2,6 @@ import {
   EnvironmentId,
   MessageId,
   ProjectId,
-  ThreadEntryId,
   ThreadId,
   TurnId,
 } from "@multi/contracts";
@@ -42,18 +41,6 @@ function userMessage(input: Partial<ChatMessage> = {}): ChatMessage {
   };
 }
 
-function userMessageTimelineRow(messageId = MessageId.make("message:user")) {
-  return {
-    id: "row:user",
-    kind: "message" as const,
-    orderKey: `${createdAt}:row:user`,
-    createdAt,
-    messageId,
-    turnId: null,
-    entryId: ThreadEntryId.make("thread-entry:user"),
-  };
-}
-
 function thread(input: Partial<Thread> = {}): Thread {
   return {
     id: threadId,
@@ -80,7 +67,6 @@ function thread(input: Partial<Thread> = {}): Thread {
     worktreePath: null,
     turnDiffSummaries: [],
     activities: [],
-    chatTimelineRows: [],
     ...input,
   };
 }
@@ -100,14 +86,14 @@ describe("threadHasRenderableUserStart", () => {
     ).toBe(false);
   });
 
-  it("does not treat a rowless committed user text message as renderable", () => {
+  it("treats committed user text as renderable", () => {
     expect(
       threadHasRenderableUserStart(
         thread({
           messages: [userMessage()],
         }),
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("treats an attachment-only user message as renderable", () => {
@@ -128,39 +114,6 @@ describe("threadHasRenderableUserStart", () => {
               ],
             }),
           ],
-          chatTimelineRows: [userMessageTimelineRow()],
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it("waits when timeline rows exist but do not reference the user message", () => {
-    expect(
-      threadHasRenderableUserStart(
-        thread({
-          messages: [userMessage()],
-          chatTimelineRows: [
-            {
-              id: "row:assistant",
-              kind: "message",
-              orderKey: `${createdAt}:row:assistant`,
-              createdAt,
-              messageId: MessageId.make("message:assistant"),
-              turnId: null,
-              entryId: ThreadEntryId.make("thread-entry:assistant"),
-            },
-          ],
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it("treats a timeline row that references the user message as renderable", () => {
-    expect(
-      threadHasRenderableUserStart(
-        thread({
-          messages: [userMessage()],
-          chatTimelineRows: [userMessageTimelineRow()],
         }),
       ),
     ).toBe(true);
@@ -193,7 +146,6 @@ describe("resolveRenderableDraftCanonicalThreadRef", () => {
         promotedTo,
         serverThread: thread({
           messages: [userMessage()],
-          chatTimelineRows: [userMessageTimelineRow()],
         }),
       }),
     ).toEqual(promotedTo);
@@ -214,7 +166,6 @@ describe("resolveRenderableDraftCanonicalThreadRef", () => {
         promotedTo: null,
         serverThread: thread({
           messages: [userMessage()],
-          chatTimelineRows: [userMessageTimelineRow()],
         }),
       }),
     ).toBeNull();
@@ -259,7 +210,6 @@ describe("resolveDraftPromotionRouteTarget", () => {
         draftRouteId: draftId,
         serverThread: thread({
           messages: [userMessage()],
-          chatTimelineRows: [userMessageTimelineRow()],
         }),
         serverThreadRef,
       }),

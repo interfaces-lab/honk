@@ -9,7 +9,7 @@ import * as Scope from "effect/Scope";
 import type * as Electron from "electron";
 
 import * as DesktopEnvironment from "./desktop-environment";
-import * as DesktopObservability from "./desktop-observability";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as ElectronApp from "../electron/electron-app";
 import * as ElectronTheme from "../electron/electron-theme";
 import * as DesktopQuitGuard from "./desktop-quit-guard";
@@ -67,8 +67,7 @@ export class DesktopLifecycle extends Context.Service<DesktopLifecycle, DesktopL
   "multi/desktop/Lifecycle",
 ) {}
 
-const { logInfo: logLifecycleInfo, logError: logLifecycleError } =
-  DesktopObservability.makeComponentLogger("desktop-lifecycle");
+const elog = EffectLogger.create({ service: "desktop-lifecycle" });
 
 function addScopedListener(
   target: unknown,
@@ -112,7 +111,7 @@ function triggerShutdown(
     Effect.gen(function* () {
       const state = yield* DesktopState.DesktopState;
       yield* Ref.set(state.quitting, true);
-      yield* logLifecycleInfo(reason);
+      yield* elog.info(reason);
       const shutdown = yield* DesktopShutdown;
       yield* shutdown.request;
     }).pipe(Effect.withSpan(`desktop.lifecycle.${reason}`)),
@@ -130,7 +129,7 @@ const requestQuitAfterPreventingDefault = Effect.fn(
   }
 
   if (confirmation === "canceled") {
-    yield* logLifecycleInfo("quit canceled because threads are still running", {
+    yield* elog.info("quit canceled because threads are still running", {
       runningThreadCount,
     });
     return;
@@ -142,9 +141,9 @@ const requestQuitAfterPreventingDefault = Effect.fn(
   yield* Ref.set(state.quitting, true);
   const shutdown = yield* DesktopShutdown;
   if (runningThreadCount > 0) {
-    yield* logLifecycleInfo("quit confirmed with running threads", { runningThreadCount });
+    yield* elog.info("quit confirmed with running threads", { runningThreadCount });
   } else {
-    yield* logLifecycleInfo("beforeQuit");
+    yield* elog.info("beforeQuit");
   }
   yield* shutdown.request;
   yield* app.quit;
@@ -161,7 +160,7 @@ function quitFromSignal(
       const state = yield* DesktopState.DesktopState;
       const wasQuitting = yield* Ref.getAndSet(state.quitting, true);
       if (wasQuitting) return;
-      yield* logLifecycleInfo("process signal received", { signal });
+      yield* elog.info("process signal received", { signal });
       const shutdown = yield* DesktopShutdown;
       yield* shutdown.request;
       yield* electronApp.quit;
@@ -176,7 +175,7 @@ export const layer = Layer.succeed(
       const electronApp = yield* ElectronApp.ElectronApp;
       const environment = yield* DesktopEnvironment.DesktopEnvironment;
       const state = yield* DesktopState.DesktopState;
-      yield* logLifecycleInfo("desktop relaunch requested", { reason });
+      yield* elog.info("desktop relaunch requested", { reason });
       yield* Effect.gen(function* () {
         yield* Effect.yieldNow;
         yield* Ref.set(state.quitting, true);
@@ -192,7 +191,7 @@ export const layer = Layer.succeed(
         yield* electronApp.exit(0);
       }).pipe(
         Effect.catchCause((cause) =>
-          logLifecycleError("desktop relaunch failed", {
+          elog.error("desktop relaunch failed", {
             cause: Cause.pretty(cause),
           }),
         ),

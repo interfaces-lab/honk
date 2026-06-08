@@ -33,6 +33,7 @@ import {
   useComposerDraftStore,
 } from "~/stores/chat-drafts";
 import { useUiStateStore } from "~/stores/ui-state-store";
+import { selectBootstrapCompleteForActiveEnvironment, useStore } from "~/stores/thread-store";
 import type { Project, SidebarThreadSummary as StoreSidebarThreadSummary, Thread } from "~/types";
 import type { SidebarDraftSummary, SidebarProjectSummary, SidebarThreadSummary } from "./types";
 import { buildProjectChatSections } from "./view-model";
@@ -41,7 +42,6 @@ type HandleNewThread = (
   projectRef: ScopedProjectRef,
   options?: {
     branch?: string | null;
-    reuseExistingDraft?: boolean;
     worktreePath?: string | null;
     envMode?: DraftThreadEnvMode;
     logicalProjectKey?: string | null;
@@ -142,10 +142,10 @@ function toSummaryFromSidebarThread(
 export function useAgentSidebarModel(input: {
   activeCwd: string | null;
   activeDraftThread: DraftThreadState | null;
-  defaultProjectCwd: string | null;
-  defaultLogicalProjectKey: string | null;
-  defaultProjectRef: ScopedProjectRef | null;
-  defaultThreadEnvMode: DraftThreadEnvMode;
+  selectedProjectCwd: string | null;
+  selectedLogicalProjectKey: string | null;
+  selectedProjectRef: ScopedProjectRef | null;
+  threadEnvMode: DraftThreadEnvMode;
   handleNewThread: HandleNewThread;
   projectlessCwd: string;
   projects: readonly Project[];
@@ -189,32 +189,35 @@ export function useAgentSidebarModel(input: {
   }, [visibleDraftShellEntries]);
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
+  const sidebarBootstrapComplete = useStore((store) =>
+    selectBootstrapCompleteForActiveEnvironment(store),
+  );
   const projectlessCwd = input.projectlessCwd;
-  const defaultProjectEnvironmentId = input.defaultProjectRef?.environmentId ?? null;
-  const defaultProjectId = input.defaultProjectRef?.projectId ?? null;
-  const defaultProjectRef = useMemo(
+  const selectedProjectEnvironmentId = input.selectedProjectRef?.environmentId ?? null;
+  const selectedProjectId = input.selectedProjectRef?.projectId ?? null;
+  const selectedProjectRef = useMemo(
     () =>
-      defaultProjectEnvironmentId && defaultProjectId
-        ? scopeProjectRef(defaultProjectEnvironmentId, defaultProjectId)
+      selectedProjectEnvironmentId && selectedProjectId
+        ? scopeProjectRef(selectedProjectEnvironmentId, selectedProjectId)
         : null,
-    [defaultProjectEnvironmentId, defaultProjectId],
+    [selectedProjectEnvironmentId, selectedProjectId],
   );
 
   const newThreadContextRef = useRef<ChatThreadActionContext>({
     activeDraftThread: input.activeDraftThread,
     activeThread: input.routeActiveThread ?? undefined,
-    defaultLogicalProjectKey: input.defaultLogicalProjectKey,
-    defaultProjectRef,
-    defaultThreadEnvMode: input.defaultThreadEnvMode,
+    selectedLogicalProjectKey: input.selectedLogicalProjectKey,
+    selectedProjectRef,
+    threadEnvMode: input.threadEnvMode,
     handleNewThread: input.handleNewThread,
     projects: input.projects,
   });
   newThreadContextRef.current = {
     activeDraftThread: input.activeDraftThread,
     activeThread: input.routeActiveThread ?? undefined,
-    defaultLogicalProjectKey: input.defaultLogicalProjectKey,
-    defaultProjectRef,
-    defaultThreadEnvMode: input.defaultThreadEnvMode,
+    selectedLogicalProjectKey: input.selectedLogicalProjectKey,
+    selectedProjectRef,
+    threadEnvMode: input.threadEnvMode,
     handleNewThread: input.handleNewThread,
     projects: input.projects,
   };
@@ -228,15 +231,15 @@ export function useAgentSidebarModel(input: {
   }, []);
 
   const persistDefaultProjectSelection = useCallback(() => {
-    if (!defaultProjectRef || !input.defaultProjectCwd) {
+    if (!selectedProjectRef || !input.selectedProjectCwd) {
       return;
     }
     writeStoredProjectSelection({
-      environmentId: defaultProjectRef.environmentId,
-      projectId: defaultProjectRef.projectId,
-      cwd: input.defaultProjectCwd,
+      environmentId: selectedProjectRef.environmentId,
+      projectId: selectedProjectRef.projectId,
+      cwd: input.selectedProjectCwd,
     });
-  }, [defaultProjectRef, input.defaultProjectCwd]);
+  }, [selectedProjectRef, input.selectedProjectCwd]);
 
   const drafts: SidebarDraftSummary[] = useMemo(
     () =>
@@ -258,12 +261,12 @@ export function useAgentSidebarModel(input: {
         const projectRef = project
           ? scopeProjectRef(project.environmentId, project.id)
           : isSourceForWorkspaceProjectRef({
-                projectRef: defaultProjectRef,
+                projectRef: selectedProjectRef,
                 source: draftShell,
               })
-            ? defaultProjectRef
+            ? selectedProjectRef
             : null;
-        const projectCwd = project?.cwd ?? (projectRef ? input.defaultProjectCwd : null);
+        const projectCwd = project?.cwd ?? (projectRef ? input.selectedProjectCwd : null);
         if (!projectRef || !projectCwd) {
           return [];
         }
@@ -280,8 +283,8 @@ export function useAgentSidebarModel(input: {
         ];
       }),
     [
-      defaultProjectRef,
-      input.defaultProjectCwd,
+      selectedProjectRef,
+      input.selectedProjectCwd,
       input.projects,
       projectlessCwd,
       visibleDraftShells,
@@ -303,26 +306,26 @@ export function useAgentSidebarModel(input: {
         }
         if (
           isSourceForWorkspaceProjectRef({
-            projectRef: defaultProjectRef,
+            projectRef: selectedProjectRef,
             source: thread,
           }) &&
-          input.defaultProjectCwd
+          input.selectedProjectCwd
         ) {
           return [
             {
-              ...toSummaryFromSidebarThread(thread, null, input.defaultProjectCwd),
-              workspaceProjectRef: defaultProjectRef,
-              projectCwd: input.defaultProjectCwd,
-              cwd: thread.worktreePath ?? input.defaultProjectCwd,
-              path: thread.worktreePath ?? input.defaultProjectCwd,
+              ...toSummaryFromSidebarThread(thread, null, input.selectedProjectCwd),
+              workspaceProjectRef: selectedProjectRef,
+              projectCwd: input.selectedProjectCwd,
+              cwd: thread.worktreePath ?? input.selectedProjectCwd,
+              path: thread.worktreePath ?? input.selectedProjectCwd,
             },
           ];
         }
         return [];
       }),
     [
-      defaultProjectRef,
-      input.defaultProjectCwd,
+      selectedProjectRef,
+      input.selectedProjectCwd,
       input.projects,
       input.sidebarThreads,
       projectlessCwd,
@@ -372,6 +375,22 @@ export function useAgentSidebarModel(input: {
     () => new Set(pinnedSidebarThreadKeys),
     [pinnedSidebarThreadKeys],
   );
+  const summaryIdsKey = useMemo(
+    () => summaries.map((summary) => summary.id).join("\0"),
+    [summaries],
+  );
+  const draftIdsKey = useMemo(() => drafts.map((draft) => draft.id).join("\0"), [drafts]);
+  const sidebarItemOrderRank = useMemo(() => {
+    const rank = new Map<string, number>();
+    let index = 0;
+    for (const id of summaryIdsKey.length > 0 ? summaryIdsKey.split("\0") : []) {
+      rank.set(id, index++);
+    }
+    for (const id of draftIdsKey.length > 0 ? draftIdsKey.split("\0") : []) {
+      rank.set(id, index++);
+    }
+    return rank;
+  }, [summaryIdsKey, draftIdsKey]);
 
   const sections = useMemo(() => {
     const projectStateKeyByCwd = new Map(
@@ -442,6 +461,10 @@ export function useAgentSidebarModel(input: {
       projectCwds,
       pinnedThreadKeySet,
       retainedSidebarProjects,
+      {
+        sortByRecency: sidebarBootstrapComplete,
+        itemOrderRank: sidebarItemOrderRank,
+      },
     ).map((section) => {
       const sectionProjectKey = section.projectRef ? scopedProjectKey(section.projectRef) : null;
       const projectStateKey =
@@ -465,6 +488,8 @@ export function useAgentSidebarModel(input: {
     input.sidebarThreads,
     pinnedThreadKeySet,
     projectOrder,
+    sidebarBootstrapComplete,
+    sidebarItemOrderRank,
     summaries,
     unreadIds,
   ]);
@@ -500,7 +525,7 @@ export function useAgentSidebarModel(input: {
             persistProjectSelection(project);
           } else if (
             isSourceForWorkspaceProjectRef({
-              projectRef: defaultProjectRef,
+              projectRef: selectedProjectRef,
               source: draft,
             })
           ) {
@@ -519,7 +544,7 @@ export function useAgentSidebarModel(input: {
             persistProjectSelection(project);
           } else if (
             isSourceForWorkspaceProjectRef({
-              projectRef: defaultProjectRef,
+              projectRef: selectedProjectRef,
               source: summary,
             })
           ) {
@@ -531,7 +556,7 @@ export function useAgentSidebarModel(input: {
     },
     [
       drafts,
-      defaultProjectRef,
+      selectedProjectRef,
       input.projects,
       input.selectedId,
       markThreadVisited,

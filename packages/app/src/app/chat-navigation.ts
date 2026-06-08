@@ -7,12 +7,12 @@ import {
 } from "~/stores/chat-drafts";
 import type { AppRouter } from "~/router";
 import {
-  buildDraftThreadRouteParams,
-  buildThreadRouteParams,
-  getCurrentRouteTarget,
-} from "~/routes/-thread-route-targets";
+  draftRouteParams,
+  getCurrentChatRouteTarget,
+  threadRouteParams,
+} from "~/app/chat-route-state";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
-import { usePendingThreadSendStore } from "~/stores/pending-thread-send-store";
+import { useThreadSendIntentStore } from "~/stores/thread-send-intent-store";
 
 type ChatNavigationOptions = {
   readonly replace?: boolean;
@@ -66,7 +66,7 @@ function readCurrentTarget(target: ChatNavigator) {
   if (typeof target === "function" || !target.state) {
     return null;
   }
-  return getCurrentRouteTarget({ state: target.state });
+  return getCurrentChatRouteTarget({ state: target.state });
 }
 
 function isCurrentChatIndex(target: ChatNavigator): boolean {
@@ -75,7 +75,7 @@ function isCurrentChatIndex(target: ChatNavigator): boolean {
   }
   return (
     target.state?.location?.pathname === "/" &&
-    getCurrentRouteTarget({ state: target.state }) === null
+    getCurrentChatRouteTarget({ state: target.state }) === null
   );
 }
 
@@ -92,7 +92,7 @@ export function openDraft(
   }
   return navigateWith(target, {
     to: "/draft/$draftId",
-    params: buildDraftThreadRouteParams(targetDraftId),
+    params: draftRouteParams(targetDraftId),
     ...navigationOptions(options),
   });
 }
@@ -112,7 +112,7 @@ export function openThread(
   }
   return navigateWith(target, {
     to: "/$environmentId/$threadId",
-    params: buildThreadRouteParams(threadRef),
+    params: threadRouteParams(threadRef),
     ...navigationOptions(options),
   });
 }
@@ -134,7 +134,7 @@ export function prefetchDraftNavigation(router: AppRouter, draftId: DraftIdType 
   void router
     .preloadRoute({
       to: "/draft/$draftId",
-      params: buildDraftThreadRouteParams(toDraftId(draftId)),
+      params: draftRouteParams(toDraftId(draftId)),
     })
     .catch(() => undefined);
 }
@@ -163,7 +163,7 @@ export function clearNewThreadDraftSendArtifacts(draftId: DraftIdType | string):
   if (!draftSession) {
     return;
   }
-  usePendingThreadSendStore
+  useThreadSendIntentStore
     .getState()
     .clearLocalSendArtifactsForThread(
       scopedThreadKey(scopeThreadRef(draftSession.environmentId, draftSession.threadId)),

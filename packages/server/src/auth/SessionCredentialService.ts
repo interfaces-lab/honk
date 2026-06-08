@@ -4,6 +4,7 @@ import {
   type AuthClientSession,
   type ServerAuthSessionMethod,
 } from "@multi/contracts";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import { Clock, DateTime, Duration, Effect, Layer, PubSub, Ref, Schema, Stream } from "effect";
 import { Option } from "effect";
 
@@ -24,6 +25,8 @@ import {
   signPayload,
   timingSafeEqualBase64Url,
 } from "./utils.ts";
+
+const elog = EffectLogger.create({ service: "server.auth.session" });
 
 const SIGNING_SECRET_NAME = "server-signing-key";
 const DEFAULT_SESSION_TTL = Duration.days(30);
@@ -146,12 +149,10 @@ export const makeSessionCredentialService = Effect.gen(function* () {
         Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
       ),
       Effect.catchCause((cause) =>
-        Effect.logError("Failed to publish connected-session auth update.").pipe(
-          Effect.annotateLogs({
-            sessionId,
-            cause,
-          }),
-        ),
+        elog.error("Failed to publish connected-session auth update.", {
+          sessionId,
+          cause,
+        }),
       ),
     );
 
@@ -171,12 +172,10 @@ export const makeSessionCredentialService = Effect.gen(function* () {
         Option.isSome(session) ? emitUpsert(session.value) : Effect.void,
       ),
       Effect.catchCause((cause) =>
-        Effect.logError("Failed to publish disconnected-session auth update.").pipe(
-          Effect.annotateLogs({
-            sessionId,
-            cause,
-          }),
-        ),
+        elog.error("Failed to publish disconnected-session auth update.", {
+          sessionId,
+          cause,
+        }),
       ),
     );
 

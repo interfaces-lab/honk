@@ -599,60 +599,6 @@ export const OrchestrationLatestTurn = Schema.Struct({
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 
-const OrchestrationChatTimelineRowBaseFields = {
-  id: TrimmedNonEmptyString,
-  orderKey: TrimmedNonEmptyString,
-  createdAt: IsoDateTime,
-} as const;
-
-export const OrchestrationChatTimelineMessageRow = Schema.Struct({
-  ...OrchestrationChatTimelineRowBaseFields,
-  kind: Schema.Literal("message"),
-  messageId: MessageId,
-  turnId: Schema.NullOr(TurnId),
-  entryId: Schema.NullOr(ThreadEntryId),
-});
-export type OrchestrationChatTimelineMessageRow = typeof OrchestrationChatTimelineMessageRow.Type;
-
-export const OrchestrationChatTimelineWorkKind = Schema.Literals([
-  "tool",
-  "task",
-  "extension-ui",
-  "activity",
-]);
-export type OrchestrationChatTimelineWorkKind =
-  typeof OrchestrationChatTimelineWorkKind.Type;
-
-export const OrchestrationChatTimelineWorkRow = Schema.Struct({
-  ...OrchestrationChatTimelineRowBaseFields,
-  kind: Schema.Literal("work"),
-  workId: TrimmedNonEmptyString,
-  activityIds: Schema.Array(EventId),
-  turnId: Schema.NullOr(TurnId),
-  workKind: Schema.optional(OrchestrationChatTimelineWorkKind),
-  toolCallId: Schema.optional(TrimmedNonEmptyString),
-  taskId: Schema.optional(RuntimeTaskId),
-  extensionUiRequestId: Schema.optional(TrimmedNonEmptyString),
-  extensionUiRequestKind: Schema.optional(ExtensionUiActivityRequestKind),
-});
-export type OrchestrationChatTimelineWorkRow = typeof OrchestrationChatTimelineWorkRow.Type;
-
-export const OrchestrationChatTimelineProposedPlanRow = Schema.Struct({
-  ...OrchestrationChatTimelineRowBaseFields,
-  kind: Schema.Literal("proposed-plan"),
-  planId: OrchestrationProposedPlanId,
-  turnId: Schema.NullOr(TurnId),
-});
-export type OrchestrationChatTimelineProposedPlanRow =
-  typeof OrchestrationChatTimelineProposedPlanRow.Type;
-
-export const OrchestrationChatTimelineRow = Schema.Union([
-  OrchestrationChatTimelineMessageRow,
-  OrchestrationChatTimelineWorkRow,
-  OrchestrationChatTimelineProposedPlanRow,
-]);
-export type OrchestrationChatTimelineRow = typeof OrchestrationChatTimelineRow.Type;
-
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: Schema.NullOr(ProjectId),
@@ -676,9 +622,6 @@ export const OrchestrationThread = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
   activities: Schema.Array(OrchestrationThreadActivity),
-  chatTimelineRows: Schema.Array(OrchestrationChatTimelineRow).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
   session: Schema.NullOr(OrchestrationSession),
 });
 export type OrchestrationThread = typeof OrchestrationThread.Type;

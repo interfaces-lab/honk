@@ -9,7 +9,7 @@ import type * as Electron from "electron";
 
 import * as DesktopAssets from "../app/desktop-assets";
 import * as DesktopEnvironment from "../app/desktop-environment";
-import * as DesktopObservability from "../app/desktop-observability";
+import * as EffectLogger from "@multi/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
 import * as ElectronShell from "../electron/electron-shell";
 import * as ElectronTheme from "../electron/electron-theme";
@@ -70,8 +70,7 @@ export class DesktopWindow extends Context.Service<DesktopWindow, DesktopWindowS
   "multi/desktop/Window",
 ) {}
 
-const { logInfo: logWindowInfo, logWarning: logWindowWarning, logError: logWindowError } =
-  DesktopObservability.makeComponentLogger("desktop-window");
+const elog = EffectLogger.create({ service: "desktop-window" });
 
 const DESKTOP_RENDERER_ORIGIN = `${DESKTOP_SCHEME}://desktop`;
 
@@ -287,7 +286,7 @@ const make = Effect.gen(function* () {
     restrictRendererPermissions(window, trustedOrigin);
     preventUntrustedMainFrameNavigation(window, trustedOrigin, (url) => {
       void runPromise(
-        logWindowWarning("blocked untrusted main-frame navigation", {
+        elog.warn("blocked untrusted main-frame navigation", {
           url,
         }),
       );
@@ -315,7 +314,7 @@ const make = Effect.gen(function* () {
           return;
         }
         void runPromise(
-          logWindowError("main window failed to load", {
+          elog.error("main window failed to load", {
             errorCode,
             errorDescription,
             url: validatedURL,
@@ -325,7 +324,7 @@ const make = Effect.gen(function* () {
     );
     window.webContents.on("render-process-gone", (_event, details) => {
       void runPromise(
-        logWindowError("main window render process gone", {
+        elog.error("main window render process gone", {
           reason: details.reason,
           exitCode: details.exitCode,
         }),
@@ -333,7 +332,7 @@ const make = Effect.gen(function* () {
     });
     window.webContents.on("preload-error", (_event, preloadPath, error) => {
       void runPromise(
-        logWindowError("main window preload error", {
+        elog.error("main window preload error", {
           preloadPath,
           error,
         }),
@@ -343,7 +342,7 @@ const make = Effect.gen(function* () {
       if (level < 2) {
         return;
       }
-      const log = level >= 3 ? logWindowError : logWindowWarning;
+      const log = level >= 3 ? elog.error : elog.warn;
       void runPromise(
         log("renderer console message", {
           level,
@@ -388,7 +387,7 @@ const make = Effect.gen(function* () {
   const createMain = Effect.gen(function* () {
     const window = yield* createWindow();
     yield* electronWindow.setMain(window);
-    yield* logWindowInfo("main window created");
+    yield* elog.info("main window created");
     return window;
   }).pipe(Effect.withSpan("desktop.window.createMain"));
 
@@ -429,7 +428,7 @@ const make = Effect.gen(function* () {
     createMainIfBackendReady,
     handleBackendReady: Effect.gen(function* () {
       yield* Ref.set(state.backendReady, true);
-      yield* logWindowInfo("backend ready", { source: "http" });
+      yield* elog.info("backend ready", { source: "http" });
       yield* createMainIfBackendReady;
     }).pipe(Effect.withSpan("desktop.window.handleBackendReady")),
     dispatchMenuAction: Effect.fn("desktop.window.dispatchMenuAction")(function* (action) {

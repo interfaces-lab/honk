@@ -539,23 +539,6 @@ export const RuntimeDisplayTimelineMessageItem = Schema.Struct({
 export type RuntimeDisplayTimelineMessageItem =
   typeof RuntimeDisplayTimelineMessageItem.Type;
 
-export const RuntimeDisplayTimelineCustomMessageItem = Schema.Struct({
-  ...RuntimeDisplayTimelineItemBaseFields,
-  kind: Schema.Literal("custom-message"),
-  entryId: RuntimeItemId,
-  threadEntryId: ThreadEntryId,
-  parentEntryId: Schema.NullOr(RuntimeItemId),
-  parentThreadEntryId: Schema.NullOr(ThreadEntryId),
-  turnId: Schema.optional(TurnId),
-  customType: TrimmedNonEmptyString,
-  content: Schema.Unknown,
-  display: Schema.Boolean,
-  details: Schema.optional(Schema.Unknown),
-  text: Schema.optional(Schema.String),
-});
-export type RuntimeDisplayTimelineCustomMessageItem =
-  typeof RuntimeDisplayTimelineCustomMessageItem.Type;
-
 export const RuntimeDisplayTimelineToolItem = Schema.Struct({
   ...RuntimeDisplayTimelineItemBaseFields,
   kind: Schema.Literal("tool"),
@@ -610,7 +593,6 @@ export type RuntimeDisplayTimelineProposedPlanItem =
 
 export const RuntimeDisplayTimelineItem = Schema.Union([
   RuntimeDisplayTimelineMessageItem,
-  RuntimeDisplayTimelineCustomMessageItem,
   RuntimeDisplayTimelineToolItem,
   RuntimeDisplayTimelineExtensionUiRequestItem,
   RuntimeDisplayTimelineProposedPlanItem,

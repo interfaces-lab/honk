@@ -1,6 +1,5 @@
 import {
   type MessageId,
-  type RuntimeDisplayTimelineCustomMessageItem,
   type RuntimeDisplayTimelineExtensionUiRequestItem,
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineToolItem,
@@ -47,15 +46,15 @@ export interface TimelineProposedPlanStep {
   proposedPlan: ProposedPlan;
 }
 
-export interface TimelineCustomMessageStep {
-  kind: "custom-message";
-  id: string;
-  createdAt: string;
-  customMessage: RuntimeDisplayTimelineCustomMessageItem;
-}
-
 export interface TimelineRuntimeToolStep {
   kind: "runtime-tool";
+  id: string;
+  createdAt: string;
+  tool: RuntimeDisplayTimelineToolItem;
+}
+
+export interface TimelineRuntimeTaskStep {
+  kind: "runtime-task";
   id: string;
   createdAt: string;
   tool: RuntimeDisplayTimelineToolItem;
@@ -91,9 +90,9 @@ export interface TimelineWaitingStep {
 export type TimelineStep =
   | TimelineMessageStep
   | TimelineProposedPlanStep
-  | TimelineCustomMessageStep
   | TimelineRuntimeThinkingStep
   | TimelineRuntimeToolStep
+  | TimelineRuntimeTaskStep
   | TimelineRuntimeExtensionUiRequestStep
   | TimelineWorkStep
   | TimelineWaitingStep;
@@ -129,9 +128,9 @@ export type TimelineRenderItem =
       step:
         | TimelineMessageStep
         | TimelineProposedPlanStep
-        | TimelineCustomMessageStep
         | TimelineRuntimeThinkingStep
         | TimelineRuntimeToolStep
+        | TimelineRuntimeTaskStep
         | TimelineRuntimeExtensionUiRequestStep;
     }
   | {
@@ -169,8 +168,7 @@ export function computeMessageDurationStart(
 export function deriveTimelineRenderItems(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
-  isTurnRunning: boolean;
-  activeTurnStartedAt: string | null;
+  isTurnActive: boolean;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
 }): TimelineRenderItem[] {
@@ -210,7 +208,7 @@ export function deriveTimelineRenderItems(input: {
       }
       const firstStep = steps[0]!;
       const analysis = analyzeWorkGroup(entries);
-      if (!input.isTurnRunning) {
+      if (!input.isTurnActive) {
         analysis.running = false;
       }
       const group: GroupedSteps = {
@@ -231,6 +229,22 @@ export function deriveTimelineRenderItems(input: {
         group,
       });
       index = cursor - 1;
+      continue;
+    }
+
+    if (isRuntimeSubagentToolTimelineEntry(timelineEntry)) {
+      const step: TimelineRuntimeTaskStep = {
+        kind: "runtime-task",
+        id: timelineEntry.id,
+        createdAt: timelineEntry.createdAt,
+        tool: timelineEntry.tool,
+      };
+      items.push({
+        kind: "single",
+        id: step.id,
+        createdAt: step.createdAt,
+        step,
+      });
       continue;
     }
 
@@ -259,7 +273,10 @@ export function deriveTimelineRenderItems(input: {
           step,
         });
       } else {
-        const group = summarizeRuntimeGroup(steps, { isTurnRunning: input.isTurnRunning });
+        const group = summarizeRuntimeGroup(steps, {
+          isWorking: input.isWorking,
+          isTurnActive: input.isTurnActive,
+        });
         items.push({
           kind: "group",
           id: group.id,
@@ -286,21 +303,6 @@ export function deriveTimelineRenderItems(input: {
       continue;
     }
 
-    if (timelineEntry.kind === "custom-message") {
-      items.push({
-        kind: "single",
-        id: timelineEntry.id,
-        createdAt: timelineEntry.createdAt,
-        step: {
-          kind: "custom-message",
-          id: timelineEntry.id,
-          createdAt: timelineEntry.createdAt,
-          customMessage: timelineEntry.customMessage,
-        },
-      });
-      continue;
-    }
-
     if (timelineEntry.kind === "proposed-plan") {
       const step: TimelineProposedPlanStep = {
         kind: "proposed-plan",
@@ -313,6 +315,25 @@ export function deriveTimelineRenderItems(input: {
         id: step.id,
         createdAt: step.createdAt,
         step,
+      });
+      continue;
+    }
+
+    if (timelineEntry.kind === "waiting") {
+      const step: TimelineWaitingStep = {
+        kind: "waiting",
+        id: timelineEntry.id,
+        createdAt: timelineEntry.createdAt,
+      };
+      items.push({
+        kind: "waitingGroup",
+        id: step.id,
+        createdAt: step.createdAt,
+        group: {
+          id: step.id,
+          createdAt: step.createdAt,
+          steps: [step],
+        },
       });
       continue;
     }
@@ -346,26 +367,6 @@ export function deriveTimelineRenderItems(input: {
     }
   }
 
-  const lastItem = items.at(-1);
-  const hasActiveGroupedTail = lastItem?.kind === "group" && lastItem.group.isRunning;
-  if (input.isWorking && !hasActiveGroupedTail) {
-    const step: TimelineWaitingStep = {
-      kind: "waiting",
-      id: "working-indicator-row",
-      createdAt: input.activeTurnStartedAt,
-    };
-    items.push({
-      kind: "waitingGroup",
-      id: step.id,
-      createdAt: step.createdAt,
-      group: {
-        id: step.id,
-        createdAt: step.createdAt,
-        steps: [step],
-      },
-    });
-  }
-
   return items;
 }
 
@@ -380,7 +381,15 @@ export function summarizeWorkGroup(
 function isRuntimeGroupableTimelineEntry(
   entry: TimelineEntry,
 ): entry is Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }> {
-  return entry.kind === "runtime-thinking" || entry.kind === "runtime-tool";
+  return entry.kind === "runtime-thinking" || (
+    entry.kind === "runtime-tool" && entry.tool.display?.kind !== "subagent"
+  );
+}
+
+function isRuntimeSubagentToolTimelineEntry(
+  entry: TimelineEntry,
+): entry is Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  return entry.kind === "runtime-tool" && entry.tool.display?.kind === "subagent";
 }
 
 function runtimeTimelineEntryToStep(
@@ -404,10 +413,10 @@ function runtimeTimelineEntryToStep(
 
 function summarizeRuntimeGroup(
   steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
-  input: { isTurnRunning: boolean },
+  input: { isWorking: boolean; isTurnActive: boolean },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isTurnRunning && steps.some(isRunningRuntimeStep);
+  const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const toolSteps = steps.filter((step) => step.kind === "runtime-tool");
   const commandCount = toolSteps.filter(isRuntimeCommandToolStep).length;

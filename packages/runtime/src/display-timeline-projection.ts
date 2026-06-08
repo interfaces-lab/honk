@@ -347,7 +347,6 @@ function mergeRuntimeDisplayTimelineItem(
             value: eventItem.value ?? previousItem.value,
           }
         : eventItem;
-    case "custom-message":
     case "proposed-plan":
       return eventItem;
   }
@@ -366,9 +365,6 @@ function mergeEventIds(left: ReadonlyArray<EventId>, right: ReadonlyArray<EventI
 }
 
 function projectSessionTreeEntry(entry: SessionTreeEntry): RuntimeDisplayTimelineItem | null {
-  if (entry.kind === "custom-message") {
-    return projectCustomMessageEntry(entry);
-  }
   if (entry.kind !== "message" || !entry.role) {
     return null;
   }
@@ -615,35 +611,6 @@ function runtimeDisplayMessageRole(
     default:
       return null;
   }
-}
-
-function projectCustomMessageEntry(entry: SessionTreeEntry): RuntimeDisplayTimelineItem | null {
-  const rawEntry = asRecord(entry.rawEntry);
-  const customType = asTrimmedString(rawEntry?.customType);
-  if (!customType) {
-    return null;
-  }
-  const content = rawEntry?.content ?? entry.text ?? "";
-  const display = typeof rawEntry?.display === "boolean" ? rawEntry.display : true;
-  if (!display) {
-    return null;
-  }
-  return {
-    id: `custom-message:${entry.id}`,
-    kind: "custom-message",
-    orderKey: buildOrderKey(entry.createdAt, `custom-message:${entry.id}`),
-    createdAt: entry.createdAt,
-    entryId: entry.id,
-    threadEntryId: entry.threadEntryId,
-    parentEntryId: entry.parentId,
-    parentThreadEntryId: entry.parentThreadEntryId,
-    ...(entry.turnId ? { turnId: entry.turnId } : {}),
-    customType,
-    content,
-    display,
-    ...(rawEntry && "details" in rawEntry ? { details: rawEntry.details } : {}),
-    ...(entry.text !== undefined ? { text: entry.text } : {}),
-  };
 }
 
 function projectToolItems(events: ReadonlyArray<AgentRuntimeEvent>): MutableToolItem[] {

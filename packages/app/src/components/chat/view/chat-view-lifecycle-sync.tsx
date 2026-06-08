@@ -17,7 +17,7 @@ import { isTerminalFocused } from "../../../lib/terminal-focus";
 import { projectScriptIdFromCommand } from "~/lib/project-scripts";
 import { resolveShortcutCommand } from "../../../keybindings";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
-import type { ChatMessage, PendingTimelineRow } from "../../../types";
+import type { ChatMessage, ThreadSendIntent } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
   collectUserMessageBlobPreviewUrls,
@@ -33,9 +33,9 @@ import {
 } from "../../../terminal-state-store";
 import { type TerminalLaunchContext } from "./persistent-thread-terminal-drawer";
 import {
-  acknowledgedPendingTimelineRows,
-  pendingTimelineRowMessages,
-} from "./pending-timeline-rows";
+  acknowledgedThreadSendIntents,
+  threadSendIntentMessages,
+} from "./thread-timeline-projector";
 import { hydrateRuntimeThread } from "../../../lib/runtime-turn-dispatch";
 
 const RUNTIME_HYDRATION_IDLE_TIMEOUT_MS = 1200;
@@ -101,14 +101,16 @@ export function RuntimeThreadHydrationSync({
   interactionMode,
   routeKind,
   threadId,
+  isDraftBoundThread = false,
 }: {
   cwd: string | null | undefined;
   interactionMode: AgentInteractionMode;
   routeKind: "server" | "draft";
   threadId: ThreadId;
+  isDraftBoundThread?: boolean;
 }) {
   useMountEffect(() => {
-    if (routeKind !== "server" || !cwd) {
+    if (routeKind !== "server" || !cwd || isDraftBoundThread) {
       return;
     }
     return scheduleRuntimeHydrationAfterFirstPaint(() => {
@@ -228,22 +230,22 @@ export function ActiveThreadComposerFocusSync({
   return null;
 }
 
-export function PendingTimelineRowsServerAckSync({
+export function ThreadSendIntentsServerAckSync({
   acknowledgedMessageIds,
   handoffAttachmentPreviews,
-  pendingTimelineRows,
-  removePendingTimelineRows,
+  removeThreadSendIntents,
   serverMessages,
+  threadSendIntents,
   threadKey,
 }: {
   acknowledgedMessageIds?: ReadonlySet<MessageId> | undefined;
   handoffAttachmentPreviews: (messageId: MessageId, previewUrls: string[]) => void;
-  pendingTimelineRows: ReadonlyArray<PendingTimelineRow>;
-  removePendingTimelineRows: (
+  removeThreadSendIntents: (
     threadKey: string,
     clientSendKeys: ReadonlySet<MessageId>,
-  ) => PendingTimelineRow[];
+  ) => ThreadSendIntent[];
   serverMessages: readonly ChatMessage[] | undefined;
+  threadSendIntents: ReadonlyArray<ThreadSendIntent>;
   threadKey: string;
 }) {
   useMountEffect(() => {
@@ -251,17 +253,19 @@ export function PendingTimelineRowsServerAckSync({
     if (committedMessages.length === 0 && (acknowledgedMessageIds?.size ?? 0) === 0) {
       return;
     }
-    const removedRows = acknowledgedPendingTimelineRows({
-      pendingRows: pendingTimelineRows,
+    const removedIntents = acknowledgedThreadSendIntents({
+      sendIntents: threadSendIntents,
       committedMessages,
       acknowledgedMessageIds,
     });
-    if (removedRows.length === 0) {
+    if (removedIntents.length === 0) {
       return;
     }
-    const removedClientSendKeys = new Set(removedRows.map((row) => row.clientSendKey));
-    const storedRemovedRows = removePendingTimelineRows(threadKey, removedClientSendKeys);
-    for (const removedMessage of pendingTimelineRowMessages(storedRemovedRows)) {
+    const removedClientSendKeys = new Set(
+      removedIntents.map((intent) => intent.clientMessageId),
+    );
+    const storedRemovedIntents = removeThreadSendIntents(threadKey, removedClientSendKeys);
+    for (const removedMessage of threadSendIntentMessages(storedRemovedIntents)) {
       const previewUrls = collectUserMessageBlobPreviewUrls(removedMessage);
       if (previewUrls.length > 0) {
         handoffAttachmentPreviews(removedMessage.id, previewUrls);

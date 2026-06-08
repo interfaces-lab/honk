@@ -75,3 +75,14 @@ Both menus share `ComposerCommandMenuPositioned` in `packages/app/src/components
 
 - Use `side="top"`, `align="start"`, `positionMethod="fixed"`, `instant`, and `COMPOSER_MENU_COLLISION_AVOIDANCE` (`shift` + `fallbackAxisSide: "none"`). Do not use default Base UI popover collision (`fallbackAxisSide: "end"`) — tall menus flip to a side axis and land off-screen.
 - Do not remount the popover on anchor updates (`key={anchorRevision}` causes jitter). Parent re-renders from `anchorRevision` are enough.
+
+## Browser Automation
+
+Use agent-browser for web automation. Run agent-browser --help for all commands.
+
+Core workflow:
+
+agent-browser open <url> - Navigate to page
+agent-browser snapshot -i - Get interactive elements with refs (@e1, @e2)
+agent-browser click @e1 / fill @e2 "text" - Interact using refs
+Re-snapshot after page changes

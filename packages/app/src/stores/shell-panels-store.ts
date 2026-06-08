@@ -12,7 +12,7 @@ const DEFAULT_CWD_KEY = "default";
 /** Persisted width limits for the chat/settings thread rail (`LeftAside`). */
 export const SHELL_LEFT_PANEL_WIDTH_LIMITS = { min: 180, max: 560 } as const;
 const SHELL_LEFT_PANEL_DEFAULT_WIDTH = 260;
-const LEGACY_SHELL_LEFT_PANEL_DEFAULT_WIDTH = 180;
+const PREVIOUS_SHELL_LEFT_PANEL_DEFAULT_WIDTH = 180;
 
 /** Cursor/VS Code auxiliary workbench width floor. Cursor's bundled part uses minimumWidth 300. */
 export const RIGHT_WORKBENCH_WIDTH_LIMITS = { min: 300, max: 600 } as const;
@@ -156,7 +156,7 @@ function normalizePersistedLeftWidth(width: unknown): number {
     SHELL_LEFT_PANEL_WIDTH_LIMITS.min,
     SHELL_LEFT_PANEL_WIDTH_LIMITS.max,
   );
-  return clamped === LEGACY_SHELL_LEFT_PANEL_DEFAULT_WIDTH
+  return clamped === PREVIOUS_SHELL_LEFT_PANEL_DEFAULT_WIDTH
     ? SHELL_LEFT_PANEL_DEFAULT_WIDTH
     : clamped;
 }
