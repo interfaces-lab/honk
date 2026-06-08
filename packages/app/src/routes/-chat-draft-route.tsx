@@ -3,10 +3,7 @@ import { getRouteApi, useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import ChatView from "~/components/chat/view/chat-view";
 import { useComposerDraftStore, DraftId } from "~/stores/chat-drafts";
-import {
-  selectThreadRouteLifecycleSurfaceAcrossEnvironments,
-  selectThreadRouteLifecycleSurfaceByRef,
-} from "~/stores/thread-selectors";
+import { selectThreadRouteLifecycleSurfaceByRef } from "~/stores/thread-selectors";
 import {
   selectEnvironmentState,
   useStore,
@@ -86,18 +83,13 @@ export function DraftChatThreadRouteView() {
     useShallow((store) =>
       promotedThreadRef
         ? (selectThreadRouteLifecycleSurfaceByRef(store, promotedThreadRef) ?? null)
-        : (selectThreadRouteLifecycleSurfaceAcrossEnvironments(
-            store,
-            draftSession?.threadId ?? null,
-          ) ?? null),
+        : null,
     ),
   );
   const canonicalThreadRef =
+    promotedThreadRef !== null &&
     serverThreadLifecycle?.hasRenderableUserStart === true
-      ? (promotedThreadRef ?? {
-          environmentId: serverThreadLifecycle.environmentId,
-          threadId: serverThreadLifecycle.id,
-        })
+      ? promotedThreadRef
       : null;
   if (canonicalThreadRef) {
     return (

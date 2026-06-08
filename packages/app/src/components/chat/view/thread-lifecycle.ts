@@ -165,19 +165,10 @@ export function resolveRenderableDraftCanonicalThreadRef(input: {
   readonly promotedTo: ScopedThreadRef | null | undefined;
   readonly serverThread: Thread | null | undefined;
 }): ScopedThreadRef | null {
-  if (!threadHasRenderableUserStart(input.serverThread)) {
+  if (!input.promotedTo || !threadHasRenderableUserStart(input.serverThread)) {
     return null;
   }
-  if (input.promotedTo) {
-    return input.promotedTo;
-  }
-  if (!input.serverThread) {
-    return null;
-  }
-  return {
-    environmentId: input.serverThread.environmentId,
-    threadId: input.serverThread.id,
-  };
+  return input.promotedTo;
 }
 
 export type DraftPromotionRouteTarget =

@@ -208,7 +208,7 @@ describe("resolveRenderableDraftCanonicalThreadRef", () => {
     ).toBeNull();
   });
 
-  it("resolves same-id server fallback once the user start is renderable", () => {
+  it("does not resolve same-id server fallback without an explicit promotion", () => {
     expect(
       resolveRenderableDraftCanonicalThreadRef({
         promotedTo: null,
@@ -217,10 +217,7 @@ describe("resolveRenderableDraftCanonicalThreadRef", () => {
           chatTimelineRows: [userMessageTimelineRow()],
         }),
       }),
-    ).toEqual({
-      environmentId,
-      threadId,
-    });
+    ).toBeNull();
   });
 });
 
