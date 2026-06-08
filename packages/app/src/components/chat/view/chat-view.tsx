@@ -2099,7 +2099,7 @@ export default function ChatView(props: ChatViewProps) {
           interactionMode: interactionModeForSend,
           branch: threadBranch,
           worktreePath: threadWorktreePath,
-          createdAt: activeThread.createdAt,
+          createdAt: messageCreatedAt,
         });
         localThreadAnnounced = true;
       };
@@ -2212,7 +2212,7 @@ export default function ChatView(props: ChatViewProps) {
                             interactionMode: interactionModeForSend,
                             branch: threadBranch,
                             worktreePath: threadWorktreePath,
-                            createdAt: activeThread.createdAt,
+                            createdAt: messageCreatedAt,
                           },
                         }
                       : {}),

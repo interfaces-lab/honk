@@ -264,6 +264,67 @@ describe("appendMissingRuntimeTimelineMessageEntries", () => {
       }),
     ).toEqual([runtimeEntry]);
   });
+
+  it("does not duplicate matching runtime assistant text when turn ids are missing", () => {
+    const committedMessage = assistantMessage({
+      id: "message:committed-assistant-without-turn",
+      text: "Hello. How can I help?",
+    });
+    const runtimeMessage = assistantMessage({
+      id: "message:runtime-assistant-without-turn",
+      text: "Hello. How can I help?",
+    });
+    const runtimeEntry = {
+      id: "message:runtime-assistant-without-turn",
+      kind: "message" as const,
+      createdAt,
+      message: runtimeMessage,
+    };
+
+    expect(
+      appendMissingRuntimeTimelineMessageEntries({
+        entries: [runtimeEntry],
+        messages: [committedMessage],
+        pendingRows: [],
+      }),
+    ).toEqual([runtimeEntry]);
+  });
+
+  it("keeps repeated assistant text from a different timestamp", () => {
+    const committedMessage = {
+      ...assistantMessage({
+        id: "message:previous-assistant-without-turn",
+        text: "Hello. How can I help?",
+      }),
+      createdAt: "2026-06-03T21:09:27.000Z",
+    };
+    const runtimeMessage = assistantMessage({
+      id: "message:runtime-assistant-without-turn",
+      text: "Hello. How can I help?",
+    });
+    const runtimeEntry = {
+      id: "message:runtime-assistant-without-turn",
+      kind: "message" as const,
+      createdAt,
+      message: runtimeMessage,
+    };
+
+    expect(
+      appendMissingRuntimeTimelineMessageEntries({
+        entries: [runtimeEntry],
+        messages: [committedMessage],
+        pendingRows: [],
+      }),
+    ).toEqual([
+      {
+        id: "message:message:previous-assistant-without-turn",
+        kind: "message",
+        createdAt: committedMessage.createdAt,
+        message: committedMessage,
+      },
+      runtimeEntry,
+    ]);
+  });
 });
 
 describe("appendTransientTimelineEntries", () => {

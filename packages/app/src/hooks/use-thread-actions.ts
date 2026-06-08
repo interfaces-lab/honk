@@ -181,6 +181,9 @@ async function commitRename(
 async function unarchiveThread(target: ScopedThreadRef): Promise<void> {
   const api = readEnvironmentApi(target.environmentId);
   if (!api) return;
+  const resolved = resolveThreadTarget(target);
+  if (!resolved || resolved.thread.archivedAt === null) return;
+
   await api.orchestration.dispatchCommand({
     type: "thread.unarchive",
     commandId: newCommandId(),

@@ -633,8 +633,8 @@ function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIn
   return activeIndex;
 }
 
-const ASSISTANT_MESSAGE_MIN_PX = 156;
-const USER_MESSAGE_MIN_PX = 88;
+const ASSISTANT_MESSAGE_MIN_PX = 64;
+const USER_MESSAGE_MIN_PX = 56;
 
 function filterReusableTimelineMeasurements(
   snapshot: TimelineVirtualizerSnapshot | null,

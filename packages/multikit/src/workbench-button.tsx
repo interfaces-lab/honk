@@ -1,7 +1,7 @@
 "use client";
 
 import { cva, type VariantProps } from "class-variance-authority";
-import type { AriaAttributes, ReactNode } from "react";
+import type { AriaAttributes, MouseEventHandler, ReactNode } from "react";
 
 import { Button } from "./button";
 import { cn, controlTransitionClassName } from "./utils";
@@ -74,7 +74,7 @@ function WorkbenchIconButton(props: {
   className?: string | undefined;
   chrome?: WorkbenchIconButtonChrome | undefined;
   disabled?: boolean | undefined;
-  onClick?: (() => void) | undefined;
+  onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
   tabSystem?: boolean | undefined;
   title?: string | undefined;
 }) {
@@ -112,7 +112,7 @@ function WorkbenchTextButton(props: {
   children: ReactNode;
   className?: string | undefined;
   disabled?: boolean | undefined;
-  onClick?: (() => void) | undefined;
+  onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
   title?: string | undefined;
   tone?: WorkbenchTextButtonTone | undefined;
 }) {

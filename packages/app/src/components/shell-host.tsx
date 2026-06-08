@@ -703,7 +703,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         interactionMode,
         branch: projectScopedBranch,
         worktreePath: projectScopedWorktreePath,
-        createdAt: currentDraftThread?.createdAt ?? createdAt,
+        createdAt,
       });
       localThreadAnnounced = true;
     };
@@ -785,7 +785,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
                   interactionMode,
                   branch: projectScopedBranch,
                   worktreePath: projectScopedWorktreePath,
-                  createdAt: currentDraftThread?.createdAt ?? createdAt,
+                  createdAt,
                 },
               },
             }

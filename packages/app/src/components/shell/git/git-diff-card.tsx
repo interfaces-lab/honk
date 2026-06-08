@@ -181,12 +181,11 @@ export function GitDiffCardHeader(props: {
         <span className="inline-flex size-4 shrink-0 items-center justify-center text-multi-icon-secondary">
           <VsFileIcon path={props.file.path} className="size-4" />
         </span>
-        <span className="flex min-w-0 flex-1 flex-nowrap items-center overflow-hidden">
+        <span className="flex min-w-0 flex-1 basis-0 items-center overflow-hidden">
           <MiddleTruncate
             split="leaf-path"
             priority="end"
-            variant="fade"
-            className="block min-w-0 flex-1 font-normal text-multi-fg-primary [--truncate-fade-marker-color:var(--multi-git-diff-editor-background)]"
+            className="min-w-0 flex-1 font-normal text-multi-fg-primary [--truncate-marker-background-color:var(--multi-git-diff-editor-background)]"
           >
             {props.file.path}
           </MiddleTruncate>

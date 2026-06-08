@@ -206,9 +206,11 @@ export function appendMissingRuntimeTimelineMessageEntries(input: {
 function runtimeTimelineMessageCoverage(entries: ReadonlyArray<TimelineEntry>): {
   messageIds: Set<MessageId>;
   nonUserTurnKeys: Set<string>;
+  nonUserTimestampTextKeys: Set<string>;
 } {
   const messageIds = new Set<MessageId>();
   const nonUserTurnKeys = new Set<string>();
+  const nonUserTimestampTextKeys = new Set<string>();
   for (const entry of entries) {
     if (entry.kind !== "message") {
       continue;
@@ -218,8 +220,12 @@ function runtimeTimelineMessageCoverage(entries: ReadonlyArray<TimelineEntry>): 
     if (turnKey) {
       nonUserTurnKeys.add(turnKey);
     }
+    const timestampTextKey = nonUserTimestampTextCoverageKey(entry.message);
+    if (timestampTextKey) {
+      nonUserTimestampTextKeys.add(timestampTextKey);
+    }
   }
-  return { messageIds, nonUserTurnKeys };
+  return { messageIds, nonUserTurnKeys, nonUserTimestampTextKeys };
 }
 
 function runtimeTimelineCoversMessage(
@@ -230,7 +236,11 @@ function runtimeTimelineCoversMessage(
     return true;
   }
   const turnKey = nonUserTurnCoverageKey(message);
-  return turnKey !== null && coverage.nonUserTurnKeys.has(turnKey);
+  if (turnKey !== null && coverage.nonUserTurnKeys.has(turnKey)) {
+    return true;
+  }
+  const timestampTextKey = nonUserTimestampTextCoverageKey(message);
+  return timestampTextKey !== null && coverage.nonUserTimestampTextKeys.has(timestampTextKey);
 }
 
 function nonUserTurnCoverageKey(message: ChatMessage): string | null {
@@ -238,6 +248,17 @@ function nonUserTurnCoverageKey(message: ChatMessage): string | null {
     return null;
   }
   return `${message.role}:${message.turnId}`;
+}
+
+function nonUserTimestampTextCoverageKey(message: ChatMessage): string | null {
+  if (message.role === "user") {
+    return null;
+  }
+  const text = message.text.trim();
+  if (text.length === 0) {
+    return null;
+  }
+  return `${message.role}:${message.createdAt}:${text}`;
 }
 
 export function acknowledgedPendingTimelineRows(input: {
