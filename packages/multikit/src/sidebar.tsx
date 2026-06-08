@@ -56,6 +56,8 @@ function SidebarItem({
   className,
   draggable = false,
   interactive = true,
+  nativeButton,
+  render,
   selected,
   ...rest
 }: SidebarItemProps) {
@@ -65,6 +67,8 @@ function SidebarItem({
       data-selected={selected}
       data-slot="sidebar-item"
       draggable={draggable}
+      nativeButton={nativeButton ?? (render ? false : undefined)}
+      render={render}
       className={cn(
         "font-multi flex min-h-(--multi-sidebar-item-height) w-full min-w-0 select-none items-center justify-start gap-(--multi-sidebar-item-gap) rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) [-webkit-user-drag:none]",
         interactive &&

@@ -188,7 +188,6 @@ import {
   formatSchemaBackedTransportErrorDescription,
   sanitizeThreadErrorMessage,
 } from "~/rpc/transport-error";
-import { useGitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import { IconChevronRightMedium, IconExclamationCircle } from "central-icons";
 import { useAttachmentPreviewHandoff } from "./attachment-preview-handoff";
 import { WorkspaceToolbar, type WorkspaceToolbarProject } from "./workspace-toolbar";
@@ -234,7 +233,6 @@ import {
 import {
   appendPendingTimelineRowsToMessages,
   createPendingTimelineRow,
-  createPendingTimelineRowFromMessage,
   filterPendingTimelineRowsToBranch,
   pendingTimelineRowMessages,
   unacknowledgedPendingTimelineRows,
@@ -252,6 +250,109 @@ const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const EMPTY_THREAD_KEYS: readonly string[] = [];
 const EMPTY_WORK_LOG_ENTRIES: WorkLogEntry[] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
+
+type NewAgentFooterTipSegment =
+  | {
+      readonly kind: "text";
+      readonly text: string;
+    }
+  | {
+      readonly kind: "token";
+      readonly text: string;
+    };
+
+interface NewAgentFooterTip {
+  readonly segments: readonly NewAgentFooterTipSegment[];
+}
+
+function stableTipIndex(seed: string, length: number): number {
+  if (length <= 1) {
+    return 0;
+  }
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (Math.imul(hash, 31) + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash % length;
+}
+
+function getNewAgentFooterTip(input: {
+  readonly envMode: DraftThreadEnvMode;
+  readonly interactionMode: AgentInteractionMode;
+  readonly stableKey: string;
+  readonly workspaceName: string | null;
+}): NewAgentFooterTip {
+  const reviewTip: NewAgentFooterTip = {
+    segments: [
+      { kind: "text", text: "Use " },
+      { kind: "token", text: "/review" },
+      {
+        kind: "text",
+        text: " to have Multi find bugs, regressions, security issues, and missing tests",
+      },
+    ],
+  };
+  const tips: [NewAgentFooterTip, ...NewAgentFooterTip[]] = [
+    reviewTip,
+    {
+      segments: [
+        { kind: "text", text: "Use " },
+        { kind: "token", text: "/" },
+        { kind: "text", text: " to find skills and commands" },
+      ],
+    },
+    {
+      segments: [
+        { kind: "text", text: "Use " },
+        { kind: "token", text: "@" },
+        {
+          kind: "text",
+          text: input.workspaceName
+            ? ` to add files and context from ${input.workspaceName}`
+            : " to add files and context",
+        },
+      ],
+    },
+  ];
+
+  if (input.interactionMode !== "plan") {
+    tips.push({
+      segments: [
+        { kind: "text", text: "Use " },
+        { kind: "token", text: "Plan New Idea" },
+        { kind: "text", text: " to explore before building" },
+      ],
+    });
+  }
+
+  if (input.envMode === "local") {
+    tips.push({
+      segments: [
+        { kind: "text", text: "Use " },
+        { kind: "token", text: "Run in Cloud" },
+        { kind: "text", text: " to prepare an isolated worktree" },
+      ],
+    });
+  }
+
+  return tips[stableTipIndex(input.stableKey, tips.length)] ?? reviewTip;
+}
+
+function NewAgentFooterTip(props: { readonly tip: NewAgentFooterTip }) {
+  return (
+    <div data-new-agent-footer-tip="">
+      {props.tip.segments.map((segment, index) =>
+        segment.kind === "token" ? (
+          <span key={index} data-new-agent-tip-token="">
+            {segment.text}
+          </span>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </div>
+  );
+}
 
 function committedMessageIdsKey(messages: readonly ChatMessage[] | undefined): string {
   return messages?.map((message) => message.id).join("\0") ?? "";
@@ -413,7 +514,6 @@ export default function ChatView(props: ChatViewProps) {
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
-  const gitAgentActionHandoff = useGitAgentActionHandoff();
   const subagentTrayPresented = useSubagentTrayStore((state) => state.presented);
   const closeSubagentTray = useSubagentTrayStore((state) => state.closeTray);
   const draftThread = useComposerDraftStore((store) =>
@@ -889,38 +989,9 @@ export default function ChatView(props: ChatViewProps) {
     clearAttachmentPreviewHandoffs,
     handoffAttachmentPreviews,
   } = useAttachmentPreviewHandoff({ serverMessages });
-  const localPendingTimelineRows = useMemo(() => {
-    const pendingGitAgentMessage =
-      gitAgentActionHandoff?.target.environmentId === environmentId &&
-      gitAgentActionHandoff.target.threadId === threadId
-        ? gitAgentActionHandoff.optimisticMessage
-        : null;
-    const pendingGitAgentUserMessage =
-      pendingGitAgentMessage?.role === "user"
-        ? ({ ...pendingGitAgentMessage, role: "user" } satisfies ChatMessage & { role: "user" })
-        : null;
-    const pendingGitAgentRow =
-      pendingGitAgentUserMessage !== null
-        ? createPendingTimelineRowFromMessage({
-            message: pendingGitAgentUserMessage,
-            parentEntryId: branchView.entryId,
-          })
-        : null;
-    return pendingGitAgentRow === null
-      ? pendingTimelineRows
-      : [...pendingTimelineRows, pendingGitAgentRow];
-  }, [
-    branchView.entryId,
-    environmentId,
-    gitAgentActionHandoff?.optimisticMessage,
-    gitAgentActionHandoff?.target.environmentId,
-    gitAgentActionHandoff?.target.threadId,
-    pendingTimelineRows,
-    threadId,
-  ]);
   const visiblePendingTimelineRows = useMemo(
-    () => filterPendingTimelineRowsToBranch(localPendingTimelineRows, branchView),
-    [branchView, localPendingTimelineRows],
+    () => filterPendingTimelineRowsToBranch(pendingTimelineRows, branchView),
+    [branchView, pendingTimelineRows],
   );
   const renderPendingTimelineRows = useMemo(
     () =>
@@ -1576,6 +1647,40 @@ export default function ChatView(props: ChatViewProps) {
         ) : null}
       </div>
     ) : null;
+  const newAgentFooterTip = useMemo(
+    () =>
+      getNewAgentFooterTip({
+        envMode,
+        interactionMode,
+        stableKey: draftId ?? routeThreadKey,
+        workspaceName: workspaceProject?.name ?? null,
+      }),
+    [draftId, envMode, interactionMode, routeThreadKey, workspaceProject?.name],
+  );
+  const heroComposerActions = isHeroComposer ? (
+    <div data-new-agent-footer-actions="">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        data-new-agent-action-pill=""
+        onClick={() => handleInteractionModeChange("plan")}
+      >
+        <span>Plan New Idea</span>
+        <span data-new-agent-action-hint="">⇧Tab</span>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        data-new-agent-action-pill=""
+        disabled={envMode !== "local"}
+        onClick={() => handleBranchEnvModeChange("worktree", activeThreadBranch)}
+      >
+        {envMode === "local" ? "Run in Cloud" : composerExecutionModeLabel}
+      </Button>
+    </div>
+  ) : null;
 
   const prepareRuntimePolicyForSend = (
     targetThreadId: ThreadId,
@@ -3054,9 +3159,10 @@ export default function ChatView(props: ChatViewProps) {
           {/* Input bar, centered when hero and docked when a thread is active */}
           <div
             className={cn(
-              "relative px-4 pb-4",
+              "relative",
+              !isHeroComposer && "px-4 pb-4",
               isHeroComposer
-                ? "flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden [&>*]:w-full [&>*]:max-w-agent-chat"
+                ? "flex h-full flex-1 flex-col items-center outline-hidden"
                 : undefined,
               isConnecting
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
@@ -3065,6 +3171,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background),transparent)] *:pointer-events-auto *:relative *:z-1"
                 : undefined,
             )}
+            data-new-agent-empty-state={isHeroComposer ? "" : undefined}
             {...(isConnecting ? { "data-disabled": "true" } : {})}
             {...(showScrollToBottom ? {} : { "data-scrolled-to-bottom": "" })}
           >
@@ -3079,7 +3186,10 @@ export default function ChatView(props: ChatViewProps) {
               onRespond={onRespondToExtensionUiRequest}
             />
             {isHeroComposer && workspaceTopnavActions ? (
-              <div className="@container/header-actions pointer-events-auto mb-2 flex w-full max-w-agent-chat items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden px-1">
+              <div
+                className="@container/header-actions pointer-events-auto flex items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden"
+                data-new-agent-env-row=""
+              >
                 {workspaceTopnavActions}
               </div>
             ) : null}
@@ -3143,6 +3253,8 @@ export default function ChatView(props: ChatViewProps) {
               setThreadError={setThreadError}
               onExpandImage={onExpandTimelineImage}
             />
+            {heroComposerActions}
+            {isHeroComposer ? <NewAgentFooterTip tip={newAgentFooterTip} /> : null}
           </div>
 
           {pullRequestDialogState ? (

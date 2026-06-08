@@ -6,7 +6,9 @@ import {
   type AgentInteractionMode,
   type OrchestrationThreadActivity,
   type SourceProposedPlanReference,
+  type ThreadEntryId,
   type ThreadId,
+  threadEntryIdForMessageId,
 } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
@@ -44,10 +46,7 @@ import {
   type GitAgentAction,
   type GitAgentRun,
 } from "~/lib/git-agent-actions";
-import {
-  GitAgentActionHandoffContext,
-  type GitAgentActionHandoff,
-} from "~/lib/git-agent-action-handoff";
+import type { GitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import {
   shellPanelsActions,
   useSecondaryRail,
@@ -69,9 +68,15 @@ import {
 } from "~/session-logic";
 import {
   selectProjectsAcrossEnvironments,
+  selectThreadByRef,
   selectSidebarThreadsAcrossEnvironments,
   useStore,
 } from "~/stores/thread-store";
+import {
+  applyLocalThreadCreated,
+  applyLocalThreadTurnStartRequested,
+} from "~/stores/local-orchestration-events";
+import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
   selectThreadGitAgentSurfaceByRef,
   selectThreadPlanSurfaceAcrossEnvironments,
@@ -80,6 +85,7 @@ import {
   type ThreadPlanSurface,
 } from "~/stores/thread-selectors";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
+import type { Thread } from "~/types";
 import { useRouteTarget } from "~/routes/-thread-route-targets";
 import { GitPanel } from "./shell/git/panel";
 import { ProjectFilesPanel } from "./shell/files/panel";
@@ -158,7 +164,7 @@ function hasGitAgentActionMessage(
   thread: ThreadGitAgentSurface,
   handoff: GitAgentActionHandoff,
 ): boolean {
-  return thread.userMessageIds.includes(handoff.optimisticMessage.id);
+  return thread.userMessageIds.includes(handoff.messageId);
 }
 
 function resolveActiveGitAgentHandoff(input: {
@@ -202,6 +208,46 @@ function resolveActiveGitAgentHandoff(input: {
   }
 
   return input.orchestrationHandoff;
+}
+
+function resolveGitAgentParentEntryId(thread: Thread | null): ThreadEntryId | undefined {
+  if (!thread) {
+    return undefined;
+  }
+
+  const entryById = new Map(thread.entries.map((entry) => [entry.id, entry] as const));
+  const hasValidPath = (entryId: ThreadEntryId): boolean => {
+    const seen = new Set<ThreadEntryId>();
+    let cursor: ThreadEntryId | null = entryId;
+    while (cursor !== null) {
+      if (seen.has(cursor)) {
+        return false;
+      }
+      seen.add(cursor);
+      const entry = entryById.get(cursor);
+      if (!entry) {
+        return false;
+      }
+      cursor = entry.parentEntryId;
+    }
+    return true;
+  };
+
+  const canonicalMessageIds = new Set(thread.messages.map((message) => message.id));
+  return thread.entries
+    .filter(
+      (entry) =>
+        entry.kind === "message" &&
+        entry.messageId !== null &&
+        canonicalMessageIds.has(entry.messageId) &&
+        entry.id === threadEntryIdForMessageId(entry.messageId) &&
+        hasValidPath(entry.id),
+    )
+    .toSorted((left, right) => {
+      const createdAtComparison = left.createdAt.localeCompare(right.createdAt);
+      return createdAtComparison === 0 ? left.id.localeCompare(right.id) : createdAtComparison;
+    })
+    .at(-1)?.id;
 }
 
 const EMPTY_PLAN_ACTIVITIES: readonly OrchestrationThreadActivity[] = [];
@@ -285,6 +331,8 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const sidebarThreads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const storeActiveEnvironmentId = useStore((state) => state.activeEnvironmentId);
+  const clearUnconfirmedLocalTurnStart = useStore((store) => store.clearUnconfirmedLocalTurnStart);
+  const clearUnconfirmedLocalThread = useStore((store) => store.clearUnconfirmedLocalThread);
   const availableEditors = useServerAvailableEditors();
   const firstProjectCwd = projects[0]?.cwd ?? null;
   const markDraftThreadPromoting = useComposerDraftStore((store) => store.markDraftThreadPromoting);
@@ -308,12 +356,17 @@ function ChatShellHost(props: { children?: ReactNode }) {
 
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = routeActiveThread ?? null;
+  const activeFullThread = useStore(
+    useShallow((store) => selectThreadByRef(store, routeThreadRef) ?? null),
+  );
   const activePlanThread = useStore(
     useShallow((store) => selectThreadPlanSurfaceByRef(store, routeThreadRef) ?? null),
   );
   const activeGitAgentThread = useStore(
     useShallow((store) => selectThreadGitAgentSurfaceByRef(store, routeThreadRef) ?? null),
   );
+  const markLocalRuntimeThread = useAgentRuntimeStore((store) => store.markLocalRuntimeThread);
+  const clearLocalRuntimeThread = useAgentRuntimeStore((store) => store.clearLocalRuntimeThread);
   const gitAgentActionInFlightRef = useRef(false);
 
   const activeGitAgentRun = (() => {
@@ -540,7 +593,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
         ? activeThread
         : null;
     const currentServerThread =
-      routeTarget?.kind === "server" ? (routeActiveThread ?? routeServerThreadFallback) : null;
+      routeTarget?.kind === "server"
+        ? (activeFullThread ?? routeActiveThread ?? routeServerThreadFallback)
+        : null;
     const currentDraftThread = routeTarget?.kind === "draft" ? activeDraftThread : null;
 
     if (routeTarget?.kind === "server" && !currentServerThread) {
@@ -616,21 +671,82 @@ function ChatShellHost(props: { children?: ReactNode }) {
     const projectScopedWorktreePath =
       currentServerThread?.worktreePath ?? currentDraftThread?.worktreePath ?? null;
     const promotedDraftId = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
+    const parentEntryId = currentServerThread
+      ? resolveGitAgentParentEntryId(activeFullThread)
+      : null;
+    if (
+      currentServerThread &&
+      parentEntryId === undefined &&
+      (activeFullThread === null || activeFullThread.entries.length > 0)
+    ) {
+      throw new Error(
+        "Wait for the current thread history to finish loading before running this Git action.",
+      );
+    }
     let draftPromotionMarked = false;
+    let localThreadAnnounced = false;
+    let localTurnStartAnnounced = false;
+    let serverTurnStartSucceeded = false;
+    let runtimeSendPromise: Promise<void> | null = null;
+
+    const applyLocalBootstrapThread = () => {
+      if (currentServerThread || localThreadAnnounced) {
+        return;
+      }
+      applyLocalThreadCreated({
+        environmentId: targetThreadEnvironmentId,
+        threadId,
+        projectId: project.id,
+        title,
+        modelSelection,
+        runtimeMode,
+        interactionMode,
+        branch: projectScopedBranch,
+        worktreePath: projectScopedWorktreePath,
+        createdAt: currentDraftThread?.createdAt ?? createdAt,
+      });
+      localThreadAnnounced = true;
+    };
+    const applyLocalTurnStartRequest = () => {
+      if (localTurnStartAnnounced) {
+        return;
+      }
+      applyLocalThreadTurnStartRequested({
+        environmentId: targetThreadEnvironmentId,
+        threadId,
+        message: {
+          messageId,
+          text: prompt,
+          attachments: [],
+        },
+        modelSelection,
+        titleSeed: title,
+        runtimeMode,
+        interactionMode,
+        parentEntryId: parentEntryId ?? null,
+        createdAt,
+      });
+      localTurnStartAnnounced = true;
+    };
+    const startRuntimeTurn = () => {
+      runtimeSendPromise ??= sendRuntimeShellTurn({
+        threadId,
+        cwd: projectScopedWorktreePath ?? project.cwd,
+        text: prompt,
+        interactionMode,
+        sourceProposedPlan: null,
+        clientMessageId: messageId,
+      });
+      void runtimeSendPromise.catch(() => undefined);
+      return runtimeSendPromise;
+    };
 
     gitAgentActionInFlightRef.current = true;
     try {
       setGitAgentOrchestrationHandoff({
         action,
         target: { environmentId: targetThreadEnvironmentId, threadId },
-        optimisticMessage: {
-          id: messageId,
-          role: "user",
-          text: prompt,
-          attachments: [],
-          createdAt,
-          streaming: false,
-        },
+        messageId,
       });
       if (promotedDraftId) {
         markDraftThreadPromoting(
@@ -640,34 +756,78 @@ function ChatShellHost(props: { children?: ReactNode }) {
         draftPromotionMarked = true;
       }
 
-      if (!currentServerThread) {
-        await api.orchestration.dispatchCommand({
-          type: "thread.create",
-          commandId: newCommandId(),
-          threadId,
-          projectId: project.id,
-          title,
-          modelSelection,
-          runtimeMode,
-          interactionMode,
-          branch: projectScopedBranch,
-          worktreePath: projectScopedWorktreePath,
-          createdAt: currentDraftThread?.createdAt ?? createdAt,
-        });
-      }
+      applyLocalBootstrapThread();
+      applyLocalTurnStartRequest();
 
-      await sendRuntimeShellTurn({
+      await api.orchestration.dispatchCommand({
+        type: "thread.turn.start",
+        commandId: newCommandId(),
         threadId,
-        cwd: projectScopedWorktreePath ?? project.cwd,
-        text: prompt,
+        message: {
+          messageId,
+          role: "user",
+          text: prompt,
+          attachments: [],
+        },
+        modelSelection,
+        titleSeed: title,
+        runtimeMode,
         interactionMode,
-        sourceProposedPlan: null,
-        clientMessageId: messageId,
+        ...(parentEntryId !== undefined ? { parentEntryId } : {}),
+        ...(!currentServerThread
+          ? {
+              bootstrap: {
+                createThread: {
+                  projectId: project.id,
+                  title,
+                  modelSelection,
+                  runtimeMode,
+                  interactionMode,
+                  branch: projectScopedBranch,
+                  worktreePath: projectScopedWorktreePath,
+                  createdAt: currentDraftThread?.createdAt ?? createdAt,
+                },
+              },
+            }
+          : {}),
+        createdAt,
       });
+      serverTurnStartSucceeded = true;
+      markLocalRuntimeThread(threadId);
+      await startRuntimeTurn();
 
       await openThread(router, scopeThreadRef(targetThreadEnvironmentId, threadId));
     } catch (error) {
+      clearLocalRuntimeThread(threadId);
+      if (serverTurnStartSucceeded) {
+        await api.orchestration
+          .dispatchCommand({
+            type: "thread.turn.start.failed",
+            commandId: newCommandId(),
+            threadId,
+            messageId,
+            detail:
+              error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : "Failed to start Git action.",
+            createdAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
       setGitAgentOrchestrationHandoff(null);
+      if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
+        clearUnconfirmedLocalTurnStart({
+          environmentId: targetThreadEnvironmentId,
+          threadId,
+          messageId,
+        });
+      }
+      if (localThreadAnnounced && !serverTurnStartSucceeded) {
+        clearUnconfirmedLocalThread({
+          environmentId: targetThreadEnvironmentId,
+          threadId,
+        });
+      }
       if (draftPromotionMarked && promotedDraftId) {
         cancelDraftThreadPromotion(promotedDraftId);
       }
@@ -745,11 +905,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const stopGitAgentAction = gitAgentStopTarget ? stopGitAgentActionHandler : null;
   const stoppingGitAgentAction =
     stopGitAgentActionMutation.isPending && pendingGitAgentAction !== null;
-  const center = (
-    <GitAgentActionHandoffContext.Provider value={activeGitAgentHandoff}>
-      {props.children ?? <Outlet />}
-    </GitAgentActionHandoffContext.Provider>
-  );
+  const center = props.children ?? <Outlet />;
 
   const chatLeft = (
     <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">

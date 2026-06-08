@@ -8,6 +8,7 @@ import {
   ThreadEntryId,
   ThreadId,
   TurnId,
+  threadEntryIdForMessageId,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
   type OrchestrationThreadActivity,
@@ -722,6 +723,178 @@ function serverThreadDetailWithSubagent(detail: string, updatedAt: string): Orch
   };
 }
 
+const existingUserMessageId = MessageId.make("message:existing-user");
+const existingAssistantMessageId = MessageId.make("message:existing-assistant");
+const existingUserThreadEntryId = threadEntryIdForMessageId(existingUserMessageId);
+const existingAssistantThreadEntryId = threadEntryIdForMessageId(existingAssistantMessageId);
+const gitActionMessageId = MessageId.make("message:git-action");
+const gitActionThreadEntryId = threadEntryIdForMessageId(gitActionMessageId);
+const gitActionAssistantThreadEntryId = ThreadEntryId.make("thread-entry:git-action-assistant");
+const gitActionTurnId = TurnId.make("turn:git-action");
+const gitActionUserRuntimeItemId = RuntimeItemId.make("runtime-item:git-action-user");
+const gitActionAssistantRuntimeItemId = RuntimeItemId.make("runtime-item:git-action-assistant");
+const gitActionUserCreatedAt = Date.prototype.toISOString.call(
+  new Date(Date.UTC(2026, 5, 1, 12, 1, 0)),
+);
+const gitActionAssistantCreatedAt = Date.prototype.toISOString.call(
+  new Date(Date.UTC(2026, 5, 1, 12, 1, 1)),
+);
+const gitActionPrompt = "GitAction: commitAndPush\nAction: Commit & Push";
+
+function serverThreadDetailWithExistingTranscript(input?: {
+  readonly includeGitActionUser?: boolean;
+}): OrchestrationThread {
+  const includeGitActionUser = input?.includeGitActionUser ?? false;
+  return {
+    id: threadId,
+    projectId,
+    title: "Existing thread",
+    modelSelection: {
+      instanceId: "codex",
+      model: "gpt-5.5",
+    },
+    runtimeMode: DEFAULT_RUNTIME_MODE,
+    interactionMode: DEFAULT_INTERACTION_MODE,
+    branch: null,
+    worktreePath: null,
+    latestTurn: null,
+    createdAt: userMessageCreatedAt,
+    updatedAt: includeGitActionUser ? gitActionUserCreatedAt : assistantMessageCreatedAt,
+    archivedAt: null,
+    deletedAt: null,
+    messages: [
+      {
+        id: existingUserMessageId,
+        role: "user",
+        text: "hello!",
+        turnId: null,
+        streaming: false,
+        createdAt: userMessageCreatedAt,
+        updatedAt: userMessageCreatedAt,
+      },
+      {
+        id: existingAssistantMessageId,
+        role: "assistant",
+        text: "Hello. How can I help?",
+        turnId,
+        streaming: false,
+        createdAt: assistantMessageCreatedAt,
+        updatedAt: assistantMessageCreatedAt,
+      },
+      ...(includeGitActionUser
+        ? [
+            {
+              id: gitActionMessageId,
+              role: "user" as const,
+              text: gitActionPrompt,
+              turnId: null,
+              streaming: false,
+              createdAt: gitActionUserCreatedAt,
+              updatedAt: gitActionUserCreatedAt,
+            },
+          ]
+        : []),
+    ],
+    leafId: includeGitActionUser ? gitActionThreadEntryId : existingAssistantThreadEntryId,
+    entries: [
+      {
+        id: existingUserThreadEntryId,
+        threadId,
+        parentEntryId: null,
+        kind: "message",
+        messageId: existingUserMessageId,
+        turnId: null,
+        createdAt: userMessageCreatedAt,
+      },
+      {
+        id: existingAssistantThreadEntryId,
+        threadId,
+        parentEntryId: existingUserThreadEntryId,
+        kind: "message",
+        messageId: existingAssistantMessageId,
+        turnId,
+        createdAt: assistantMessageCreatedAt,
+      },
+      ...(includeGitActionUser
+        ? [
+            {
+              id: gitActionThreadEntryId,
+              threadId,
+              parentEntryId: existingAssistantThreadEntryId,
+              kind: "message" as const,
+              messageId: gitActionMessageId,
+              turnId: null,
+              createdAt: gitActionUserCreatedAt,
+            },
+          ]
+        : []),
+    ],
+    proposedPlans: [],
+    activities: [],
+    chatTimelineRows: [],
+    session: null,
+  };
+}
+
+function gitActionRuntimeSessionTree(input?: {
+  readonly clientMessageId?: MessageId;
+  readonly userThreadEntryId?: ThreadEntryId;
+}): SessionTreeProjection {
+  const userThreadEntryId =
+    input?.userThreadEntryId ?? ThreadEntryId.make("thread-entry:runtime-git-action-user");
+  return {
+    threadId,
+    runtimeSessionId,
+    leafEntryId: gitActionAssistantRuntimeItemId,
+    entries: [
+      {
+        id: gitActionUserRuntimeItemId,
+        threadEntryId: userThreadEntryId,
+        parentId: null,
+        parentThreadEntryId: null,
+        kind: "message",
+        role: "user",
+        ...(input?.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+        text: gitActionPrompt,
+        createdAt: gitActionUserCreatedAt,
+        rawEntry: {},
+      },
+      {
+        id: gitActionAssistantRuntimeItemId,
+        threadEntryId: gitActionAssistantThreadEntryId,
+        parentId: gitActionUserRuntimeItemId,
+        parentThreadEntryId: userThreadEntryId,
+        kind: "message",
+        role: "assistant",
+        turnId: gitActionTurnId,
+        text: "Committed and pushed.",
+        createdAt: gitActionAssistantCreatedAt,
+        rawEntry: {},
+      },
+    ],
+    nodes: [
+      {
+        entryId: gitActionUserRuntimeItemId,
+        threadEntryId: userThreadEntryId,
+        parentEntryId: null,
+        depth: 0,
+        isActivePath: true,
+        isActiveLeaf: false,
+        childCount: 1,
+      },
+      {
+        entryId: gitActionAssistantRuntimeItemId,
+        threadEntryId: gitActionAssistantThreadEntryId,
+        parentEntryId: gitActionUserRuntimeItemId,
+        depth: 1,
+        isActivePath: true,
+        isActiveLeaf: true,
+        childCount: 0,
+      },
+    ],
+  };
+}
+
 describe("Pi runtime thread sync", () => {
   beforeEach(() => {
     useStore.setState(initialState);
@@ -777,6 +950,65 @@ describe("Pi runtime thread sync", () => {
       expect.arrayContaining(["message", "work"]),
     );
     expect(environmentState.sidebarThreadSummaryById[threadId]?.title).toBe("Pi runtime thread");
+  });
+
+  it("merges runtime session projections into existing thread history", () => {
+    useStore
+      .getState()
+      .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
+
+    useStore
+      .getState()
+      .applyRuntimeSessionTreeProjection(gitActionRuntimeSessionTree(), environmentId);
+
+    const { thread } = currentThread();
+    expect(thread.messages.map((message) => [message.role, message.text])).toEqual([
+      ["user", "hello!"],
+      ["assistant", "Hello. How can I help?"],
+      ["user", gitActionPrompt],
+      ["assistant", "Committed and pushed."],
+    ]);
+    expect(thread.entries.map((entry) => [entry.id, entry.parentEntryId])).toEqual([
+      [existingUserThreadEntryId, null],
+      [existingAssistantThreadEntryId, existingUserThreadEntryId],
+      [ThreadEntryId.make("thread-entry:runtime-git-action-user"), existingAssistantThreadEntryId],
+      [gitActionAssistantThreadEntryId, ThreadEntryId.make("thread-entry:runtime-git-action-user")],
+    ]);
+    expect(thread.leafId).toBe(gitActionAssistantThreadEntryId);
+  });
+
+  it("does not duplicate an optimistic runtime user message with the same client message id", () => {
+    useStore
+      .getState()
+      .syncServerThreadDetail(
+        serverThreadDetailWithExistingTranscript({ includeGitActionUser: true }),
+        environmentId,
+      );
+
+    useStore
+      .getState()
+      .applyRuntimeSessionTreeProjection(
+        gitActionRuntimeSessionTree({
+          clientMessageId: gitActionMessageId,
+          userThreadEntryId: gitActionThreadEntryId,
+        }),
+        environmentId,
+      );
+
+    const { thread } = currentThread();
+    const actionUserMessages = thread.messages.filter(
+      (message) => message.id === gitActionMessageId,
+    );
+    const actionUserEntries = thread.entries.filter((entry) => entry.id === gitActionThreadEntryId);
+    expect(actionUserMessages).toHaveLength(1);
+    expect(actionUserEntries).toHaveLength(1);
+    expect(actionUserEntries[0]?.parentEntryId).toBe(existingAssistantThreadEntryId);
+    expect(thread.messages.map((message) => [message.role, message.text])).toEqual([
+      ["user", "hello!"],
+      ["assistant", "Hello. How can I help?"],
+      ["user", gitActionPrompt],
+      ["assistant", "Committed and pushed."],
+    ]);
   });
 
   it("applies live Pi events and pending extension UI requests", () => {

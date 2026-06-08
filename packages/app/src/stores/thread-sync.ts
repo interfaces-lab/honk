@@ -455,10 +455,13 @@ function threadFromRuntimeSessionTree(
   environmentId: EnvironmentId,
   previousThread: Thread | undefined,
 ): Thread {
-  const messages: ChatMessage[] = [];
-  const entries: ThreadTreeEntry[] = [];
+  const projectedMessages: ChatMessage[] = [];
+  const projectedEntries: ThreadTreeEntry[] = [];
   const sessionTreeActivities: OrchestrationThreadActivity[] = [];
   const entryByRuntimeId = new Map(tree.entries.map((entry) => [entry.id, entry] as const));
+  const previousEntryById = new Map(
+    previousThread?.entries.map((entry) => [entry.id, entry] as const) ?? [],
+  );
   const projectedThreadEntryIdByRuntimeId = new Map(
     tree.entries
       .filter(isDisplayableRuntimeMessageEntry)
@@ -478,7 +481,7 @@ function threadFromRuntimeSessionTree(
 
     if (isDisplayableRuntimeMessageEntry(entry)) {
       const messageId = entry.clientMessageId ?? MessageId.make(entry.threadEntryId);
-      messages.push({
+      projectedMessages.push({
         id: messageId,
         role: entry.role,
         text: entry.text ?? "",
@@ -487,14 +490,25 @@ function threadFromRuntimeSessionTree(
         completedAt: entry.createdAt,
         streaming: false,
       });
-      entries.push({
+      const projectedParentEntryId = resolveNearestProjectedRuntimeThreadEntryId({
+        runtimeEntryId: entry.parentId,
+        entryByRuntimeId,
+        projectedThreadEntryIdByRuntimeId,
+      });
+      const existingEntry = previousThread?.entries.find(
+        (threadEntry) => threadEntry.id === entry.threadEntryId,
+      );
+      const previousLeafParentId =
+        previousThread?.leafId &&
+        previousThread.leafId !== entry.threadEntryId &&
+        previousEntryById.has(previousThread.leafId)
+          ? previousThread.leafId
+          : null;
+      projectedEntries.push({
         id: entry.threadEntryId,
         threadId: tree.threadId,
-        parentEntryId: resolveNearestProjectedRuntimeThreadEntryId({
-          runtimeEntryId: entry.parentId,
-          entryByRuntimeId,
-          projectedThreadEntryIdByRuntimeId,
-        }),
+        parentEntryId:
+          projectedParentEntryId ?? existingEntry?.parentEntryId ?? previousLeafParentId,
         kind: "message",
         messageId,
         turnId: entry.turnId ?? null,
@@ -503,17 +517,21 @@ function threadFromRuntimeSessionTree(
     }
   }
 
+  const messages = mergeRuntimeSessionMessages(previousThread, projectedMessages);
+  const entries = mergeRuntimeSessionEntries(previousThread, projectedEntries);
   const createdAt = messages[0]?.createdAt ?? new Date().toISOString();
   const updatedAt = messages.at(-1)?.createdAt ?? createdAt;
   const session =
-    previousThread?.session ?? createRuntimeSession({ threadId: tree.threadId, createdAt, updatedAt });
-  const leafId = tree.leafEntryId
+    previousThread?.session ??
+    createRuntimeSession({ threadId: tree.threadId, createdAt, updatedAt });
+  const projectedLeafId = tree.leafEntryId
     ? resolveNearestProjectedRuntimeThreadEntryId({
         runtimeEntryId: tree.leafEntryId,
         entryByRuntimeId,
         projectedThreadEntryIdByRuntimeId,
       })
     : null;
+  const leafId = projectedLeafId ?? previousThread?.leafId ?? null;
   const piSessionTitle =
     tree.entries.findLast((entry) => entry.kind === "session-info")?.text?.trim() || null;
 
@@ -543,6 +561,72 @@ function threadFromRuntimeSessionTree(
     activities: upsertThreadActivities(previousThread?.activities ?? [], sessionTreeActivities),
     chatTimelineRows: [],
   };
+}
+
+function mergeRuntimeSessionMessages(
+  previousThread: Thread | undefined,
+  projectedMessages: ReadonlyArray<ChatMessage>,
+): ChatMessage[] {
+  if (!previousThread) {
+    return [...projectedMessages];
+  }
+  const messageById = new Map(previousThread.messages.map((message) => [message.id, message]));
+  for (const projectedMessage of projectedMessages) {
+    const existingMessage = messageById.get(projectedMessage.id);
+    const shouldPreserveAttachments =
+      existingMessage?.attachments !== undefined && projectedMessage.attachments === undefined;
+    messageById.set(
+      projectedMessage.id,
+      existingMessage
+        ? {
+            ...existingMessage,
+            ...projectedMessage,
+            ...(existingMessage.richText !== undefined && projectedMessage.richText === undefined
+              ? { richText: existingMessage.richText }
+              : {}),
+            ...(shouldPreserveAttachments ? { attachments: existingMessage.attachments } : {}),
+          }
+        : projectedMessage,
+    );
+  }
+  return [...messageById.values()].toSorted(compareCreatedThreadItem);
+}
+
+function mergeRuntimeSessionEntries(
+  previousThread: Thread | undefined,
+  projectedEntries: ReadonlyArray<ThreadTreeEntry>,
+): ThreadTreeEntry[] {
+  if (!previousThread) {
+    return [...projectedEntries];
+  }
+  const entryById = new Map(previousThread.entries.map((entry) => [entry.id, entry]));
+  for (const projectedEntry of projectedEntries) {
+    const existingEntry = entryById.get(projectedEntry.id);
+    entryById.set(
+      projectedEntry.id,
+      existingEntry
+        ? {
+            ...existingEntry,
+            ...projectedEntry,
+            parentEntryId: projectedEntry.parentEntryId ?? existingEntry.parentEntryId,
+            turnId:
+              projectedEntry.turnId === null && existingEntry.turnId !== null
+                ? existingEntry.turnId
+                : projectedEntry.turnId,
+            createdAt: existingEntry.createdAt,
+          }
+        : projectedEntry,
+    );
+  }
+  return [...entryById.values()].toSorted(compareCreatedThreadItem);
+}
+
+function compareCreatedThreadItem(
+  left: Pick<ChatMessage | ThreadTreeEntry, "id" | "createdAt">,
+  right: Pick<ChatMessage | ThreadTreeEntry, "id" | "createdAt">,
+): number {
+  const createdAtComparison = left.createdAt.localeCompare(right.createdAt);
+  return createdAtComparison === 0 ? left.id.localeCompare(right.id) : createdAtComparison;
 }
 
 function runtimeSidebarThreadSummary(thread: Thread): SidebarThreadSummary {

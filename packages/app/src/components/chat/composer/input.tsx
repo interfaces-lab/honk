@@ -118,7 +118,7 @@ const composerEditorClass = cva(
   {
     variants: {
       mode: {
-        "new-agent": "min-h-9 max-h-[200px] px-3 py-2 text-body/[1.5] text-(--vscode-input-foreground)",
+        "new-agent": "min-h-0 px-0 py-0",
         "thread-multiline": "min-w-0 px-3 pt-2",
         "thread-pill": "flex-1 pl-1",
         "inline-edit": "min-h-5 max-h-60 px-3 py-2",
@@ -1943,7 +1943,10 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
         ref={composerFormRef}
         onSubmit={handleComposerSubmit}
         onBlurCapture={handleComposerBlurCapture}
-        className={cn("w-full min-w-0", !isInlineEditComposer && "mx-auto max-w-agent-chat")}
+        className={cn(
+          "w-full min-w-0",
+          !isInlineEditComposer && !isNewAgentComposer && "mx-auto max-w-agent-chat",
+        )}
         data-variant={composerVariant}
         data-layout={layout}
         data-chat-input-form="true"
@@ -1952,7 +1955,11 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
         <div
           className={cn(
             "flex w-full min-w-0 shrink-0 flex-col",
-            isInlineEditComposer ? "gap-0" : "mx-auto max-w-agent-chat gap-2",
+            isInlineEditComposer
+              ? "gap-0"
+              : isNewAgentComposer
+                ? "gap-2"
+                : "mx-auto max-w-agent-chat gap-2",
           )}
           data-menu-open={composerMenuOpen ? "" : undefined}
           data-running={phase === "running" ? "" : undefined}
@@ -2010,7 +2017,9 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
               isDragOverComposer && "bg-accent/30 ring-2 ring-primary/60",
             )}
             data-has-header={hasComposerHeader ? "" : undefined}
-            data-layout={isInlineEditComposer ? "inline-edit" : undefined}
+            data-layout={
+              isInlineEditComposer ? "inline-edit" : isNewAgentComposer ? "new-agent" : undefined
+            }
             data-multi-composer-surface=""
             data-has-images={composerImages.length > 0 ? "" : undefined}
             data-dragging={isDragOverComposer ? "" : undefined}
