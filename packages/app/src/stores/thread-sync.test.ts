@@ -1224,6 +1224,66 @@ describe("Pi runtime thread sync", () => {
     expect(thread.latestTurn?.completedAt).toBe(turnInterruptedAt);
   });
 
+  it("applies live context window usage events as thread activities", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+
+    const snapshot = {
+      usedTokens: 60_000,
+      maxTokens: 200_000,
+      categories: [
+        { id: "system_prompt", label: "System prompt", tokens: 850 },
+        { id: "conversation", label: "Conversation", tokens: 59_150 },
+      ],
+      compactsAutomatically: true,
+    };
+    const contextWindowEvent = {
+      id: EventId.make("runtime-event:context-window"),
+      type: "context-window.updated",
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      createdAt: "2026-06-01T12:00:30.000Z",
+      summary: "Context usage updated",
+      data: snapshot,
+    } satisfies AgentRuntimeEvent;
+
+    useStore.getState().applyAgentRuntimeEvent(contextWindowEvent, environmentId);
+
+    const liveActivity = currentThread().thread.activities.find(
+      (activity) => activity.kind === "context-window.updated",
+    );
+    expect(liveActivity).toMatchObject({
+      id: "runtime-activity:runtime-event:context-window",
+      kind: "context-window.updated",
+      payload: snapshot,
+      turnId,
+    });
+
+    const updatedSnapshot = { ...snapshot, usedTokens: 61_000 };
+    useStore.getState().applyAgentRuntimeEvent(
+      { ...contextWindowEvent, data: updatedSnapshot },
+      environmentId,
+    );
+    const replaced = currentThread().thread.activities.filter(
+      (activity) => activity.kind === "context-window.updated",
+    );
+    expect(replaced).toHaveLength(1);
+    expect(replaced[0]?.payload).toMatchObject({ usedTokens: 61_000 });
+
+    const malformedEvent = {
+      ...contextWindowEvent,
+      id: EventId.make("runtime-event:context-window-bad"),
+      data: { usedTokens: -5 },
+    } satisfies AgentRuntimeEvent;
+    useStore.getState().applyAgentRuntimeEvent(malformedEvent, environmentId);
+    expect(
+      currentThread().thread.activities.filter(
+        (activity) => activity.kind === "context-window.updated",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("routes live subagent tool activity outside the main thread store", () => {
     useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
     const previousState = useStore.getState();

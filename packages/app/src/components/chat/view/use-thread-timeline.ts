@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 
 import type { TimelineEntry } from "../../../session-logic";
+import { debugAgentLog } from "~/lib/debug-agent-log";
 import { projectThreadTimeline } from "./thread-timeline-projector";
 
 type ProjectThreadTimelineInput = Parameters<typeof projectThreadTimeline>[0];
@@ -19,10 +20,43 @@ export function useThreadTimeline(
   input: ProjectThreadTimelineInput,
 ): ReadonlyArray<TimelineEntry> {
   const previousRef = useRef<ReadonlyArray<TimelineEntry>>([]);
+  const previousBranchRef = useRef<string | null>(null);
   return useMemo(() => {
     const next = projectThreadTimeline(input);
     const result = keepActiveTimelineTail(previousRef.current, next, input.isTurnActive);
     previousRef.current = result;
+
+    // #region agent log
+    const duplicates = findDuplicateAssistantTexts(result);
+    const branch = result.some(
+      (entry) => entry.kind === "runtime-tool" || entry.kind === "runtime-thinking",
+    )
+      ? "runtime"
+      : "committed";
+    if (duplicates.length > 0) {
+      debugAgentLog(
+        "use-thread-timeline.ts:useThreadTimeline",
+        "duplicate assistant text rendered under different ids",
+        { duplicates, branch, isTurnActive: input.isTurnActive, entryCount: result.length },
+        "H-DUP",
+      );
+    }
+    if (previousBranchRef.current !== null && previousBranchRef.current !== branch) {
+      debugAgentLog(
+        "use-thread-timeline.ts:useThreadTimeline",
+        "projector entry source flipped",
+        {
+          from: previousBranchRef.current,
+          to: branch,
+          isTurnActive: input.isTurnActive,
+          entryIds: result.slice(-6).map((entry) => `${entry.kind}:${entry.id}`),
+        },
+        "H-IDSWAP",
+      );
+    }
+    previousBranchRef.current = branch;
+    // #endregion
+
     return result;
     // Recompute only when a projector input changes; `input` is a fresh object each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,6 +72,38 @@ export function useThreadTimeline(
     input.activeTurnStartedAt,
   ]);
 }
+
+// #region agent log
+function findDuplicateAssistantTexts(entries: ReadonlyArray<TimelineEntry>): Array<{
+  textPreview: string;
+  rows: Array<{ entryId: string; messageId: string; turnId: string | null; createdAt: string }>;
+}> {
+  const byText = new Map<
+    string,
+    Array<{ entryId: string; messageId: string; turnId: string | null; createdAt: string }>
+  >();
+  for (const entry of entries) {
+    if (entry.kind !== "message" || entry.message.role !== "assistant") {
+      continue;
+    }
+    const text = entry.message.text.trim();
+    if (text.length === 0) {
+      continue;
+    }
+    const rows = byText.get(text) ?? [];
+    rows.push({
+      entryId: entry.id,
+      messageId: entry.message.id,
+      turnId: entry.message.turnId ?? null,
+      createdAt: entry.message.createdAt,
+    });
+    byText.set(text, rows);
+  }
+  return [...byText.entries()]
+    .filter(([, rows]) => rows.length > 1)
+    .map(([text, rows]) => ({ textPreview: text.slice(0, 80), rows }));
+}
+// #endregion
 
 /**
  * Return `previous` while an active turn momentarily regresses to a user-message/waiting-only
