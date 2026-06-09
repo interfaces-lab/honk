@@ -28,7 +28,6 @@ import { threadRefFromRouteParams, type ChatRouteTarget } from "~/app/chat-route
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopedThreadKey } from "~/lib/environment-scope";
 import { useThreadSendIntentStore } from "~/stores/thread-send-intent-store";
-import { debugAgentLog } from "~/lib/debug-agent-log";
 
 const routeApi = getRouteApi("/_chat/$environmentId/$threadId");
 type ThreadRouteRef = NonNullable<ReturnType<typeof threadRefFromRouteParams>>;
@@ -79,7 +78,6 @@ export function ChatThreadRouteView() {
   const routeTarget: ChatRouteTarget | null =
     threadRef === null ? null : { kind: "server", threadRef };
   const routeThreadExists = threadExists;
-  const serverThreadRenderable = serverThreadLifecycle?.hasRenderableUserStart ?? false;
   const promotedDraftThread = useComposerDraftStore((store) =>
     threadRef ? store.getDraftThread(threadRef) : null,
   );
@@ -90,30 +88,6 @@ export function ChatThreadRouteView() {
   const environmentHasAnyThreads = environmentHasServerThreads || environmentHasDraftThreads;
   const desktopRuntimeRoute = threadRef ? isDesktopRuntimeThreadRoute(threadRef) : false;
   const hasRenderableSnapshot = snapshotSource !== "none" || desktopRuntimeRoute;
-
-  useEffect(() => {
-    if (!threadRef) {
-      return;
-    }
-    debugAgentLog(
-      "-chat-thread-route.tsx:ChatThreadRouteView",
-      "route target resolved",
-      {
-        urlThreadId: threadRef.threadId,
-        routeTargetKind: routeTarget?.kind ?? null,
-        serverThreadRenderable,
-        serverThreadHasStarted: serverThreadLifecycle?.hasStarted ?? null,
-        threadExists,
-      },
-      "H1",
-    );
-  }, [
-    threadRef?.threadId,
-    routeTarget?.kind,
-    serverThreadRenderable,
-    serverThreadLifecycle?.hasStarted,
-    threadExists,
-  ]);
 
   if (!threadRef) {
     throw new Error("Thread route rendered without thread route params.");

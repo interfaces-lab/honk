@@ -11,7 +11,11 @@ import {
 import { resolveWaitingTimelineStatus } from "../message/waiting-status";
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, ProposedPlan, ThreadSendIntent } from "../../../types";
-import { timelineMessageEntryId } from "./timeline-entry-ids";
+import {
+  timelineMessageEntryId,
+  timelineTurnAssistantEntryId,
+  timelineTurnThinkingEntryId,
+} from "./timeline-entry-ids";
 import type { ThreadBranchView } from "./thread-branch-view";
 
 export function projectThreadTimeline(input: {
@@ -91,14 +95,35 @@ export function projectThreadTimeline(input: {
   });
 }
 
+// Counts occurrences per turn so every materialization pass assigns the same
+// turn-scoped indices when it walks its messages in chronological order.
+function turnOccurrenceCounter(): (turnId: string) => number {
+  const counts = new Map<string, number>();
+  return (turnId) => {
+    const index = counts.get(turnId) ?? 0;
+    counts.set(turnId, index + 1);
+    return index;
+  };
+}
+
+function committedMessageEntryId(
+  message: ChatMessage,
+  nextAssistantIndex: (turnId: string) => number,
+): string {
+  return message.role === "assistant" && message.turnId
+    ? timelineTurnAssistantEntryId(message.turnId, nextAssistantIndex(message.turnId))
+    : timelineMessageEntryId(message.id);
+}
+
 function materializeCommittedTimelineEntries(input: {
   readonly messages: ReadonlyArray<ChatMessage>;
   readonly proposedPlans: ReadonlyArray<ProposedPlan>;
   readonly workLogEntries: ReadonlyArray<WorkLogEntry>;
 }): TimelineEntry[] {
+  const nextAssistantIndex = turnOccurrenceCounter();
   const entries: TimelineEntry[] = [
     ...input.messages.map((message): TimelineEntry => ({
-      id: timelineMessageEntryId(message.id),
+      id: committedMessageEntryId(message, nextAssistantIndex),
       kind: "message",
       createdAt: message.createdAt,
       message,
@@ -235,26 +260,32 @@ export function runtimeDisplayTimelineRenderableUserMessageIds(
   return messageIds;
 }
 
+interface RuntimeTimelineMaterializationContext {
+  readonly runtimeSessionId: RuntimeSessionId;
+  readonly messagesById: ReadonlyMap<MessageId, ChatMessage>;
+  readonly proposedPlansById: ReadonlyMap<OrchestrationProposedPlanId, ProposedPlan>;
+  readonly nextAssistantIndex: (turnId: string) => number;
+  readonly nextThinkingIndex: (turnId: string) => number;
+}
+
 function materializeTimelineEntriesFromRuntimeDisplayTimeline(input: {
   readonly timeline: RuntimeDisplayTimelineProjection;
   readonly messages: ReadonlyArray<ChatMessage>;
   readonly proposedPlans: ReadonlyArray<ProposedPlan>;
 }): TimelineEntry[] {
-  const messagesById = new Map(input.messages.map((message) => [message.id, message] as const));
-  const proposedPlansById = new Map(
-    input.proposedPlans.map((proposedPlan) => [proposedPlan.id, proposedPlan] as const),
-  );
+  const ctx: RuntimeTimelineMaterializationContext = {
+    runtimeSessionId: input.timeline.runtimeSessionId,
+    messagesById: new Map(input.messages.map((message) => [message.id, message] as const)),
+    proposedPlansById: new Map(
+      input.proposedPlans.map((proposedPlan) => [proposedPlan.id, proposedPlan] as const),
+    ),
+    nextAssistantIndex: turnOccurrenceCounter(),
+    nextThinkingIndex: turnOccurrenceCounter(),
+  };
   const entries: TimelineEntry[] = [];
 
   for (const item of input.timeline.items) {
-    entries.push(
-      ...runtimeDisplayTimelineItemToTimelineEntries(
-        item,
-        input.timeline.runtimeSessionId,
-        messagesById,
-        proposedPlansById,
-      ),
-    );
+    entries.push(...runtimeDisplayTimelineItemToTimelineEntries(item, ctx));
   }
 
   return entries;
@@ -262,22 +293,25 @@ function materializeTimelineEntriesFromRuntimeDisplayTimeline(input: {
 
 function runtimeDisplayTimelineItemToTimelineEntries(
   item: RuntimeDisplayTimelineItem,
-  runtimeSessionId: RuntimeSessionId,
-  messagesById: ReadonlyMap<MessageId, ChatMessage>,
-  proposedPlansById: ReadonlyMap<OrchestrationProposedPlanId, ProposedPlan>,
+  ctx: RuntimeTimelineMaterializationContext,
 ): TimelineEntry[] {
   switch (item.kind) {
     case "message": {
       const entries: TimelineEntry[] = [];
-      const messageId = runtimeDisplayTimelineMessageId(runtimeSessionId, item);
-      const existingMessage = messagesById.get(messageId);
+      const messageId = runtimeDisplayTimelineMessageId(ctx.runtimeSessionId, item);
+      const existingMessage = ctx.messagesById.get(messageId);
       const role = runtimeDisplayMessageRole(item.role);
       if (!role) {
         return [];
       }
       if (shouldMaterializeRuntimeThinking(item)) {
         entries.push({
-          id: `${item.id}:thinking`,
+          // Turn-scoped so the row id survives the live item being replaced by the settled
+          // session entry; otherwise the thinking row (often a group's first step, and so its
+          // row id) re-keys at turn end and the whole group remounts.
+          id: item.turnId
+            ? timelineTurnThinkingEntryId(item.turnId, ctx.nextThinkingIndex(item.turnId))
+            : `${item.id}:thinking`,
           kind: "runtime-thinking",
           createdAt: item.createdAt,
           message: runtimeThinkingStatusMessage(item),
@@ -287,7 +321,10 @@ function runtimeDisplayTimelineItemToTimelineEntries(
         return entries;
       }
       entries.push({
-        id: timelineMessageEntryId(messageId),
+        id:
+          role === "assistant" && item.turnId
+            ? timelineTurnAssistantEntryId(item.turnId, ctx.nextAssistantIndex(item.turnId))
+            : timelineMessageEntryId(messageId),
         kind: "message",
         createdAt: item.createdAt,
         message:
@@ -330,7 +367,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
           kind: "proposed-plan",
           createdAt: item.createdAt,
           proposedPlan:
-            proposedPlansById.get(planId) ??
+            ctx.proposedPlansById.get(planId) ??
             ({
               id: planId,
               turnId: item.turnId ?? null,
@@ -509,18 +546,24 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
   messages: ReadonlyArray<ChatMessage>;
   sendIntents: ReadonlyArray<ThreadSendIntent>;
 }): ReadonlyArray<TimelineEntry> {
+  const existingEntryIds = new Set(input.entries.map((entry) => entry.id));
   const existingMessageIds = new Set(
     input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
   );
   const missingMessageEntries: TimelineEntry[] = [];
+  const nextAssistantIndex = turnOccurrenceCounter();
 
   for (const message of input.messages) {
-    if (existingMessageIds.has(message.id)) {
+    // The runtime branch keys assistant rows by turn + occurrence, so a committed assistant
+    // message whose row already exists (under any payload stage) must not be appended again.
+    const entryId = committedMessageEntryId(message, nextAssistantIndex);
+    if (existingEntryIds.has(entryId) || existingMessageIds.has(message.id)) {
       continue;
     }
+    existingEntryIds.add(entryId);
     existingMessageIds.add(message.id);
     missingMessageEntries.push({
-      id: timelineMessageEntryId(message.id),
+      id: entryId,
       kind: "message",
       createdAt: message.createdAt,
       message,

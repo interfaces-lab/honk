@@ -38,7 +38,6 @@ import { getGitStatusSnapshot, useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
 import { usePrimaryEnvironmentId } from "../../../environments/primary";
 import { type PreparedRuntimeTurnPolicy, prepareRuntimeTurnPolicy } from "~/lib/runtime-turn-dispatch";
-import { debugAgentLog } from "~/lib/debug-agent-log";
 import {
   coordinateTurnSend,
   dispatchTurnStartFailure,
@@ -1867,31 +1866,6 @@ export default function ChatView(props: ChatViewProps) {
       draftPromotedTo: draftThread?.promotedTo,
       targetThreadRef: threadRefForSend,
     });
-    debugAgentLog(
-      "chat-view.tsx:submitComposerSendSnapshot",
-      "composer send starting",
-      {
-        routeKind,
-        draftId,
-        routeThreadId: threadId,
-        routeThreadKey,
-        composerDraftTarget:
-          typeof composerDraftTarget === "string"
-            ? composerDraftTarget
-            : `${composerDraftTarget.environmentId}:${composerDraftTarget.threadId}`,
-        isServerThread,
-        isLocalDraftThread,
-        activeThreadId: activeThread.id,
-        threadIdForSend,
-        threadExistsBeforeSend: threadAlreadyExistsBeforeSend,
-        shouldBootstrapCreateThread: isLocalDraftThread && !threadAlreadyExistsBeforeSend,
-        serverThreadId: serverThread?.id ?? null,
-        draftThreadId: draftThread?.threadId ?? null,
-        draftPromotedTo: draftThread?.promotedTo?.threadId ?? null,
-        serverThreadMessageCount: serverThread?.messages.length ?? null,
-      },
-      "H1-H4",
-    );
     const isFirstMessage = !isServerThread || activeThread.messages.length === 0;
     const currentSendEnvMode = resolveSendEnvMode({
       requestedEnvMode: envMode,
@@ -2048,17 +2022,6 @@ export default function ChatView(props: ChatViewProps) {
         }
         const promotedThreadRef = scopeThreadRef(environmentId, threadIdForSend);
         const promotedThreadKey = scopedThreadKey(promotedThreadRef);
-        debugAgentLog(
-          "chat-view.tsx:promoteLocalDraft",
-          "draft promotion",
-          {
-            draftId,
-            routeThreadKey,
-            promotedThreadId: threadIdForSend,
-            promotedThreadKey,
-          },
-          "H5",
-        );
         markDraftThreadPromoting(draftId, promotedThreadRef);
         copyThreadSendIntents(routeThreadKey, promotedThreadKey, new Set([messageIdForSend]));
         copyLocalDispatch(routeThreadKey, promotedThreadKey);

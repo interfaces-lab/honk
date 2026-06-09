@@ -29,7 +29,6 @@ import {
   type MessagesTimelineRow,
 } from "./timeline-rows";
 import { cn } from "~/lib/utils";
-import { debugAgentLog } from "~/lib/debug-agent-log";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   GroupedStepsRenderer,
@@ -161,46 +160,6 @@ export function MessagesTimeline({
     ],
   );
   const rows = useStableRows(rawRows);
-
-  // #region agent log
-  useMountEffect(() => {
-    debugAgentLog(
-      "messages-timeline.tsx:MessagesTimeline",
-      "timeline mounted",
-      { timelineCacheKey, rowCount: rows.length, isTurnActive },
-      "H-REMOUNT",
-    );
-    return () => {
-      debugAgentLog(
-        "messages-timeline.tsx:MessagesTimeline",
-        "timeline unmounted",
-        { timelineCacheKey },
-        "H-REMOUNT",
-      );
-    };
-  });
-  const previousTailWorkRowIdRef = useRef<string | null>(null);
-  {
-    const tailWorkRow = [...rows]
-      .reverse()
-      .find((row): row is Extract<MessagesTimelineRow, { kind: "work" }> => row.kind === "work");
-    const tailWorkRowId = tailWorkRow?.id ?? null;
-    if (
-      previousTailWorkRowIdRef.current !== null &&
-      tailWorkRowId !== null &&
-      previousTailWorkRowIdRef.current !== tailWorkRowId
-    ) {
-      debugAgentLog(
-        "messages-timeline.tsx:MessagesTimeline",
-        "tail work-group row id changed",
-        { from: previousTailWorkRowIdRef.current, to: tailWorkRowId, isTurnActive },
-        "H-IDSWAP",
-      );
-    }
-    previousTailWorkRowIdRef.current = tailWorkRowId;
-  }
-  // #endregion
-
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );

@@ -28,7 +28,6 @@ import {
   type PreparedRuntimeTurnPolicy,
   sendRuntimeTurnWithPreparedPolicy,
 } from "./runtime-turn-dispatch";
-import { debugAgentLog } from "./debug-agent-log";
 
 export interface TurnSendMessageContent {
   readonly text: string;
@@ -76,19 +75,6 @@ export interface CoordinateTurnSendResult {
 export async function coordinateTurnSend(
   input: CoordinateTurnSendInput,
 ): Promise<CoordinateTurnSendResult> {
-  debugAgentLog(
-    "turn-send-coordinator.ts:coordinateTurnSend",
-    "coordinateTurnSend invoked",
-    {
-      threadKey: input.threadKey,
-      threadId: input.threadId,
-      clientMessageId: input.clientMessageId,
-      parentEntryId: input.parentEntryId,
-      appendSendIntent: input.appendSendIntent ?? true,
-      hasBootstrapCreateThread: Boolean(input.bootstrap?.createThread),
-    },
-    "H3-H4",
-  );
   if (input.appendSendIntent !== false) {
     useThreadSendIntentStore.getState().appendSendIntent(
       input.threadKey,
