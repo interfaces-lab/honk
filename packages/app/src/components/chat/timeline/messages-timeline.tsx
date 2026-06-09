@@ -34,11 +34,11 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   GroupedStepsRenderer,
   StepRenderer,
+  countRenderableWorkGroupPreviewSteps,
   runningWorkGroupPreviewOutputStripExtraPx,
   WORK_GROUP_HEADER_GAP_PX,
   WORK_GROUP_HEADER_PX,
   WORK_GROUP_PREVIEW_ENTRY_PX,
-  WORK_GROUP_PREVIEW_MAX_ENTRIES,
   WORK_GROUP_PREVIEW_PX,
   WORK_GROUP_STEP_GAP_PX,
   type StepRendererContext,
@@ -948,21 +948,20 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
   }
 
   if (row.isRunning) {
-    const previewCount = Math.min(row.steps.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
+    const previewCount = countRenderableWorkGroupPreviewSteps(row.steps);
     const previewStepsHeight =
       previewCount > 0
         ? previewCount * WORK_GROUP_PREVIEW_ENTRY_PX +
           Math.max(0, previewCount - 1) * WORK_GROUP_STEP_GAP_PX
         : 0;
-    const previewContentHeight = Math.min(WORK_GROUP_PREVIEW_PX, previewStepsHeight);
+    const previewRawHeight =
+      previewStepsHeight + runningWorkGroupPreviewOutputStripExtraPx(row.steps);
+    const previewContentHeight = Math.min(WORK_GROUP_PREVIEW_PX, previewRawHeight);
     const previewPaddingTop =
       previewCount > 0 && previewContentHeight >= WORK_GROUP_PREVIEW_PX
         ? WORK_GROUP_STEP_GAP_PX
         : 0;
-    const previewHeight =
-      previewContentHeight +
-      previewPaddingTop +
-      runningWorkGroupPreviewOutputStripExtraPx(row.steps);
+    const previewHeight = previewContentHeight + previewPaddingTop;
     return WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
   }
 

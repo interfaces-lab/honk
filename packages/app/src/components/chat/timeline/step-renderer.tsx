@@ -28,6 +28,7 @@ import ChatMarkdown from "../markdown/chat-markdown";
 import {
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
+  type TimelineGroupedStep,
   type TimelineRuntimeExtensionUiRequestStep,
   type TimelineRuntimeTaskStep,
   type TimelineRuntimeThinkingStep,
@@ -46,7 +47,6 @@ export const WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX = 90;
 export const WORK_GROUP_HEADER_PX = 28;
 export const WORK_GROUP_HEADER_GAP_PX = 4;
 export const WORK_GROUP_STEP_GAP_PX = 6;
-export const WORK_GROUP_PREVIEW_MAX_ENTRIES = 6;
 
 // messages-timeline estimateTimelineRowSize (running preview): when the last preview step is a
 // running shell/edit with output, add WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX + WORK_GROUP_STEP_GAP_PX
@@ -430,8 +430,8 @@ function WorkGroupPreview({
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
   const [previewScrollable, setPreviewScrollable] = useState(false);
   const steps = row.steps;
-  const previewSteps = steps.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
-  const lastStep = steps.at(-1);
+  const previewSteps = steps.filter(isRenderableWorkGroupPreviewStep);
+  const lastStep = previewSteps.at(-1);
   const lastStepId = lastStep?.id;
   const previewStepCount = previewSteps.length;
   const lastRunningOutputStepId = resolveLastRunningPreviewOutputStepId(lastStep);
@@ -578,7 +578,7 @@ function CompactToolOutputStrip({
 }
 
 function resolveLastRunningPreviewOutputStepId(
-  lastStep: TimelineStep | undefined,
+  lastStep: TimelineGroupedStep | undefined,
 ): string | null {
   if (!lastStep || !isPreviewShellOrEditStep(lastStep) || !isPreviewOutputStepRunning(lastStep)) {
     return null;
@@ -588,9 +588,9 @@ function resolveLastRunningPreviewOutputStepId(
 
 /** Extra preview height when the last running shell/edit step shows the output strip. */
 export function runningWorkGroupPreviewOutputStripExtraPx(
-  steps: readonly TimelineStep[],
+  steps: readonly TimelineGroupedStep[],
 ): number {
-  const lastStep = steps.at(-1);
+  const lastStep = findLastRenderableWorkGroupPreviewStep(steps);
   if (!lastStep || resolveLastRunningPreviewOutputStepId(lastStep) !== lastStep.id) {
     return 0;
   }
@@ -600,6 +600,37 @@ export function runningWorkGroupPreviewOutputStripExtraPx(
     WORK_GROUP_STEP_GAP_PX -
     WORK_GROUP_PREVIEW_ENTRY_PX
   );
+}
+
+export function countRenderableWorkGroupPreviewSteps(
+  steps: readonly TimelineGroupedStep[],
+): number {
+  let count = 0;
+  for (const step of steps) {
+    if (isRenderableWorkGroupPreviewStep(step)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function isRenderableWorkGroupPreviewStep(step: TimelineGroupedStep): boolean {
+  if (step.kind !== "runtime-thinking") {
+    return true;
+  }
+  return (step.message.thinking?.trim().length ?? 0) > 0;
+}
+
+function findLastRenderableWorkGroupPreviewStep(
+  steps: readonly TimelineGroupedStep[],
+): TimelineGroupedStep | undefined {
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
+    if (step && isRenderableWorkGroupPreviewStep(step)) {
+      return step;
+    }
+  }
+  return undefined;
 }
 
 function getPreviewStepOutputScrollKey(step: TimelineStep): string {

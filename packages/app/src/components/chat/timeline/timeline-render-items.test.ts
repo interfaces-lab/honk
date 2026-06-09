@@ -5,7 +5,15 @@ import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import {
   deriveTimelineRenderItems,
   readTailGroupSnapshot,
+  type TimelineGroupedStep,
 } from "./timeline-render-items";
+import {
+  countRenderableWorkGroupPreviewSteps,
+  runningWorkGroupPreviewOutputStripExtraPx,
+  WORK_GROUP_PREVIEW_ENTRY_PX,
+  WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX,
+  WORK_GROUP_STEP_GAP_PX,
+} from "./step-renderer";
 
 const userId = MessageId.make("message:user");
 const assistantId = MessageId.make("message:assistant");
@@ -957,6 +965,82 @@ describe("deriveTimelineRenderItems", () => {
           steps: [expect.objectContaining({ kind: "runtime-tool" })],
         }),
       }),
+    );
+  });
+
+  it("keeps active runtime groups running when the orchestration working flag lags", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-orchestration-lag",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+        {
+          kind: "message",
+          id: "message:assistant",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          message: {
+            id: assistantId,
+            role: "assistant",
+            text: "Still working",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            streaming: true,
+          },
+        },
+      ],
+      isWorking: false,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+          completedDurationLabel: null,
+        }),
+      }),
+    );
+  });
+
+  it("ignores empty streaming thinking markers in collapsed preview accounting", () => {
+    const shellEntry = runtimeShellTool({
+      id: "tool:shell-preview-output",
+      createdAt: "2026-06-05T16:00:01.000Z",
+      status: "running",
+    });
+    const steps = [
+      {
+        kind: "runtime-tool",
+        id: shellEntry.id,
+        createdAt: shellEntry.createdAt,
+        tool: shellEntry.tool,
+      },
+      {
+        kind: "runtime-thinking",
+        id: "message:assistant:thinking",
+        createdAt: "2026-06-05T16:00:02.000Z",
+        message: {
+          id: "message:assistant",
+          kind: "message",
+          source: "live-event",
+          orderKey: "2026-06-05T16:00:02.000Z:message:assistant",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          role: "assistant",
+          eventIds: [],
+          streaming: true,
+        },
+      },
+    ] satisfies TimelineGroupedStep[];
+
+    expect(countRenderableWorkGroupPreviewSteps(steps)).toBe(1);
+    expect(runningWorkGroupPreviewOutputStripExtraPx(steps)).toBe(
+      WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX +
+        WORK_GROUP_STEP_GAP_PX -
+        WORK_GROUP_PREVIEW_ENTRY_PX,
     );
   });
 

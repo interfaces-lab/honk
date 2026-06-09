@@ -755,8 +755,7 @@ function summarizeRuntimeGroup(
   input: { isWorking: boolean; isTurnActive: boolean; projectRoot?: string | undefined },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running =
-    input.isWorking && input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
+  const running = input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const toolSteps = steps.filter((step) => step.kind === "runtime-tool");
   const commandCount = toolSteps.filter(isRuntimeCommandToolStep).length;
@@ -793,7 +792,7 @@ function summarizeRuntimeWaitingGroup(
   input: { isWorking: boolean; isTurnActive: boolean },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isWorking && input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
+  const running = input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const awaitSteps = steps.filter(
     (step): step is TimelineRuntimeToolStep =>
@@ -824,7 +823,7 @@ function summarizeRuntimeBrowserGroup(
   input: { isWorking: boolean; isTurnActive: boolean },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isWorking && input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
+  const running = input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const browserCount = countRuntimeBrowserMcpToolSteps(steps);
   return {
@@ -993,7 +992,7 @@ export function resolveTailWorkGroupRunning(
   group: GroupedSteps,
   input: { isTurnActive: boolean; isWorking: boolean },
 ): boolean {
-  if (!input.isTurnActive || !input.isWorking) {
+  if (!input.isTurnActive) {
     return false;
   }
   return group.steps.some(isActivelyRunningGroupedStep);
@@ -1019,7 +1018,7 @@ function findTailGroupRenderItemIndex(
   items: ReadonlyArray<TimelineRenderItem>,
   input: { isTurnActive: boolean; isWorking: boolean },
 ): number {
-  if (input.isWorking) {
+  if (input.isTurnActive) {
     for (let index = items.length - 1; index >= 0; index -= 1) {
       const item = items[index];
       if (item?.kind !== "group") {
