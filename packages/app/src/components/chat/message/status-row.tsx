@@ -9,7 +9,6 @@ import {
 } from "./waiting-status";
 
 export function WorkingStatusRow({
-  phase,
   elapsedStartedAt,
 }: {
   phase: WaitingPhase;
@@ -17,8 +16,8 @@ export function WorkingStatusRow({
 }) {
   const nowMs = useNowMs(500);
   const label = useMemo(
-    () => resolveWaitingStatusLabel({ phase, elapsedStartedAt, nowMs }),
-    [elapsedStartedAt, nowMs, phase],
+    () => resolveWaitingStatusLabel({ elapsedStartedAt, nowMs }),
+    [elapsedStartedAt, nowMs],
   );
 
   return (

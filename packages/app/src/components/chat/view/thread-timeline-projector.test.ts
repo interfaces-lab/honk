@@ -322,7 +322,7 @@ describe("projectThreadTimeline", () => {
     });
   });
 
-  it("uses processing-tool-calls after completed runtime thinking before the first tool", () => {
+  it("does not append a waiting row after completed runtime thinking before the first tool", () => {
     const thinkingCompletedAt = "2026-06-05T16:00:02.500Z";
     const runtimeTimeline = {
       threadId,
@@ -349,13 +349,12 @@ describe("projectThreadTimeline", () => {
       activeTurnStartedAt: turnStartedAt,
     });
 
-    expect(entries.at(-1)).toEqual({
-      id: "working-indicator-row",
-      kind: "waiting",
-      createdAt: turnStartedAt,
-      phase: "processing-tool-calls",
-      elapsedStartedAt: thinkingCompletedAt,
-    });
+    expect(entries.at(-1)).toEqual(
+      expect.objectContaining({
+        kind: "runtime-thinking",
+      }),
+    );
+    expect(entries.some((entry) => entry.kind === "waiting")).toBe(false);
   });
 
   it("materializes unacknowledged send intents as message rows", () => {

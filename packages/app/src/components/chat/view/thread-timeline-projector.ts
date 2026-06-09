@@ -557,7 +557,6 @@ function appendWaitingTimelineEntry(input: {
     return input.entries;
   }
   const waitingStatus = resolveWaitingTimelineStatus({
-    entries: input.entries,
     activeTurnStartedAt: input.activeTurnStartedAt,
   });
   return [
@@ -581,19 +580,27 @@ function timelineEntriesEndWithStatusSurface(
     return false;
   }
   if (lastEntry.kind === "work") {
+    const trailingWork = trailingWorkEntries(entries);
+    if (input.isTurnActive && input.isWorking && trailingWork.length > 0) {
+      return true;
+    }
     return (
       input.isTurnActive &&
-      trailingWorkEntries(entries).some((entry) => entry.entry.status === "running")
+      trailingWork.some((entry) => entry.entry.status === "running")
     );
   }
   if (lastEntry.kind === "runtime-tool" && lastEntry.tool.display?.kind === "subagent") {
     return lastEntry.tool.status === "running";
   }
   if (isRuntimeGroupableTimelineEntry(lastEntry)) {
+    const trailingRuntime = trailingRuntimeGroupEntries(entries);
+    if (input.isTurnActive && input.isWorking && trailingRuntime.length > 0) {
+      return true;
+    }
     return (
       input.isWorking &&
       input.isTurnActive &&
-      trailingRuntimeGroupEntries(entries).some(isRunningRuntimeTimelineEntry)
+      trailingRuntime.some(isRunningRuntimeTimelineEntry)
     );
   }
   if (lastEntry.kind === "message") {

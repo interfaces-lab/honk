@@ -240,7 +240,7 @@ export interface LatestProposedPlanState {
   implementationThreadId: ThreadId | null;
 }
 
-export type WaitingPhase = "thinking" | "processing-tool-calls";
+export type WaitingPhase = "thinking";
 
 export type TimelineEntry =
   | {

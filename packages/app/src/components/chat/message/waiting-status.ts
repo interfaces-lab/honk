@@ -1,14 +1,8 @@
-import type { TimelineEntry, WaitingPhase } from "../../../session-logic";
+import type { WaitingPhase } from "../../../session-logic";
 
 export type { WaitingPhase };
 
-export const WAITING_PHASE_LABELS: Record<WaitingPhase, string> = {
-  thinking: "Thinking",
-  "processing-tool-calls": "Processing tool calls",
-};
-
-/** Cursor agent-loop: after 500ms in thinking with no new activity, show processing. */
-export const WAITING_THINKING_TO_PROCESSING_MS = 500;
+export const WAITING_PHASE_LABEL = "Thinking";
 
 export interface WaitingTimelineStatus {
   phase: WaitingPhase;
@@ -16,49 +10,21 @@ export interface WaitingTimelineStatus {
 }
 
 export function resolveWaitingTimelineStatus(input: {
-  readonly entries: ReadonlyArray<TimelineEntry>;
   readonly activeTurnStartedAt: string | null;
 }): WaitingTimelineStatus {
-  const lastEntry = input.entries.at(-1);
-  if (lastEntry && isCompletedActivityTimelineEntry(lastEntry)) {
-    return {
-      phase: "processing-tool-calls",
-      elapsedStartedAt: lastEntry.createdAt ?? input.activeTurnStartedAt,
-    };
-  }
-
   return {
     phase: "thinking",
     elapsedStartedAt: input.activeTurnStartedAt,
   };
 }
 
-function isCompletedActivityTimelineEntry(entry: TimelineEntry): boolean {
-  switch (entry.kind) {
-    case "runtime-thinking":
-      return entry.message.streaming !== true;
-    case "runtime-tool":
-      return entry.tool.status !== "running";
-    case "work":
-      return entry.entry.status !== "running";
-    default:
-      return false;
-  }
-}
-
 export function resolveWaitingStatusLabel(input: {
-  readonly phase: WaitingPhase;
   readonly elapsedStartedAt: string | null;
   readonly nowMs: number;
 }): string {
   const elapsedMs = resolveWaitingElapsedMs(input.elapsedStartedAt, input.nowMs);
-  const effectivePhase =
-    input.phase === "thinking" && elapsedMs >= WAITING_THINKING_TO_PROCESSING_MS
-      ? "processing-tool-calls"
-      : input.phase;
-  const label = WAITING_PHASE_LABELS[effectivePhase];
   const elapsedLabel = formatWaitingElapsedLabel(elapsedMs);
-  return elapsedLabel ? `${label} ${elapsedLabel}` : label;
+  return elapsedLabel ? `${WAITING_PHASE_LABEL} ${elapsedLabel}` : WAITING_PHASE_LABEL;
 }
 
 function resolveWaitingElapsedMs(
