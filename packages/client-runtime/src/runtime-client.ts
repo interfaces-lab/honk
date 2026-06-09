@@ -1,6 +1,10 @@
 import {
   AuthProviderId,
+  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
+  decodeAgentPreferences,
+  decodeMultiRuntimeHostEvent,
+  decodeMultiRuntimeHostSnapshot,
   type AgentPreferences,
   type LocalApi,
   type MultiRuntimeApi,
@@ -13,6 +17,8 @@ const now = () => new Date().toISOString();
 const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   agentMode: "deep",
   interactionMode: "agent",
+  modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+  modelSettingsByModelId: {},
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [
@@ -50,6 +56,7 @@ export function createEmptyRuntimeHostSnapshot(
 ): MultiRuntimeHostSnapshot {
   return {
     preferences,
+    models: [],
     authStatuses: [],
     credentialAuthFlows: [],
     diagnostics: [
@@ -117,7 +124,7 @@ export function createRuntimeClient(): MultiRuntimeApi {
   if (!runtime) {
     throw runtimeHostUnavailableError();
   }
-  return runtime;
+  return createRuntimeClientFromApi(runtime);
 }
 
 export function readMultiRuntimeApi(): MultiRuntimeApi {
@@ -143,7 +150,22 @@ export async function assertRuntimeHostAvailable(): Promise<void> {
 }
 
 export function createRuntimeClientFromApi(runtime: MultiRuntimeApi): MultiRuntimeApi {
-  return runtime;
+  return {
+    getHostSnapshot: async () => decodeMultiRuntimeHostSnapshot(await runtime.getHostSnapshot()),
+    getPreferences: async () => decodeAgentPreferences(await runtime.getPreferences()),
+    updatePreferences: async (patch) =>
+      decodeAgentPreferences(await runtime.updatePreferences(patch)),
+    configureCredential: async (input) =>
+      decodeMultiRuntimeHostSnapshot(await runtime.configureCredential(input)),
+    hydrateThread: (input) => runtime.hydrateThread(input),
+    sendTurn: (input) => runtime.sendTurn(input),
+    abort: (input) => runtime.abort(input),
+    respondToExtensionUiRequest: (input) => runtime.respondToExtensionUiRequest(input),
+    onHostEvent: (listener) =>
+      runtime.onHostEvent((event) => {
+        listener(decodeMultiRuntimeHostEvent(event));
+      }),
+  };
 }
 
 export type { MultiRuntimeApi, MultiRuntimeHostEvent, MultiRuntimeHostSnapshot };

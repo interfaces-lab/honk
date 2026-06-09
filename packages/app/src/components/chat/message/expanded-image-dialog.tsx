@@ -5,7 +5,8 @@ import {
   IconCrossMediumDefault,
 } from "central-icons";
 import { Button } from "@multi/multikit/button";
-import type { ExpandedImagePreview } from "./expanded-image-preview";
+import type { ExpandedImageItem, ExpandedImagePreview } from "./expanded-image-preview";
+import { useAuthenticatedImagePreviewSrc } from "./authenticated-image-preview";
 
 interface ExpandedImageDialogProps {
   preview: ExpandedImagePreview;
@@ -87,12 +88,7 @@ export function ExpandedImageDialog({
         >
           <IconCrossMediumDefault />
         </Button>
-        <img
-          src={item.src}
-          alt={item.name}
-          className="max-h-[86vh] max-w-full select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
-          draggable={false}
-        />
+        <ExpandedPreviewImage item={item} />
         <p className="mt-2 max-w-full truncate text-center text-xs text-muted-foreground/80">
           {item.name}
           {preview.images.length > 1 ? ` (${index + 1}/${preview.images.length})` : ""}
@@ -111,5 +107,26 @@ export function ExpandedImageDialog({
         </Button>
       )}
     </div>
+  );
+}
+
+function ExpandedPreviewImage(props: { item: ExpandedImageItem }) {
+  const previewSrc = useAuthenticatedImagePreviewSrc(props.item.src);
+
+  if (!previewSrc) {
+    return (
+      <div className="flex min-h-40 min-w-64 max-w-full items-center justify-center rounded-lg border border-border/70 bg-background px-4 py-8 text-center text-sm text-muted-foreground/80 shadow-2xl">
+        {props.item.name}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={previewSrc}
+      alt={props.item.name}
+      className="max-h-[86vh] max-w-full select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
+      draggable={false}
+    />
   );
 }

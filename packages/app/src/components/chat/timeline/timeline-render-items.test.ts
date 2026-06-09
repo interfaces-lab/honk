@@ -2,7 +2,10 @@ import { MessageId, RuntimeSessionId, ThreadId } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
-import { deriveTimelineRenderItems } from "./timeline-render-items";
+import {
+  deriveTimelineRenderItems,
+  readTailGroupSnapshot,
+} from "./timeline-render-items";
 
 const userId = MessageId.make("message:user");
 const assistantId = MessageId.make("message:assistant");
@@ -18,6 +21,114 @@ function workEntry(input: Partial<WorkLogEntry> & Pick<WorkLogEntry, "id" | "cre
     tone: "tool",
     status: "completed",
     ...input,
+  };
+}
+
+function runtimeReadTool(input: {
+  id: string;
+  createdAt: string;
+  status: "running" | "completed";
+  path?: string;
+}): Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  return {
+    kind: "runtime-tool",
+    id: input.id,
+    createdAt: input.createdAt,
+    tool: {
+      id: input.id,
+      kind: "tool",
+      orderKey: `${input.createdAt}:${input.id}`,
+      createdAt: input.createdAt,
+      toolCallId: input.id,
+      toolName: "read",
+      status: input.status,
+      eventIds: [],
+      display: {
+        kind: "read",
+        path: input.path ?? "/repo/src/app.ts",
+      },
+    },
+  };
+}
+
+function runtimeAwaitTool(input: {
+  id: string;
+  createdAt: string;
+  status: "running" | "completed";
+  taskId?: string;
+}): Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  return {
+    kind: "runtime-tool",
+    id: input.id,
+    createdAt: input.createdAt,
+    tool: {
+      id: input.id,
+      kind: "tool",
+      orderKey: `${input.createdAt}:${input.id}`,
+      createdAt: input.createdAt,
+      toolCallId: input.id,
+      toolName: "await",
+      status: input.status,
+      eventIds: [],
+      args: input.taskId ? { taskId: input.taskId } : {},
+      display: {
+        kind: "unknown",
+        toolName: "await",
+      },
+    },
+  };
+}
+
+function runtimeBrowserMcpTool(input: {
+  id: string;
+  createdAt: string;
+  status: "running" | "completed";
+}): Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  return {
+    kind: "runtime-tool",
+    id: input.id,
+    createdAt: input.createdAt,
+    tool: {
+      id: input.id,
+      kind: "tool",
+      orderKey: `${input.createdAt}:${input.id}`,
+      createdAt: input.createdAt,
+      toolCallId: input.id,
+      toolName: "browser_navigate",
+      status: input.status,
+      eventIds: [],
+      display: {
+        kind: "mcp",
+        providerIdentifier: "cursor-ide-browser",
+      },
+    },
+  };
+}
+
+function runtimeShellTool(input: {
+  id: string;
+  createdAt: string;
+  status: "running" | "completed";
+}): Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  return {
+    kind: "runtime-tool",
+    id: input.id,
+    createdAt: input.createdAt,
+    tool: {
+      id: input.id,
+      kind: "tool",
+      orderKey: `${input.createdAt}:${input.id}`,
+      createdAt: input.createdAt,
+      toolCallId: input.id,
+      toolName: "shell",
+      status: input.status,
+      eventIds: [],
+      display: {
+        kind: "shell",
+        command: "pnpm test",
+        output: input.status === "running" ? "running" : "done",
+      },
+    },
   };
 }
 
@@ -151,7 +262,7 @@ describe("deriveTimelineRenderItems", () => {
         group: expect.objectContaining({
           isThinkingGroup: true,
           isCommandGroup: false,
-          summary: { action: "Thought", details: "for 2 seconds" },
+          summary: { action: "Thought", details: "for 2s" },
         }),
       }),
       expect.objectContaining({
@@ -163,7 +274,7 @@ describe("deriveTimelineRenderItems", () => {
           completedDurationLabel: "2 seconds",
           summary: {
             action: "Edited",
-            details: "repo/src/app.ts, explored 1 command",
+            details: "repo/src/app.ts, ran 1 command",
             additions: 4,
             deletions: 1,
           },
@@ -179,6 +290,8 @@ describe("deriveTimelineRenderItems", () => {
           kind: "waiting",
           id: "working-indicator-row",
           createdAt: "2026-06-05T16:00:00.000Z",
+          phase: "thinking",
+          elapsedStartedAt: "2026-06-05T16:00:00.000Z",
         },
       ],
       isWorking: true,
@@ -269,9 +382,10 @@ describe("deriveTimelineRenderItems", () => {
         group: expect.objectContaining({
           entries: [],
           isRunning: true,
+          isTailGroup: true,
           summary: {
-            action: "Working",
-            details: "1 thought, 2 tools",
+            action: "Running",
+            details: "2 commands",
           },
           steps: [
             expect.objectContaining({ kind: "runtime-thinking" }),
@@ -351,8 +465,12 @@ describe("deriveTimelineRenderItems", () => {
 
     expect(rows).toEqual([
       expect.objectContaining({
-        kind: "single",
-        step: expect.objectContaining({ kind: "runtime-thinking" }),
+        kind: "group",
+        id: "message:assistant:thinking",
+        group: expect.objectContaining({
+          isThinkingGroup: true,
+          summary: { action: "Thought", details: "briefly" },
+        }),
       }),
       expect.objectContaining({
         kind: "single",
@@ -453,9 +571,10 @@ describe("deriveTimelineRenderItems", () => {
         group: expect.objectContaining({
           completedDurationLabel: null,
           isRunning: true,
+          isTailGroup: true,
           summary: {
-            action: "Working",
-            details: "1 thought, 1 tool",
+            action: "Running",
+            details: "1 command",
           },
           steps: [
             expect.objectContaining({ kind: "runtime-thinking" }),
@@ -464,6 +583,425 @@ describe("deriveTimelineRenderItems", () => {
               tool: expect.objectContaining({ status: "running" }),
             }),
           ],
+        }),
+      }),
+    ]);
+  });
+
+  it("uses briefly for sub-500ms thinking groups", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "work",
+          id: "work:brief-thinking",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          entry: workEntry({
+            id: "brief-thinking",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            completedAt: "2026-06-05T16:00:01.300Z",
+            tone: "thinking",
+          }),
+        },
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          summary: { action: "Thought", details: "briefly" },
+        }),
+      }),
+    );
+  });
+
+  it("summarizes exploration-only work groups as explored segments", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "work",
+          id: "work:read",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          entry: workEntry({
+            id: "read",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            itemType: "file_read",
+            artifacts: [{ type: "read", path: "/repo/src/a.ts" }],
+          }),
+        },
+        {
+          kind: "work",
+          id: "work:search",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          entry: workEntry({
+            id: "search",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            itemType: "file_search",
+            artifacts: [{ type: "search", matchedFiles: ["/repo/src/b.ts"] }],
+          }),
+        },
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          summary: {
+            action: "Explored",
+            details: "2 files, 1 search",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("summarizes delete-only work groups with deleted vocabulary", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "work",
+          id: "work:delete",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          entry: workEntry({
+            id: "delete",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            requestKind: "file-change",
+            artifacts: [
+              {
+                type: "diff",
+                format: "unified",
+                source: "result",
+                files: [{ path: "/repo/src/old.ts", additions: 0, deletions: 12 }],
+                unifiedDiff: "@@",
+              },
+            ],
+          }),
+        },
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+      projectRoot: "/repo",
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          summary: {
+            action: "Deleted",
+            details: "repo/src/old.ts",
+            deletions: 12,
+          },
+        }),
+      }),
+    );
+  });
+
+  it("summarizes browser-only runtime groups with browser action counts", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "runtime-tool",
+          id: "tool:browser-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          tool: {
+            id: "tool:browser-1",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:01.000Z:tool:browser-1",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            toolCallId: "toolu-browser-1",
+            toolName: "mcp_cursor-ide-browser_browser_navigate",
+            status: "completed",
+            eventIds: [],
+            display: {
+              kind: "mcp",
+              providerIdentifier: "cursor-ide-browser",
+            },
+          },
+        },
+        {
+          kind: "runtime-tool",
+          id: "tool:browser-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          tool: {
+            id: "tool:browser-2",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:02.000Z:tool:browser-2",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            toolCallId: "toolu-browser-2",
+            toolName: "mcp_cursor-ide-browser_browser_snapshot",
+            status: "completed",
+            eventIds: [],
+            display: {
+              kind: "mcp",
+              providerIdentifier: "cursor-ide-browser",
+            },
+          },
+        },
+        {
+          kind: "runtime-tool",
+          id: "tool:browser-3",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          tool: {
+            id: "tool:browser-3",
+            kind: "tool",
+            orderKey: "2026-06-05T16:00:03.000Z:tool:browser-3",
+            createdAt: "2026-06-05T16:00:03.000Z",
+            toolCallId: "toolu-browser-3",
+            toolName: "mcp_cursor-ide-browser_browser_click",
+            status: "completed",
+            eventIds: [],
+            display: {
+              kind: "mcp",
+              providerIdentifier: "cursor-ide-browser",
+            },
+          },
+        },
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isBrowserGroup: true,
+          summary: {
+            action: "Ran",
+            details: "3 browser actions",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("applies tail-only loading semantics so only the last group stays active", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "work",
+          id: "work:earlier-running",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          entry: workEntry({
+            id: "earlier-running",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            status: "running",
+            itemType: "command_execution",
+            artifacts: [{ type: "command", durationMs: 1_000 }],
+          }),
+        },
+        {
+          kind: "message",
+          id: "message:boundary",
+          createdAt: "2026-06-05T16:00:01.500Z",
+          message: {
+            id: MessageId.make("message:boundary"),
+            role: "user",
+            text: "continue",
+            createdAt: "2026-06-05T16:00:01.500Z",
+            streaming: false,
+          },
+        },
+        {
+          kind: "work",
+          id: "work:tail-running",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          entry: workEntry({
+            id: "tail-running",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            status: "running",
+            itemType: "command_execution",
+            artifacts: [{ type: "command", durationMs: 500 }],
+          }),
+        },
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: false,
+          isTailGroup: false,
+          summary: {
+            action: "Ran",
+            details: "1 command",
+          },
+        }),
+      }),
+    );
+    expect(rows[2]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+          completedDurationLabel: null,
+          summary: {
+            action: "Running",
+            details: "1 command",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("keeps a single completed explore tool ungrouped", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeReadTool({
+          id: "tool:read-single",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "single",
+        step: expect.objectContaining({
+          kind: "runtime-tool",
+          tool: expect.objectContaining({ toolCallId: "tool:read-single" }),
+        }),
+      }),
+    ]);
+  });
+
+  it("groups a single running shell tool", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-single",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+          summary: {
+            action: "Running",
+            details: "1 command",
+          },
+        }),
+      }),
+    ]);
+  });
+
+  it("requires three explore-only runtime tools before collapsing", () => {
+    const twoReads = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeReadTool({
+          id: "tool:read-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        runtimeReadTool({
+          id: "tool:read-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "completed",
+        }),
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+    expect(twoReads.map((row) => row.kind)).toEqual(["single", "single"]);
+
+    const threeReads = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeReadTool({
+          id: "tool:read-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+          path: "/repo/src/a.ts",
+        }),
+        runtimeReadTool({
+          id: "tool:read-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "completed",
+          path: "/repo/src/b.ts",
+        }),
+        runtimeReadTool({
+          id: "tool:read-3",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          status: "completed",
+          path: "/repo/src/c.ts",
+        }),
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+    expect(threeReads).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          summary: {
+            action: "Explored",
+            details: "3 files",
+          },
+        }),
+      }),
+    ]);
+  });
+
+  it("reuses a frozen tail snapshot while the turn is active", () => {
+    const priorRows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-tail",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+    const tailGroupSnapshot = readTailGroupSnapshot(priorRows);
+    expect(tailGroupSnapshot).not.toBeNull();
+
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [],
+      tailGroupSnapshot,
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "tool:shell-tail",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
         }),
       }),
     ]);
@@ -528,6 +1066,169 @@ describe("deriveTimelineRenderItems", () => {
         kind: "single",
         id: "extension-ui:request",
         step: expect.objectContaining({ kind: "runtime-extension-ui-request" }),
+      }),
+    ]);
+  });
+
+  it("groups 2+ parallel await tools into a waiting group with monitoring summary", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeAwaitTool({
+          id: "tool:await-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+          taskId: "task-1",
+        }),
+        runtimeAwaitTool({
+          id: "tool:await-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "running",
+          taskId: "task-2",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "tool:await-1",
+        group: expect.objectContaining({
+          isWaitingGroup: true,
+          isBrowserGroup: false,
+          isRunning: true,
+          summary: {
+            action: "Monitoring background tasks",
+            details: "",
+          },
+          steps: [
+            expect.objectContaining({ kind: "runtime-tool", id: "tool:await-1" }),
+            expect.objectContaining({ kind: "runtime-tool", id: "tool:await-2" }),
+          ],
+        }),
+      }),
+    ]);
+  });
+
+  it("summarizes completed waiting groups with monitored background task counts", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeAwaitTool({
+          id: "tool:await-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+          taskId: "task-1",
+        }),
+        runtimeAwaitTool({
+          id: "tool:await-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "completed",
+          taskId: "task-2",
+        }),
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isWaitingGroup: true,
+          isRunning: false,
+          summary: {
+            action: "Monitored background tasks",
+            details: "2 complete",
+          },
+        }),
+      }),
+    ]);
+  });
+
+  it("emits a single await tool outside waiting groups", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeAwaitTool({
+          id: "tool:await-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "single",
+        id: "tool:await-1",
+        step: expect.objectContaining({ kind: "runtime-tool" }),
+      }),
+    ]);
+  });
+
+  it("groups 2+ browser MCP tools into a browser group", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeBrowserMcpTool({
+          id: "tool:browser-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        runtimeBrowserMcpTool({
+          id: "tool:browser-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "completed",
+        }),
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "tool:browser-1",
+        group: expect.objectContaining({
+          isWaitingGroup: false,
+          isBrowserGroup: true,
+          summary: {
+            action: "Ran",
+            details: "2 browser actions",
+          },
+          steps: [
+            expect.objectContaining({ kind: "runtime-tool", id: "tool:browser-1" }),
+            expect.objectContaining({ kind: "runtime-tool", id: "tool:browser-2" }),
+          ],
+        }),
+      }),
+    ]);
+  });
+
+  it("keeps a single browser MCP tool outside browser groups", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeBrowserMcpTool({
+          id: "tool:browser-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "single",
+        id: "tool:browser-1",
+        step: expect.objectContaining({ kind: "runtime-tool" }),
       }),
     ]);
   });

@@ -240,6 +240,8 @@ export interface LatestProposedPlanState {
   implementationThreadId: ThreadId | null;
 }
 
+export type WaitingPhase = "thinking" | "processing-tool-calls";
+
 export type TimelineEntry =
   | {
       id: string;
@@ -281,6 +283,8 @@ export type TimelineEntry =
       id: string;
       kind: "waiting";
       createdAt: string | null;
+      phase: WaitingPhase;
+      elapsedStartedAt: string | null;
     };
 
 export interface FormatDurationOptions {

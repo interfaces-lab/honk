@@ -1,8 +1,5 @@
 import {
-  AccountId,
-  AuthProviderId,
-  ModelId,
-  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   type AgentInteractionMode,
   type AgentModelPolicy,
   type AgentPreferences,
@@ -20,37 +17,33 @@ function thinkingLevelForAgentMode(agentMode: AgentPreferences["agentMode"]): Ag
   }
 }
 
-function canonicalPolicyModelSelection(): AgentModelPolicy["modelSelection"] {
-  const selection = DEFAULT_TEXT_GENERATION_MODEL_SELECTION;
-  const provider = selection.instanceId.trim();
-  const model = selection.model.trim();
-  if (!provider || !model) {
-    throw new Error("Default text generation model selection is invalid.");
+function selectedModelThinkingLevel(input: {
+  readonly preferences: AgentPreferences;
+  readonly modelSelection: AgentModelPolicy["modelSelection"];
+}): AgentThinkingLevel | undefined {
+  if (input.modelSelection.type !== "explicit") {
+    return undefined;
   }
-
-  const authProviderId = AuthProviderId.make(
-    provider === "codex" ? "openai-codex" : provider,
-  );
-  return {
-    type: "explicit",
-    authProviderId,
-    accountId: AccountId.make(`${authProviderId}:default`),
-    modelId: ModelId.make(`${provider}/${model}`),
-  };
+  return input.preferences.modelSettingsByModelId[input.modelSelection.modelId]?.thinkingLevel;
 }
 
 export function createAgentModelPolicy(input: {
   readonly preferences: AgentPreferences;
   readonly interactionMode: AgentInteractionMode;
 }): AgentModelPolicy {
+  const modelSelection = input.preferences.modelSelection ?? DEFAULT_AGENT_POLICY_MODEL_SELECTION;
+  const modelThinkingLevel = selectedModelThinkingLevel({
+    preferences: input.preferences,
+    modelSelection,
+  });
   return {
     agentMode: input.preferences.agentMode,
     interactionMode: input.interactionMode,
-    modelSelection: canonicalPolicyModelSelection(),
+    modelSelection,
     thinkingLevel:
       input.preferences.agentMode === "rush"
         ? thinkingLevelForAgentMode(input.preferences.agentMode)
-        : input.preferences.thinkingLevel,
+        : (modelThinkingLevel ?? input.preferences.thinkingLevel),
     allowedToolNames: [],
     excludedToolNames: [],
   };

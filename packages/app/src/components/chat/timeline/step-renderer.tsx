@@ -3,10 +3,15 @@ import {
   type ThreadId,
 } from "@multi/contracts";
 import { Button } from "@multi/multikit/button";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 
 import { type ChatMessage, type ProposedPlan } from "../../../types";
+import {
+  hasRenderableText,
+  resolveStreamingShellOutput,
+} from "../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { WorkingStatusRow } from "../message/status-row";
@@ -36,10 +41,16 @@ import { type WorkTimelineRow } from "./timeline-rows";
 
 export const WORK_GROUP_PREVIEW_PX = 144;
 export const WORK_GROUP_PREVIEW_ENTRY_PX = 28;
+/** Glanceable output strip on the last running shell/edit step in preview (5 × 18px mono lines). */
+export const WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX = 90;
 export const WORK_GROUP_HEADER_PX = 28;
 export const WORK_GROUP_HEADER_GAP_PX = 4;
 export const WORK_GROUP_STEP_GAP_PX = 6;
 export const WORK_GROUP_PREVIEW_MAX_ENTRIES = 6;
+
+// messages-timeline estimateTimelineRowSize (running preview): when the last preview step is a
+// running shell/edit with output, add WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX + WORK_GROUP_STEP_GAP_PX
+// on top of the one-liner WORK_GROUP_PREVIEW_ENTRY_PX for that step instead of entry height only.
 
 export interface StepRendererContext {
   markdownCwd: string | undefined;
@@ -113,15 +124,13 @@ export function GroupedStepsRenderer({
   editUserMessagesDisabled: boolean;
   ctx: StepRendererContext;
 }) {
-  const summary = row.summary;
   const isRunning = row.isRunning;
-  const isThinkingGroup = row.isThinkingGroup;
   const isCommandGroup = row.isCommandGroup;
-  const headerLabel = isThinkingGroup
-    ? [summary.action, summary.details].filter(Boolean).join(" ")
-    : isRunning
-      ? summary.action
-      : `Worked for ${row.completedDurationLabel ?? "briefly"}`;
+  const isThinkingGroup = row.isThinkingGroup;
+  const isWaitingGroup = row.isWaitingGroup;
+  const isBrowserGroup = row.isBrowserGroup;
+  const showPreview = isRunning && !expanded;
+  const [previewScrollable, setPreviewScrollable] = useState(false);
   const contentId = `timeline-work-group:${row.id}`;
   const handleToggle = () => {
     onToggleExpanded(row.id);
@@ -131,47 +140,25 @@ export function GroupedStepsRenderer({
     <div
       className="flex min-h-0 min-w-0 max-w-agent-chat flex-1 flex-col gap-(--chat-timeline-collapsible-header-gap) py-0.5 text-conversation"
       data-assistant-work-group=""
+      data-waiting-group={isWaitingGroup ? "" : undefined}
+      data-browser-group={isBrowserGroup ? "" : undefined}
       data-work-group-expanded={expanded ? "true" : "false"}
       data-work-group-running={isRunning ? "true" : "false"}
       data-group-loading={isRunning ? "true" : undefined}
+      data-preview-scrollable={showPreview ? (previewScrollable ? "true" : "false") : undefined}
       aria-busy={isRunning ? "true" : undefined}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        className={cn(
-          "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
-          "h-auto border-0 bg-transparent p-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
-          "text-conversation text-multi-fg-tertiary",
-          "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
-        )}
-        aria-expanded={expanded}
-        aria-controls={contentId}
-        onClick={handleToggle}
-        data-work-group-header=""
-      >
-        <span className="shrink-0 whitespace-nowrap tabular-nums">{headerLabel}</span>
-        {!expanded && !isThinkingGroup ? (
-          <>
-            <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
-              ·
-            </span>
-            <WorkGroupSummaryLine summary={summary} />
-          </>
-        ) : null}
-        <IconChevronRightMedium
-          className={cn(
-            "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
-            expanded && "rotate-90",
-          )}
-          aria-hidden="true"
-        />
-      </Button>
+      <WorkGroupHeaderButton
+        row={row}
+        expanded={expanded}
+        contentId={contentId}
+        onToggle={handleToggle}
+      />
       <div id={contentId} className="contents">
         {expanded ? (
           <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
-            {!isCommandGroup && !isThinkingGroup ? (
-              <WorkGroupSummaryLine summary={summary} />
+            {!isCommandGroup && !isThinkingGroup && !isWaitingGroup ? (
+              <WorkGroupSummaryLine summary={row.summary} />
             ) : null}
             {row.steps.map((step) => (
               <StepRenderer
@@ -182,11 +169,88 @@ export function GroupedStepsRenderer({
               />
             ))}
           </div>
-        ) : isRunning ? (
-          <WorkGroupPreview key={`work-preview:${row.id}`} row={row} onExpand={handleToggle} ctx={ctx} />
+        ) : showPreview ? (
+          <WorkGroupPreview
+            key={`work-preview:${row.id}`}
+            row={row}
+            onExpand={handleToggle}
+            onPreviewScrollableChange={setPreviewScrollable}
+            ctx={ctx}
+          />
         ) : null}
       </div>
     </div>
+  );
+}
+
+function WorkGroupHeaderButton({
+  row,
+  expanded,
+  contentId,
+  onToggle,
+}: {
+  row: WorkTimelineRow;
+  expanded: boolean;
+  contentId: string;
+  onToggle: () => void;
+}) {
+  const summary = row.summary;
+  const isRunning = row.isRunning;
+  const isThinkingGroup = row.isThinkingGroup;
+  const isWaitingGroup = row.isWaitingGroup;
+  const [debouncedLoadingAction] = useDebouncedValue(summary.action, { wait: 200 });
+  const actionText = isRunning ? debouncedLoadingAction : summary.action;
+  const showCompletedSummary = !expanded && !isThinkingGroup && !isWaitingGroup && !isRunning;
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
+        "h-auto border-0 bg-transparent p-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+        "text-conversation text-multi-fg-tertiary",
+        "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
+      )}
+      aria-expanded={expanded}
+      aria-controls={contentId}
+      onClick={onToggle}
+      data-work-group-header=""
+    >
+      {isThinkingGroup || isWaitingGroup ? (
+        <>
+          <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary">
+            {actionText}
+          </span>
+          {!isRunning && summary.details ? (
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums">
+              {summary.details}
+            </span>
+          ) : null}
+        </>
+      ) : isRunning ? (
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{actionText}</span>
+      ) : (
+        <span className="shrink-0 whitespace-nowrap tabular-nums">
+          {`Worked for ${row.completedDurationLabel ?? "briefly"}`}
+        </span>
+      )}
+      {showCompletedSummary ? (
+        <>
+          <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
+            ·
+          </span>
+          <WorkGroupSummaryLine summary={summary} />
+        </>
+      ) : null}
+      <IconChevronRightMedium
+        className={cn(
+          "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
+          expanded && "rotate-90",
+        )}
+        aria-hidden="true"
+      />
+    </Button>
   );
 }
 
@@ -327,7 +391,7 @@ function WaitingStepRenderer({ step }: { step: TimelineWaitingStep }) {
       data-waiting-group=""
       data-waiting-step-id={step.id}
     >
-      <WorkingStatusRow />
+      <WorkingStatusRow phase={step.phase} elapsedStartedAt={step.elapsedStartedAt} />
     </div>
   );
 }
@@ -352,38 +416,59 @@ function WorkGroupSummaryLine({ summary }: { summary: WorkGroupSummary }) {
 function WorkGroupPreview({
   row,
   onExpand,
+  onPreviewScrollableChange,
   ctx,
 }: {
   row: WorkTimelineRow;
   onExpand: () => void;
+  onPreviewScrollableChange: (scrollable: boolean) => void;
   ctx: StepRendererContext;
 }) {
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
   const steps = row.steps;
   const previewSteps = steps.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
-  const lastStepId = steps.at(-1)?.id;
+  const lastStep = steps.at(-1);
+  const lastStepId = lastStep?.id;
   const previewStepCount = previewSteps.length;
+  const lastRunningOutputStepId = resolveLastRunningPreviewOutputStepId(lastStep);
+  const lastStepOutputScrollKey =
+    lastStep && lastRunningOutputStepId === lastStep.id
+      ? getPreviewStepOutputScrollKey(lastStep)
+      : null;
+  const thinkingTextLength = steps.reduce((length, step) => {
+    if (step.kind !== "runtime-thinking") {
+      return length;
+    }
+    return length + (step.message.thinking?.length ?? 0);
+  }, 0);
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
     if (!host) return;
     host.scrollTop = host.scrollHeight;
-    updatePreviewScrollable(host);
-  }, [lastStepId, previewStepCount, row.isRunning]);
+    onPreviewScrollableChange(isPreviewScrollable(host));
+  }, [
+    lastStepId,
+    previewStepCount,
+    row.isRunning,
+    lastStepOutputScrollKey,
+    thinkingTextLength,
+    onPreviewScrollableChange,
+  ]);
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
     if (!host) return;
     if (typeof ResizeObserver === "undefined") {
-      updatePreviewScrollable(host);
+      onPreviewScrollableChange(isPreviewScrollable(host));
       return;
     }
     const observer = new ResizeObserver(() => {
-      updatePreviewScrollable(host);
+      onPreviewScrollableChange(isPreviewScrollable(host));
     });
     observer.observe(host);
     return () => observer.disconnect();
-  }, []);
+  }, [onPreviewScrollableChange]);
 
   const onPreviewClick = () => {
     onExpand();
@@ -402,27 +487,199 @@ function WorkGroupPreview({
         onExpand();
       }}
       data-work-group-preview=""
-      data-work-preview-scrollable="false"
+      data-work-group-preview-dimmed=""
       className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      style={{
-        maxHeight: WORK_GROUP_PREVIEW_PX,
-      }}
     >
       {previewSteps.map((step) => (
-        <StepRenderer
+        <WorkGroupPreviewStep
           key={`work-preview-row:${step.id}`}
           step={step}
-          editUserMessagesDisabled={false}
           ctx={ctx}
+          showOutputStrip={step.id === lastRunningOutputStepId}
         />
       ))}
     </div>
   );
 }
 
-function updatePreviewScrollable(host: HTMLDivElement): void {
-  const scrollable = host.scrollHeight > host.clientHeight + 1;
-  host.dataset.workPreviewScrollable = scrollable ? "true" : "false";
+function WorkGroupPreviewStep({
+  step,
+  ctx,
+  showOutputStrip,
+}: {
+  step: TimelineStep;
+  ctx: StepRendererContext;
+  showOutputStrip: boolean;
+}) {
+  const output = showOutputStrip ? resolvePreviewStepOutput(step) : null;
+
+  return (
+    <div
+      className="flex min-w-0 max-w-full flex-col gap-1"
+      data-work-preview-step=""
+      data-work-preview-output={output ? "true" : undefined}
+    >
+      <StepRenderer step={step} editUserMessagesDisabled={false} ctx={ctx} />
+      {output ? <CompactToolOutputStrip output={output.text} loading={output.loading} /> : null}
+    </div>
+  );
+}
+
+function CompactToolOutputStrip({
+  output,
+  loading,
+}: {
+  output: string;
+  loading: boolean;
+}) {
+  const scrollRef = useRef<HTMLPreElement | null>(null);
+  const displayOutput = useMemo(
+    () => resolveStreamingShellOutput(output, loading),
+    [loading, output],
+  );
+
+  useLayoutSyncEffect(() => {
+    const host = scrollRef.current;
+    if (!host) return;
+    host.scrollTop = host.scrollHeight;
+  }, [displayOutput.text]);
+
+  if (!hasRenderableText(displayOutput.text)) {
+    return null;
+  }
+
+  return (
+    <pre
+      ref={scrollRef}
+      data-work-preview-output=""
+      className={cn(
+        "m-0 overflow-x-hidden overflow-y-auto",
+        "font-mono text-detail leading-[18px] text-multi-fg-tertiary",
+        "whitespace-pre-wrap wrap-anywhere select-none",
+        "[overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      )}
+      style={{
+        maxHeight: WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX,
+      }}
+    >
+      {displayOutput.text}
+    </pre>
+  );
+}
+
+function resolveLastRunningPreviewOutputStepId(
+  lastStep: TimelineStep | undefined,
+): string | null {
+  if (!lastStep || !isPreviewShellOrEditStep(lastStep) || !isPreviewOutputStepRunning(lastStep)) {
+    return null;
+  }
+  return resolvePreviewStepOutput(lastStep) ? lastStep.id : null;
+}
+
+/** Extra preview height when the last running shell/edit step shows the output strip. */
+export function runningWorkGroupPreviewOutputStripExtraPx(
+  steps: readonly TimelineStep[],
+): number {
+  const lastStep = steps.at(-1);
+  if (!lastStep || resolveLastRunningPreviewOutputStepId(lastStep) !== lastStep.id) {
+    return 0;
+  }
+
+  return (
+    WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX +
+    WORK_GROUP_STEP_GAP_PX -
+    WORK_GROUP_PREVIEW_ENTRY_PX
+  );
+}
+
+function getPreviewStepOutputScrollKey(step: TimelineStep): string {
+  const output = resolvePreviewStepOutput(step);
+  if (!output) {
+    return step.id;
+  }
+  return `${step.id}:${output.text.length}:${output.loading ? "1" : "0"}`;
+}
+
+interface PreviewStepOutput {
+  text: string;
+  loading: boolean;
+}
+
+function isPreviewOutputStepRunning(step: TimelineStep): boolean {
+  if (step.kind === "runtime-tool") {
+    return step.tool.status === "running";
+  }
+  if (step.kind === "work") {
+    return step.entry.status === "running";
+  }
+  return false;
+}
+
+function isPreviewShellOrEditStep(step: TimelineStep): boolean {
+  if (step.kind === "runtime-tool") {
+    const displayKind = step.tool.display?.kind;
+    return displayKind === "shell" || displayKind === "edit";
+  }
+  if (step.kind === "work") {
+    const entry = step.entry;
+    if (
+      entry.requestKind === "command" ||
+      entry.itemType === "command_execution" ||
+      entry.command
+    ) {
+      return true;
+    }
+    return (
+      entry.requestKind === "file-change" ||
+      entry.itemType === "file_change" ||
+      (entry.changedFiles?.length ?? 0) > 0
+    );
+  }
+  return false;
+}
+
+function resolvePreviewStepOutput(step: TimelineStep): PreviewStepOutput | null {
+  if (step.kind === "runtime-tool") {
+    const display = step.tool.display;
+    if (display?.kind !== "shell" && display?.kind !== "edit") {
+      return null;
+    }
+    const output = display.output?.trim();
+    if (!output || !hasRenderableText(output)) {
+      return null;
+    }
+    return {
+      text: output,
+      loading: step.tool.status === "running",
+    };
+  }
+
+  if (step.kind === "work") {
+    const entry = step.entry;
+    const loading = entry.status === "running";
+    const commandArtifact = entry.artifacts?.find((artifact) => artifact.type === "command");
+    const shellOutput = commandArtifact?.output ?? (entry.command ? entry.output : null);
+    if (shellOutput && hasRenderableText(shellOutput)) {
+      return { text: shellOutput, loading };
+    }
+
+    const editDetail = entry.detail?.trim();
+    if (
+      editDetail &&
+      hasRenderableText(editDetail) &&
+      (entry.requestKind === "file-change" ||
+        entry.itemType === "file_change" ||
+        (entry.changedFiles?.length ?? 0) > 0)
+    ) {
+      return { text: editDetail, loading };
+    }
+  }
+
+  return null;
+}
+
+function isPreviewScrollable(host: HTMLDivElement): boolean {
+  return host.scrollHeight > host.clientHeight + 1;
 }
 
 function WorkGroupStats({ summary }: { summary: WorkGroupSummary }) {

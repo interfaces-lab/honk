@@ -398,8 +398,11 @@ function groupedRuntimeToolRow(status: "running" | "completed"): MessagesTimelin
     createdAt,
     completedDurationLabel: status === "running" ? null : "briefly",
     isRunning: status === "running",
+    isTailGroup: true,
     isThinkingGroup: false,
     isCommandGroup: true,
+    isWaitingGroup: false,
+    isBrowserGroup: false,
     summary: {
       action: status === "running" ? "Running" : "Ran",
       details: "1 command",
@@ -415,8 +418,11 @@ function groupedRuntimeToolRow(status: "running" | "completed"): MessagesTimelin
         createdAt,
         completedDurationLabel: status === "running" ? null : "briefly",
         isRunning: status === "running",
+        isTailGroup: true,
         isThinkingGroup: false,
         isCommandGroup: true,
+        isWaitingGroup: false,
+        isBrowserGroup: false,
         summary: {
           action: status === "running" ? "Running" : "Ran",
           details: "1 command",

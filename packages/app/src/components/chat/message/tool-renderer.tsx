@@ -15,6 +15,7 @@ import { cva } from "class-variance-authority";
 import {
   memo,
   type ComponentType,
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -22,6 +23,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import type { ConversationDensity } from "@multi/contracts/settings";
+import {
+  shouldUseCompactEdits,
+  shouldUseCompactShells,
+} from "@multi/shared/conversation-density";
 import {
   formatDuration,
   type ToolCommandArtifact,
@@ -56,7 +62,17 @@ import { Button } from "@multi/multikit/button";
 
 type CentralIconComponent = ComponentType<{ className?: string | undefined }>;
 
-export type ToolCallConversationDensity = "minimal" | "verbose";
+export type ToolCallConversationDensity = ConversationDensity;
+
+export function resolveEffectiveToolCallDensity(
+  density: ConversationDensity,
+  approval: ToolCallApproval | undefined,
+): ConversationDensity {
+  if (approval?.status === "pending") {
+    return "detailed";
+  }
+  return density;
+}
 
 interface ShellToolExpansionState {
   readonly approvalStatus: ToolCallApproval["status"] | undefined;
@@ -117,7 +133,7 @@ export interface ToolCallRendererProps {
   onUrlClick?: ((url: string) => void) | undefined;
   onNestedToolExpand?: ((callId: string | undefined, expanded: boolean) => void) | undefined;
   defaultExpanded?: boolean | undefined;
-  conversationDensity?: ToolCallConversationDensity | undefined;
+  conversationDensity?: ConversationDensity | undefined;
 }
 
 const thinkingStatusTaskVariants = cva(
@@ -197,10 +213,14 @@ export function ToolCallRenderer({
   onUrlClick,
   onNestedToolExpand,
   defaultExpanded = false,
-  conversationDensity = "minimal",
+  conversationDensity = "compact-all-grouped",
 }: ToolCallRendererProps) {
   const { action, details, command, output, path, stats, artifacts } = toolCall.tool.value;
   const artifactLookup = useMemo(() => collectToolArtifacts(artifacts), [artifacts]);
+  const effectiveDensity = resolveEffectiveToolCallDensity(conversationDensity, approval);
+  const compactShells = shouldUseCompactShells(effectiveDensity);
+  const compactEdits = shouldUseCompactEdits(effectiveDensity);
+  const showDetailedIcons = effectiveDensity === "detailed";
   const displayState = {
     action: resolveActionLabel(toolCall.tool.case, action, loading, hasError),
     details: details ?? "",
@@ -223,6 +243,16 @@ export function ToolCallRenderer({
       );
     case "shellToolCall": {
       const shellCommand = artifactLookup.command?.command ?? command ?? "";
+      if (compactShells) {
+        return (
+          <ToolCallLine
+            icon={showDetailedIcons ? IconConsole : undefined}
+            action={displayState.action}
+            details={shellCommand}
+            loading={loading}
+          />
+        );
+      }
       return (
         <ShellToolCall
           action={displayState.action}
@@ -236,7 +266,8 @@ export function ToolCallRenderer({
           callId={callId}
           defaultExpanded={defaultExpanded}
           onNestedToolExpand={onNestedToolExpand}
-          showIcon={conversationDensity === "verbose"}
+          showIcon={showDetailedIcons}
+          showCollapsedPreview
         />
       );
     }
@@ -255,7 +286,8 @@ export function ToolCallRenderer({
           onFileClick={onFileClick}
           onNestedToolExpand={onNestedToolExpand}
           callId={callId}
-          showIcon={conversationDensity === "verbose"}
+          showIcon={showDetailedIcons}
+          compactLayout={compactEdits}
         />
       );
     case "taskToolCall":
@@ -271,14 +303,14 @@ export function ToolCallRenderer({
           callId={callId}
           defaultExpanded={defaultExpanded}
           onNestedToolExpand={onNestedToolExpand}
-          showIcon={conversationDensity === "verbose"}
+          showIcon={showDetailedIcons}
         />
       );
     case "webSearchToolCall":
     case "webFetchToolCall":
       return (
         <ToolCallLine
-          icon={conversationDensity === "verbose" ? iconForToolCase(toolCall.tool.case) : undefined}
+          icon={showDetailedIcons ? iconForToolCase(toolCall.tool.case) : undefined}
           action={displayState.action}
           details={displayState.details}
           loading={loading}
@@ -298,7 +330,7 @@ export function ToolCallRenderer({
     case "unknownToolCall":
       return (
         <ExpandableToolMetadataLine
-          icon={conversationDensity === "verbose" ? iconForToolCase(toolCall.tool.case) : undefined}
+          icon={showDetailedIcons ? iconForToolCase(toolCall.tool.case) : undefined}
           action={displayState.action}
           details={displayState.details}
           output={
@@ -518,6 +550,7 @@ function TaskToolCall({
 
 const EMPTY_TOOL_METADATA_ITEMS: readonly string[] = [];
 const STREAMING_SHELL_OUTPUT_MAX_CHARS = 12_000;
+const STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX = 90;
 
 export function ExpandableToolMetadataLine({
   icon: Icon,
@@ -547,12 +580,25 @@ export function ExpandableToolMetadataLine({
   const hasOutput = output !== null && output !== undefined && output.length > 0;
   const hasBody = hasOutput || metadataItems.length > 0;
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const showStreamingPreview = loading && hasOutput;
+  const showBody = isExpanded || showStreamingPreview;
+  const displayOutput = useMemo(
+    () => (hasOutput ? resolveStreamingShellOutput(output ?? "", loading) : null),
+    [hasOutput, loading, output],
+  );
   const bodyText = useMemo(() => {
-    if (!isExpanded || !hasOutput) {
+    if (!showBody || !displayOutput) {
       return "";
     }
-    return resolveStreamingShellOutput(output ?? "", loading).text.trim();
-  }, [hasOutput, isExpanded, loading, output]);
+    return displayOutput.text.trim();
+  }, [displayOutput, showBody]);
+
+  useEffect(() => {
+    if (!defaultExpanded || !hasBody) {
+      return;
+    }
+    setIsExpanded(true);
+  }, [defaultExpanded, hasBody]);
 
   const toggleExpanded = () => {
     if (!hasBody) return;
@@ -662,7 +708,7 @@ export function ExpandableToolMetadataLine({
           </Button>
         )}
       </div>
-      {isExpanded ? (
+      {showBody ? (
         <div
           className={cn(
             "mt-1 max-w-agent-chat",
@@ -670,11 +716,33 @@ export function ExpandableToolMetadataLine({
           )}
         >
           {bodyText ? (
-            <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
-              {bodyText}
-            </pre>
+            <>
+              {displayOutput?.truncated ? (
+                <div className="pb-1 font-mono text-detail text-multi-fg-tertiary select-none">
+                  Showing latest output while tool runs.
+                </div>
+              ) : null}
+              <div
+                className={cn(
+                  showStreamingPreview &&
+                    !isExpanded &&
+                    "flex max-h-(--streaming-tool-output-preview-max-height) flex-col-reverse overflow-hidden",
+                )}
+                style={
+                  showStreamingPreview && !isExpanded
+                    ? ({
+                        "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
+                      } as CSSProperties)
+                    : undefined
+                }
+              >
+                <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
+                  {bodyText}
+                </pre>
+              </div>
+            </>
           ) : null}
-          {metadataItems.length > 0 ? (
+          {isExpanded && metadataItems.length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-detail text-multi-fg-tertiary">
               {metadataItems.map((item) => (
                 <span key={item}>{item}</span>
@@ -700,6 +768,7 @@ function ShellToolCall({
   defaultExpanded,
   onNestedToolExpand,
   showIcon,
+  showCollapsedPreview = false,
 }: {
   action: string;
   details: string;
@@ -713,6 +782,7 @@ function ShellToolCall({
   defaultExpanded: boolean;
   onNestedToolExpand: ((callId: string | undefined, expanded: boolean) => void) | undefined;
   showIcon: boolean;
+  showCollapsedPreview?: boolean | undefined;
 }) {
   const currentApprovalStatus = approval?.status;
   const [expansionState, setExpansionState] = useState<ShellToolExpansionState>(() => ({
@@ -748,7 +818,22 @@ function ShellToolCall({
   const hasExpandedContent = hasPotentialOutput || metadataItems.length > 0;
   const hasContent = bodyCommand.length > 0 || hasExpandedContent;
   const expandable = hasContent;
+  const showStreamingPreview = loading && hasPotentialOutput;
   const isExpanded = expandable && activeExpansionState.isExpanded;
+  const showCollapsedOutputPreview =
+    showCollapsedPreview && hasPotentialOutput && !isExpanded && !loading;
+  const showBody =
+    (isExpanded && hasContent) || showStreamingPreview || showCollapsedOutputPreview;
+
+  useEffect(() => {
+    if (!defaultExpanded || !expandable) {
+      return;
+    }
+    setExpansionState((current) => ({
+      approvalStatus: currentApprovalStatus,
+      isExpanded: true,
+    }));
+  }, [currentApprovalStatus, defaultExpanded, expandable]);
 
   const toggleExpanded = useCallback(() => {
     if (!expandable) return;
@@ -777,10 +862,10 @@ function ShellToolCall({
         onToggleExpanded={toggleExpanded}
         showIcon={showIcon}
       />
-      {isExpanded && hasContent ? (
+      {showBody ? (
         <ToolCallShellBody>
           <div className="min-w-0 max-w-full">
-            {bodyCommand ? (
+            {isExpanded && bodyCommand ? (
               <pre
                 className={cn(
                   "m-0",
@@ -796,8 +881,12 @@ function ShellToolCall({
                 <ShellCommandTokens command={bodyCommand} />
               </pre>
             ) : null}
-            <ShellOutputBlock output={output} loading={loading} />
-            {metadataItems.length > 0 ? (
+            <ShellOutputBlock
+              output={output}
+              loading={loading}
+              preview={showStreamingPreview && !isExpanded ? true : showCollapsedOutputPreview}
+            />
+            {isExpanded && metadataItems.length > 0 ? (
               <div className="flex flex-wrap gap-x-2 gap-y-1 py-1 text-detail text-multi-fg-tertiary">
                 {metadataItems.map((item) => (
                   <span key={item}>{item}</span>
@@ -864,9 +953,11 @@ const ShellToolCallHeader = memo(function ShellToolCallHeader({
 const ShellOutputBlock = memo(function ShellOutputBlock({
   output,
   loading,
+  preview = false,
 }: {
   output: string | null;
   loading: boolean;
+  preview?: boolean | undefined;
 }) {
   const outputText = output ?? "";
   const displayOutput = useMemo(
@@ -878,6 +969,9 @@ const ShellOutputBlock = memo(function ShellOutputBlock({
     return null;
   }
 
+  const useStreamingPreview = loading && preview;
+  const useCollapsedPreview = !loading && preview;
+
   return (
     <>
       {displayOutput.truncated ? (
@@ -885,19 +979,36 @@ const ShellOutputBlock = memo(function ShellOutputBlock({
           Showing latest output while command runs.
         </div>
       ) : null}
-      <pre
+      <div
         className={cn(
-          "m-0",
-          "px-(--conversation-tool-card-padding-x) pb-1.5",
-          "max-h-[min(42vh,520px)] overflow-y-auto overscroll-contain",
-          "font-mono text-conversation whitespace-pre-wrap",
-          "text-multi-fg-tertiary wrap-anywhere select-text",
+          useStreamingPreview || useCollapsedPreview
+            ? "flex max-h-(--streaming-tool-output-preview-max-height) flex-col-reverse overflow-hidden"
+            : "max-h-[min(42vh,520px)] overflow-y-auto overscroll-contain",
         )}
-        data-shell-tool-call-output=""
-        data-output-truncated={displayOutput.truncated ? "true" : undefined}
+        style={
+          useStreamingPreview || useCollapsedPreview
+            ? ({
+                "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
+              } as CSSProperties)
+            : undefined
+        }
       >
-        {displayOutput.text}
-      </pre>
+        <pre
+          className={cn(
+            "m-0",
+            "px-(--conversation-tool-card-padding-x) pb-1.5",
+            "font-mono text-conversation whitespace-pre-wrap",
+            "text-multi-fg-tertiary wrap-anywhere select-text",
+          )}
+          data-shell-tool-call-output=""
+          data-output-truncated={displayOutput.truncated ? "true" : undefined}
+          data-shell-tool-call-output-preview={
+            useStreamingPreview || useCollapsedPreview ? "true" : undefined
+          }
+        >
+          {displayOutput.text}
+        </pre>
+      </div>
     </>
   );
 });
@@ -949,6 +1060,7 @@ function EditToolCall({
   onNestedToolExpand,
   callId,
   showIcon,
+  compactLayout,
 }: {
   action: string;
   path: string;
@@ -962,9 +1074,11 @@ function EditToolCall({
   onNestedToolExpand: ((callId: string | undefined, expanded: boolean) => void) | undefined;
   callId: string | undefined;
   showIcon: boolean;
+  compactLayout: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasContent = Boolean(detail) || Boolean(diffArtifact);
+  const showCollapsedPreview = !compactLayout && hasContent && !isExpanded;
 
   const toggleExpanded = () => {
     if (!hasContent) return;
@@ -1030,13 +1144,21 @@ function EditToolCall({
           </>
         )}
       </div>
-      {isExpanded && hasContent ? (
+      {((isExpanded && hasContent) || showCollapsedPreview) ? (
         <div
           className={cn(
             "mt-1 max-w-agent-chat",
             "overflow-hidden rounded-multi-control border border-multi-stroke-secondary",
             "font-mono text-conversation text-multi-fg-tertiary",
+            showCollapsedPreview && "max-h-[var(--streaming-tool-output-preview-max-height)]",
           )}
+          style={
+            showCollapsedPreview
+              ? ({
+                  "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
+                } as CSSProperties)
+              : undefined
+          }
         >
           {diffArtifact ? (
             <InlineToolDiff artifact={diffArtifact} />

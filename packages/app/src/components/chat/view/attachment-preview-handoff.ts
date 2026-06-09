@@ -10,6 +10,7 @@ import {
 import type { MessageId } from "@multi/contracts";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import type { ChatMessage } from "../../../types";
+import { preloadAuthenticatedImagePreview } from "../message/authenticated-image-preview";
 import { revokeBlobPreviewUrl } from "../message/preview-url-lifecycle";
 
 type PreviewHandoffByMessageId = Record<string, string[]>;
@@ -207,22 +208,8 @@ function AttachmentPreviewHandoffPromotionSync({
       attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId] = true;
 
       let cancelled = false;
-      const imageInstances: HTMLImageElement[] = [];
-
       const preloadServerPreviews = Promise.all(
-        serverPreviewUrls.map(
-          (previewUrl) =>
-            new Promise<void>((resolve, reject) => {
-              const image = new Image();
-              imageInstances.push(image);
-              const handleLoad = () => resolve();
-              const handleError = () =>
-                reject(new Error(`Failed to load server preview for ${messageId}.`));
-              image.addEventListener("load", handleLoad, { once: true });
-              image.addEventListener("error", handleError, { once: true });
-              image.src = previewUrl;
-            }),
-        ),
+        serverPreviewUrls.map((previewUrl) => preloadAuthenticatedImagePreview(previewUrl)),
       );
 
       void preloadServerPreviews
@@ -241,9 +228,6 @@ function AttachmentPreviewHandoffPromotionSync({
       cleanups.push(() => {
         cancelled = true;
         delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-        for (const image of imageInstances) {
-          image.src = "";
-        }
       });
     }
 

@@ -13,6 +13,10 @@ import * as ElectronDialog from "../electron/electron-dialog";
 import * as ElectronProtocol from "../electron/electron-protocol";
 import * as ElectronTheme from "../electron/electron-theme";
 import { installDesktopIpcHandlers } from "../ipc/desktop-ipc-handlers";
+import {
+  installRuntimeHostEventBridge,
+  installRuntimeIngestion,
+} from "../ipc/methods/runtime";
 import * as DesktopAppIdentity from "./desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
 import * as DesktopBackendManager from "../backend/desktop-backend-manager";
@@ -205,6 +209,9 @@ const bootstrap = Effect.gen(function* () {
   if (!(yield* Ref.get(state.quitting))) {
     yield* backendManager.start;
     yield* bootstrapLog.info("bootstrap backend start requested");
+    yield* installRuntimeIngestion;
+    yield* installRuntimeHostEventBridge;
+    yield* bootstrapLog.info("bootstrap runtime services registered");
   }
   return yield* Effect.void;
 }).pipe(Effect.withSpan("desktop.bootstrap"));

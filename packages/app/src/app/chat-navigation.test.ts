@@ -81,7 +81,7 @@ describe("chat navigation", () => {
     ]);
   });
 
-  it("redirects pre-thread urls to draft routes while the draft session is active", () => {
+  it("opens pre-thread server urls on the server route without draft redirect", () => {
     useComposerDraftStore.setState({
       draftThreadsByThreadKey: {
         [draftId]: draftThreadState(),
@@ -96,9 +96,10 @@ describe("chat navigation", () => {
 
     expect(calls).toEqual([
       {
-        to: "/draft/$draftId",
+        to: "/$environmentId/$threadId",
         params: {
-          draftId,
+          environmentId,
+          threadId: draftThreadId,
         },
         replace: true,
       },

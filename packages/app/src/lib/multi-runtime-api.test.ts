@@ -79,7 +79,7 @@ describe("readMultiRuntimeApi", () => {
       nativeApi: createLocalApi(createRuntimeApi(snapshot)),
     });
 
-    await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toBe(snapshot);
+    await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toEqual(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
     await expect(assertRuntimeHostAvailable()).resolves.toBeUndefined();
   });
@@ -95,9 +95,30 @@ describe("readMultiRuntimeApi", () => {
       },
     });
 
-    await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toBe(snapshot);
+    await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toEqual(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
     await expect(assertRuntimeHostAvailable()).resolves.toBeUndefined();
+  });
+
+  it("returns canonical runtime snapshots from bridge data", async () => {
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      models: undefined,
+      preferences: {
+        ...createEmptyRuntimeHostSnapshot().preferences,
+        modelSettingsByModelId: undefined,
+      },
+    } as unknown as MultiRuntimeHostSnapshot;
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: createRuntimeApi(snapshot),
+      },
+    });
+
+    const canonicalSnapshot = await readMultiRuntimeApi().getHostSnapshot();
+
+    expect(canonicalSnapshot.models).toEqual([]);
+    expect(canonicalSnapshot.preferences.modelSettingsByModelId).toEqual({});
   });
 
   it("rejects when no runtime bridge is available", async () => {

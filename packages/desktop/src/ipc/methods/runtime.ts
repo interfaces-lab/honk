@@ -59,7 +59,7 @@ export const installRuntimeHostEventBridge = Effect.acquireRelease(
   Effect.gen(function* () {
     const electronWindow = yield* ElectronWindow.ElectronWindow;
     const host = yield* getRuntimeHost;
-    return host.onHostEvent((event) => {
+    const unsubscribe = host.onHostEvent((event) => {
       if (event.type === "runtime-event" && event.event.type === "runtime.error") {
         void Effect.runPromise(
           elog.error("runtime host reported error", {
@@ -75,6 +75,17 @@ export const installRuntimeHostEventBridge = Effect.acquireRelease(
         electronWindow.sendAll(IpcChannels.RUNTIME_HOST_EVENT_CHANNEL, encodeHostEvent(event)),
       );
     });
+    void host
+      .getHostSnapshot()
+      .then((snapshot) => ingestRuntimeHostEvent({ type: "snapshot", snapshot }))
+      .catch((error: unknown) => {
+        void Effect.runPromise(
+          elog.error("failed to ingest runtime host snapshot", {
+            cause: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      });
+    return unsubscribe;
   }),
   (unsubscribe) => Effect.sync(unsubscribe),
 );

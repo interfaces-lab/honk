@@ -21,6 +21,7 @@ import {
 } from "../../../session-logic";
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
+import { useConversationDensity } from "~/hooks/use-conversation-density";
 import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
 import { cn } from "~/lib/utils";
 import ChatMarkdown from "../markdown/chat-markdown";
@@ -54,6 +55,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   environmentId,
   subagentDetailsEnabled = true,
 }: ToolCallMessageProps) {
+  const conversationDensity = useConversationDensity();
   const status = useMemo(() => resolveStatus(workEntry), [workEntry]);
   const isLoading = status === "loading";
   const subagents = workEntry.subagents ?? [];
@@ -104,7 +106,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
         loading={isLoading}
         startedAtMs={Date.parse(workEntry.createdAt)}
         hasError={status === "error"}
-        conversationDensity="minimal"
+        conversationDensity={conversationDensity}
       />
       {subagentStatusSurface}
     </div>
@@ -124,6 +126,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   environmentId?: EnvironmentId | undefined;
   subagentDetailsEnabled?: boolean | undefined;
 }) {
+  const conversationDensity = useConversationDensity();
   const status = resolveRuntimeToolStatus(tool);
   const isLoading = status === "loading";
   const toolCall = useMemo(() => runtimeToolItemToToolCall(tool), [tool]);
@@ -131,6 +134,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
     () => runtimeToolDisplayToSubagents(tool.display),
     [tool.display],
   );
+  const hasStreamingOutput = runtimeToolHasStreamingOutput(tool);
   const canRenderSubagents =
     runtimeSubagents.length > 0 && activeThreadId !== undefined && environmentId !== undefined;
   const subagentStatusSurface = canRenderSubagents ? (
@@ -159,9 +163,11 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
         loading={isLoading}
         startedAtMs={Date.parse(tool.createdAt)}
         hasError={status === "error"}
-        conversationDensity="minimal"
+        conversationDensity={conversationDensity}
         subagentConversation={subagentStatusSurface}
-        defaultExpanded={tool.display?.kind === "subagent"}
+        defaultExpanded={
+          tool.display?.kind === "subagent" || (isLoading && hasStreamingOutput)
+        }
       />
     </div>
   );
@@ -606,6 +612,14 @@ function runtimeToolAction(tool: RuntimeDisplayTimelineToolItem): string {
     return summary;
   }
   return tool.toolName;
+}
+
+function runtimeToolHasStreamingOutput(tool: RuntimeDisplayTimelineToolItem): boolean {
+  const display = tool.display;
+  if (display?.kind === "shell" || display?.kind === "read") {
+    return runtimeTrimmedString(display.output) !== undefined;
+  }
+  return false;
 }
 
 function resolveRuntimeToolStatus(tool: RuntimeDisplayTimelineToolItem): ToolCallStatus {

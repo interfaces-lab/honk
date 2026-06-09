@@ -193,7 +193,7 @@ function ChatThreadRouteSync(props: {
   readonly environmentHasAnyThreads: boolean;
   readonly router: ReturnType<typeof useRouter>;
   readonly routeThreadExists: boolean;
-  readonly routePersistenceTarget: ThreadRouteTarget | null;
+  readonly routePersistenceTarget: ChatRouteTarget | null;
   readonly snapshotSource: EnvironmentSnapshotSource;
   readonly threadRef: ThreadRouteRef;
 }) {

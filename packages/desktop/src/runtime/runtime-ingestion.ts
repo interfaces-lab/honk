@@ -212,14 +212,15 @@ export const installRuntimeIngestion = Effect.acquireRelease(
   Effect.gen(function* () {
     const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
     const config = yield* backendManager.currentConfig;
-    if (Option.isSome(config)) {
-      installedClientConfig = {
-        httpBaseUrl: config.value.httpBaseUrl,
-        bootstrapToken: config.value.bootstrap.desktopBootstrapToken,
-      };
-    } else {
-      installedClientConfig = null;
+    if (Option.isNone(config)) {
+      return yield* Effect.die(
+        new Error("Desktop backend must be configured before runtime ingestion is installed."),
+      );
     }
+    installedClientConfig = {
+      httpBaseUrl: config.value.httpBaseUrl,
+      bootstrapToken: config.value.bootstrap.desktopBootstrapToken,
+    };
     getIngestionState().resetClient();
     return () => {
       installedClientConfig = null;

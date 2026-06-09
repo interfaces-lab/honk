@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
+import { useConversationDensity } from "~/hooks/use-conversation-density";
 import {
   defaultRangeExtractor,
   useVirtualizer,
@@ -32,6 +33,7 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   GroupedStepsRenderer,
   StepRenderer,
+  runningWorkGroupPreviewOutputStripExtraPx,
   WORK_GROUP_HEADER_GAP_PX,
   WORK_GROUP_HEADER_PX,
   WORK_GROUP_PREVIEW_ENTRY_PX,
@@ -40,13 +42,21 @@ import {
   WORK_GROUP_STEP_GAP_PX,
   type StepRendererContext,
 } from "./step-renderer";
+import {
+  computeDynamicPaddingEndPx,
+  computeLastPairMinHeightPx,
+  computeLastTurnContentHeightPx,
+  computePinnedState,
+  NEAR_BOTTOM_THRESHOLD_PX,
+  shouldAdjustScrollOnItemResize,
+  type TimelineScrollFollowState,
+} from "./timeline-scroll-follow";
 
 type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
 
 const DEFAULT_VIRTUALIZER_RECT = { width: 0, height: 720 };
 const VIRTUAL_ROW_GAP_PX = 12;
 const VIRTUALIZER_OVERSCAN = 8;
-const TIMELINE_SCROLL_END_THRESHOLD_PX = 2;
 const MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS = 16;
 const INITIAL_OFFSET_SAMPLE_ROW_COUNT = 64;
 
@@ -83,6 +93,8 @@ export interface MessagesTimelineController {
 interface MessagesTimelineProps {
   isWorking: boolean;
   isTurnActive: boolean;
+  isStreaming?: boolean;
+  disableAutoScroll?: boolean;
   editUserMessagesDisabled: boolean;
   bottomClearancePx?: number | undefined;
   timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
@@ -108,6 +120,8 @@ interface MessagesTimelineProps {
 export function MessagesTimeline({
   isWorking,
   isTurnActive,
+  isStreaming = false,
+  disableAutoScroll = false,
   editUserMessagesDisabled,
   bottomClearancePx = 0,
   timelineControllerRef,
@@ -127,6 +141,7 @@ export function MessagesTimeline({
   awaitingServerThreadDetail = false,
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
+  const conversationDensity = useConversationDensity();
   const rawRows = useMemo(
     () =>
       deriveMessagesTimelineRows({
@@ -135,8 +150,10 @@ export function MessagesTimeline({
         isTurnActive,
         editableUserMessageIds,
         projectRoot,
+        conversationDensity,
       }),
     [
+      conversationDensity,
       editableUserMessageIds,
       isTurnActive,
       isWorking,
@@ -164,19 +181,58 @@ export function MessagesTimeline({
     [rows],
   );
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
-  const isAtBottomRef = useRef(true);
+  const scrollFollowRef = useRef<TimelineScrollFollowState>({ pinned: true, atBottom: true });
+  const lastUserScrollInputAtRef = useRef(0);
+  const isUserPointerDownRef = useRef(false);
+  const previousScrollOffsetRef = useRef(0);
+  const disableAutoScrollRef = useRef(disableAutoScroll);
+  const isStreamingRef = useRef(isStreaming);
   const programmaticScrollFrameRef = useRef<number | null>(null);
   const programmaticScrollDeadlineRef = useRef(0);
   const programmaticScrollActiveRef = useRef(false);
   const initializedScrollRef = useRef(false);
   const stickyUserRowIndicesRef = useRef(stickyUserRowIndices);
   const rowsRef = useRef(rows);
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(DEFAULT_VIRTUALIZER_RECT.height);
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
+  disableAutoScrollRef.current = disableAutoScroll;
+  isStreamingRef.current = isStreaming;
+  const lastHumanRowIndex = stickyUserRowIndices.at(-1) ?? null;
+  const estimateRowHeight = useCallback(
+    (index: number) => estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds),
+    [expandedWorkGroupIds, rows],
+  );
   const cachedVirtualizerSnapshot = timelineVirtualizerSnapshots.get(timelineCacheKey) ?? null;
   const initialMeasurementsCache = filterReusableTimelineMeasurements(
     cachedVirtualizerSnapshot,
     rows,
   );
+  const virtualizerMeasurementsRef = useRef<VirtualItem[]>(initialMeasurementsCache);
+  const lastPairMinHeightPx = computeLastPairMinHeightPx(scrollViewportHeight);
+  const measuredHeightsForPadding = new Map<string, number>();
+  if (lastHumanRowIndex !== null) {
+    for (let index = lastHumanRowIndex; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (!row) {
+        continue;
+      }
+      const measuredItem = virtualizerMeasurementsRef.current.find((item) => item.index === index);
+      measuredHeightsForPadding.set(
+        row.id,
+        measuredItem?.size ?? estimateRowHeight(index),
+      );
+    }
+  }
+  const lastTurnHeightForPadding = computeLastTurnContentHeightPx(
+    rows,
+    measuredHeightsForPadding,
+    lastHumanRowIndex ?? undefined,
+  );
+  const dynamicPaddingEnd = computeDynamicPaddingEndPx({
+    basePadding: virtualizerBottomPadding,
+    lastTurnHeight: lastTurnHeightForPadding,
+    minHeight: lastPairMinHeightPx,
+  });
   const restoredInitialScrollOffset = shouldRestoreTimelineScrollOffset(
     cachedVirtualizerSnapshot,
     rows,
@@ -189,7 +245,7 @@ export function MessagesTimeline({
       ? restoredInitialScrollOffset
       : estimateInitialTimelineBottomOffset({
           rows,
-          paddingEnd: virtualizerBottomPadding,
+          paddingEnd: dynamicPaddingEnd,
           expandedWorkGroupIds,
         });
 
@@ -197,10 +253,13 @@ export function MessagesTimeline({
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
 
   const reportIsAtBottom = useCallback((isAtBottom: boolean, options?: { force?: boolean }) => {
-    if (!options?.force && isAtBottomRef.current === isAtBottom) {
+    if (!options?.force && scrollFollowRef.current.atBottom === isAtBottom) {
       return;
     }
-    isAtBottomRef.current = isAtBottom;
+    scrollFollowRef.current = {
+      ...scrollFollowRef.current,
+      atBottom: isAtBottom,
+    };
     onIsAtBottomChange(isAtBottom);
   }, [onIsAtBottomChange]);
 
@@ -233,17 +292,35 @@ export function MessagesTimeline({
     getItemKey: (index) => rows[index]?.id ?? index,
     rangeExtractor,
     overscan: VIRTUALIZER_OVERSCAN,
-    paddingEnd: virtualizerBottomPadding,
+    paddingEnd: dynamicPaddingEnd,
     initialRect: DEFAULT_VIRTUALIZER_RECT,
     initialOffset: initialScrollOffset,
     initialMeasurementsCache,
     anchorTo: "end",
     followOnAppend: true,
-    scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD_PX + virtualizerBottomPadding,
+    scrollEndThreshold: NEAR_BOTTOM_THRESHOLD_PX + dynamicPaddingEnd,
     useAnimationFrameWithResizeObserver: true,
   });
+  virtualizerMeasurementsRef.current = rowVirtualizer.measurementsCache;
+  const virtualContentSize = rowVirtualizer.getTotalSize();
 
-  useMountEffect(() => {
+  useLayoutSyncEffect(() => {
+    const scrollElement = scrollElementRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const updateViewportHeight = () => {
+      setScrollViewportHeight(scrollElement.clientHeight);
+    };
+    updateViewportHeight();
+
+    const observer = new ResizeObserver(updateViewportHeight);
+    observer.observe(scrollElement);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutSyncEffect(() => {
     rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) => {
       const activeStickyIndex = findActiveStickyUserRowIndex(
         stickyUserRowIndicesRef.current,
@@ -252,21 +329,32 @@ export function MessagesTimeline({
       if (item.index === activeStickyIndex) {
         return false;
       }
+
+      const scrollOffset = instance.scrollOffset ?? 0;
+      const pinnedFollowing =
+        scrollFollowRef.current.pinned && !disableAutoScrollRef.current;
+
+      if (isStreamingRef.current) {
+        return shouldAdjustScrollOnItemResize({
+          isStreaming: true,
+          pinnedFollowing,
+          delta,
+          itemEnd: item.end,
+          scrollOffset,
+        });
+      }
+
       return (
         delta !== 0 &&
-        item.start < (instance.scrollOffset ?? 0) &&
+        item.start < scrollOffset &&
         instance.scrollDirection !== "backward"
       );
     };
-
-    return () => {
-      rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
-    };
-  });
+  }, [rowVirtualizer]);
 
   const getIsAtBottom = useCallback(
-    () => rowVirtualizer.isAtEnd(TIMELINE_SCROLL_END_THRESHOLD_PX + virtualizerBottomPadding),
-    [rowVirtualizer, virtualizerBottomPadding],
+    () => rowVirtualizer.isAtEnd(NEAR_BOTTOM_THRESHOLD_PX + dynamicPaddingEnd),
+    [dynamicPaddingEnd, rowVirtualizer],
   );
 
   const scheduleProgrammaticScrollResolution = useCallback(() => {
@@ -298,6 +386,8 @@ export function MessagesTimeline({
       return;
     }
 
+    scrollFollowRef.current = { pinned: true, atBottom: true };
+
     const animated = options?.animated === true;
     if (animated) {
       programmaticScrollActiveRef.current = true;
@@ -321,18 +411,45 @@ export function MessagesTimeline({
   const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
   const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
 
+  const recordUserScrollInput = useCallback(() => {
+    lastUserScrollInputAtRef.current = window.performance.now();
+    clearProgrammaticScrollTracking();
+  }, [clearProgrammaticScrollTracking]);
+
   const handleScroll = useCallback(() => {
-    const isAtBottom = getIsAtBottom();
+    const scrollElement = scrollElementRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const scrollOffset = scrollElement.scrollTop;
+    const lastObservedScrollOffset = previousScrollOffsetRef.current;
+    previousScrollOffsetRef.current = scrollOffset;
+
     if (programmaticScrollActiveRef.current) {
+      const isAtBottom = getIsAtBottom();
       if (isAtBottom) {
         clearProgrammaticScrollTracking();
+        scrollFollowRef.current = { pinned: true, atBottom: true };
         reportIsAtBottom(true);
       }
       return;
     }
 
-    reportIsAtBottom(isAtBottom);
-  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom]);
+    scrollFollowRef.current = computePinnedState(scrollFollowRef.current, {
+      totalHeight: scrollElement.scrollHeight,
+      clampedOffset: scrollOffset,
+      viewportHeight: scrollElement.clientHeight,
+      isScrolling: rowVirtualizer.isScrolling,
+      lastObservedScrollOffset,
+      isUserPointerDown: isUserPointerDownRef.current,
+      msSinceUserScrollInput:
+        window.performance.now() - lastUserScrollInputAtRef.current,
+      isReady: initializedScrollRef.current,
+      isProgrammaticScrollActive: programmaticScrollActiveRef.current,
+    });
+    reportIsAtBottom(scrollFollowRef.current.atBottom);
+  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom, rowVirtualizer]);
 
   useLayoutSyncEffect(() => {
     if (rows.length === 0 || initializedScrollRef.current) {
@@ -341,27 +458,47 @@ export function MessagesTimeline({
 
     initializedScrollRef.current = true;
     if (shouldRestoreInitialScrollOffset) {
+      scrollFollowRef.current = { pinned: false, atBottom: false };
       reportIsAtBottom(false, { force: true });
       return;
     }
 
+    scrollFollowRef.current = { pinned: true, atBottom: true };
     rowVirtualizer.scrollToEnd({ behavior: "auto" });
     reportIsAtBottom(true, { force: true });
   }, [reportIsAtBottom, rowVirtualizer, rows.length, shouldRestoreInitialScrollOffset]);
 
   useLayoutSyncEffect(() => {
-    if (!initializedScrollRef.current || rows.length === 0 || !isAtBottomRef.current) {
+    if (!initializedScrollRef.current || rows.length === 0) {
       return;
     }
 
-    rowVirtualizer.scrollToEnd({ behavior: "auto" });
-  }, [rowVirtualizer, virtualizerBottomPadding]);
+    if (!scrollFollowRef.current.pinned || disableAutoScrollRef.current) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (!scrollFollowRef.current.pinned || disableAutoScrollRef.current) {
+        return;
+      }
+      rowVirtualizer.scrollToEnd({ behavior: "auto" });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    dynamicPaddingEnd,
+    isStreaming,
+    rowVirtualizer,
+    rows,
+    scrollViewportHeight,
+    virtualContentSize,
+  ]);
 
   useLayoutSyncEffect(
     () => () => {
       rememberTimelineVirtualizerSnapshot({
         cacheKey: timelineCacheKey,
-        isAtBottom: isAtBottomRef.current,
+        isAtBottom: scrollFollowRef.current.atBottom,
         rows: rowsRef.current,
         scrollElement: scrollElementRef.current,
         virtualizer: rowVirtualizer,
@@ -445,9 +582,18 @@ export function MessagesTimeline({
         <div
           ref={scrollElementRef}
           onScroll={handleScroll}
-          onPointerDown={clearProgrammaticScrollTracking}
-          onTouchStart={clearProgrammaticScrollTracking}
-          onWheel={clearProgrammaticScrollTracking}
+          onPointerDown={() => {
+            isUserPointerDownRef.current = true;
+            recordUserScrollInput();
+          }}
+          onPointerUp={() => {
+            isUserPointerDownRef.current = false;
+          }}
+          onPointerCancel={() => {
+            isUserPointerDownRef.current = false;
+          }}
+          onTouchStart={recordUserScrollInput}
+          onWheel={recordUserScrollInput}
           data-chat-timeline-scroll=""
           className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
         >
@@ -500,7 +646,11 @@ export function MessagesTimeline({
                   >
                     <TimelineRowContent
                       row={row}
-                      workGroupExpanded={row.kind === "work" && expandedWorkGroupIds.has(row.id)}
+                      workGroupExpanded={
+                        row.kind === "work" &&
+                        "steps" in row &&
+                        expandedWorkGroupIds.has(row.id)
+                      }
                       onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
                       editUserMessagesDisabled={editUserMessagesDisabled}
                       isEditingUserMessage={isEditingUserMessage}
@@ -710,7 +860,10 @@ function estimateVirtualTimelineRowSize(
   row: MessagesTimelineRow | undefined,
   expandedWorkGroupIds: ReadonlySet<string>,
 ): number {
-  return estimateTimelineRowSize(row, row?.kind === "work" && expandedWorkGroupIds.has(row.id));
+  return estimateTimelineRowSize(
+    row,
+    row?.kind === "work" && "steps" in row && expandedWorkGroupIds.has(row.id),
+  );
 }
 
 function estimateInitialTimelineBottomOffset(input: {
@@ -764,6 +917,10 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
     return 52 + VIRTUAL_ROW_GAP_PX;
   }
 
+  if (row.kind === "work" && "entry" in row) {
+    return 64 + VIRTUAL_ROW_GAP_PX;
+  }
+
   if (expanded) {
     const hasExpandedSummary =
       row.groupedEntries.length > 0
@@ -784,10 +941,9 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
 
   if (row.isRunning) {
     const previewCount = Math.min(row.steps.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
-    const previewHeight = Math.min(
-      WORK_GROUP_PREVIEW_PX,
-      previewCount * WORK_GROUP_PREVIEW_ENTRY_PX,
-    );
+    const previewHeight =
+      Math.min(WORK_GROUP_PREVIEW_PX, previewCount * WORK_GROUP_PREVIEW_ENTRY_PX) +
+      runningWorkGroupPreviewOutputStripExtraPx(row.steps);
     return WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
   }
 
@@ -891,7 +1047,7 @@ function TimelineRowBody({
   isEditingUserMessage: boolean;
   ctx: StepRendererContext;
 }) {
-  if (row.kind === "work") {
+  if (row.kind === "work" && "steps" in row) {
     return (
       <div className="flex w-full min-w-0">
         <GroupedStepsRenderer
@@ -950,6 +1106,12 @@ function timelineRowToolStatus(row: TimelineRow): "loading" | "completed" | "err
     case "runtime-extension-ui-request":
       return row.request.status === "pending" ? "loading" : "completed";
     case "work":
+      if ("entry" in row) {
+        if (row.entry.tone === "error" || row.entry.status === "error") {
+          return "error";
+        }
+        return row.entry.status === "running" ? "loading" : "completed";
+      }
       if (
         row.groupedEntries.some((entry) => entry.tone === "error" || entry.status === "error") ||
         row.steps.some(

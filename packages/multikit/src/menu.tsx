@@ -337,10 +337,12 @@ function MenuSubPopup({
   sideOffset = 0,
   alignOffset,
   align = "start",
+  side = "inline-end",
   variant = "default",
   ...props
 }: MenuPrimitive.Popup.Props & {
   align?: MenuPrimitive.Positioner.Props["align"];
+  side?: MenuPrimitive.Positioner.Props["side"];
   sideOffset?: MenuPrimitive.Positioner.Props["sideOffset"];
   alignOffset?: MenuPrimitive.Positioner.Props["alignOffset"];
   variant?: "default" | "workbench";
@@ -355,7 +357,7 @@ function MenuSubPopup({
       className={className}
       data-slot="menu-sub-content"
       positionerClassName={positionerClassName ?? "z-[90]"}
-      side="inline-end"
+      side={side}
       sideOffset={sideOffset}
       variant={variant}
       {...props}

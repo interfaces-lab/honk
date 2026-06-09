@@ -12,6 +12,7 @@ import {
   type FocusEvent,
   type RefObject,
   type MouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -20,10 +21,10 @@ import { Spinner } from "@multi/multikit/spinner";
 import {
   Menu,
   MenuGroupLabel,
+  MenuItem,
   MenuPopup,
   MenuRadioGroup,
   MenuRadioItem,
-  MenuSeparator,
   MenuSub,
   MenuSubPopup,
   MenuSubTrigger,
@@ -34,6 +35,7 @@ import {
   IconArrowUp,
   IconBug,
   IconBubbleQuestion,
+  IconCheckmark1,
   IconChevronDownSmall,
   IconChevronLeftMedium,
   IconCrossSmall,
@@ -45,6 +47,7 @@ import {
 import { scopedThreadKey } from "~/lib/environment-scope";
 import {
   type AgentMode,
+  type AgentPreferencesPatch,
   type AgentThinkingLevel,
   type MessageId,
   type AgentInteractionMode,
@@ -103,12 +106,8 @@ import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
   AGENT_MODE_LABELS,
-  AGENT_MODE_OPTIONS,
   AGENT_MODE_THINKING_LEVELS,
-  AGENT_THINKING_LEVEL_LABELS,
   AGENT_THINKING_LEVEL_OPTIONS,
-  normalizedConfigurableThinkingLevel,
-  agentModeSupportsThinkingLevelSelection,
 } from "~/lib/agent-mode-options";
 
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
@@ -243,85 +242,178 @@ function ComposerInteractionModeChip(props: {
   );
 }
 
-const ComposerAgentModeMenuTrigger = memo(function ComposerAgentModeMenuTrigger(props: {
-  agentMode: AgentMode;
-  disabled: boolean;
-}) {
-  return (
-    <MenuTrigger
-      type="button"
-      className={cn(
-        workbenchChromeTextControlVariants(),
-        "max-w-40 rounded-full pr-1.5 pl-2 disabled:pointer-events-none disabled:opacity-50",
-      )}
-      aria-label="Agent mode and thinking level"
-      disabled={props.disabled}
-    >
-      <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
-      <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" aria-hidden />
-    </MenuTrigger>
-  );
-});
+const MODEL_THINKING_LEVEL_LABELS: Record<AgentThinkingLevel, string> = {
+  off: "Fast",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra High",
+};
 
-function ComposerAgentModeMenu(props: {
+const COMPOSER_AGENT_MODE_OPTIONS = [
+  "deep",
+  "smart",
+  "rush",
+] as const satisfies readonly AgentMode[];
+
+function isThinkingAgentMode(agentMode: AgentMode): agentMode is Exclude<AgentMode, "rush"> {
+  return agentMode !== "rush";
+}
+
+function effectiveAgentModeThinkingLevel(
+  mode: AgentMode,
+  activeMode: AgentMode,
+  activeThinkingLevel: AgentThinkingLevel,
+): AgentThinkingLevel {
+  if (mode === "rush") {
+    return "off";
+  }
+  if (mode === activeMode && activeThinkingLevel !== "off") {
+    return activeThinkingLevel;
+  }
+  return AGENT_MODE_THINKING_LEVELS[mode];
+}
+
+function ComposerAgentModePicker(props: {
   agentMode: AgentMode;
   thinkingLevel: AgentThinkingLevel;
-  agentModeDisabled: boolean;
-  isConnecting: boolean;
+  disabled: boolean;
   onAgentModeChange: (agentMode: AgentMode) => void;
-  onThinkingLevelChange: (thinkingLevel: AgentThinkingLevel) => void;
+  onAgentModeThinkingLevelChange: (agentMode: AgentMode, thinkingLevel: AgentThinkingLevel) => void;
 }) {
-  const thinkingLevel = normalizedConfigurableThinkingLevel(props.thinkingLevel);
-  const supportsThinkingLevel = agentModeSupportsThinkingLevelSelection(props.agentMode);
+  const [query, setQuery] = useState("");
+  const triggerThinkingLevel = effectiveAgentModeThinkingLevel(
+    props.agentMode,
+    props.agentMode,
+    props.thinkingLevel,
+  );
+  const triggerLabel =
+    props.agentMode === "rush"
+      ? AGENT_MODE_LABELS[props.agentMode]
+      : `${AGENT_MODE_LABELS[props.agentMode]} ${MODEL_THINKING_LEVEL_LABELS[triggerThinkingLevel]}`;
+  const visibleModes = COMPOSER_AGENT_MODE_OPTIONS.filter((mode) => {
+    const searchText =
+      `${AGENT_MODE_LABELS[mode]} ${MODEL_THINKING_LEVEL_LABELS[effectiveAgentModeThinkingLevel(mode, props.agentMode, props.thinkingLevel)]}`.toLowerCase();
+    return searchText.includes(query.trim().toLowerCase());
+  });
 
-  const handleAgentModeValueChange = (value: string) => {
-    const option = AGENT_MODE_OPTIONS.find((item) => item.value === value);
-    if (option && option.value !== props.agentMode) {
-      props.onAgentModeChange(option.value);
-    }
-  };
-
-  const handleThinkingLevelValueChange = (value: string) => {
-    const option = AGENT_THINKING_LEVEL_OPTIONS.find((item) => item.value === value);
-    if (option && option.value !== thinkingLevel) {
-      props.onThinkingLevelChange(option.value);
-    }
+  const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
   };
 
   return (
     <Menu>
-      <ComposerAgentModeMenuTrigger
-        agentMode={props.agentMode}
-        disabled={props.agentModeDisabled}
-      />
-      <MenuPopup align="start" side="top" sideOffset={6} variant="workbench">
-        <MenuRadioGroup value={props.agentMode} onValueChange={handleAgentModeValueChange}>
-          <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
-          {AGENT_MODE_OPTIONS.map((option) => (
-            <MenuRadioItem key={option.value} value={option.value} variant="workbench">
-              {option.label}
-            </MenuRadioItem>
-          ))}
-        </MenuRadioGroup>
-        <MenuSeparator variant="workbench" />
-        <MenuSub>
-          <MenuSubTrigger
-            className="pe-1"
-            disabled={!supportsThinkingLevel || props.isConnecting}
-            variant="workbench"
-          >
-            <span className="min-w-0 flex-1 truncate">Thinking</span>
-          </MenuSubTrigger>
-          <MenuSubPopup variant="workbench">
-            <MenuRadioGroup value={thinkingLevel} onValueChange={handleThinkingLevelValueChange}>
-              {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
-                <MenuRadioItem key={option.value} value={option.value} variant="workbench">
-                  {option.label}
-                </MenuRadioItem>
-              ))}
-            </MenuRadioGroup>
-          </MenuSubPopup>
-        </MenuSub>
+      <MenuTrigger
+        type="button"
+        className={cn(
+          workbenchChromeTextControlVariants(),
+          "max-w-40 rounded-full pr-1.5 pl-2 disabled:pointer-events-none disabled:opacity-50",
+        )}
+        aria-label="Agent mode"
+        disabled={props.disabled}
+      >
+        <span className="min-w-0 truncate">{triggerLabel}</span>
+        <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" aria-hidden />
+      </MenuTrigger>
+      <MenuPopup
+        align="end"
+        side="top"
+        sideOffset={6}
+        variant="workbench"
+        className="w-[200px]"
+      >
+        <div className="pb-1">
+          <input
+            className={cn(
+              "h-7 w-full rounded-[4px] border-0 bg-transparent px-1 text-body",
+              "text-multi-fg-primary outline-hidden placeholder:text-multi-fg-tertiary",
+            )}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Search models"
+            spellCheck={false}
+          />
+        </div>
+        {visibleModes.length === 0 ? (
+          <div className="px-2 py-1.5 text-detail text-multi-fg-tertiary">No modes found</div>
+        ) : (
+          visibleModes.map((mode) => {
+            const selected = mode === props.agentMode;
+            const thinkingLevel = effectiveAgentModeThinkingLevel(
+              mode,
+              props.agentMode,
+              props.thinkingLevel,
+            );
+            const label = AGENT_MODE_LABELS[mode];
+
+            if (!isThinkingAgentMode(mode)) {
+              return (
+                <MenuItem
+                  key={mode}
+                  variant="workbench"
+                  className="gap-2 pe-2"
+                  onClick={() => props.onAgentModeChange(mode)}
+                >
+                  <span className="min-w-0 flex-1 truncate text-multi-fg-primary">{label}</span>
+                  {selected ? <IconCheckmark1 className="size-3 shrink-0" aria-hidden /> : null}
+                </MenuItem>
+              );
+            }
+
+            return (
+              <MenuSub key={mode}>
+                <MenuSubTrigger
+                  variant="workbench"
+                  className="group/model gap-2 pe-1 [&>svg:last-child]:hidden"
+                  onClick={() => {
+                    if (!selected) {
+                      props.onAgentModeChange(mode);
+                    }
+                  }}
+                >
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span className="min-w-0 truncate text-multi-fg-primary">{label}</span>
+                    <span className="shrink-0 text-multi-fg-tertiary">
+                      {MODEL_THINKING_LEVEL_LABELS[thinkingLevel]}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "hidden shrink-0 text-detail text-multi-fg-secondary",
+                      "group-hover/model:inline group-data-[highlighted]/model:inline",
+                      "data-[selected=true]:inline",
+                    )}
+                    data-selected={selected ? "true" : undefined}
+                  >
+                    Edit
+                  </span>
+                  {selected ? <IconCheckmark1 className="size-3 shrink-0" aria-hidden /> : null}
+                </MenuSubTrigger>
+                <MenuSubPopup variant="workbench" side="inline-start" className="w-[160px]">
+                  <MenuRadioGroup
+                    value={thinkingLevel}
+                    onValueChange={(value) => {
+                      const option = AGENT_THINKING_LEVEL_OPTIONS.find(
+                        (entry) => entry.value === value,
+                      );
+                      if (option) {
+                        props.onAgentModeThinkingLevelChange(mode, option.value);
+                      }
+                    }}
+                  >
+                    <MenuGroupLabel variant="workbench">Effort</MenuGroupLabel>
+                    {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
+                      <MenuRadioItem key={option.value} value={option.value} variant="workbench">
+                        {MODEL_THINKING_LEVEL_LABELS[option.value]}
+                      </MenuRadioItem>
+                    ))}
+                  </MenuRadioGroup>
+                </MenuSubPopup>
+              </MenuSub>
+            );
+          })
+        )}
       </MenuPopup>
     </Menu>
   );
@@ -1190,9 +1282,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
     };
 
     const updateAgentRuntimePreferences = (
-      patch:
-        | { agentMode: AgentMode; thinkingLevel: AgentThinkingLevel }
-        | { thinkingLevel: AgentThinkingLevel },
+      patch: AgentPreferencesPatch,
       errorMessage: string,
       setSaving?: Dispatch<SetStateAction<boolean>>,
     ) => {
@@ -1231,15 +1321,14 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       );
     };
 
-    const handleThinkingLevelChange = (thinkingLevel: AgentThinkingLevel) => {
-      if (thinkingLevel === runtimePreferences.thinkingLevel) {
-        scheduleComposerFocus();
-        return;
-      }
-
+    const handleAgentModeThinkingLevelChange = (
+      agentMode: AgentMode,
+      thinkingLevel: AgentThinkingLevel,
+    ) => {
       updateAgentRuntimePreferences(
-        { thinkingLevel },
-        "Failed to update thinking level.",
+        { agentMode, thinkingLevel },
+        "Failed to update agent mode settings.",
+        setIsAgentModeSaving,
       );
     };
 
@@ -1927,13 +2016,12 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       );
     const composerAgentModeControl = showModeControls ? (
       <span className="inline-flex min-w-0 max-w-full shrink items-center gap-1 overflow-hidden">
-        <ComposerAgentModeMenu
+        <ComposerAgentModePicker
           agentMode={runtimePreferences.agentMode}
           thinkingLevel={runtimePreferences.thinkingLevel}
-          agentModeDisabled={isAgentModeSaving || isConnecting}
-          isConnecting={isConnecting}
+          disabled={isAgentModeSaving || isConnecting}
           onAgentModeChange={handleAgentModeChange}
-          onThinkingLevelChange={handleThinkingLevelChange}
+          onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}
         />
       </span>
     ) : null;

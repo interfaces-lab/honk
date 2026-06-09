@@ -12,6 +12,10 @@
       "types": "./src/agent-model-policy.ts",
       "import": "./src/agent-model-policy.ts"
     },
+    "./conversation-density": {
+      "types": "./src/conversation-density.ts",
+      "import": "./src/conversation-density.ts"
+    },
     "./git": {
       "types": "./src/git.ts",
       "import": "./src/git.ts"

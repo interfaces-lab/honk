@@ -54,6 +54,32 @@ export const AgentPolicyModelSelection = Schema.Union([
 ]).pipe(Schema.withDecodingDefault(Effect.succeed({ type: "pi-managed" as const })));
 export type AgentPolicyModelSelection = typeof AgentPolicyModelSelection.Type;
 
+export const DEFAULT_AGENT_POLICY_MODEL_SELECTION: AgentPolicyModelSelection = {
+  type: "explicit",
+  authProviderId: AuthProviderId.make("openai-codex"),
+  accountId: AccountId.make("openai-codex:default"),
+  modelId: ModelId.make("openai-codex/gpt-5.5"),
+};
+
+export const AgentModelSettings = Schema.Struct({
+  thinkingLevel: Schema.optionalKey(AgentThinkingLevel),
+});
+export type AgentModelSettings = typeof AgentModelSettings.Type;
+
+export const AgentRuntimeModelDescriptor = Schema.Struct({
+  authProviderId: AuthProviderId,
+  modelId: ModelId,
+  provider: TrimmedNonEmptyString,
+  id: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  reasoning: Schema.Boolean,
+  contextWindow: NonNegativeInt,
+  thinkingLevels: Schema.Array(AgentThinkingLevel).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+});
+export type AgentRuntimeModelDescriptor = typeof AgentRuntimeModelDescriptor.Type;
+
 export const AgentModelPolicy = Schema.Struct({
   agentMode: AgentMode.pipe(Schema.withDecodingDefault(Effect.succeed("deep" as const))),
   interactionMode: AgentInteractionMode.pipe(
@@ -161,6 +187,12 @@ export const AgentPreferences = Schema.Struct({
   interactionMode: AgentInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("agent" as const)),
   ),
+  modelSelection: AgentPolicyModelSelection.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_POLICY_MODEL_SELECTION)),
+  ),
+  modelSettingsByModelId: Schema.Record(ModelId, AgentModelSettings).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
   thinkingLevel: AgentThinkingLevel.pipe(
     Schema.withDecodingDefault(Effect.succeed("high" as const)),
   ),
@@ -172,9 +204,12 @@ export const AgentPreferences = Schema.Struct({
   ),
 });
 export type AgentPreferences = typeof AgentPreferences.Type;
+export const decodeAgentPreferences = Schema.decodeUnknownSync(AgentPreferences);
 export const AgentPreferencesPatch = Schema.Struct({
   agentMode: Schema.optionalKey(AgentMode),
   interactionMode: Schema.optionalKey(AgentInteractionMode),
+  modelSelection: Schema.optionalKey(AgentPolicyModelSelection),
+  modelSettingsByModelId: Schema.optionalKey(Schema.Record(ModelId, AgentModelSettings)),
   thinkingLevel: Schema.optionalKey(AgentThinkingLevel),
   resources: Schema.optionalKey(AgentResourcePreferences),
   credentials: Schema.optionalKey(Schema.Array(AgentCredentialPreference)),
@@ -609,6 +644,9 @@ export type RuntimeDisplayTimelineProjection =
 
 export const MultiRuntimeHostSnapshot = Schema.Struct({
   preferences: AgentPreferences,
+  models: Schema.Array(AgentRuntimeModelDescriptor).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   authStatuses: Schema.Array(AgentAuthStatus).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   credentialAuthFlows: Schema.Array(AgentCredentialAuthFlow).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -628,6 +666,7 @@ export const MultiRuntimeHostSnapshot = Schema.Struct({
   ),
 });
 export type MultiRuntimeHostSnapshot = typeof MultiRuntimeHostSnapshot.Type;
+export const decodeMultiRuntimeHostSnapshot = Schema.decodeUnknownSync(MultiRuntimeHostSnapshot);
 
 export const MultiRuntimeHostEvent = Schema.Union([
   Schema.Struct({
@@ -656,6 +695,7 @@ export const MultiRuntimeHostEvent = Schema.Union([
   }),
 ]);
 export type MultiRuntimeHostEvent = typeof MultiRuntimeHostEvent.Type;
+export const decodeMultiRuntimeHostEvent = Schema.decodeUnknownSync(MultiRuntimeHostEvent);
 
 export interface MultiRuntimeApi {
   getHostSnapshot: () => Promise<MultiRuntimeHostSnapshot>;

@@ -135,7 +135,7 @@ describe("getCurrentRouteTarget", () => {
 });
 
 describe("resolvePreThreadServerRouteTarget", () => {
-  it("shows draft route for pre-thread server urls while the draft session is active", () => {
+  it("shows draft route for pre-thread server urls while the server thread is not renderable", () => {
     expect(
       resolvePreThreadServerRouteTarget({
         baseTarget: {
@@ -143,20 +143,7 @@ describe("resolvePreThreadServerRouteTarget", () => {
           threadRef: draftThreadRef,
         },
         draftRouteId: null,
-        activeDraftSession: draftThreadState(),
-        serverThread: {
-          id: draftThreadId,
-          environmentId,
-          messages: [
-            {
-              id: "message:user" as never,
-              role: "user",
-              text: "hello",
-              createdAt: "2026-06-08T00:00:00.000Z",
-              streaming: false,
-            },
-          ],
-        } as never,
+        serverThread: undefined,
       }),
     ).toEqual({
       kind: "draft",
@@ -172,7 +159,6 @@ describe("resolvePreThreadServerRouteTarget", () => {
           threadRef: draftThreadRef,
         },
         draftRouteId: draftId,
-        activeDraftSession: null,
         serverThread: undefined,
       }),
     ).toEqual({
@@ -189,7 +175,6 @@ describe("resolvePreThreadServerRouteTarget", () => {
           threadRef: draftThreadRef,
         },
         draftRouteId: draftId,
-        activeDraftSession: null,
         serverThread: {
           id: draftThreadId,
           environmentId,

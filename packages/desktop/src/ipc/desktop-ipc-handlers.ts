@@ -8,8 +8,6 @@ import {
   getRuntimeHostSnapshot,
   getRuntimePreferences,
   hydrateRuntimeThread,
-  installRuntimeHostEventBridge,
-  installRuntimeIngestion,
   respondToRuntimeExtensionUiRequest,
   sendRuntimeTurn,
   updateRuntimePreferences,
@@ -37,8 +35,6 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handleSync(getAppBranding);
   yield* ipc.handleSync(getLocalEnvironmentBootstrap);
   yield* ipc.handleSync(getWindowChromeState);
-  yield* installRuntimeIngestion;
-  yield* installRuntimeHostEventBridge;
 
   yield* ipc.handle(getClientSettings);
   yield* ipc.handle(setClientSettings);

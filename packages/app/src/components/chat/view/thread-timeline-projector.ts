@@ -7,6 +7,7 @@ import {
   type RuntimeSessionId,
 } from "@multi/contracts";
 
+import { resolveWaitingTimelineStatus } from "../message/waiting-status";
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, ProposedPlan, ThreadSendIntent } from "../../../types";
 import { timelineMessageEntryId } from "./timeline-entry-ids";
@@ -206,7 +207,7 @@ export function runtimeDisplayTimelineHasResponseItem(
     }
     return (
       (item.text?.trim().length ?? 0) > 0 ||
-      (item.thinking?.trim().length ?? 0) > 0
+      shouldMaterializeRuntimeThinking(item)
     );
   });
 }
@@ -270,12 +271,12 @@ function runtimeDisplayTimelineItemToTimelineEntries(
       if (!role) {
         return [];
       }
-      if (item.thinking && item.thinking.trim().length > 0) {
+      if (shouldMaterializeRuntimeThinking(item)) {
         entries.push({
           id: `${item.id}:thinking`,
           kind: "runtime-thinking",
           createdAt: item.createdAt,
-          message: item,
+          message: runtimeThinkingStatusMessage(item),
         });
       }
       if (!shouldMaterializeRuntimeMessageText(item, existingMessage)) {
@@ -339,6 +340,25 @@ function runtimeDisplayTimelineItemToTimelineEntries(
       ];
     }
   }
+}
+
+function shouldMaterializeRuntimeThinking(
+  item: Extract<RuntimeDisplayTimelineItem, { kind: "message" }>,
+): boolean {
+  return (
+    item.role === "assistant" &&
+    (item.thinking?.trim().length ?? 0) > 0
+  );
+}
+
+function runtimeThinkingStatusMessage(
+  item: RuntimeDisplayTimelineMessageItem,
+): RuntimeDisplayTimelineMessageItem {
+  if (item.streaming !== true) {
+    return item;
+  }
+  const { thinking: _thinking, ...message } = item;
+  return message;
 }
 
 function shouldUseRuntimeDisplayTimelineEntries(input: {
@@ -503,12 +523,18 @@ function appendWaitingTimelineEntry(input: {
   if (!input.isWorking || timelineEntriesEndWithStatusSurface(input.entries, input)) {
     return input.entries;
   }
+  const waitingStatus = resolveWaitingTimelineStatus({
+    entries: input.entries,
+    activeTurnStartedAt: input.activeTurnStartedAt,
+  });
   return [
     ...input.entries,
     {
       id: "working-indicator-row",
       kind: "waiting",
       createdAt: input.activeTurnStartedAt,
+      phase: waitingStatus.phase,
+      elapsedStartedAt: waitingStatus.elapsedStartedAt,
     },
   ];
 }
@@ -535,6 +561,14 @@ function timelineEntriesEndWithStatusSurface(
       input.isWorking &&
       input.isTurnActive &&
       trailingRuntimeGroupEntries(entries).some(isRunningRuntimeTimelineEntry)
+    );
+  }
+  if (lastEntry.kind === "message") {
+    return (
+      input.isWorking &&
+      input.isTurnActive &&
+      lastEntry.message.role === "assistant" &&
+      lastEntry.message.streaming === true
     );
   }
   return (

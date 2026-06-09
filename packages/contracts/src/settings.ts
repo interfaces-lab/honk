@@ -48,6 +48,24 @@ export const AgentWindowUsageSummaryDisplay = Schema.Literals(["auto", "always",
 export type AgentWindowUsageSummaryDisplay = typeof AgentWindowUsageSummaryDisplay.Type;
 export const DEFAULT_AGENT_WINDOW_USAGE_SUMMARY_DISPLAY: AgentWindowUsageSummaryDisplay = "auto";
 
+export const ConversationDensity = Schema.Literals([
+  "detailed",
+  "compact-shells",
+  "compact-ungrouped",
+  "compact-grouped",
+  "compact-all-grouped",
+]);
+export type ConversationDensity = typeof ConversationDensity.Type;
+
+export const USER_CONVERSATION_DENSITY_VALUES = [
+  "detailed",
+  "compact-ungrouped",
+  "compact-all-grouped",
+] as const satisfies readonly ConversationDensity[];
+export type UserConversationDensity = (typeof USER_CONVERSATION_DENSITY_VALUES)[number];
+
+export const DEFAULT_CONVERSATION_DENSITY: ConversationDensity = "compact-all-grouped";
+
 export const ClientSettingsSchema = Schema.Struct({
   agentWindowFontSmoothingAntialiased: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_WINDOW_FONT_SMOOTHING_ANTIALIASED)),
@@ -61,6 +79,9 @@ export const ClientSettingsSchema = Schema.Struct({
   autoOpenPlanSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   confirmThreadArchive: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   confirmThreadDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  conversationDensity: ConversationDensity.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CONVERSATION_DENSITY)),
+  ),
   cursorPointerOnButtons: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CURSOR_POINTER_ON_BUTTONS)),
   ),
@@ -163,6 +184,7 @@ export const ClientSettingsPatch = Schema.Struct({
   autoOpenPlanSidebar: Schema.optionalKey(Schema.Boolean),
   confirmThreadArchive: Schema.optionalKey(Schema.Boolean),
   confirmThreadDelete: Schema.optionalKey(Schema.Boolean),
+  conversationDensity: Schema.optionalKey(ConversationDensity),
   cursorPointerOnButtons: Schema.optionalKey(Schema.Boolean),
   diffWordWrap: Schema.optionalKey(Schema.Boolean),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),

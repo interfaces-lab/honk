@@ -499,13 +499,61 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
 }
 
 [data-work-group-preview] {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 32px, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 32px, #000 100%);
+  max-height: var(--chat-timeline-work-preview-max-height);
+  padding-top: var(--chat-timeline-step-gap);
 }
 
-[data-work-group-preview][data-work-preview-scrollable="false"] {
-  -webkit-mask-image: none;
-  mask-image: none;
+[data-assistant-work-group][data-group-loading]:not([data-work-group-expanded="true"]):is(
+    [data-preview-scrollable="false"],
+    :has([data-work-group-preview][data-work-preview-scrollable="false"])
+  )
+  [data-work-group-header] {
+  display: none;
+}
+
+:is(
+    [data-group-loading][data-preview-scrollable="false"] [data-work-group-preview],
+    [data-group-loading] [data-work-group-preview][data-work-preview-scrollable="false"]
+  ) {
+  padding-top: 0;
+}
+
+:is(
+    [data-preview-scrollable="true"] [data-work-group-preview],
+    [data-work-group-preview][data-work-preview-scrollable="true"]
+  ) {
+  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.15) 0, #000 32px);
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.15) 0, #000 32px);
+}
+
+[data-work-group-preview-dimmed] .chat-markdown {
+  opacity: 0.5;
+}
+
+[data-group-loading] [data-work-group-header] > span:first-child {
+  animation: tool-call-line-shine var(--motion-duration-shimmer, 2000ms) linear infinite;
+  background-clip: text;
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 0%,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 25%,
+    var(--multi-fg-primary) 60%,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 75%,
+    color-mix(in srgb, var(--foreground, currentColor) 60%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-group-loading] [data-work-group-header] > span:first-child {
+    animation: none;
+    background: none;
+    color: var(--multi-fg-tertiary);
+    -webkit-text-fill-color: unset;
+  }
 }
 
 

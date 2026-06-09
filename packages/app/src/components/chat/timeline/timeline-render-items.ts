@@ -4,11 +4,20 @@ import {
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineToolItem,
 } from "@multi/contracts";
+import {
+  DEFAULT_CONVERSATION_DENSITY,
+  type ConversationDensity,
+} from "@multi/contracts/settings";
+import {
+  shouldGroupEdits,
+  shouldGroupShells,
+} from "@multi/shared/conversation-density";
 
 import {
   formatDuration,
   type TimelineEntry,
   type ToolDiffArtifact,
+  type WaitingPhase,
   type WorkLogEntry,
 } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
@@ -85,6 +94,8 @@ export interface TimelineWaitingStep {
   kind: "waiting";
   id: string;
   createdAt: string | null;
+  phase: WaitingPhase;
+  elapsedStartedAt: string | null;
 }
 
 export type TimelineStep =
@@ -107,12 +118,18 @@ export interface GroupedSteps {
   createdAt: string;
   completedDurationLabel: string | null;
   isRunning: boolean;
+  isTailGroup: boolean;
   isThinkingGroup: boolean;
   isCommandGroup: boolean;
+  isWaitingGroup: boolean;
+  isBrowserGroup: boolean;
   summary: WorkGroupSummary;
   steps: TimelineGroupedStep[];
   entries: WorkLogEntry[];
 }
+
+export const RUNTIME_DEFAULT_MIN_GROUP_SIZE = 1;
+export const RUNTIME_EXPLORE_ONLY_MIN_GROUP_SIZE = 3;
 
 export interface WaitingGroupedSteps {
   id: string;
@@ -131,7 +148,8 @@ export type TimelineRenderItem =
         | TimelineRuntimeThinkingStep
         | TimelineRuntimeToolStep
         | TimelineRuntimeTaskStep
-        | TimelineRuntimeExtensionUiRequestStep;
+        | TimelineRuntimeExtensionUiRequestStep
+        | TimelineWorkStep;
     }
   | {
       kind: "group";
@@ -165,13 +183,33 @@ export function computeMessageDurationStart(
   return result;
 }
 
+/**
+ * Snapshot of the trailing grouped row. Pass from `readTailGroupSnapshot` on the prior
+ * derivation while `isTurnActive` so a brief empty regroup does not flicker the tail away.
+ * `messages-timeline.tsx` is the intended consumer for this hook point.
+ */
+export function readTailGroupSnapshot(
+  items: ReadonlyArray<TimelineRenderItem>,
+): GroupedSteps | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.kind === "group") {
+      return item.group;
+    }
+  }
+  return null;
+}
+
 export function deriveTimelineRenderItems(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
   isTurnActive: boolean;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
+  conversationDensity?: ConversationDensity | undefined;
+  tailGroupSnapshot?: GroupedSteps | null | undefined;
 }): TimelineRenderItem[] {
+  const conversationDensity = input.conversationDensity ?? DEFAULT_CONVERSATION_DENSITY;
   const items: TimelineRenderItem[] = [];
   let lastMessageDurationBoundary: string | null = null;
   let currentPairId: MessageId | null = null;
@@ -196,38 +234,60 @@ export function deriveTimelineRenderItems(input: {
         entries.push(entry.entry);
       };
       appendWorkStep(timelineEntry);
+      const canGroupCurrentEntry = isWorkEntryGroupable(timelineEntry.entry, conversationDensity);
       let cursor = index + 1;
-      while (cursor < input.timelineEntries.length) {
-        const nextEntry = input.timelineEntries[cursor];
-        if (!nextEntry || nextEntry.kind !== "work") break;
-        if ((timelineEntry.entry.tone === "thinking") !== (nextEntry.entry.tone === "thinking")) {
-          break;
+      if (canGroupCurrentEntry) {
+        while (cursor < input.timelineEntries.length) {
+          const nextEntry = input.timelineEntries[cursor];
+          if (!nextEntry || nextEntry.kind !== "work") break;
+          if (
+            (timelineEntry.entry.tone === "thinking") !== (nextEntry.entry.tone === "thinking")
+          ) {
+            break;
+          }
+          if (!isWorkEntryGroupable(nextEntry.entry, conversationDensity)) {
+            break;
+          }
+          appendWorkStep(nextEntry);
+          cursor += 1;
         }
-        appendWorkStep(nextEntry);
-        cursor += 1;
       }
-      const firstStep = steps[0]!;
       const analysis = analyzeWorkGroup(entries);
       if (!input.isTurnActive) {
         analysis.running = false;
       }
-      const group: GroupedSteps = {
-        id: firstStep.id,
-        createdAt: firstStep.createdAt,
-        completedDurationLabel: analysis.running ? null : formatDuration(analysis.durationMs),
-        isRunning: analysis.running,
-        isThinkingGroup: analysis.thinkingCount === entries.length && analysis.thinkingCount > 0,
-        isCommandGroup: analysis.commandCount === entries.length && analysis.commandCount > 0,
-        summary: summarizeAnalyzedWorkGroup(entries, analysis, input.projectRoot),
-        steps,
-        entries,
-      };
-      items.push({
-        kind: "group",
-        id: group.id,
-        createdAt: group.createdAt,
-        group,
-      });
+      if (shouldGroupWorkSteps(steps, conversationDensity, analysis.running)) {
+        const firstStep = steps[0]!;
+        const group: GroupedSteps = {
+          id: firstStep.id,
+          createdAt: firstStep.createdAt,
+          completedDurationLabel: analysis.running ? null : formatDuration(analysis.durationMs),
+          isRunning: analysis.running,
+          isTailGroup: false,
+          isThinkingGroup: analysis.thinkingCount === entries.length && analysis.thinkingCount > 0,
+          isCommandGroup: analysis.commandCount === entries.length && analysis.commandCount > 0,
+          isWaitingGroup: false,
+          isBrowserGroup: false,
+          summary: summarizeAnalyzedWorkGroup(entries, analysis, input.projectRoot),
+          steps,
+          entries,
+        };
+        items.push({
+          kind: "group",
+          id: group.id,
+          createdAt: group.createdAt,
+          group,
+        });
+      } else {
+        for (const step of steps) {
+          items.push({
+            kind: "single",
+            id: step.id,
+            createdAt: step.createdAt,
+            step,
+          });
+        }
+      }
       index = cursor - 1;
       continue;
     }
@@ -248,34 +308,112 @@ export function deriveTimelineRenderItems(input: {
       continue;
     }
 
+    if (isRuntimeAwaitToolTimelineEntry(timelineEntry)) {
+      const collectedEntries = collectAdjacentRuntimeWaitingGroupEntries(
+        input.timelineEntries,
+        index,
+      );
+      const steps = collectedEntries.map(({ entry }) => runtimeTimelineEntryToStep(entry));
+      const awaitToolCount = countRuntimeAwaitToolSteps(steps);
+      if (awaitToolCount >= MIN_RUNTIME_SPECIAL_GROUP_TOOLS) {
+        const group = summarizeRuntimeWaitingGroup(steps, {
+          isWorking: input.isWorking,
+          isTurnActive: input.isTurnActive,
+        });
+        items.push({
+          kind: "group",
+          id: group.id,
+          createdAt: group.createdAt,
+          group,
+        });
+      } else {
+        for (const step of steps) {
+          items.push({
+            kind: "single",
+            id: step.id,
+            createdAt: step.createdAt,
+            step,
+          });
+        }
+      }
+      index = collectedEntries.at(-1)!.index;
+      continue;
+    }
+
+    if (isRuntimeBrowserMcpToolTimelineEntry(timelineEntry)) {
+      const collectedEntries = collectAdjacentRuntimeBrowserGroupEntries(
+        input.timelineEntries,
+        index,
+      );
+      const steps = collectedEntries.map(({ entry }) => runtimeTimelineEntryToStep(entry));
+      const browserToolCount = countRuntimeBrowserMcpToolSteps(steps);
+      if (browserToolCount >= MIN_RUNTIME_SPECIAL_GROUP_TOOLS) {
+        const group = summarizeRuntimeBrowserGroup(steps, {
+          isWorking: input.isWorking,
+          isTurnActive: input.isTurnActive,
+        });
+        items.push({
+          kind: "group",
+          id: group.id,
+          createdAt: group.createdAt,
+          group,
+        });
+      } else {
+        for (const step of steps) {
+          items.push({
+            kind: "single",
+            id: step.id,
+            createdAt: step.createdAt,
+            step,
+          });
+        }
+      }
+      index = collectedEntries.at(-1)!.index;
+      continue;
+    }
+
     if (isRuntimeGroupableTimelineEntry(timelineEntry)) {
-      const steps: Array<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep> = [];
+      const firstStep = runtimeTimelineEntryToStep(timelineEntry);
+      if (!isRuntimeStepGroupableForDensity(firstStep, conversationDensity)) {
+        items.push({
+          kind: "single",
+          id: firstStep.id,
+          createdAt: firstStep.createdAt,
+          step: firstStep,
+        });
+        continue;
+      }
+
+      const steps: Array<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep> = [firstStep];
       const appendRuntimeStep = (
         entry: Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>,
       ) => {
         steps.push(runtimeTimelineEntryToStep(entry));
       };
-      appendRuntimeStep(timelineEntry);
       let cursor = index + 1;
       while (cursor < input.timelineEntries.length) {
         const nextEntry = input.timelineEntries[cursor];
         if (!nextEntry || !isRuntimeGroupableTimelineEntry(nextEntry)) break;
+        const nextStep = runtimeTimelineEntryToStep(nextEntry);
+        if (!isRuntimeStepGroupableForDensity(nextStep, conversationDensity)) break;
         appendRuntimeStep(nextEntry);
         cursor += 1;
       }
-      const shouldGroup = steps.length > 1 || steps.some(isRunningRuntimeStep);
+      const shouldGroup = shouldGroupRuntimeSteps(steps);
       if (!shouldGroup) {
-        const step = steps[0]!;
-        items.push({
-          kind: "single",
-          id: step.id,
-          createdAt: step.createdAt,
-          step,
-        });
+        for (const step of steps) {
+          items.push({
+            kind: "single",
+            id: step.id,
+            createdAt: step.createdAt,
+            step,
+          });
+        }
       } else {
         const group = summarizeRuntimeGroup(steps, {
           isWorking: input.isWorking,
           isTurnActive: input.isTurnActive,
+          projectRoot: input.projectRoot,
         });
         items.push({
           kind: "group",
@@ -324,6 +462,8 @@ export function deriveTimelineRenderItems(input: {
         kind: "waiting",
         id: timelineEntry.id,
         createdAt: timelineEntry.createdAt,
+        phase: timelineEntry.phase,
+        elapsedStartedAt: timelineEntry.elapsedStartedAt,
       };
       items.push({
         kind: "waitingGroup",
@@ -367,7 +507,24 @@ export function deriveTimelineRenderItems(input: {
     }
   }
 
-  return items;
+  if (
+    input.isTurnActive &&
+    input.tailGroupSnapshot &&
+    !items.some((item) => item.kind === "group")
+  ) {
+    items.push({
+      kind: "group",
+      id: input.tailGroupSnapshot.id,
+      createdAt: input.tailGroupSnapshot.createdAt,
+      group: input.tailGroupSnapshot,
+    });
+  }
+
+  return applyTailOnlyLoadingSemantics(items, {
+    isTurnActive: input.isTurnActive,
+    isWorking: input.isWorking,
+    projectRoot: input.projectRoot,
+  });
 }
 
 export function summarizeWorkGroup(
@@ -392,6 +549,188 @@ function isRuntimeSubagentToolTimelineEntry(
   return entry.kind === "runtime-tool" && entry.tool.display?.kind === "subagent";
 }
 
+const MIN_RUNTIME_SPECIAL_GROUP_TOOLS = 2;
+
+const BROWSER_MCP_PROVIDER_IDENTIFIERS = [
+  "cursor-ide-browser",
+  "cursor-browser-extension",
+] as const;
+
+interface IndexedRuntimeTimelineEntry {
+  entry: Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>;
+  index: number;
+}
+
+function isRuntimeAwaitToolTimelineEntry(
+  entry: TimelineEntry,
+): entry is Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  if (entry.kind !== "runtime-tool") {
+    return false;
+  }
+  const step = runtimeTimelineEntryToStep(entry);
+  return step.kind === "runtime-tool" && isRuntimeAwaitToolStep(step);
+}
+
+function isRuntimeBrowserMcpToolTimelineEntry(
+  entry: TimelineEntry,
+): entry is Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  if (entry.kind !== "runtime-tool") {
+    return false;
+  }
+  const step = runtimeTimelineEntryToStep(entry);
+  return step.kind === "runtime-tool" && isRuntimeBrowserToolStep(step);
+}
+
+function canJoinRuntimeWaitingGroupEntry(
+  entry: TimelineEntry,
+): entry is Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }> {
+  if (entry.kind === "runtime-thinking") {
+    return true;
+  }
+  if (entry.kind !== "runtime-tool" || entry.tool.display?.kind === "subagent") {
+    return false;
+  }
+  if (entry.tool.display?.kind === "edit") {
+    return false;
+  }
+  return true;
+}
+
+function collectAdjacentRuntimeWaitingGroupEntries(
+  entries: ReadonlyArray<TimelineEntry>,
+  startIndex: number,
+): IndexedRuntimeTimelineEntry[] {
+  const collected: IndexedRuntimeTimelineEntry[] = [];
+  let cursor = startIndex;
+  while (cursor < entries.length) {
+    const entry = entries[cursor];
+    if (!entry || !canJoinRuntimeWaitingGroupEntry(entry)) {
+      break;
+    }
+    collected.push({ entry, index: cursor });
+    cursor += 1;
+  }
+  return collected;
+}
+
+function collectAdjacentRuntimeBrowserGroupEntries(
+  entries: ReadonlyArray<TimelineEntry>,
+  startIndex: number,
+): IndexedRuntimeTimelineEntry[] {
+  const collected: IndexedRuntimeTimelineEntry[] = [];
+  let cursor = startIndex;
+  while (cursor < entries.length) {
+    const entry = entries[cursor];
+    if (!entry) {
+      break;
+    }
+    if (entry.kind === "runtime-thinking") {
+      collected.push({ entry, index: cursor });
+      cursor += 1;
+      continue;
+    }
+    if (isRuntimeBrowserMcpToolTimelineEntry(entry)) {
+      collected.push({ entry, index: cursor });
+      cursor += 1;
+      continue;
+    }
+    break;
+  }
+  return collected;
+}
+
+function countRuntimeAwaitToolSteps(
+  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+): number {
+  return steps.filter(
+    (step): step is TimelineRuntimeToolStep =>
+      step.kind === "runtime-tool" && isRuntimeAwaitToolStep(step),
+  ).length;
+}
+
+function countRuntimeBrowserMcpToolSteps(
+  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+): number {
+  return steps.filter(
+    (step): step is TimelineRuntimeToolStep =>
+      step.kind === "runtime-tool" && isRuntimeBrowserToolStep(step),
+  ).length;
+}
+
+function isRuntimeAwaitToolStep(step: TimelineRuntimeToolStep): boolean {
+  const toolName = normalizeRuntimeToolName(step.tool.toolName);
+  return toolName === "await" || toolName.includes("await");
+}
+
+function normalizeRuntimeToolName(toolName: string): string {
+  return toolName.trim().toLowerCase().replaceAll("-", "_");
+}
+
+function countAwaitJobStats(awaitSteps: ReadonlyArray<TimelineRuntimeToolStep>): {
+  jobCount: number;
+  completeCount: number;
+  activeCount: number;
+} {
+  const jobs = new Map<string, "complete" | "active">();
+  for (const step of awaitSteps) {
+    const taskId = extractAwaitTaskId(step.tool);
+    const key = taskId ?? step.tool.toolCallId;
+    jobs.set(key, step.tool.status === "running" ? "active" : "complete");
+  }
+  const values = [...jobs.values()];
+  const completeCount = values.filter((status) => status === "complete").length;
+  const jobCount = jobs.size;
+  return {
+    jobCount,
+    completeCount,
+    activeCount: jobCount - completeCount,
+  };
+}
+
+function extractAwaitTaskId(tool: RuntimeDisplayTimelineToolItem): string | undefined {
+  const record = asRuntimeToolArgsRecord(tool.args);
+  if (!record) {
+    return undefined;
+  }
+  const taskId = record.taskId;
+  if (typeof taskId !== "string") {
+    return undefined;
+  }
+  const trimmed = taskId.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function asRuntimeToolArgsRecord(args: unknown): Record<string, unknown> | undefined {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return undefined;
+  }
+  return args as Record<string, unknown>;
+}
+
+function formatMonitoringBackgroundSummary(input: {
+  running: boolean;
+  jobCount: number;
+  completeCount: number;
+  activeCount: number;
+}): WorkGroupSummary {
+  const taskWord = input.jobCount === 1 ? "task" : "tasks";
+  const detailParts: string[] = [];
+  if (!input.running) {
+    if (input.completeCount > 0) {
+      detailParts.push(`${input.completeCount} complete`);
+    }
+    if (input.activeCount > 0) {
+      detailParts.push(`${input.activeCount} active`);
+    }
+  }
+  return {
+    action: input.running
+      ? `Monitoring background ${taskWord}`
+      : `Monitored background ${taskWord}`,
+    details: input.running ? "" : detailParts.join(", "),
+  };
+}
+
 function runtimeTimelineEntryToStep(
   entry: Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>,
 ): TimelineRuntimeThinkingStep | TimelineRuntimeToolStep {
@@ -413,27 +752,34 @@ function runtimeTimelineEntryToStep(
 
 function summarizeRuntimeGroup(
   steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
-  input: { isWorking: boolean; isTurnActive: boolean },
+  input: { isWorking: boolean; isTurnActive: boolean; projectRoot?: string | undefined },
 ): GroupedSteps {
   const firstStep = steps[0]!;
   const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const toolSteps = steps.filter((step) => step.kind === "runtime-tool");
   const commandCount = toolSteps.filter(isRuntimeCommandToolStep).length;
+  const browserCount = toolSteps.filter(isRuntimeBrowserToolStep).length;
   const hasError = toolSteps.some((step) => step.tool.status === "error" || step.tool.isError === true);
+  const toolAnalysis = analyzeRuntimeToolSteps(toolSteps);
   return {
     id: firstStep.id,
     createdAt: firstStep.createdAt,
     completedDurationLabel: running ? null : formatDuration(runtimeGroupDurationMs(steps)),
     isRunning: running,
+    isTailGroup: false,
     isThinkingGroup: thinkingCount === steps.length && thinkingCount > 0,
-    isCommandGroup: commandCount === steps.length && commandCount > 0,
+    isCommandGroup: commandCount === toolSteps.length && commandCount > 0,
+    isWaitingGroup: false,
+    isBrowserGroup: browserCount === toolSteps.length && browserCount > 0,
     summary: summarizeRuntimeGroupSteps({
+      browserCount,
       commandCount,
       hasError,
       running,
       steps,
       thinkingCount,
+      toolAnalysis,
       toolCount: toolSteps.length,
     }),
     steps: [...steps],
@@ -441,29 +787,90 @@ function summarizeRuntimeGroup(
   };
 }
 
+function summarizeRuntimeWaitingGroup(
+  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+  input: { isWorking: boolean; isTurnActive: boolean },
+): GroupedSteps {
+  const firstStep = steps[0]!;
+  const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
+  const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
+  const awaitSteps = steps.filter(
+    (step): step is TimelineRuntimeToolStep =>
+      step.kind === "runtime-tool" && isRuntimeAwaitToolStep(step),
+  );
+  const jobStats = countAwaitJobStats(awaitSteps);
+  return {
+    id: firstStep.id,
+    createdAt: firstStep.createdAt,
+    completedDurationLabel: running ? null : formatDuration(runtimeGroupDurationMs(steps)),
+    isRunning: running,
+    isTailGroup: false,
+    isThinkingGroup: thinkingCount === steps.length && thinkingCount > 0,
+    isCommandGroup: false,
+    isWaitingGroup: true,
+    isBrowserGroup: false,
+    summary: formatMonitoringBackgroundSummary({
+      running,
+      ...jobStats,
+    }),
+    steps: [...steps],
+    entries: [],
+  };
+}
+
+function summarizeRuntimeBrowserGroup(
+  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+  input: { isWorking: boolean; isTurnActive: boolean },
+): GroupedSteps {
+  const firstStep = steps[0]!;
+  const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
+  const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
+  const browserCount = countRuntimeBrowserMcpToolSteps(steps);
+  return {
+    id: firstStep.id,
+    createdAt: firstStep.createdAt,
+    completedDurationLabel: running ? null : formatDuration(runtimeGroupDurationMs(steps)),
+    isRunning: running,
+    isTailGroup: false,
+    isThinkingGroup: thinkingCount === steps.length && thinkingCount > 0,
+    isCommandGroup: false,
+    isWaitingGroup: false,
+    isBrowserGroup: true,
+    summary: {
+      action: running ? "Running" : "Ran",
+      details: formatBrowserActionCountDetails(browserCount),
+    },
+    steps: [...steps],
+    entries: [],
+  };
+}
+
 function summarizeRuntimeGroupSteps(input: {
+  readonly browserCount: number;
   readonly commandCount: number;
   readonly hasError: boolean;
   readonly running: boolean;
   readonly steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>;
   readonly thinkingCount: number;
+  readonly toolAnalysis: RuntimeToolGroupAnalysis;
   readonly toolCount: number;
 }): WorkGroupSummary {
   if (input.thinkingCount === input.steps.length && input.thinkingCount > 0) {
     return {
       action: input.running ? "Thinking" : "Thought",
-      details: input.running
-        ? ""
-        : formatDuration(runtimeGroupDurationMs(input.steps), {
-            subSecond: "briefly",
-            prefix: "for ",
-          }),
+      details: input.running ? "" : formatThinkingDetails(runtimeGroupDurationMs(input.steps)),
     };
   }
-  if (input.commandCount === input.steps.length && input.commandCount > 0) {
+  if (input.commandCount === input.toolCount && input.commandCount > 0) {
     return {
       action: input.running ? "Running" : "Ran",
-      details: input.commandCount === 1 ? "1 command" : `${input.commandCount} commands`,
+      details: formatCommandCountDetails(input.commandCount),
+    };
+  }
+  if (input.browserCount === input.toolCount && input.browserCount > 0) {
+    return {
+      action: input.running ? "Running" : "Ran",
+      details: formatBrowserActionCountDetails(input.browserCount),
     };
   }
   if (input.hasError) {
@@ -472,24 +879,205 @@ function summarizeRuntimeGroupSteps(input: {
       details: input.toolCount === 1 ? "1 tool" : `${input.toolCount} tools`,
     };
   }
-  if (input.toolCount > 0 && input.thinkingCount > 0) {
+  return summarizeToolGroupAnalysis(
+    input.toolAnalysis,
+    input.running,
+    undefined,
+    input.toolCount + input.thinkingCount,
+  );
+}
+
+function shouldGroupRuntimeSteps(
+  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+  minGroupSize = RUNTIME_DEFAULT_MIN_GROUP_SIZE,
+): boolean {
+  if (steps.length === 0) {
+    return false;
+  }
+
+  const hasThinking = steps.some((step) => step.kind === "runtime-thinking");
+  const exploreOnly =
+    !hasThinking &&
+    steps.every(
+      (step) =>
+        step.kind === "runtime-thinking" ||
+        (step.kind === "runtime-tool" && isExploreRuntimeToolStep(step)),
+    );
+  const toolSteps = steps.filter((step): step is TimelineRuntimeToolStep => step.kind === "runtime-tool");
+  const toolCount = toolSteps.length;
+  const isSingleShell = toolCount === 1 && toolSteps.some(isRuntimeCommandToolStep);
+  const minSize = exploreOnly
+    ? Math.max(minGroupSize, RUNTIME_EXPLORE_ONLY_MIN_GROUP_SIZE)
+    : minGroupSize;
+  const groupCount = isSingleShell ? toolCount : hasThinking ? steps.length : toolCount;
+
+  return groupCount >= minSize;
+}
+
+function isExploreRuntimeToolStep(step: TimelineRuntimeToolStep): boolean {
+  const displayKind = step.tool.display?.kind;
+  if (displayKind === "shell" || displayKind === "edit" || displayKind === "subagent") {
+    return false;
+  }
+  if (displayKind === "read" || displayKind === "grep" || displayKind === "mcp") {
+    return true;
+  }
+  switch (step.tool.toolName) {
+    case "read":
+    case "grep":
+    case "glob":
+    case "ls":
+    case "web_search":
+    case "web_fetch":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function applyTailOnlyLoadingSemantics(
+  items: TimelineRenderItem[],
+  input: { isTurnActive: boolean; isWorking: boolean; projectRoot?: string | undefined },
+): TimelineRenderItem[] {
+  const lastGroupIndex = findLastGroupRenderItemIndex(items);
+  if (lastGroupIndex === -1) {
+    return items;
+  }
+
+  return items.map((item, index) => {
+    if (item.kind !== "group") {
+      return item;
+    }
+
+    const isTailGroup = index === lastGroupIndex;
+    if (!input.isTurnActive) {
+      return {
+        ...item,
+        group: {
+          ...completeGroupedSteps(item.group, input.projectRoot),
+          isTailGroup: false,
+        },
+      };
+    }
+
+    if (isTailGroup) {
+      const naturallyRunning =
+        input.isWorking &&
+        item.group.steps.some((step) =>
+          step.kind === "work"
+            ? step.entry.status === "running"
+            : isRunningRuntimeStep(step),
+        );
+      return {
+        ...item,
+        group: {
+          ...item.group,
+          isTailGroup: true,
+          isRunning: naturallyRunning,
+          completedDurationLabel: naturallyRunning ? null : item.group.completedDurationLabel,
+        },
+      };
+    }
+
     return {
-      action: input.running ? "Working" : "Worked",
-      details: [
-        input.thinkingCount === 1 ? "1 thought" : `${input.thinkingCount} thoughts`,
-        input.toolCount === 1 ? "1 tool" : `${input.toolCount} tools`,
-      ].join(", "),
+      ...item,
+      group: {
+        ...completeGroupedSteps(item.group, input.projectRoot),
+        isTailGroup: false,
+      },
+    };
+  });
+}
+
+function findLastGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>): number {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (items[index]?.kind === "group") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function completeGroupedSteps(
+  group: GroupedSteps,
+  projectRoot?: string | undefined,
+): GroupedSteps {
+  if (!group.isRunning) {
+    return {
+      ...group,
+      isTailGroup: false,
     };
   }
-  if (input.toolCount > 0) {
+
+  if (group.entries.length > 0) {
+    const analysis = analyzeWorkGroup(group.entries);
+    analysis.running = false;
     return {
-      action: input.running ? "Using tools" : "Used tools",
-      details: input.toolCount === 1 ? "1 tool" : `${input.toolCount} tools`,
+      ...group,
+      isRunning: false,
+      isTailGroup: false,
+      completedDurationLabel: formatDuration(analysis.durationMs),
+      summary: summarizeAnalyzedWorkGroup(group.entries, analysis, projectRoot),
     };
   }
+
+  const runtimeSteps = group.steps.filter(
+    (step): step is TimelineRuntimeThinkingStep | TimelineRuntimeToolStep =>
+      step.kind === "runtime-thinking" || step.kind === "runtime-tool",
+  );
+  if (group.isWaitingGroup) {
+    const awaitSteps = runtimeSteps.filter(
+      (step): step is TimelineRuntimeToolStep =>
+        step.kind === "runtime-tool" && isRuntimeAwaitToolStep(step),
+    );
+    return {
+      ...group,
+      isRunning: false,
+      isTailGroup: false,
+      completedDurationLabel: formatDuration(runtimeGroupDurationMs(runtimeSteps)),
+      summary: formatMonitoringBackgroundSummary({
+        running: false,
+        ...countAwaitJobStats(awaitSteps),
+      }),
+    };
+  }
+  if (group.isBrowserGroup) {
+    const browserCount = countRuntimeBrowserMcpToolSteps(runtimeSteps);
+    return {
+      ...group,
+      isRunning: false,
+      isTailGroup: false,
+      completedDurationLabel: formatDuration(runtimeGroupDurationMs(runtimeSteps)),
+      summary: {
+        action: "Ran",
+        details: formatBrowserActionCountDetails(browserCount),
+      },
+    };
+  }
+  const thinkingCount = runtimeSteps.filter((step) => step.kind === "runtime-thinking").length;
+  const toolSteps = runtimeSteps.filter((step): step is TimelineRuntimeToolStep => step.kind === "runtime-tool");
+  const commandCount = toolSteps.filter(isRuntimeCommandToolStep).length;
+  const browserCount = toolSteps.filter(isRuntimeBrowserToolStep).length;
+  const hasError = toolSteps.some(
+    (step) => step.tool.status === "error" || step.tool.isError === true,
+  );
+  const toolAnalysis = analyzeRuntimeToolSteps(toolSteps);
+
   return {
-    action: input.running ? "Working" : "Worked",
-    details: input.steps.length === 1 ? "1 step" : `${input.steps.length} steps`,
+    ...group,
+    isRunning: false,
+    isTailGroup: false,
+    completedDurationLabel: formatDuration(runtimeGroupDurationMs(runtimeSteps)),
+    summary: summarizeRuntimeGroupSteps({
+      browserCount,
+      commandCount,
+      hasError,
+      running: false,
+      steps: runtimeSteps,
+      thinkingCount,
+      toolAnalysis,
+      toolCount: toolSteps.length,
+    }),
   };
 }
 
@@ -505,6 +1093,68 @@ function isRuntimeCommandToolStep(step: TimelineRuntimeToolStep): boolean {
     return true;
   }
   return step.tool.toolName === "shell" || typeof step.tool.command === "string";
+}
+
+function isRuntimeBrowserToolStep(step: TimelineRuntimeToolStep): boolean {
+  const display = step.tool.display;
+  if (display?.kind === "mcp") {
+    const provider = display.providerIdentifier?.toLowerCase() ?? "";
+    if (BROWSER_MCP_PROVIDER_IDENTIFIERS.some((identifier) => provider.includes(identifier))) {
+      return true;
+    }
+    return provider.includes("browser");
+  }
+  const args = asRuntimeToolArgsRecord(step.tool.args);
+  const provider =
+    (typeof args?.providerIdentifier === "string" ? args.providerIdentifier : undefined) ??
+    (typeof args?.provider === "string" ? args.provider : undefined) ??
+    "";
+  const normalizedProvider = provider.toLowerCase();
+  if (
+    BROWSER_MCP_PROVIDER_IDENTIFIERS.some((identifier) => normalizedProvider.includes(identifier))
+  ) {
+    return true;
+  }
+  const toolName = normalizeRuntimeToolName(step.tool.toolName);
+  return toolName.startsWith("browser_") || toolName.includes("browser");
+}
+
+function isRuntimeEditToolStep(step: TimelineRuntimeToolStep): boolean {
+  if (isRuntimeDeleteToolStep(step)) {
+    return false;
+  }
+  if (step.tool.display?.kind === "edit") {
+    return true;
+  }
+  const toolName = step.tool.toolName.toLowerCase();
+  return (
+    toolName.includes("edit") ||
+    toolName.includes("write") ||
+    toolName.includes("patch")
+  );
+}
+
+function isRuntimeDeleteToolStep(step: TimelineRuntimeToolStep): boolean {
+  const toolName = step.tool.toolName.toLowerCase();
+  if (toolName.includes("delete")) {
+    return true;
+  }
+  const display = step.tool.display;
+  if (display?.kind !== "edit") {
+    return false;
+  }
+  const additions = display.additions ?? 0;
+  const deletions = display.deletions ?? 0;
+  return additions === 0 && deletions > 0;
+}
+
+function extractRuntimeEditedFilePath(tool: RuntimeDisplayTimelineToolItem): string | null {
+  const display = tool.display;
+  if (display?.kind !== "edit" || !display.path) {
+    return null;
+  }
+  const trimmedPath = display.path.trim();
+  return trimmedPath.length > 0 ? trimmedPath : null;
 }
 
 function runtimeGroupDurationMs(
@@ -528,77 +1178,52 @@ function summarizeAnalyzedWorkGroup(
   if (analysis.thinkingCount === entries.length && analysis.thinkingCount > 0) {
     return {
       action: analysis.running ? "Thinking" : "Thought",
-      details: analysis.running
-        ? ""
-        : formatDuration(analysis.durationMs, {
-            subSecond: "briefly",
-            prefix: "for ",
-          }),
+      details: analysis.running ? "" : formatThinkingDetails(analysis.durationMs),
     };
   }
 
   if (analysis.commandCount === entries.length && analysis.commandCount > 0) {
     return {
       action: analysis.running ? "Running" : "Ran",
-      details: analysis.commandCount === 1 ? "1 command" : `${analysis.commandCount} commands`,
+      details: formatCommandCountDetails(analysis.commandCount),
     };
   }
 
-  if (analysis.editedFiles.size > 0) {
-    const editedSegment =
-      analysis.editedFiles.size === 1
-        ? (formatPrimaryEditedFileLabel(analysis.primaryEditedFilePath, projectRoot) ?? "1 file")
-        : `${analysis.editedFiles.size} files`;
-    const trailingSegments = [
-      ...analysis.explorationSegments,
-      ...(analysis.commandCount > 0
-        ? [analysis.commandCount === 1 ? "1 command" : `${analysis.commandCount} commands`]
-        : []),
-    ];
-    const detailParts = [
-      editedSegment,
-      ...trailingSegments.map((segment, index) => (index === 0 ? `explored ${segment}` : segment)),
-    ];
-    return {
-      action: analysis.running ? "Editing" : "Edited",
-      details: detailParts.join(", "),
-      ...(analysis.additions > 0 ? { additions: analysis.additions } : {}),
-      ...(analysis.deletions > 0 ? { deletions: analysis.deletions } : {}),
-    };
-  }
-
-  if (analysis.explorationSegments.length > 0) {
-    return {
-      action: analysis.running ? "Exploring" : "Explored",
-      details: analysis.explorationSegments.join(", "),
-    };
-  }
-
-  return {
-    action: analysis.running ? "Working" : "Worked",
-    details: entries.length === 1 ? "1 step" : `${entries.length} steps`,
-  };
+  return summarizeToolGroupAnalysis(analysis, analysis.running, projectRoot, entries.length);
 }
 
-interface WorkGroupAnalysis {
+interface ToolGroupAnalysisBase {
   running: boolean;
-  thinkingCount: number;
   commandCount: number;
+  editCount: number;
+  deleteCount: number;
   editedFiles: Set<string>;
+  deletedFiles: Set<string>;
   primaryEditedFilePath: string | null;
+  primaryDeletedFilePath: string | null;
   additions: number;
   deletions: number;
-  durationMs: number;
   explorationSegments: string[];
 }
 
+interface WorkGroupAnalysis extends ToolGroupAnalysisBase {
+  thinkingCount: number;
+  durationMs: number;
+}
+
+interface RuntimeToolGroupAnalysis extends ToolGroupAnalysisBase {}
+
 function analyzeWorkGroup(entries: ReadonlyArray<WorkLogEntry>): WorkGroupAnalysis {
   const editedFiles = new Set<string>();
+  const deletedFiles = new Set<string>();
   const exploredFiles = new Set<string>();
   let primaryEditedFilePath: string | null = null;
+  let primaryDeletedFilePath: string | null = null;
   let running = false;
   let thinkingCount = 0;
   let commandCount = 0;
+  let editCount = 0;
+  let deleteCount = 0;
   let readCount = 0;
   let searchCount = 0;
   let webSearchCount = 0;
@@ -684,31 +1309,35 @@ function analyzeWorkGroup(entries: ReadonlyArray<WorkLogEntry>): WorkGroupAnalys
       continue;
     }
 
-    addPaths(editedFiles, entry.changedFiles);
-    if (primaryEditedFilePath === null) {
-      primaryEditedFilePath = entry.changedFiles?.[0] ?? null;
-    }
     for (const artifact of diffArtifacts) {
       for (const file of artifact.files) {
-        addPath(editedFiles, file.path);
-        if (primaryEditedFilePath === null) {
-          primaryEditedFilePath = file.path;
+        const fileAdditions = file.additions ?? 0;
+        const fileDeletions = file.deletions ?? 0;
+        additions += fileAdditions;
+        deletions += fileDeletions;
+        if (fileAdditions === 0 && fileDeletions > 0) {
+          addPath(deletedFiles, file.path);
+          deleteCount += 1;
+          primaryDeletedFilePath ??= file.path;
+          continue;
         }
-        additions += file.additions ?? 0;
-        deletions += file.deletions ?? 0;
+        addPath(editedFiles, file.path);
+        editCount += 1;
+        primaryEditedFilePath ??= file.path;
       }
+    }
+    if (diffArtifacts.length === 0 && (entry.changedFiles?.length ?? 0) > 0) {
+      addPaths(editedFiles, entry.changedFiles);
+      editCount += entry.changedFiles?.length ?? 0;
+      primaryEditedFilePath ??= entry.changedFiles?.[0] ?? null;
     }
   }
 
-  const fileCount = exploredFiles.size || readCount;
-  const explorationSegments = [
-    ...(fileCount > 0 ? [fileCount === 1 ? "1 file" : `${fileCount} files`] : []),
-    ...(searchCount > 0 ? [searchCount === 1 ? "1 search" : `${searchCount} searches`] : []),
-    ...(webSearchCount > 0
-      ? [webSearchCount === 1 ? "1 web search" : `${webSearchCount} web searches`]
-      : []),
-    ...(webFetchCount > 0 ? [webFetchCount === 1 ? "1 fetch" : `${webFetchCount} fetches`] : []),
-  ];
+  const explorationSegments = buildExplorationSegments({
+    exploredFileCount: Math.max(exploredFiles.size, readCount),
+    searchCount: searchCount + webSearchCount,
+    fetchCount: webFetchCount,
+  });
   const firstEntry = entries[0];
   const lastEntry = entries.at(-1);
   const startMs = firstEntry ? Date.parse(firstEntry.createdAt) : NaN;
@@ -720,8 +1349,12 @@ function analyzeWorkGroup(entries: ReadonlyArray<WorkLogEntry>): WorkGroupAnalys
     running,
     thinkingCount,
     commandCount,
+    editCount,
+    deleteCount,
     editedFiles,
+    deletedFiles,
     primaryEditedFilePath,
+    primaryDeletedFilePath,
     additions,
     deletions,
     durationMs: Math.max(timelineDurationMs, artifactDurationMs),
@@ -729,14 +1362,245 @@ function analyzeWorkGroup(entries: ReadonlyArray<WorkLogEntry>): WorkGroupAnalys
   };
 }
 
-function formatPrimaryEditedFileLabel(
-  path: string | null,
-  projectRoot: string | undefined,
-): string | null {
-  if (!path) {
-    return null;
+function analyzeRuntimeToolSteps(
+  toolSteps: ReadonlyArray<TimelineRuntimeToolStep>,
+): RuntimeToolGroupAnalysis {
+  const editedFiles = new Set<string>();
+  const deletedFiles = new Set<string>();
+  const exploredFiles = new Set<string>();
+  let primaryEditedFilePath: string | null = null;
+  let primaryDeletedFilePath: string | null = null;
+  let commandCount = 0;
+  let editCount = 0;
+  let deleteCount = 0;
+  let readCount = 0;
+  let searchCount = 0;
+  let fetchCount = 0;
+  let additions = 0;
+  let deletions = 0;
+
+  for (const step of toolSteps) {
+    if (isRuntimeCommandToolStep(step)) {
+      commandCount += 1;
+      continue;
+    }
+    if (isRuntimeBrowserToolStep(step)) {
+      continue;
+    }
+    if (isRuntimeDeleteToolStep(step)) {
+      deleteCount += 1;
+      const path = extractRuntimeEditedFilePath(step.tool);
+      if (path) {
+        addPath(deletedFiles, path);
+        primaryDeletedFilePath ??= path;
+      }
+      const display = step.tool.display;
+      if (display?.kind === "edit") {
+        additions += display.additions ?? 0;
+        deletions += display.deletions ?? 0;
+      }
+      continue;
+    }
+    if (isRuntimeEditToolStep(step)) {
+      editCount += 1;
+      const path = extractRuntimeEditedFilePath(step.tool);
+      if (path) {
+        addPath(editedFiles, path);
+        primaryEditedFilePath ??= path;
+      }
+      const display = step.tool.display;
+      if (display?.kind === "edit") {
+        additions += display.additions ?? 0;
+        deletions += display.deletions ?? 0;
+      }
+      continue;
+    }
+    const display = step.tool.display;
+    if (display?.kind === "read") {
+      readCount += 1;
+      addPath(exploredFiles, display.path);
+      continue;
+    }
+    if (display?.kind === "grep") {
+      searchCount += 1;
+      addPath(exploredFiles, display.path);
+      addPaths(exploredFiles, display.matchedFiles);
+      continue;
+    }
+    if (display?.kind === "mcp") {
+      const provider = display.providerIdentifier?.toLowerCase() ?? "";
+      if (provider.includes("fetch")) {
+        fetchCount += 1;
+      }
+    }
   }
-  return formatEditedFileLabel(path, projectRoot);
+
+  return {
+    running: false,
+    commandCount,
+    editCount,
+    deleteCount,
+    editedFiles,
+    deletedFiles,
+    primaryEditedFilePath,
+    primaryDeletedFilePath,
+    additions,
+    deletions,
+    explorationSegments: buildExplorationSegments({
+      exploredFileCount: Math.max(exploredFiles.size, readCount),
+      searchCount,
+      fetchCount,
+    }),
+  };
+}
+
+function summarizeToolGroupAnalysis(
+  analysis: ToolGroupAnalysisBase,
+  running: boolean,
+  projectRoot?: string,
+  stepCount?: number,
+): WorkGroupSummary {
+  if (analysis.editCount > 0) {
+    const fileCount = analysis.editedFiles.size || analysis.editCount;
+    return {
+      action: running ? "Editing" : "Edited",
+      details: joinGroupDetailParts([
+        formatFileCountSegment(fileCount, analysis.primaryEditedFilePath, projectRoot),
+        formatExplorationDetailSegments(analysis.explorationSegments, true),
+        analysis.commandCount > 0 ? formatRanCommandSegment(analysis.commandCount) : undefined,
+      ]),
+      ...(analysis.additions > 0 ? { additions: analysis.additions } : {}),
+      ...(analysis.deletions > 0 ? { deletions: analysis.deletions } : {}),
+    };
+  }
+
+  if (analysis.deleteCount > 0) {
+    const fileCount = analysis.deletedFiles.size || analysis.deleteCount;
+    return {
+      action: running ? "Deleting" : "Deleted",
+      details: joinGroupDetailParts([
+        formatFileCountSegment(fileCount, analysis.primaryDeletedFilePath, projectRoot),
+        formatExplorationDetailSegments(analysis.explorationSegments, true),
+        analysis.commandCount > 0 ? formatRanCommandSegment(analysis.commandCount) : undefined,
+      ]),
+      ...(analysis.deletions > 0 ? { deletions: analysis.deletions } : {}),
+    };
+  }
+
+  if (analysis.explorationSegments.length > 0 || analysis.commandCount > 0) {
+    return {
+      action: running ? "Exploring" : "Explored",
+      details: joinGroupDetailParts([
+        formatExplorationDetailSegments(analysis.explorationSegments, false),
+        analysis.commandCount > 0 ? formatRanCommandSegment(analysis.commandCount) : undefined,
+      ]),
+    };
+  }
+
+  return {
+    action: running ? "Exploring" : "Explored",
+    details:
+      stepCount === undefined || stepCount === 1 ? "1 step" : `${stepCount} steps`,
+  };
+}
+
+const CURSOR_SINGLE_FILE_PATH_MAX_LENGTH = 20;
+
+function formatThinkingDetails(
+  durationMs: number,
+  options?: { headerTitle?: string | undefined },
+): string {
+  const headerTitle = options?.headerTitle?.trim() ?? "";
+  const hasHeaderTitle = headerTitle.length > 0;
+  const seconds = durationMs > 0 ? Math.round(durationMs / 1_000) : 0;
+
+  if (durationMs > 0 && durationMs < 500) {
+    return hasHeaderTitle ? "" : "briefly";
+  }
+  if (hasHeaderTitle) {
+    if (seconds > 0) {
+      return `${seconds}s`;
+    }
+    if (durationMs > 0) {
+      return `${(durationMs / 1_000).toFixed(1)}s`;
+    }
+    return "";
+  }
+  if (durationMs > 0 && seconds === 0) {
+    return `for ${(durationMs / 1_000).toFixed(1)}s`;
+  }
+  if (seconds > 0) {
+    return `for ${seconds}s`;
+  }
+  return "briefly";
+}
+
+function formatCommandCountDetails(commandCount: number): string {
+  return commandCount === 1 ? "1 command" : `${commandCount} commands`;
+}
+
+function formatBrowserActionCountDetails(browserActionCount: number): string {
+  return browserActionCount === 1
+    ? "1 browser action"
+    : `${browserActionCount} browser actions`;
+}
+
+function formatRanCommandSegment(commandCount: number): string {
+  return commandCount === 1 ? "ran 1 command" : `ran ${commandCount} commands`;
+}
+
+function buildExplorationSegments(input: {
+  exploredFileCount: number;
+  searchCount: number;
+  fetchCount: number;
+}): string[] {
+  return [
+    ...(input.exploredFileCount > 0
+      ? [input.exploredFileCount === 1 ? "1 file" : `${input.exploredFileCount} files`]
+      : []),
+    ...(input.searchCount > 0
+      ? [input.searchCount === 1 ? "1 search" : `${input.searchCount} searches`]
+      : []),
+    ...(input.fetchCount > 0
+      ? [input.fetchCount === 1 ? "1 fetch" : `${input.fetchCount} fetches`]
+      : []),
+  ];
+}
+
+function formatExplorationDetailSegments(
+  segments: ReadonlyArray<string>,
+  prefixFirstSegment: boolean,
+): string | undefined {
+  if (segments.length === 0) {
+    return undefined;
+  }
+  if (!prefixFirstSegment) {
+    return segments.join(", ");
+  }
+  const [firstSegment, ...rest] = segments;
+  if (!firstSegment) {
+    return undefined;
+  }
+  return [`explored ${firstSegment}`, ...rest].join(", ");
+}
+
+function formatFileCountSegment(
+  fileCount: number,
+  primaryPath: string | null,
+  projectRoot?: string,
+): string {
+  if (fileCount === 1) {
+    const pathLabel = primaryPath ? formatEditedFileLabel(primaryPath, projectRoot) : null;
+    if (pathLabel && pathLabel.length <= CURSOR_SINGLE_FILE_PATH_MAX_LENGTH) {
+      return pathLabel;
+    }
+    return "1 file";
+  }
+  return `${fileCount} files`;
+}
+
+function joinGroupDetailParts(parts: ReadonlyArray<string | undefined>): string {
+  return parts.filter((part): part is string => Boolean(part?.trim())).join(", ");
 }
 
 function formatEditedFileLabel(path: string, projectRoot: string | undefined): string {
@@ -755,6 +1619,74 @@ export function isCommandWorkEntry(entry: WorkLogEntry): boolean {
     Boolean(entry.command) ||
     Boolean(entry.artifacts?.some((artifact) => artifact.type === "command"))
   );
+}
+
+function timelineMinGroupSize(density: ConversationDensity): number {
+  return shouldGroupEdits(density) || shouldGroupShells(density) ? 2 : 1;
+}
+
+function shouldGroupWorkSteps(
+  steps: ReadonlyArray<TimelineWorkStep>,
+  density: ConversationDensity,
+  running: boolean,
+): boolean {
+  if (steps.length === 0) {
+    return false;
+  }
+  const entries = steps.map((step) => step.entry);
+  const analysis = analyzeWorkGroup(entries);
+  if (analysis.thinkingCount === entries.length) {
+    return true;
+  }
+  if (steps.length === 1) {
+    const entry = entries[0]!;
+    if (isCommandWorkEntry(entry)) {
+      return shouldGroupShells(density) || running;
+    }
+    if (isWorkEditEntry(entry)) {
+      return shouldGroupEdits(density);
+    }
+    return false;
+  }
+  return steps.length >= timelineMinGroupSize(density);
+}
+
+function isWorkEditEntry(entry: WorkLogEntry): boolean {
+  return (
+    entry.requestKind === "file-change" ||
+    entry.itemType === "file_change" ||
+    (entry.changedFiles?.length ?? 0) > 0 ||
+    Boolean(entry.artifacts?.some((artifact) => artifact.type === "diff"))
+  );
+}
+
+function isWorkEntryGroupable(entry: WorkLogEntry, density: ConversationDensity): boolean {
+  if (entry.tone === "thinking") {
+    return true;
+  }
+  if (isCommandWorkEntry(entry)) {
+    return shouldGroupShells(density);
+  }
+  if (isWorkEditEntry(entry)) {
+    return shouldGroupEdits(density);
+  }
+  return true;
+}
+
+function isRuntimeStepGroupableForDensity(
+  step: TimelineRuntimeThinkingStep | TimelineRuntimeToolStep,
+  density: ConversationDensity,
+): boolean {
+  if (step.kind === "runtime-thinking") {
+    return true;
+  }
+  if (isRuntimeCommandToolStep(step)) {
+    return shouldGroupShells(density);
+  }
+  if (isRuntimeEditToolStep(step)) {
+    return shouldGroupEdits(density);
+  }
+  return true;
 }
 
 function addPaths(target: Set<string>, paths: ReadonlyArray<string | undefined> | undefined) {

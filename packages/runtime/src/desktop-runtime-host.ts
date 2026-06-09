@@ -1,15 +1,19 @@
 import { join } from "node:path";
 import {
   AuthProviderId,
+  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
+  AGENT_THINKING_LEVELS,
   type AgentCredentialAuthFlow,
   type AgentCredentialConfigureInput,
   type AgentAuthStatus,
+  type AgentRuntimeModelDescriptor,
   type AgentPreferences,
   type AgentPreferencesPatch,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
   type DesktopExtensionUiRespondInput,
+  ModelId,
   type MultiRuntimeApi,
   type MultiRuntimeHostEvent,
   type MultiRuntimeHostSnapshot,
@@ -19,8 +23,13 @@ import {
   type ThreadAgentRuntimeHydrateInput,
   type ThreadAgentRuntimeSendTurnInput,
 } from "@multi/contracts";
-import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai";
-import { AuthStorage, type AuthStatus, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
+import {
+  AuthStorage,
+  ModelRegistry,
+  type AuthStatus,
+  type ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
@@ -32,6 +41,8 @@ import {
 const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   agentMode: "deep",
   interactionMode: "agent",
+  modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+  modelSettingsByModelId: {},
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [
@@ -113,6 +124,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   private preferences: AgentPreferences;
   private readonly agentDir: string;
   private readonly authStorage: AuthStorage | null;
+  private readonly modelRegistry: ModelRegistry | null;
   private readonly extensionFactories: readonly ExtensionFactory[];
   private readonly bindRuntimeExtensions:
     | ((runtime: ThreadAgentRuntime, ui: DesktopExtensionUiController) => Promise<void>)
@@ -137,6 +149,9 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
       options.authStorage === undefined
         ? AuthStorage.create(join(this.agentDir, "auth.json"))
         : options.authStorage;
+    this.modelRegistry = this.authStorage
+      ? ModelRegistry.create(this.authStorage, join(this.agentDir, "models.json"))
+      : null;
     this.extensionFactories =
       options.extensionFactories ??
       createDesktopAgentExtensionFactories({ agentDir: this.agentDir });
@@ -146,6 +161,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   async getHostSnapshot(): Promise<MultiRuntimeHostSnapshot> {
     return {
       preferences: this.preferences,
+      models: this.getModelDescriptors(),
       authStatuses: this.getAuthStatuses(),
       credentialAuthFlows: [...this.credentialAuthFlows.values()],
       diagnostics: [],
@@ -536,6 +552,28 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     return [...this.runtimes.values()].flatMap((entry) =>
       this.getPendingExtensionUiRequestsForRuntime(entry.runtime),
     );
+  }
+
+  private getModelDescriptors(): AgentRuntimeModelDescriptor[] {
+    if (!this.modelRegistry) {
+      return [];
+    }
+
+    return this.modelRegistry.getAll().map((model) => {
+      const supportedThinkingLevels = new Set<string>(getSupportedThinkingLevels(model));
+      return {
+        authProviderId: AuthProviderId.make(model.provider),
+        modelId: ModelId.make(`${model.provider}/${model.id}`),
+        provider: model.provider,
+        id: model.id,
+        name: model.name.trim() || model.id,
+        reasoning: model.reasoning,
+        contextWindow: model.contextWindow,
+        thinkingLevels: AGENT_THINKING_LEVELS.filter((level) =>
+          supportedThinkingLevels.has(level),
+        ),
+      };
+    });
   }
 
   private getAuthStatuses(): AgentAuthStatus[] {

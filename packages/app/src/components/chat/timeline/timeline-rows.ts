@@ -1,4 +1,5 @@
 import { type MessageId } from "@multi/contracts";
+import type { ConversationDensity } from "@multi/contracts/settings";
 
 import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
 import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
@@ -44,8 +45,11 @@ export interface WorkTimelineRow {
   createdAt: string;
   completedDurationLabel: string | null;
   isRunning: boolean;
+  isTailGroup: boolean;
   isThinkingGroup: boolean;
   isCommandGroup: boolean;
+  isWaitingGroup: boolean;
+  isBrowserGroup: boolean;
   summary: WorkGroupSummary;
   steps: TimelineGroupedStep[];
   groupedEntries: WorkLogEntry[];
@@ -74,6 +78,7 @@ export interface WorkingTimelineRow {
 
 export type BaseMessagesTimelineRow =
   | WorkTimelineRow
+  | TimelineWorkStep
   | MessageTimelineRow
   | ProposedPlanTimelineRow
   | RuntimeThinkingTimelineRow
@@ -95,6 +100,8 @@ export function deriveMessagesTimelineRows(input: {
   isTurnActive: boolean;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
+  conversationDensity?: ConversationDensity | undefined;
+  tailGroupSnapshot?: GroupedSteps | null | undefined;
 }): MessagesTimelineRow[] {
   return deriveTimelineRenderItems(input).map(timelineRenderItemToRow);
 }
@@ -131,8 +138,11 @@ function timelineRenderItemToRow(item: TimelineRenderItem): MessagesTimelineRow 
         createdAt: item.createdAt,
         completedDurationLabel: item.group.completedDurationLabel,
         isRunning: item.group.isRunning,
+        isTailGroup: item.group.isTailGroup,
         isThinkingGroup: item.group.isThinkingGroup,
         isCommandGroup: item.group.isCommandGroup,
+        isWaitingGroup: item.group.isWaitingGroup,
+        isBrowserGroup: item.group.isBrowserGroup,
         summary: item.group.summary,
         steps: item.group.steps,
         groupedEntries: item.group.entries,
@@ -157,7 +167,11 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
   switch (a.kind) {
     case "working":
-      return a.createdAt === (b as typeof a).createdAt;
+      return (
+        a.createdAt === (b as typeof a).createdAt &&
+        a.step.phase === (b as typeof a).step.phase &&
+        a.step.elapsedStartedAt === (b as typeof a).step.elapsedStartedAt
+      );
 
     case "proposed-plan":
       return a.proposedPlan === (b as typeof a).proposedPlan;
@@ -175,7 +189,14 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return isRuntimeExtensionUiRequestRowUnchanged(a, b as typeof a);
 
     case "work":
-      return isWorkRowUnchanged(a, b as typeof a);
+      if ("entry" in a) {
+        return (
+          "entry" in (b as typeof a) &&
+          a.createdAt === (b as TimelineWorkStep).createdAt &&
+          a.entry === (b as TimelineWorkStep).entry
+        );
+      }
+      return isWorkRowUnchanged(a as WorkTimelineRow, b as WorkTimelineRow);
 
     case "message": {
       const bm = b as typeof a;
@@ -326,8 +347,11 @@ function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {
     a.createdAt === b.createdAt &&
     a.completedDurationLabel === b.completedDurationLabel &&
     a.isRunning === b.isRunning &&
+    a.isTailGroup === b.isTailGroup &&
     a.isThinkingGroup === b.isThinkingGroup &&
     a.isCommandGroup === b.isCommandGroup &&
+    a.isWaitingGroup === b.isWaitingGroup &&
+    a.isBrowserGroup === b.isBrowserGroup &&
     a.summary.action === b.summary.action &&
     a.summary.details === b.summary.details &&
     a.summary.additions === b.summary.additions &&

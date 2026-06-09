@@ -2995,6 +2995,7 @@ export default function ChatView(props: ChatViewProps) {
                   key={activeTimelineCacheKey}
                   isWorking={isWorking}
                   isTurnActive={isTurnRunning}
+                  isStreaming={isTurnRunning}
                   editUserMessagesDisabled={isWorking}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
                   timelineControllerRef={messagesTimelineControllerRef}

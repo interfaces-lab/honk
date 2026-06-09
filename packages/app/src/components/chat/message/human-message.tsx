@@ -17,6 +17,7 @@ import {
   type ParsedTerminalContextEntry,
 } from "~/lib/terminal-context";
 import { type ChatMessage } from "../../../types";
+import { useAuthenticatedImagePreviewSrc } from "./authenticated-image-preview";
 import {
   ChatMessageBubble,
   EditableChatMessageBubble,
@@ -68,34 +69,12 @@ export function HumanMessage({
     userImages.length > 0 ? (
       <div className="mb-2 grid max-w-md grid-cols-2 gap-2">
         {userImages.map((image) => (
-          <div
+          <HumanMessageImageAttachment
             key={image.id}
-            className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-message-bubble-background)"
-          >
-            {image.previewUrl ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="block size-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
-                aria-label={`Preview ${image.name}`}
-                onClick={() => {
-                  const preview = buildExpandedImagePreview(userImages, image.id);
-                  if (!preview) return;
-                  onImageExpand(preview);
-                }}
-              >
-                <img
-                  src={image.previewUrl}
-                  alt={image.name}
-                  className="block h-8 w-full object-cover"
-                />
-              </Button>
-            ) : (
-              <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-multi-fg-tertiary">
-                {image.name}
-              </div>
-            )}
-          </div>
+            image={image}
+            images={userImages}
+            onImageExpand={onImageExpand}
+          />
         ))}
       </div>
     ) : null;
@@ -147,6 +126,42 @@ export function HumanMessage({
   }
 
   return <ChatMessageBubble messageRole="user" body={body} media={media} />;
+}
+
+function HumanMessageImageAttachment(props: {
+  image: NonNullable<ChatMessage["attachments"]>[number];
+  images: NonNullable<ChatMessage["attachments"]>;
+  onImageExpand: (preview: ExpandedImagePreview) => void;
+}) {
+  const previewSrc = useAuthenticatedImagePreviewSrc(props.image.previewUrl);
+
+  return (
+    <div className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-message-bubble-background)">
+      {previewSrc ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="block size-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
+          aria-label={`Preview ${props.image.name}`}
+          onClick={() => {
+            const preview = buildExpandedImagePreview(props.images, props.image.id);
+            if (!preview) return;
+            props.onImageExpand(preview);
+          }}
+        >
+          <img
+            src={previewSrc}
+            alt={props.image.name}
+            className="block h-8 w-full object-cover"
+          />
+        </Button>
+      ) : (
+        <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-multi-fg-tertiary">
+          {props.image.name}
+        </div>
+      )}
+    </div>
+  );
 }
 
 type GitAgentActionIconComponent = ComponentType<CentralIconBaseProps>;

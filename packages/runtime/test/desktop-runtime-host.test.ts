@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AuthProviderId,
+  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
   type AgentModelPolicy,
   MessageId,
@@ -133,6 +134,8 @@ describe("DesktopRuntimeHost", () => {
       preferences: {
         agentMode: "smart",
         interactionMode: "agent",
+        modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+        modelSettingsByModelId: {},
         thinkingLevel: "medium",
         resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
         credentials: [
@@ -228,6 +231,8 @@ describe("DesktopRuntimeHost", () => {
       preferences: {
         agentMode: "smart",
         interactionMode: "agent",
+        modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+        modelSettingsByModelId: {},
         thinkingLevel: "medium",
         resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
         credentials: [
@@ -306,6 +311,8 @@ describe("DesktopRuntimeHost", () => {
       preferences: {
         agentMode: "deep",
         interactionMode: "debug",
+        modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+        modelSettingsByModelId: {},
         thinkingLevel: "high",
         resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
         credentials: [],

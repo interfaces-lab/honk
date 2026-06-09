@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_AGENT_RESOURCE_PREFERENCES } from "@multi/contracts";
+import {
+  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+  DEFAULT_AGENT_RESOURCE_PREFERENCES,
+} from "@multi/contracts";
 import { createAgentModelPolicy } from "../src/agent-model-policy";
 
 const preferences = {
   agentMode: "deep",
   interactionMode: "agent",
+  modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+  modelSettingsByModelId: {},
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [],
@@ -25,7 +30,7 @@ describe("createAgentModelPolicy", () => {
         type: "explicit",
         authProviderId: "openai-codex",
         accountId: "openai-codex:default",
-        modelId: "codex/gpt-5.5",
+        modelId: "openai-codex/gpt-5.5",
       },
     });
   });
@@ -43,7 +48,7 @@ describe("createAgentModelPolicy", () => {
         type: "explicit",
         authProviderId: "openai-codex",
         accountId: "openai-codex:default",
-        modelId: "codex/gpt-5.5",
+        modelId: "openai-codex/gpt-5.5",
       },
     });
   });
