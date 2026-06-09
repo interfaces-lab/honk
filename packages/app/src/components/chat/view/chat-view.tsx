@@ -1921,6 +1921,12 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
+    if (clearComposerOnSubmit) {
+      promptRef.current = "";
+      clearComposerDraftContent(composerDraftTarget);
+      composerRef.current?.resetCursorState();
+    }
+
     sendInFlightRef.current = true;
     beginLocalDispatch({ preparingWorktree: Boolean(baseBranchForWorktree) });
     const composerImagesSnapshot = [...composerImages];
@@ -1952,11 +1958,6 @@ export default function ChatView(props: ChatViewProps) {
     );
 
     setThreadError(threadIdForSend, null);
-    if (clearComposerOnSubmit) {
-      promptRef.current = "";
-      clearComposerDraftContent(composerDraftTarget);
-      composerRef.current?.resetCursorState();
-    }
 
     let promotedDraftOptimistically = false;
     let promotedLocalSendThreadKey: string | null = null;

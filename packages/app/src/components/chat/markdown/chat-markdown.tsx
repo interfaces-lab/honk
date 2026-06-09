@@ -26,7 +26,9 @@ import {
   type ReactNode,
   createContext,
   useContext,
+  useMemo,
 } from "react";
+import remend from "remend";
 import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
@@ -978,7 +980,13 @@ function ChatMarkdownParagraph({
   className,
   ...props
 }: ComponentProps<"p"> & { node?: unknown }) {
-  return <p {...props} className={cn("mt-0 mb-[0.85em] text-pretty", className)} />;
+  const { isStreaming } = useChatMarkdownRenderContext();
+  return (
+    <p
+      {...props}
+      className={cn("mt-0 mb-[0.85em]", !isStreaming && "text-pretty", className)}
+    />
+  );
 }
 
 function ChatMarkdownHeading1({
@@ -1268,11 +1276,19 @@ const CHAT_MARKDOWN_COMPONENTS: Components = {
   td: ChatMarkdownTableDataCell,
 };
 
+function prepareChatMarkdownSource(text: string, isStreaming: boolean): string {
+  const normalized = rewriteMarkdownFileUriLinks(normalizeStandaloneMermaidBlocks(text));
+  return isStreaming ? remend(normalized) : normalized;
+}
+
 function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
-  const markdownText = rewriteMarkdownFileUriLinks(normalizeStandaloneMermaidBlocks(text));
-  const markdownFileLinkMetaByHref = (() => {
+  const markdownText = useMemo(
+    () => prepareChatMarkdownSource(text, isStreaming),
+    [isStreaming, text],
+  );
+  const markdownFileLinkMetaByHref = useMemo(() => {
     const metaByHref = new Map<
       string,
       NonNullable<ReturnType<typeof resolveMarkdownFileLinkMeta>>
@@ -1286,9 +1302,13 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
       }
     }
     return metaByHref;
-  })();
-  const fileLinkParentSuffixByPath = buildFileLinkParentSuffixByPath(
-    [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath),
+  }, [cwd, markdownText]);
+  const fileLinkParentSuffixByPath = useMemo(
+    () =>
+      buildFileLinkParentSuffixByPath(
+        [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath),
+      ),
+    [markdownFileLinkMetaByHref],
   );
   const renderContext: ChatMarkdownRenderContextValue = {
     markdownFileLinkMetaByHref,
@@ -1310,8 +1330,8 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
         )}
       >
         <Streamdown
-          mode={isStreaming ? "streaming" : "static"}
-          parseIncompleteMarkdown={isStreaming}
+          mode="static"
+          parseIncompleteMarkdown={false}
           components={CHAT_MARKDOWN_COMPONENTS}
           urlTransform={markdownUrlTransform}
           animated={false}

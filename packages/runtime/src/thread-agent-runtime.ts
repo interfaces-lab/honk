@@ -54,6 +54,8 @@ import {
   projectRuntimeSessionTree,
 } from "./session-tree-projection";
 
+const DEFAULT_EXCLUDED_TOOL_NAMES = ["read"] as const;
+
 export interface ThreadAgentRuntimeIdentity {
   readonly agentRuntime: "pi";
   readonly threadId: ThreadId;
@@ -218,7 +220,8 @@ export class ThreadAgentRuntime {
     }
     if (options.scopedModels) sessionOptions.scopedModels = [...options.scopedModels];
     if (options.tools) sessionOptions.tools = [...options.tools];
-    if (options.excludeTools) sessionOptions.excludeTools = [...options.excludeTools];
+    const excludeTools = mergeExcludedToolNames(options.excludeTools);
+    sessionOptions.excludeTools = excludeTools;
     if (options.customTools) sessionOptions.customTools = [...options.customTools];
     if (options.resourceLoader) sessionOptions.resourceLoader = options.resourceLoader;
     sessionOptions.modelRegistry = modelRegistry;
@@ -257,13 +260,15 @@ export class ThreadAgentRuntime {
         interactionMode: options.policy.interactionMode,
         thinkingLevel: sessionResult.session.thinkingLevel,
         ...(options.tools ? { allowedToolNames: options.tools } : {}),
-        ...(options.excludeTools ? { excludedToolNames: options.excludeTools } : {}),
+        excludedToolNames: excludeTools,
       };
       const resolvedPolicy = createModelPolicy(policyInput);
       const policy = {
         ...resolvedPolicy,
         ...options.policy,
         thinkingLevel: options.policy.thinkingLevel ?? resolvedPolicy.thinkingLevel,
+        allowedToolNames: resolvedPolicy.allowedToolNames,
+        excludedToolNames: resolvedPolicy.excludedToolNames,
       };
 
       runtime = new ThreadAgentRuntime(
@@ -774,6 +779,12 @@ export class ThreadAgentRuntime {
       listener(event);
     }
   }
+}
+
+function mergeExcludedToolNames(
+  excludeTools: readonly string[] | undefined,
+): string[] {
+  return [...new Set([...DEFAULT_EXCLUDED_TOOL_NAMES, ...(excludeTools ?? [])])];
 }
 
 function warnExtensionLoadErrors(

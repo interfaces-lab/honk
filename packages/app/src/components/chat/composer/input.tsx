@@ -1979,12 +1979,16 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
           prompt?: string;
           detectTrigger?: boolean;
         }) => {
+          clearPromptCommitTimer();
+          pendingPromptCommitRef.current = null;
           const promptForState = options?.prompt ?? promptRef.current;
           const cursor = clampCollapsedComposerCursor(promptForState, options?.cursor ?? 0);
           if (options?.prompt !== undefined) {
             promptRef.current = promptForState;
             setLivePrompt((current) => (current === promptForState ? current : promptForState));
           }
+          committedPromptRef.current = promptForState;
+          committedPromptTargetKeyRef.current = composerDraftTargetKeyRef.current;
           syncEditorToPromptRef.current(promptForState, cursor);
           setComposerHighlightedItemId(null);
           setComposerCursor(cursor);

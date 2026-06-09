@@ -503,10 +503,6 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
   padding-top: var(--chat-timeline-step-gap);
 }
 
-[data-group-loading][data-preview-scrollable="false"] [data-work-group-preview] {
-  padding-top: 0;
-}
-
 [data-preview-scrollable="true"] [data-work-group-preview] {
   -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35) 0, #000 32px);
   mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35) 0, #000 32px);

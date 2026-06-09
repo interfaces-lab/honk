@@ -165,6 +165,26 @@ describe("ThreadAgentRuntime tools", () => {
     expect(harness.runtime.policy.allowedToolNames).toEqual(["echo"]);
   });
 
+  it("excludes the built-in read tool by default", async () => {
+    const echoTool = defineTool({
+      name: "echo",
+      label: "Echo",
+      description: "Echo text back",
+      promptSnippet: "Echoes a value.",
+      parameters: Type.Object({ text: Type.String() }),
+      execute: async (_toolCallId, params) => ({
+        content: [{ type: "text", text: `echo:${params.text}` }],
+        details: { text: params.text },
+      }),
+    });
+    const harness = await createRuntimeHarness({ customTools: [echoTool], tools: ["echo"] });
+    harnesses.push(harness);
+
+    expect(harness.runtime.policy.allowedToolNames).toEqual(["echo"]);
+    expect(harness.runtime.policy.excludedToolNames).toContain("read");
+    expect(harness.runtime.session.getActiveToolNames()).not.toContain("read");
+  });
+
   it("runs the first-party ask_user extension through desktop UI", async () => {
     const harness = await createRuntimeHarness({
       extensionFactories: createDesktopAgentExtensionFactories({ agentDir: createAgentDir() }),

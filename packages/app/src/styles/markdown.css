@@ -42,6 +42,10 @@
   --multi-markdown-rule-color: color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
+.chat-markdown-streamdown > :last-child {
+  margin-bottom: 0;
+}
+
 .chat-markdown > :last-child {
   margin-bottom: 0;
 }

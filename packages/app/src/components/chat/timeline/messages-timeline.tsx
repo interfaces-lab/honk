@@ -887,6 +887,8 @@ function estimateInitialTimelineBottomOffset(input: {
   return Math.max(0, totalSize - DEFAULT_VIRTUALIZER_RECT.height);
 }
 
+const runningWorkGroupEstimateHeights = new Map<string, number>();
+
 function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded = false): number {
   if (!row) {
     return 96 + VIRTUAL_ROW_GAP_PX;
@@ -953,13 +955,22 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
         ? WORK_GROUP_STEP_GAP_PX
         : 0;
     const previewHeight = previewContentHeight + previewPaddingTop;
-    const totalHeight = WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
+    const computedHeight =
+      WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
+    const previousHeight = runningWorkGroupEstimateHeights.get(row.id);
+    const totalHeight =
+      previousHeight === undefined ? computedHeight : Math.max(previousHeight, computedHeight);
+    runningWorkGroupEstimateHeights.set(row.id, totalHeight);
     recordTimelinePreviewTailHeight({
       rowId: row.id,
       nextPx: totalHeight,
       previewStepCount: previewCount,
     });
     return totalHeight;
+  }
+
+  if (row.kind === "work" && !("entry" in row)) {
+    runningWorkGroupEstimateHeights.delete(row.id);
   }
 
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;

@@ -54,6 +54,7 @@
     "motion": "^12.40.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "remend": "1.3.0",
     "shiki": "3.23.0",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",

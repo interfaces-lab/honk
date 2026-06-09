@@ -5,7 +5,7 @@ import {
 import { Button } from "@multi/multikit/button";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import {
@@ -132,10 +132,19 @@ export function GroupedStepsRenderer({
   const isBrowserGroup = row.isBrowserGroup;
   const showPreview = (isRunning || row.isTailGroup) && !expanded;
   const [previewScrollable, setPreviewScrollable] = useState(false);
+  const onPreviewScrollableChange = useCallback((scrollable: boolean) => {
+    setPreviewScrollable((current) => current || scrollable);
+  }, []);
   const contentId = `timeline-work-group:${row.id}`;
   const handleToggle = () => {
     onToggleExpanded(row.id);
   };
+
+  useEffect(() => {
+    if (!showPreview) {
+      setPreviewScrollable(false);
+    }
+  }, [showPreview]);
 
   useEffect(() => {
     logTimelinePreview("preview-visibility", {
@@ -154,8 +163,8 @@ export function GroupedStepsRenderer({
       data-waiting-group={isWaitingGroup ? "" : undefined}
       data-browser-group={isBrowserGroup ? "" : undefined}
       data-work-group-expanded={expanded ? "true" : "false"}
-      data-work-group-running={isRunning ? "true" : "false"}
-      data-group-loading={isRunning ? "true" : undefined}
+      data-work-group-running={isRunning || row.isTailGroup ? "true" : "false"}
+      data-group-loading={isRunning || row.isTailGroup ? "true" : undefined}
       data-preview-scrollable={showPreview ? (previewScrollable ? "true" : "false") : undefined}
       aria-busy={isRunning ? "true" : undefined}
     >
@@ -189,7 +198,7 @@ export function GroupedStepsRenderer({
             key={`work-preview:${row.id}`}
             row={row}
             onExpand={handleToggle}
-            onPreviewScrollableChange={setPreviewScrollable}
+            onPreviewScrollableChange={onPreviewScrollableChange}
             ctx={ctx}
           />
         ) : null}
