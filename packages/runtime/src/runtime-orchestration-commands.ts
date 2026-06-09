@@ -2,7 +2,7 @@ import {
   ClientOrchestrationCommand,
   CommandId,
   EventId,
-  MessageId,
+  runtimeSessionEntryMessageId,
   ThreadTokenUsageSnapshot,
   TurnId,
   type AgentRuntimeEvent,
@@ -46,10 +46,6 @@ function runtimeAssistantCompleteCommandId(
   entry: SessionTreeEntry,
 ): CommandId {
   return CommandId.make(`runtime-assistant:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`);
-}
-
-function runtimeAssistantMessageId(tree: SessionTreeProjection, entry: SessionTreeEntry): MessageId {
-  return MessageId.make(`runtime:${tree.runtimeSessionId}:${entry.id}`);
 }
 
 export function runtimeToolActivityCommandId(
@@ -109,7 +105,7 @@ export function runtimeSessionTreeAssistantCompleteCommand(input: {
     type: "thread.message.assistant.complete",
     commandId: runtimeAssistantCompleteCommandId(input.tree, input.entry),
     threadId: input.tree.threadId,
-    messageId: runtimeAssistantMessageId(input.tree, input.entry),
+    messageId: runtimeSessionEntryMessageId(input.tree.runtimeSessionId, input.entry.id),
     text: input.entry.text ?? "",
     turnId,
     parentEntryId,

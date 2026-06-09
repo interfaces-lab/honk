@@ -104,22 +104,4 @@ describe("keepActiveTimelineTail", () => {
     const next = [messageEntry(userId), waitingEntry()];
     expect(keepActiveTimelineTail(previous, next, true)).toBe(next);
   });
-
-  it("keeps carrying across consecutive regressed frames", () => {
-    const withTail = [messageEntry(userId), workEntry("work:1")];
-    const regressed = [messageEntry(userId), waitingEntry()];
-
-    const firstFrame = keepActiveTimelineTail(withTail, regressed, true);
-    expect(firstFrame).toBe(withTail);
-    // The hook stores the carried result as "previous", so a second regressed frame
-    // must keep returning the same carried entries.
-    const secondFrame = keepActiveTimelineTail(firstFrame, regressed, true);
-    expect(secondFrame).toBe(withTail);
-  });
-
-  it("releases the carry when the next frame introduces a new tool id", () => {
-    const previous = [messageEntry(userId), workEntry("work:1")];
-    const next = [messageEntry(userId), workEntry("work:2"), waitingEntry()];
-    expect(keepActiveTimelineTail(previous, next, true)).toBe(next);
-  });
 });

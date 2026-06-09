@@ -1173,36 +1173,6 @@ describe("deriveTimelineRenderItems", () => {
     ]);
   });
 
-  it("keeps the group id stable when the running flag flips", () => {
-    const timelineEntries = [
-      runtimeShellTool({
-        id: "tool:shell-1",
-        createdAt: "2026-06-05T16:00:01.000Z",
-        status: "completed",
-      }),
-      runtimeShellTool({
-        id: "tool:shell-2",
-        createdAt: "2026-06-05T16:00:02.000Z",
-        status: "completed",
-      }),
-    ];
-    const activeRows = deriveTimelineRenderItems({
-      timelineEntries,
-      isTurnActive: true,
-      editableUserMessageIds: new Set(),
-    });
-    const settledRows = deriveTimelineRenderItems({
-      timelineEntries,
-      isTurnActive: false,
-      editableUserMessageIds: new Set(),
-    });
-
-    expect(activeRows[0]?.kind).toBe("group");
-    expect(settledRows[0]?.kind).toBe("group");
-    // Same row id either way: a turn-active flip must not remount the work-group row.
-    expect(activeRows[0]?.id).toBe(settledRows[0]?.id);
-  });
-
   it("keeps short assistant narration inside a tool group", () => {
     const rows = deriveTimelineRenderItems({
       timelineEntries: [

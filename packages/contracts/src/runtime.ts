@@ -285,6 +285,17 @@ export const SessionTreeProjection = Schema.Struct({
 });
 export type SessionTreeProjection = typeof SessionTreeProjection.Type;
 
+// The durable assistant message id for a runtime session entry. Minted at ingestion when the
+// assistant message is persisted, and re-derived by the app timeline projector to alias hydrated
+// runtime display items back to the committed message. Both sides must use this exact format —
+// a mismatch renders the same assistant text twice.
+export function runtimeSessionEntryMessageId(
+  runtimeSessionId: RuntimeSessionId,
+  entryId: string,
+): MessageId {
+  return MessageId.make(`runtime:${runtimeSessionId}:${entryId}`);
+}
+
 export const AgentRuntimeEventType = Schema.Literals([
   "agent.started",
   "agent.completed",

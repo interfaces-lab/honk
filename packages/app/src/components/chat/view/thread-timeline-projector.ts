@@ -1,6 +1,7 @@
 import {
   MessageId,
   OrchestrationProposedPlanId,
+  runtimeSessionEntryMessageId,
   type RuntimeDisplayTimelineItem,
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineProjection,
@@ -420,7 +421,9 @@ function runtimeDisplayTimelineMessageId(
     return item.clientMessageId;
   }
   if (item.entryId) {
-    return MessageId.make(`${runtimeSessionId}:${item.entryId}`);
+    // Must match the id ingestion mints for the committed assistant message, so the hydrated
+    // runtime item aliases to it instead of rendering the same text a second time.
+    return runtimeSessionEntryMessageId(runtimeSessionId, item.entryId);
   }
   return MessageId.make(item.threadEntryId ?? item.id);
 }
