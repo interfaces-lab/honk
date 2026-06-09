@@ -497,8 +497,7 @@ function WorkGroupPreview({
         onExpand();
       }}
       data-work-group-preview=""
-      data-work-group-preview-dimmed=""
-      data-work-preview-scrollable={previewScrollable ? "true" : "false"}
+      {...(previewScrollable ? { "data-work-group-preview-dimmed": "" } : {})}
       className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {previewSteps.map((step) => (

@@ -949,8 +949,19 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
 
   if (row.isRunning) {
     const previewCount = Math.min(row.steps.length, WORK_GROUP_PREVIEW_MAX_ENTRIES);
+    const previewStepsHeight =
+      previewCount > 0
+        ? previewCount * WORK_GROUP_PREVIEW_ENTRY_PX +
+          Math.max(0, previewCount - 1) * WORK_GROUP_STEP_GAP_PX
+        : 0;
+    const previewContentHeight = Math.min(WORK_GROUP_PREVIEW_PX, previewStepsHeight);
+    const previewPaddingTop =
+      previewCount > 0 && previewContentHeight >= WORK_GROUP_PREVIEW_PX
+        ? WORK_GROUP_STEP_GAP_PX
+        : 0;
     const previewHeight =
-      Math.min(WORK_GROUP_PREVIEW_PX, previewCount * WORK_GROUP_PREVIEW_ENTRY_PX) +
+      previewContentHeight +
+      previewPaddingTop +
       runningWorkGroupPreviewOutputStripExtraPx(row.steps);
     return WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
   }
