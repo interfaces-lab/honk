@@ -15,12 +15,7 @@ import {
   type ScopedThreadRef,
 } from "@multi/contracts";
 import { scopeThreadRef } from "~/lib/environment-scope";
-import {
-  DEFAULT_UNIFIED_SETTINGS,
-  USER_CONVERSATION_DENSITY_VALUES,
-  type UserConversationDensity,
-} from "@multi/contracts/settings";
-import { toUserConversationDensity } from "@multi/shared/conversation-density";
+import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
 import { Equal } from "effect";
 import { APP_VERSION } from "~/app/branding";
 import {
@@ -103,16 +98,6 @@ const AGENT_WINDOW_USAGE_SUMMARY_DISPLAY_LABELS: Record<AgentWindowUsageSummaryD
   always: "Always",
   never: "Never",
 };
-
-const CONVERSATION_DENSITY_LABELS: Record<UserConversationDensity, string> = {
-  detailed: "Detailed",
-  "compact-ungrouped": "Balanced",
-  "compact-all-grouped": "Compact",
-};
-
-function isUserConversationDensity(value: string | null): value is UserConversationDensity {
-  return value !== null && (USER_CONVERSATION_DENSITY_VALUES as readonly string[]).includes(value);
-}
 
 function AboutVersionTitle() {
   return (
@@ -282,7 +267,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Usage summary"]
       : []),
     ...(settings.conversationDensity !== DEFAULT_UNIFIED_SETTINGS.conversationDensity
-      ? ["Conversation density"]
+      ? ["Tool call density"]
       : []),
     ...(settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons
       ? ["Pointer cursors"]
@@ -678,50 +663,6 @@ export function AgentsSettingsPanel() {
                 <SelectItem hideIndicator value="never">
                   {AGENT_WINDOW_USAGE_SUMMARY_DISPLAY_LABELS.never}
                 </SelectItem>
-              </SelectPopup>
-            </Select>
-          }
-        />
-        <SettingsRow
-          title="Conversation density"
-          description="Controls how much tool output and grouping appears in chat."
-          resetAction={
-            settings.conversationDensity !== DEFAULT_UNIFIED_SETTINGS.conversationDensity ? (
-              <SettingResetButton
-                label="conversation density"
-                onClick={() =>
-                  updateSettings({
-                    conversationDensity: DEFAULT_UNIFIED_SETTINGS.conversationDensity,
-                  })
-                }
-              />
-            ) : null
-          }
-          control={
-            <Select
-              value={toUserConversationDensity(settings.conversationDensity)}
-              onValueChange={(value) => {
-                if (isUserConversationDensity(value)) {
-                  void updateSettings({ conversationDensity: value });
-                }
-              }}
-            >
-              <SelectTrigger
-                size="xs"
-                variant="outline"
-                className="w-full sm:w-34"
-                aria-label="Conversation density"
-              >
-                <SelectValue>
-                  {CONVERSATION_DENSITY_LABELS[toUserConversationDensity(settings.conversationDensity)]}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectPopup align="end" alignItemWithTrigger={false}>
-                {USER_CONVERSATION_DENSITY_VALUES.map((value) => (
-                  <SelectItem hideIndicator key={value} value={value}>
-                    {CONVERSATION_DENSITY_LABELS[value]}
-                  </SelectItem>
-                ))}
               </SelectPopup>
             </Select>
           }

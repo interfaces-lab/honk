@@ -40,6 +40,7 @@ import {
 } from "../../../session-logic";
 import { cn } from "~/lib/utils";
 import { InlineToolDiff } from "./tool-inline-diff";
+import { Badge } from "@multi/multikit/badge";
 import {
   ToolCallLine,
   ToolCallLineChevron,
@@ -59,6 +60,13 @@ import {
   toolCallLineVariants,
 } from "@multi/multikit/tool-call";
 import { Button } from "@multi/multikit/button";
+import {
+  parseFindOutput,
+  parseGrepOutput,
+  type ParsedFindFile,
+  type ParsedGrepFile,
+  type ParsedSearchOutput,
+} from "./search-output";
 
 type CentralIconComponent = ComponentType<{ className?: string | undefined }>;
 
@@ -322,8 +330,6 @@ export function ToolCallRenderer({
         />
       );
     case "readToolCall":
-    case "grepToolCall":
-    case "globToolCall":
     case "mcpToolCall":
     case "dynamicToolCall":
     case "imageViewToolCall":
@@ -353,6 +359,25 @@ export function ToolCallRenderer({
           defaultExpanded={defaultExpanded}
           callId={callId}
           onNestedToolExpand={onNestedToolExpand}
+        />
+      );
+    case "grepToolCall":
+    case "globToolCall":
+      return (
+        <SearchToolCall
+          action={displayState.action}
+          details={displayState.details}
+          mode={
+            artifactLookup.search?.flavor ??
+            (toolCall.tool.case === "grepToolCall" ? "grep" : "find")
+          }
+          output={artifactLookup.search?.output ?? output ?? null}
+          artifact={artifactLookup.search}
+          loading={loading}
+          defaultExpanded={defaultExpanded}
+          callId={callId}
+          onNestedToolExpand={onNestedToolExpand}
+          showIcon={showDetailedIcons}
         />
       );
   }
@@ -753,6 +778,234 @@ export function ExpandableToolMetadataLine({
       ) : null}
     </div>
   );
+}
+
+function SearchToolCall({
+  action,
+  details,
+  mode,
+  output,
+  artifact,
+  loading,
+  defaultExpanded,
+  callId,
+  onNestedToolExpand,
+  showIcon,
+}: {
+  action: string;
+  details: string;
+  mode: "grep" | "find";
+  output: string | null;
+  artifact: ToolSearchArtifact | undefined;
+  loading: boolean;
+  defaultExpanded: boolean;
+  callId: string | undefined;
+  onNestedToolExpand: ((callId: string | undefined, expanded: boolean) => void) | undefined;
+  showIcon: boolean;
+}) {
+  const outputText = output ?? "";
+  const parsedOutput = useMemo(
+    () => (mode === "grep" ? parseGrepOutput(outputText) : parseFindOutput(outputText)),
+    [mode, outputText],
+  );
+  const hasBody = outputText.trim().length > 0;
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  useEffect(() => {
+    if (!defaultExpanded || !hasBody) {
+      return;
+    }
+    setIsExpanded(true);
+  }, [defaultExpanded, hasBody]);
+
+  const toggleExpanded = () => {
+    if (!hasBody) return;
+    setIsExpanded((current) => {
+      const next = !current;
+      onNestedToolExpand?.(callId, next);
+      return next;
+    });
+  };
+
+  const badgeText = formatSearchBadge(mode, artifact, parsedOutput);
+  const headerInner = (
+    <>
+      {showIcon ? <IconMagnifyingGlass className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+      <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
+        {action}
+      </span>
+      {details ? <ToolCallLineDetails>{details}</ToolCallLineDetails> : null}
+      {badgeText ? (
+        <Badge
+          variant="outline"
+          size="sm"
+          className="ml-1 h-4 shrink-0 border-multi-stroke-secondary bg-transparent px-1 font-mono text-caption text-multi-fg-tertiary tabular-nums"
+        >
+          {badgeText}
+        </Badge>
+      ) : null}
+    </>
+  );
+
+  if (!hasBody) {
+    return (
+      <ToolCallLine
+        icon={showIcon ? IconMagnifyingGlass : undefined}
+        action={action}
+        details={details}
+        loading={loading}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="m-0 min-w-0 max-w-full"
+      data-search-tool-call=""
+      data-search-tool-flavor={mode}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        className={cn(
+          toolCallLineVariants({ clickable: true }),
+          "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+        )}
+        data-tool-call-line=""
+        aria-expanded={isExpanded}
+        onClick={toggleExpanded}
+      >
+        {headerInner}
+        <ToolCallLineChevron expanded={isExpanded} />
+      </Button>
+      {isExpanded ? (
+        <div className="mt-1 max-w-agent-chat pl-[18px]">
+          <div className="max-h-[min(42vh,520px)] overflow-y-auto font-mono text-conversation text-multi-fg-tertiary">
+            <SearchOutputBody parsedOutput={parsedOutput} fallbackText={outputText} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SearchOutputBody({
+  parsedOutput,
+  fallbackText,
+}: {
+  parsedOutput: ParsedSearchOutput;
+  fallbackText: string;
+}) {
+  switch (parsedOutput.kind) {
+    case "grep":
+      return <GrepOutputBody files={parsedOutput.files} />;
+    case "find":
+      return <FindOutputBody files={parsedOutput.files} />;
+    case "fallback":
+      return (
+        <pre className="m-0 whitespace-pre-wrap p-0 wrap-anywhere select-text">
+          {parsedOutput.text.trim() || fallbackText.trim()}
+        </pre>
+      );
+  }
+}
+
+function GrepOutputBody({ files }: { files: ReadonlyArray<ParsedGrepFile> }) {
+  return (
+    <div className="min-w-0 divide-y divide-multi-stroke-secondary/60">
+      {files.map((file) => (
+        <div key={file.path} className="min-w-0 py-1.5 first:pt-0 last:pb-0">
+          <div className="flex min-w-0 items-center gap-1.5 text-multi-fg-secondary">
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+              {file.path}
+            </span>
+            {file.annotation ? (
+              <Badge
+                variant="outline"
+                size="sm"
+                className="h-4 shrink-0 border-multi-stroke-secondary bg-transparent px-1 text-caption text-multi-fg-tertiary"
+              >
+                {file.annotation}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="mt-1 min-w-0">
+            {file.lines.map((line) => (
+              <div
+                key={`${file.path}:${line.lineNumber}:${line.separator}:${line.text}`}
+                className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-2"
+              >
+                <span className="text-right text-multi-fg-quaternary tabular-nums select-none">
+                  {line.lineNumber}
+                  {line.separator}
+                </span>
+                <span className="min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary wrap-anywhere select-text">
+                  {line.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FindOutputBody({ files }: { files: ReadonlyArray<ParsedFindFile> }) {
+  return (
+    <div className="min-w-0 py-0.5">
+      {files.map((file) => (
+        <div key={`${file.path}:${file.annotation ?? ""}`} className="flex min-w-0 items-center gap-1.5 py-0.5">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary select-text">
+            {file.path}
+          </span>
+          {file.annotation ? (
+            <Badge
+              variant="outline"
+              size="sm"
+              className="h-4 shrink-0 border-multi-stroke-secondary bg-transparent px-1 text-caption text-multi-fg-tertiary"
+            >
+              {file.annotation}
+            </Badge>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatSearchBadge(
+  mode: "grep" | "find",
+  artifact: ToolSearchArtifact | undefined,
+  parsedOutput: ParsedSearchOutput,
+): string | null {
+  if (!artifact) {
+    return null;
+  }
+  if (mode === "grep") {
+    const matched = artifact.totalMatched;
+    const matchedFiles =
+      parsedOutput.kind === "grep" ? parsedOutput.files.length : artifact.matchedFiles?.length;
+    if (matched === undefined && matchedFiles === undefined) {
+      return null;
+    }
+    const matchedText =
+      matched === undefined ? "matches" : `${matched} ${matched === 1 ? "match" : "matches"}`;
+    if (matchedFiles === undefined) {
+      return matchedText;
+    }
+    const filesText = `${matchedFiles} ${matchedFiles === 1 ? "file" : "files"}`;
+    return `${matchedText} in ${filesText}`;
+  }
+
+  const total = artifact.totalMatched;
+  if (total === undefined) {
+    return null;
+  }
+  const shown = parsedOutput.kind === "find" ? parsedOutput.files.length : undefined;
+  const prefix = shown !== undefined && shown < total ? `${shown} of ` : "";
+  const suffix = artifact.hasMore === true ? " + more" : "";
+  return `${prefix}${total} ${total === 1 ? "file" : "files"}${suffix}`;
 }
 
 function ShellToolCall({

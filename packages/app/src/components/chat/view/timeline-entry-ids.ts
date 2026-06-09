@@ -14,3 +14,10 @@ export function timelineTurnAssistantEntryId(turnId: string, index: number): str
 export function timelineTurnThinkingEntryId(turnId: string, index: number): string {
   return `thinking:turn:${turnId}:${index}`;
 }
+
+// Tool rows are keyed by tool call id so the committed work entry and the runtime display
+// item for the same call resolve to the same row, whichever arrives first and whichever
+// branch the projector renders from.
+export function timelineToolCallEntryId(toolCallId: string): string {
+  return `tool-call:${toolCallId}`;
+}

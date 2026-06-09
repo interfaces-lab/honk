@@ -32,6 +32,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
+import { applyFffEnvironment, resolveFffExtensionPaths } from "./fff-extension";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
 import {
   projectRuntimeDisplayTimeline,
@@ -115,6 +116,7 @@ export interface DesktopRuntimeHostOptions {
   readonly agentDir: string;
   readonly authStorage?: AuthStorage | null;
   readonly extensionFactories?: readonly ExtensionFactory[] | null;
+  readonly extensionPaths?: readonly string[] | null;
   readonly bindExtensions?:
     | ((runtime: ThreadAgentRuntime, ui: DesktopExtensionUiController) => Promise<void>)
     | null;
@@ -126,6 +128,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   private readonly authStorage: AuthStorage | null;
   private readonly modelRegistry: ModelRegistry | null;
   private readonly extensionFactories: readonly ExtensionFactory[];
+  private readonly extensionPaths: readonly string[];
   private readonly bindRuntimeExtensions:
     | ((runtime: ThreadAgentRuntime, ui: DesktopExtensionUiController) => Promise<void>)
     | null;
@@ -145,6 +148,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
 
     this.preferences = options?.preferences ?? DEFAULT_AGENT_PREFERENCES;
     this.agentDir = options.agentDir;
+    applyFffEnvironment();
     this.authStorage =
       options.authStorage === undefined
         ? AuthStorage.create(join(this.agentDir, "auth.json"))
@@ -155,6 +159,8 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     this.extensionFactories =
       options.extensionFactories ??
       createDesktopAgentExtensionFactories({ agentDir: this.agentDir });
+    this.extensionPaths =
+      options.extensionPaths === undefined ? resolveFffExtensionPaths() : (options.extensionPaths ?? []);
     this.bindRuntimeExtensions = options?.bindExtensions ?? null;
   }
 
@@ -345,6 +351,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         agentDir: this.agentDir,
         ...(this.authStorage ? { authStorage: this.authStorage } : {}),
         extensionFactories: this.extensionFactories,
+        extensionPaths: this.extensionPaths,
         policy: input.policy,
       });
       const ui = createDesktopExtensionUi();

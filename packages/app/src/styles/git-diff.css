@@ -28,6 +28,10 @@ html {
     var(--multi-git-diff-editor-background) 96%,
     var(--foreground)
   );
+  /* Static syntax-highlight shim colors, mirroring the cursor diff themes in diff-rendering.ts. */
+  --multi-git-diff-syntax-keyword: #b3003f;
+  --multi-git-diff-syntax-variable: #206595;
+  --multi-git-diff-syntax-punctuation: #141414eb;
 }
 
 html.dark {
@@ -59,6 +63,9 @@ html.dark {
     var(--multi-git-diff-editor-background) 96%,
     var(--foreground)
   );
+  --multi-git-diff-syntax-keyword: #82d2ce;
+  --multi-git-diff-syntax-variable: #87c3ff;
+  --multi-git-diff-syntax-punctuation: #d6d6dd;
 }
 
 /* Pierre diffs CSS bridge - layout variables inherit into Shadow DOM */

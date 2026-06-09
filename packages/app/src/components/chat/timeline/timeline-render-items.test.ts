@@ -902,7 +902,7 @@ describe("deriveTimelineRenderItems", () => {
     ]);
   });
 
-  it("groups a single running shell tool even when shell grouping is disabled", () => {
+  it("keeps shells ungrouped at any status when the density disables shell grouping", () => {
     const rows = deriveTimelineRenderItems({
       timelineEntries: [
         runtimeShellTool({
@@ -916,25 +916,12 @@ describe("deriveTimelineRenderItems", () => {
       conversationDensity: "compact-ungrouped",
     });
 
+    // Density gates unconditionally: a tool must not change groupability between its
+    // running and completed states, or the streaming group recomposes mid-turn.
     expect(rows).toEqual([
       expect.objectContaining({
-        kind: "group",
-        group: expect.objectContaining({
-          isRunning: true,
-          isTailGroup: true,
-          steps: [
-            expect.objectContaining({
-              kind: "runtime-tool",
-              tool: expect.objectContaining({
-                status: "running",
-                display: expect.objectContaining({
-                  kind: "shell",
-                  output: "running",
-                }),
-              }),
-            }),
-          ],
-        }),
+        kind: "single",
+        step: expect.objectContaining({ kind: "runtime-tool" }),
       }),
     ]);
   });

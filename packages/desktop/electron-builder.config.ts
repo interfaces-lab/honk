@@ -33,6 +33,11 @@ export default {
     output: "dist",
   },
   files: ["out/**/*", "resources/**/*"],
+  asarUnpack: [
+    "**/node_modules/@ff-labs/**",
+    "**/node_modules/ffi-rs/**",
+    "**/node_modules/@yuuang/**",
+  ],
   publish: resolvePublishConfig(),
   mac: {
     target: ["dmg", "zip"],

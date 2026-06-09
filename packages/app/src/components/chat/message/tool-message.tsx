@@ -311,7 +311,7 @@ function runtimeToolItemToToolCall(tool: RuntimeDisplayTimelineToolItem): ToolCa
   return runtimeToolDisplayToToolCall(tool, tool.display);
 }
 
-function runtimeToolDisplayToToolCall(
+export function runtimeToolDisplayToToolCall(
   tool: RuntimeDisplayTimelineToolItem,
   display: RuntimeToolDisplay,
 ): ToolCallModel {
@@ -322,6 +322,8 @@ function runtimeToolDisplayToToolCall(
       return runtimeReadDisplayToToolCall(tool, display);
     case "grep":
       return runtimeGrepDisplayToToolCall(tool, display);
+    case "find":
+      return runtimeFindDisplayToToolCall(tool, display);
     case "edit":
       return runtimeEditDisplayToToolCall(tool, display);
     case "mcp":
@@ -546,14 +548,52 @@ function runtimeGrepDisplayToToolCall(
   const output = runtimeTrimmedString(display.output);
   const artifact: ToolDisplayArtifact = {
     type: "search",
+    flavor: "grep",
     ...(query ? { query } : {}),
     ...(output ? { output } : {}),
     ...(display.matchedFiles ? { matchedFiles: display.matchedFiles } : {}),
+    ...(display.totalMatched !== undefined ? { totalMatched: display.totalMatched } : {}),
+    ...(display.totalIndexedFiles !== undefined
+      ? { totalIndexedFiles: display.totalIndexedFiles }
+      : {}),
     isPartial: tool.isPartial === true,
   };
   return {
     tool: {
       case: "grepToolCall",
+      value: {
+        action: runtimeToolAction(tool),
+        details: query ?? path ?? tool.toolName,
+        path: path ?? null,
+        output: output ?? null,
+        artifacts: [artifact],
+      },
+    },
+  };
+}
+
+function runtimeFindDisplayToToolCall(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "find" }>,
+): ToolCallModel {
+  const query = runtimeTrimmedString(display.query);
+  const path = runtimeTrimmedString(display.path);
+  const output = runtimeTrimmedString(display.output);
+  const artifact: ToolDisplayArtifact = {
+    type: "search",
+    flavor: "find",
+    ...(query ? { query } : {}),
+    ...(output ? { output } : {}),
+    ...(display.totalMatched !== undefined ? { totalMatched: display.totalMatched } : {}),
+    ...(display.totalIndexedFiles !== undefined
+      ? { totalIndexedFiles: display.totalIndexedFiles }
+      : {}),
+    ...(display.hasMore !== undefined ? { hasMore: display.hasMore } : {}),
+    isPartial: tool.isPartial === true,
+  };
+  return {
+    tool: {
+      case: "globToolCall",
       value: {
         action: runtimeToolAction(tool),
         details: query ?? path ?? tool.toolName,

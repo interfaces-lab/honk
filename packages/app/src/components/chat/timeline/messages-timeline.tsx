@@ -42,6 +42,7 @@ import {
   WORK_GROUP_STEP_GAP_PX,
   type StepRendererContext,
 } from "./step-renderer";
+import { recordTimelinePreviewTailHeight } from "./timeline-preview-debug";
 import {
   computeDynamicPaddingEndPx,
   computeLastPairMinHeightPx,
@@ -952,7 +953,13 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
         ? WORK_GROUP_STEP_GAP_PX
         : 0;
     const previewHeight = previewContentHeight + previewPaddingTop;
-    return WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
+    const totalHeight = WORK_GROUP_HEADER_PX + WORK_GROUP_HEADER_GAP_PX + previewHeight + VIRTUAL_ROW_GAP_PX;
+    recordTimelinePreviewTailHeight({
+      rowId: row.id,
+      nextPx: totalHeight,
+      previewStepCount: previewCount,
+    });
+    return totalHeight;
   }
 
   return WORK_GROUP_HEADER_PX + VIRTUAL_ROW_GAP_PX;

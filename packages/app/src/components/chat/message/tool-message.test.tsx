@@ -232,6 +232,33 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).not.toContain("Ran");
   });
 
+  it("renders runtime find display as a typed search row", () => {
+    const html = renderRuntimeTool({
+      id: "tool:find",
+      kind: "tool",
+      orderKey: `${createdAt}:tool:find`,
+      createdAt,
+      toolCallId: "toolu-find",
+      toolName: "find",
+      status: "completed",
+      eventIds: [],
+      display: {
+        kind: "find",
+        query: "tool renderer",
+        path: "packages/app/src",
+        output: "packages/app/src/components/chat/message/tool-renderer.tsx",
+        totalMatched: 1,
+        totalIndexedFiles: 240,
+      },
+    });
+
+    expect(html).toContain("Searched");
+    expect(html).toContain("tool renderer");
+    expect(html).toContain("1 file");
+    expect(html).not.toContain("240 files");
+    expect(html).not.toContain("Ran");
+  });
+
   it("renders runtime edit display as a typed edit row", () => {
     const html = renderRuntimeTool({
       id: "tool:edit",

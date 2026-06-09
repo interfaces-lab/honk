@@ -419,7 +419,7 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
-  it("projects typed read, grep, and edit tool display data", () => {
+  it("projects typed read, grep, find, and edit tool display data", () => {
     const projection = projectRuntimeDisplayTimeline({
       threadId,
       runtimeSessionId,
@@ -445,10 +445,38 @@ describe("runtime display timeline projection", () => {
             args: { pattern: "RuntimeToolCallMessage", path: "packages/app/src" },
             result: {
               content: [{ type: "text", text: "tool-message.tsx: RuntimeToolCallMessage" }],
-              details: { matchedFiles: ["packages/app/src/components/chat/message/tool-message.tsx"] },
+              details: {
+                matchedFiles: ["packages/app/src/components/chat/message/tool-message.tsx"],
+                totalMatched: 3,
+                totalFiles: 240,
+              },
             },
           },
           createdAt: "2026-06-05T20:30:01.000Z",
+        }),
+        runtimeEvent({
+          id: "runtime-event:find-completed",
+          type: "tool.completed",
+          summary: "Find files",
+          data: {
+            toolCallId: "toolu-find",
+            toolName: "find",
+            args: { pattern: "tool renderer", path: "packages/app/src" },
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: "packages/app/src/components/chat/message/tool-renderer.tsx",
+                },
+              ],
+              details: {
+                totalMatched: 12,
+                totalFiles: 240,
+                hasMore: true,
+              },
+            },
+          },
+          createdAt: "2026-06-05T20:30:02.000Z",
         }),
         runtimeEvent({
           id: "runtime-event:edit-completed",
@@ -463,7 +491,7 @@ describe("runtime display timeline projection", () => {
               details: { additions: 4, deletions: 1 },
             },
           },
-          createdAt: "2026-06-05T20:30:02.000Z",
+          createdAt: "2026-06-05T20:30:03.000Z",
         }),
       ],
     });
@@ -487,6 +515,20 @@ describe("runtime display timeline projection", () => {
           path: "packages/app/src",
           output: "tool-message.tsx: RuntimeToolCallMessage",
           matchedFiles: ["packages/app/src/components/chat/message/tool-message.tsx"],
+          totalMatched: 3,
+          totalIndexedFiles: 240,
+        },
+      }),
+      expect.objectContaining({
+        id: "tool:toolu-find",
+        display: {
+          kind: "find",
+          query: "tool renderer",
+          path: "packages/app/src",
+          output: "packages/app/src/components/chat/message/tool-renderer.tsx",
+          totalMatched: 12,
+          totalIndexedFiles: 240,
+          hasMore: true,
         },
       }),
       expect.objectContaining({

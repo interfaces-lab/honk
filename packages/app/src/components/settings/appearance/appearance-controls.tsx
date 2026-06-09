@@ -212,6 +212,76 @@ export function FontFamilyInput(props: {
   );
 }
 
+type CodePreviewTokenColor = "keyword" | "variable" | "punctuation";
+
+interface CodePreviewToken {
+  text: string;
+  color?: CodePreviewTokenColor;
+}
+
+interface CodePreviewLine {
+  kind: "deletion" | "addition";
+  number: number;
+  tokens: CodePreviewToken[];
+}
+
+/* Pre-tokenized stand-in for the real diff renderer, so the settings page
+   stays free of the shiki/web-component machinery. */
+const CODE_FONT_PREVIEW_LINES: CodePreviewLine[] = [
+  {
+    kind: "deletion",
+    number: 1,
+    tokens: [
+      { text: "return", color: "keyword" },
+      { text: " " },
+      { text: "a", color: "variable" },
+      { text: " + ", color: "punctuation" },
+      { text: "b", color: "variable" },
+      { text: ";", color: "punctuation" },
+    ],
+  },
+  {
+    kind: "addition",
+    number: 1,
+    tokens: [
+      { text: "const", color: "keyword" },
+      { text: " " },
+      { text: "result", color: "variable" },
+      { text: " = ", color: "punctuation" },
+      { text: "a", color: "variable" },
+      { text: " + ", color: "punctuation" },
+      { text: "b", color: "variable" },
+      { text: ";", color: "punctuation" },
+    ],
+  },
+  {
+    kind: "addition",
+    number: 2,
+    tokens: [
+      { text: "return", color: "keyword" },
+      { text: " " },
+      { text: "result", color: "variable" },
+      { text: ";", color: "punctuation" },
+    ],
+  },
+];
+
+const CODE_PREVIEW_TOKEN_CLASS: Record<CodePreviewTokenColor, string> = {
+  keyword: "text-[var(--multi-git-diff-syntax-keyword)]",
+  variable: "text-[var(--multi-git-diff-syntax-variable)]",
+  punctuation: "text-[var(--multi-git-diff-syntax-punctuation)]",
+};
+
+const CODE_PREVIEW_LINE_CLASS = {
+  deletion: "bg-[var(--multi-git-diff-deletion-line-background)]",
+  addition: "bg-[var(--multi-git-diff-addition-line-background)]",
+} as const;
+
+const CODE_PREVIEW_LINE_NUMBER_CLASS = {
+  deletion: "text-[var(--multi-git-diff-deletion-line-number)]",
+  addition: "text-[var(--multi-git-diff-addition-line-number)]",
+} as const;
+
 export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
   const [codeFontDraft, setCodeFontDraft] = useState(() => props.codeFont);
   const codePreviewStyle: CSSProperties = {
@@ -235,18 +305,29 @@ export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
       }
     >
       <div className="mt-2 overflow-hidden rounded-sm" style={codePreviewStyle}>
-        <div className="flex bg-rose-500/10 text-foreground/72">
-          <span className="w-8 shrink-0 text-center text-rose-500/80">1</span>
-          <span>return a + b;</span>
-        </div>
-        <div className="flex bg-emerald-500/10 text-foreground/72">
-          <span className="w-8 shrink-0 text-center text-emerald-600/80">1</span>
-          <span>const result = a + b;</span>
-        </div>
-        <div className="flex bg-emerald-500/10 text-foreground/72">
-          <span className="w-8 shrink-0 text-center text-emerald-600/80">2</span>
-          <span>return result;</span>
-        </div>
+        {CODE_FONT_PREVIEW_LINES.map((line, index) => (
+          <div
+            key={index}
+            className={`flex text-foreground/72 ${CODE_PREVIEW_LINE_CLASS[line.kind]}`}
+          >
+            <span
+              className={`w-8 shrink-0 text-center ${CODE_PREVIEW_LINE_NUMBER_CLASS[line.kind]}`}
+            >
+              {line.number}
+            </span>
+            <span>
+              {line.tokens.map((token, tokenIndex) =>
+                token.color ? (
+                  <span key={tokenIndex} className={CODE_PREVIEW_TOKEN_CLASS[token.color]}>
+                    {token.text}
+                  </span>
+                ) : (
+                  token.text
+                ),
+              )}
+            </span>
+          </div>
+        ))}
       </div>
     </SettingsRow>
   );

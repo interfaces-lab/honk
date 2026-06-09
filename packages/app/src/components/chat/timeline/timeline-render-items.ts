@@ -22,6 +22,7 @@ import {
 } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { formatProjectRelativePath } from "../shared/file-path-display";
+import { recordTimelinePreviewTailSnapshot } from "./timeline-preview-debug";
 
 export interface TimelineDurationMessage {
   id: string;
@@ -257,7 +258,7 @@ export function deriveTimelineRenderItems(input: {
       if (!input.isTurnActive) {
         analysis.running = false;
       }
-      if (shouldGroupWorkSteps(steps, conversationDensity, analysis.running)) {
+      if (shouldGroupWorkSteps(steps, conversationDensity)) {
         const firstStep = steps[0]!;
         const group: GroupedSteps = {
           id: firstStep.id,
@@ -919,76 +920,99 @@ function shouldGroupRuntimeSteps(
   return groupCount >= minSize;
 }
 
+// Only plain read/ls runs need 3+ tools before collapsing (Cursor parity); any other tool
+// in the run makes it group at the default minimum.
 function isExploreRuntimeToolStep(step: TimelineRuntimeToolStep): boolean {
-  const displayKind = step.tool.display?.kind;
-  if (displayKind === "shell" || displayKind === "edit" || displayKind === "subagent") {
-    return false;
-  }
-  if (displayKind === "read" || displayKind === "grep" || displayKind === "mcp") {
+  if (step.tool.display?.kind === "read" || step.tool.display?.kind === "find") {
     return true;
   }
-  switch (step.tool.toolName) {
-    case "read":
-    case "grep":
-    case "glob":
-    case "ls":
-    case "web_search":
-    case "web_fetch":
-      return true;
-    default:
-      return false;
-  }
+  return step.tool.toolName === "read" || step.tool.toolName === "ls" || step.tool.toolName === "find";
 }
 
 function keepTailGroupRunning(
   items: TimelineRenderItem[],
   input: { isTurnActive: boolean; projectRoot?: string | undefined },
 ): TimelineRenderItem[] {
-  if (!input.isTurnActive) {
-    return items.map((item) => {
-      if (item.kind !== "group") {
-        return item;
-      }
-      return {
-        ...item,
-        group: {
-          ...completeGroupedSteps(item.group, input.projectRoot),
-          isTailGroup: false,
-        },
-      };
+  const nextItems = !input.isTurnActive
+    ? items.map((item) => {
+        if (item.kind !== "group") {
+          return item;
+        }
+        return {
+          ...item,
+          group: {
+            ...completeGroupedSteps(item.group, input.projectRoot),
+            isTailGroup: false,
+          },
+        };
+      })
+    : (() => {
+        const tailGroupIndex = findTailGroupRenderItemIndex(items);
+        if (tailGroupIndex === -1) {
+          return items;
+        }
+
+        return items.map((item, index) => {
+          if (item.kind !== "group") {
+            return item;
+          }
+
+          if (index === tailGroupIndex) {
+            // The trailing group during an active turn is the live loading surface. Keep it
+            // running (and present-tense) even between tool calls so the collapsed preview
+            // stays mounted instead of flickering to a completed summary and back.
+            return {
+              ...item,
+              group: {
+                ...setGroupRunning(item.group, true, input.projectRoot),
+                isTailGroup: true,
+              },
+            };
+          }
+
+          return {
+            ...item,
+            group: {
+              ...completeGroupedSteps(item.group, input.projectRoot),
+              isTailGroup: false,
+            },
+          };
+        });
+      })();
+
+  recordTailPreviewSnapshot(nextItems, input.isTurnActive);
+  return nextItems;
+}
+
+function recordTailPreviewSnapshot(
+  items: ReadonlyArray<TimelineRenderItem>,
+  isTurnActive: boolean,
+): void {
+  const tailIndex = findTailGroupRenderItemIndex(items);
+  if (tailIndex === -1) {
+    recordTimelinePreviewTailSnapshot({
+      tailIndex: -1,
+      groupId: null,
+      isRunning: false,
+      isTailGroup: false,
+      stepIds: [],
+      isTurnActive,
     });
+    return;
   }
 
-  const tailGroupIndex = findTailGroupRenderItemIndex(items);
-  if (tailGroupIndex === -1) {
-    return items;
+  const item = items[tailIndex];
+  if (!item || item.kind !== "group") {
+    return;
   }
 
-  return items.map((item, index) => {
-    if (item.kind !== "group") {
-      return item;
-    }
-
-    if (index === tailGroupIndex) {
-      // The trailing group during an active turn is the live loading surface. Keep it
-      // running (and present-tense) even between tool calls so the collapsed preview
-      // stays mounted instead of flickering to a completed summary and back.
-      return {
-        ...item,
-        group: {
-          ...setGroupRunning(item.group, true, input.projectRoot),
-          isTailGroup: true,
-        },
-      };
-    }
-
-    return {
-      ...item,
-      group: {
-        ...completeGroupedSteps(item.group, input.projectRoot),
-        isTailGroup: false,
-      },
-    };
+  recordTimelinePreviewTailSnapshot({
+    tailIndex,
+    groupId: item.id,
+    isRunning: item.group.isRunning,
+    isTailGroup: item.group.isTailGroup,
+    stepIds: item.group.steps.map((step) => step.id),
+    isTurnActive,
   });
 }
 
@@ -1477,6 +1501,11 @@ function analyzeRuntimeToolSteps(
       addPaths(exploredFiles, display.matchedFiles);
       continue;
     }
+    if (display?.kind === "find") {
+      searchCount += 1;
+      addPath(exploredFiles, display.path);
+      continue;
+    }
     if (display?.kind === "mcp") {
       const provider = display.providerIdentifier?.toLowerCase() ?? "";
       if (provider.includes("fetch")) {
@@ -1678,7 +1707,6 @@ function timelineMinGroupSize(density: ConversationDensity): number {
 function shouldGroupWorkSteps(
   steps: ReadonlyArray<TimelineWorkStep>,
   density: ConversationDensity,
-  running: boolean,
 ): boolean {
   if (steps.length === 0) {
     return false;
@@ -1691,7 +1719,7 @@ function shouldGroupWorkSteps(
   if (steps.length === 1) {
     const entry = entries[0]!;
     if (isCommandWorkEntry(entry)) {
-      return shouldGroupShells(density) || running;
+      return shouldGroupShells(density);
     }
     if (isWorkEditEntry(entry)) {
       return shouldGroupEdits(density);
@@ -1723,14 +1751,14 @@ function isWorkEntryGroupable(entry: WorkLogEntry, density: ConversationDensity)
   return true;
 }
 
+// Density gates shells/edits unconditionally (Cursor parity): a tool must not become
+// un-groupable when it completes, or the streaming group recomposes and the collapsed
+// preview flashes once per tool call.
 function isRuntimeStepGroupableForDensity(
   step: TimelineRuntimeThinkingStep | TimelineRuntimeToolStep,
   density: ConversationDensity,
 ): boolean {
   if (step.kind === "runtime-thinking") {
-    return true;
-  }
-  if (step.tool.status === "running" && isRuntimePreviewGroupableToolStep(step)) {
     return true;
   }
   if (isRuntimeCommandToolStep(step)) {
@@ -1740,10 +1768,6 @@ function isRuntimeStepGroupableForDensity(
     return shouldGroupEdits(density);
   }
   return true;
-}
-
-function isRuntimePreviewGroupableToolStep(step: TimelineRuntimeToolStep): boolean {
-  return isRuntimeCommandToolStep(step) || isRuntimeEditToolStep(step);
 }
 
 function addPaths(target: Set<string>, paths: ReadonlyArray<string | undefined> | undefined) {

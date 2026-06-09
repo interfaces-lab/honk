@@ -74,6 +74,7 @@ export interface ThreadAgentRuntimeOptions {
   readonly excludeTools?: readonly string[];
   readonly customTools?: readonly ToolDefinition[];
   readonly extensionFactories?: readonly ExtensionFactory[];
+  readonly extensionPaths?: readonly string[];
   readonly resourceLoader?: ResourceLoader;
   readonly authStorage?: AuthStorage;
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"];
@@ -225,6 +226,7 @@ export class ThreadAgentRuntime {
       const resourceLoader = new DefaultResourceLoader({
         cwd: options.cwd,
         agentDir: options.agentDir,
+        additionalExtensionPaths: [...(options.extensionPaths ?? [])],
         extensionFactories: [
           ...(options.extensionFactories ?? []),
           createInteractionModeExtension(interactionModeQueue),
@@ -240,6 +242,7 @@ export class ThreadAgentRuntime {
           : {}),
       });
       await resourceLoader.reload();
+      warnExtensionLoadErrors(resourceLoader.getExtensions().errors);
       sessionOptions.resourceLoader = resourceLoader;
     }
     sessionOptions.authStorage = authStorage;
@@ -770,6 +773,17 @@ export class ThreadAgentRuntime {
     for (const listener of this.listeners) {
       listener(event);
     }
+  }
+}
+
+function warnExtensionLoadErrors(
+  errors: ReadonlyArray<{ readonly path: string; readonly error: unknown }>,
+): void {
+  for (const error of errors) {
+    console.warn(
+      `[runtime] Failed to load pi extension at ${error.path}:`,
+      error.error instanceof Error ? error.error.message : error.error,
+    );
   }
 }
 

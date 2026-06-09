@@ -1018,12 +1018,33 @@ function projectRuntimeToolDisplay(input: {
     const query = extractSearchQuery(input.args);
     const path = extractToolPath(input.args);
     const matchedFiles = extractMatchedFiles(input.result, input.details);
+    const fffCounts = extractFffCounts(input.result, input.details);
     return {
       kind: "grep",
       ...(query !== undefined ? { query } : {}),
       ...(path !== undefined ? { path } : {}),
       ...(input.output !== undefined ? { output: input.output } : {}),
       ...(matchedFiles !== undefined ? { matchedFiles } : {}),
+      ...(fffCounts.totalMatched !== undefined ? { totalMatched: fffCounts.totalMatched } : {}),
+      ...(fffCounts.totalIndexedFiles !== undefined
+        ? { totalIndexedFiles: fffCounts.totalIndexedFiles }
+        : {}),
+    };
+  }
+  if (isFindToolName(normalizedToolName)) {
+    const query = extractSearchQuery(input.args);
+    const path = extractToolPath(input.args);
+    const fffCounts = extractFffCounts(input.result, input.details);
+    return {
+      kind: "find",
+      ...(query !== undefined ? { query } : {}),
+      ...(path !== undefined ? { path } : {}),
+      ...(input.output !== undefined ? { output: input.output } : {}),
+      ...(fffCounts.totalMatched !== undefined ? { totalMatched: fffCounts.totalMatched } : {}),
+      ...(fffCounts.totalIndexedFiles !== undefined
+        ? { totalIndexedFiles: fffCounts.totalIndexedFiles }
+        : {}),
+      ...(fffCounts.hasMore !== undefined ? { hasMore: fffCounts.hasMore } : {}),
     };
   }
   if (isEditToolName(normalizedToolName)) {
@@ -1101,6 +1122,15 @@ function isGrepToolName(toolName: string): boolean {
     toolName === "search" ||
     toolName.includes("grep") ||
     toolName.includes("search")
+  );
+}
+
+function isFindToolName(toolName: string): boolean {
+  return (
+    toolName === "find" ||
+    toolName === "fffind" ||
+    toolName === "glob" ||
+    toolName.includes("find")
   );
 }
 
@@ -1187,6 +1217,30 @@ function extractExitCode(result: unknown, details: unknown): number | undefined 
   );
 }
 
+function extractFffCounts(
+  result: unknown,
+  details: unknown,
+): {
+  readonly totalMatched: number | undefined;
+  readonly totalIndexedFiles: number | undefined;
+  readonly hasMore: boolean | undefined;
+} {
+  return {
+    totalMatched:
+      extractNonNegativeNumber(details, ["totalMatched"]) ??
+      extractNonNegativeNumber(asRecord(result)?.details, ["totalMatched"]) ??
+      extractNonNegativeNumber(result, ["totalMatched"]),
+    totalIndexedFiles:
+      extractNonNegativeNumber(details, ["totalFiles"]) ??
+      extractNonNegativeNumber(asRecord(result)?.details, ["totalFiles"]) ??
+      extractNonNegativeNumber(result, ["totalFiles"]),
+    hasMore:
+      extractBoolean(details, ["hasMore"]) ??
+      extractBoolean(asRecord(result)?.details, ["hasMore"]) ??
+      extractBoolean(result, ["hasMore"]),
+  };
+}
+
 function extractNonNegativeNumber(
   value: unknown,
   keys: ReadonlyArray<string>,
@@ -1199,6 +1253,20 @@ function extractNonNegativeNumber(
     const numberValue = record[key];
     if (typeof numberValue === "number" && Number.isInteger(numberValue) && numberValue >= 0) {
       return numberValue;
+    }
+  }
+  return undefined;
+}
+
+function extractBoolean(value: unknown, keys: ReadonlyArray<string>): boolean | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  for (const key of keys) {
+    const booleanValue = record[key];
+    if (typeof booleanValue === "boolean") {
+      return booleanValue;
     }
   }
   return undefined;

@@ -45,7 +45,14 @@ export const SETTINGS_SECTIONS = [
     label: "Appearance",
     icon: IconColorSwatch,
     domain: "appearance",
-    cursorPreferenceScopes: ["theme", "glass", "colors", "fonts", "workbench-surfaces"],
+    cursorPreferenceScopes: [
+      "theme",
+      "glass",
+      "colors",
+      "fonts",
+      "workbench-surfaces",
+      "tool-call-density",
+    ],
   },
   {
     id: "agents",

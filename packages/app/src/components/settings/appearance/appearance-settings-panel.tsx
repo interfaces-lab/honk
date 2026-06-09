@@ -1,4 +1,5 @@
 import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
+import { toUserConversationDensity } from "@multi/shared/conversation-density";
 import { Button } from "@multi/multikit/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/multikit/select";
 import { Switch } from "@multi/multikit/switch";
@@ -15,6 +16,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../settings-layout";
+import { ToolCallDensityPreview, ToolCallDensitySlider } from "../tool-call-density-control";
 import {
   AppearanceTintSlider,
   CodeFontFamilySettingsRow,
@@ -236,6 +238,34 @@ export function AppearanceSettingsPanel() {
             />
           }
         />
+        <SettingsRow
+          title="Tool call density"
+          description="Adjust how much detail is shown for tool calls."
+          resetAction={
+            settings.conversationDensity !== DEFAULT_UNIFIED_SETTINGS.conversationDensity ? (
+              <SettingResetButton
+                label="tool call density"
+                onClick={() =>
+                  updateSettings({
+                    conversationDensity: DEFAULT_UNIFIED_SETTINGS.conversationDensity,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <ToolCallDensitySlider
+              value={toUserConversationDensity(settings.conversationDensity)}
+              onChange={(value) => {
+                void updateSettings({ conversationDensity: value });
+              }}
+            />
+          }
+        >
+          <ToolCallDensityPreview
+            density={toUserConversationDensity(settings.conversationDensity)}
+          />
+        </SettingsRow>
       </SettingsSection>
     </SettingsPageContainer>
   );

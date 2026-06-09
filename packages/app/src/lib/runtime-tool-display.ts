@@ -35,7 +35,19 @@ export function runtimeToolDisplaySignature(
         display.query ?? "",
         display.path ?? "",
         display.output ?? "",
+        display.totalMatched ?? "",
+        display.totalIndexedFiles ?? "",
         ...(display.matchedFiles ?? []),
+      ].join("\u0000");
+    case "find":
+      return [
+        display.kind,
+        display.query ?? "",
+        display.path ?? "",
+        display.output ?? "",
+        display.totalMatched ?? "",
+        display.totalIndexedFiles ?? "",
+        display.hasMore ?? "",
       ].join("\u0000");
     case "edit":
       return [

@@ -100,7 +100,7 @@ describe("projectThreadTimeline", () => {
 
     expect(entries).toEqual([
       expect.objectContaining({
-        id: "tool:timeline-projector:shell",
+        id: "tool-call:toolu-timeline-projector-shell",
         kind: "runtime-tool",
       }),
     ]);
@@ -251,7 +251,7 @@ describe("projectThreadTimeline", () => {
 
     expect(entries).toEqual([
       expect.objectContaining({
-        id: "tool:timeline-projector:subagent",
+        id: "tool-call:toolu-timeline-projector-subagent",
         kind: "runtime-tool",
       }),
     ]);
@@ -447,7 +447,7 @@ describe("projectThreadTimeline", () => {
         kind: "message",
       }),
       expect.objectContaining({
-        id: runningWorkEntry.id,
+        id: "tool-call:toolu-timeline-projector-shell",
         kind: "work",
         entry: runningWorkEntry,
       }),
@@ -499,7 +499,7 @@ describe("projectThreadTimeline", () => {
 
     expect(entries).toEqual([
       expect.objectContaining({
-        id: "tool:timeline-projector:shell",
+        id: "tool-call:toolu-timeline-projector-shell",
         kind: "runtime-tool",
         tool: expect.objectContaining({
           toolCallId: "toolu-timeline-projector-shell",

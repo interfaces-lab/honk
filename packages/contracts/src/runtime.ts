@@ -525,6 +525,18 @@ const RuntimeDisplayTimelineGrepToolDisplay = Schema.Struct({
   path: Schema.optional(Schema.String),
   output: Schema.optional(Schema.String),
   matchedFiles: Schema.optional(Schema.Array(Schema.String)),
+  totalMatched: Schema.optional(NonNegativeInt),
+  totalIndexedFiles: Schema.optional(NonNegativeInt),
+});
+
+const RuntimeDisplayTimelineFindToolDisplay = Schema.Struct({
+  kind: Schema.Literal("find"),
+  query: Schema.optional(Schema.String),
+  path: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  totalMatched: Schema.optional(NonNegativeInt),
+  totalIndexedFiles: Schema.optional(NonNegativeInt),
+  hasMore: Schema.optional(Schema.Boolean),
 });
 
 const RuntimeDisplayTimelineEditToolDisplay = Schema.Struct({
@@ -559,6 +571,7 @@ export const RuntimeDisplayTimelineToolDisplay = Schema.Union([
   RuntimeDisplayTimelineShellToolDisplay,
   RuntimeDisplayTimelineReadToolDisplay,
   RuntimeDisplayTimelineGrepToolDisplay,
+  RuntimeDisplayTimelineFindToolDisplay,
   RuntimeDisplayTimelineEditToolDisplay,
   RuntimeDisplayTimelineMcpToolDisplay,
   RuntimeDisplayTimelineSubagentToolDisplay,

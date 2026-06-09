@@ -5,7 +5,7 @@ import {
 import { Button } from "@multi/multikit/button";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import {
@@ -38,6 +38,7 @@ import {
   type TimelineWorkStep,
   type WorkGroupSummary,
 } from "./timeline-render-items";
+import { logTimelinePreview } from "./timeline-preview-debug";
 import { type WorkTimelineRow } from "./timeline-rows";
 
 export const WORK_GROUP_PREVIEW_PX = 144;
@@ -129,12 +130,22 @@ export function GroupedStepsRenderer({
   const isThinkingGroup = row.isThinkingGroup;
   const isWaitingGroup = row.isWaitingGroup;
   const isBrowserGroup = row.isBrowserGroup;
-  const showPreview = isRunning && !expanded;
+  const showPreview = (isRunning || row.isTailGroup) && !expanded;
   const [previewScrollable, setPreviewScrollable] = useState(false);
   const contentId = `timeline-work-group:${row.id}`;
   const handleToggle = () => {
     onToggleExpanded(row.id);
   };
+
+  useEffect(() => {
+    logTimelinePreview("preview-visibility", {
+      rowId: row.id,
+      showPreview,
+      isRunning,
+      isTailGroup: row.isTailGroup,
+      expanded,
+    });
+  }, [expanded, isRunning, row.id, row.isTailGroup, showPreview]);
 
   return (
     <div
@@ -471,15 +482,19 @@ function WorkGroupPreview({
     lastStep && lastRunningOutputStepId === lastStep.id
       ? getPreviewStepOutputScrollKey(lastStep)
       : null;
-  const streamedTextLength = steps.reduce((length, step) => {
-    if (step.kind === "runtime-thinking") {
-      return length + (step.message.thinking?.length ?? 0);
-    }
-    if (step.kind === "message") {
-      return length + step.message.text.length;
-    }
-    return length;
-  }, 0);
+
+  useEffect(() => {
+    logTimelinePreview("preview-mount", {
+      rowId: row.id,
+      previewStepCount,
+    });
+    return () => {
+      logTimelinePreview("preview-unmount", {
+        rowId: row.id,
+        previewStepCount,
+      });
+    };
+  }, [previewStepCount, row.id]);
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
@@ -488,14 +503,13 @@ function WorkGroupPreview({
     const scrollable = isPreviewScrollable(host);
     setPreviewScrollable(scrollable);
     onPreviewScrollableChange(scrollable);
-  }, [
-    lastStepId,
-    previewStepCount,
-    row.isRunning,
-    lastStepOutputScrollKey,
-    streamedTextLength,
-    onPreviewScrollableChange,
-  ]);
+    logTimelinePreview("scroll-snap", {
+      rowId: row.id,
+      scrollHeight: host.scrollHeight,
+      lastStepId: lastStepId ?? null,
+      previewStepCount,
+    });
+  }, [lastStepId, lastStepOutputScrollKey, onPreviewScrollableChange, previewStepCount, row.id]);
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
@@ -507,6 +521,7 @@ function WorkGroupPreview({
       return;
     }
     const observer = new ResizeObserver(() => {
+      host.scrollTop = host.scrollHeight;
       const scrollable = isPreviewScrollable(host);
       setPreviewScrollable(scrollable);
       onPreviewScrollableChange(scrollable);

@@ -13,6 +13,7 @@ import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, ProposedPlan, ThreadSendIntent } from "../../../types";
 import {
   timelineMessageEntryId,
+  timelineToolCallEntryId,
   timelineTurnAssistantEntryId,
   timelineTurnThinkingEntryId,
 } from "./timeline-entry-ids";
@@ -135,7 +136,7 @@ function materializeCommittedTimelineEntries(input: {
       proposedPlan,
     })),
     ...input.workLogEntries.map((entry): TimelineEntry => ({
-      id: entry.id,
+      id: entry.toolCallId ? timelineToolCallEntryId(entry.toolCallId) : entry.id,
       kind: "work",
       createdAt: entry.createdAt,
       entry,
@@ -344,7 +345,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
     case "tool":
       return [
         {
-          id: item.id,
+          id: item.toolCallId ? timelineToolCallEntryId(item.toolCallId) : item.id,
           kind: "runtime-tool",
           createdAt: item.createdAt,
           tool: item,

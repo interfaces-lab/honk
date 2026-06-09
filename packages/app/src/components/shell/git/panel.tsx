@@ -628,7 +628,7 @@ function GitPanelInner(props: {
         expandUnchanged: false,
         hunkSeparators: "simple",
         preferredHighlighter: "shiki-js",
-        stickyHeaders: false,
+        stickyHeaders: true,
         layout: GIT_CODE_VIEW_LAYOUT,
         itemMetrics: {
           lineHeight: WORKBENCH_DIFF_LINE_HEIGHT,

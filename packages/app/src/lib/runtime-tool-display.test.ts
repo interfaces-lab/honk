@@ -124,6 +124,46 @@ function parallelSubagentActivity(input: {
 }
 
 describe("runtimeToolDisplaySignature", () => {
+  it("includes grep and find count fields", () => {
+    expect(
+      runtimeToolDisplaySignature({
+        kind: "grep",
+        query: "ToolSearchArtifact",
+        output: "packages/app/src/session-logic.ts\n 42: export interface ToolSearchArtifact {",
+        totalMatched: 2,
+        totalIndexedFiles: 100,
+      }),
+    ).not.toBe(
+      runtimeToolDisplaySignature({
+        kind: "grep",
+        query: "ToolSearchArtifact",
+        output: "packages/app/src/session-logic.ts\n 42: export interface ToolSearchArtifact {",
+        totalMatched: 3,
+        totalIndexedFiles: 100,
+      }),
+    );
+
+    expect(
+      runtimeToolDisplaySignature({
+        kind: "find",
+        query: "tool renderer",
+        output: "packages/app/src/components/chat/message/tool-renderer.tsx",
+        totalMatched: 1,
+        totalIndexedFiles: 100,
+        hasMore: false,
+      }),
+    ).not.toBe(
+      runtimeToolDisplaySignature({
+        kind: "find",
+        query: "tool renderer",
+        output: "packages/app/src/components/chat/message/tool-renderer.tsx",
+        totalMatched: 1,
+        totalIndexedFiles: 100,
+        hasMore: true,
+      }),
+    );
+  });
+
   it("keeps subagent activity comparison bounded to the visible tail", () => {
     const activities = Array.from({ length: 100 }, (_, index) =>
       subagentActivity(index + 1, `detail ${index + 1}`),

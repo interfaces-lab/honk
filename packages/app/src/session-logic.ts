@@ -150,9 +150,13 @@ export interface ToolReadArtifact {
 
 export interface ToolSearchArtifact {
   type: "search";
+  flavor?: "grep" | "find" | undefined;
   query?: string | undefined;
   output?: string | undefined;
   matchedFiles?: ReadonlyArray<string> | undefined;
+  totalMatched?: number | undefined;
+  totalIndexedFiles?: number | undefined;
+  hasMore?: boolean | undefined;
   truncated?: boolean | undefined;
   isPartial?: boolean | undefined;
 }
