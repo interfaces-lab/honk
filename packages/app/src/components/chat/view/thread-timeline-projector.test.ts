@@ -403,6 +403,116 @@ describe("projectThreadTimeline", () => {
     expect(pendingEntries).toHaveLength(1);
   });
 
+  it("keeps running committed work entries until runtime projects the same tool", () => {
+    const runningWorkEntry = {
+      id: "tool:turn:timeline-projector:shell",
+      label: "git status --short",
+      tone: "tool",
+      status: "running",
+      createdAt: "2026-06-05T16:00:02.000Z",
+      itemType: "command_execution",
+      toolCallId: "toolu-timeline-projector-shell",
+      command: "git status --short",
+      artifacts: [{ type: "command", output: " M file.ts", isPartial: true }],
+    } satisfies WorkLogEntry;
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:timeline-projector:user",
+          kind: "message",
+          orderKey: `${userCreatedAt}:message:timeline-projector:user`,
+          createdAt: userCreatedAt,
+          clientMessageId: userMessageId,
+          role: "user",
+          text: "Start",
+          streaming: false,
+          source: "live-event",
+          eventIds: [],
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    const entries = project({
+      workLogEntries: [runningWorkEntry],
+      activeRuntimeDisplayTimeline: runtimeTimeline,
+      isWorking: true,
+      isTurnActive: true,
+      activeTurnStartedAt: turnStartedAt,
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        id: timelineMessageEntryId(userMessageId),
+        kind: "message",
+      }),
+      expect.objectContaining({
+        id: runningWorkEntry.id,
+        kind: "work",
+        entry: runningWorkEntry,
+      }),
+    ]);
+  });
+
+  it("drops superseded running work entries once runtime projects the same tool", () => {
+    const runningWorkEntry = {
+      id: "tool:turn:timeline-projector:shell",
+      label: "git status --short",
+      tone: "tool",
+      status: "running",
+      createdAt: "2026-06-05T16:00:02.000Z",
+      itemType: "command_execution",
+      toolCallId: "toolu-timeline-projector-shell",
+      command: "git status --short",
+      artifacts: [{ type: "command", output: " M file.ts", isPartial: true }],
+    } satisfies WorkLogEntry;
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "tool:timeline-projector:shell",
+          kind: "tool",
+          orderKey: "2026-06-05T16:00:02.000Z:tool:timeline-projector:shell",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          toolCallId: "toolu-timeline-projector-shell",
+          toolName: "shell",
+          status: "running",
+          eventIds: [],
+          display: {
+            kind: "shell",
+            command: "git status --short",
+            output: " M file.ts",
+          },
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    const entries = project({
+      committedMessages: [],
+      workLogEntries: [runningWorkEntry],
+      activeRuntimeDisplayTimeline: runtimeTimeline,
+      isWorking: true,
+      isTurnActive: true,
+      activeTurnStartedAt: turnStartedAt,
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        id: "tool:timeline-projector:shell",
+        kind: "runtime-tool",
+        tool: expect.objectContaining({
+          toolCallId: "toolu-timeline-projector-shell",
+          display: expect.objectContaining({
+            kind: "shell",
+            output: " M file.ts",
+          }),
+        }),
+      }),
+    ]);
+  });
+
   it("does not append transient send intent rows once runtime acknowledges the message", () => {
     const runtimeTimeline = {
       threadId,

@@ -75,7 +75,10 @@ export function projectThreadTimeline(input: {
     });
   }
   const entries = appendMissingRuntimeTimelineMessageEntries({
-    entries: runtimeEntries,
+    entries: mergeRunningWorkLogEntriesIntoRuntimeTimeline({
+      runtimeEntries,
+      committedEntries: committedEntriesWithTransientRows,
+    }),
     messages: timelineMessages,
     sendIntents: transientSendIntents,
   });
@@ -370,13 +373,43 @@ function shouldUseRuntimeDisplayTimelineEntries(input: {
   }
   if (
     input.committedEntries.length > 0 &&
-    !input.runtimeEntries.some(
-      (entry) => entry.kind !== "message" || entry.message.role !== "user",
-    )
+    !input.runtimeEntries.some(isRuntimeDisplayTimelineResponseEntry)
   ) {
     return false;
   }
   return true;
+}
+
+function isRuntimeDisplayTimelineResponseEntry(entry: TimelineEntry): boolean {
+  if (entry.kind !== "message") {
+    return true;
+  }
+  return entry.message.role !== "user";
+}
+
+function mergeRunningWorkLogEntriesIntoRuntimeTimeline(input: {
+  readonly runtimeEntries: ReadonlyArray<TimelineEntry>;
+  readonly committedEntries: ReadonlyArray<TimelineEntry>;
+}): TimelineEntry[] {
+  const runtimeToolCallIds = new Set(
+    input.runtimeEntries.flatMap((entry) =>
+      entry.kind === "runtime-tool" ? [entry.tool.toolCallId] : [],
+    ),
+  );
+  const supplementalWorkEntries = input.committedEntries.filter(
+    (entry): entry is Extract<TimelineEntry, { kind: "work" }> =>
+      entry.kind === "work" &&
+      entry.entry.status === "running" &&
+      (entry.entry.toolCallId === undefined ||
+        !runtimeToolCallIds.has(entry.entry.toolCallId)),
+  );
+  if (supplementalWorkEntries.length === 0) {
+    return [...input.runtimeEntries];
+  }
+  return mergeTransientTimelineEntries(
+    input.runtimeEntries,
+    supplementalWorkEntries.toSorted(compareTransientEntries),
+  );
 }
 
 function runtimeDisplayTimelineMessageId(

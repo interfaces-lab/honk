@@ -755,7 +755,8 @@ function summarizeRuntimeGroup(
   input: { isWorking: boolean; isTurnActive: boolean; projectRoot?: string | undefined },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
+  const running =
+    input.isWorking && input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const toolSteps = steps.filter((step) => step.kind === "runtime-tool");
   const commandCount = toolSteps.filter(isRuntimeCommandToolStep).length;
@@ -792,7 +793,7 @@ function summarizeRuntimeWaitingGroup(
   input: { isWorking: boolean; isTurnActive: boolean },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
+  const running = input.isWorking && input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const awaitSteps = steps.filter(
     (step): step is TimelineRuntimeToolStep =>
@@ -823,7 +824,7 @@ function summarizeRuntimeBrowserGroup(
   input: { isWorking: boolean; isTurnActive: boolean },
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isWorking && input.isTurnActive && steps.some(isRunningRuntimeStep);
+  const running = input.isWorking && input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const browserCount = countRuntimeBrowserMcpToolSteps(steps);
   return {
@@ -939,8 +940,23 @@ function applyTailOnlyLoadingSemantics(
   items: TimelineRenderItem[],
   input: { isTurnActive: boolean; isWorking: boolean; projectRoot?: string | undefined },
 ): TimelineRenderItem[] {
-  const lastGroupIndex = findLastGroupRenderItemIndex(items);
-  if (lastGroupIndex === -1) {
+  if (!input.isTurnActive) {
+    return items.map((item) => {
+      if (item.kind !== "group") {
+        return item;
+      }
+      return {
+        ...item,
+        group: {
+          ...completeGroupedSteps(item.group, input.projectRoot),
+          isTailGroup: false,
+        },
+      };
+    });
+  }
+
+  const tailGroupIndex = findTailGroupRenderItemIndex(items, input);
+  if (tailGroupIndex === -1) {
     return items;
   }
 
@@ -949,32 +965,16 @@ function applyTailOnlyLoadingSemantics(
       return item;
     }
 
-    const isTailGroup = index === lastGroupIndex;
-    if (!input.isTurnActive) {
-      return {
-        ...item,
-        group: {
-          ...completeGroupedSteps(item.group, input.projectRoot),
-          isTailGroup: false,
-        },
-      };
-    }
-
+    const isTailGroup = index === tailGroupIndex;
     if (isTailGroup) {
-      const naturallyRunning =
-        input.isWorking &&
-        item.group.steps.some((step) =>
-          step.kind === "work"
-            ? step.entry.status === "running"
-            : isRunningRuntimeStep(step),
-        );
+      const isRunning = resolveTailWorkGroupRunning(item.group, input);
       return {
         ...item,
         group: {
           ...item.group,
           isTailGroup: true,
-          isRunning: naturallyRunning,
-          completedDurationLabel: naturallyRunning ? null : item.group.completedDurationLabel,
+          isRunning,
+          completedDurationLabel: isRunning ? null : item.group.completedDurationLabel,
         },
       };
     }
@@ -989,6 +989,23 @@ function applyTailOnlyLoadingSemantics(
   });
 }
 
+export function resolveTailWorkGroupRunning(
+  group: GroupedSteps,
+  input: { isTurnActive: boolean; isWorking: boolean },
+): boolean {
+  if (!input.isTurnActive || !input.isWorking) {
+    return false;
+  }
+  return group.steps.some(isActivelyRunningGroupedStep);
+}
+
+export function isActivelyRunningGroupedStep(step: TimelineGroupedStep): boolean {
+  if (step.kind === "work") {
+    return step.entry.status === "running";
+  }
+  return isRunningRuntimeStep(step);
+}
+
 function findLastGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>): number {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     if (items[index]?.kind === "group") {
@@ -996,6 +1013,36 @@ function findLastGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>):
     }
   }
   return -1;
+}
+
+function findTailGroupRenderItemIndex(
+  items: ReadonlyArray<TimelineRenderItem>,
+  input: { isTurnActive: boolean; isWorking: boolean },
+): number {
+  if (input.isWorking) {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+      const item = items[index];
+      if (item?.kind !== "group") {
+        continue;
+      }
+      if (item.group.steps.some(isActivelyRunningGroupedStep)) {
+        return index;
+      }
+    }
+  }
+
+  const lastGroupIndex = findLastGroupRenderItemIndex(items);
+  if (lastGroupIndex === -1) {
+    return -1;
+  }
+  for (let index = lastGroupIndex + 1; index < items.length; index += 1) {
+    const item = items[index];
+    if (!item || item.kind === "waitingGroup") {
+      continue;
+    }
+    return -1;
+  }
+  return lastGroupIndex;
 }
 
 function completeGroupedSteps(
@@ -1680,6 +1727,9 @@ function isRuntimeStepGroupableForDensity(
   if (step.kind === "runtime-thinking") {
     return true;
   }
+  if (step.tool.status === "running" && isRuntimePreviewGroupableToolStep(step)) {
+    return true;
+  }
   if (isRuntimeCommandToolStep(step)) {
     return shouldGroupShells(density);
   }
@@ -1687,6 +1737,10 @@ function isRuntimeStepGroupableForDensity(
     return shouldGroupEdits(density);
   }
   return true;
+}
+
+function isRuntimePreviewGroupableToolStep(step: TimelineRuntimeToolStep): boolean {
+  return isRuntimeCommandToolStep(step) || isRuntimeEditToolStep(step);
 }
 
 function addPaths(target: Set<string>, paths: ReadonlyArray<string | undefined> | undefined) {

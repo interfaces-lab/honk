@@ -884,6 +884,82 @@ describe("deriveTimelineRenderItems", () => {
     ]);
   });
 
+  it("groups a single running shell tool even when shell grouping is disabled", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-single",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+      conversationDensity: "compact-ungrouped",
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+          steps: [
+            expect.objectContaining({
+              kind: "runtime-tool",
+              tool: expect.objectContaining({
+                status: "running",
+                display: expect.objectContaining({
+                  kind: "shell",
+                  output: "running",
+                }),
+              }),
+            }),
+          ],
+        }),
+      }),
+    ]);
+  });
+
+  it("keeps a running group tail when assistant text follows it", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-tail",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+        {
+          kind: "message",
+          id: "message:assistant",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          message: {
+            id: assistantId,
+            role: "assistant",
+            text: "Still working",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            streaming: true,
+          },
+        },
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+          steps: [expect.objectContaining({ kind: "runtime-tool" })],
+        }),
+      }),
+    );
+  });
+
   it("groups a single running shell tool", () => {
     const rows = deriveTimelineRenderItems({
       timelineEntries: [
@@ -1231,5 +1307,55 @@ describe("deriveTimelineRenderItems", () => {
         step: expect.objectContaining({ kind: "runtime-tool" }),
       }),
     ]);
+  });
+
+  it("marks the tail runtime group running while the turn is active and a tool is executing", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-running",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: true,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+        }),
+      }),
+    );
+  });
+
+  it("does not keep groups running after the turn ends even if tool status lags", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-lagging",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+      ],
+      isWorking: false,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: false,
+          isTailGroup: false,
+        }),
+      }),
+    );
   });
 });

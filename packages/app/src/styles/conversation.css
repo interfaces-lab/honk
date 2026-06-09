@@ -498,6 +498,10 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
   -webkit-backdrop-filter: blur(var(--multi-composer-blur, 10px));
 }
 
+[data-assistant-work-group][data-group-loading]:not([data-work-group-expanded="true"]) [data-work-group-preview] {
+  min-height: min(var(--chat-timeline-work-preview-max-height), 100%);
+}
+
 [data-work-group-preview] {
   max-height: var(--chat-timeline-work-preview-max-height);
   padding-top: var(--chat-timeline-step-gap);

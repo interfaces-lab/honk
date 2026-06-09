@@ -827,10 +827,12 @@ export default function ChatView(props: ChatViewProps) {
     () => filterActivitiesToBranch(sharedThreadActivities, branchView),
     [branchView, sharedThreadActivities],
   );
-  const activeRunningTurnId =
-    activeThread?.session?.orchestrationStatus === "running"
-      ? (activeThread.session.activeTurnId ?? activeLatestTurn?.turnId ?? null)
-      : null;
+  const orchestrationTurnActive =
+    activeThread?.session?.orchestrationStatus === "starting" ||
+    activeThread?.session?.orchestrationStatus === "running";
+  const activeRunningTurnId = orchestrationTurnActive
+    ? (activeThread?.session?.activeTurnId ?? activeLatestTurn?.turnId ?? null)
+    : null;
   const derivedWorkLogEntries = useMemo(
     () =>
       deriveWorkLogEntries(visibleThreadActivities, undefined, {

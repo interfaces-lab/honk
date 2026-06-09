@@ -240,7 +240,10 @@ function WorkGroupHeaderButton({
           <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
             ·
           </span>
-          <WorkGroupSummaryLine summary={summary} />
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums">
+            {summary.details}
+          </span>
+          <WorkGroupStats summary={summary} />
         </>
       ) : null}
       <IconChevronRightMedium
@@ -425,6 +428,7 @@ function WorkGroupPreview({
   ctx: StepRendererContext;
 }) {
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
+  const [previewScrollable, setPreviewScrollable] = useState(false);
   const steps = row.steps;
   const previewSteps = steps.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
   const lastStep = steps.at(-1);
@@ -446,7 +450,9 @@ function WorkGroupPreview({
     const host = scrollHostRef.current;
     if (!host) return;
     host.scrollTop = host.scrollHeight;
-    onPreviewScrollableChange(isPreviewScrollable(host));
+    const scrollable = isPreviewScrollable(host);
+    setPreviewScrollable(scrollable);
+    onPreviewScrollableChange(scrollable);
   }, [
     lastStepId,
     previewStepCount,
@@ -460,11 +466,15 @@ function WorkGroupPreview({
     const host = scrollHostRef.current;
     if (!host) return;
     if (typeof ResizeObserver === "undefined") {
-      onPreviewScrollableChange(isPreviewScrollable(host));
+      const scrollable = isPreviewScrollable(host);
+      setPreviewScrollable(scrollable);
+      onPreviewScrollableChange(scrollable);
       return;
     }
     const observer = new ResizeObserver(() => {
-      onPreviewScrollableChange(isPreviewScrollable(host));
+      const scrollable = isPreviewScrollable(host);
+      setPreviewScrollable(scrollable);
+      onPreviewScrollableChange(scrollable);
     });
     observer.observe(host);
     return () => observer.disconnect();
@@ -488,6 +498,7 @@ function WorkGroupPreview({
       }}
       data-work-group-preview=""
       data-work-group-preview-dimmed=""
+      data-work-preview-scrollable={previewScrollable ? "true" : "false"}
       className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {previewSteps.map((step) => (

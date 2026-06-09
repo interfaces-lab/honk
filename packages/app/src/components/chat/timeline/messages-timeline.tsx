@@ -3,10 +3,10 @@ import {
   memo,
   useCallback,
   useMemo,
-  type RefObject,
-  type CSSProperties,
   useRef,
   useState,
+  type RefObject,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
@@ -23,8 +23,9 @@ import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
   computeStableMessagesTimelineRows,
-  deriveMessagesTimelineRows,
+  deriveMessagesTimelineRowsResult,
   isCommandWorkEntry,
+  type GroupedSteps,
   type StableMessagesTimelineRowsState,
   type MessagesTimelineRow,
 } from "./timeline-rows";
@@ -142,25 +143,32 @@ export function MessagesTimeline({
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
   const conversationDensity = useConversationDensity();
-  const rawRows = useMemo(
-    () =>
-      deriveMessagesTimelineRows({
-        timelineEntries,
-        isWorking,
-        isTurnActive,
-        editableUserMessageIds,
-        projectRoot,
-        conversationDensity,
-      }),
-    [
-      conversationDensity,
-      editableUserMessageIds,
-      isTurnActive,
-      isWorking,
-      projectRoot,
+  const tailGroupSnapshotRef = useRef<GroupedSteps | null>(null);
+  const rawRows = useMemo(() => {
+    const { rows, tailGroupSnapshot } = deriveMessagesTimelineRowsResult({
       timelineEntries,
-    ],
-  );
+      isWorking,
+      isTurnActive,
+      editableUserMessageIds,
+      projectRoot,
+      conversationDensity,
+      tailGroupSnapshot:
+        isTurnActive && timelineEntries.length === 0 ? tailGroupSnapshotRef.current : null,
+    });
+    if (isTurnActive && tailGroupSnapshot?.isRunning) {
+      tailGroupSnapshotRef.current = tailGroupSnapshot;
+    } else if (!isTurnActive) {
+      tailGroupSnapshotRef.current = null;
+    }
+    return rows;
+  }, [
+    conversationDensity,
+    editableUserMessageIds,
+    isTurnActive,
+    isWorking,
+    projectRoot,
+    timelineEntries,
+  ]);
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),

@@ -274,6 +274,10 @@ function effectiveAgentModeThinkingLevel(
   return AGENT_MODE_THINKING_LEVELS[mode];
 }
 
+function isAgentModeEditTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-agent-mode-edit]") !== null;
+}
+
 function ComposerAgentModePicker(props: {
   agentMode: AgentMode;
   thinkingLevel: AgentThinkingLevel;
@@ -282,15 +286,8 @@ function ComposerAgentModePicker(props: {
   onAgentModeThinkingLevelChange: (agentMode: AgentMode, thinkingLevel: AgentThinkingLevel) => void;
 }) {
   const [query, setQuery] = useState("");
-  const triggerThinkingLevel = effectiveAgentModeThinkingLevel(
-    props.agentMode,
-    props.agentMode,
-    props.thinkingLevel,
-  );
-  const triggerLabel =
-    props.agentMode === "rush"
-      ? AGENT_MODE_LABELS[props.agentMode]
-      : `${AGENT_MODE_LABELS[props.agentMode]} ${MODEL_THINKING_LEVEL_LABELS[triggerThinkingLevel]}`;
+  const [openSettingsMode, setOpenSettingsMode] = useState<AgentMode | null>(null);
+  const triggerLabel = AGENT_MODE_LABELS[props.agentMode];
   const visibleModes = COMPOSER_AGENT_MODE_OPTIONS.filter((mode) => {
     const searchText =
       `${AGENT_MODE_LABELS[mode]} ${MODEL_THINKING_LEVEL_LABELS[effectiveAgentModeThinkingLevel(mode, props.agentMode, props.thinkingLevel)]}`.toLowerCase();
@@ -307,7 +304,7 @@ function ComposerAgentModePicker(props: {
         type="button"
         className={cn(
           workbenchChromeTextControlVariants(),
-          "max-w-40 rounded-full pr-1.5 pl-2 disabled:pointer-events-none disabled:opacity-50",
+          "max-w-40 rounded-full pr-1.5 pl-2 transition-none disabled:pointer-events-none disabled:opacity-50",
         )}
         aria-label="Agent mode"
         disabled={props.disabled}
@@ -320,7 +317,7 @@ function ComposerAgentModePicker(props: {
         side="top"
         sideOffset={6}
         variant="workbench"
-        className="w-[200px]"
+        className="w-[200px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
       >
         <div className="pb-1">
           <input
@@ -352,7 +349,7 @@ function ComposerAgentModePicker(props: {
                 <MenuItem
                   key={mode}
                   variant="workbench"
-                  className="gap-2 pe-2"
+                  className="gap-2 pe-2 transition-none"
                   onClick={() => props.onAgentModeChange(mode)}
                 >
                   <span className="min-w-0 flex-1 truncate text-multi-fg-primary">{label}</span>
@@ -362,12 +359,29 @@ function ComposerAgentModePicker(props: {
             }
 
             return (
-              <MenuSub key={mode}>
+              <MenuSub
+                key={mode}
+                open={openSettingsMode === mode}
+                onOpenChange={(open, eventDetails) => {
+                  if (open) {
+                    if (isAgentModeEditTarget(eventDetails.event?.target ?? null)) {
+                      setOpenSettingsMode(mode);
+                    }
+                    return;
+                  }
+                  setOpenSettingsMode((current) => (current === mode ? null : current));
+                }}
+              >
                 <MenuSubTrigger
                   variant="workbench"
-                  className="group/model gap-2 pe-1 [&>svg:last-child]:hidden"
-                  onClick={() => {
+                  className="group/model gap-2 pe-1 transition-none [&>svg:last-child]:hidden"
+                  openOnHover={false}
+                  onClick={(event) => {
+                    if (isAgentModeEditTarget(event.target)) {
+                      return;
+                    }
                     if (!selected) {
+                      setOpenSettingsMode(null);
                       props.onAgentModeChange(mode);
                     }
                   }}
@@ -384,13 +398,18 @@ function ComposerAgentModePicker(props: {
                       "group-hover/model:inline group-data-[highlighted]/model:inline",
                       "data-[selected=true]:inline",
                     )}
+                    data-agent-mode-edit=""
                     data-selected={selected ? "true" : undefined}
                   >
                     Edit
                   </span>
                   {selected ? <IconCheckmark1 className="size-3 shrink-0" aria-hidden /> : null}
                 </MenuSubTrigger>
-                <MenuSubPopup variant="workbench" side="inline-start" className="w-[160px]">
+                <MenuSubPopup
+                  variant="workbench"
+                  side="inline-end"
+                  className="w-[160px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
+                >
                   <MenuRadioGroup
                     value={thinkingLevel}
                     onValueChange={(value) => {
@@ -404,7 +423,12 @@ function ComposerAgentModePicker(props: {
                   >
                     <MenuGroupLabel variant="workbench">Effort</MenuGroupLabel>
                     {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
-                      <MenuRadioItem key={option.value} value={option.value} variant="workbench">
+                      <MenuRadioItem
+                        key={option.value}
+                        value={option.value}
+                        variant="workbench"
+                        className="transition-none"
+                      >
                         {MODEL_THINKING_LEVEL_LABELS[option.value]}
                       </MenuRadioItem>
                     ))}
