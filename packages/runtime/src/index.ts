@@ -6,6 +6,8 @@ export {
 } from "./display-timeline-projection";
 export {
   runtimeAssistantEntryIngestionKey,
+  runtimeContextWindowActivities,
+  runtimeContextWindowActivityCommands,
   runtimeEventIngestionKey,
   runtimeSessionTreeAssistantCompleteCommand,
   runtimeSessionTreeAssistantCompleteCommands,

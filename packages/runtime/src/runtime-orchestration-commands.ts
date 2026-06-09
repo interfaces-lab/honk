@@ -3,6 +3,7 @@ import {
   CommandId,
   EventId,
   MessageId,
+  ThreadTokenUsageSnapshot,
   TurnId,
   type AgentRuntimeEvent,
   type OrchestrationThreadActivity,
@@ -12,8 +13,11 @@ import {
   type ThreadId,
 } from "@multi/contracts";
 import { toJsonValue } from "@multi/shared/schema-json";
+import { Schema } from "effect";
 
 import { runtimeSubagentActivitiesForToolEvent } from "./runtime-subagent-activities";
+
+const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
 
 export interface RuntimeOrchestrationCommandContext {
   readonly resolveTurnUserEntryId?: (
@@ -174,6 +178,39 @@ export function runtimeToolCompletedActivities(
       createdAt: event.createdAt,
     },
   ];
+}
+
+export function runtimeContextWindowActivities(
+  event: AgentRuntimeEvent,
+): OrchestrationThreadActivity[] {
+  if (event.type !== "context-window.updated" || !isThreadTokenUsageSnapshot(event.data)) {
+    return [];
+  }
+  return [
+    {
+      id: EventId.make(`runtime-activity:${event.id}`),
+      tone: "info" as const,
+      kind: "context-window.updated",
+      summary: event.summary ?? "Context usage updated",
+      payload: event.data,
+      turnId: event.turnId ?? null,
+      createdAt: event.createdAt,
+    },
+  ];
+}
+
+export function runtimeContextWindowActivityCommands(
+  event: AgentRuntimeEvent,
+): ClientOrchestrationCommand[] {
+  return runtimeContextWindowActivities(event).map((activity) => ({
+    type: "thread.activity.append",
+    commandId: CommandId.make(
+      `runtime-context-window:${event.threadId}:${event.runtimeSessionId}:${event.id}`,
+    ),
+    threadId: event.threadId,
+    activity,
+    createdAt: event.createdAt,
+  }));
 }
 
 export function runtimeToolCompletedActivityCommands(

@@ -88,4 +88,29 @@ describe("decideOrchestrationCommand", () => {
       }),
     );
   });
+
+  it("accepts unarchive commands for already unarchived threads", async () => {
+    const event = await Effect.runPromise(
+      decideOrchestrationCommand({
+        readModel: readModelWithThread(thread()),
+        command: {
+          type: "thread.unarchive",
+          commandId: CommandId.make("command:thread-unarchive"),
+          threadId,
+        },
+      }),
+    );
+
+    expect(Array.isArray(event)).toBe(false);
+    expect(event).toEqual(
+      expect.objectContaining({
+        type: "thread.unarchived",
+        aggregateId: threadId,
+        payload: {
+          threadId,
+          updatedAt: createdAt,
+        },
+      }),
+    );
+  });
 });

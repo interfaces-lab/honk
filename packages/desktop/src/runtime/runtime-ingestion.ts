@@ -7,6 +7,7 @@ import {
 } from "@multi/contracts";
 import {
   runtimeAssistantEntryIngestionKey,
+  runtimeContextWindowActivityCommands,
   runtimeEventIngestionKey,
   runtimeSessionTreeAssistantCompleteCommand,
   runtimeToolCompletedActivityCommands,
@@ -143,7 +144,10 @@ class RuntimeIngestionState {
     if (this.persistedRuntimeEventKeys.has(eventKey)) {
       return;
     }
-    const commands = runtimeToolCompletedActivityCommands(event);
+    const commands = [
+      ...runtimeToolCompletedActivityCommands(event),
+      ...runtimeContextWindowActivityCommands(event),
+    ];
     if (commands.length === 0) {
       return;
     }

@@ -305,6 +305,7 @@ export const AgentRuntimeEventType = Schema.Literals([
   "model.changed",
   "thinking.changed",
   "tree.updated",
+  "context-window.updated",
   "extension-ui.requested",
   "extension-ui.resolved",
   "auth.status",

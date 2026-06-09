@@ -388,6 +388,16 @@ function areSameGroupedSteps(
           return false;
         }
         break;
+      case "message":
+        if (
+          !isMessageRowMessageUnchanged(
+            leftStep.message,
+            (rightStep as typeof leftStep).message,
+          )
+        ) {
+          return false;
+        }
+        break;
     }
   }
   return true;

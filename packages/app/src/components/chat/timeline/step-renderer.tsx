@@ -160,14 +160,18 @@ export function GroupedStepsRenderer({
             {!isCommandGroup && !isThinkingGroup && !isWaitingGroup ? (
               <WorkGroupSummaryLine summary={row.summary} />
             ) : null}
-            {row.steps.map((step) => (
-              <StepRenderer
-                key={`work-row:${step.id}`}
-                step={step}
-                editUserMessagesDisabled={editUserMessagesDisabled}
-                ctx={ctx}
-              />
-            ))}
+            {row.steps.map((step) =>
+              step.kind === "message" ? (
+                <GroupedMessageText key={`work-row:${step.id}`} step={step} ctx={ctx} />
+              ) : (
+                <StepRenderer
+                  key={`work-row:${step.id}`}
+                  step={step}
+                  editUserMessagesDisabled={editUserMessagesDisabled}
+                  ctx={ctx}
+                />
+              ),
+            )}
           </div>
         ) : showPreview ? (
           <WorkGroupPreview
@@ -351,6 +355,34 @@ function RuntimeTaskStepRenderer({
   );
 }
 
+// Short assistant narration inside a work group renders as a plain markdown line (like
+// thinking), not as a full transcript row. The preview CSS dims these via the group container.
+function GroupedMessageText({
+  step,
+  ctx,
+}: {
+  step: TimelineMessageStep;
+  ctx: StepRendererContext;
+}) {
+  const text = step.message.text.trim();
+  if (!text) {
+    return null;
+  }
+  return (
+    <div
+      className="min-w-0 py-0.5 text-conversation text-multi-fg-secondary"
+      data-work-group-text=""
+    >
+      <ChatMarkdown
+        text={text}
+        cwd={ctx.markdownCwd}
+        isStreaming={step.message.streaming === true}
+        className="text-multi-fg-secondary"
+      />
+    </div>
+  );
+}
+
 function RuntimeThinkingStepRenderer({
   step,
   ctx,
@@ -439,11 +471,14 @@ function WorkGroupPreview({
     lastStep && lastRunningOutputStepId === lastStep.id
       ? getPreviewStepOutputScrollKey(lastStep)
       : null;
-  const thinkingTextLength = steps.reduce((length, step) => {
-    if (step.kind !== "runtime-thinking") {
-      return length;
+  const streamedTextLength = steps.reduce((length, step) => {
+    if (step.kind === "runtime-thinking") {
+      return length + (step.message.thinking?.length ?? 0);
     }
-    return length + (step.message.thinking?.length ?? 0);
+    if (step.kind === "message") {
+      return length + step.message.text.length;
+    }
+    return length;
   }, 0);
 
   useLayoutSyncEffect(() => {
@@ -458,7 +493,7 @@ function WorkGroupPreview({
     previewStepCount,
     row.isRunning,
     lastStepOutputScrollKey,
-    thinkingTextLength,
+    streamedTextLength,
     onPreviewScrollableChange,
   ]);
 
@@ -498,7 +533,7 @@ function WorkGroupPreview({
       }}
       data-work-group-preview=""
       {...(previewScrollable ? { "data-work-group-preview-dimmed": "" } : {})}
-      className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] scrollbar-thin"
     >
       {previewSteps.map((step) => (
         <WorkGroupPreviewStep
@@ -517,7 +552,7 @@ function WorkGroupPreviewStep({
   ctx,
   showOutputStrip,
 }: {
-  step: TimelineStep;
+  step: TimelineGroupedStep;
   ctx: StepRendererContext;
   showOutputStrip: boolean;
 }) {
@@ -529,7 +564,11 @@ function WorkGroupPreviewStep({
       data-work-preview-step=""
       data-work-preview-output={output ? "true" : undefined}
     >
-      <StepRenderer step={step} editUserMessagesDisabled={false} ctx={ctx} />
+      {step.kind === "message" ? (
+        <GroupedMessageText step={step} ctx={ctx} />
+      ) : (
+        <StepRenderer step={step} editUserMessagesDisabled={false} ctx={ctx} />
+      )}
       {output ? <CompactToolOutputStrip output={output.text} loading={output.loading} /> : null}
     </div>
   );
@@ -615,10 +654,13 @@ export function countRenderableWorkGroupPreviewSteps(
 }
 
 export function isRenderableWorkGroupPreviewStep(step: TimelineGroupedStep): boolean {
-  if (step.kind !== "runtime-thinking") {
-    return true;
+  if (step.kind === "runtime-thinking") {
+    return (step.message.thinking?.trim().length ?? 0) > 0;
   }
-  return (step.message.thinking?.trim().length ?? 0) > 0;
+  if (step.kind === "message") {
+    return step.message.text.trim().length > 0;
+  }
+  return true;
 }
 
 function findLastRenderableWorkGroupPreviewStep(

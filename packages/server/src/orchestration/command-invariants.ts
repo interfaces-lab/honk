@@ -88,25 +88,6 @@ export function requireThread(input: {
   );
 }
 
-export function requireThreadArchived(input: {
-  readonly readModel: OrchestrationReadModel;
-  readonly command: OrchestrationCommand;
-  readonly threadId: ThreadId;
-}): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
-  return requireThread(input).pipe(
-    Effect.flatMap((thread) =>
-      thread.archivedAt !== null
-        ? Effect.succeed(thread)
-        : Effect.fail(
-            invariantError(
-              input.command.type,
-              `Thread '${input.threadId}' is not archived for command '${input.command.type}'.`,
-            ),
-          ),
-    ),
-  );
-}
-
 export function requireThreadNotArchived(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;

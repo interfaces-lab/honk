@@ -20,7 +20,6 @@ import {
   requireProject,
   requireProjectAbsent,
   requireThread,
-  requireThreadArchived,
   requireThreadAbsent,
   requireThreadNotArchived,
 } from "./command-invariants.ts";
@@ -401,7 +400,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.unarchive": {
-      const thread = yield* requireThreadArchived({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,

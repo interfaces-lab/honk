@@ -13,6 +13,7 @@ import type {
   SourceProposedPlanReference,
   ThreadAgentRuntimeImageAttachment,
   ThreadId,
+  ThreadTokenUsageSnapshot,
   TurnId,
 } from "@multi/contracts";
 import {
@@ -38,6 +39,10 @@ import {
   modelIdFromPiModel,
   thinkingLevelForAgentMode,
 } from "./auth-model-policy";
+import {
+  createContextUsageExtension,
+  type ContextUsageSnapshotSink,
+} from "./context-usage-extension";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
@@ -106,6 +111,30 @@ interface InteractionModeQueue {
   readonly remove: (pending: PendingInteractionMode) => void;
 }
 
+interface BindableContextUsageSink extends ContextUsageSnapshotSink {
+  readonly bind: (listener: (snapshot: ThreadTokenUsageSnapshot) => void) => void;
+}
+
+function createBindableContextUsageSink(): BindableContextUsageSink {
+  const buffered: ThreadTokenUsageSnapshot[] = [];
+  let listener: ((snapshot: ThreadTokenUsageSnapshot) => void) | null = null;
+  return {
+    publish(snapshot) {
+      if (listener) {
+        listener(snapshot);
+        return;
+      }
+      buffered.push(snapshot);
+    },
+    bind(next) {
+      listener = next;
+      for (const snapshot of buffered.splice(0)) {
+        next(snapshot);
+      }
+    },
+  };
+}
+
 export class ThreadAgentRuntime {
   private readonly listeners = new Set<AgentRuntimeEventListener>();
   private readonly unsubscribeSessionEvents: () => void;
@@ -123,6 +152,7 @@ export class ThreadAgentRuntime {
     SourceProposedPlanReference | null
   >();
   private readonly proposedPlanTurnIds = new Set<TurnId>();
+  private readonly deferredEvents: AgentRuntimeEvent[] = [];
 
   private constructor(
     readonly threadId: ThreadId,
@@ -130,7 +160,18 @@ export class ThreadAgentRuntime {
     private readonly sessionResult: Awaited<ReturnType<typeof createAgentSession>>,
     readonly policy: AgentModelPolicy,
     private readonly interactionModeQueue: InteractionModeQueue,
+    contextUsageSink?: BindableContextUsageSink,
   ) {
+    contextUsageSink?.bind((snapshot) => {
+      this.emitOrDefer(
+        this.createEvent(
+          "context-window.updated",
+          "Context usage updated",
+          this.activeTurnId ?? this.activeRunFirstTurnId,
+          snapshot,
+        ),
+      );
+    });
     this.unsubscribeSessionEvents = sessionResult.session.subscribe((event) => {
       this.bindPendingPromptClientMessages();
       const turnId = this.preparePiEventTurnId(event);
@@ -163,6 +204,7 @@ export class ThreadAgentRuntime {
       modelRegistry,
     });
     const interactionModeQueue = createInteractionModeQueue();
+    const contextUsageSink = createBindableContextUsageSink();
     const sessionOptions: CreateAgentSessionOptions = {
       cwd: options.cwd,
     };
@@ -186,6 +228,7 @@ export class ThreadAgentRuntime {
         extensionFactories: [
           ...(options.extensionFactories ?? []),
           createInteractionModeExtension(interactionModeQueue),
+          createContextUsageExtension(contextUsageSink),
         ],
         ...(options.extensionFactories
           ? {
@@ -226,6 +269,7 @@ export class ThreadAgentRuntime {
         sessionResult,
         policy,
         interactionModeQueue,
+        contextUsageSink,
       );
       runtime.hydrateClientMessageIdSidecars();
       runtime.emit(runtime.createEvent("session.started", "Pi session created"));
@@ -279,6 +323,9 @@ export class ThreadAgentRuntime {
 
   subscribe(listener: AgentRuntimeEventListener): () => void {
     this.listeners.add(listener);
+    for (const event of this.deferredEvents.splice(0)) {
+      this.emit(event);
+    }
     return () => {
       this.listeners.delete(listener);
     };
@@ -709,6 +756,14 @@ export class ThreadAgentRuntime {
         planMarkdown,
       }),
     );
+  }
+
+  private emitOrDefer(event: AgentRuntimeEvent): void {
+    if (this.listeners.size === 0) {
+      this.deferredEvents.push(event);
+      return;
+    }
+    this.emit(event);
   }
 
   private emit(event: AgentRuntimeEvent): void {

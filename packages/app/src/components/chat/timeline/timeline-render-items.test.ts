@@ -139,6 +139,26 @@ function runtimeShellTool(input: {
   };
 }
 
+function assistantTextEntry(input: {
+  id: string;
+  createdAt: string;
+  text: string;
+  streaming?: boolean;
+}): TimelineEntry {
+  return {
+    kind: "message",
+    id: input.id,
+    createdAt: input.createdAt,
+    message: {
+      id: MessageId.make(input.id),
+      role: "assistant",
+      text: input.text,
+      createdAt: input.createdAt,
+      streaming: input.streaming ?? false,
+    },
+  };
+}
+
 describe("deriveTimelineRenderItems", () => {
   it("derives message duration boundaries in the main timeline order", () => {
     const rows = deriveTimelineRenderItems({
@@ -950,7 +970,11 @@ describe("deriveTimelineRenderItems", () => {
         group: expect.objectContaining({
           isRunning: true,
           isTailGroup: true,
-          steps: [expect.objectContaining({ kind: "runtime-tool" })],
+          // Short streaming narration joins the running group instead of splitting it.
+          steps: [
+            expect.objectContaining({ kind: "runtime-tool" }),
+            expect.objectContaining({ kind: "message" }),
+          ],
         }),
       }),
     );
@@ -1177,6 +1201,209 @@ describe("deriveTimelineRenderItems", () => {
     expect(settledRows[0]?.kind).toBe("group");
     // Same row id either way: a turn-active flip must not remount the work-group row.
     expect(activeRows[0]?.id).toBe(settledRows[0]?.id);
+  });
+
+  it("keeps short assistant narration inside a tool group", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        assistantTextEntry({
+          id: "message:narration",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "Now checking the test output.",
+        }),
+        runtimeShellTool({
+          id: "tool:shell-2",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          status: "completed",
+        }),
+      ],
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          // Text steps stay out of the summary counts.
+          summary: { action: "Ran", details: "2 commands" },
+        }),
+      }),
+    ]);
+    expect(rows[0]?.kind === "group" ? rows[0].group.steps.map((step) => step.kind) : []).toEqual([
+      "runtime-tool",
+      "message",
+      "runtime-tool",
+    ]);
+  });
+
+  it("splits the group when assistant text is long or structured", () => {
+    const longText = "x".repeat(120);
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        assistantTextEntry({
+          id: "message:long",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: longText,
+        }),
+        runtimeShellTool({
+          id: "tool:shell-2",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          status: "completed",
+        }),
+      ],
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows.map((row) => row.kind)).toEqual(["group", "single", "group"]);
+
+    const markdownRows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        assistantTextEntry({
+          id: "message:list",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "- first item",
+        }),
+      ],
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+    expect(markdownRows.map((row) => row.kind)).toEqual(["group", "single"]);
+  });
+
+  it("does not start a group with assistant text", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        assistantTextEntry({
+          id: "message:lead-in",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          text: "Looking into it.",
+        }),
+        runtimeShellTool({
+          id: "tool:shell-1",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "completed",
+        }),
+      ],
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows.map((row) => row.kind)).toEqual(["single", "group"]);
+    expect(rows[0]?.kind === "single" ? rows[0].step.kind : null).toBe("message");
+  });
+
+  it("does not absorb text into a thinking-only run", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        {
+          kind: "runtime-thinking",
+          id: "thinking:1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          message: {
+            id: "thinking:1",
+            kind: "message",
+            orderKey: "2026-06-05T16:00:01.000Z:thinking:1",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            role: "assistant",
+            thinking: "Considering options.",
+            streaming: false,
+          },
+        } as unknown as TimelineEntry,
+        assistantTextEntry({
+          id: "message:after-thinking",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "Here is the plan.",
+        }),
+      ],
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows.map((row) => row.kind)).toEqual(["group", "single"]);
+  });
+
+  it("releases streaming text from the group once it outgrows the short-text limit", () => {
+    const shell = runtimeShellTool({
+      id: "tool:shell-1",
+      createdAt: "2026-06-05T16:00:01.000Z",
+      status: "completed",
+    });
+    const shortFrame = deriveTimelineRenderItems({
+      timelineEntries: [
+        shell,
+        assistantTextEntry({
+          id: "message:streaming",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "Starting the summary now.",
+          streaming: true,
+        }),
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+    const longFrame = deriveTimelineRenderItems({
+      timelineEntries: [
+        shell,
+        assistantTextEntry({
+          id: "message:streaming",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "Starting the summary now. ".repeat(8),
+          streaming: true,
+        }),
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(shortFrame.map((row) => row.kind)).toEqual(["group"]);
+    expect(shortFrame[0]?.kind === "group" ? shortFrame[0].group.steps.length : 0).toBe(2);
+    expect(longFrame.map((row) => row.kind)).toEqual(["group", "single"]);
+    // The group row id is the first tool's id in both frames, so nothing remounts.
+    expect(longFrame[0]?.id).toBe(shortFrame[0]?.id);
+  });
+
+  it("keeps the tail group running while trailing short text streams", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        assistantTextEntry({
+          id: "message:streaming",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "Wrapping up.",
+          streaming: true,
+        }),
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({ isRunning: true, isTailGroup: true }),
+      }),
+    ]);
   });
 
   it("keeps runtime extension UI requests outside runtime groups", () => {

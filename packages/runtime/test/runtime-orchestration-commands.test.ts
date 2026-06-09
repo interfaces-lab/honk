@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   runtimeAssistantEntryIngestionKey,
+  runtimeContextWindowActivityCommands,
   runtimeEventIngestionKey,
   runtimeSessionTreeAssistantCompleteCommand,
   runtimeSessionTreeAssistantCompleteCommands,
@@ -138,5 +139,76 @@ describe("runtime orchestration commands", () => {
         createdAt,
       },
     ]);
+  });
+
+  it("builds context window activity commands from usage snapshots", () => {
+    const snapshot = {
+      usedTokens: 60_000,
+      maxTokens: 200_000,
+      categories: [
+        { id: "system_prompt", label: "System prompt", tokens: 850 },
+        { id: "conversation", label: "Conversation", tokens: 59_150 },
+      ],
+      inputTokens: 50_000,
+      cachedInputTokens: 8_000,
+      outputTokens: 1_500,
+      toolUses: 2,
+      compactsAutomatically: true,
+    };
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:context-window"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "context-window.updated",
+      summary: "Context usage updated",
+      createdAt,
+      data: snapshot,
+    };
+
+    expect(runtimeContextWindowActivityCommands(event)).toEqual([
+      {
+        type: "thread.activity.append",
+        commandId: CommandId.make(
+          "runtime-context-window:thread:persistence:runtime:persistence:runtime-event:context-window",
+        ),
+        threadId,
+        activity: {
+          id: EventId.make("runtime-activity:runtime-event:context-window"),
+          tone: "info",
+          kind: "context-window.updated",
+          summary: "Context usage updated",
+          payload: snapshot,
+          turnId,
+          createdAt,
+        },
+        createdAt,
+      },
+    ]);
+  });
+
+  it("ignores context window events with malformed snapshots", () => {
+    const baseEvent: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:context-window-bad"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      type: "context-window.updated",
+      createdAt,
+      data: { usedTokens: -5 },
+    };
+
+    expect(runtimeContextWindowActivityCommands(baseEvent)).toEqual([]);
+    expect(
+      runtimeContextWindowActivityCommands({ ...baseEvent, data: undefined }),
+    ).toEqual([]);
+    expect(
+      runtimeContextWindowActivityCommands({
+        ...baseEvent,
+        type: "tool.completed",
+        data: { usedTokens: 100 },
+      }),
+    ).toEqual([]);
   });
 });

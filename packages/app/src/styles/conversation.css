@@ -516,6 +516,15 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
   opacity: 0.5;
 }
 
+/* Grouped assistant narration reads as a quiet step line inside the preview. */
+[data-work-group-preview] [data-work-group-text] {
+  color: var(--multi-fg-tertiary);
+}
+
+[data-work-group-preview] [data-work-group-text] .chat-markdown {
+  color: var(--multi-fg-tertiary);
+}
+
 [data-group-loading] [data-work-group-header] > span:first-child {
   animation: tool-call-line-shine var(--motion-duration-shimmer, 2000ms) linear infinite;
   background-clip: text;

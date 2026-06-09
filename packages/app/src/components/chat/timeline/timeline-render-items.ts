@@ -111,7 +111,14 @@ export type TimelineStep =
 export type TimelineGroupedStep =
   | TimelineRuntimeThinkingStep
   | TimelineRuntimeToolStep
-  | TimelineWorkStep;
+  | TimelineWorkStep
+  | TimelineMessageStep;
+
+/** Steps a runtime work group can hold: tools, thinking, and short assistant text. */
+type RuntimeGroupStep =
+  | TimelineRuntimeThinkingStep
+  | TimelineRuntimeToolStep
+  | TimelineMessageStep;
 
 export interface GroupedSteps {
   id: string;
@@ -130,6 +137,19 @@ export interface GroupedSteps {
 
 export const RUNTIME_DEFAULT_MIN_GROUP_SIZE = 1;
 export const RUNTIME_EXPLORE_ONLY_MIN_GROUP_SIZE = 3;
+
+export const GROUPABLE_TEXT_MAX_LENGTH = 100;
+export const GROUPABLE_TEXT_MAX_LINES = 2;
+
+// Short, at most two lines, and no block-level markdown (code fence, heading, list, table).
+// Longer or structured assistant text stays a standalone message row.
+export function isShortPlainText(text: string): boolean {
+  return !(
+    text.length > GROUPABLE_TEXT_MAX_LENGTH ||
+    text.split("\n").length > GROUPABLE_TEXT_MAX_LINES ||
+    /```|^#{1,6}\s|^\s*[-*]\s|\|.*\|/m.test(text)
+  );
+}
 
 export interface WaitingGroupedSteps {
   id: string;
@@ -359,20 +379,45 @@ export function deriveTimelineRenderItems(input: {
         continue;
       }
 
-      const steps: Array<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep> = [firstStep];
-      const appendRuntimeStep = (
-        entry: Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>,
-      ) => {
-        steps.push(runtimeTimelineEntryToStep(entry));
-      };
+      const steps: RuntimeGroupStep[] = [firstStep];
       let cursor = index + 1;
       while (cursor < input.timelineEntries.length) {
         const nextEntry = input.timelineEntries[cursor];
-        if (!nextEntry || !isRuntimeGroupableTimelineEntry(nextEntry)) break;
-        const nextStep = runtimeTimelineEntryToStep(nextEntry);
-        if (!isRuntimeStepGroupableForDensity(nextStep, conversationDensity)) break;
-        appendRuntimeStep(nextEntry);
-        cursor += 1;
+        if (!nextEntry) break;
+        if (isRuntimeGroupableTimelineEntry(nextEntry)) {
+          const nextStep = runtimeTimelineEntryToStep(nextEntry);
+          if (!isRuntimeStepGroupableForDensity(nextStep, conversationDensity)) break;
+          steps.push(nextStep);
+          cursor += 1;
+          continue;
+        }
+        // Short plain assistant text joins an open tool group so agent narration streams
+        // inside the collapsed preview instead of splitting it; text never starts a group.
+        if (
+          nextEntry.kind === "message" &&
+          nextEntry.message.role === "assistant" &&
+          !nextEntry.message.attachments?.length &&
+          isShortPlainText(nextEntry.message.text) &&
+          steps.some((step) => step.kind === "runtime-tool")
+        ) {
+          steps.push({
+            kind: "message",
+            id: nextEntry.id,
+            createdAt: nextEntry.createdAt,
+            message: nextEntry.message,
+            durationStart: lastMessageDurationBoundary ?? nextEntry.message.createdAt,
+            editAvailable: false,
+            pairId: currentPairId,
+            messageIndex,
+          });
+          messageIndex += 1;
+          if (nextEntry.message.completedAt) {
+            lastMessageDurationBoundary = nextEntry.message.completedAt;
+          }
+          cursor += 1;
+          continue;
+        }
+        break;
       }
       const shouldGroup = shouldGroupRuntimeSteps(steps);
       if (!shouldGroup) {
@@ -711,7 +756,7 @@ function runtimeTimelineEntryToStep(
 }
 
 function summarizeRuntimeGroup(
-  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+  steps: ReadonlyArray<RuntimeGroupStep>,
   input: { isTurnActive: boolean; projectRoot?: string | undefined },
 ): GroupedSteps {
   const firstStep = steps[0]!;
@@ -810,7 +855,7 @@ function summarizeRuntimeGroupSteps(input: {
   readonly commandCount: number;
   readonly hasError: boolean;
   readonly running: boolean;
-  readonly steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>;
+  readonly steps: ReadonlyArray<RuntimeGroupStep>;
   readonly thinkingCount: number;
   readonly toolAnalysis: RuntimeToolGroupAnalysis;
   readonly toolCount: number;
@@ -848,7 +893,7 @@ function summarizeRuntimeGroupSteps(input: {
 }
 
 function shouldGroupRuntimeSteps(
-  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
+  steps: ReadonlyArray<RuntimeGroupStep>,
   minGroupSize = RUNTIME_DEFAULT_MIN_GROUP_SIZE,
 ): boolean {
   if (steps.length === 0) {
@@ -860,7 +905,7 @@ function shouldGroupRuntimeSteps(
     !hasThinking &&
     steps.every(
       (step) =>
-        step.kind === "runtime-thinking" ||
+        step.kind === "message" ||
         (step.kind === "runtime-tool" && isExploreRuntimeToolStep(step)),
     );
   const toolSteps = steps.filter((step): step is TimelineRuntimeToolStep => step.kind === "runtime-tool");
@@ -950,6 +995,9 @@ function keepTailGroupRunning(
 export function isActivelyRunningGroupedStep(step: TimelineGroupedStep): boolean {
   if (step.kind === "work") {
     return step.entry.status === "running";
+  }
+  if (step.kind === "message") {
+    return step.message.streaming === true;
   }
   return isRunningRuntimeStep(step);
 }
@@ -1161,9 +1209,7 @@ function extractRuntimeEditedFilePath(tool: RuntimeDisplayTimelineToolItem): str
   return trimmedPath.length > 0 ? trimmedPath : null;
 }
 
-function runtimeGroupDurationMs(
-  steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
-): number {
+function runtimeGroupDurationMs(steps: ReadonlyArray<{ createdAt: string }>): number {
   const firstStep = steps[0];
   const lastStep = steps.at(-1);
   if (!firstStep || !lastStep) {

@@ -34,8 +34,10 @@ import {
   RuntimeTaskId,
   resolveLeafIdAfterThreadMessage,
   threadEntryIdForMessageId,
+  ThreadTokenUsageSnapshot,
   TurnId,
 } from "@multi/contracts";
+import { Schema } from "effect";
 import { normalizeModelSlug } from "@multi/shared/model";
 import { toJsonValue } from "@multi/shared/schema-json";
 import { resolveGitAgentActionFromPrompt } from "~/lib/git-agent-actions";
@@ -3373,6 +3375,27 @@ export function applyShellEventToEnvironment(
   }
 }
 
+const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
+
+function contextWindowActivityForRuntimeEvent(
+  event: AgentRuntimeEvent,
+): OrchestrationThreadActivity | null {
+  if (event.type !== "context-window.updated" || !isThreadTokenUsageSnapshot(event.data)) {
+    return null;
+  }
+  // Mirror runtimeContextWindowActivities in @multi/runtime so the persisted copy
+  // replaces this live one instead of duplicating it.
+  return {
+    id: EventId.make(`runtime-activity:${event.id}`),
+    tone: "info",
+    kind: "context-window.updated",
+    summary: event.summary ?? "Context usage updated",
+    payload: event.data,
+    turnId: event.turnId ?? null,
+    createdAt: event.createdAt,
+  };
+}
+
 function applyAgentRuntimeEventToEnvironment(
   state: EnvironmentState,
   event: AgentRuntimeEvent,
@@ -3387,6 +3410,18 @@ function applyAgentRuntimeEventToEnvironment(
     case "tool.updated":
     case "tool.completed":
       return state;
+
+    case "context-window.updated":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const activity = contextWindowActivityForRuntimeEvent(event);
+        if (!activity) {
+          return thread;
+        }
+        return {
+          ...thread,
+          activities: upsertThreadActivities(thread.activities, [activity]),
+        };
+      });
 
     case "session.started":
     case "session.ready":
