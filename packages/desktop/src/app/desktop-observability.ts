@@ -3,6 +3,7 @@ import {
   configureMultiEvlog,
   configureMultiProcessMetadata,
   makeMultiEffectLogger,
+  makeSafeConsolePrettyLogger,
 } from "@multi/shared/logging";
 import * as EffectLogger from "@multi/shared/effect-logger";
 import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
@@ -124,7 +125,7 @@ const desktopLoggerLayer = Layer.unwrap(
     return Layer.mergeAll(
       Logger.layer(
         [
-          Logger.consolePretty(),
+          makeSafeConsolePrettyLogger(),
           Logger.tracerLogger,
           makeMultiEffectLogger({
             defaultService: "desktop",

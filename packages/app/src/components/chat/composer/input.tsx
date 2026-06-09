@@ -1193,7 +1193,10 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
       if (settings.agentWindowUsageSummaryDisplay === "never") {
         return null;
       }
-      return activeContextWindow ?? null;
+      if (!activeContextWindow) {
+        return null;
+      }
+      return activeContextWindow;
     }, [activeContextWindow, settings.agentWindowUsageSummaryDisplay]);
     const showContextUsageTrigger = settings.agentWindowUsageSummaryDisplay !== "never";
     const composerStatusBranchName = branchName?.trim() || null;

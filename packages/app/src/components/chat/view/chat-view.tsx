@@ -225,11 +225,11 @@ import {
 } from "./chat-view-lifecycle-sync";
 import {
   filterThreadSendIntentsToBranch,
-  projectThreadTimeline,
   runtimeDisplayTimelineHasResponseItem,
   runtimeDisplayTimelineRenderableUserMessageIds,
   threadSendIntentMessages,
 } from "./thread-timeline-projector";
+import { useThreadTimeline } from "./use-thread-timeline";
 import {
   createThreadSendIntent,
   EMPTY_THREAD_SEND_INTENTS,
@@ -242,7 +242,7 @@ const EMPTY_THREAD_MESSAGES: ChatMessage[] = [];
 const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const EMPTY_THREAD_KEYS: readonly string[] = [];
 const EMPTY_WORK_LOG_ENTRIES: WorkLogEntry[] = [];
-const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 88;
+const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 96;
 
 type NewAgentFooterTipSegment =
   | {
@@ -969,30 +969,18 @@ export default function ChatView(props: ChatViewProps) {
     () => applyAttachmentPreviewHandoff(serverMessages),
     [applyAttachmentPreviewHandoff, serverMessages],
   );
-  const timelineEntries = useMemo(() => {
-    const proposedPlans = activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS;
-    return projectThreadTimeline({
-      committedMessages: committedTimelineMessages,
-      proposedPlans,
-      workLogEntries,
-      sendIntents: visibleThreadSendIntents,
-      runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
-      activeRuntimeDisplayTimeline,
-      isWorking,
-      isTurnActive: isTurnRunning,
-      activeTurnStartedAt: activeWorkStartedAt,
-    });
-  }, [
-    activeWorkStartedAt,
-    activeRuntimeDisplayTimeline,
-    activeThread?.proposedPlans,
-    committedTimelineMessages,
-    isTurnRunning,
-    isWorking,
-    runtimeRenderableUserMessageIds,
-    visibleThreadSendIntents,
+  const proposedPlansForTimeline = activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS;
+  const timelineEntries = useThreadTimeline({
+    committedMessages: committedTimelineMessages,
+    proposedPlans: proposedPlansForTimeline,
     workLogEntries,
-  ]);
+    sendIntents: visibleThreadSendIntents,
+    runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
+    activeRuntimeDisplayTimeline,
+    isWorking,
+    isTurnActive: isTurnRunning,
+    activeTurnStartedAt: activeWorkStartedAt,
+  });
   const editableUserMessageIds = useMemo(() => {
     if (!activeThread || activeThread.entries.length === 0) {
       return new Set<MessageId>();
@@ -3064,7 +3052,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-6 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background),transparent)] *:pointer-events-auto *:relative *:z-1"
+                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-16 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background),color-mix(in_srgb,var(--multi-shell-center-surface-background)_78%,transparent)_52%,transparent)] *:pointer-events-auto *:relative *:z-1"
                 : undefined,
             )}
             data-new-agent-empty-state={isHeroComposer ? "" : undefined}

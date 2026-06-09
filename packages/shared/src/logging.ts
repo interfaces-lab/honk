@@ -51,6 +51,12 @@ export interface RotatingFileSinkOptions {
 
 const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_LOG_MAX_FILES = 10;
+const IGNORABLE_STDIO_WRITE_ERROR_CODES = new Set([
+  "EIO",
+  "EPIPE",
+  "ERR_STREAM_DESTROYED",
+  "ERR_STREAM_WRITE_AFTER_END",
+]);
 
 const SECRET_FIELD_PATTERN =
   /(^|[_\-.])(auth|authorization|bearer|cookie|credential|password|secret|sessiontoken|token|api[_\-.]?key)([_\-.]|$)/i;
@@ -275,6 +281,34 @@ export function makeMultiEffectLogger(input: { readonly defaultService: string }
   });
 }
 
+export function makeSafeConsolePrettyLogger(
+  options?: Parameters<typeof Logger.consolePretty>[0],
+): Logger.Logger<unknown, void> {
+  const logger = Logger.consolePretty(options);
+
+  return Logger.make((loggerOptions) => {
+    try {
+      logger.log(loggerOptions);
+    } catch (error) {
+      if (!isIgnorableStdioWriteError(error)) {
+        throw error;
+      }
+    }
+  });
+}
+
+export function isIgnorableStdioWriteError(error: unknown): boolean {
+  const code = readStringProperty(error, "code");
+  if (code !== undefined && IGNORABLE_STDIO_WRITE_ERROR_CODES.has(code)) {
+    return true;
+  }
+
+  return (
+    readStringProperty(error, "syscall") === "write" &&
+    readStringProperty(error, "message")?.includes("EIO") === true
+  );
+}
+
 export function effectLogLevel(level: unknown): MultiLogLevel {
   switch (String(level)) {
     case "Trace":
@@ -313,6 +347,14 @@ function readService(fields: Record<string, unknown>): string | undefined {
   const service = fields.service;
   if (typeof service === "string" && service.trim().length > 0) return service;
   return undefined;
+}
+
+function readStringProperty(input: unknown, property: string): string | undefined {
+  if (typeof input !== "object" || input === null) {
+    return undefined;
+  }
+  const value = Reflect.get(input, property);
+  return typeof value === "string" ? value : undefined;
 }
 
 function sanitizeRecord(

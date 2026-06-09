@@ -7,7 +7,6 @@ import {
   computeMessageDurationStart,
   deriveTimelineRenderItems,
   isCommandWorkEntry,
-  readTailGroupSnapshot,
   summarizeWorkGroup,
   type GroupedSteps,
   type TimelineDurationMessage,
@@ -102,28 +101,8 @@ export function deriveMessagesTimelineRows(input: {
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
   conversationDensity?: ConversationDensity | undefined;
-  tailGroupSnapshot?: GroupedSteps | null | undefined;
 }): MessagesTimelineRow[] {
-  return deriveMessagesTimelineRowsResult(input).rows;
-}
-
-export function deriveMessagesTimelineRowsResult(input: {
-  timelineEntries: ReadonlyArray<TimelineEntry>;
-  isWorking: boolean;
-  isTurnActive: boolean;
-  editableUserMessageIds: ReadonlySet<MessageId>;
-  projectRoot?: string | undefined;
-  conversationDensity?: ConversationDensity | undefined;
-  tailGroupSnapshot?: GroupedSteps | null | undefined;
-}): {
-  rows: MessagesTimelineRow[];
-  tailGroupSnapshot: GroupedSteps | null;
-} {
-  const items = deriveTimelineRenderItems(input);
-  return {
-    rows: items.map(timelineRenderItemToRow),
-    tailGroupSnapshot: readTailGroupSnapshot(items),
-  };
+  return deriveTimelineRenderItems(input).map(timelineRenderItemToRow);
 }
 
 export function computeStableMessagesTimelineRows(

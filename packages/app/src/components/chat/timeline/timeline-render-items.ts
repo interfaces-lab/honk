@@ -183,23 +183,6 @@ export function computeMessageDurationStart(
   return result;
 }
 
-/**
- * Snapshot of the trailing grouped row. Pass from `readTailGroupSnapshot` on the prior
- * derivation while `isTurnActive` so a brief empty regroup does not flicker the tail away.
- * `messages-timeline.tsx` is the intended consumer for this hook point.
- */
-export function readTailGroupSnapshot(
-  items: ReadonlyArray<TimelineRenderItem>,
-): GroupedSteps | null {
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = items[index];
-    if (item?.kind === "group") {
-      return item.group;
-    }
-  }
-  return null;
-}
-
 export function deriveTimelineRenderItems(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
@@ -207,7 +190,6 @@ export function deriveTimelineRenderItems(input: {
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
   conversationDensity?: ConversationDensity | undefined;
-  tailGroupSnapshot?: GroupedSteps | null | undefined;
 }): TimelineRenderItem[] {
   const conversationDensity = input.conversationDensity ?? DEFAULT_CONVERSATION_DENSITY;
   const items: TimelineRenderItem[] = [];
@@ -505,19 +487,6 @@ export function deriveTimelineRenderItems(input: {
     } else if (message.role === "assistant" && message.completedAt) {
       lastMessageDurationBoundary = message.completedAt;
     }
-  }
-
-  if (
-    input.isTurnActive &&
-    input.tailGroupSnapshot &&
-    !items.some((item) => item.kind === "group")
-  ) {
-    items.push({
-      kind: "group",
-      id: input.tailGroupSnapshot.id,
-      createdAt: input.tailGroupSnapshot.createdAt,
-      group: input.tailGroupSnapshot,
-    });
   }
 
   return applyTailOnlyLoadingSemantics(items, {
@@ -964,16 +933,15 @@ function applyTailOnlyLoadingSemantics(
       return item;
     }
 
-    const isTailGroup = index === tailGroupIndex;
-    if (isTailGroup) {
-      const isRunning = resolveTailWorkGroupRunning(item.group, input);
+    if (index === tailGroupIndex) {
+      // The trailing group during an active turn is the live loading surface. Keep it
+      // running (and present-tense) even between tool calls so the collapsed preview
+      // stays mounted instead of flickering to a completed summary and back.
       return {
         ...item,
         group: {
-          ...item.group,
+          ...resummarizeGroupedSteps(item.group, { running: true, projectRoot: input.projectRoot }),
           isTailGroup: true,
-          isRunning,
-          completedDurationLabel: isRunning ? null : item.group.completedDurationLabel,
         },
       };
     }
@@ -986,16 +954,6 @@ function applyTailOnlyLoadingSemantics(
       },
     };
   });
-}
-
-export function resolveTailWorkGroupRunning(
-  group: GroupedSteps,
-  input: { isTurnActive: boolean; isWorking: boolean },
-): boolean {
-  if (!input.isTurnActive) {
-    return false;
-  }
-  return group.steps.some(isActivelyRunningGroupedStep);
 }
 
 export function isActivelyRunningGroupedStep(step: TimelineGroupedStep): boolean {
@@ -1054,15 +1012,29 @@ function completeGroupedSteps(
       isTailGroup: false,
     };
   }
+  return resummarizeGroupedSteps(group, { running: false, projectRoot });
+}
+
+// Rebuild a group's running flag, duration label, and summary for a target running state.
+// Used to complete non-tail groups (running: false) and to keep the loading tail group
+// present-tense (running: true) regardless of whether a step is instantaneously executing.
+function resummarizeGroupedSteps(
+  group: GroupedSteps,
+  options: { running: boolean; projectRoot?: string | undefined },
+): GroupedSteps {
+  const { running, projectRoot } = options;
+  const base: GroupedSteps = {
+    ...group,
+    isRunning: running,
+    isTailGroup: false,
+  };
 
   if (group.entries.length > 0) {
     const analysis = analyzeWorkGroup(group.entries);
-    analysis.running = false;
+    analysis.running = running;
     return {
-      ...group,
-      isRunning: false,
-      isTailGroup: false,
-      completedDurationLabel: formatDuration(analysis.durationMs),
+      ...base,
+      completedDurationLabel: running ? null : formatDuration(analysis.durationMs),
       summary: summarizeAnalyzedWorkGroup(group.entries, analysis, projectRoot),
     };
   }
@@ -1071,18 +1043,20 @@ function completeGroupedSteps(
     (step): step is TimelineRuntimeThinkingStep | TimelineRuntimeToolStep =>
       step.kind === "runtime-thinking" || step.kind === "runtime-tool",
   );
+  const completedDurationLabel = running
+    ? null
+    : formatDuration(runtimeGroupDurationMs(runtimeSteps));
+
   if (group.isWaitingGroup) {
     const awaitSteps = runtimeSteps.filter(
       (step): step is TimelineRuntimeToolStep =>
         step.kind === "runtime-tool" && isRuntimeAwaitToolStep(step),
     );
     return {
-      ...group,
-      isRunning: false,
-      isTailGroup: false,
-      completedDurationLabel: formatDuration(runtimeGroupDurationMs(runtimeSteps)),
+      ...base,
+      completedDurationLabel,
       summary: formatMonitoringBackgroundSummary({
-        running: false,
+        running,
         ...countAwaitJobStats(awaitSteps),
       }),
     };
@@ -1090,12 +1064,10 @@ function completeGroupedSteps(
   if (group.isBrowserGroup) {
     const browserCount = countRuntimeBrowserMcpToolSteps(runtimeSteps);
     return {
-      ...group,
-      isRunning: false,
-      isTailGroup: false,
-      completedDurationLabel: formatDuration(runtimeGroupDurationMs(runtimeSteps)),
+      ...base,
+      completedDurationLabel,
       summary: {
-        action: "Ran",
+        action: running ? "Running" : "Ran",
         details: formatBrowserActionCountDetails(browserCount),
       },
     };
@@ -1110,15 +1082,13 @@ function completeGroupedSteps(
   const toolAnalysis = analyzeRuntimeToolSteps(toolSteps);
 
   return {
-    ...group,
-    isRunning: false,
-    isTailGroup: false,
-    completedDurationLabel: formatDuration(runtimeGroupDurationMs(runtimeSteps)),
+    ...base,
+    completedDurationLabel,
     summary: summarizeRuntimeGroupSteps({
       browserCount,
       commandCount,
       hasError,
-      running: false,
+      running,
       steps: runtimeSteps,
       thinkingCount,
       toolAnalysis,

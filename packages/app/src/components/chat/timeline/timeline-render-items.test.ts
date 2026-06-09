@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import {
   deriveTimelineRenderItems,
-  readTailGroupSnapshot,
   type TimelineGroupedStep,
 } from "./timeline-render-items";
 import {
@@ -279,9 +278,13 @@ describe("deriveTimelineRenderItems", () => {
         group: expect.objectContaining({
           isThinkingGroup: false,
           isCommandGroup: false,
-          completedDurationLabel: "2 seconds",
+          // Trailing group during an active turn is the loading surface: present-tense,
+          // no completed duration, even though its steps are no longer executing.
+          isRunning: true,
+          isTailGroup: true,
+          completedDurationLabel: null,
           summary: {
-            action: "Edited",
+            action: "Editing",
             details: "repo/src/app.ts, ran 1 command",
             additions: 4,
             deletions: 1,
@@ -1131,25 +1134,20 @@ describe("deriveTimelineRenderItems", () => {
     ]);
   });
 
-  it("reuses a frozen tail snapshot while the turn is active", () => {
-    const priorRows = deriveTimelineRenderItems({
+  it("keeps the trailing group running between tool calls while the turn is active", () => {
+    const rows = deriveTimelineRenderItems({
       timelineEntries: [
         runtimeShellTool({
-          id: "tool:shell-tail",
+          id: "tool:shell-1",
           createdAt: "2026-06-05T16:00:01.000Z",
-          status: "running",
+          status: "completed",
+        }),
+        runtimeShellTool({
+          id: "tool:shell-2",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "completed",
         }),
       ],
-      isWorking: true,
-      isTurnActive: true,
-      editableUserMessageIds: new Set(),
-    });
-    const tailGroupSnapshot = readTailGroupSnapshot(priorRows);
-    expect(tailGroupSnapshot).not.toBeNull();
-
-    const rows = deriveTimelineRenderItems({
-      timelineEntries: [],
-      tailGroupSnapshot,
       isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
@@ -1158,10 +1156,14 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "tool:shell-tail",
         group: expect.objectContaining({
           isRunning: true,
           isTailGroup: true,
+          completedDurationLabel: null,
+          summary: {
+            action: "Running",
+            details: "2 commands",
+          },
         }),
       }),
     ]);

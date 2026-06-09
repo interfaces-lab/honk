@@ -818,6 +818,12 @@ function ChatShellHost(props: { children?: ReactNode }) {
         appendSendIntent: false,
         applyLocalTurnStart: false,
         startRuntimeBeforePersistence: false,
+        // Claim the runtime overlay as the first runtime frame is dispatched (after the
+        // server turn start), not after this whole await chain, so the timeline honors the
+        // runtime display timeline immediately and the git action does not flash a waiting row.
+        onBeforeRuntimeSend: () => {
+          markLocalRuntimeThread(threadId);
+        },
       });
       serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
       if (turnResult.serverPersistenceError) {
@@ -826,7 +832,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
       if (!turnResult.runtimeSendSucceeded && turnResult.serverTurnStartSucceeded) {
         throw new Error("Failed to start Git action.");
       }
-      markLocalRuntimeThread(threadId);
 
       await openThread(router, scopeThreadRef(targetThreadEnvironmentId, threadId));
     } catch (error) {
