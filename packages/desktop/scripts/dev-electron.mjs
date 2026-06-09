@@ -66,12 +66,54 @@ let restartQueue = Promise.resolve();
 const expectedExits = new WeakSet();
 const watchers = [];
 
-function killChildTreeByPid(pid, signal) {
+function findDescendantPids(pid) {
   if (process.platform === "win32" || typeof pid !== "number") {
-    return;
+    return [];
   }
 
-  spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
+  const result = spawnSync("ps", ["-axo", "pid=,ppid="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return [];
+  }
+
+  const childrenByParent = new Map();
+  for (const line of result.stdout.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (!match) {
+      continue;
+    }
+
+    const childPid = Number.parseInt(match[1], 10);
+    const parentPid = Number.parseInt(match[2], 10);
+    const children = childrenByParent.get(parentPid) ?? [];
+    children.push(childPid);
+    childrenByParent.set(parentPid, children);
+  }
+
+  const descendants = [];
+  const stack = [...(childrenByParent.get(pid) ?? [])];
+  while (stack.length > 0) {
+    const nextPid = stack.pop();
+    if (nextPid === undefined) {
+      continue;
+    }
+    descendants.push(nextPid);
+    stack.push(...(childrenByParent.get(nextPid) ?? []));
+  }
+  return descendants;
+}
+
+function killChildTreeByPid(pid, signal) {
+  for (const childPid of findDescendantPids(pid).reverse()) {
+    try {
+      process.kill(childPid, signal);
+    } catch {
+      // Process already exited.
+    }
+  }
 }
 
 function parsePid(value) {
@@ -283,7 +325,7 @@ async function stopApp() {
 
     app.once("exit", finish);
     app.kill("SIGTERM");
-    killChildTreeByPid(app.pid, "TERM");
+    killChildTreeByPid(app.pid, "SIGTERM");
 
     setTimeout(() => {
       if (settled) {
@@ -291,7 +333,7 @@ async function stopApp() {
       }
 
       app.kill("SIGKILL");
-      killChildTreeByPid(app.pid, "KILL");
+      killChildTreeByPid(app.pid, "SIGKILL");
       finish();
     }, forcedShutdownTimeoutMs).unref();
   });
@@ -341,12 +383,7 @@ function startWatchers() {
 }
 
 function killChildTree(signal) {
-  if (process.platform === "win32") {
-    return;
-  }
-
-  // Kill direct children as a final fallback in case normal shutdown leaves stragglers.
-  spawnSync("pkill", [`-${signal}`, "-P", String(process.pid)], { stdio: "ignore" });
+  killChildTreeByPid(process.pid, signal);
 }
 
 async function shutdown(exitCode) {
@@ -363,11 +400,11 @@ async function shutdown(exitCode) {
   }
 
   await stopApp();
-  killChildTree("TERM");
+  killChildTree("SIGTERM");
   await new Promise((resolve) => {
     setTimeout(resolve, childTreeGracePeriodMs);
   });
-  killChildTree("KILL");
+  killChildTree("SIGKILL");
 
   process.exit(exitCode);
 }

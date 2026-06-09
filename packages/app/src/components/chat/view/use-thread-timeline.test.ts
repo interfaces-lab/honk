@@ -37,6 +37,21 @@ function workEntry(id: string): TimelineEntry {
   } as unknown as TimelineEntry;
 }
 
+function assistantEntry(text: string, streaming: boolean): TimelineEntry {
+  return {
+    id: `message:assistant:${text}`,
+    kind: "message",
+    createdAt: "2026-06-05T16:00:02.000Z",
+    message: {
+      id: MessageId.make(`message:assistant:${text}`),
+      role: "assistant",
+      text,
+      createdAt: "2026-06-05T16:00:02.000Z",
+      streaming,
+    },
+  } as unknown as TimelineEntry;
+}
+
 function waitingEntry(): TimelineEntry {
   return {
     id: "working-indicator-row",
@@ -72,9 +87,39 @@ describe("keepActiveTimelineTail", () => {
     expect(keepActiveTimelineTail(previous, next, true)).toBe(next);
   });
 
+  it("still carries when only a streaming assistant message differs", () => {
+    const previous = [messageEntry(userId), assistantEntry("draft", true), workEntry("work:1")];
+    const next = [messageEntry(userId), waitingEntry()];
+    expect(keepActiveTimelineTail(previous, next, true)).toBe(previous);
+  });
+
+  it("shows the next frame when assistant text is streaming in", () => {
+    const previous = [messageEntry(userId), workEntry("work:1")];
+    const next = [messageEntry(userId), assistantEntry("here is the result", true)];
+    expect(keepActiveTimelineTail(previous, next, true)).toBe(next);
+  });
+
   it("does not carry before any agent activity exists", () => {
     const previous = [messageEntry(userId), waitingEntry()];
     const next = [messageEntry(userId), waitingEntry()];
+    expect(keepActiveTimelineTail(previous, next, true)).toBe(next);
+  });
+
+  it("keeps carrying across consecutive regressed frames", () => {
+    const withTail = [messageEntry(userId), workEntry("work:1")];
+    const regressed = [messageEntry(userId), waitingEntry()];
+
+    const firstFrame = keepActiveTimelineTail(withTail, regressed, true);
+    expect(firstFrame).toBe(withTail);
+    // The hook stores the carried result as "previous", so a second regressed frame
+    // must keep returning the same carried entries.
+    const secondFrame = keepActiveTimelineTail(firstFrame, regressed, true);
+    expect(secondFrame).toBe(withTail);
+  });
+
+  it("releases the carry when the next frame introduces a new tool id", () => {
+    const previous = [messageEntry(userId), workEntry("work:1")];
+    const next = [messageEntry(userId), workEntry("work:2"), waitingEntry()];
     expect(keepActiveTimelineTail(previous, next, true)).toBe(next);
   });
 });

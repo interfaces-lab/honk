@@ -965,6 +965,11 @@ export default function ChatView(props: ChatViewProps) {
     () => filterThreadSendIntentsToBranch(threadSendIntents, branchView),
     [branchView, threadSendIntents],
   );
+  // A send intent lives from coordinateTurnSend until its committed message lands, so it keeps
+  // the turn active across frames where a stale thread snapshot momentarily reports the session
+  // idle during the local → server → runtime handoff. Without it the collapsed running
+  // work-group preview unmounts for one frame and loses its animation.
+  const timelineTurnActive = isTurnRunning || visibleThreadSendIntents.length > 0;
   const committedTimelineMessages = useMemo(
     () => applyAttachmentPreviewHandoff(serverMessages),
     [applyAttachmentPreviewHandoff, serverMessages],
@@ -978,7 +983,7 @@ export default function ChatView(props: ChatViewProps) {
     runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
     activeRuntimeDisplayTimeline,
     isWorking,
-    isTurnActive: isTurnRunning,
+    isTurnActive: timelineTurnActive,
     activeTurnStartedAt: activeWorkStartedAt,
   });
   const editableUserMessageIds = useMemo(() => {
@@ -2984,7 +2989,7 @@ export default function ChatView(props: ChatViewProps) {
                 <MessagesTimeline
                   key={activeTimelineCacheKey}
                   isWorking={isWorking}
-                  isTurnActive={isTurnRunning}
+                  isTurnActive={timelineTurnActive}
                   isStreaming={isTurnRunning}
                   editUserMessagesDisabled={isWorking}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
@@ -3026,6 +3031,11 @@ export default function ChatView(props: ChatViewProps) {
                     </Button>
                   </div>
                 )}
+                <div
+                  aria-hidden="true"
+                  data-chat-bottom-gradient-overlay=""
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-32 bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background)_0,color-mix(in_srgb,var(--multi-shell-center-surface-background)_82%,transparent)_52%,transparent_100%)]"
+                />
               </div>
               {subagentTrayPresented ? (
                 <Button
@@ -3052,7 +3062,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) after:pointer-events-none after:absolute after:bottom-1/2 after:left-1/2 after:z-0 after:ml-[-50vw] after:h-16 after:w-screen after:bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background),color-mix(in_srgb,var(--multi-shell-center-surface-background)_78%,transparent)_52%,transparent)] *:pointer-events-auto *:relative *:z-1"
+                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) *:pointer-events-auto *:relative *:z-1"
                 : undefined,
             )}
             data-new-agent-empty-state={isHeroComposer ? "" : undefined}

@@ -185,7 +185,6 @@ export function computeMessageDurationStart(
 
 export function deriveTimelineRenderItems(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
-  isWorking: boolean;
   isTurnActive: boolean;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
@@ -298,10 +297,7 @@ export function deriveTimelineRenderItems(input: {
       const steps = collectedEntries.map(({ entry }) => runtimeTimelineEntryToStep(entry));
       const awaitToolCount = countRuntimeAwaitToolSteps(steps);
       if (awaitToolCount >= MIN_RUNTIME_SPECIAL_GROUP_TOOLS) {
-        const group = summarizeRuntimeWaitingGroup(steps, {
-          isWorking: input.isWorking,
-          isTurnActive: input.isTurnActive,
-        });
+        const group = summarizeRuntimeWaitingGroup(steps, input.isTurnActive);
         items.push({
           kind: "group",
           id: group.id,
@@ -330,10 +326,7 @@ export function deriveTimelineRenderItems(input: {
       const steps = collectedEntries.map(({ entry }) => runtimeTimelineEntryToStep(entry));
       const browserToolCount = countRuntimeBrowserMcpToolSteps(steps);
       if (browserToolCount >= MIN_RUNTIME_SPECIAL_GROUP_TOOLS) {
-        const group = summarizeRuntimeBrowserGroup(steps, {
-          isWorking: input.isWorking,
-          isTurnActive: input.isTurnActive,
-        });
+        const group = summarizeRuntimeBrowserGroup(steps, input.isTurnActive);
         items.push({
           kind: "group",
           id: group.id,
@@ -393,7 +386,6 @@ export function deriveTimelineRenderItems(input: {
         }
       } else {
         const group = summarizeRuntimeGroup(steps, {
-          isWorking: input.isWorking,
           isTurnActive: input.isTurnActive,
           projectRoot: input.projectRoot,
         });
@@ -489,9 +481,8 @@ export function deriveTimelineRenderItems(input: {
     }
   }
 
-  return applyTailOnlyLoadingSemantics(items, {
+  return keepTailGroupRunning(items, {
     isTurnActive: input.isTurnActive,
-    isWorking: input.isWorking,
     projectRoot: input.projectRoot,
   });
 }
@@ -721,7 +712,7 @@ function runtimeTimelineEntryToStep(
 
 function summarizeRuntimeGroup(
   steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
-  input: { isWorking: boolean; isTurnActive: boolean; projectRoot?: string | undefined },
+  input: { isTurnActive: boolean; projectRoot?: string | undefined },
 ): GroupedSteps {
   const firstStep = steps[0]!;
   const running = input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
@@ -758,10 +749,10 @@ function summarizeRuntimeGroup(
 
 function summarizeRuntimeWaitingGroup(
   steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
-  input: { isWorking: boolean; isTurnActive: boolean },
+  isTurnActive: boolean,
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
+  const running = isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const awaitSteps = steps.filter(
     (step): step is TimelineRuntimeToolStep =>
@@ -789,10 +780,10 @@ function summarizeRuntimeWaitingGroup(
 
 function summarizeRuntimeBrowserGroup(
   steps: ReadonlyArray<TimelineRuntimeThinkingStep | TimelineRuntimeToolStep>,
-  input: { isWorking: boolean; isTurnActive: boolean },
+  isTurnActive: boolean,
 ): GroupedSteps {
   const firstStep = steps[0]!;
-  const running = input.isTurnActive && steps.some(isActivelyRunningGroupedStep);
+  const running = isTurnActive && steps.some(isActivelyRunningGroupedStep);
   const thinkingCount = steps.filter((step) => step.kind === "runtime-thinking").length;
   const browserCount = countRuntimeBrowserMcpToolSteps(steps);
   return {
@@ -904,9 +895,9 @@ function isExploreRuntimeToolStep(step: TimelineRuntimeToolStep): boolean {
   }
 }
 
-function applyTailOnlyLoadingSemantics(
+function keepTailGroupRunning(
   items: TimelineRenderItem[],
-  input: { isTurnActive: boolean; isWorking: boolean; projectRoot?: string | undefined },
+  input: { isTurnActive: boolean; projectRoot?: string | undefined },
 ): TimelineRenderItem[] {
   if (!input.isTurnActive) {
     return items.map((item) => {
@@ -923,7 +914,7 @@ function applyTailOnlyLoadingSemantics(
     });
   }
 
-  const tailGroupIndex = findTailGroupRenderItemIndex(items, input);
+  const tailGroupIndex = findTailGroupRenderItemIndex(items);
   if (tailGroupIndex === -1) {
     return items;
   }
@@ -940,7 +931,7 @@ function applyTailOnlyLoadingSemantics(
       return {
         ...item,
         group: {
-          ...resummarizeGroupedSteps(item.group, { running: true, projectRoot: input.projectRoot }),
+          ...setGroupRunning(item.group, true, input.projectRoot),
           isTailGroup: true,
         },
       };
@@ -972,19 +963,16 @@ function findLastGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>):
   return -1;
 }
 
-function findTailGroupRenderItemIndex(
-  items: ReadonlyArray<TimelineRenderItem>,
-  input: { isTurnActive: boolean; isWorking: boolean },
-): number {
-  if (input.isTurnActive) {
-    for (let index = items.length - 1; index >= 0; index -= 1) {
-      const item = items[index];
-      if (item?.kind !== "group") {
-        continue;
-      }
-      if (item.group.steps.some(isActivelyRunningGroupedStep)) {
-        return index;
-      }
+// Only meaningful during an active turn: prefer the last group with an actively running
+// step, otherwise fall back to the trailing group when nothing but waiting rows follow it.
+function findTailGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>): number {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.kind !== "group") {
+      continue;
+    }
+    if (item.group.steps.some(isActivelyRunningGroupedStep)) {
+      return index;
     }
   }
 
@@ -1012,17 +1000,17 @@ function completeGroupedSteps(
       isTailGroup: false,
     };
   }
-  return resummarizeGroupedSteps(group, { running: false, projectRoot });
+  return setGroupRunning(group, false, projectRoot);
 }
 
 // Rebuild a group's running flag, duration label, and summary for a target running state.
 // Used to complete non-tail groups (running: false) and to keep the loading tail group
 // present-tense (running: true) regardless of whether a step is instantaneously executing.
-function resummarizeGroupedSteps(
+function setGroupRunning(
   group: GroupedSteps,
-  options: { running: boolean; projectRoot?: string | undefined },
+  running: boolean,
+  projectRoot?: string | undefined,
 ): GroupedSteps {
-  const { running, projectRoot } = options;
   const base: GroupedSteps = {
     ...group,
     isRunning: running,

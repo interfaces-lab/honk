@@ -181,7 +181,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set([userId]),
     });
@@ -256,7 +255,6 @@ describe("deriveTimelineRenderItems", () => {
           }),
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
       projectRoot: "/repo",
@@ -305,7 +303,6 @@ describe("deriveTimelineRenderItems", () => {
           elapsedStartedAt: "2026-06-05T16:00:00.000Z",
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -381,7 +378,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -469,7 +465,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -510,7 +505,6 @@ describe("deriveTimelineRenderItems", () => {
           }),
         },
       ],
-      isWorking: true,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -570,7 +564,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -614,7 +607,6 @@ describe("deriveTimelineRenderItems", () => {
           }),
         },
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -655,7 +647,6 @@ describe("deriveTimelineRenderItems", () => {
           }),
         },
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -696,7 +687,6 @@ describe("deriveTimelineRenderItems", () => {
           }),
         },
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
       projectRoot: "/repo",
@@ -777,7 +767,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -836,7 +825,6 @@ describe("deriveTimelineRenderItems", () => {
           }),
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -879,7 +867,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "completed",
         }),
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -904,7 +891,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "running",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
       conversationDensity: "compact-ungrouped",
@@ -954,7 +940,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -992,7 +977,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: false,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1056,7 +1040,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "running",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1090,7 +1073,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "completed",
         }),
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -1117,7 +1099,6 @@ describe("deriveTimelineRenderItems", () => {
           path: "/repo/src/c.ts",
         }),
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -1148,7 +1129,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "completed",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1167,6 +1147,36 @@ describe("deriveTimelineRenderItems", () => {
         }),
       }),
     ]);
+  });
+
+  it("keeps the group id stable when the running flag flips", () => {
+    const timelineEntries = [
+      runtimeShellTool({
+        id: "tool:shell-1",
+        createdAt: "2026-06-05T16:00:01.000Z",
+        status: "completed",
+      }),
+      runtimeShellTool({
+        id: "tool:shell-2",
+        createdAt: "2026-06-05T16:00:02.000Z",
+        status: "completed",
+      }),
+    ];
+    const activeRows = deriveTimelineRenderItems({
+      timelineEntries,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+    const settledRows = deriveTimelineRenderItems({
+      timelineEntries,
+      isTurnActive: false,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(activeRows[0]?.kind).toBe("group");
+    expect(settledRows[0]?.kind).toBe("group");
+    // Same row id either way: a turn-active flip must not remount the work-group row.
+    expect(activeRows[0]?.id).toBe(settledRows[0]?.id);
   });
 
   it("keeps runtime extension UI requests outside runtime groups", () => {
@@ -1211,7 +1221,6 @@ describe("deriveTimelineRenderItems", () => {
           },
         },
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1248,7 +1257,6 @@ describe("deriveTimelineRenderItems", () => {
           taskId: "task-2",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1290,7 +1298,6 @@ describe("deriveTimelineRenderItems", () => {
           taskId: "task-2",
         }),
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -1319,7 +1326,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "running",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1347,7 +1353,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "completed",
         }),
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });
@@ -1381,7 +1386,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "running",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1404,7 +1408,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "running",
         }),
       ],
-      isWorking: true,
       isTurnActive: true,
       editableUserMessageIds: new Set(),
     });
@@ -1429,7 +1432,6 @@ describe("deriveTimelineRenderItems", () => {
           status: "running",
         }),
       ],
-      isWorking: false,
       isTurnActive: false,
       editableUserMessageIds: new Set(),
     });

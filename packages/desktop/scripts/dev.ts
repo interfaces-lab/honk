@@ -17,7 +17,11 @@ const desktopDevLoopbackHost = "127.0.0.1";
 const devPortProbeHosts = ["127.0.0.1", "0.0.0.0", "::1", "::"] as const;
 const staleProcessTerminateGraceMs = 2_000;
 const staleProcessPollIntervalMs = 50;
+const forcedDevShutdownTimeoutMs = 3_000;
 const desktopBootstrapTokenEnv = "MULTI_DESKTOP_BOOTSTRAP_TOKEN";
+const shutdownSignals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+
+type ShutdownSignal = (typeof shutdownSignals)[number];
 
 function hashString(value: string): number {
   let hash = 0;
@@ -194,12 +198,54 @@ const devUserDataDir = resolveDevUserDataDir();
 mkdirSync(devUserDataDir, { recursive: true });
 const devSupervisorPidPath = join(devUserDataDir, "dev-electron.pid");
 
-function killChildTreeByPid(pid: number | undefined, signal: string): void {
+function findDescendantPids(pid: number | undefined): number[] {
   if (process.platform === "win32" || typeof pid !== "number") {
-    return;
+    return [];
   }
 
-  spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
+  const result = spawnSync("ps", ["-axo", "pid=,ppid="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return [];
+  }
+
+  const childrenByParent = new Map<number, number[]>();
+  for (const line of result.stdout.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (!match) {
+      continue;
+    }
+
+    const childPid = Number.parseInt(match[1], 10);
+    const parentPid = Number.parseInt(match[2], 10);
+    const children = childrenByParent.get(parentPid) ?? [];
+    children.push(childPid);
+    childrenByParent.set(parentPid, children);
+  }
+
+  const descendants: number[] = [];
+  const stack = [...(childrenByParent.get(pid) ?? [])];
+  while (stack.length > 0) {
+    const nextPid = stack.pop();
+    if (nextPid === undefined) {
+      continue;
+    }
+    descendants.push(nextPid);
+    stack.push(...(childrenByParent.get(nextPid) ?? []));
+  }
+  return descendants;
+}
+
+function killChildTreeByPid(pid: number | undefined, signal: NodeJS.Signals): void {
+  for (const childPid of findDescendantPids(pid).reverse()) {
+    try {
+      process.kill(childPid, signal);
+    } catch {
+      // Process already exited.
+    }
+  }
 }
 
 function parsePid(value: string): number | null {
@@ -224,7 +270,7 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-function signalProcessTree(pid: number, signal: string): void {
+function signalProcessTree(pid: number, signal: NodeJS.Signals): void {
   if (pid === process.pid || pid <= 1) {
     return;
   }
@@ -362,13 +408,74 @@ const child = spawn(
   },
 );
 
-for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+let childExited = false;
+let shuttingDown = false;
+let shutdownSignal: ShutdownSignal | undefined;
+let forcedShutdownTimer: ReturnType<typeof setTimeout> | undefined;
+
+function exitCodeForSignal(signal: ShutdownSignal): number {
+  switch (signal) {
+    case "SIGINT":
+      return 130;
+    case "SIGTERM":
+      return 143;
+    case "SIGHUP":
+      return 129;
+  }
+}
+
+function forceExit(signal: ShutdownSignal): never {
+  if (child.pid !== undefined) {
+    signalProcessTree(child.pid, "SIGKILL");
+  }
+  process.exit(exitCodeForSignal(signal));
+}
+
+function shutdownFromSignal(signal: ShutdownSignal): void {
+  if (shuttingDown) {
+    forceExit(signal);
+  }
+
+  shuttingDown = true;
+  shutdownSignal = signal;
+  for (const nextSignal of shutdownSignals) {
+    process.once(nextSignal, () => {
+      forceExit(nextSignal);
+    });
+  }
+
+  if (child.pid !== undefined) {
+    signalProcessTree(child.pid, signal);
+  }
+
+  if (childExited) {
+    process.exit(exitCodeForSignal(signal));
+  }
+
+  forcedShutdownTimer = setTimeout(() => {
+    forceExit(signal);
+  }, forcedDevShutdownTimeoutMs);
+  forcedShutdownTimer.unref();
+}
+
+for (const signal of shutdownSignals) {
   process.once(signal, () => {
-    child.kill(signal);
+    shutdownFromSignal(signal);
   });
 }
 
 child.once("exit", (code, signal) => {
+  childExited = true;
+  if (forcedShutdownTimer !== undefined) {
+    clearTimeout(forcedShutdownTimer);
+    forcedShutdownTimer = undefined;
+  }
+
+  if (shutdownSignal !== undefined) {
+    process.exit(exitCodeForSignal(shutdownSignal));
+    return;
+  }
+
   if (signal) {
     process.kill(process.pid, signal);
     return;

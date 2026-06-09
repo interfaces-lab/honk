@@ -40,53 +40,46 @@ export function useThreadTimeline(
 }
 
 /**
- * Return `previous` for one frame when an active turn momentarily drops its agent-activity
- * tail. Guarded so a genuine change — a new user message, branch switch, or turn ending —
- * always shows `next`.
+ * Return `previous` while an active turn momentarily regresses to a user-message/waiting-only
+ * frame — e.g. the runtime overlay re-projects as a new command spins up — so the running
+ * work-group preview does not flash out and back in.
+ *
+ * Message-safe by construction: the carry only happens when `next` is a pure regression of
+ * `previous` (every row `next` still has, ignoring the waiting row, already exists in
+ * `previous`). So the lease can never hide or duplicate a row that `next` introduced — a
+ * freshly committed user message, a runtime user echo, a new send, or streaming assistant
+ * text all carry a new id, which releases the carry and shows `next`. The projector remains
+ * the sole authority for reconciling send-intent and committed user rows.
  */
 export function keepActiveTimelineTail(
   previous: ReadonlyArray<TimelineEntry>,
   next: ReadonlyArray<TimelineEntry>,
   isTurnActive: boolean,
 ): ReadonlyArray<TimelineEntry> {
-  if (
-    isTurnActive &&
-    endsWithAgentActivity(previous) &&
-    !endsWithAgentActivity(next) &&
-    sameMessageIds(previous, next)
-  ) {
-    return previous;
+  if (!isTurnActive || endsWithAgentSurface(next) || !endsWithAgentSurface(previous)) {
+    return next;
   }
-  return next;
+
+  const previousIds = new Set(previous.map((entry) => entry.id));
+  const nextIsRegressionOfPrevious = next.every(
+    (entry) => entry.kind === "waiting" || previousIds.has(entry.id),
+  );
+  return nextIsRegressionOfPrevious ? previous : next;
 }
 
-function endsWithAgentActivity(entries: ReadonlyArray<TimelineEntry>): boolean {
+// Whether the timeline ends with something the agent is actively presenting: a tool/work/
+// thinking row, a proposed plan, or assistant text. A trailing user message (or only a
+// waiting row) is not a surface — that is the regressed frame we bridge over.
+function endsWithAgentSurface(entries: ReadonlyArray<TimelineEntry>): boolean {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (!entry || entry.kind === "waiting") {
       continue;
     }
-    return (
-      entry.kind === "runtime-tool" ||
-      entry.kind === "runtime-thinking" ||
-      entry.kind === "work"
-    );
+    if (entry.kind === "message") {
+      return entry.message.role === "assistant";
+    }
+    return true;
   }
   return false;
-}
-
-function sameMessageIds(
-  previous: ReadonlyArray<TimelineEntry>,
-  next: ReadonlyArray<TimelineEntry>,
-): boolean {
-  const previousIds = messageIds(previous);
-  const nextIds = messageIds(next);
-  if (previousIds.length !== nextIds.length) {
-    return false;
-  }
-  return previousIds.every((id, index) => id === nextIds[index]);
-}
-
-function messageIds(entries: ReadonlyArray<TimelineEntry>) {
-  return entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : []));
 }

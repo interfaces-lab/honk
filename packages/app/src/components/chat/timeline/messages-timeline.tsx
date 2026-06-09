@@ -146,7 +146,6 @@ export function MessagesTimeline({
     () =>
       deriveMessagesTimelineRows({
         timelineEntries,
-        isWorking,
         isTurnActive,
         editableUserMessageIds,
         projectRoot,
@@ -156,7 +155,6 @@ export function MessagesTimeline({
       conversationDensity,
       editableUserMessageIds,
       isTurnActive,
-      isWorking,
       projectRoot,
       timelineEntries,
     ],
