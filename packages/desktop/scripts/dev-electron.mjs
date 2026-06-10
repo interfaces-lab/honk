@@ -17,11 +17,7 @@ if (!Number.isInteger(port) || port <= 0) {
   throw new Error(`VITE_DEV_SERVER_URL must include an explicit port: ${devServerUrl}`);
 }
 
-const requiredFiles = [
-  "out/main/index.js",
-  "out/preload/index.js",
-  "../server/dist/bin.mjs",
-];
+const requiredFiles = ["out/main/index.js", "out/preload/index.js", "../server/dist/bin.mjs"];
 const watchedDirectories = [
   { directory: "out/main", files: new Set(["index.js"]), extensions: [".js", ".cjs"] },
   { directory: "out/preload", files: new Set(["index.js"]), extensions: [".js", ".cjs"] },

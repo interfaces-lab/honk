@@ -22,20 +22,25 @@ interface PendingRequest {
 }
 
 function newRequestId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `extension-ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `extension-ui-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 }
 
 export class DesktopExtensionUiController {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly requestLog: DesktopExtensionUiRequest[] = [];
-  private readonly notifications: Array<{ message: string; type: "info" | "warning" | "error" }> = [];
+  private readonly notifications: Array<{ message: string; type: "info" | "warning" | "error" }> =
+    [];
   private readonly pendingRequestListeners = new Set<() => void>();
   private readonly status = new Map<string, string>();
   private editorText = "";
   private toolsExpanded = false;
   private disposedError: Error | null = null;
 
-  private readonly handleCustom: ExtensionUIContext["custom"] = <T>() => Promise.resolve(undefined as T);
+  private readonly handleCustom: ExtensionUIContext["custom"] = <T>() =>
+    Promise.resolve(undefined as T);
 
   readonly context: ExtensionUIContext = {
     select: (title, options, opts) =>

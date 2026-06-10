@@ -31,10 +31,7 @@ import type {
   TurnDiffSummary,
 } from "../types";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
-import {
-  scopedThreadKey,
-  scopeThreadRef,
-} from "~/lib/environment-scope";
+import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 import {
   applyOrchestrationEvent,
   applyOrchestrationEvents,
@@ -288,14 +285,16 @@ function replaceSubagentActivitiesForThreadDetail(
   if (activities.length === 0) {
     return;
   }
-  useSubagentActivityStore.getState().replaceActivities(
-    { environmentId, threadId: thread.id },
-    activities,
-  );
+  useSubagentActivityStore
+    .getState()
+    .replaceActivities({ environmentId, threadId: thread.id }, activities);
 }
 
 function upsertSubagentActivityBatches(
-  batches: ReadonlyArray<{ readonly threadId: ThreadId; readonly activities: ReadonlyArray<OrchestrationThreadActivity> }>,
+  batches: ReadonlyArray<{
+    readonly threadId: ThreadId;
+    readonly activities: ReadonlyArray<OrchestrationThreadActivity>;
+  }>,
   environmentId: EnvironmentId,
 ): void {
   const store = useSubagentActivityStore.getState();
@@ -376,7 +375,10 @@ function retainSubagentActivitiesFromShellSnapshot(
 ): void {
   useSubagentActivityStore
     .getState()
-    .retainThreadsForEnvironment(environmentId, new Set(snapshot.threads.map((thread) => thread.id)));
+    .retainThreadsForEnvironment(
+      environmentId,
+      new Set(snapshot.threads.map((thread) => thread.id)),
+    );
 }
 
 interface AppStore extends AppState {

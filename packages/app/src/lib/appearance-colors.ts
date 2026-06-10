@@ -147,7 +147,9 @@ function hueToRgb(p: number, q: number, t: number) {
 
 function hslToHex(color: HslColor) {
   if (color.s === 0) {
-    const channel = Math.round(color.l * 255).toString(16).padStart(2, "0");
+    const channel = Math.round(color.l * 255)
+      .toString(16)
+      .padStart(2, "0");
     return `#${channel}${channel}${channel}`.toUpperCase();
   }
 
@@ -248,7 +250,6 @@ export function applyAppearanceBaseColors(
   }
 
   removeStaleInlineTintTokens(root);
-  getAppearanceTintStyleElement(root).textContent = `body[data-multi-glass-mode="true"] {\n${lines.join(
-    "\n",
-  )}\n}`;
+  getAppearanceTintStyleElement(root).textContent =
+    `body[data-multi-glass-mode="true"] {\n${lines.join("\n")}\n}`;
 }

@@ -24,6 +24,7 @@ import {
   pickFolder,
   setActiveWorkState,
   setBackgroundColor,
+  setDisplayZoom,
   setTheme,
   setVibrancy,
   showContextMenu,
@@ -56,6 +57,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setActiveWorkState);
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);
+  yield* ipc.handle(setDisplayZoom);
   yield* ipc.handle(setVibrancy);
   yield* ipc.handle(showContextMenu);
   yield* ipc.handle(openExternal);

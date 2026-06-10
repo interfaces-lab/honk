@@ -22,17 +22,8 @@ import {
   type TurnId,
 } from "@multi/contracts";
 
-import type {
-  ChatMessage,
-  ProposedPlan,
-  SessionPhase,
-  Thread,
-  ThreadSession,
-} from "./types";
-import {
-  decodeSubagentAgentStates,
-  decodeSubagentReceiverAgents,
-} from "./session/subagents";
+import type { ChatMessage, ProposedPlan, SessionPhase, Thread, ThreadSession } from "./types";
+import { decodeSubagentAgentStates, decodeSubagentReceiverAgents } from "./session/subagents";
 
 export interface WorkLogSubagent {
   threadId: string;
@@ -88,6 +79,7 @@ export interface SubagentTranscriptItem {
   readonly command?: string | undefined;
   readonly rawCommand?: string | undefined;
   readonly output?: string | undefined;
+  readonly changedFiles?: ReadonlyArray<string> | undefined;
   readonly itemType?: string | undefined;
   readonly status?: string | undefined;
   readonly streamKind?: string | undefined;
@@ -920,11 +912,10 @@ function findWorkLogSubagent(
 
 export function deriveWorkLogSubagentsFromOrderedActivities(
   ordered: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentDetailProjectionOptions = { includeTranscript: true },
 ): Map<string, WorkLogSubagent> {
   const usageBySubagentThreadId = deriveSubagentUsageBySubagentThreadId(ordered);
-  const detailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered, {
-    includeTranscript: true,
-  });
+  const detailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered, options);
   const subagentsBySubagentThreadId = new Map<string, WorkLogSubagent>();
 
   for (const details of detailsBySubagentThreadId.values()) {
@@ -960,7 +951,10 @@ function shouldOmitToolSummaryEntry(
 }
 
 function isGenericDuplicateToolSummary(label: string): boolean {
-  const normalized = label.trim().toLowerCase().replace(/[.:]+$/, "");
+  const normalized = label
+    .trim()
+    .toLowerCase()
+    .replace(/[.:]+$/, "");
   return (
     normalized === "ran" ||
     normalized === "ran command" ||
@@ -1005,6 +999,19 @@ function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boole
   return activity.kind.startsWith("subagent.");
 }
 
+export function isSubagentTranscriptStreamingActivity(
+  activity: OrchestrationThreadActivity,
+): boolean {
+  switch (activity.kind) {
+    case "subagent.content.delta":
+    case "subagent.item.started":
+    case "subagent.item.updated":
+      return true;
+    default:
+      return false;
+  }
+}
+
 function deriveSubagentDetailsBySubagentThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
   options: SubagentDetailProjectionOptions,
@@ -1039,6 +1046,10 @@ function deriveSubagentDetailsBySubagentThreadId(
         logs: previous?.logs ?? [],
         transcriptItems: previous?.transcriptItems ?? [],
       });
+      continue;
+    }
+
+    if (!options.includeTranscript && isSubagentTranscriptStreamingActivity(activity)) {
       continue;
     }
 
@@ -1188,6 +1199,114 @@ function getOrInitTranscriptContext(
   return ctx;
 }
 
+interface SubagentTranscriptToolFields {
+  readonly command?: string | undefined;
+  readonly rawCommand?: string | undefined;
+  readonly output?: string | undefined;
+  readonly text?: string | undefined;
+  readonly changedFiles?: ReadonlyArray<string> | undefined;
+}
+
+function firstTrimmedRecordString(
+  record: Record<string, unknown> | null | undefined,
+  keys: readonly string[],
+): string | undefined {
+  if (!record) {
+    return undefined;
+  }
+  for (const key of keys) {
+    const value = asTrimmedString(record[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function normalizeSubagentToolExtractionPayload(
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!payload) {
+    return null;
+  }
+  const runtimeData = asRecord(payload.data);
+  if (!runtimeData) {
+    return payload;
+  }
+  const args = asRecord(runtimeData.args);
+  const result = runtimeData.partialResult ?? runtimeData.result;
+  const resultRecord = asRecord(result);
+  const command =
+    firstTrimmedRecordString(args, ["command", "cmd", "rawCommand", "raw_command", "input"]) ??
+    firstTrimmedRecordString(runtimeData, ["command", "cmd", "rawCommand", "raw_command"]);
+  return {
+    ...payload,
+    data: {
+      ...runtimeData,
+      item: {
+        input: args ?? undefined,
+        result: resultRecord ?? result,
+        ...(command ? { command } : {}),
+      },
+      ...(args ? { args } : {}),
+      ...(result !== undefined ? { result: resultRecord ?? result } : {}),
+      ...(command ? { command } : {}),
+    },
+  };
+}
+
+function extractSubagentTranscriptToolFields(
+  payload: Record<string, unknown> | null,
+  itemType: string | undefined,
+): SubagentTranscriptToolFields {
+  if (!itemType || (!isToolLifecycleItemType(itemType) && itemType !== "command_execution")) {
+    return {};
+  }
+
+  const normalized = normalizeSubagentToolExtractionPayload(payload);
+  if (!normalized) {
+    return {};
+  }
+
+  const commandPreview = extractToolCommand(normalized);
+  const output =
+    extractToolResultText(normalized, commandPreview ?? undefined) ??
+    asTrimmedString(normalized.detail) ??
+    undefined;
+  const changedFiles = extractChangedFiles(normalized);
+  const args = asRecord(asRecord(normalized.data)?.args);
+  const explicitPath =
+    asTrimmedString(args?.file_path) ??
+    asTrimmedString(args?.path) ??
+    asTrimmedString(args?.filePath);
+  const allChangedFiles =
+    explicitPath && !changedFiles.includes(explicitPath)
+      ? [explicitPath, ...changedFiles]
+      : changedFiles;
+
+  return {
+    ...(commandPreview?.command ? { command: commandPreview.command } : {}),
+    ...(commandPreview?.rawCommand ? { rawCommand: commandPreview.rawCommand } : {}),
+    ...(output ? { output } : {}),
+    ...(allChangedFiles.length > 0 ? { changedFiles: allChangedFiles } : {}),
+  };
+}
+
+function transcriptTextFromSubagentPayload(
+  payload: Record<string, unknown> | null,
+  itemType: string | undefined,
+  toolFields: SubagentTranscriptToolFields,
+): string | undefined {
+  const detail = extractSubagentTranscriptDetail(payload);
+  if (detail) {
+    return capTranscriptText(detail);
+  }
+  if (itemType && isToolLifecycleItemType(itemType) && toolFields.output) {
+    return capTranscriptText(toolFields.output);
+  }
+  return undefined;
+}
+
 function reduceTranscriptItemLifecycle(
   bySubagentThread: Map<string, MutableTranscriptContext>,
   subagentThreadId: string,
@@ -1201,14 +1320,12 @@ function reduceTranscriptItemLifecycle(
   const itemType = asTrimmedString(payload?.itemType) ?? undefined;
   const status = asTrimmedString(payload?.status) ?? undefined;
   const title = asTrimmedString(payload?.title) ?? undefined;
-  const detail = extractSubagentTranscriptDetail(payload);
-  const isCommand = itemType === "command_execution";
-  const commandPreview = isCommand ? extractToolCommand(payload) : null;
-  const command = commandPreview?.command ?? undefined;
-  const rawCommand = commandPreview?.rawCommand ?? undefined;
-  const output = isCommand
-    ? (extractToolResultText(payload, commandPreview ?? undefined) ?? undefined)
-    : undefined;
+  const toolFields = extractSubagentTranscriptToolFields(payload, itemType);
+  const text = transcriptTextFromSubagentPayload(payload, itemType, toolFields);
+  const command = toolFields.command ? capTranscriptText(toolFields.command) : undefined;
+  const rawCommand = toolFields.rawCommand ? capTranscriptText(toolFields.rawCommand) : undefined;
+  const output = toolFields.output ? capTranscriptText(toolFields.output) : undefined;
+  const changedFiles = toolFields.changedFiles;
 
   const ctx = getOrInitTranscriptContext(bySubagentThread, subagentThreadId);
   const existing = ctx.itemsById.get(itemId);
@@ -1223,15 +1340,11 @@ function reduceTranscriptItemLifecycle(
       ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
       ...(title ? { title } : {}),
       ...(status ? { status } : {}),
-      ...(isCommand
-        ? {
-            ...(command ? { command: capTranscriptText(command) } : {}),
-            ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
-            ...(output ? { output: capTranscriptText(output) } : {}),
-          }
-        : detail
-          ? { text: capTranscriptText(detail) }
-          : {}),
+      ...(command ? { command } : {}),
+      ...(rawCommand ? { rawCommand } : {}),
+      ...(output ? { output } : {}),
+      ...(changedFiles ? { changedFiles } : {}),
+      ...(text ? { text } : {}),
       loading: !isCompletedStatus,
     };
     ctx.itemsById.set(itemId, merged);
@@ -1250,15 +1363,11 @@ function reduceTranscriptItemLifecycle(
     kind: itemTypeToTranscriptKind(itemType),
     ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
     ...(title ? { title } : {}),
-    ...(isCommand
-      ? {
-          ...(command ? { command: capTranscriptText(command) } : {}),
-          ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
-          ...(output ? { output: capTranscriptText(output) } : {}),
-        }
-      : detail
-        ? { text: capTranscriptText(detail) }
-        : {}),
+    ...(command ? { command } : {}),
+    ...(rawCommand ? { rawCommand } : {}),
+    ...(output ? { output } : {}),
+    ...(changedFiles ? { changedFiles } : {}),
+    ...(text ? { text } : {}),
     ...(itemType ? { itemType } : {}),
     ...(status ? { status } : {}),
     loading: !isCompletedStatus,
@@ -2993,9 +3102,7 @@ function asTrimmedStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value
-    .map((item) => asTrimmedString(item))
-    .filter((item): item is string => item !== null);
+  return value.map((item) => asTrimmedString(item)).filter((item): item is string => item !== null);
 }
 
 function asSubagentDeltaString(value: unknown): string | null {
@@ -3154,11 +3261,15 @@ function extractToolCommand(payload: Record<string, unknown> | null): {
   const item = asRecord(data?.item);
   const itemResult = asRecord(item?.result);
   const itemInput = asRecord(item?.input);
+  const args = asRecord(data?.args);
   const candidates: unknown[] = [
     item?.command,
     itemInput?.command,
     itemResult?.command,
     data?.command,
+    args?.command,
+    args?.cmd,
+    args?.input,
   ];
 
   for (const candidate of candidates) {

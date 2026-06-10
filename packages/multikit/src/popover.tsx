@@ -34,6 +34,7 @@ function PopoverPopup({
   collisionAvoidance,
   collisionBoundary,
   collisionPadding,
+  positionerClassName,
   positionMethod,
   sticky,
   ...props
@@ -51,9 +52,15 @@ function PopoverPopup({
   collisionAvoidance?: PopoverPrimitive.Positioner.Props["collisionAvoidance"];
   collisionBoundary?: PopoverPrimitive.Positioner.Props["collisionBoundary"];
   collisionPadding?: PopoverPrimitive.Positioner.Props["collisionPadding"];
+  positionerClassName?: string | undefined;
   positionMethod?: PopoverPrimitive.Positioner.Props["positionMethod"];
   sticky?: PopoverPrimitive.Positioner.Props["sticky"];
 }) {
+  const positionerLayerClassName =
+    variant === "workbench"
+      ? "z-(--z-index-workbench-popover)"
+      : "z-(--z-index-popover)";
+
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -66,8 +73,10 @@ function PopoverPopup({
         positionMethod={positionMethod}
         sticky={sticky}
         className={cn(
-          "z-50 h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
+          positionerLayerClassName,
+          "h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
           instant && "data-instant",
+          positionerClassName,
         )}
         data-slot="popover-positioner"
         side={side}

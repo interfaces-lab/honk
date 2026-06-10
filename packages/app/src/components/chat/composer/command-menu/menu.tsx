@@ -1,7 +1,4 @@
-import {
-  type ProjectEntry,
-  type EnvironmentId,
-} from "@multi/contracts";
+import { type ProjectEntry, type EnvironmentId } from "@multi/contracts";
 import {
   insertRankedSearchResult,
   normalizeSearchQuery,
@@ -9,12 +6,7 @@ import {
 } from "@multi/shared/search-ranking";
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import {
-  IconBug,
-  IconBubbleQuestion,
-  IconRobot,
-  IconSquareChecklist,
-} from "central-icons";
+import { IconBug, IconBubbleQuestion, IconRobot, IconSquareChecklist } from "central-icons";
 import { type ComponentProps } from "react";
 
 import { Popover, PopoverPopup } from "@multi/multikit/popover";
@@ -530,9 +522,7 @@ type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandM
   anchorRevision: number;
 };
 
-export function ComposerCommandMenuPositioned(
-  props: ComposerCommandMenuPositionedProps,
-) {
+export function ComposerCommandMenuPositioned(props: ComposerCommandMenuPositionedProps) {
   const { open, anchor, menuKind, ...menuProps } = props;
   const menuOpen = open;
   const collisionPadding = open
@@ -552,11 +542,12 @@ export function ComposerCommandMenuPositioned(
         collisionPadding={collisionPadding}
         initialFocus={false}
         instant
+        positionerClassName="z-(--z-index-workbench-popover)"
         positionMethod="fixed"
         side="top"
         sideOffset={COMPOSER_MENU_SIDE_OFFSET}
         className={cn(
-          "z-[70] border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
+          "border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
           // Cap height to match width pattern. Base UI's auto-resize measures
           // the popup with `--available-height: max-content`, which breaks
           // `min(20rem, var(--available-height))` and lets the popup grow to

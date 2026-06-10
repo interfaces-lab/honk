@@ -36,10 +36,7 @@ function entryRoleLabel(thread: Thread, entry: ThreadTreeEntry): string {
   return "System";
 }
 
-export function ThreadTreePanel({
-  thread,
-  variant = "aside",
-}: ThreadTreePanelProps) {
+export function ThreadTreePanel({ thread, variant = "aside" }: ThreadTreePanelProps) {
   const tree = flattenThreadEntryTree({
     entries: thread.entries,
     leafId: thread.leafId,

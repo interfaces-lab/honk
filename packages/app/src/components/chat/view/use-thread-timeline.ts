@@ -15,9 +15,7 @@ type ProjectThreadTimelineInput = Parameters<typeof projectThreadTimeline>[0];
  * This is the only place that remembers the previous projection. The projector stays pure,
  * `chat-view` consumes a value, and `MessagesTimeline` still only renders.
  */
-export function useThreadTimeline(
-  input: ProjectThreadTimelineInput,
-): ReadonlyArray<TimelineEntry> {
+export function useThreadTimeline(input: ProjectThreadTimelineInput): ReadonlyArray<TimelineEntry> {
   const previousRef = useRef<ReadonlyArray<TimelineEntry>>([]);
   return useMemo(() => {
     const next = projectThreadTimeline(input);

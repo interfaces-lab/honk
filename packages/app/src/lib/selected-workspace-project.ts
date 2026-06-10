@@ -65,12 +65,7 @@ function orderItemsByPreferredIds<TItem, TId>(input: {
 function workspaceProjectCandidateKey(
   input: Pick<Project, "environmentId" | "id" | "cwd" | "repositoryIdentity">,
 ): string {
-  return JSON.stringify([
-    input.environmentId,
-    input.id,
-    input.cwd,
-    deriveLogicalProjectKey(input),
-  ]);
+  return JSON.stringify([input.environmentId, input.id, input.cwd, deriveLogicalProjectKey(input)]);
 }
 
 function workspaceProjectCandidateFromKey(key: string): WorkspaceProjectCandidate | null {
@@ -148,15 +143,14 @@ function resolveSelectedWorkspaceProject(input: {
       (input.serverCwd ? findProjectByPath(orderedProjects, input.serverCwd) : undefined) ??
       orderedProjects[0] ??
       null);
-  const projectRef =
-    project
-      ? scopeProjectRef(project.environmentId, project.id)
-      : input.storedProjectSelection
-        ? scopeProjectRef(
-            input.storedProjectSelection.environmentId,
-            input.storedProjectSelection.projectId,
-          )
-        : null;
+  const projectRef = project
+    ? scopeProjectRef(project.environmentId, project.id)
+    : input.storedProjectSelection
+      ? scopeProjectRef(
+          input.storedProjectSelection.environmentId,
+          input.storedProjectSelection.projectId,
+        )
+      : null;
   const projectCwd =
     project?.cwd ??
     input.storedProjectSelection?.cwd ??
@@ -165,15 +159,14 @@ function resolveSelectedWorkspaceProject(input: {
     null;
   const projectEnvironmentId =
     project?.environmentId ?? input.storedProjectSelection?.environmentId ?? null;
-  const logicalProjectKey =
-    project
-      ? project.logicalProjectKey
-      : input.storedProjectSelection
-        ? derivePhysicalProjectKeyFromPath(
-            input.storedProjectSelection.environmentId,
-            input.storedProjectSelection.cwd,
-          )
-        : null;
+  const logicalProjectKey = project
+    ? project.logicalProjectKey
+    : input.storedProjectSelection
+      ? derivePhysicalProjectKeyFromPath(
+          input.storedProjectSelection.environmentId,
+          input.storedProjectSelection.cwd,
+        )
+      : null;
 
   return {
     projectCwd,

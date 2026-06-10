@@ -4,10 +4,7 @@ import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import ChatView from "~/components/chat/view/chat-view";
-import {
-  finalizePromotedDraftThreadByRef,
-  useComposerDraftStore,
-} from "~/stores/chat-drafts";
+import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/stores/chat-drafts";
 import {
   selectEnvironmentSnapshotSource,
   selectEnvironmentState,
@@ -32,9 +29,7 @@ import { useThreadSendIntentStore } from "~/stores/thread-send-intent-store";
 const routeApi = getRouteApi("/_chat/$environmentId/$threadId");
 type ThreadRouteRef = NonNullable<ReturnType<typeof threadRefFromRouteParams>>;
 
-function ChatThreadMainPanel(props: {
-  readonly threadRef: ThreadRouteRef;
-}) {
+function ChatThreadMainPanel(props: { readonly threadRef: ThreadRouteRef }) {
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <ChatView
@@ -145,9 +140,7 @@ export function ChatThreadRouteView() {
       {shouldFinalizePromotedDraft ? (
         <PromotedDraftFinalizer key={`${threadRouteKey}:promoted`} threadRef={threadRef} />
       ) : null}
-      <ChatThreadMainPanel
-        threadRef={threadRef}
-      />
+      <ChatThreadMainPanel threadRef={threadRef} />
     </>
   );
 }

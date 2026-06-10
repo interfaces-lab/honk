@@ -96,9 +96,7 @@ const PlatformServicesLive = Layer.unwrap(
   }),
 );
 
-const ReactorLayerLive = Layer.empty.pipe(
-  Layer.provideMerge(OrchestrationReactorLive),
-);
+const ReactorLayerLive = Layer.empty.pipe(Layer.provideMerge(OrchestrationReactorLive));
 
 const PersistenceLayerLive = Layer.empty.pipe(Layer.provideMerge(SqlitePersistenceLayerLive));
 

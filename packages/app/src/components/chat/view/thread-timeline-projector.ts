@@ -123,24 +123,30 @@ function materializeCommittedTimelineEntries(input: {
 }): TimelineEntry[] {
   const nextAssistantIndex = turnOccurrenceCounter();
   const entries: TimelineEntry[] = [
-    ...input.messages.map((message): TimelineEntry => ({
-      id: committedMessageEntryId(message, nextAssistantIndex),
-      kind: "message",
-      createdAt: message.createdAt,
-      message,
-    })),
-    ...input.proposedPlans.map((proposedPlan): TimelineEntry => ({
-      id: `proposed-plan:${proposedPlan.id}`,
-      kind: "proposed-plan",
-      createdAt: proposedPlan.createdAt,
-      proposedPlan,
-    })),
-    ...input.workLogEntries.map((entry): TimelineEntry => ({
-      id: entry.toolCallId ? timelineToolCallEntryId(entry.toolCallId) : entry.id,
-      kind: "work",
-      createdAt: entry.createdAt,
-      entry,
-    })),
+    ...input.messages.map(
+      (message): TimelineEntry => ({
+        id: committedMessageEntryId(message, nextAssistantIndex),
+        kind: "message",
+        createdAt: message.createdAt,
+        message,
+      }),
+    ),
+    ...input.proposedPlans.map(
+      (proposedPlan): TimelineEntry => ({
+        id: `proposed-plan:${proposedPlan.id}`,
+        kind: "proposed-plan",
+        createdAt: proposedPlan.createdAt,
+        proposedPlan,
+      }),
+    ),
+    ...input.workLogEntries.map(
+      (entry): TimelineEntry => ({
+        id: entry.toolCallId ? timelineToolCallEntryId(entry.toolCallId) : entry.id,
+        kind: "work",
+        createdAt: entry.createdAt,
+        entry,
+      }),
+    ),
   ];
   return entries.toSorted(compareTimelineEntries);
 }
@@ -200,9 +206,7 @@ export function unacknowledgedThreadSendIntents(input: {
   return input.sendIntents.filter((intent) => !acknowledgedIntents.has(intent));
 }
 
-export function threadSendIntentMessages(
-  intents: ReadonlyArray<ThreadSendIntent>,
-): ChatMessage[] {
+export function threadSendIntentMessages(intents: ReadonlyArray<ThreadSendIntent>): ChatMessage[] {
   return intents.map(messageFromThreadSendIntent);
 }
 
@@ -235,10 +239,7 @@ export function runtimeDisplayTimelineHasResponseItem(
     if (item.role === "user") {
       return false;
     }
-    return (
-      (item.text?.trim().length ?? 0) > 0 ||
-      shouldMaterializeRuntimeThinking(item)
-    );
+    return (item.text?.trim().length ?? 0) > 0 || shouldMaterializeRuntimeThinking(item);
   });
 }
 
@@ -387,10 +388,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
 function shouldMaterializeRuntimeThinking(
   item: Extract<RuntimeDisplayTimelineItem, { kind: "message" }>,
 ): boolean {
-  return (
-    item.role === "assistant" &&
-    (item.thinking?.trim().length ?? 0) > 0
-  );
+  return item.role === "assistant" && (item.thinking?.trim().length ?? 0) > 0;
 }
 
 function runtimeThinkingStatusMessage(
@@ -439,8 +437,7 @@ function mergeRunningWorkLogEntriesIntoRuntimeTimeline(input: {
     (entry): entry is Extract<TimelineEntry, { kind: "work" }> =>
       entry.kind === "work" &&
       entry.entry.status === "running" &&
-      (entry.entry.toolCallId === undefined ||
-        !runtimeToolCallIds.has(entry.entry.toolCallId)),
+      (entry.entry.toolCallId === undefined || !runtimeToolCallIds.has(entry.entry.toolCallId)),
   );
   if (supplementalWorkEntries.length === 0) {
     return [...input.runtimeEntries];
@@ -548,9 +545,10 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
   sendIntents: ReadonlyArray<ThreadSendIntent>;
 }): ReadonlyArray<TimelineEntry> {
   const existingEntryIds = new Set(input.entries.map((entry) => entry.id));
-  const existingMessageIds = new Set(
-    input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
+  const existingMessages = input.entries.flatMap((entry) =>
+    entry.kind === "message" ? [entry.message] : [],
   );
+  const existingMessageIds = new Set(existingMessages.map((message) => message.id));
   const missingMessageEntries: TimelineEntry[] = [];
   const nextAssistantIndex = turnOccurrenceCounter();
 
@@ -558,11 +556,16 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
     // The runtime branch keys assistant rows by turn + occurrence, so a committed assistant
     // message whose row already exists (under any payload stage) must not be appended again.
     const entryId = committedMessageEntryId(message, nextAssistantIndex);
-    if (existingEntryIds.has(entryId) || existingMessageIds.has(message.id)) {
+    if (
+      existingEntryIds.has(entryId) ||
+      existingMessageIds.has(message.id) ||
+      isEquivalentRuntimeUserMessageAlreadyRendered(message, existingMessages)
+    ) {
       continue;
     }
     existingEntryIds.add(entryId);
     existingMessageIds.add(message.id);
+    existingMessages.push(message);
     missingMessageEntries.push({
       id: entryId,
       kind: "message",
@@ -572,11 +575,15 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
   }
 
   for (const intent of input.sendIntents) {
-    if (existingMessageIds.has(intent.clientMessageId)) {
+    const message = messageFromThreadSendIntent(intent);
+    if (
+      existingMessageIds.has(intent.clientMessageId) ||
+      isEquivalentRuntimeUserMessageAlreadyRendered(message, existingMessages)
+    ) {
       continue;
     }
     existingMessageIds.add(intent.clientMessageId);
-    const message = messageFromThreadSendIntent(intent);
+    existingMessages.push(message);
     missingMessageEntries.push({
       id: timelineMessageEntryId(intent.clientMessageId),
       kind: "message",
@@ -594,13 +601,33 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
   );
 }
 
+function isEquivalentRuntimeUserMessageAlreadyRendered(
+  message: ChatMessage,
+  existingMessages: ReadonlyArray<ChatMessage>,
+): boolean {
+  if (message.role !== "user") {
+    return false;
+  }
+  if (message.richText !== undefined || (message.attachments?.length ?? 0) > 0) {
+    return false;
+  }
+  return existingMessages.some(
+    (existingMessage) =>
+      existingMessage.role === "user" &&
+      existingMessage.richText === undefined &&
+      (existingMessage.attachments?.length ?? 0) === 0 &&
+      existingMessage.createdAt === message.createdAt &&
+      existingMessage.text === message.text,
+  );
+}
+
 function appendWaitingTimelineEntry(input: {
   entries: ReadonlyArray<TimelineEntry>;
   isWorking: boolean;
   isTurnActive: boolean;
   activeTurnStartedAt: string | null;
 }): ReadonlyArray<TimelineEntry> {
-  if (!input.isWorking || timelineEntriesEndWithStatusSurface(input.entries, input)) {
+  if (!input.isWorking || timelineEntriesEndWithStatusSurface(input.entries)) {
     return input.entries;
   }
   const waitingStatus = resolveWaitingTimelineStatus({
@@ -618,99 +645,20 @@ function appendWaitingTimelineEntry(input: {
   ];
 }
 
-function timelineEntriesEndWithStatusSurface(
-  entries: ReadonlyArray<TimelineEntry>,
-  input: { isWorking: boolean; isTurnActive: boolean },
-): boolean {
+function timelineEntriesEndWithStatusSurface(entries: ReadonlyArray<TimelineEntry>): boolean {
   const lastEntry = entries.at(-1);
   if (!lastEntry) {
     return false;
   }
-  if (lastEntry.kind === "work") {
-    const trailingWork = trailingWorkEntries(entries);
-    if (input.isTurnActive && input.isWorking && trailingWork.length > 0) {
-      return true;
-    }
-    return (
-      input.isTurnActive &&
-      trailingWork.some((entry) => entry.entry.status === "running")
-    );
-  }
   if (lastEntry.kind === "runtime-tool" && lastEntry.tool.display?.kind === "subagent") {
     return lastEntry.tool.status === "running";
   }
-  if (isRuntimeGroupableTimelineEntry(lastEntry)) {
-    const trailingRuntime = trailingRuntimeGroupEntries(entries);
-    if (input.isTurnActive && input.isWorking && trailingRuntime.length > 0) {
-      return true;
-    }
-    return (
-      input.isWorking &&
-      input.isTurnActive &&
-      trailingRuntime.some(isRunningRuntimeTimelineEntry)
-    );
-  }
   if (lastEntry.kind === "message") {
-    return (
-      input.isWorking &&
-      input.isTurnActive &&
-      lastEntry.message.role === "assistant" &&
-      lastEntry.message.streaming === true
-    );
+    return lastEntry.message.role === "assistant" && lastEntry.message.streaming === true;
   }
   return (
-    lastEntry.kind === "runtime-extension-ui-request" &&
-    lastEntry.request.status === "pending"
+    lastEntry.kind === "runtime-extension-ui-request" && lastEntry.request.status === "pending"
   );
-}
-
-function trailingWorkEntries(entries: ReadonlyArray<TimelineEntry>): Array<Extract<TimelineEntry, { kind: "work" }>> {
-  const result: Array<Extract<TimelineEntry, { kind: "work" }>> = [];
-  const lastEntry = entries.at(-1);
-  if (lastEntry?.kind !== "work") {
-    return result;
-  }
-  const isThinking = lastEntry.entry.tone === "thinking";
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (!entry || entry.kind !== "work" || (entry.entry.tone === "thinking") !== isThinking) {
-      break;
-    }
-    result.push(entry);
-  }
-  return result;
-}
-
-function trailingRuntimeGroupEntries(
-  entries: ReadonlyArray<TimelineEntry>,
-): Array<Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>> {
-  const result: Array<Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>> = [];
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (!entry || !isRuntimeGroupableTimelineEntry(entry)) {
-      break;
-    }
-    result.push(entry);
-  }
-  return result;
-}
-
-function isRuntimeGroupableTimelineEntry(
-  entry: TimelineEntry,
-): entry is Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }> {
-  return (
-    entry.kind === "runtime-thinking" ||
-    (entry.kind === "runtime-tool" && entry.tool.display?.kind !== "subagent")
-  );
-}
-
-function isRunningRuntimeTimelineEntry(
-  entry: Extract<TimelineEntry, { kind: "runtime-thinking" | "runtime-tool" }>,
-): boolean {
-  if (entry.kind === "runtime-thinking") {
-    return entry.message.streaming === true;
-  }
-  return entry.tool.status === "running";
 }
 
 function mergeTransientTimelineEntries(

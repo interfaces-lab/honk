@@ -1,3 +1,4 @@
+import { syncAppearanceDisplayZoom } from "./lib/appearance-settings";
 import { isElectron } from "./env";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "./stores/thread-store";
 import type { AppState } from "./stores/thread-store";
@@ -41,6 +42,7 @@ export function installDesktopActiveWorkBridge(): void {
   }
 
   installed = true;
+  syncAppearanceDisplayZoom();
   publishRunningThreadCount(countRunningThreadsWithServerState(useStore.getState()));
   useStore.subscribe((state) => {
     publishRunningThreadCount(countRunningThreadsWithServerState(state));

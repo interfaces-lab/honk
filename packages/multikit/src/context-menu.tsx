@@ -23,12 +23,11 @@ const workbenchContextMenuPopupClassName =
 const workbenchContextMenuViewportClassName =
   "flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1";
 
-const workbenchContextMenuItemClassName =
-  cn(
-    "flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-multi-hover/40 data-highlighted:bg-multi-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
-    interactiveControlCursorClassName,
-    controlTransitionClassName,
-  );
+const workbenchContextMenuItemClassName = cn(
+  "flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-multi-hover/40 data-highlighted:bg-multi-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
+  interactiveControlCursorClassName,
+  controlTransitionClassName,
+);
 
 const workbenchContextMenuIconSlotClassName =
   "inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60 [&>svg]:size-3 [&>svg]:shrink-0";
@@ -39,18 +38,27 @@ function WorkbenchContextMenuPopup({
   children,
   className,
   align = "start",
+  positionerClassName,
   sideOffset = 8,
   ...props
 }: ContextMenuPrimitive.Popup.Props & {
   align?: ContextMenuPrimitive.Positioner.Props["align"];
+  positionerClassName?: string | undefined;
   sideOffset?: ContextMenuPrimitive.Positioner.Props["sideOffset"];
 }) {
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Positioner className="z-50 outline-none" sideOffset={sideOffset} align={align}>
+      <ContextMenuPrimitive.Positioner
+        className={cn(
+          "z-(--z-index-workbench-context-menu) outline-none",
+          positionerClassName,
+        )}
+        sideOffset={sideOffset}
+        align={align}
+      >
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-popup"
-          className={cn(workbenchContextMenuPopupClassName, "z-50", className)}
+          className={cn(workbenchContextMenuPopupClassName, className)}
           {...props}
         >
           <div className={workbenchContextMenuViewportClassName}>{children}</div>

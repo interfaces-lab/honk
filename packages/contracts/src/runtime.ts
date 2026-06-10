@@ -118,10 +118,7 @@ export type AgentAuthStatus = typeof AgentAuthStatus.Type;
 export const AgentCredentialAuthFlowState = Schema.Literals(["pending", "error"]);
 export type AgentCredentialAuthFlowState = typeof AgentCredentialAuthFlowState.Type;
 
-export const AgentCredentialAuthFlowKind = Schema.Literals([
-  "oauth-browser",
-  "oauth-device-code",
-]);
+export const AgentCredentialAuthFlowKind = Schema.Literals(["oauth-browser", "oauth-device-code"]);
 export type AgentCredentialAuthFlowKind = typeof AgentCredentialAuthFlowKind.Type;
 
 export const AgentCredentialAuthFlow = Schema.Struct({
@@ -352,8 +349,7 @@ export const ThreadAgentRuntimeImageAttachment = Schema.Struct({
   sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(AGENT_RUNTIME_IMAGE_MAX_BYTES)),
   dataUrl: TrimmedNonEmptyString.check(Schema.isMaxLength(AGENT_RUNTIME_IMAGE_DATA_URL_MAX_CHARS)),
 });
-export type ThreadAgentRuntimeImageAttachment =
-  typeof ThreadAgentRuntimeImageAttachment.Type;
+export type ThreadAgentRuntimeImageAttachment = typeof ThreadAgentRuntimeImageAttachment.Type;
 
 export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
   threadId: ThreadId,
@@ -489,18 +485,10 @@ const RuntimeDisplayTimelineItemBaseFields = {
   createdAt: IsoDateTime,
 } as const;
 
-export const RuntimeDisplayTimelineToolStatus = Schema.Literals([
-  "running",
-  "completed",
-  "error",
-]);
-export type RuntimeDisplayTimelineToolStatus =
-  typeof RuntimeDisplayTimelineToolStatus.Type;
+export const RuntimeDisplayTimelineToolStatus = Schema.Literals(["running", "completed", "error"]);
+export type RuntimeDisplayTimelineToolStatus = typeof RuntimeDisplayTimelineToolStatus.Type;
 
-export const RuntimeDisplayTimelineExtensionUiStatus = Schema.Literals([
-  "pending",
-  "resolved",
-]);
+export const RuntimeDisplayTimelineExtensionUiStatus = Schema.Literals(["pending", "resolved"]);
 export type RuntimeDisplayTimelineExtensionUiStatus =
   typeof RuntimeDisplayTimelineExtensionUiStatus.Type;
 
@@ -577,8 +565,7 @@ export const RuntimeDisplayTimelineToolDisplay = Schema.Union([
   RuntimeDisplayTimelineSubagentToolDisplay,
   RuntimeDisplayTimelineUnknownToolDisplay,
 ]);
-export type RuntimeDisplayTimelineToolDisplay =
-  typeof RuntimeDisplayTimelineToolDisplay.Type;
+export type RuntimeDisplayTimelineToolDisplay = typeof RuntimeDisplayTimelineToolDisplay.Type;
 
 export const RuntimeDisplayTimelineMessageItem = Schema.Struct({
   ...RuntimeDisplayTimelineItemBaseFields,
@@ -596,8 +583,7 @@ export const RuntimeDisplayTimelineMessageItem = Schema.Struct({
   text: Schema.optional(Schema.String),
   thinking: Schema.optional(Schema.String),
 });
-export type RuntimeDisplayTimelineMessageItem =
-  typeof RuntimeDisplayTimelineMessageItem.Type;
+export type RuntimeDisplayTimelineMessageItem = typeof RuntimeDisplayTimelineMessageItem.Type;
 
 export const RuntimeDisplayTimelineToolItem = Schema.Struct({
   ...RuntimeDisplayTimelineItemBaseFields,
@@ -664,8 +650,7 @@ export const RuntimeDisplayTimelineProjection = Schema.Struct({
   runtimeSessionId: RuntimeSessionId,
   items: Schema.Array(RuntimeDisplayTimelineItem),
 });
-export type RuntimeDisplayTimelineProjection =
-  typeof RuntimeDisplayTimelineProjection.Type;
+export type RuntimeDisplayTimelineProjection = typeof RuntimeDisplayTimelineProjection.Type;
 
 export const MultiRuntimeHostSnapshot = Schema.Struct({
   preferences: AgentPreferences,
@@ -679,7 +664,9 @@ export const MultiRuntimeHostSnapshot = Schema.Struct({
   diagnostics: Schema.Array(DesktopRuntimeDiagnostic).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
-  runtimeEvents: Schema.Array(AgentRuntimeEvent).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  runtimeEvents: Schema.Array(AgentRuntimeEvent).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   sessionTrees: Schema.Array(SessionTreeProjection).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -726,9 +713,7 @@ export interface MultiRuntimeApi {
   getHostSnapshot: () => Promise<MultiRuntimeHostSnapshot>;
   getPreferences: () => Promise<AgentPreferences>;
   updatePreferences: (patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
-  configureCredential: (
-    input: AgentCredentialConfigureInput,
-  ) => Promise<MultiRuntimeHostSnapshot>;
+  configureCredential: (input: AgentCredentialConfigureInput) => Promise<MultiRuntimeHostSnapshot>;
   hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;

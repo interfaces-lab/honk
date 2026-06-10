@@ -32,13 +32,10 @@ export async function preloadAuthenticatedImagePreview(src: string): Promise<voi
 }
 
 export function useAuthenticatedImagePreviewSrc(src: string | undefined): string | undefined {
-  const [loadedPreview, setLoadedPreview] = useState<
-    | {
-        source: string;
-        previewUrl: string;
-      }
-    | null
-  >(null);
+  const [loadedPreview, setLoadedPreview] = useState<{
+    source: string;
+    previewUrl: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!src || !shouldFetchAuthenticatedImagePreview(src)) {

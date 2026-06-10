@@ -321,10 +321,7 @@ export function QueuedMessageDemoPage() {
     return id;
   };
 
-  const appendQueuedDebugEntry = (
-    text: string,
-    entryInteractionMode: AgentInteractionMode,
-  ) => {
+  const appendQueuedDebugEntry = (text: string, entryInteractionMode: AgentInteractionMode) => {
     const entry = {
       id: createDebugId("queued-transcript"),
       role: "queued",
@@ -335,10 +332,7 @@ export function QueuedMessageDemoPage() {
     setTranscriptEntries((existing) => [...existing, entry].slice(-18));
   };
 
-  const appendSteerDebugEntry = (
-    text: string,
-    entryInteractionMode: AgentInteractionMode,
-  ) => {
+  const appendSteerDebugEntry = (text: string, entryInteractionMode: AgentInteractionMode) => {
     const entry = {
       id: createDebugId("steer-transcript"),
       role: "steer",
@@ -349,10 +343,7 @@ export function QueuedMessageDemoPage() {
     setTranscriptEntries((existing) => [...existing, entry].slice(-18));
   };
 
-  const appendCapturedSend = (
-    text: string,
-    entryInteractionMode: AgentInteractionMode,
-  ) => {
+  const appendCapturedSend = (text: string, entryInteractionMode: AgentInteractionMode) => {
     const responseText =
       DEBUG_RESPONSE_SEQUENCE[debugResponseIndex % DEBUG_RESPONSE_SEQUENCE.length] ??
       DEBUG_RESPONSE_SEQUENCE[0];

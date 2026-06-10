@@ -16,7 +16,8 @@ const cardVariants = cva(
       variant: {
         default: "border-multi-stroke-tertiary bg-multi-bg-elevated shadow-multi-card",
         flat: "border-multi-stroke-tertiary bg-transparent shadow-none",
-        panel: "border-multi-workbench-panel-border-soft bg-multi-workbench-panel-background shadow-none",
+        panel:
+          "border-multi-workbench-panel-border-soft bg-multi-workbench-panel-background shadow-none",
       },
     },
   },

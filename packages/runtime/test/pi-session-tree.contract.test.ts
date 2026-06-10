@@ -1,4 +1,9 @@
-import { fauxAssistantMessage, fauxText, fauxThinking, type UserMessage } from "@earendil-works/pi-ai";
+import {
+  fauxAssistantMessage,
+  fauxText,
+  fauxThinking,
+  type UserMessage,
+} from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import { MessageId, threadEntryIdForMessageId } from "@multi/contracts";
 import {
@@ -47,10 +52,9 @@ describe("Pi session tree contract", () => {
       "message",
       "message",
     ]);
-    expect(tree.entries.filter((entry) => entry.role === "user").map((entry) => entry.text)).toEqual([
-      "first",
-      "second",
-    ]);
+    expect(
+      tree.entries.filter((entry) => entry.role === "user").map((entry) => entry.text),
+    ).toEqual(["first", "second"]);
     expect(tree.entries.find((entry) => entry.text === "first response")?.thinking).toBe(
       "thinking through first",
     );

@@ -105,9 +105,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   const stateDir = path.join(baseDir, "userdata");
   const userDataDirName = isDevelopment ? "multi-dev" : "multi";
   const resourcesPath = input.resourcesPath;
-  const desktopPackageDir = input.isPackaged
-    ? input.appPath
-    : path.resolve(input.dirname, "../..");
+  const desktopPackageDir = input.isPackaged ? input.appPath : path.resolve(input.dirname, "../..");
   const rootDir = input.isPackaged ? input.appPath : path.resolve(desktopPackageDir, "../..");
   const appRoot = input.isPackaged ? input.appPath : rootDir;
   const backendEntryPath = input.isPackaged

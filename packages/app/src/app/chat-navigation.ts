@@ -117,10 +117,7 @@ export function openThread(
   });
 }
 
-export function openChatIndex(
-  target: ChatNavigator,
-  options: ChatNavigationOptions = {},
-): unknown {
+export function openChatIndex(target: ChatNavigator, options: ChatNavigationOptions = {}): unknown {
   if (isCurrentChatIndex(target)) {
     return undefined;
   }

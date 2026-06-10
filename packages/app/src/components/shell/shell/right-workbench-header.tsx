@@ -95,9 +95,7 @@ function TerminalSessionTab(props: {
       className={cn(
         workbenchChromeTextControlVariants({ tone: props.active ? "primary" : "default" }),
         "group relative max-w-(--multi-workbench-tab-label-max-width) px-0",
-        props.active
-          ? "bg-multi-bg-tertiary text-multi-fg-primary"
-          : "",
+        props.active ? "bg-multi-bg-tertiary text-multi-fg-primary" : "",
       )}
     >
       <Button
@@ -173,9 +171,7 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
         ) : null}
         {isTerminal && props.onNewTerminal ? (
           <>
-            {!showTerminalSessionTabs ? (
-              <WorkbenchChromeDivider />
-            ) : null}
+            {!showTerminalSessionTabs ? <WorkbenchChromeDivider /> : null}
             <WorkbenchChromeButton label="New terminal" onClick={props.onNewTerminal}>
               <IconPlusLarge className="size-4 shrink-0" aria-hidden />
             </WorkbenchChromeButton>

@@ -1476,10 +1476,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
         increment(terminalSessionsTotal, { lifecycle: eventType }).pipe(
           Effect.andThen(
             Effect.gen(function* () {
-              const shellCandidates = resolveShellCandidates(
-                shellResolver,
-                userLoginShellResolver,
-              );
+              const shellCandidates = resolveShellCandidates(shellResolver, userLoginShellResolver);
               const terminalEnv = createTerminalSpawnEnv(
                 process.env,
                 loginShellEnv,

@@ -6,7 +6,10 @@ import { findProjectByPath, inferProjectTitleFromPath } from "~/lib/project-path
 import { writeStoredProjectSelection } from "~/lib/project-state";
 import { newCommandId, newProjectId } from "~/lib/utils";
 import { applyLocalProjectCreated } from "~/stores/local-orchestration-events";
-import { deriveLogicalProjectKey, derivePhysicalProjectKeyFromPath } from "~/stores/project-identity";
+import {
+  deriveLogicalProjectKey,
+  derivePhysicalProjectKeyFromPath,
+} from "~/stores/project-identity";
 import { selectProjectByRef, useStore } from "~/stores/thread-store";
 import { type Project } from "~/types";
 

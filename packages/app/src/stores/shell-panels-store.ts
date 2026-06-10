@@ -248,10 +248,7 @@ function readPersistedRightWorkbenches(
     if (!parsed || typeof parsed !== "object") return defaults;
     const result: Record<string, WorkbenchPanelState> = { ...defaults };
     for (const [key, value] of Object.entries(parsed)) {
-      const decoded = Option.getOrElse(
-        decodePersistedWorkbenchPanelStateOption(value),
-        () => null,
-      );
+      const decoded = Option.getOrElse(decodePersistedWorkbenchPanelStateOption(value), () => null);
       if (!decoded) continue;
       result[key] = {
         rightOpen: decoded.rightOpen ?? DEFAULT_WORKBENCH_PANEL_STATE.rightOpen,
@@ -607,14 +604,19 @@ export function useIsMuted(workspaceKey?: string | null): boolean {
   );
 }
 
-export function useSecondaryRail(workspaceKey: string | null, tab: WorkbenchTab): SecondaryRailState {
+export function useSecondaryRail(
+  workspaceKey: string | null,
+  tab: WorkbenchTab,
+): SecondaryRailState {
   return useShellPanelsStore(
     (state) => state.railByWorkspaceKeyAndTab[railKey(workspaceKey, tab)] ?? DEFAULT_SECONDARY_RAIL,
   );
 }
 
 export function useHasSecondaryRailState(workspaceKey: string | null, tab: WorkbenchTab): boolean {
-  return useShellPanelsStore((state) => railKey(workspaceKey, tab) in state.railByWorkspaceKeyAndTab);
+  return useShellPanelsStore(
+    (state) => railKey(workspaceKey, tab) in state.railByWorkspaceKeyAndTab,
+  );
 }
 
 export function useTerminalSessions(workspaceKey: string | null): TerminalSessionsState {
@@ -627,9 +629,8 @@ export function useTerminalSessions(workspaceKey: string | null): TerminalSessio
 
 export function readTerminalSessions(workspaceKey: string | null): TerminalSessionsState {
   return (
-    useShellPanelsStore.getState().terminalByWorkspaceKey[
-      resolveWorkspacePanelKey(workspaceKey)
-    ] ?? DEFAULT_TERMINAL_SESSIONS
+    useShellPanelsStore.getState().terminalByWorkspaceKey[resolveWorkspacePanelKey(workspaceKey)] ??
+    DEFAULT_TERMINAL_SESSIONS
   );
 }
 

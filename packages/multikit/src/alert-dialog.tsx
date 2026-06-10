@@ -18,7 +18,7 @@ function AlertDialogBackdrop({ className, ...props }: AlertDialogPrimitive.Backd
   return (
     <AlertDialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-[80] bg-black/32 backdrop-blur-sm transition-opacity duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
+        "fixed inset-0 z-(--z-index-alert-dialog-backdrop) bg-black/32 backdrop-blur-sm transition-opacity duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
         className,
       )}
       data-slot="alert-dialog-backdrop"
@@ -31,7 +31,7 @@ function AlertDialogViewport({ className, ...props }: AlertDialogPrimitive.Viewp
   return (
     <AlertDialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-[80] grid grid-rows-[1fr_auto_3fr] justify-items-center p-4",
+        "fixed inset-0 z-(--z-index-alert-dialog-viewport) grid grid-rows-[1fr_auto_3fr] justify-items-center p-4",
         className,
       )}
       data-slot="alert-dialog-viewport"

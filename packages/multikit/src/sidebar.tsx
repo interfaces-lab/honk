@@ -35,7 +35,10 @@ function SidebarTrayHeader({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-function SidebarTrayHeaderButton({ className, ...props }: Omit<ComponentProps<typeof Button>, "variant">) {
+function SidebarTrayHeaderButton({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "variant">) {
   return (
     <Button
       type="button"
@@ -64,13 +67,14 @@ function SidebarItem({
   return (
     <Button
       variant="ghost"
+      typography="sidebar"
       data-selected={selected}
       data-slot="sidebar-item"
       draggable={draggable}
       nativeButton={nativeButton ?? (render ? false : undefined)}
       render={render}
       className={cn(
-        "font-multi flex min-h-(--multi-sidebar-item-height) w-full min-w-0 select-none items-center justify-start gap-(--multi-sidebar-item-gap) rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) [-webkit-user-drag:none]",
+        "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-sidebar-item-gap rounded-multi-control border border-transparent px-1.5 py-1 text-left [-webkit-user-drag:none]",
         interactive &&
           cn(
             "outline-none ring-offset-0 transition-[background-color,color] hover:bg-multi-bg-quaternary data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
@@ -102,16 +106,17 @@ function SidebarButton(
     <Button
       type="button"
       variant="ghost"
+      typography={variant === "chrome" ? "sidebar" : "inherit"}
       data-slot={`sidebar-button-${variant}`}
       className={cn(
         variant === "chrome"
           ? cn(
-              "font-multi flex min-h-(--multi-sidebar-item-height) w-full select-none items-center justify-start gap-(--multi-sidebar-item-gap) rounded-multi-control border border-transparent px-1.5 py-0.5 text-left text-(length:--multi-sidebar-label-size) font-normal leading-(--multi-sidebar-label-leading) text-muted-foreground transition-colors [-webkit-user-drag:none]",
+              "flex min-h-sidebar-item w-full select-none items-center justify-start gap-sidebar-item-gap rounded-multi-control border border-transparent px-1.5 py-1 text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
               interactiveControlCursorClassName,
               controlTransitionClassName,
             )
           : cn(
-              "min-h-0 min-w-0 flex-1 select-none justify-start border-0 bg-transparent p-0 text-left font-normal shadow-none outline-none ring-offset-0 before:hidden transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent [-webkit-user-drag:none]",
+              "min-h-0 min-w-0 flex-1 select-none justify-start border-0 bg-transparent p-0 text-left shadow-none outline-none ring-offset-0 before:hidden transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent [-webkit-user-drag:none]",
               interactiveControlCursorClassName,
             ),
         className,
@@ -148,7 +153,10 @@ function SidebarTrayRowContent({ className, ...props }: SidebarButtonProps) {
 function SidebarTrayRowLabel({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
-      className={cn("ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary", className)}
+      className={cn(
+        "ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary",
+        className,
+      )}
       data-slot="sidebar-tray-row-label"
       {...props}
     />
@@ -159,7 +167,7 @@ function SidebarTrayRowStatus({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary",
+        "ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-sidebar-subtitle text-multi-fg-secondary",
         className,
       )}
       data-slot="sidebar-tray-row-status"

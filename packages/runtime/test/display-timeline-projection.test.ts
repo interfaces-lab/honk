@@ -1122,9 +1122,7 @@ describe("runtime display timeline projection", () => {
   });
 });
 
-function sessionTree(
-  entries: SessionTreeProjection["entries"],
-): SessionTreeProjection {
+function sessionTree(entries: SessionTreeProjection["entries"]): SessionTreeProjection {
   return {
     threadId,
     runtimeSessionId,

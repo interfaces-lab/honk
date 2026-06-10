@@ -42,8 +42,7 @@ const toastContentVariants = cva(
   },
 );
 
-type ToastRootProps = ToastPrimitive.Root.Props &
-  VariantProps<typeof toastRootVariants>;
+type ToastRootProps = ToastPrimitive.Root.Props & VariantProps<typeof toastRootVariants>;
 
 function ToastRoot({ chrome, className, ...props }: ToastRootProps) {
   return (
@@ -98,7 +97,9 @@ function ToastAction({
     <ToastPrimitive.Action
       className={render ? className : undefined}
       data-slot="toast-action"
-      render={render ?? <Button className={cn("shrink-0", className)} size="xs" variant="outline" />}
+      render={
+        render ?? <Button className={cn("shrink-0", className)} size="xs" variant="outline" />
+      }
       {...props}
     />
   );

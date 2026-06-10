@@ -115,6 +115,8 @@
   --text-title--line-height: var(--multi-leading-title);
   --text-conversation: var(--conversation-text-font-size);
   --text-conversation--line-height: var(--conversation-text-leading);
+  --text-conversation-normalized: var(--conversation-text-font-size);
+  --text-conversation-normalized--line-height: var(--multi-leading-conversation-normalized);
   --text-heading: var(--multi-text-heading);
   --text-heading--line-height: var(--multi-leading-heading);
   --text-multi-code: var(--multi-code-font-size-user, 12px);
@@ -129,6 +131,14 @@
   --text-multi-lg--line-height: var(--multi-leading-title);
   --text-multi-xl: var(--multi-text-heading);
   --text-multi-xl--line-height: var(--multi-leading-heading);
+  --text-sidebar-label: var(--multi-sidebar-label-size);
+  --text-sidebar-label--line-height: var(--multi-sidebar-label-leading);
+  --text-sidebar-subtitle: var(--multi-sidebar-subtitle-size);
+  --text-sidebar-subtitle--line-height: var(--multi-sidebar-subtitle-leading);
+  --spacing-sidebar-item: var(--multi-sidebar-item-height);
+  --spacing-sidebar-item-gap: var(--multi-sidebar-item-gap);
+  --spacing-sidebar-section-gap: var(--multi-sidebar-section-gap);
+  --spacing-sidebar-gutter: var(--multi-sidebar-gutter-inline);
   --radius-multi: var(--multi-radius-card);
   --radius-multi-chip: var(--multi-radius-chip);
   --radius-multi-control: var(--multi-radius-control);

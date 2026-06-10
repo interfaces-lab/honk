@@ -971,7 +971,7 @@ function LocalBranchBarTrailing(props: {
           <MenuPopup
             align="end"
             className="min-w-56 rounded-[12px]"
-            positionerClassName="z-[100]"
+            positionerClassName="z-(--z-index-workbench-menu)"
             sideOffset={4}
             variant="workbench"
           >
@@ -982,7 +982,7 @@ function LocalBranchBarTrailing(props: {
               </MenuSubTrigger>
               <MenuSubPopup
                 className="min-w-44 rounded-[12px]"
-                positionerClassName="z-[120]"
+                positionerClassName="z-(--z-index-workbench-submenu)"
                 sideOffset={6}
                 variant="workbench"
               >

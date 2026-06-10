@@ -17,7 +17,8 @@ import {
 
 import { DEFAULT_RUNTIME_MODE } from "~/types";
 import { randomUUID } from "~/lib/utils";
-import { useStore } from "./thread-store";
+import { scopeThreadRef } from "~/lib/environment-scope";
+import { selectThreadByRef, useStore } from "./thread-store";
 
 type LocalEventBase = Pick<
   OrchestrationEvent,
@@ -127,11 +128,17 @@ export function applyLocalThreadTurnStartRequested(input: {
   readonly titleSeed?: string;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: AgentInteractionMode;
-  readonly parentEntryId: ThreadEntryId | null;
+  /** Explicit branch point; when omitted the local leaf is used, mirroring the server's resolution. */
+  readonly parentEntryId?: ThreadEntryId | null;
   readonly sourceProposedPlan?: SourceProposedPlanReference;
   readonly createdAt: string;
 }): void {
   const userEntryId = threadEntryIdForMessageId(input.message.messageId);
+  const parentEntryId =
+    input.parentEntryId !== undefined
+      ? input.parentEntryId
+      : (selectThreadByRef(useStore.getState(), scopeThreadRef(input.environmentId, input.threadId))
+          ?.leafId ?? null);
   const messageSentEvent = {
     ...localEventBase({
       aggregateKind: "thread",
@@ -143,7 +150,7 @@ export function applyLocalThreadTurnStartRequested(input: {
       threadId: input.threadId,
       messageId: input.message.messageId,
       entryId: userEntryId,
-      parentEntryId: input.parentEntryId,
+      parentEntryId,
       role: "user",
       text: input.message.text,
       ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),

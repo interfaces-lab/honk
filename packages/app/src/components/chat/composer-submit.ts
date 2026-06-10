@@ -22,10 +22,7 @@ export const ComposerSkillEntity = Schema.Struct({
 });
 export type ComposerSkillEntity = typeof ComposerSkillEntity.Type;
 
-export const ComposerEntity = Schema.Union([
-  ComposerFileEntity,
-  ComposerSkillEntity,
-]);
+export const ComposerEntity = Schema.Union([ComposerFileEntity, ComposerSkillEntity]);
 export type ComposerEntity = typeof ComposerEntity.Type;
 
 export const ComposerValue = Schema.Struct({

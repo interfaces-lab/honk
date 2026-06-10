@@ -56,9 +56,7 @@ export const useThreadSendIntentStore = create<ThreadSendIntentStoreState>((set,
     set((state) => {
       const existing = state.sendIntentsByThreadKey[threadKey] ?? [];
       if (
-        existing.some(
-          (existingIntent) => existingIntent.clientMessageId === intent.clientMessageId,
-        )
+        existing.some((existingIntent) => existingIntent.clientMessageId === intent.clientMessageId)
       ) {
         return state;
       }
@@ -89,9 +87,7 @@ export const useThreadSendIntentStore = create<ThreadSendIntentStoreState>((set,
       }
 
       const targetIntents = state.sendIntentsByThreadKey[targetThreadKey] ?? [];
-      const targetClientSendKeys = new Set(
-        targetIntents.map((intent) => intent.clientMessageId),
-      );
+      const targetClientSendKeys = new Set(targetIntents.map((intent) => intent.clientMessageId));
       const intentsToAppend = intentsToTransfer.filter(
         (intent) => !targetClientSendKeys.has(intent.clientMessageId),
       );

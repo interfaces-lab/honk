@@ -285,8 +285,8 @@ export const makeServerAuth = Effect.gen(function* () {
       }),
     );
 
-  const authenticateWebSocketUpgrade: ServerAuthShape["authenticateWebSocketUpgrade"] =
-    (request) => authenticateRequest(request, { allowWebSocketQueryToken: true });
+  const authenticateWebSocketUpgrade: ServerAuthShape["authenticateWebSocketUpgrade"] = (request) =>
+    authenticateRequest(request, { allowWebSocketQueryToken: true });
 
   return {
     getDescriptor: () => Effect.succeed(descriptor),

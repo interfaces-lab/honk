@@ -42,7 +42,6 @@ import {
   WORK_GROUP_STEP_GAP_PX,
   type StepRendererContext,
 } from "./step-renderer";
-import { recordTimelinePreviewTailHeight } from "./timeline-preview-debug";
 import {
   computeDynamicPaddingEndPx,
   computeLastPairMinHeightPx,
@@ -152,13 +151,7 @@ export function MessagesTimeline({
         projectRoot,
         conversationDensity,
       }),
-    [
-      conversationDensity,
-      editableUserMessageIds,
-      isTurnActive,
-      projectRoot,
-      timelineEntries,
-    ],
+    [conversationDensity, editableUserMessageIds, isTurnActive, projectRoot, timelineEntries],
   );
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
@@ -216,10 +209,7 @@ export function MessagesTimeline({
         continue;
       }
       const measuredItem = virtualizerMeasurementsRef.current.find((item) => item.index === index);
-      measuredHeightsForPadding.set(
-        row.id,
-        measuredItem?.size ?? estimateRowHeight(index),
-      );
+      measuredHeightsForPadding.set(row.id, measuredItem?.size ?? estimateRowHeight(index));
     }
   }
   const lastTurnHeightForPadding = computeLastTurnContentHeightPx(
@@ -251,16 +241,19 @@ export function MessagesTimeline({
   rowsRef.current = rows;
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
 
-  const reportIsAtBottom = useCallback((isAtBottom: boolean, options?: { force?: boolean }) => {
-    if (!options?.force && scrollFollowRef.current.atBottom === isAtBottom) {
-      return;
-    }
-    scrollFollowRef.current = {
-      ...scrollFollowRef.current,
-      atBottom: isAtBottom,
-    };
-    onIsAtBottomChange(isAtBottom);
-  }, [onIsAtBottomChange]);
+  const reportIsAtBottom = useCallback(
+    (isAtBottom: boolean, options?: { force?: boolean }) => {
+      if (!options?.force && scrollFollowRef.current.atBottom === isAtBottom) {
+        return;
+      }
+      scrollFollowRef.current = {
+        ...scrollFollowRef.current,
+        atBottom: isAtBottom,
+      };
+      onIsAtBottomChange(isAtBottom);
+    },
+    [onIsAtBottomChange],
+  );
 
   const clearProgrammaticScrollTracking = useCallback(() => {
     programmaticScrollActiveRef.current = false;
@@ -330,8 +323,7 @@ export function MessagesTimeline({
       }
 
       const scrollOffset = instance.scrollOffset ?? 0;
-      const pinnedFollowing =
-        scrollFollowRef.current.pinned && !disableAutoScrollRef.current;
+      const pinnedFollowing = scrollFollowRef.current.pinned && !disableAutoScrollRef.current;
 
       if (isStreamingRef.current) {
         return shouldAdjustScrollOnItemResize({
@@ -343,11 +335,7 @@ export function MessagesTimeline({
         });
       }
 
-      return (
-        delta !== 0 &&
-        item.start < scrollOffset &&
-        instance.scrollDirection !== "backward"
-      );
+      return delta !== 0 && item.start < scrollOffset && instance.scrollDirection !== "backward";
     };
   }, [rowVirtualizer]);
 
@@ -380,33 +368,36 @@ export function MessagesTimeline({
     programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
   }, [getIsAtBottom, reportIsAtBottom]);
 
-  const scrollToBottom = useCallback((options?: { animated?: boolean }) => {
-    if (!scrollElementRef.current) {
-      return;
-    }
+  const scrollToBottom = useCallback(
+    (options?: { animated?: boolean }) => {
+      if (!scrollElementRef.current) {
+        return;
+      }
 
-    scrollFollowRef.current = { pinned: true, atBottom: true };
+      scrollFollowRef.current = { pinned: true, atBottom: true };
 
-    const animated = options?.animated === true;
-    if (animated) {
-      programmaticScrollActiveRef.current = true;
-      programmaticScrollDeadlineRef.current = window.performance.now() + 1600;
-    } else {
-      clearProgrammaticScrollTracking();
-    }
+      const animated = options?.animated === true;
+      if (animated) {
+        programmaticScrollActiveRef.current = true;
+        programmaticScrollDeadlineRef.current = window.performance.now() + 1600;
+      } else {
+        clearProgrammaticScrollTracking();
+      }
 
-    rowVirtualizer.scrollToEnd({ behavior: animated ? "smooth" : "auto" });
-    if (animated) {
-      scheduleProgrammaticScrollResolution();
-    } else {
-      reportIsAtBottom(true);
-    }
-  }, [
-    clearProgrammaticScrollTracking,
-    reportIsAtBottom,
-    rowVirtualizer,
-    scheduleProgrammaticScrollResolution,
-  ]);
+      rowVirtualizer.scrollToEnd({ behavior: animated ? "smooth" : "auto" });
+      if (animated) {
+        scheduleProgrammaticScrollResolution();
+      } else {
+        reportIsAtBottom(true);
+      }
+    },
+    [
+      clearProgrammaticScrollTracking,
+      reportIsAtBottom,
+      rowVirtualizer,
+      scheduleProgrammaticScrollResolution,
+    ],
+  );
   const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
   const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
 
@@ -442,8 +433,7 @@ export function MessagesTimeline({
       isScrolling: rowVirtualizer.isScrolling,
       lastObservedScrollOffset,
       isUserPointerDown: isUserPointerDownRef.current,
-      msSinceUserScrollInput:
-        window.performance.now() - lastUserScrollInputAtRef.current,
+      msSinceUserScrollInput: window.performance.now() - lastUserScrollInputAtRef.current,
       isReady: initializedScrollRef.current,
       isProgrammaticScrollActive: programmaticScrollActiveRef.current,
     });
@@ -646,9 +636,7 @@ export function MessagesTimeline({
                     <TimelineRowContent
                       row={row}
                       workGroupExpanded={
-                        row.kind === "work" &&
-                        "steps" in row &&
-                        expandedWorkGroupIds.has(row.id)
+                        row.kind === "work" && "steps" in row && expandedWorkGroupIds.has(row.id)
                       }
                       onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
                       editUserMessagesDisabled={editUserMessagesDisabled}
@@ -664,7 +652,7 @@ export function MessagesTimeline({
         {floatingEditUserRow ? (
           <div
             data-floating-edit-row-backplate="true"
-            className="pointer-events-none absolute inset-x-0 z-[102]"
+            className="pointer-events-none absolute inset-x-0 z-(--z-index-chat-timeline-floating-edit-row)"
             style={{ top: "var(--chat-timeline-padding-block-start)" }}
           >
             <div className="mx-auto box-border w-full max-w-agent-chat px-4 pb-(--chat-timeline-row-gap)">
@@ -961,11 +949,6 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
     const totalHeight =
       previousHeight === undefined ? computedHeight : Math.max(previousHeight, computedHeight);
     runningWorkGroupEstimateHeights.set(row.id, totalHeight);
-    recordTimelinePreviewTailHeight({
-      rowId: row.id,
-      nextPx: totalHeight,
-      previewStepCount: previewCount,
-    });
     return totalHeight;
   }
 
@@ -990,7 +973,7 @@ function virtualRowStyle(
     return {
       position: "sticky",
       top: 0,
-      zIndex: 101,
+      zIndex: "var(--z-index-chat-timeline-sticky-user-message)",
       ...(isFloatingEdit ? { height: virtualRow.size } : null),
     };
   }
@@ -1039,9 +1022,7 @@ const TimelineRowContent = memo(function TimelineRowContent({
       data-message-index={row.kind === "message" ? row.messageIndex : undefined}
       data-message-pair-id={row.kind === "message" ? (row.pairId ?? undefined) : undefined}
       data-tool-call-id={
-        row.kind === "runtime-task" || row.kind === "runtime-tool"
-          ? row.tool.toolCallId
-          : undefined
+        row.kind === "runtime-task" || row.kind === "runtime-tool" ? row.tool.toolCallId : undefined
       }
       data-tool-status={timelineRowToolStatus(row)}
       data-tool-has-error={timelineRowToolHasError(row) ? "true" : undefined}
@@ -1097,9 +1078,7 @@ function TimelineRowBody({
   );
 }
 
-function timelineRowKind(
-  row: TimelineRow,
-): "human" | "assistant" | "tool-call" | "loading" {
+function timelineRowKind(row: TimelineRow): "human" | "assistant" | "tool-call" | "loading" {
   if (row.kind === "message") return row.message.role === "user" ? "human" : "assistant";
   if (row.kind === "runtime-thinking") return "assistant";
   if (row.kind === "working") return "loading";

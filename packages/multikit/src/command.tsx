@@ -32,7 +32,7 @@ function CommandDialogBackdrop({ className, ...props }: CommandDialogPrimitive.B
   return (
     <CommandDialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-[90] bg-transparent transition-opacity duration-150 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-(--z-index-command-dialog-backdrop) bg-transparent transition-opacity duration-150 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="command-dialog-backdrop"
@@ -45,7 +45,7 @@ function CommandDialogViewport({ className, ...props }: CommandDialogPrimitive.V
   return (
     <CommandDialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-[91] flex flex-col items-center justify-start overflow-hidden px-4 py-4 pt-[8vh]",
+        "fixed inset-0 z-(--z-index-command-dialog-viewport) flex flex-col items-center justify-start overflow-hidden px-4 py-4 pt-[8vh]",
         className,
       )}
       data-slot="command-dialog-viewport"

@@ -9,7 +9,7 @@ describe("search output parser", () => {
         [
           "packages/app/src/session-logic.ts  [modified in git]",
           " 42: export interface ToolSearchArtifact {",
-          " 43-   type: \"search\";",
+          ' 43-   type: "search";',
           "",
           "packages/runtime/src/display-timeline-projection.ts",
           " 101: function projectRuntimeToolDisplay() {}",
@@ -30,7 +30,7 @@ describe("search output parser", () => {
             {
               lineNumber: 43,
               separator: "-",
-              text: "  type: \"search\";",
+              text: '  type: "search";',
             },
           ],
         },
@@ -55,7 +55,7 @@ describe("search output parser", () => {
           "packages/app/src/components/chat/message/tool-renderer.tsx  [often touched file]",
           "packages/runtime/src/fff-extension.ts  [modified in git]",
           "",
-          "[38 more matches available. cursor=\"1\" to continue]",
+          '[38 more matches available. cursor="1" to continue]',
         ].join("\n"),
       ),
     ).toEqual({

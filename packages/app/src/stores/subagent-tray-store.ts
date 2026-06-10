@@ -70,15 +70,31 @@ interface SubagentTrayStore {
   closeTray: () => void;
 }
 
+export function isSubagentTrayOpenForThread(input: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+}): boolean {
+  const focus = useSubagentTrayStore.getState().focus;
+  return (
+    focus !== null &&
+    focus.environmentId === input.environmentId &&
+    focus.activeThreadId === input.threadId
+  );
+}
+
 export const useSubagentTrayStore = create<SubagentTrayStore>((set, get) => ({
   focus: null,
   presented: false,
-  openTray: (selection) => set({ focus: selection }),
+  openTray: (selection) => {
+    set({ focus: selection });
+  },
   setTrayPresented: (presented) => {
     if (get().presented === presented) {
       return;
     }
     set({ presented });
   },
-  closeTray: () => set({ focus: null, presented: false }),
+  closeTray: () => {
+    set({ focus: null, presented: false });
+  },
 }));

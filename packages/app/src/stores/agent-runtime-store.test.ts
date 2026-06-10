@@ -28,9 +28,7 @@ const userThreadEntryId = ThreadEntryId.make("thread-entry:agent-store:user");
 const userMessageCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 13, 0, 0)),
 );
-const turnStartedAt = Date.prototype.toISOString.call(
-  new Date(Date.UTC(2026, 5, 1, 13, 0, 10)),
-);
+const turnStartedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 13, 0, 10)));
 const sessionTreePrototype = {
   threadId,
   runtimeSessionId,
@@ -109,7 +107,10 @@ const pendingExtensionUiRequestPrototype = {
   createdAt: turnStartedAt,
 } satisfies DesktopExtensionUiRequest;
 function currentThread() {
-  const environmentState = selectEnvironmentState(useStore.getState(), DESKTOP_RUNTIME_ENVIRONMENT_ID);
+  const environmentState = selectEnvironmentState(
+    useStore.getState(),
+    DESKTOP_RUNTIME_ENVIRONMENT_ID,
+  );
   const thread = getThreadFromEnvironmentState(environmentState, threadId);
   expect(thread).toBeDefined();
   return thread!;

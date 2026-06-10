@@ -32,10 +32,7 @@ import type {
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project";
-import type {
-  ServerConfig,
-  ServerUpsertKeybindingResult,
-} from "./server";
+import type { ServerConfig, ServerUpsertKeybindingResult } from "./server";
 import type {
   TerminalClearInput,
   TerminalCloseInput,
@@ -290,6 +287,7 @@ export interface DesktopBridge {
   setTheme: (theme: DesktopTheme) => Promise<void>;
   setBackgroundColor: (color: string) => Promise<void>;
   setVibrancy: (enabled: boolean) => Promise<void>;
+  setDisplayZoom: (factor: number) => Promise<void>;
   showContextMenu: <T extends string>(
     items: readonly ContextMenuItem<T>[],
     position?: { x: number; y: number },

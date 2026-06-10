@@ -520,9 +520,9 @@ const make = Effect.gen(function* () {
 
       yield* electronUpdater.on("checking-for-update", () => {
         runEffect(
-          elog.info("looking for updates").pipe(
-            Effect.withSpan("desktop.updates.handleCheckingForUpdate"),
-          ),
+          elog
+            .info("looking for updates")
+            .pipe(Effect.withSpan("desktop.updates.handleCheckingForUpdate")),
         );
       });
       yield* electronUpdater.on("update-available", (info: unknown) => {

@@ -1,6 +1,10 @@
 import path from "node:path";
 
-import { configureMultiEvlog, configureMultiProcessMetadata, effectLogLevel } from "@multi/shared/logging";
+import {
+  configureMultiEvlog,
+  configureMultiProcessMetadata,
+  effectLogLevel,
+} from "@multi/shared/logging";
 import { makeLocalFileTracer, makeTraceSink } from "@multi/shared/observability";
 import { Effect, Layer, References, Tracer } from "effect";
 import { OtlpMetrics, OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
@@ -85,11 +89,6 @@ export const ObservabilityLive = Layer.unwrap(
             },
           }).pipe(Layer.provideMerge(otlpSerializationLayer));
 
-    return Layer.mergeAll(
-      ServerLoggerLive,
-      traceReferencesLayer,
-      tracerLayer,
-      metricsLayer,
-    );
+    return Layer.mergeAll(ServerLoggerLive, traceReferencesLayer, tracerLayer, metricsLayer);
   }),
 );

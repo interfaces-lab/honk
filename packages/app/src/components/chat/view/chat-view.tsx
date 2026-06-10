@@ -37,11 +37,11 @@ import {
 import { getGitStatusSnapshot, useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
 import { usePrimaryEnvironmentId } from "../../../environments/primary";
-import { type PreparedRuntimeTurnPolicy, prepareRuntimeTurnPolicy } from "~/lib/runtime-turn-dispatch";
 import {
-  coordinateTurnSend,
-  dispatchTurnStartFailure,
-} from "~/lib/turn-send-coordinator";
+  type PreparedRuntimeTurnPolicy,
+  prepareRuntimeTurnPolicy,
+} from "~/lib/runtime-turn-dispatch";
+import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { isElectron } from "../../../env";
 import { readLocalApi } from "../../../local-api";
 import {
@@ -269,7 +269,6 @@ function stableTipIndex(seed: string, length: number): number {
 }
 
 function getNewAgentFooterTip(input: {
-  readonly envMode: DraftThreadEnvMode;
   readonly interactionMode: AgentInteractionMode;
   readonly stableKey: string;
   readonly workspaceName: string | null;
@@ -313,16 +312,6 @@ function getNewAgentFooterTip(input: {
         { kind: "text", text: "Use " },
         { kind: "token", text: "Plan New Idea" },
         { kind: "text", text: " to explore before building" },
-      ],
-    });
-  }
-
-  if (input.envMode === "local") {
-    tips.push({
-      segments: [
-        { kind: "text", text: "Use " },
-        { kind: "token", text: "Run in Cloud" },
-        { kind: "text", text: " to prepare an isolated worktree" },
       ],
     });
   }
@@ -473,8 +462,11 @@ export default function ChatView(props: ChatViewProps) {
   const settings = useSettings();
   const workspaceProjects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const { projectCwd: selectedProjectCwd, projectEnvironmentId: selectedProjectEnvironmentId, projectRef: selectedProjectRef } =
-    useSelectedWorkspaceProject();
+  const {
+    projectCwd: selectedProjectCwd,
+    projectEnvironmentId: selectedProjectEnvironmentId,
+    projectRef: selectedProjectRef,
+  } = useSelectedWorkspaceProject();
   const { handleNewThread: handleWorkspaceNewThread } = useNewThreadHandler();
   const selectedWorkspaceProjectSelector = useMemo(
     () => createProjectSelectorByRef(selectedProjectRef),
@@ -506,15 +498,12 @@ export default function ChatView(props: ChatViewProps) {
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
-  const subagentTrayPresented = useSubagentTrayStore((state) => state.presented);
-  const closeSubagentTray = useSubagentTrayStore((state) => state.closeTray);
   const draftThread = useComposerDraftStore((store) => {
     if (routeKind === "draft" && draftId) {
       return store.getDraftSession(draftId);
     }
     return null;
   });
-  const promptRef = useRef("");
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
   const localComposerRef = useRef<ComposerInputHandle | null>(null);
   const composerRef = useComposerHandleContext() ?? localComposerRef;
@@ -627,6 +616,11 @@ export default function ChatView(props: ChatViewProps) {
     composerInteractionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
   const isLocalDraftThread = !isServerThread && localDraftThread !== undefined;
   const activeThreadId = activeThread?.id ?? null;
+  // Scoped to this view's thread so tray activity elsewhere never re-renders it.
+  const subagentTrayPresented = useSubagentTrayStore(
+    (state) => state.presented && state.focus?.activeThreadId === activeThreadId,
+  );
+  const closeSubagentTray = useSubagentTrayStore((state) => state.closeTray);
   const isNewThreadHero = isNewThreadHeroDraft({
     activeThread,
     isLocalDraftThread,
@@ -861,7 +855,6 @@ export default function ChatView(props: ChatViewProps) {
     onPreviousActivePendingUserInputQuestion,
   } = useThreadPendingUserInput({
     composerRef,
-    promptRef,
     environmentId,
     activeThreadId,
     threadActivities: sharedThreadActivities,
@@ -921,8 +914,7 @@ export default function ChatView(props: ChatViewProps) {
     !latestTurnSettled &&
     !runtimeTimelineHasResponse;
   const isTurnRunning = activeRunningTurnId !== null;
-  const isWorking =
-    isTurnRunning || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
+  const isWorking = isTurnRunning || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const {
     queuedComposerItems,
     editingQueuedComposerItemId,
@@ -968,7 +960,13 @@ export default function ChatView(props: ChatViewProps) {
   // the turn active across frames where a stale thread snapshot momentarily reports the session
   // idle during the local → server → runtime handoff. Without it the collapsed running
   // work-group preview unmounts for one frame and loses its animation.
-  const timelineTurnActive = isTurnRunning || visibleThreadSendIntents.length > 0;
+  // While the runtime overlay is still projecting an unsettled turn, orchestration status can
+  // briefly idle between tool bursts even though tools keep appending — keep the tail group
+  // running so the collapsed preview does not flash to completed and back.
+  const runtimeTimelineImpliesTurnActive =
+    activeRuntimeDisplayTimeline !== null && !latestTurnSettled;
+  const timelineTurnActive =
+    isTurnRunning || visibleThreadSendIntents.length > 0 || runtimeTimelineImpliesTurnActive;
   const committedTimelineMessages = useMemo(
     () => applyAttachmentPreviewHandoff(serverMessages),
     [applyAttachmentPreviewHandoff, serverMessages],
@@ -1151,6 +1149,11 @@ export default function ChatView(props: ChatViewProps) {
     gitCheckoutMutationOptions({ environmentId: gitEnvironmentId, cwd: gitCwd, queryClient }),
   );
   const activeThreadWorktreePath = workspaceTarget.worktreePath;
+  const composerStatusGitCwd = activeThreadWorktreePath ?? workspaceToolbarCwd;
+  const composerGitStatus = useGitStatus({
+    environmentId: gitEnvironmentId ?? environmentId,
+    cwd: composerStatusGitCwd,
+  });
   const activeProjectRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
   const activeTerminalLaunchContext =
     terminalLaunchContext?.threadId === activeThreadId
@@ -1529,7 +1532,11 @@ export default function ChatView(props: ChatViewProps) {
         ? "worktree"
         : "local";
   const activeThreadBranch = activeThread?.branch ?? null;
-  const composerBranchName = activeThreadBranch ?? draftThread?.branch ?? null;
+  const currentGitBranch = composerGitStatus.data?.branch ?? null;
+  const composerBranchName =
+    envMode === "worktree" && activeWorktreePath === null
+      ? (activeThreadBranch ?? draftThread?.branch ?? currentGitBranch)
+      : (currentGitBranch ?? activeThreadBranch ?? draftThread?.branch ?? null);
   const composerExecutionModeLabel =
     envMode === "worktree" ? (activeWorktreePath ? "Worktree" : "New branch") : "Local";
   const isHeroComposer = isNewThreadHero;
@@ -1594,12 +1601,11 @@ export default function ChatView(props: ChatViewProps) {
   const newAgentFooterTip = useMemo(
     () =>
       getNewAgentFooterTip({
-        envMode,
         interactionMode,
         stableKey: draftId ?? routeThreadKey,
         workspaceName: workspaceProject?.name ?? null,
       }),
-    [draftId, envMode, interactionMode, routeThreadKey, workspaceProject?.name],
+    [draftId, interactionMode, routeThreadKey, workspaceProject?.name],
   );
   const heroComposerActions = isHeroComposer ? (
     <div data-new-agent-footer-actions="">
@@ -1612,16 +1618,6 @@ export default function ChatView(props: ChatViewProps) {
       >
         <span>Plan New Idea</span>
         <span data-new-agent-action-hint="">⇧Tab</span>
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="lg"
-        data-new-agent-action-pill=""
-        disabled={envMode !== "local"}
-        onClick={() => handleBranchEnvModeChange("worktree", activeThreadBranch)}
-      >
-        {envMode === "local" ? "Run in Cloud" : composerExecutionModeLabel}
       </Button>
     </div>
   ) : null;
@@ -1817,6 +1813,7 @@ export default function ChatView(props: ChatViewProps) {
       clearComposerOnSubmit,
     } = snapshot;
     const { prompt: promptForSend, images: composerImages } = sendCtx;
+    let composerClearedForSend = false;
     const compiledTurn = compileComposerSubmitTurn(sendCtx);
     const { trimmedPrompt: trimmed, hasSendableContent } = compiledTurn;
     if (planFollowUp) {
@@ -1825,9 +1822,8 @@ export default function ChatView(props: ChatViewProps) {
         planMarkdown: planFollowUp.planMarkdown,
       });
       if (clearComposerOnSubmit) {
-        promptRef.current = "";
-        clearComposerDraftContent(composerDraftTarget);
-        composerRef.current?.resetCursorState();
+        composerRef.current?.clearComposer();
+        composerClearedForSend = true;
       }
       await onSubmitPlanFollowUp({
         text: followUp.text,
@@ -1844,9 +1840,8 @@ export default function ChatView(props: ChatViewProps) {
     if (standaloneSlashCommand) {
       handleInteractionModeChange(standaloneSlashCommand);
       if (clearComposerOnSubmit) {
-        promptRef.current = "";
-        clearComposerDraftContent(composerDraftTarget);
-        composerRef.current?.resetCursorState();
+        composerRef.current?.clearComposer();
+        composerClearedForSend = true;
       }
       return;
     }
@@ -1922,9 +1917,8 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     if (clearComposerOnSubmit) {
-      promptRef.current = "";
-      clearComposerDraftContent(composerDraftTarget);
-      composerRef.current?.resetCursorState();
+      composerRef.current?.clearComposer();
+      composerClearedForSend = true;
     }
 
     sendInFlightRef.current = true;
@@ -1953,7 +1947,7 @@ export default function ChatView(props: ChatViewProps) {
         richText: compiledTurn.outgoingRichText,
         attachments: optimisticAttachments,
         createdAt: messageCreatedAt,
-        parentEntryId: branchView.entryId,
+        parentEntryId: null,
       }),
     );
 
@@ -2012,7 +2006,6 @@ export default function ChatView(props: ChatViewProps) {
           titleSeed: title,
           runtimeMode: DEFAULT_RUNTIME_MODE,
           interactionMode: interactionModeForSend,
-          parentEntryId: branchView.entryId,
           createdAt: messageCreatedAt,
         });
         localTurnStartAnnounced = true;
@@ -2023,7 +2016,7 @@ export default function ChatView(props: ChatViewProps) {
         }
         const promotedThreadRef = scopeThreadRef(environmentId, threadIdForSend);
         const promotedThreadKey = scopedThreadKey(promotedThreadRef);
-        markDraftThreadPromoting(draftId, promotedThreadRef);
+        markDraftThreadPromoting(draftId, promotedThreadRef, title);
         copyThreadSendIntents(routeThreadKey, promotedThreadKey, new Set([messageIdForSend]));
         copyLocalDispatch(routeThreadKey, promotedThreadKey);
         promotedLocalSendThreadKey = promotedThreadKey;
@@ -2114,7 +2107,6 @@ export default function ChatView(props: ChatViewProps) {
           optimisticAttachments,
           getTurnAttachments,
         },
-        parentEntryId: branchView.entryId,
         modelSelection: activeThread.modelSelection,
         titleSeed: title,
         runtimeMode: DEFAULT_RUNTIME_MODE,
@@ -2137,7 +2129,11 @@ export default function ChatView(props: ChatViewProps) {
         serverPersistenceError = turnResult.serverPersistenceError;
       }
 
-      if (baseBranchForWorktree && turnResult.serverTurnStartSucceeded && !turnResult.preparedWorktree) {
+      if (
+        baseBranchForWorktree &&
+        turnResult.serverTurnStartSucceeded &&
+        !turnResult.preparedWorktree
+      ) {
         throw new Error("New worktree was created, but no prepared worktree was returned.");
       }
 
@@ -2182,7 +2178,7 @@ export default function ChatView(props: ChatViewProps) {
       }
       if (
         !serverTurnStartSucceeded &&
-        promptRef.current.length === 0 &&
+        composerClearedForSend &&
         composerImagesRef.current.length === 0
       ) {
         if (promotedLocalSendThreadKey !== null) {
@@ -2196,15 +2192,13 @@ export default function ChatView(props: ChatViewProps) {
         } else {
           removeThreadSendIntentsByClientMessageId(messageIdForSend);
         }
-        promptRef.current = promptForSend;
         const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
         composerImagesRef.current = retryComposerImages;
-        setComposerDraftPrompt(composerDraftTarget, promptForSend);
         addComposerDraftImages(composerDraftTarget, retryComposerImages);
-        composerRef.current?.resetCursorState({
-          cursor: collapseExpandedComposerCursor(promptForSend, promptForSend.length),
+        composerRef.current?.restoreComposer({
           prompt: promptForSend,
-          detectTrigger: true,
+          images: retryComposerImages,
+          ...(sendCtx.richText !== undefined ? { richText: sendCtx.richText } : {}),
         });
       }
       if (!serverTurnStartSucceeded && promotedLocalSendThreadKey !== null) {
@@ -2230,9 +2224,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const clearLiveComposer = () => {
-    promptRef.current = "";
-    clearComposerDraftContent(composerDraftTarget);
-    composerRef.current?.resetCursorState();
+    composerRef.current?.clearComposer();
   };
 
   const onSend = async (e?: { preventDefault: () => void }) => {
@@ -2396,20 +2388,11 @@ export default function ChatView(props: ChatViewProps) {
 
   const loadQueuedComposerItemIntoComposer = (item: QueuedComposerItem) => {
     const imagesForEdit = item.sendContext.images.map(cloneComposerImageForRetry);
-    promptRef.current = item.sendContext.prompt;
     composerImagesRef.current = imagesForEdit;
     clearComposerDraftContent(composerDraftTarget);
-    setComposerDraftPrompt(composerDraftTarget, item.sendContext.prompt);
-    addComposerDraftImages(composerDraftTarget, imagesForEdit);
     setComposerDraftInteractionMode(composerDraftTarget, item.interactionMode);
-    composerRef.current?.resetCursorState({
-      cursor: collapseExpandedComposerCursor(
-        item.sendContext.prompt,
-        item.sendContext.prompt.length,
-      ),
-      prompt: item.sendContext.prompt,
-      detectTrigger: true,
-    });
+    addComposerDraftImages(composerDraftTarget, imagesForEdit);
+    composerRef.current?.restoreComposer(item.sendContext);
     scheduleComposerFocus();
   };
 
@@ -2581,7 +2564,6 @@ export default function ChatView(props: ChatViewProps) {
         titleSeed: activeThread.title,
         runtimeMode: DEFAULT_RUNTIME_MODE,
         interactionMode: nextInteractionMode,
-        parentEntryId: branchView.entryId,
         ...(sourceProposedPlan ? { sourceProposedPlan } : {}),
         createdAt: messageCreatedAt,
       });
@@ -2611,7 +2593,6 @@ export default function ChatView(props: ChatViewProps) {
           optimisticAttachments: [],
           getTurnAttachments: async () => [],
         },
-        parentEntryId: branchView.entryId,
         modelSelection: activeThread.modelSelection,
         titleSeed: activeThread.title,
         interactionMode: nextInteractionMode,
@@ -3018,7 +2999,7 @@ export default function ChatView(props: ChatViewProps) {
           <div
             className={cn(
               "relative",
-              !isHeroComposer && "px-4 pb-4",
+              !isHeroComposer && "px-4 pb-1",
               isHeroComposer
                 ? "flex h-full flex-1 flex-col items-center outline-hidden"
                 : undefined,
@@ -3088,7 +3069,6 @@ export default function ChatView(props: ChatViewProps) {
               gitCwd={gitCwd}
               branchName={composerBranchName}
               executionModeLabel={composerExecutionModeLabel}
-              promptRef={promptRef}
               composerImagesRef={composerImagesRef}
               onSend={handleComposerSend}
               onInterrupt={handleComposerInterrupt}

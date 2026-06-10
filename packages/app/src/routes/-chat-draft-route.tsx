@@ -4,10 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import ChatView from "~/components/chat/view/chat-view";
 import { useComposerDraftStore, DraftId } from "~/stores/chat-drafts";
 import { selectThreadRouteLifecycleSurfaceByRef } from "~/stores/thread-selectors";
-import {
-  selectEnvironmentState,
-  useStore,
-} from "~/stores/thread-store";
+import { selectEnvironmentState, useStore } from "~/stores/thread-store";
 import { writeLastChatRouteTarget } from "~/routes/-chat-route-persistence";
 import { openThread } from "~/app/chat-navigation";
 import {
@@ -87,8 +84,7 @@ export function DraftChatThreadRouteView() {
     ),
   );
   const canonicalThreadRef =
-    promotedThreadRef !== null &&
-    serverThreadLifecycle?.hasRenderableUserStart === true
+    promotedThreadRef !== null && serverThreadLifecycle?.hasRenderableUserStart === true
       ? promotedThreadRef
       : null;
   if (canonicalThreadRef) {
@@ -110,12 +106,7 @@ export function DraftChatThreadRouteView() {
   }
 
   if (!draftSession) {
-    return (
-      <DraftThreadRouteMaterializeSync
-        key={`${draftId}:materialize`}
-        draftId={draftId}
-      />
-    );
+    return <DraftThreadRouteMaterializeSync key={`${draftId}:materialize`} draftId={draftId} />;
   }
 
   return (

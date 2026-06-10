@@ -9,7 +9,11 @@ import {
   type AgentModelPolicy,
   type AgentRuntimeEvent,
 } from "@multi/contracts";
-import { AuthStorage, type ExtensionFactory, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import {
+  AuthStorage,
+  type ExtensionFactory,
+  type ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import {
   type FauxModelDefinition,
   type FauxProviderRegistration,
@@ -74,18 +78,20 @@ export interface RuntimeHarness {
   readonly cleanup: () => void;
 }
 
-export async function createRuntimeHarness(options: {
-  readonly tempDir?: string;
-  readonly threadId?: ThreadId;
-  readonly removeTempDirOnCleanup?: boolean;
-  readonly models?: readonly FauxModelDefinition[];
-  readonly customTools?: readonly ToolDefinition[];
-  readonly tools?: readonly string[];
-  readonly excludeTools?: readonly string[];
-  readonly extensionFactories?: readonly ExtensionFactory[];
-  readonly withConfiguredAuth?: boolean;
-  readonly policy?: AgentModelPolicy;
-} = {}): Promise<RuntimeHarness> {
+export async function createRuntimeHarness(
+  options: {
+    readonly tempDir?: string;
+    readonly threadId?: ThreadId;
+    readonly removeTempDirOnCleanup?: boolean;
+    readonly models?: readonly FauxModelDefinition[];
+    readonly customTools?: readonly ToolDefinition[];
+    readonly tools?: readonly string[];
+    readonly excludeTools?: readonly string[];
+    readonly extensionFactories?: readonly ExtensionFactory[];
+    readonly withConfiguredAuth?: boolean;
+    readonly policy?: AgentModelPolicy;
+  } = {},
+): Promise<RuntimeHarness> {
   const tempDir =
     options.tempDir ??
     join(tmpdir(), `multi-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);

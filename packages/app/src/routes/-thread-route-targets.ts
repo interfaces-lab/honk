@@ -68,9 +68,7 @@ export function resolveThreadRouteRef(
   return scopeThreadRef(EnvironmentId.make(params.environmentId), ThreadId.make(params.threadId));
 }
 
-export function resolveThreadRouteTarget(
-  params: ThreadRouteParams,
-): ThreadRouteTarget | null {
+export function resolveThreadRouteTarget(params: ThreadRouteParams): ThreadRouteTarget | null {
   if (params.environmentId && params.threadId) {
     return {
       kind: "server",
@@ -96,10 +94,7 @@ function threadRefsEqual(
   right: ScopedThreadRef | null | undefined,
 ): boolean {
   return Boolean(
-    left &&
-      right &&
-      left.environmentId === right.environmentId &&
-      left.threadId === right.threadId,
+    left && right && left.environmentId === right.environmentId && left.threadId === right.threadId,
   );
 }
 

@@ -1,11 +1,6 @@
 import type { CSSProperties } from "react";
 import { Button } from "@multi/multikit/button";
-import {
-  Popover,
-  PopoverClose,
-  PopoverPopup,
-  PopoverTrigger,
-} from "@multi/multikit/popover";
+import { Popover, PopoverClose, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
 import { IconCrossSmall } from "central-icons";
 
 import {
@@ -14,7 +9,7 @@ import {
   type ContextWindowSnapshot,
 } from "~/lib/context-window";
 import { cn } from "~/lib/utils";
-import { ContextWindowRing } from "./context-window-meter";
+import { ContextUsageEmptyRing, ContextWindowRing } from "./context-window-meter";
 
 type ContextUsageColor =
   | "gray"
@@ -114,7 +109,10 @@ function contextUsageCategories(usage: ContextWindowSnapshot): ContextUsageCateg
       })) ?? [];
 
   if (explicitCategories.length > 0) {
-    const explicitTotal = explicitCategories.reduce((total, category) => total + category.tokens, 0);
+    const explicitTotal = explicitCategories.reduce(
+      (total, category) => total + category.tokens,
+      0,
+    );
     const uncategorizedTokens = Math.max(0, Math.round(usage.usedTokens - explicitTotal));
     if (uncategorizedTokens > 0) {
       return [
@@ -136,26 +134,6 @@ function contextUsageCategories(usage: ContextWindowSnapshot): ContextUsageCateg
       tokens: Math.round(usage.usedTokens),
     },
   ];
-}
-
-function ContextUsagePlaceholderRing() {
-  return (
-    <span
-      className="inline-flex size-4 shrink-0 items-center justify-center text-multi-fg-tertiary"
-      aria-hidden
-    >
-      <svg className="size-4" viewBox="0 0 24 24" fill="none">
-        <circle
-          cx="12"
-          cy="12"
-          r="8.75"
-          stroke="currentColor"
-          strokeWidth="3"
-          opacity="0.55"
-        />
-      </svg>
-    </span>
-  );
 }
 
 function ContextUsagePopoverHeader() {
@@ -187,14 +165,14 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
               size="xs"
               variant="ghost"
               className={cn(
-                "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-multi-fg-tertiary opacity-65 shadow-none tabular-nums",
-                "hover:bg-transparent hover:text-multi-fg-primary hover:opacity-100 data-pressed:bg-transparent",
+                "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-multi-fg-tertiary shadow-none tabular-nums",
+                "hover:bg-transparent hover:text-multi-fg-primary data-pressed:bg-transparent",
               )}
               aria-label="Show context usage, no usage reported yet"
               title="No context usage reported yet"
             >
-              <ContextUsagePlaceholderRing />
-              <span className="min-w-0">-</span>
+              <ContextUsageEmptyRing size="xs" />
+              <span className="min-w-0 opacity-65">-</span>
             </Button>
           }
         />
@@ -223,8 +201,7 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
   const categories = contextUsageCategories(usage);
   const percentageLabel = formatContextUsagePercentage(usedPercentage);
   const summaryLabel = formatContextUsageSummary(usage);
-  const roundedPercentage =
-    usedPercentage !== null ? `${Math.round(usedPercentage)}% Full` : null;
+  const roundedPercentage = usedPercentage !== null ? `${Math.round(usedPercentage)}% Full` : null;
   const usedLabel = `~${formatContextUsageTokensCompact(usage.usedTokens)}`;
   const maxLabel = formatContextUsageTokensCompact(maxTokens);
   const remainderTokens =
@@ -241,14 +218,14 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
             size="xs"
             variant="ghost"
             className={cn(
-              "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-multi-fg-tertiary opacity-65 shadow-none tabular-nums",
-              "hover:bg-transparent hover:text-multi-fg-primary hover:opacity-100 data-pressed:bg-transparent",
+              "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-multi-fg-tertiary shadow-none tabular-nums",
+              "hover:bg-transparent hover:text-multi-fg-primary data-pressed:bg-transparent",
             )}
             aria-label={`Show context usage, ${summaryLabel}`}
             title={summaryLabel}
           >
             <ContextWindowRing usage={usage} size="xs" />
-            <span className="min-w-0">{percentageLabel ?? "-"}</span>
+            <span className="min-w-0 opacity-65">{percentageLabel ?? "-"}</span>
           </Button>
         }
       />
@@ -366,9 +343,7 @@ export function ComposerContextUsageBar(props: {
           </span>
         ) : null}
       </div>
-      {props.showContextUsageTrigger ? (
-        <ContextUsagePopover usage={props.usage} />
-      ) : null}
+      {props.showContextUsageTrigger ? <ContextUsagePopover usage={props.usage} /> : null}
     </div>
   );
 }

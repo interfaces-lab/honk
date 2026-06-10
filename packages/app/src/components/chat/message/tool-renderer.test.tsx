@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasRenderableText,
   hasShellToolPotentialOutput,
+  isEditStatusSummary,
   resolveEffectiveToolCallDensity,
   resolveStreamingShellOutput,
   ToolCallRenderer,
@@ -38,9 +39,9 @@ describe("tool renderer shell output helpers", () => {
 
 describe("tool renderer conversation density", () => {
   it("forces detailed layout while approval is pending", () => {
-    expect(
-      resolveEffectiveToolCallDensity("compact-all-grouped", { status: "pending" }),
-    ).toBe("detailed");
+    expect(resolveEffectiveToolCallDensity("compact-all-grouped", { status: "pending" })).toBe(
+      "detailed",
+    );
   });
 
   it("renders compact shells as text-only lines", () => {
@@ -123,7 +124,7 @@ describe("tool renderer conversation density", () => {
     );
 
     expect(html).toContain("data-search-tool-call");
-    expect(html).toContain("data-search-tool-flavor=\"grep\"");
+    expect(html).toContain('data-search-tool-flavor="grep"');
     expect(html).toContain("2 matches in 1 file");
     expect(html).not.toContain("100 files");
     expect(html).toContain("packages/app/src/session-logic.ts");
@@ -164,9 +165,114 @@ describe("tool renderer conversation density", () => {
     );
 
     expect(html).toContain("data-search-tool-call");
-    expect(html).toContain("data-search-tool-flavor=\"find\"");
+    expect(html).toContain('data-search-tool-flavor="find"');
     expect(html).toContain("2 of 40 files + more");
     expect(html).not.toContain("100 files");
     expect(html).toContain("modified in git");
+  });
+
+  it("renders detailed edits with diff artifacts in a bordered preview", () => {
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "editToolCall",
+            value: {
+              action: "Edited",
+              details: "math.ts",
+              path: "math.ts",
+              stats: { additions: 4, deletions: 1 },
+              artifacts: [
+                {
+                  type: "diff",
+                  format: "unified",
+                  source: "preview",
+                  files: [{ path: "math.ts", additions: 4, deletions: 1 }],
+                  unifiedDiff: "@@ -1,3 +1,3 @@\n-old line\n+new line\n",
+                },
+              ],
+            },
+          },
+        }}
+        conversationDensity="detailed"
+      />,
+    );
+
+    expect(html).toContain("border-multi-stroke-secondary");
+    expect(html).toContain("-old line");
+  });
+
+  it("does not auto-open bordered previews for runtime status-only edit output", () => {
+    const status = "Successfully replaced 2 block(s) in packages/app/src/chat-view.tsx";
+    expect(isEditStatusSummary(status)).toBe(true);
+
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "editToolCall",
+            value: {
+              action: "Edited",
+              details: "chat-view.tsx",
+              path: "chat-view.tsx",
+              output: status,
+              stats: { additions: 2, deletions: 0 },
+            },
+          },
+        }}
+        conversationDensity="detailed"
+      />,
+    );
+
+    expect(html).not.toContain("border-multi-stroke-secondary");
+    expect(html).not.toContain(status);
+  });
+
+  it("renders compact grouped edits as header-only lines until expanded", () => {
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "editToolCall",
+            value: {
+              action: "Edited",
+              details: "math.ts",
+              path: "math.ts",
+              output: "@@ -1 +1 @@\n-old\n+new",
+              stats: { additions: 1, deletions: 1 },
+            },
+          },
+        }}
+        conversationDensity="compact-all-grouped"
+      />,
+    );
+
+    expect(html).toContain("data-tool-call-line");
+    expect(html).not.toContain("border-multi-stroke-secondary");
+  });
+
+  it("switches shell markers when density changes without changing tool payload", () => {
+    const toolCall = {
+      tool: {
+        case: "shellToolCall" as const,
+        value: {
+          action: "Ran",
+          details: "git status --short",
+          command: "git status --short",
+          output: "M file.ts",
+        },
+      },
+    };
+    const compactHtml = renderToStaticMarkup(
+      <ToolCallRenderer toolCall={toolCall} conversationDensity="compact-all-grouped" />,
+    );
+    const detailedHtml = renderToStaticMarkup(
+      <ToolCallRenderer toolCall={toolCall} conversationDensity="detailed" />,
+    );
+
+    expect(compactHtml).toContain("data-tool-call-line");
+    expect(compactHtml).not.toContain("data-shell-tool-call-output");
+    expect(detailedHtml).toContain("data-shell-tool-call");
+    expect(detailedHtml).toContain("data-shell-tool-call-output");
   });
 });

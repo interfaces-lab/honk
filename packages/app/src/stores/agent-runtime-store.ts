@@ -13,6 +13,7 @@ import { create } from "zustand";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
 import { createEmptyRuntimeHostSnapshot, readMultiRuntimeApi } from "../lib/multi-runtime-api";
+import { resetRuntimeThreadHydrationCache } from "../lib/runtime-turn-dispatch";
 import { runtimeParentToolDisplaySignature } from "../lib/runtime-tool-display";
 import { useComposerDraftStore } from "./chat-drafts";
 import { useStore, type EnvironmentState } from "./thread-store";
@@ -445,14 +446,17 @@ function normalizeRuntimeHostSnapshot(
     ...snapshot,
     runtimeEvents: retainRecentRuntimeEvents(snapshot.runtimeEvents),
     displayTimelines: previousSnapshot
-      ? preserveDisplayTimelineIdentities(snapshot.displayTimelines, previousSnapshot.displayTimelines)
+      ? preserveDisplayTimelineIdentities(
+          snapshot.displayTimelines,
+          previousSnapshot.displayTimelines,
+        )
       : snapshot.displayTimelines,
     pendingExtensionUiRequests:
       previousSnapshot &&
-        arePendingExtensionUiRequestsEqual(
-          previousSnapshot.pendingExtensionUiRequests,
-          snapshot.pendingExtensionUiRequests,
-        )
+      arePendingExtensionUiRequestsEqual(
+        previousSnapshot.pendingExtensionUiRequests,
+        snapshot.pendingExtensionUiRequests,
+      )
         ? previousSnapshot.pendingExtensionUiRequests
         : [...snapshot.pendingExtensionUiRequests],
   };
@@ -550,7 +554,10 @@ export function selectPendingExtensionUiRequestsForThread(
   threadId: ThreadId | null | undefined,
 ): readonly DesktopExtensionUiRequest[] {
   const source = state.snapshot.pendingExtensionUiRequests;
-  if (source === lastPendingExtensionUiRequestsSource && threadId === lastPendingExtensionUiRequestsThreadId) {
+  if (
+    source === lastPendingExtensionUiRequestsSource &&
+    threadId === lastPendingExtensionUiRequestsThreadId
+  ) {
     return lastPendingExtensionUiRequestsResult;
   }
 
@@ -588,5 +595,6 @@ export function startDesktopRuntimeHostSync(): () => void {
   return () => {
     disposed = true;
     unsubscribe();
+    resetRuntimeThreadHydrationCache();
   };
 }

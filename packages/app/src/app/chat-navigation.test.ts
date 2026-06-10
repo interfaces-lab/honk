@@ -2,11 +2,7 @@ import { EnvironmentId, ProjectId, ThreadId } from "@multi/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
-import {
-  DraftId,
-  useComposerDraftStore,
-  type DraftThreadState,
-} from "~/stores/chat-drafts";
+import { DraftId, useComposerDraftStore, type DraftThreadState } from "~/stores/chat-drafts";
 import { DEFAULT_INTERACTION_MODE } from "~/types";
 import { openChatIndex, openDraft, openThread } from "./chat-navigation";
 
@@ -26,6 +22,7 @@ function draftThreadState(): DraftThreadState {
     projectId,
     logicalProjectKey: "git:/repo",
     createdAt: "2026-06-08T00:00:00.000Z",
+    updatedAt: "2026-06-08T00:00:00.000Z",
     interactionMode: DEFAULT_INTERACTION_MODE,
     branch: null,
     worktreePath: null,

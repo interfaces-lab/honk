@@ -21,7 +21,17 @@ export function normalizeConversationDensity(
   if (density === "minimal") {
     return DEFAULT_CONVERSATION_DENSITY;
   }
+  if (density === "compact-shells") {
+    return "compact-ungrouped";
+  }
+  if (density === "compact-grouped") {
+    return "compact-all-grouped";
+  }
   return density;
+}
+
+export function shouldGroupToolCalls(density: ConversationDensity): boolean {
+  return GROUPED_DENSITIES.has(density);
 }
 
 export function toUserConversationDensity(density: ConversationDensity): UserConversationDensity {

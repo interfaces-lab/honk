@@ -23,13 +23,11 @@ import {
   type SubagentTraySelection,
 } from "../../../../stores/subagent-tray-store";
 import {
+  refreshSubagentActivityProjection,
   selectSubagentProjection,
   useSubagentActivityStore,
 } from "../../../../stores/subagent-activity-store";
-import {
-  StepRenderer,
-  type StepRendererContext,
-} from "../../timeline/step-renderer";
+import { StepRenderer, type StepRendererContext } from "../../timeline/step-renderer";
 import { type TimelineStep } from "../../timeline/timeline-render-items";
 
 const EMPTY_SUBAGENT_LOGS: ReadonlyArray<WorkLogSubagentLog> = [];
@@ -125,11 +123,14 @@ function SubagentTrayActiveThreadSync({
   return null;
 }
 
-function SubagentTray(props: {
-  selection: SubagentTraySelection;
-  onClose: () => void;
-}) {
+function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => void }) {
   const { selection, onClose } = props;
+  useEffect(() => {
+    refreshSubagentActivityProjection({
+      environmentId: selection.environmentId,
+      threadId: selection.activeThreadId,
+    });
+  }, [selection.activeThreadId, selection.environmentId, selection.key]);
   const subagent = useFocusedSubagent(selection);
   const title = subagent?.title ?? subagent?.nickname ?? subagent?.role ?? "Subagent";
   const subagentThreadId = subagent?.subagentThreadId ?? selection.subagentThreadId;
@@ -188,17 +189,16 @@ function SubagentTrayBody(props: {
   const { activeThreadId, environmentId, projectRoot } = props.selection;
   const { subagent } = props;
   const transcriptItems = subagent?.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
+  const logs = subagent?.logs ?? EMPTY_SUBAGENT_LOGS;
   const renderableTranscriptItems = transcriptItems.filter(hasRenderableSubagentTranscriptItem);
   const hasActivityTranscript = renderableTranscriptItems.length > 0;
-  const hasCanonicalTranscript = hasActivityTranscript;
-  const logs = subagent?.logs ?? EMPTY_SUBAGENT_LOGS;
-  const runningLogs = deriveVisibleSubagentLogs(logs, hasCanonicalTranscript);
+  const runningLogs = deriveVisibleSubagentLogs(logs, hasActivityTranscript);
   const streamingLogId = runningLogs.at(-1)?.id;
 
   return (
     <div
       data-subagent-tray-body=""
-      className="flex min-h-0 min-w-0 flex-1 flex-col gap-(--chat-timeline-step-gap) overflow-y-auto overscroll-contain px-3 py-2 text-conversation text-multi-fg-primary"
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-(--chat-timeline-step-gap) px-3 py-2 text-conversation text-multi-fg-primary"
     >
       {hasActivityTranscript ? (
         <SubagentActivityTranscriptSection
@@ -237,19 +237,18 @@ function useFocusedSubagent(selection: SubagentTraySelection): WorkLogSubagent |
     if (!subagentThreadId) {
       return null;
     }
-    return selectSubagentProjection(state, {
-      environmentId: selection.environmentId,
-      threadId: selection.activeThreadId,
-    }).subagentById[subagentThreadId] ?? null;
+    return (
+      selectSubagentProjection(state, {
+        environmentId: selection.environmentId,
+        threadId: selection.activeThreadId,
+      }).subagentById[subagentThreadId] ?? null
+    );
   });
 }
 
 function selectedSubagentThreadId(selection: SubagentTraySelection): string | null {
   return (
-    selection.subagentThreadId?.trim() ||
-    selection.threadId?.trim() ||
-    selection.key.trim() ||
-    null
+    selection.subagentThreadId?.trim() || selection.threadId?.trim() || selection.key.trim() || null
   );
 }
 
@@ -354,28 +353,15 @@ export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow
     ) : null;
   }
 
-  if (item.kind === "command") {
-    const step = subagentTranscriptItemStep(item, isStreaming);
-    return step ? (
+  if (item.kind === "command" || item.kind === "tool") {
+    return (
       <SubagentTimelineStep
         activeThreadId={activeThreadId}
         environmentId={environmentId}
         projectRoot={projectRoot}
-        step={step}
+        step={subagentTranscriptItemStep(item, isStreaming)}
       />
-    ) : null;
-  }
-
-  if (isSubagentToolTranscriptItem(item)) {
-    const step = subagentTranscriptItemStep(item, isStreaming);
-    return step ? (
-      <SubagentTimelineStep
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        step={step}
-      />
-    ) : null;
+    );
   }
 
   return (
@@ -414,6 +400,7 @@ function areSameSubagentTranscriptItem(
     previous.command === next.command &&
     previous.rawCommand === next.rawCommand &&
     previous.output === next.output &&
+    previous.changedFiles?.join("\u0000") === next.changedFiles?.join("\u0000") &&
     previous.itemType === next.itemType &&
     previous.status === next.status &&
     previous.streamKind === next.streamKind &&
@@ -456,11 +443,8 @@ function noopImageExpand(): void {
 function subagentTranscriptItemStep(
   item: SubagentTranscriptItem,
   isStreaming: boolean,
-): TimelineStep | null {
+): TimelineStep {
   const workEntry = subagentTranscriptItemToWorkEntry(item, isStreaming);
-  if (!workEntry) {
-    return null;
-  }
   return subagentWorkStep(`subagent-tool-step:${item.id}`, item.createdAt, workEntry);
 }
 
@@ -515,10 +499,6 @@ function subagentWorkStep(id: string, createdAt: string, entry: WorkLogEntry): T
   };
 }
 
-function isSubagentToolTranscriptItem(item: SubagentTranscriptItem): boolean {
-  return isToolLifecycleItemType(item.itemType ?? "");
-}
-
 export function hasRenderableSubagentTranscriptItem(item: SubagentTranscriptItem): boolean {
   if (subagentTranscriptMessageRole(item)) {
     return Boolean(item.text?.trim());
@@ -532,7 +512,7 @@ export function hasRenderableSubagentTranscriptItem(item: SubagentTranscriptItem
   if (item.itemType === "collab_agent_tool_call") {
     return false;
   }
-  if (isSubagentToolTranscriptItem(item)) {
+  if (item.kind === "tool") {
     return true;
   }
   return Boolean(item.text?.trim());
@@ -577,13 +557,10 @@ function isSubagentReasoningTranscriptItem(item: SubagentTranscriptItem): boolea
 function subagentTranscriptItemToWorkEntry(
   item: SubagentTranscriptItem,
   isStreaming: boolean,
-): WorkLogEntry | null {
+): WorkLogEntry {
   const itemType =
     item.kind === "command" ? "command_execution" : toToolLifecycleItemType(item.itemType);
-  if (!itemType) {
-    return null;
-  }
-  const label = item.title ?? formatSnapshotTypeLabel(itemType);
+  const label = item.title ?? formatSnapshotTypeLabel(itemType ?? item.itemType ?? item.kind);
   const status = resolveSubagentToolStatus(item.status, isStreaming || item.loading);
   return {
     id: `subagent-tool:${item.id}`,
@@ -592,11 +569,12 @@ function subagentTranscriptItemToWorkEntry(
     tone: status === "error" ? "error" : "tool",
     status,
     toolCallId: item.itemId,
-    itemType,
+    ...(itemType ? { itemType } : {}),
     ...(item.text ? { detail: item.text } : {}),
     ...(item.command ? { command: item.command } : {}),
     ...(item.rawCommand ? { rawCommand: item.rawCommand } : {}),
     ...(item.output ? { output: item.output } : {}),
+    ...(item.changedFiles?.length ? { changedFiles: item.changedFiles } : {}),
     ...(item.title ? { toolTitle: item.title } : {}),
   };
 }

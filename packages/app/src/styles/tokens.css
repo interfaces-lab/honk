@@ -23,6 +23,8 @@
   --multi-leading-body: calc(var(--multi-ui-font-size-user, 13px) + 3px);
   --multi-leading-title: calc(var(--multi-ui-font-size-user, 13px) + 5px);
   --multi-leading-heading: calc(var(--multi-ui-font-size-user, 13px) + 8px);
+  /* Cursor `.markdown-root.markdown-normalized` heading line height (unitless ratio). */
+  --multi-leading-conversation-normalized: 1.42;
   /* Border radius */
   --multi-radius-control: 6px;
   --multi-radius-card: var(--multi-radius-card-user, 10px);
@@ -249,11 +251,7 @@
 html {
   --multi-interactive-surface: var(--multi-base-chrome);
   --multi-chat-surface-background: var(--multi-color-chat);
-  --multi-pane-surface-background: color-mix(
-    in srgb,
-    var(--multi-color-editor-opaque) 96%,
-    #fff
-  );
+  --multi-pane-surface-background: color-mix(in srgb, var(--multi-color-editor-opaque) 96%, #fff);
   /* Cursor keeps composer chrome and human bubbles on separate neutral lanes. */
   --multi-input-surface-opaque: var(--input);
   --multi-input-surface: var(--multi-input-surface-opaque);
@@ -362,7 +360,11 @@ html {
   --cursor-text-red-primary: var(--cursor-red);
   --cursor-text-orange-primary: color-mix(in oklch, var(--warning) 74%, var(--destructive));
   --cursor-text-cyan-primary: var(--primary);
-  --multi-git-status-added: color-mix(in srgb, var(--cursor-text-green-primary) 86%, var(--foreground));
+  --multi-git-status-added: color-mix(
+    in srgb,
+    var(--cursor-text-green-primary) 86%,
+    var(--foreground)
+  );
   --multi-git-status-deleted: var(--cursor-text-red-primary);
   --multi-git-status-modified: var(--cursor-text-orange-primary);
   --multi-git-status-renamed: var(--cursor-text-cyan-primary);
@@ -449,9 +451,7 @@ body[data-multi-glass-mode="true"] [data-component="root"] {
   --multi-glass-sidebar-surface-background: var(--cursor-bg-sidebar);
   --multi-glass-chat-surface-background: var(--cursor-bg-chrome);
   --multi-glass-editor-surface-background: var(--cursor-bg-chrome);
-  --multi-vibrancy-off-sidebar-surface-background: var(
-    --multi-glass-sidebar-surface-background
-  );
+  --multi-vibrancy-off-sidebar-surface-background: var(--multi-glass-sidebar-surface-background);
   --multi-vibrancy-off-chat-surface-background: var(--multi-glass-chat-surface-background);
   --multi-vibrancy-off-editor-surface-background: var(--multi-glass-editor-surface-background);
   --multi-vibrancy-on-sidebar-surface-background: color-mix(

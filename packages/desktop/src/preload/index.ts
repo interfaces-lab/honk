@@ -1,8 +1,4 @@
-import {
-  contextBridge,
-  ipcRenderer,
-  type IpcRendererEvent,
-} from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type {
   DesktopAppBranding,
   DesktopBridge,
@@ -19,6 +15,7 @@ const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
 const SET_BACKGROUND_COLOR_CHANNEL = "desktop:set-background-color";
 const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
+const SET_DISPLAY_ZOOM_CHANNEL = "desktop:set-display-zoom";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
@@ -117,6 +114,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setTheme: (theme) => ipcRenderer.invoke(SET_THEME_CHANNEL, theme),
   setBackgroundColor: (color) => ipcRenderer.invoke(SET_BACKGROUND_COLOR_CHANNEL, color),
   setVibrancy: (enabled) => ipcRenderer.invoke(SET_VIBRANCY_CHANNEL, enabled),
+  setDisplayZoom: (factor) => ipcRenderer.invoke(SET_DISPLAY_ZOOM_CHANNEL, factor),
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
   onMenuAction: (listener) => {

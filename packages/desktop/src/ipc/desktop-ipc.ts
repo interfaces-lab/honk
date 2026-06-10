@@ -9,14 +9,7 @@ export interface DesktopIpcSyncEvent {
   returnValue: unknown;
 }
 
-export type DesktopIpcHandleResult =
-  | void
-  | boolean
-  | string
-  | number
-  | object
-  | null
-  | undefined;
+export type DesktopIpcHandleResult = void | boolean | string | number | object | null | undefined;
 
 export type DesktopIpcHandleListener = (
   event: DesktopIpcInvokeEvent,

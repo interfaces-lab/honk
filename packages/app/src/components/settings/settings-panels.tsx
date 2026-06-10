@@ -1,4 +1,11 @@
-import { IconArchive1, IconArchiveJunk } from "central-icons";
+import {
+  IconArchive1,
+  IconArchiveJunk,
+  IconCheckmark1,
+  IconChevronDownSmall,
+  IconClawd,
+  IconOpenaiCodex,
+} from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -8,6 +15,7 @@ import {
   type AgentCredentialKind,
   type AgentCredentialPreference,
   type AgentInteractionMode,
+  type AgentMode,
   type AgentPreferencesPatch,
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
@@ -47,12 +55,34 @@ import {
 } from "../../stores/thread-store";
 import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
 import { Button } from "@multi/multikit/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/multikit/empty";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@multi/multikit/empty";
 import { Input } from "@multi/multikit/input";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/multikit/select";
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
+  MenuTrigger,
+} from "@multi/multikit/menu";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@multi/multikit/select";
 import { Switch } from "@multi/multikit/switch";
 import { Text, textVariants } from "@multi/multikit/text";
 import { toastManager } from "~/app/toast";
+import { cn } from "~/lib/utils";
 import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
@@ -109,7 +139,7 @@ function AboutVersionTitle() {
       weight="medium"
     >
       <span>Version</span>
-      <code className="font-multi-mono text-multi-code font-medium text-multi-fg-secondary">
+      <code className="font-multi-mono text-multi-sm font-medium text-multi-fg-secondary">
         {APP_VERSION}
       </code>
     </Text>
@@ -449,7 +479,7 @@ export function GeneralSettingsPanel() {
           description="Open the persisted keybindings file to edit advanced bindings directly."
           status={
             <>
-              <span className="block break-all font-multi-mono text-multi-code text-multi-fg-secondary">
+              <span className="block break-all font-multi-mono text-multi-sm text-multi-fg-secondary">
                 {keybindingsConfigPath ?? "Resolving keybindings path..."}
               </span>
               {openPathErrorByTarget.keybindings ? (
@@ -492,7 +522,7 @@ export function GeneralSettingsPanel() {
           description={diagnosticsDescription}
           status={
             <>
-              <span className="block break-all font-multi-mono text-multi-code text-multi-fg-secondary">
+              <span className="block break-all font-multi-mono text-multi-sm text-multi-fg-secondary">
                 {logsDirectoryPath ?? "Resolving logs directory..."}
               </span>
               {openPathErrorByTarget.logsDirectory ? (
@@ -799,6 +829,27 @@ const AGENT_INTERACTION_MODE_OPTIONS = AGENT_INTERACTION_MODES.map((value) => ({
   label: AGENT_INTERACTION_MODE_LABELS[value] ?? value,
 }));
 
+const AGENT_MODE_MODEL_DETAILS: Record<
+  AgentMode,
+  {
+    readonly modelName: string;
+    readonly description: string;
+  }
+> = {
+  deep: {
+    modelName: "GPT-5.5",
+    description: "Most capable coding mode, with deep reasoning.",
+  },
+  smart: {
+    modelName: "Claude Opus 4.8",
+    description: "Strong intelligence for any task.",
+  },
+  rush: {
+    modelName: "GPT-5.5",
+    description: "Fast, low-token work for small, well-defined tasks.",
+  },
+};
+
 const AGENT_AUTH_STATE_LABELS: Record<AgentAuthStatus["state"], string> = {
   available: "Available",
   missing: "Missing",
@@ -885,6 +936,191 @@ function resolveCredentialActionLabel(
 
 function isApiKeyCredential(credential: AgentCredentialPreference): boolean {
   return credential.kind !== "codex-oauth";
+}
+
+function isAnthropicCredentialAvailable(authStatuses: readonly AgentAuthStatus[]): boolean {
+  return authStatuses.some(
+    (status) => status.authProviderId === "anthropic" && status.state === "available",
+  );
+}
+
+function isCodexCredentialAvailable(authStatuses: readonly AgentAuthStatus[]): boolean {
+  return authStatuses.some(
+    (status) =>
+      (status.authProviderId === "openai-codex" || status.authProviderId === "openai") &&
+      status.state === "available",
+  );
+}
+
+function AgentModeIcon({ mode, className }: { mode: AgentMode; className?: string }) {
+  const Icon = mode === "smart" ? IconClawd : IconOpenaiCodex;
+
+  return <Icon className={className} aria-hidden />;
+}
+
+function isAgentModeAvailable(
+  mode: AgentMode,
+  availability: { anthropic: boolean; codex: boolean },
+): boolean {
+  return mode === "smart" ? availability.anthropic : availability.codex;
+}
+
+function unavailableAgentModeReason(
+  mode: AgentMode,
+  availability: { anthropic: boolean; codex: boolean },
+): string | null {
+  if (isAgentModeAvailable(mode, availability)) {
+    return null;
+  }
+  return mode === "smart"
+    ? "Requires a Claude API Key in Pi auth storage."
+    : "Requires Codex OAuth or a Codex API Key in Pi auth storage.";
+}
+
+function AgentModeSelector({
+  activeMode,
+  availability,
+  disabled,
+  onSelectMode,
+}: {
+  activeMode: AgentMode;
+  availability: { anthropic: boolean; codex: boolean };
+  disabled: boolean;
+  onSelectMode: (mode: AgentMode) => void;
+}) {
+  const activeDetails = AGENT_MODE_MODEL_DETAILS[activeMode];
+
+  return (
+    <Menu>
+      <MenuTrigger
+        type="button"
+        className={cn(
+          "inline-flex h-7 min-w-43 max-w-full items-center gap-1.5 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2 text-body text-multi-fg-secondary outline-hidden transition-colors",
+          "hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused disabled:pointer-events-none disabled:opacity-50",
+        )}
+        aria-label="Agent mode"
+        disabled={disabled}
+      >
+        <AgentModeIcon mode={activeMode} className="size-3.5 shrink-0 text-multi-icon-secondary" />
+        <span className="min-w-0 truncate text-multi-fg-primary">
+          {AGENT_MODE_LABELS[activeMode]}
+        </span>
+        <span className="hidden shrink-0 text-detail text-multi-fg-tertiary sm:inline">
+          {activeDetails.modelName}
+        </span>
+        <IconChevronDownSmall className="ml-auto size-3 shrink-0 text-multi-icon-tertiary" />
+      </MenuTrigger>
+      <MenuPopup
+        align="end"
+        alignOffset={0}
+        side="bottom"
+        sideOffset={4}
+        variant="workbench"
+        className="w-[240px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
+      >
+        {AGENT_MODE_OPTIONS.map((option) => {
+          const details = AGENT_MODE_MODEL_DETAILS[option.value];
+          const selected = option.value === activeMode;
+          const unavailableReason = unavailableAgentModeReason(option.value, availability);
+          const optionDisabled = disabled || unavailableReason !== null;
+          const thinkingLevel = AGENT_MODE_THINKING_LEVELS[option.value];
+          const effortLabel =
+            thinkingLevel === "off"
+              ? "No thinking"
+              : `${AGENT_THINKING_LEVEL_LABELS[thinkingLevel]} effort`;
+
+          const content = (
+            <>
+              <AgentModeIcon
+                mode={option.value}
+                className="mt-0.5 size-3.5 shrink-0 text-multi-icon-secondary"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-multi-fg-primary">{option.label}</span>
+                  <span className="shrink-0 text-detail text-multi-fg-tertiary">
+                    {details.modelName}
+                  </span>
+                </span>
+                <span className="block truncate text-detail text-multi-fg-tertiary">
+                  {unavailableReason ?? effortLabel}
+                </span>
+              </span>
+              {selected ? <IconCheckmark1 className="size-3 shrink-0" aria-hidden /> : null}
+            </>
+          );
+
+          if (optionDisabled) {
+            return (
+              <MenuItem
+                key={option.value}
+                variant="workbench"
+                className="min-h-9 gap-2 opacity-50"
+                disabled
+              >
+                {content}
+              </MenuItem>
+            );
+          }
+
+          return (
+            <MenuSub key={option.value}>
+              <MenuSubTrigger
+                variant="workbench"
+                className="min-h-9 gap-2 pe-1 transition-none [&>svg:last-child]:hidden"
+                onPointerDownCapture={() => onSelectMode(option.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    onSelectMode(option.value);
+                  }
+                }}
+              >
+                {content}
+              </MenuSubTrigger>
+              <MenuSubPopup
+                variant="workbench"
+                side="inline-end"
+                className="w-[220px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
+              >
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center gap-1.5 text-body font-medium text-multi-fg-primary">
+                    <AgentModeIcon
+                      mode={option.value}
+                      className="size-4 shrink-0 text-multi-icon-secondary"
+                    />
+                    <span>{details.modelName}</span>
+                  </div>
+                  <p className="mt-1 text-body text-multi-fg-secondary">{details.description}</p>
+                  <p className="mt-2 text-detail text-multi-fg-tertiary">{effortLabel}</p>
+                </div>
+              </MenuSubPopup>
+            </MenuSub>
+          );
+        })}
+      </MenuPopup>
+    </Menu>
+  );
+}
+
+function AgentModeInlineSummary({
+  mode,
+  availability,
+}: {
+  mode: AgentMode;
+  availability: { anthropic: boolean; codex: boolean };
+}) {
+  const details = AGENT_MODE_MODEL_DETAILS[mode];
+  const unavailableReason = unavailableAgentModeReason(mode, availability);
+
+  return (
+    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-detail text-multi-fg-tertiary">
+      <AgentModeIcon mode={mode} className="size-3 shrink-0 text-multi-icon-tertiary" />
+      <span className="truncate">
+        {details.modelName}
+        {unavailableReason ? ` unavailable. ${unavailableReason}` : ""}
+      </span>
+    </span>
+  );
 }
 
 function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
@@ -984,7 +1220,7 @@ function CredentialApiKeyForm({
 
   return (
     <form
-      className="mt-3 rounded-md border border-multi-stroke-tertiary bg-multi-bg-quaternary px-3 py-2.5"
+      className="mt-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (trimmedDraft.length > 0) {
@@ -998,7 +1234,7 @@ function CredentialApiKeyForm({
       >
         API key
       </label>
-      <div className="mt-2 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="mt-1.5 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           id={inputId}
           type="password"
@@ -1055,6 +1291,10 @@ export function AgentRuntimeSettingsSectionsView({
   const preferences = snapshot.preferences;
   const authStatuses = snapshot.authStatuses;
   const authFlows = snapshot.credentialAuthFlows;
+  const modelAvailability = {
+    anthropic: isAnthropicCredentialAvailable(authStatuses),
+    codex: isCodexCredentialAvailable(authStatuses),
+  };
   const [isSaving, setIsSaving] = useState(false);
   const [pendingCredentialKind, setPendingCredentialKind] = useState<AgentCredentialKind | null>(
     null,
@@ -1127,9 +1367,7 @@ export function AgentRuntimeSettingsSectionsView({
         delete next[credential.kind];
         return next;
       });
-      setEditingApiKeyCredentialKind((current) =>
-        current === credential.kind ? null : current,
-      );
+      setEditingApiKeyCredentialKind((current) => (current === credential.kind ? null : current));
     } catch (error: unknown) {
       toastManager.add({
         type: "error",
@@ -1174,37 +1412,25 @@ export function AgentRuntimeSettingsSectionsView({
       <SettingsSection title="Pi runtime">
         <SettingsRow
           title="Agent mode"
-          description="Default speed/depth posture for new Pi sessions."
+          description="Default model posture for new Pi sessions."
+          status={
+            <AgentModeInlineSummary mode={preferences.agentMode} availability={modelAvailability} />
+          }
           control={
-            <Select
-              value={preferences.agentMode}
-              onValueChange={(value) => {
-                const option = AGENT_MODE_OPTIONS.find((entry) => entry.value === value);
-                if (option) {
-                  updateAgentPreferences({
-                    agentMode: option.value,
-                    thinkingLevel: AGENT_MODE_THINKING_LEVELS[option.value],
-                  });
+            <AgentModeSelector
+              activeMode={preferences.agentMode}
+              availability={modelAvailability}
+              disabled={isSaving}
+              onSelectMode={(agentMode) => {
+                if (agentMode === preferences.agentMode) {
+                  return;
                 }
+                updateAgentPreferences({
+                  agentMode,
+                  thinkingLevel: AGENT_MODE_THINKING_LEVELS[agentMode],
+                });
               }}
-            >
-              <SelectTrigger
-                size="xs"
-                variant="outline"
-                className="w-full sm:w-34"
-                aria-label="Agent mode"
-                disabled={isSaving}
-              >
-                <SelectValue>{AGENT_MODE_LABELS[preferences.agentMode]}</SelectValue>
-              </SelectTrigger>
-              <SelectPopup align="end" alignItemWithTrigger={false}>
-                {AGENT_MODE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} hideIndicator value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectPopup>
-            </Select>
+            />
           }
         />
         {agentModeSupportsThinkingLevelSelection(preferences.agentMode) ? (
@@ -1215,7 +1441,9 @@ export function AgentRuntimeSettingsSectionsView({
               <Select
                 value={normalizedConfigurableThinkingLevel(preferences.thinkingLevel)}
                 onValueChange={(value) => {
-                  const option = AGENT_THINKING_LEVEL_OPTIONS.find((entry) => entry.value === value);
+                  const option = AGENT_THINKING_LEVEL_OPTIONS.find(
+                    (entry) => entry.value === value,
+                  );
                   if (option) {
                     updateAgentPreferences({
                       thinkingLevel: option.value,
@@ -1231,9 +1459,11 @@ export function AgentRuntimeSettingsSectionsView({
                   disabled={isSaving}
                 >
                   <SelectValue>
-                    {AGENT_THINKING_LEVEL_LABELS[
-                      normalizedConfigurableThinkingLevel(preferences.thinkingLevel)
-                    ]}
+                    {
+                      AGENT_THINKING_LEVEL_LABELS[
+                        normalizedConfigurableThinkingLevel(preferences.thinkingLevel)
+                      ]
+                    }
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -1395,7 +1625,6 @@ export function AgentRuntimeSettingsSectionsView({
         <SettingsRow
           title="Session tree"
           description="Runtime session trees are persisted and rendered for branch navigation."
-          status="Always on"
         />
       </SettingsSection>
 
@@ -1403,20 +1632,16 @@ export function AgentRuntimeSettingsSectionsView({
         <SettingsRow
           title="Workspace files"
           description="Project files are available to Pi runtime tools."
-          status={preferences.resources.workspaceFiles ? "Active" : "Disabled"}
         />
         <SettingsRow
           title="Git"
           description="Repository context and git operations are available in runtime sessions."
-          status={preferences.resources.git ? "Active" : "Disabled"}
         />
         <SettingsRow
           title="Terminal"
           description="Shell-backed tools run through the desktop runtime environment."
-          status={preferences.resources.terminal ? "Active" : "Disabled"}
         />
       </SettingsSection>
-
     </>
   );
 }

@@ -24,10 +24,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { ConversationDensity } from "@multi/contracts/settings";
-import {
-  shouldUseCompactEdits,
-  shouldUseCompactShells,
-} from "@multi/shared/conversation-density";
+import { shouldUseCompactEdits, shouldUseCompactShells } from "@multi/shared/conversation-density";
 import {
   formatDuration,
   type ToolCommandArtifact,
@@ -80,6 +77,32 @@ export function resolveEffectiveToolCallDensity(
     return "detailed";
   }
   return density;
+}
+
+/** Runtime edit tools often emit agent status text in `output`, not diff bodies. */
+export function isEditStatusSummary(detail: string): boolean {
+  const trimmed = detail.trim();
+  if (/^Successfully replaced \d+ block\(s\) in /i.test(trimmed)) {
+    return true;
+  }
+  if (/^Successfully (?:applied|wrote|created|deleted|updated)/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+function hasEditExpandableContent(
+  detail: string | null,
+  path: string,
+  diffArtifact: ToolDiffArtifact | undefined,
+): boolean {
+  if (diffArtifact) {
+    return true;
+  }
+  if (!detail || detail === path) {
+    return false;
+  }
+  return !isEditStatusSummary(detail);
 }
 
 interface ShellToolExpansionState {
@@ -144,28 +167,22 @@ export interface ToolCallRendererProps {
   conversationDensity?: ConversationDensity | undefined;
 }
 
-const thinkingStatusTaskVariants = cva(
-  cn(
-    "min-w-0",
-    "text-detail text-multi-fg-tertiary",
-  ),
-  {
-    variants: {
-      active: {
-        false: "",
-        true: "tool-call-shimmer",
-      },
-      wrap: {
-        false: "overflow-hidden text-ellipsis whitespace-nowrap",
-        true: "whitespace-pre-wrap break-words wrap-anywhere",
-      },
+const thinkingStatusTaskVariants = cva(cn("min-w-0", "text-conversation text-multi-fg-tertiary"), {
+  variants: {
+    active: {
+      false: "",
+      true: "tool-call-shimmer",
     },
-    defaultVariants: {
-      active: false,
-      wrap: false,
+    wrap: {
+      false: "overflow-hidden text-ellipsis whitespace-nowrap",
+      true: "whitespace-pre-wrap break-words wrap-anywhere",
     },
   },
-);
+  defaultVariants: {
+    active: false,
+    wrap: false,
+  },
+});
 
 const editToolCallFilenameVariants = cva(
   cn(
@@ -544,10 +561,7 @@ function TaskToolCall({
       expanded={isExpanded}
       status={hasError ? "error" : loading ? "running" : "completed"}
     >
-      <ToolCallTaskHeader
-        aria-expanded={isExpanded}
-        onClick={toggleExpanded}
-      >
+      <ToolCallTaskHeader aria-expanded={isExpanded} onClick={toggleExpanded}>
         <ToolCallTaskStatusIcon>
           {loading ? (
             <IconClock className="tool-call-shimmer size-3.5" />
@@ -722,7 +736,7 @@ export function ExpandableToolMetadataLine({
             variant="ghost"
             className={cn(
               toolCallLineVariants({ clickable: true }),
-              "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+              "h-auto py-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
             )}
             data-tool-call-line=""
             aria-expanded={isExpanded}
@@ -735,10 +749,8 @@ export function ExpandableToolMetadataLine({
       </div>
       {showBody ? (
         <div
-          className={cn(
-            "mt-1 max-w-agent-chat",
-            "pl-[18px] font-mono text-conversation text-multi-fg-tertiary",
-          )}
+          className="mt-1 max-w-agent-chat font-mono text-conversation text-multi-fg-tertiary"
+          data-tool-call-line-body=""
         >
           {bodyText ? (
             <>
@@ -830,7 +842,9 @@ function SearchToolCall({
   const badgeText = formatSearchBadge(mode, artifact, parsedOutput);
   const headerInner = (
     <>
-      {showIcon ? <IconMagnifyingGlass className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+      {showIcon ? (
+        <IconMagnifyingGlass className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+      ) : null}
       <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
         {action}
       </span>
@@ -859,17 +873,13 @@ function SearchToolCall({
   }
 
   return (
-    <div
-      className="m-0 min-w-0 max-w-full"
-      data-search-tool-call=""
-      data-search-tool-flavor={mode}
-    >
+    <div className="m-0 min-w-0 max-w-full" data-search-tool-call="" data-search-tool-flavor={mode}>
       <Button
         type="button"
         variant="ghost"
         className={cn(
           toolCallLineVariants({ clickable: true }),
-          "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+          "h-auto py-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
         )}
         data-tool-call-line=""
         aria-expanded={isExpanded}
@@ -879,7 +889,7 @@ function SearchToolCall({
         <ToolCallLineChevron expanded={isExpanded} />
       </Button>
       {isExpanded ? (
-        <div className="mt-1 max-w-agent-chat pl-[18px]">
+        <div className="mt-1 max-w-agent-chat" data-tool-call-line-body="">
           <div className="max-h-[min(42vh,520px)] overflow-y-auto font-mono text-conversation text-multi-fg-tertiary">
             <SearchOutputBody parsedOutput={parsedOutput} fallbackText={outputText} />
           </div>
@@ -955,7 +965,10 @@ function FindOutputBody({ files }: { files: ReadonlyArray<ParsedFindFile> }) {
   return (
     <div className="min-w-0 py-0.5">
       {files.map((file) => (
-        <div key={`${file.path}:${file.annotation ?? ""}`} className="flex min-w-0 items-center gap-1.5 py-0.5">
+        <div
+          key={`${file.path}:${file.annotation ?? ""}`}
+          className="flex min-w-0 items-center gap-1.5 py-0.5"
+        >
           <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary select-text">
             {file.path}
           </span>
@@ -1075,8 +1088,7 @@ function ShellToolCall({
   const isExpanded = expandable && activeExpansionState.isExpanded;
   const showCollapsedOutputPreview =
     showCollapsedPreview && hasPotentialOutput && !isExpanded && !loading;
-  const showBody =
-    (isExpanded && hasContent) || showStreamingPreview || showCollapsedOutputPreview;
+  const showBody = (isExpanded && hasContent) || showStreamingPreview || showCollapsedOutputPreview;
 
   useEffect(() => {
     if (!defaultExpanded || !expandable) {
@@ -1124,9 +1136,7 @@ function ShellToolCall({
                   "m-0",
                   "px-(--conversation-tool-card-padding-x) py-1.5",
                   "font-mono text-conversation whitespace-pre-wrap",
-                  hasError
-                    ? "text-multi-fg-red-primary"
-                    : "text-multi-fg-tertiary",
+                  hasError ? "text-multi-fg-red-primary" : "text-multi-fg-tertiary",
                   "wrap-anywhere select-text",
                 )}
               >
@@ -1272,14 +1282,7 @@ export function hasRenderableText(text: string | null | undefined): boolean {
   }
   for (let index = 0; index < text.length; index += 1) {
     const char = text.charCodeAt(index);
-    if (
-      char !== 9 &&
-      char !== 10 &&
-      char !== 11 &&
-      char !== 12 &&
-      char !== 13 &&
-      char !== 32
-    ) {
+    if (char !== 9 && char !== 10 && char !== 11 && char !== 12 && char !== 13 && char !== 32) {
       return true;
     }
   }
@@ -1330,7 +1333,7 @@ function EditToolCall({
   compactLayout: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const hasContent = Boolean(detail) || Boolean(diffArtifact);
+  const hasContent = hasEditExpandableContent(detail, path, diffArtifact);
   const showCollapsedPreview = !compactLayout && hasContent && !isExpanded;
 
   const toggleExpanded = () => {
@@ -1351,8 +1354,9 @@ function EditToolCall({
             variant="ghost"
             className={cn(
               toolCallLineVariants({ clickable: true }),
-              "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+              "h-auto py-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
             )}
+            data-tool-call-line=""
             aria-label={isExpanded ? "Collapse edit details" : "Expand edit details"}
             aria-expanded={isExpanded}
             onClick={toggleExpanded}
@@ -1373,8 +1377,9 @@ function EditToolCall({
                 variant="ghost"
                 className={cn(
                   toolCallLineVariants({ clickable: true }),
-                  "h-auto p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+                  "h-auto py-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
                 )}
+                data-tool-call-line=""
                 onClick={() => onFileClick(path)}
               >
                 {showIcon ? (
@@ -1385,7 +1390,7 @@ function EditToolCall({
                 <EditStats stats={stats} />
               </Button>
             ) : (
-              <div className={toolCallLineVariants({ clickable: false })}>
+              <div className={toolCallLineVariants({ clickable: false })} data-tool-call-line="">
                 {showIcon ? (
                   <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
                 ) : null}
@@ -1397,29 +1402,31 @@ function EditToolCall({
           </>
         )}
       </div>
-      {((isExpanded && hasContent) || showCollapsedPreview) ? (
-        <div
-          className={cn(
-            "mt-1 max-w-agent-chat",
-            "overflow-hidden rounded-multi-control border border-multi-stroke-secondary",
-            "font-mono text-conversation text-multi-fg-tertiary",
-            showCollapsedPreview && "max-h-[var(--streaming-tool-output-preview-max-height)]",
-          )}
-          style={
-            showCollapsedPreview
-              ? ({
-                  "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
-                } as CSSProperties)
-              : undefined
-          }
-        >
-          {diffArtifact ? (
-            <InlineToolDiff artifact={diffArtifact} />
-          ) : (
-            <pre className="m-0 overflow-hidden whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5">
-              {detail}
-            </pre>
-          )}
+      {(isExpanded && hasContent) || showCollapsedPreview ? (
+        <div className="px-(--conversation-block-inset)">
+          <div
+            className={cn(
+              "mt-1 max-w-agent-chat",
+              "overflow-hidden rounded-multi-control border border-multi-stroke-secondary",
+              "font-mono text-conversation text-multi-fg-tertiary",
+              showCollapsedPreview && "max-h-[var(--streaming-tool-output-preview-max-height)]",
+            )}
+            style={
+              showCollapsedPreview
+                ? ({
+                    "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
+                  } as CSSProperties)
+                : undefined
+            }
+          >
+            {diffArtifact ? (
+              <InlineToolDiff artifact={diffArtifact} />
+            ) : (
+              <pre className="m-0 overflow-hidden whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5">
+                {detail}
+              </pre>
+            )}
+          </div>
         </div>
       ) : null}
     </div>

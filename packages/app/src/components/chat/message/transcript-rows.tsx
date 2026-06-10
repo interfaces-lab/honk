@@ -19,7 +19,7 @@ export function AssistantTranscriptRow({
   markdownCwd: string | undefined;
 }) {
   return (
-    <div className="box-border flex w-full min-w-0 px-0">
+    <div className="box-border flex w-full min-w-0" data-assistant-transcript-row="">
       <AssistantMessage message={message} markdownCwd={markdownCwd} />
     </div>
   );

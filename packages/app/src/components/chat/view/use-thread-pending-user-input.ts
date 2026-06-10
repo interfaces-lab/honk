@@ -25,7 +25,6 @@ const EMPTY_PENDING_USER_INPUTS: PendingUserInput[] = [];
 
 export interface UseThreadPendingUserInputArgs {
   composerRef: RefObject<ComposerInputHandle | null>;
-  promptRef: RefObject<string>;
   environmentId: EnvironmentId;
   activeThreadId: ThreadId | null;
   threadActivities: ReadonlyArray<OrchestrationThreadActivity>;
@@ -71,7 +70,6 @@ export function useThreadPendingUserInput(
 ): UseThreadPendingUserInputReturn {
   const {
     composerRef,
-    promptRef,
     environmentId,
     activeThreadId,
     threadActivities,
@@ -235,8 +233,7 @@ export function useThreadPendingUserInput(
           [activePendingUserInput.requestId]: nextRequestDraftAnswers,
         };
       });
-      promptRef.current = "";
-      composerRef.current?.resetCursorState({ cursor: 0 });
+      composerRef.current?.clearComposer();
 
       if (advanceAfterSelect) {
         onAdvanceActivePendingUserInput(nextRequestDraftAnswers);
@@ -247,7 +244,6 @@ export function useThreadPendingUserInput(
       composerRef,
       onAdvanceActivePendingUserInput,
       pendingUserInputAnswersByRequestId,
-      promptRef,
     ],
   );
 
@@ -262,7 +258,6 @@ export function useThreadPendingUserInput(
       if (!activePendingUserInput) {
         return;
       }
-      promptRef.current = value;
       setPendingUserInputAnswersByRequestId((existing) => ({
         ...existing,
         [activePendingUserInput.requestId]: {
@@ -282,7 +277,7 @@ export function useThreadPendingUserInput(
         composerRef.current?.focusAt(nextCursor);
       }
     },
-    [activePendingUserInput, composerRef, promptRef],
+    [activePendingUserInput, composerRef],
   );
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {

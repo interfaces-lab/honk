@@ -72,8 +72,11 @@ export function parseFindOutput(output: string): ParsedFindOutput | ParsedFallba
 
 function parseGroupedGrepOutput(text: string): ParsedGrepOutput {
   const files: ParsedGrepFile[] = [];
-  let currentFile: { path: string; annotation?: string | undefined; lines: ParsedGrepLine[] } | null =
-    null;
+  let currentFile: {
+    path: string;
+    annotation?: string | undefined;
+    lines: ParsedGrepLine[];
+  } | null = null;
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trimEnd();

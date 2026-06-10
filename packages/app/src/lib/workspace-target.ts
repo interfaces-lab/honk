@@ -53,7 +53,8 @@ export function findWorkspaceProjectForSource(
   }
   return (
     projects.find(
-      (project) => project.environmentId === source.environmentId && project.id === source.projectId,
+      (project) =>
+        project.environmentId === source.environmentId && project.id === source.projectId,
     ) ?? null
   );
 }
@@ -93,9 +94,7 @@ export function isSourceForWorkspaceProject(input: {
 }
 
 export function getLatestWorkspaceThreadForProject<
-  T extends WorkspaceProjectSource &
-    Pick<Thread, "id" | "archivedAt"> &
-    ThreadSortInput,
+  T extends WorkspaceProjectSource & Pick<Thread, "id" | "archivedAt"> & ThreadSortInput,
 >(input: {
   readonly project: WorkspaceProjectIdentity | ScopedProjectRef;
   readonly projects: readonly Project[];

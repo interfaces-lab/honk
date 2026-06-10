@@ -10,9 +10,7 @@ import {
   SchemaTransformation,
 } from "effect";
 
-export const decodeJsonResult = <S extends Schema.Codec<unknown, unknown>>(
-  schema: S,
-) => {
+export const decodeJsonResult = <S extends Schema.Codec<unknown, unknown>>(schema: S) => {
   const decode = Schema.decodeExit(Schema.fromJsonString(schema));
   return (input: string) => {
     const result = decode(input);
@@ -23,9 +21,7 @@ export const decodeJsonResult = <S extends Schema.Codec<unknown, unknown>>(
   };
 };
 
-export const decodeUnknownJsonResult = <S extends Schema.Codec<unknown, unknown>>(
-  schema: S,
-) => {
+export const decodeUnknownJsonResult = <S extends Schema.Codec<unknown, unknown>>(schema: S) => {
   const decode = Schema.decodeUnknownExit(Schema.fromJsonString(schema));
   return (input: unknown) => {
     const result = decode(input);

@@ -244,10 +244,7 @@ export function ChatLoader({
       style={style}
       {...props}
     >
-      <span
-        className="text-body font-medium thinking-shimmer motion-reduce:animate-none"
-        aria-hidden="true"
-      >
+      <span className="thinking-shimmer motion-reduce:animate-none" aria-hidden="true">
         {label}
       </span>
     </div>

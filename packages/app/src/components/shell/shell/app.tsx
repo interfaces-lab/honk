@@ -224,7 +224,10 @@ function RightAside(props: {
   const navigate = useNavigate();
   const activeTab = storedActiveTab;
   const muted = useIsMuted(props.workspaceKey);
-  const visibleTabs = useMemo(() => new Set(props.right.tabs.map((tab) => tab.id)), [props.right.tabs]);
+  const visibleTabs = useMemo(
+    () => new Set(props.right.tabs.map((tab) => tab.id)),
+    [props.right.tabs],
+  );
   const effectiveActiveTab = visibleTabs.has(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
@@ -407,7 +410,7 @@ function ShellHeaderControls(props: {
   const rightPanelLabel = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
 
   return (
-    <div className="multi-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-50 box-border flex h-(--multi-header-height) min-w-0 items-center">
+    <div className="multi-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--multi-header-height) min-w-0 items-center">
       <div className="multi-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--multi-titlebar-control-height) shrink-0 items-center gap-0.5">
         <button
           type="button"

@@ -151,6 +151,9 @@ jobs:
       - name: Align package versions to release version
         run: node packages/release-scripts/src/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
 
+      - name: Build desktop bundle
+        run: pnpm run build:desktop
+
       - name: Build desktop artifact
         shell: bash
         env:

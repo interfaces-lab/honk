@@ -18,3 +18,14 @@
 [data-tool-has-error="true"] {
   /* hook: error-state styling lives on inner cards */
 }
+
+/*
+ * Cursor parity: tool surfaces read the tool font tier with the same fallback
+ * chain as Cursor (`--conversation-tool-font-size` → text size → 13px).
+ */
+[data-tool-call-line],
+[data-tool-call-line-body],
+[data-shell-tool-call],
+[data-task-tool-call] {
+  font-size: var(--conversation-tool-font-size, var(--conversation-text-font-size, 13px));
+}

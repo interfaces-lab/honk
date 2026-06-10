@@ -74,7 +74,12 @@ function createTerminalPanelSessionKey(input: {
   terminalId: string;
   workspaceKey: string | null;
 }): string {
-  return JSON.stringify([input.workspaceKey, input.cwd, input.environmentId ?? null, input.terminalId]);
+  return JSON.stringify([
+    input.workspaceKey,
+    input.cwd,
+    input.environmentId ?? null,
+    input.terminalId,
+  ]);
 }
 
 function TerminalPanelSession({

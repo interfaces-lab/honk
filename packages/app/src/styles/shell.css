@@ -11,12 +11,16 @@
   );
   --multi-electron-traffic-inset: 80px;
   --multi-electron-traffic-padding-top: var(--multi-electron-traffic-padding-top-user, 0px);
-  --multi-sidebar-label-size: 12px;
-  --multi-sidebar-label-leading: 16px;
+  --multi-sidebar-label-size: 13px;
+  --multi-sidebar-label-leading: 20px;
+  --multi-sidebar-subtitle-size: 11px;
+  --multi-sidebar-subtitle-leading: 14px;
   --multi-sidebar-gutter-inline: 8px;
   --multi-sidebar-section-gap: 8px;
   --multi-sidebar-item-gap: 4px;
-  --multi-sidebar-item-height: 22px;
+  --multi-sidebar-item-height: 28px;
+  --multi-sidebar-row-padding-block: 4px;
+  --multi-display-zoom-factor: 1;
   --multi-workbench-toggle-left: var(--multi-workbench-toggle-left-user, 12px);
   --multi-workbench-toggle-right: var(--multi-workbench-toggle-right-user, 12px);
   --multi-workbench-changes-toggle-w: var(--multi-workbench-changes-toggle-w-user, 7rem);
@@ -234,6 +238,10 @@ body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) .agent-window
   background: var(--multi-glass-surface-background);
 }
 
+html:not([data-electron]) .agent-window {
+  zoom: var(--multi-display-zoom-factor, 1);
+}
+
 .agent-window[data-agent-window-font-smoothing="antialiased"] {
   --multi-agent-window-font-smoothing-webkit: antialiased;
   --multi-agent-window-font-smoothing-moz: grayscale;
@@ -268,9 +276,20 @@ body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency) .agent-window
   padding-inline: var(--multi-sidebar-gutter-inline);
 }
 
-.agent-window__sidebar [data-slot="button"] {
+.agent-window__sidebar [data-slot="button"],
+.agent-window__sidebar [data-slot="sidebar-item"],
+.agent-window__sidebar [data-slot^="sidebar-button"],
+.agent-window__sidebar [data-agent-sidebar-title],
+.agent-window__sidebar [data-agent-sidebar-section-title],
+.agent-window__sidebar [data-agent-sidebar-workspaces-title] {
   font-size: var(--multi-sidebar-label-size);
   line-height: var(--multi-sidebar-label-leading);
+  font-weight: 400;
+}
+
+.agent-window__sidebar [data-agent-sidebar-subtitle] {
+  font-size: var(--multi-sidebar-subtitle-size);
+  line-height: var(--multi-sidebar-subtitle-leading);
   font-weight: 400;
 }
 

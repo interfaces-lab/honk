@@ -1,20 +1,25 @@
-import {
-  useComposerQueueStore,
-  type QueuedComposerItem,
-} from "../../../stores/chat-send-queue";
+import { useComposerQueueStore, type QueuedComposerItem } from "../../../stores/chat-send-queue";
 
 const EMPTY_QUEUED_COMPOSER_ITEMS: QueuedComposerItem[] = [];
 
 export interface UseThreadComposerQueueReturn {
   queuedComposerItems: QueuedComposerItem[];
-  editingQueuedComposerItemId: ReturnType<
-    (typeof useComposerQueueStore)["getState"]
-  >["editingQueueItemIdByThreadKey"][string] | null;
+  editingQueuedComposerItemId:
+    | ReturnType<
+        (typeof useComposerQueueStore)["getState"]
+      >["editingQueueItemIdByThreadKey"][string]
+    | null;
   queuedComposerItemsExpanded: boolean;
   enqueueComposerItem: ReturnType<typeof useComposerQueueStore.getState>["enqueueComposerItem"];
-  removeQueuedComposerItem: ReturnType<typeof useComposerQueueStore.getState>["removeQueuedComposerItem"];
-  takeQueuedComposerItem: ReturnType<typeof useComposerQueueStore.getState>["takeQueuedComposerItem"];
-  reorderQueuedComposerItem: ReturnType<typeof useComposerQueueStore.getState>["reorderQueuedComposerItem"];
+  removeQueuedComposerItem: ReturnType<
+    typeof useComposerQueueStore.getState
+  >["removeQueuedComposerItem"];
+  takeQueuedComposerItem: ReturnType<
+    typeof useComposerQueueStore.getState
+  >["takeQueuedComposerItem"];
+  reorderQueuedComposerItem: ReturnType<
+    typeof useComposerQueueStore.getState
+  >["reorderQueuedComposerItem"];
   setQueueExpanded: ReturnType<typeof useComposerQueueStore.getState>["setQueueExpanded"];
   beginEditingQueuedComposerItem: ReturnType<
     typeof useComposerQueueStore.getState
@@ -43,9 +48,7 @@ export function useThreadComposerQueue(routeThreadKey: string): UseThreadCompose
     (store) => store.queueExpandedByThreadKey[routeThreadKey] ?? true,
   );
   const enqueueComposerItem = useComposerQueueStore((store) => store.enqueueComposerItem);
-  const removeQueuedComposerItem = useComposerQueueStore(
-    (store) => store.removeQueuedComposerItem,
-  );
+  const removeQueuedComposerItem = useComposerQueueStore((store) => store.removeQueuedComposerItem);
   const takeQueuedComposerItem = useComposerQueueStore((store) => store.takeQueuedComposerItem);
   const reorderQueuedComposerItem = useComposerQueueStore(
     (store) => store.reorderQueuedComposerItem,

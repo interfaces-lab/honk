@@ -40,7 +40,7 @@ const INITIAL_WS_CONNECTION_STATUS = Object.freeze<WsConnectionStatus>({
   lastError: null,
   lastErrorAt: null,
   nextRetryAt: null,
-  online: typeof navigator === "undefined" ? true :  navigator.onLine,
+  online: typeof navigator === "undefined" ? true : navigator.onLine,
   phase: "idle",
   reconnectAttemptCount: 0,
   reconnectMaxAttempts: WS_RECONNECT_MAX_ATTEMPTS,

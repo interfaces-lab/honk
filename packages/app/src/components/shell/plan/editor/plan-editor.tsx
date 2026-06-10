@@ -11,7 +11,10 @@ export function PlanEditor(props: PlanEditorProps) {
   const canSave = props.dirty && !props.disabled;
 
   return (
-    <div data-plan-editor="" className="composer-plan-markdown-container mb-4 flex min-w-0 flex-col">
+    <div
+      data-plan-editor=""
+      className="composer-plan-markdown-container mb-4 flex min-w-0 flex-col"
+    >
       <div className="plan-editor-toolbar mb-2 flex justify-end gap-(--multi-workbench-chrome-action-gap) px-1.5">
         <WorkbenchTextButton
           onClick={props.onCancel}
@@ -31,11 +34,7 @@ export function PlanEditor(props: PlanEditorProps) {
           <span>Save</span>
         </WorkbenchTextButton>
       </div>
-      <TipTapPlanEditor
-        disabled={props.disabled}
-        onChange={props.onChange}
-        value={props.value}
-      />
+      <TipTapPlanEditor disabled={props.disabled} onChange={props.onChange} value={props.value} />
     </div>
   );
 }

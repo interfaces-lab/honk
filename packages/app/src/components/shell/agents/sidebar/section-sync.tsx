@@ -54,4 +54,3 @@ export function RetainedThreadDetailSubscriptions({
 
   return null;
 }
-

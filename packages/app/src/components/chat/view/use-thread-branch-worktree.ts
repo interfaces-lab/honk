@@ -22,10 +22,7 @@ export interface UseThreadBranchWorktreeArgs {
   activeThreadBranch: string | null;
   activeThreadWorktreePath: string | null;
   envMode: DraftThreadEnvMode;
-  setDraftThreadContext: (
-    draftId: ComposerDraftId,
-    options: SetDraftThreadContextOptions,
-  ) => void;
+  setDraftThreadContext: (draftId: ComposerDraftId, options: SetDraftThreadContextOptions) => void;
   checkoutBranchMutation: {
     mutateAsync: (branchName: string) => Promise<unknown>;
   };
@@ -83,9 +80,7 @@ export function useThreadBranchWorktree(
     }
     const reuseExistingWorktree = Boolean(branch.worktreePath);
     const nextWorktreePath =
-      branch.worktreePath && branch.worktreePath !== activeProjectCwd
-        ? branch.worktreePath
-        : null;
+      branch.worktreePath && branch.worktreePath !== activeProjectCwd ? branch.worktreePath : null;
     const nextEnvMode: DraftThreadEnvMode = nextWorktreePath
       ? "worktree"
       : envMode === "worktree"

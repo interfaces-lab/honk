@@ -28,52 +28,52 @@ function AutocompleteInput({
   return (
     <InputControlSizeContext.Provider value={sizeValue}>
       <div className="relative not-has-[>*.w-full]:w-fit w-full font-multi text-foreground has-disabled:opacity-40">
-      {startAddon && (
-        <div
-          aria-hidden="true"
-          className="[&_svg]:-mx-0.5 pointer-events-none absolute inset-y-0 inset-s-px z-10 flex items-center ps-2.5 opacity-70 has-[+[data-size=sm]]:ps-2 [&_svg:not([class*='size-'])]:size-4"
-          data-slot="autocomplete-start-addon"
-        >
-          {startAddon}
-        </div>
-      )}
-      <AutocompletePrimitive.Input
-        className={cn(
-          startAddon &&
-            "data-[size=sm]:*:data-[slot=autocomplete-input]:ps-7 *:data-[slot=autocomplete-input]:ps-8 sm:data-[size=sm]:*:data-[slot=autocomplete-input]:ps-7 sm:*:data-[slot=autocomplete-input]:ps-8",
-          sizeValue === "sm"
-            ? "has-[+[data-slot=autocomplete-trigger],+[data-slot=autocomplete-clear]]:*:data-[slot=autocomplete-input]:pe-6.5"
-            : "has-[+[data-slot=autocomplete-trigger],+[data-slot=autocomplete-clear]]:*:data-[slot=autocomplete-input]:pe-7",
-          className,
+        {startAddon && (
+          <div
+            aria-hidden="true"
+            className="[&_svg]:-mx-0.5 pointer-events-none absolute inset-y-0 inset-s-px z-10 flex items-center ps-2.5 opacity-70 has-[+[data-size=sm]]:ps-2 [&_svg:not([class*='size-'])]:size-4"
+            data-slot="autocomplete-start-addon"
+          >
+            {startAddon}
+          </div>
         )}
-        data-slot="autocomplete-input"
-        render={NativeInputRender as NonNullable<AutocompletePrimitive.Input.Props["render"]>}
-        {...props}
-      />
-      {showTrigger && (
-        <AutocompleteTrigger
+        <AutocompletePrimitive.Input
           className={cn(
-            "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-colors pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=autocomplete-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-            interactiveControlCursorClassName,
-            sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
+            startAddon &&
+              "data-[size=sm]:*:data-[slot=autocomplete-input]:ps-7 *:data-[slot=autocomplete-input]:ps-8 sm:data-[size=sm]:*:data-[slot=autocomplete-input]:ps-7 sm:*:data-[slot=autocomplete-input]:ps-8",
+            sizeValue === "sm"
+              ? "has-[+[data-slot=autocomplete-trigger],+[data-slot=autocomplete-clear]]:*:data-[slot=autocomplete-input]:pe-6.5"
+              : "has-[+[data-slot=autocomplete-trigger],+[data-slot=autocomplete-clear]]:*:data-[slot=autocomplete-input]:pe-7",
+            className,
           )}
-        >
-          <AutocompletePrimitive.Icon data-slot="autocomplete-icon">
-            <IconChevronRightMedium className="rotate-90" />
-          </AutocompletePrimitive.Icon>
-        </AutocompleteTrigger>
-      )}
-      {showClear && (
-        <AutocompleteClear
-          className={cn(
-            "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-colors pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=autocomplete-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-            interactiveControlCursorClassName,
-            sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
-          )}
-        >
-          <IconCrossMediumDefault />
-        </AutocompleteClear>
-      )}
+          data-slot="autocomplete-input"
+          render={NativeInputRender as NonNullable<AutocompletePrimitive.Input.Props["render"]>}
+          {...props}
+        />
+        {showTrigger && (
+          <AutocompleteTrigger
+            className={cn(
+              "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-colors pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=autocomplete-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+              interactiveControlCursorClassName,
+              sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
+            )}
+          >
+            <AutocompletePrimitive.Icon data-slot="autocomplete-icon">
+              <IconChevronRightMedium className="rotate-90" />
+            </AutocompletePrimitive.Icon>
+          </AutocompleteTrigger>
+        )}
+        {showClear && (
+          <AutocompleteClear
+            className={cn(
+              "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-colors pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=autocomplete-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+              interactiveControlCursorClassName,
+              sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
+            )}
+          >
+            <IconCrossMediumDefault />
+          </AutocompleteClear>
+        )}
       </div>
     </InputControlSizeContext.Provider>
   );
@@ -101,7 +101,7 @@ function AutocompletePopup({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50 select-none"
+        className="z-(--z-index-autocomplete) select-none"
         data-slot="autocomplete-positioner"
         side={side}
         sideOffset={sideOffset}
@@ -163,10 +163,7 @@ function AutocompleteGroup({ className, ...props }: AutocompletePrimitive.Group.
 function AutocompleteGroupLabel({ className, ...props }: AutocompletePrimitive.GroupLabel.Props) {
   return (
     <AutocompletePrimitive.GroupLabel
-      className={cn(
-        "px-2 py-1.5 font-multi text-detail text-muted-foreground/68",
-        className,
-      )}
+      className={cn("px-2 py-1.5 font-multi text-detail text-muted-foreground/68", className)}
       data-slot="autocomplete-group-label"
       {...props}
     />

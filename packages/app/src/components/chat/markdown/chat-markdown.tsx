@@ -37,7 +37,11 @@ import { Dialog, DialogPopup } from "@multi/multikit/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor-preferences";
-import { resolveDiffThemeName, type DiffThemeName } from "../../../lib/diff-rendering";
+import {
+  DIFF_THEME_NAMES,
+  resolveDiffThemeName,
+  type DiffThemeName,
+} from "../../../lib/diff-rendering";
 import { fnv1a32 } from "../../../lib/diff-rendering";
 import { useTheme } from "../../../hooks/use-theme";
 import { resolveMarkdownFileLinkMeta, rewriteMarkdownFileUriHref } from "./file-links";
@@ -512,12 +516,12 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
   };
 
   return (
-    <div className="chat-markdown-codeblock relative my-[0.625em] mb-[0.85em] text-sm/5">
+    <div className="chat-markdown-codeblock relative my-[0.5em] mb-[0.65em]">
       <Button
         type="button"
         size="icon-sm"
         variant="outline"
-        className="chat-markdown-copy-button pointer-events-none absolute top-2 right-2 z-[1] size-6 rounded-[3px] border-(--multi-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 hover:border-[color-mix(in_srgb,var(--multi-markdown-request-border)_70%,var(--foreground))] hover:text-foreground [&_svg]:size-3"
+        className="chat-markdown-copy-button pointer-events-none absolute top-1.5 right-1.5 z-[1] size-6 rounded-[3px] border-(--multi-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 hover:border-[color-mix(in_srgb,var(--multi-markdown-request-border)_70%,var(--foreground))] hover:text-foreground [&_svg]:size-3"
         onClick={handleCopy}
         title={copied ? "Copied" : "Copy code"}
         aria-label={copied ? "Copied" : "Copy code"}
@@ -982,10 +986,7 @@ function ChatMarkdownParagraph({
 }: ComponentProps<"p"> & { node?: unknown }) {
   const { isStreaming } = useChatMarkdownRenderContext();
   return (
-    <p
-      {...props}
-      className={cn("mt-0 mb-[0.85em]", !isStreaming && "text-pretty", className)}
-    />
+    <p {...props} className={cn("my-1.5", !isStreaming && "text-pretty", className)} />
   );
 }
 
@@ -998,7 +999,7 @@ function ChatMarkdownHeading1({
     <h1
       {...props}
       className={cn(
-        "mt-4 mb-1.5 text-heading font-semibold text-foreground text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
         className,
       )}
     />
@@ -1014,7 +1015,7 @@ function ChatMarkdownHeading2({
     <h2
       {...props}
       className={cn(
-        "mt-4 mb-2 flex items-center gap-3 text-title font-semibold text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] text-balance after:h-px after:min-w-6 after:flex-1 after:bg-(--multi-markdown-rule-color) after:content-['']",
+        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
         className,
       )}
     />
@@ -1030,7 +1031,7 @@ function ChatMarkdownHeading3({
     <h3
       {...props}
       className={cn(
-        "mt-3 mb-1 text-body font-[550] text-[color-mix(in_srgb,var(--foreground)_74%,transparent)] text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
         className,
       )}
     />
@@ -1046,7 +1047,7 @@ function ChatMarkdownHeading4({
     <h4
       {...props}
       className={cn(
-        "mt-2.5 mb-1 text-conversation font-[550] text-[color-mix(in_srgb,var(--foreground)_72%,transparent)] text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
         className,
       )}
     />
@@ -1062,7 +1063,7 @@ function ChatMarkdownHeading5({
     <h5
       {...props}
       className={cn(
-        "mt-2.5 mb-1 text-detail font-[550] text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-secondary text-balance",
         className,
       )}
     />
@@ -1078,7 +1079,7 @@ function ChatMarkdownHeading6({
     <h6
       {...props}
       className={cn(
-        "mt-2.5 mb-1 text-detail font-[550] text-[color-mix(in_srgb,var(--foreground)_58%,transparent)] text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-secondary text-balance",
         className,
       )}
     />
@@ -1093,7 +1094,7 @@ function ChatMarkdownUnorderedList({
   return (
     <ul
       {...props}
-      className={cn("mt-0 mb-[0.85em] flex list-disc flex-col gap-[0.25em] pl-[1.15em]", className)}
+      className={cn("my-1.5 flex list-disc flex-col gap-1.5 ps-[2em]", className)}
     />
   );
 }
@@ -1106,10 +1107,7 @@ function ChatMarkdownOrderedList({
   return (
     <ol
       {...props}
-      className={cn(
-        "mt-0 mb-[0.85em] flex list-decimal flex-col gap-[0.25em] pl-[1.15em]",
-        className,
-      )}
+      className={cn("my-1.5 flex list-decimal flex-col gap-1.5 ps-[2em]", className)}
     />
   );
 }
@@ -1122,7 +1120,7 @@ function ChatMarkdownListItem({
   return (
     <li
       {...props}
-      className={cn("mb-0 pl-[0.1em] marker:text-(--multi-markdown-marker-foreground)", className)}
+      className={cn("mb-0 ps-[0.1em] marker:text-(--multi-markdown-marker-foreground)", className)}
     />
   );
 }
@@ -1152,7 +1150,7 @@ function ChatMarkdownBlockquote({
     <blockquote
       {...props}
       className={cn(
-        "mt-1 mb-[0.85em] border-l-2 border-(--multi-markdown-blockquote-border) bg-(--multi-markdown-blockquote-background) py-0 pr-0 pl-4 text-(--multi-markdown-blockquote-foreground) italic",
+        "my-2 border-l-[3px] border-(--multi-markdown-blockquote-border) bg-(--multi-markdown-blockquote-background) py-2 pr-0 pl-4 text-(--multi-markdown-blockquote-foreground)",
         className,
       )}
     />
@@ -1217,12 +1215,24 @@ function ChatMarkdownImage({
   );
 }
 
+/*
+ * Cursor parity: the table lives in a bordered, rounded scroll container and
+ * draws an inner grid only (right/bottom strokes, trimmed on the last
+ * column/row via markdown.css).
+ */
 function ChatMarkdownTable({
   node: _node,
   className,
   ...props
 }: ComponentProps<"table"> & { node?: unknown }) {
-  return <table {...props} className={cn("mb-3 w-full border-collapse text-left", className)} />;
+  return (
+    <div className="my-[1em] max-w-full overflow-x-auto rounded-md border border-(--multi-markdown-request-border)">
+      <table
+        {...props}
+        className={cn("w-max min-w-full border-collapse text-left", className)}
+      />
+    </div>
+  );
 }
 
 function ChatMarkdownTableHeaderCell({
@@ -1233,7 +1243,10 @@ function ChatMarkdownTableHeaderCell({
   return (
     <th
       {...props}
-      className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
+      className={cn(
+        "border-r border-b border-(--multi-markdown-request-border) px-[9px] py-[5px] align-top font-semibold whitespace-nowrap",
+        className,
+      )}
     />
   );
 }
@@ -1246,7 +1259,10 @@ function ChatMarkdownTableDataCell({
   return (
     <td
       {...props}
-      className={cn("border border-(--multi-markdown-request-border) px-1.5 py-1", className)}
+      className={cn(
+        "border-r border-b border-(--multi-markdown-request-border) px-[9px] py-[5px] align-top",
+        className,
+      )}
     />
   );
 }
@@ -1330,9 +1346,10 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
         )}
       >
         <Streamdown
-          mode="static"
-          parseIncompleteMarkdown={false}
+          mode={isStreaming ? "streaming" : "static"}
+          parseIncompleteMarkdown={isStreaming}
           components={CHAT_MARKDOWN_COMPONENTS}
+          shikiTheme={[DIFF_THEME_NAMES.light, DIFF_THEME_NAMES.dark]}
           urlTransform={markdownUrlTransform}
           animated={false}
           controls={false}

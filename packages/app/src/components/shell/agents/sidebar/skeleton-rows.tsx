@@ -1,6 +1,6 @@
 export function SkeletonRows() {
   return (
-    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-(--multi-sidebar-section-gap) overflow-y-auto pt-0 pb-4">
+    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-sidebar-section-gap overflow-y-auto pt-0 pb-4">
       {[0, 1].map((i) => (
         <div className="flex flex-col gap-2" key={i}>
           <div

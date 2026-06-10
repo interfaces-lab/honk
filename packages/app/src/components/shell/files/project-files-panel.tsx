@@ -1,11 +1,7 @@
 "use client";
 
 import type { EditorId, EnvironmentId } from "@multi/contracts";
-import {
-  IconBarsThree,
-  IconChevronLeftMedium,
-  IconChevronRightMedium,
-} from "central-icons";
+import { IconBarsThree, IconChevronLeftMedium, IconChevronRightMedium } from "central-icons";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -49,12 +45,7 @@ export function ProjectFilesPanel(props: {
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
 }) {
-  return (
-    <ProjectFilesPanelContent
-      key={props.workspaceKey ?? "none"}
-      {...props}
-    />
-  );
+  return <ProjectFilesPanelContent key={props.workspaceKey ?? "none"} {...props} />;
 }
 
 function ProjectFilesPanelContent(props: {

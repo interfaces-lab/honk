@@ -20,11 +20,7 @@ import {
 import { ensureLocalApi } from "~/local-api";
 import { Struct } from "effect";
 import { deepMerge } from "@multi/shared/Struct";
-import {
-  applySettingsUpdated,
-  getServerConfig,
-  useServerSettings,
-} from "~/rpc/server-state";
+import { applySettingsUpdated, getServerConfig, useServerSettings } from "~/rpc/server-state";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";
 

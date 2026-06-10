@@ -170,6 +170,28 @@ function getMacGlassWindowBackgroundColor(shouldUseDarkColors: boolean): string 
   return shouldUseDarkColors ? "#40000000" : "#00FFFFFF";
 }
 
+const DISPLAY_ZOOM_FACTOR_MIN = 0.84;
+const DISPLAY_ZOOM_FACTOR_MAX = 1.24;
+
+export const setDisplayZoom = makeIpcMethod({
+  channel: IpcChannels.SET_DISPLAY_ZOOM_CHANNEL,
+  payload: Schema.Number,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.setDisplayZoom")(function* (factor) {
+    const electronWindow = yield* ElectronWindow.ElectronWindow;
+    const window = yield* electronWindow.currentMainOrFirst;
+    if (Option.isNone(window) || window.value.isDestroyed()) {
+      return;
+    }
+
+    const clamped = Math.min(
+      DISPLAY_ZOOM_FACTOR_MAX,
+      Math.max(DISPLAY_ZOOM_FACTOR_MIN, factor),
+    );
+    window.value.webContents.setZoomFactor(clamped);
+  }),
+});
+
 export const setVibrancy = makeIpcMethod({
   channel: IpcChannels.SET_VIBRANCY_CHANNEL,
   payload: Schema.Boolean,

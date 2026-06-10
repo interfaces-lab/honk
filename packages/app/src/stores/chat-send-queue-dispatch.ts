@@ -12,10 +12,7 @@ import {
   prepareComposerTurnAttachments,
 } from "../components/chat/composer-submit";
 import { prepareRuntimeTurnPolicy } from "../lib/runtime-turn-dispatch";
-import {
-  coordinateTurnSend,
-  dispatchTurnStartFailure,
-} from "../lib/turn-send-coordinator";
+import { coordinateTurnSend, dispatchTurnStartFailure } from "../lib/turn-send-coordinator";
 import { resolvePlanFollowUpSubmission } from "../plan/proposed-plan";
 import { DEFAULT_RUNTIME_MODE } from "../types";
 import { useComposerQueueStore, type QueuedComposerItem } from "./chat-send-queue";
@@ -101,7 +98,6 @@ async function sendQueuedTurn(input: {
       optimisticAttachments: input.prepared.optimisticAttachments,
       getTurnAttachments: () => prepareComposerTurnAttachments(input.item.sendContext.images),
     },
-    parentEntryId: null,
     modelSelection: thread.modelSelection,
     titleSeed: thread.title,
     runtimeMode: DEFAULT_RUNTIME_MODE,

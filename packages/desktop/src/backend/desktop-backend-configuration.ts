@@ -71,9 +71,7 @@ const readPersistedBackendObservabilitySettings: Effect.Effect<
 
   const raw = yield* fileSystem.readFileString(environment.serverSettingsPath).pipe(Effect.option);
   if (Option.isNone(raw)) {
-    yield* elog.warn(
-      "failed to read persisted backend observability settings",
-    );
+    yield* elog.warn("failed to read persisted backend observability settings");
     return emptyBackendObservabilitySettings;
   }
 

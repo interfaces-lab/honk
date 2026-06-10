@@ -8,14 +8,7 @@ import {
 import type { GitFileState } from "~/lib/ui-session-types";
 import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
 import * as Schema from "effect/Schema";
-import {
-  createElement,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { readEnvironmentGitApi, type EnvironmentGitApi } from "../lib/environment-git-api";
 import { refreshGitStatus, useGitStatus } from "../lib/git-status-state";
@@ -136,7 +129,10 @@ function areDiffRowsEqual(left: DiffRow, right: DiffRow): boolean {
   );
 }
 
-function toRowsWithReuse(status: GitStatusResult | null, previousRows: readonly DiffRow[]): DiffRow[] {
+function toRowsWithReuse(
+  status: GitStatusResult | null,
+  previousRows: readonly DiffRow[],
+): DiffRow[] {
   const nextRows = toRows(status);
   if (nextRows.length === 0 || previousRows.length === 0) {
     return nextRows;
@@ -310,13 +306,11 @@ export function useEnvironmentGitPanel(
     if (!enabled || !cwd || !gitApi || !environmentId) {
       return;
     }
-    void refreshGitStatus({ environmentId, cwd }, gitApi, { force: true })
-      .catch(() => undefined);
+    void refreshGitStatus({ environmentId, cwd }, gitApi, { force: true }).catch(() => undefined);
   }, [cwd, enabled, environmentId, gitApi]);
   const rowReuseRef = useRef<DiffRow[]>([]);
 
-  const nextRows =
-    view.kind === "changed" ? toRowsWithReuse(status.data, rowReuseRef.current) : [];
+  const nextRows = view.kind === "changed" ? toRowsWithReuse(status.data, rowReuseRef.current) : [];
   rowReuseRef.current = nextRows;
   const rows = nextRows;
 
@@ -339,9 +333,7 @@ export function useEnvironmentGitPanel(
     setActiveDiffIds((current) => pruneSetToIds(current, rowIds));
   }, [rowIds]);
 
-  const expandedIds = new Set(
-    rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id),
-  );
+  const expandedIds = new Set(rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id));
 
   const activeDiffRows = rows.filter((row) => activeDiffIds.has(row.id));
 

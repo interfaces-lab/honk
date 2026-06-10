@@ -609,10 +609,7 @@ function offsetBeforePointInNode(
   return { found: false, offset };
 }
 
-function offsetBeforePoint(
-  point: RangeSelection["focus"],
-  mode: "expanded" | "collapsed",
-): number {
+function offsetBeforePoint(point: RangeSelection["focus"], mode: "expanded" | "collapsed"): number {
   return offsetBeforePointInNode($getRoot(), point, mode).offset;
 }
 
@@ -696,10 +693,7 @@ function findPointInNodeAtOffset(
   };
 }
 
-function pointAtTextOffset(
-  offset: number,
-  mode: "expanded" | "collapsed",
-): LexicalSelectionPoint {
+function pointAtTextOffset(offset: number, mode: "expanded" | "collapsed"): LexicalSelectionPoint {
   const root = $getRoot();
   const safeOffset = Math.max(0, Math.floor(offset));
   const result = findPointInNodeAtOffset(root, safeOffset, mode);
@@ -805,6 +799,7 @@ function notifyComposerEditorMultiline(
 function updateEditorFromControlledState({
   cursor,
   editor,
+  forceRewrite,
   isApplyingControlledUpdateRef,
   measuredMultilineRef,
   onMeasuredMultilineChangeRef,
@@ -815,6 +810,7 @@ function updateEditorFromControlledState({
 }: {
   cursor: number;
   editor: LexicalEditor;
+  forceRewrite: boolean;
   isApplyingControlledUpdateRef: RefObject<boolean>;
   measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
@@ -840,7 +836,7 @@ function updateEditorFromControlledState({
   syncRevisionRef.current = syncRevision;
 
   isApplyingControlledUpdateRef.current = true;
-  const shouldRewriteEditorState = previousSnapshot.value !== nextValue;
+  const shouldRewriteEditorState = forceRewrite || previousSnapshot.value !== nextValue;
   editor.update(() => {
     if (shouldRewriteEditorState) {
       setRootFromPrompt(nextValue);
@@ -856,6 +852,7 @@ function updateEditorFromControlledState({
 function usePromptEditorControlledStateSync({
   cursor,
   editor,
+  forceSyncGeneration = 0,
   isApplyingControlledUpdateRef,
   measuredMultilineRef,
   onMeasuredMultilineChangeRef,
@@ -866,6 +863,7 @@ function usePromptEditorControlledStateSync({
 }: {
   cursor: number;
   editor: LexicalEditor;
+  forceSyncGeneration?: number;
   isApplyingControlledUpdateRef: RefObject<boolean>;
   measuredMultilineRef: RefObject<boolean>;
   onMeasuredMultilineChangeRef: RefObject<ComposerPromptEditorProps["onMeasuredMultilineChange"]>;
@@ -874,10 +872,16 @@ function usePromptEditorControlledStateSync({
   syncRevisionRef: RefObject<number>;
   value: string;
 }) {
+  const forceSyncGenerationRef = useRef(forceSyncGeneration);
+  const forceRewrite =
+    forceSyncGenerationRef.current !== forceSyncGeneration && forceSyncGeneration > 0;
+  forceSyncGenerationRef.current = forceSyncGeneration;
+
   useLayoutSyncEffect(() => {
     updateEditorFromControlledState({
       cursor,
       editor,
+      forceRewrite,
       isApplyingControlledUpdateRef,
       measuredMultilineRef,
       onMeasuredMultilineChangeRef,
@@ -886,7 +890,7 @@ function usePromptEditorControlledStateSync({
       syncRevisionRef,
       value,
     });
-  }, [editor, measuredMultilineRef, syncRevision]);
+  }, [editor, forceSyncGeneration, measuredMultilineRef, syncRevision]);
 }
 
 function usePromptEditorMultilineMeasurement({
@@ -1240,12 +1244,7 @@ export const ComposerPromptEditor = forwardRef<
   const initialConfig: InitialConfigType = {
     namespace: "multi-composer-prompt-editor",
     editable: !disabled,
-    nodes: [
-      ComposerMentionNode,
-      ComposerCommandNode,
-      ComposerSkillNode,
-      ComposerInlineTokenNode,
-    ],
+    nodes: [ComposerMentionNode, ComposerCommandNode, ComposerSkillNode, ComposerInlineTokenNode],
     editorState: lexicalEditorStateFromPrompt(value),
     theme: composerTheme,
     onError: (error) => {
@@ -1266,180 +1265,176 @@ export const ComposerPromptEditor = forwardRef<
   );
 });
 
-const ComposerPromptEditorInner = forwardRef<
-  ComposerPromptEditorHandle,
-  ComposerPromptEditorProps
->(function ComposerPromptEditorInner(
-  {
-    value,
-    cursor,
-    syncRevision,
-    disabled,
-    placeholder,
-    className,
-    hotkeyTargetRef,
-    caretAnchorRef,
-    commandMenuOpen = false,
-    onMeasuredMultilineChange,
-    onChange,
-    onCommandKeyDown,
-    onPaste,
-  },
-  ref,
-) {
-  const [editor] = useLexicalComposerContext();
-  const onChangeRef = useRef(onChange);
-  const onCommandKeyDownRef = useRef(onCommandKeyDown);
-  const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
-  const onPasteRef = useRef(onPaste);
-  const commandMenuOpenRef = useRef(commandMenuOpen);
-  onChangeRef.current = onChange;
-  onCommandKeyDownRef.current = onCommandKeyDown;
-  onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
-  onPasteRef.current = onPaste;
-  commandMenuOpenRef.current = commandMenuOpen;
-  const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
-  const setCaretAnchor = (element: HTMLSpanElement | null) => {
-    localCaretAnchorRef.current = element;
-    if (caretAnchorRef) {
-      caretAnchorRef.current = element;
-    }
-  };
-  const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
-  const isApplyingControlledUpdateRef = useRef(false);
-  const measuredMultilineRef = useRef(false);
-  const initialCursor = clampCollapsedComposerCursor(value, cursor);
-  const initialSnapshotRef = useRef<ComposerPromptEditorSnapshot>({
-    value,
-    cursor: initialCursor,
-    expandedCursor: expandCollapsedComposerCursor(value, initialCursor),
-  });
-  const snapshotRef = useRef(initialSnapshotRef.current);
-  const syncRevisionRef = useRef(syncRevision);
+const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, ComposerPromptEditorProps>(
+  function ComposerPromptEditorInner(
+    {
+      value,
+      cursor,
+      syncRevision,
+      forceSyncGeneration = 0,
+      disabled,
+      placeholder,
+      className,
+      hotkeyTargetRef,
+      caretAnchorRef,
+      commandMenuOpen = false,
+      onMeasuredMultilineChange,
+      onChange,
+      onCommandKeyDown,
+      onPaste,
+    },
+    ref,
+  ) {
+    const [editor] = useLexicalComposerContext();
+    const onChangeRef = useRef(onChange);
+    const onCommandKeyDownRef = useRef(onCommandKeyDown);
+    const onMeasuredMultilineChangeRef = useRef(onMeasuredMultilineChange);
+    const onPasteRef = useRef(onPaste);
+    const commandMenuOpenRef = useRef(commandMenuOpen);
+    onChangeRef.current = onChange;
+    onCommandKeyDownRef.current = onCommandKeyDown;
+    onMeasuredMultilineChangeRef.current = onMeasuredMultilineChange;
+    onPasteRef.current = onPaste;
+    commandMenuOpenRef.current = commandMenuOpen;
+    const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
+    const setCaretAnchor = (element: HTMLSpanElement | null) => {
+      localCaretAnchorRef.current = element;
+      if (caretAnchorRef) {
+        caretAnchorRef.current = element;
+      }
+    };
+    const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
+    const isApplyingControlledUpdateRef = useRef(false);
+    const measuredMultilineRef = useRef(false);
+    const initialCursor = clampCollapsedComposerCursor(value, cursor);
+    const initialSnapshotRef = useRef<ComposerPromptEditorSnapshot>({
+      value,
+      cursor: initialCursor,
+      expandedCursor: expandCollapsedComposerCursor(value, initialCursor),
+    });
+    const snapshotRef = useRef(initialSnapshotRef.current);
+    const syncRevisionRef = useRef(syncRevision);
 
-  usePromptEditorControlledStateSync({
-    cursor,
-    editor,
-    isApplyingControlledUpdateRef,
-    measuredMultilineRef,
-    onMeasuredMultilineChangeRef,
-    snapshotRef,
-    syncRevision,
-    syncRevisionRef,
-    value,
-  });
-
-  usePromptEditorMultilineMeasurement({
-    editor,
-    measuredMultilineRef,
-    onMeasuredMultilineChangeRef,
-  });
-
-  usePromptEditorCaretAnchor({
-    commandMenuOpen,
-    editor,
-    anchorElementRef: localCaretAnchorRef,
-  });
-
-  const emitSnapshot = (editorState: EditorState, nextEditor: LexicalEditor) => {
-    if (isApplyingControlledUpdateRef.current) {
-      return;
-    }
-    const nextSnapshot = readSnapshotFromLexicalState(editorState);
-    const previous = snapshotRef.current;
-    snapshotRef.current = nextSnapshot;
-    if (snapshotsEqual(previous, nextSnapshot)) {
-      return;
-    }
-    const cursorAdjacentToMention =
-      isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "left") ||
-      isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "right");
-    onChangeRef.current(
-      nextSnapshot.value,
-      nextSnapshot.cursor,
-      nextSnapshot.expandedCursor,
-      cursorAdjacentToMention,
-    );
-    emitMeasuredMultiline(
-      nextEditor,
-      onMeasuredMultilineChangeRef.current,
+    usePromptEditorControlledStateSync({
+      cursor,
+      editor,
+      forceSyncGeneration,
+      isApplyingControlledUpdateRef,
       measuredMultilineRef,
-    );
-  };
+      onMeasuredMultilineChangeRef,
+      snapshotRef,
+      syncRevision,
+      syncRevisionRef,
+      value,
+    });
 
-  const focusAt = (nextCursor: number) => {
-    const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);
-    editor.focus(() => {
-      editor.update(() => {
-        setSelectionAtTextOffset(boundedCursor, "collapsed");
-      });
-      const nextSnapshot = readSnapshot(editor);
+    usePromptEditorMultilineMeasurement({
+      editor,
+      measuredMultilineRef,
+      onMeasuredMultilineChangeRef,
+    });
+
+    usePromptEditorCaretAnchor({
+      commandMenuOpen,
+      editor,
+      anchorElementRef: localCaretAnchorRef,
+    });
+
+    const emitSnapshot = (editorState: EditorState, nextEditor: LexicalEditor) => {
+      if (isApplyingControlledUpdateRef.current) {
+        return;
+      }
+      const nextSnapshot = readSnapshotFromLexicalState(editorState);
+      const previous = snapshotRef.current;
       snapshotRef.current = nextSnapshot;
+      if (snapshotsEqual(previous, nextSnapshot)) {
+        return;
+      }
+      const cursorAdjacentToMention =
+        isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "left") ||
+        isCollapsedCursorAdjacentToInlineToken(nextSnapshot.value, nextSnapshot.cursor, "right");
       onChangeRef.current(
         nextSnapshot.value,
         nextSnapshot.cursor,
         nextSnapshot.expandedCursor,
-        false,
+        cursorAdjacentToMention,
       );
-    });
-  };
-
-  const insertText = (text: string) => {
-    if (!text) return;
-    editor.focus(() => {
-      insertTextAtSelection(editor, text);
-    });
-  };
-
-  const focusAtRef = useRef(focusAt);
-  const insertTextRef = useRef(insertText);
-  focusAtRef.current = focusAt;
-  insertTextRef.current = insertText;
-
-  const handleCommandKeyDown = (
-    key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
-    event: KeyboardEvent,
-  ): boolean => {
-    const handled = onCommandKeyDownRef.current?.(key, event) ?? false;
-    if (handled) {
-      event.preventDefault();
-      event.stopPropagation();
-      pendingSurroundSelectionRef.current = null;
-    }
-    return handled;
-  };
-
-  useLayoutSyncEffect(() => {
-    const unregisterArrowDown = editor.registerCommand(
-      KEY_ARROW_DOWN_COMMAND,
-      (event) => (event ? handleCommandKeyDown("ArrowDown", event) : false),
-      COMMAND_PRIORITY_HIGH,
-    );
-    const unregisterArrowUp = editor.registerCommand(
-      KEY_ARROW_UP_COMMAND,
-      (event) => (event ? handleCommandKeyDown("ArrowUp", event) : false),
-      COMMAND_PRIORITY_HIGH,
-    );
-    const unregisterEnter = editor.registerCommand(
-      KEY_ENTER_COMMAND,
-      (event) => (event ? handleCommandKeyDown("Enter", event) : false),
-      COMMAND_PRIORITY_HIGH,
-    );
-    const unregisterTab = editor.registerCommand(
-      KEY_TAB_COMMAND,
-      (event) => (event ? handleCommandKeyDown("Tab", event) : false),
-      COMMAND_PRIORITY_HIGH,
-    );
-
-    return () => {
-      unregisterArrowDown();
-      unregisterArrowUp();
-      unregisterEnter();
-      unregisterTab();
+      emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
     };
-  }, [editor]);
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const focusAt = (nextCursor: number) => {
+      const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);
+      editor.focus(() => {
+        editor.update(() => {
+          setSelectionAtTextOffset(boundedCursor, "collapsed");
+        });
+        const nextSnapshot = readSnapshot(editor);
+        snapshotRef.current = nextSnapshot;
+        onChangeRef.current(
+          nextSnapshot.value,
+          nextSnapshot.cursor,
+          nextSnapshot.expandedCursor,
+          false,
+        );
+      });
+    };
+
+    const insertText = (text: string) => {
+      if (!text) return;
+      editor.focus(() => {
+        insertTextAtSelection(editor, text);
+      });
+    };
+
+    const focusAtRef = useRef(focusAt);
+    const insertTextRef = useRef(insertText);
+    focusAtRef.current = focusAt;
+    insertTextRef.current = insertText;
+
+    const handleCommandKeyDown = (
+      key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
+      event: KeyboardEvent,
+    ): boolean => {
+      const handled = onCommandKeyDownRef.current?.(key, event) ?? false;
+      if (handled) {
+        event.preventDefault();
+        event.stopPropagation();
+        pendingSurroundSelectionRef.current = null;
+      }
+      return handled;
+    };
+
+    useLayoutSyncEffect(() => {
+      const unregisterArrowDown = editor.registerCommand(
+        KEY_ARROW_DOWN_COMMAND,
+        (event) => (event ? handleCommandKeyDown("ArrowDown", event) : false),
+        COMMAND_PRIORITY_HIGH,
+      );
+      const unregisterArrowUp = editor.registerCommand(
+        KEY_ARROW_UP_COMMAND,
+        (event) => (event ? handleCommandKeyDown("ArrowUp", event) : false),
+        COMMAND_PRIORITY_HIGH,
+      );
+      const unregisterEnter = editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event) => (event ? handleCommandKeyDown("Enter", event) : false),
+        COMMAND_PRIORITY_HIGH,
+      );
+      const unregisterTab = editor.registerCommand(
+        KEY_TAB_COMMAND,
+        (event) => (event ? handleCommandKeyDown("Tab", event) : false),
+        COMMAND_PRIORITY_HIGH,
+      );
+
+      return () => {
+        unregisterArrowDown();
+        unregisterArrowUp();
+        unregisterEnter();
+        unregisterTab();
+      };
+    }, [editor]);
+
+    const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key === "Escape" && handleCommandKeyDown("Escape", event.nativeEvent)) {
         return;
       }
@@ -1463,11 +1458,11 @@ const ComposerPromptEditorInner = forwardRef<
       ) {
         event.preventDefault();
         event.stopPropagation();
-      pendingSurroundSelectionRef.current = null;
-    }
-  };
+        pendingSurroundSelectionRef.current = null;
+      }
+    };
 
-  const handleBeforeInput = (event: FormEvent<HTMLDivElement>) => {
+    const handleBeforeInput = (event: FormEvent<HTMLDivElement>) => {
       const inputEvent = event.nativeEvent;
       if (!(inputEvent instanceof InputEvent)) {
         pendingSurroundSelectionRef.current = null;
@@ -1495,109 +1490,113 @@ const ComposerPromptEditorInner = forwardRef<
       }
       event.preventDefault();
       event.stopPropagation();
-    pendingSurroundSelectionRef.current = null;
-  };
+      pendingSurroundSelectionRef.current = null;
+    };
 
-  const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
-    onPasteRef.current(event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0]);
-    if (!event.defaultPrevented) {
-      const pastedText = event.clipboardData?.getData("text/plain") ?? "";
-      if (pastedText.includes("\n")) {
-        notifyComposerEditorMultiline(
-          onMeasuredMultilineChangeRef.current,
-          measuredMultilineRef,
-          true,
-        );
-      }
-    }
-  };
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      focus: () => {
-        focusAtRef.current(snapshotRef.current.cursor);
-      },
-      blur: () => {
-        editor.blur();
-      },
-      clear: () => {
-        editor.update(() => {
-          setRootFromSegments(EMPTY_DOC);
-          setSelectionAtTextOffset(0, "collapsed");
-        });
-        const nextSnapshot = readSnapshot(editor);
-        snapshotRef.current = nextSnapshot;
-        onChangeRef.current("", 0, 0, false);
-      },
-      focusAt: (cursor: number) => {
-        focusAtRef.current(cursor);
-      },
-      focusAtEnd: () => {
-        focusAtRef.current(
-          collapseExpandedComposerCursor(
-            snapshotRef.current.value,
-            snapshotRef.current.value.length,
-          ),
-        );
-      },
-      insertText: (text: string) => {
-        insertTextRef.current(text);
-      },
-      getText: () => readSnapshot(editor).value,
-      getCommands: () => collectCommands(editor),
-      getMentions: () => collectMentions(editor),
-      getSubmitData: () => {
-        const snapshot = readSnapshot(editor);
-        return {
-          text: snapshot.value,
-          richText: readRichText(editor.getEditorState()),
-          commands: collectCommands(editor),
-          mentions: collectMentions(editor),
-        };
-      },
-      readSnapshot: () => readSnapshot(editor),
-      editor,
-    }),
-    [editor],
-  );
-
-  return (
-    <div ref={hotkeyTargetRef} className="relative w-full min-w-0" data-prompt-editor-root="true">
-      <PromptEditorEditableSync key={String(disabled)} disabled={disabled} editor={editor} />
-      <OnChangePlugin
-        ignoreHistoryMergeTagChange
-        ignoreSelectionChange={false}
-        onChange={emitSnapshot}
-      />
-      <PlainTextPlugin
-        ErrorBoundary={LexicalErrorBoundary}
-        contentEditable={
-          <ContentEditable
-            aria-label={placeholder}
-            className={cn("block w-full whitespace-pre-wrap break-words outline-hidden", className)}
-            data-prompt-editor-input="true"
-            data-testid="composer-editor"
-            onBeforeInput={handleBeforeInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={null}
-            spellCheck
-            tabIndex={-1}
-          />
+    const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
+      onPasteRef.current(event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0]);
+      if (!event.defaultPrevented) {
+        const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+        if (pastedText.includes("\n")) {
+          notifyComposerEditorMultiline(
+            onMeasuredMultilineChangeRef.current,
+            measuredMultilineRef,
+            true,
+          );
         }
-        placeholder={<PromptEditorPlaceholder className={className} placeholder={placeholder} />}
-      />
-      <span
-        ref={setCaretAnchor}
-        aria-hidden="true"
-        data-composer-menu-anchor=""
-        className="pointer-events-none absolute h-px w-px"
-        style={{ left: 0, top: 0 }}
-      />
-    </div>
-  );
-});
+      }
+    };
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => {
+          focusAtRef.current(snapshotRef.current.cursor);
+        },
+        blur: () => {
+          editor.blur();
+        },
+        clear: () => {
+          editor.update(() => {
+            setRootFromSegments(EMPTY_DOC);
+            setSelectionAtTextOffset(0, "collapsed");
+          });
+          const nextSnapshot = readSnapshot(editor);
+          snapshotRef.current = nextSnapshot;
+          onChangeRef.current("", 0, 0, false);
+        },
+        focusAt: (cursor: number) => {
+          focusAtRef.current(cursor);
+        },
+        focusAtEnd: () => {
+          focusAtRef.current(
+            collapseExpandedComposerCursor(
+              snapshotRef.current.value,
+              snapshotRef.current.value.length,
+            ),
+          );
+        },
+        insertText: (text: string) => {
+          insertTextRef.current(text);
+        },
+        getText: () => readSnapshot(editor).value,
+        getCommands: () => collectCommands(editor),
+        getMentions: () => collectMentions(editor),
+        getSubmitData: () => {
+          const snapshot = readSnapshot(editor);
+          return {
+            text: snapshot.value,
+            richText: readRichText(editor.getEditorState()),
+            commands: collectCommands(editor),
+            mentions: collectMentions(editor),
+          };
+        },
+        readSnapshot: () => readSnapshot(editor),
+        editor,
+      }),
+      [editor],
+    );
+
+    return (
+      <div ref={hotkeyTargetRef} className="relative w-full min-w-0" data-prompt-editor-root="true">
+        <PromptEditorEditableSync key={String(disabled)} disabled={disabled} editor={editor} />
+        <OnChangePlugin
+          ignoreHistoryMergeTagChange
+          ignoreSelectionChange={false}
+          onChange={emitSnapshot}
+        />
+        <PlainTextPlugin
+          ErrorBoundary={LexicalErrorBoundary}
+          contentEditable={
+            <ContentEditable
+              aria-label={placeholder}
+              className={cn(
+                "block w-full whitespace-pre-wrap break-words outline-hidden",
+                className,
+              )}
+              data-prompt-editor-input="true"
+              data-testid="composer-editor"
+              onBeforeInput={handleBeforeInput}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={null}
+              spellCheck
+              tabIndex={-1}
+            />
+          }
+          placeholder={<PromptEditorPlaceholder className={className} placeholder={placeholder} />}
+        />
+        <span
+          ref={setCaretAnchor}
+          aria-hidden="true"
+          data-composer-menu-anchor=""
+          className="pointer-events-none absolute h-px w-px"
+          style={{ left: 0, top: 0 }}
+        />
+      </div>
+    );
+  },
+);
 
 const PromptEditorPlaceholder = function PromptEditorPlaceholder({
   className,

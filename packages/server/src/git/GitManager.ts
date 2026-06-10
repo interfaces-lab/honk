@@ -1349,7 +1349,8 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
     return isOrchestrationDispatchCommandError(error)
       ? error
       : new OrchestrationDispatchCommandError({
-          message: error instanceof Error ? error.message : "Failed to bootstrap thread turn start.",
+          message:
+            error instanceof Error ? error.message : "Failed to bootstrap thread turn start.",
           cause,
         });
   };
@@ -1405,8 +1406,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       readonly requestedAt: string;
       readonly worktreePath: string;
     }) => {
-      const detail =
-        input.error instanceof Error ? input.error.message : "Unknown setup failure.";
+      const detail = input.error instanceof Error ? input.error.message : "Unknown setup failure.";
       return appendSetupScriptActivity({
         threadId: command.threadId,
         kind: "setup-script.failed",

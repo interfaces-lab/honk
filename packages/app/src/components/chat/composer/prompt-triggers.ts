@@ -262,9 +262,7 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   };
 }
 
-export function parseStandaloneComposerSlashCommand(
-  text: string,
-): ComposerSlashCommand | null {
+export function parseStandaloneComposerSlashCommand(text: string): ComposerSlashCommand | null {
   const match = /^\/(agent|ask|plan|debug|build)\s*$/i.exec(text.trim());
   if (!match) {
     return null;

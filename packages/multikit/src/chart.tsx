@@ -46,13 +46,7 @@ function chartClassName(className: string | undefined): string {
   );
 }
 
-function BarChart({
-  className,
-  data,
-  maxValue,
-  showLabels = true,
-  ...props
-}: ChartSvgProps) {
+function BarChart({ className, data, maxValue, showLabels = true, ...props }: ChartSvgProps) {
   const chartMax = getChartMax(data, maxValue);
   const width = 240;
   const height = 128;
@@ -99,12 +93,7 @@ function BarChart({
               y={y}
             />
             {showLabels ? (
-              <text
-                fill="currentColor"
-                textAnchor="middle"
-                x={x + barWidth / 2}
-                y={height - 8}
-              >
+              <text fill="currentColor" textAnchor="middle" x={x + barWidth / 2} y={height - 8}>
                 {datum.label}
               </text>
             ) : null}
@@ -115,13 +104,7 @@ function BarChart({
   );
 }
 
-function LineChart({
-  className,
-  data,
-  maxValue,
-  showLabels = false,
-  ...props
-}: ChartSvgProps) {
+function LineChart({ className, data, maxValue, showLabels = false, ...props }: ChartSvgProps) {
   const chartMax = getChartMax(data, maxValue);
   const width = 240;
   const height = 128;
@@ -290,7 +273,12 @@ function PieChart({ className, data, showLabels = false, ...props }: PieChartPro
       {showLabels ? (
         <g>
           {data.map((datum, index) => (
-            <text fill="currentColor" key={`${datum.label}:label:${index}`} x="120" y={20 + index * 16}>
+            <text
+              fill="currentColor"
+              key={`${datum.label}:label:${index}`}
+              x="120"
+              y={20 + index * 16}
+            >
               {datum.label}
             </text>
           ))}

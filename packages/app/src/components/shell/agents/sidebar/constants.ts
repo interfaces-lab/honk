@@ -5,4 +5,3 @@ export const pageStep = 8;
 export const nearViewportPrefetchLimit = 12;
 export const sidebarThreadPrewarmLimit = 10;
 export const EMPTY_VISIBLE_THREAD_REFS: readonly ScopedThreadRef[] = [];
-

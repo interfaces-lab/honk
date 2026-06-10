@@ -118,9 +118,7 @@ function QueuedComposerItemRowActions(props: {
   );
 }
 
-function QueuedComposerItemThumbnails(props: {
-  item: QueuedComposerItem;
-}) {
+function QueuedComposerItemThumbnails(props: { item: QueuedComposerItem }) {
   const visibleImages = props.item.sendContext.images.slice(0, QUEUE_ROW_THUMBNAIL_LIMIT);
   if (visibleImages.length === 0) {
     return null;
@@ -256,9 +254,7 @@ function QueuedComposerItemRow(props: {
   );
 }
 
-function QueuedComposerItemsList(
-  props: QueuedComposerItemActionsProps,
-) {
+function QueuedComposerItemsList(props: QueuedComposerItemActionsProps) {
   const [draggingItemId, setDraggingItemId] = useState<MessageId | null>(null);
   const [dropTargetItemId, setDropTargetItemId] = useState<MessageId | null>(null);
   const [dropInsertAfter, setDropInsertAfter] = useState(false);
@@ -401,21 +397,14 @@ export function QueuedComposerItemsPanel(
   );
 }
 
-export function QueuedComposerEditBanner(props: {
-  onCancelEdit: () => void;
-}) {
+export function QueuedComposerEditBanner(props: { onCancelEdit: () => void }) {
   return (
     <div
       className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-(--multi-composer-queue-edit-banner-background) px-3 py-1.5 text-detail text-foreground"
       data-queued-composer-edit-banner=""
     >
       <span className="opacity-90">{QUEUE_EDIT_BANNER_LABEL}</span>
-      <Button
-        className="text-primary"
-        size="xs"
-        variant="ghost"
-        onClick={props.onCancelEdit}
-      >
+      <Button className="text-primary" size="xs" variant="ghost" onClick={props.onCancelEdit}>
         Cancel
       </Button>
     </div>

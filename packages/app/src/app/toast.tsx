@@ -314,7 +314,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
       <Toast.Portal data-slot="toast-portal">
         <Toast.Viewport
           className={cn(
-            "fixed z-100 mx-auto flex w-[calc(100vw-(var(--toast-inset)*2))] max-w-[340px] [--toast-header-offset:52px] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
+            "fixed z-(--z-index-toast-viewport) mx-auto flex w-[calc(100vw-(var(--toast-inset)*2))] max-w-[340px] [--toast-header-offset:52px] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
             // Vertical positioning
             "data-[position*=top]:top-[calc(var(--toast-inset)+var(--toast-header-offset))]",
             "data-[position*=bottom]:bottom-(--toast-inset)",
@@ -423,10 +423,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                     </div>
                   </div>
                   {toast.actionProps && (
-                    <ToastAction
-                      {...toast.actionProps}
-                      className={toast.actionProps.className}
-                    />
+                    <ToastAction {...toast.actionProps} className={toast.actionProps.className} />
                   )}
                   <ToastIconButton
                     aria-label="Dismiss notification"
@@ -475,16 +472,13 @@ function AnchoredToasts() {
 
             return (
               <Toast.Positioner
-                className="z-100 max-w-64"
+                className="z-(--z-index-toast-positioner) max-w-64"
                 data-slot="toast-positioner"
                 key={toast.id}
                 sideOffset={positionerProps.sideOffset ?? 4}
                 toast={toast}
               >
-                <ToastRoot
-                  chrome={tooltipStyle ? "tooltip" : "anchored"}
-                  toast={toast}
-                >
+                <ToastRoot chrome={tooltipStyle ? "tooltip" : "anchored"} toast={toast}>
                   {tooltipStyle ? (
                     <ToastContent layout="tooltip">
                       <ToastTitle />

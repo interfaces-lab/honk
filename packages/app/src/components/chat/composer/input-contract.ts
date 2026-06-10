@@ -42,6 +42,10 @@ export interface ComposerInputHandle {
     prompt?: string;
     detectTrigger?: boolean;
   }) => void;
+  /** Clear composer text, store draft, and Lexical editor (Cursor-style imperative clear). */
+  clearComposer: (options?: { focus?: boolean }) => void;
+  /** Restore composer after failed send or queue edit load. */
+  restoreComposer: (snapshot: ComposerSubmitContext) => void;
   /** Read prompt and attachments for dispatch. */
   getSendContext: () => ComposerSubmitContext;
 }
@@ -104,7 +108,7 @@ export interface ComposerInputProps {
   branchName?: string | null | undefined;
   executionModeLabel?: string | null | undefined;
 
-  promptRef: RefObject<string>;
+  promptRef?: RefObject<string> | undefined;
   composerImagesRef: RefObject<ComposerImageAttachment[]>;
 
   onSend: (e?: { preventDefault: () => void }) => void;

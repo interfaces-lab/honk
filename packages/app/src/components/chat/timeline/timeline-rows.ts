@@ -3,7 +3,6 @@ import type { ConversationDensity } from "@multi/contracts/settings";
 
 import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
 import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
-import { logTimelinePreview } from "./timeline-preview-debug";
 import {
   computeMessageDurationStart,
   deriveTimelineRenderItems,
@@ -115,19 +114,6 @@ export function computeStableMessagesTimelineRows(
   const result = rows.map((row, index) => {
     const prevRow = previous.byId.get(row.id);
     const nextRow = prevRow && isRowUnchanged(prevRow, row) ? prevRow : row;
-    if (
-      prevRow &&
-      row.kind === "work" &&
-      prevRow.kind === "work" &&
-      !("entry" in prevRow) &&
-      !("entry" in row) &&
-      nextRow !== prevRow
-    ) {
-      logTimelinePreview("work-row-replaced", {
-        rowId: row.id,
-        reason: describeWorkRowReplaceReason(prevRow, row),
-      });
-    }
     next.set(row.id, nextRow);
     if (!anyChanged && previous.result[index] !== nextRow) {
       anyChanged = true;
@@ -263,17 +249,11 @@ function isMessageRowMessageUnchanged(
   );
 }
 
-function isRuntimeToolRowUnchanged(
-  a: RuntimeToolTimelineRow,
-  b: RuntimeToolTimelineRow,
-): boolean {
+function isRuntimeToolRowUnchanged(a: RuntimeToolTimelineRow, b: RuntimeToolTimelineRow): boolean {
   return isRuntimeToolPayloadUnchanged(a, b);
 }
 
-function isRuntimeTaskRowUnchanged(
-  a: RuntimeTaskTimelineRow,
-  b: RuntimeTaskTimelineRow,
-): boolean {
+function isRuntimeTaskRowUnchanged(a: RuntimeTaskTimelineRow, b: RuntimeTaskTimelineRow): boolean {
   return isRuntimeToolPayloadUnchanged(a, b);
 }
 
@@ -379,25 +359,6 @@ function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {
   );
 }
 
-function describeWorkRowReplaceReason(prev: WorkTimelineRow, next: WorkTimelineRow): string {
-  if (prev.id !== next.id) return "id";
-  if (prev.createdAt !== next.createdAt) return "createdAt";
-  if (prev.completedDurationLabel !== next.completedDurationLabel) return "completedDurationLabel";
-  if (prev.isRunning !== next.isRunning) return "isRunning";
-  if (prev.isTailGroup !== next.isTailGroup) return "isTailGroup";
-  if (prev.isThinkingGroup !== next.isThinkingGroup) return "isThinkingGroup";
-  if (prev.isCommandGroup !== next.isCommandGroup) return "isCommandGroup";
-  if (prev.isWaitingGroup !== next.isWaitingGroup) return "isWaitingGroup";
-  if (prev.isBrowserGroup !== next.isBrowserGroup) return "isBrowserGroup";
-  if (prev.summary.action !== next.summary.action) return "summary.action";
-  if (prev.summary.details !== next.summary.details) return "summary.details";
-  if (prev.summary.additions !== next.summary.additions) return "summary.additions";
-  if (prev.summary.deletions !== next.summary.deletions) return "summary.deletions";
-  if (!areSameWorkEntries(prev.groupedEntries, next.groupedEntries)) return "groupedEntries";
-  if (!areSameGroupedSteps(prev.steps, next.steps)) return "steps";
-  return "unknown";
-}
-
 function areSameGroupedSteps(
   left: ReadonlyArray<TimelineGroupedStep>,
   right: ReadonlyArray<TimelineGroupedStep>,
@@ -408,7 +369,12 @@ function areSameGroupedSteps(
   for (let index = 0; index < left.length; index += 1) {
     const leftStep = left[index];
     const rightStep = right[index];
-    if (!leftStep || !rightStep || leftStep.kind !== rightStep.kind || leftStep.id !== rightStep.id) {
+    if (
+      !leftStep ||
+      !rightStep ||
+      leftStep.kind !== rightStep.kind ||
+      leftStep.id !== rightStep.id
+    ) {
       return false;
     }
     switch (leftStep.kind) {
@@ -429,10 +395,7 @@ function areSameGroupedSteps(
         break;
       case "message":
         if (
-          !isMessageRowMessageUnchanged(
-            leftStep.message,
-            (rightStep as typeof leftStep).message,
-          )
+          !isMessageRowMessageUnchanged(leftStep.message, (rightStep as typeof leftStep).message)
         ) {
           return false;
         }

@@ -18,18 +18,13 @@ export const COMPOSER_INTERACTION_MODE_CYCLE = [
   "debug",
 ] as const satisfies readonly AgentInteractionMode[];
 
-export function nextComposerInteractionMode(
-  mode: AgentInteractionMode,
-): AgentInteractionMode {
+export function nextComposerInteractionMode(mode: AgentInteractionMode): AgentInteractionMode {
   const index = COMPOSER_INTERACTION_MODE_CYCLE.indexOf(mode);
-  const nextIndex =
-    index < 0 ? 0 : (index + 1) % COMPOSER_INTERACTION_MODE_CYCLE.length;
+  const nextIndex = index < 0 ? 0 : (index + 1) % COMPOSER_INTERACTION_MODE_CYCLE.length;
   return COMPOSER_INTERACTION_MODE_CYCLE[nextIndex] ?? DEFAULT_INTERACTION_MODE;
 }
 
-export function workLogEntrySubagents(
-  entry: WorkLogEntry,
-): ReadonlyArray<WorkLogSubagent> {
+export function workLogEntrySubagents(entry: WorkLogEntry): ReadonlyArray<WorkLogSubagent> {
   return entry.subagents ?? [];
 }
 

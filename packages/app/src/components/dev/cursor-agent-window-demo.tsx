@@ -403,10 +403,7 @@ index 0000000..a1340b2
   ],
 ]);
 
-function DemoSidebarAction(props: {
-  readonly icon: DemoIcon;
-  readonly label: string;
-}) {
+function DemoSidebarAction(props: { readonly icon: DemoIcon; readonly label: string }) {
   const Icon = props.icon;
   return (
     <SidebarButton
@@ -618,7 +615,7 @@ function DemoTerminalPanel() {
         <span className="text-caption text-multi-fg-tertiary">bigrefactor</span>
       </div>
       <pre className="min-h-0 flex-1 overflow-hidden p-4 font-mono text-detail/[1.25rem] text-multi-fg-secondary">
-{`pnpm --filter @multi/app run typecheck
+        {`pnpm --filter @multi/app run typecheck
 
 Test Files  4 passed (4)
      Tests  43 passed (43)

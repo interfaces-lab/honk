@@ -312,7 +312,7 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).toContain("data-tool-call-line");
     expect(html).toContain("data-task-tool-call-body");
     expect(html).toContain("data-task-tool-call-subtitle");
-    expect(html).toContain("aria-expanded=\"true\"");
+    expect(html).toContain('aria-expanded="true"');
     expect(html).toContain("data-subagent-status-container");
     expect(html).toContain("data-subagent-status-embedded");
     expect(html).toContain("data-subagent-row");

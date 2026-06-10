@@ -7,10 +7,7 @@ import {
   type TurnId,
 } from "@multi/contracts";
 import { Schema } from "effect";
-import {
-  type DraftId as DraftIdType,
-  type DraftThreadState,
-} from "../../../stores/chat-drafts";
+import { type DraftId as DraftIdType, type DraftThreadState } from "../../../stores/chat-drafts";
 import { useStore } from "../../../stores/thread-store";
 import { selectThreadRouteLifecycleSurfaceByRef } from "../../../stores/thread-selectors";
 import {
@@ -113,10 +110,7 @@ export function reconcileMountedTerminalThreadIds(input: {
 
 export function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(
-    thread &&
-      (thread.latestTurn !== null ||
-        thread.messages.length > 0 ||
-        thread.session !== null),
+    thread && (thread.latestTurn !== null || thread.messages.length > 0 || thread.session !== null),
   );
 }
 
@@ -128,10 +122,10 @@ export function isNewThreadHeroDraft(input: {
 }): boolean {
   return Boolean(
     input.activeThread &&
-      input.isLocalDraftThread &&
-      !threadHasStarted(input.activeThread) &&
-      input.pendingLocalSendCount === 0 &&
-      !input.promotedTo,
+    input.isLocalDraftThread &&
+    !threadHasStarted(input.activeThread) &&
+    input.pendingLocalSendCount === 0 &&
+    !input.promotedTo,
   );
 }
 

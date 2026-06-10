@@ -33,14 +33,7 @@ function SplitButtonTrigger({
     <>
       <ButtonGroupSeparator />
       <MenuTrigger
-        render={
-          <Button
-            aria-label={ariaLabel}
-            size="icon"
-            variant="outline"
-            {...props}
-          />
-        }
+        render={<Button aria-label={ariaLabel} size="icon" variant="outline" {...props} />}
       >
         {children ?? <IconChevronRightMedium className="rotate-90" />}
       </MenuTrigger>

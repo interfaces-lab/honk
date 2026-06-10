@@ -217,7 +217,10 @@ function mergeToolOutputStreamActivity(
   );
   const previousData = recordPayloadField(previous.payload.data);
   const nextData = recordPayloadField(next.payload.data);
-  const delta = mergeText(stringPayloadField(previousData?.delta), stringPayloadField(nextData?.delta));
+  const delta = mergeText(
+    stringPayloadField(previousData?.delta),
+    stringPayloadField(nextData?.delta),
+  );
   return {
     ...next,
     createdAt: previous.createdAt,

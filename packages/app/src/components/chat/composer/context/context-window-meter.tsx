@@ -40,5 +40,5 @@ export function ContextWindowMeter(props: { usage: ContextWindowSnapshot }) {
   );
 }
 
-export { ContextWindowRing } from "./context-window-ring";
+export { ContextUsageEmptyRing, ContextWindowRing } from "./context-window-ring";
 export { ContextWindowUsageDetails } from "./context-window-usage-details";

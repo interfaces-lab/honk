@@ -83,8 +83,8 @@ function MenuPopup({
         anchor={anchor}
         className={
           variant === "workbench"
-            ? cn("pointer-events-none z-[70]", positionerClassName)
-            : cn("pointer-events-none z-50", positionerClassName)
+            ? cn("pointer-events-none z-(--z-index-workbench-menu)", positionerClassName)
+            : cn("pointer-events-none z-(--z-index-menu)", positionerClassName)
         }
         data-slot="menu-positioner"
         side={side}
@@ -349,6 +349,10 @@ function MenuSubPopup({
   positionerClassName?: string | undefined;
 }) {
   const defaultAlignOffset = align !== "center" ? -5 : undefined;
+  const positionerLayerClassName =
+    variant === "workbench"
+      ? "z-(--z-index-workbench-submenu)"
+      : "z-(--z-index-submenu)";
 
   return (
     <MenuPopup
@@ -356,7 +360,7 @@ function MenuSubPopup({
       alignOffset={alignOffset ?? defaultAlignOffset}
       className={className}
       data-slot="menu-sub-content"
-      positionerClassName={positionerClassName ?? "z-[90]"}
+      positionerClassName={positionerClassName ?? positionerLayerClassName}
       side={side}
       sideOffset={sideOffset}
       variant={variant}

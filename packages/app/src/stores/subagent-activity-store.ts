@@ -3,10 +3,12 @@ import { create } from "zustand";
 
 import {
   deriveWorkLogSubagentsFromOrderedActivities,
+  isSubagentTranscriptStreamingActivity,
   type SubagentTranscriptItem,
   type WorkLogSubagent,
   type WorkLogSubagentLog,
 } from "../session-logic";
+import { isSubagentTrayOpenForThread } from "./subagent-tray-store";
 
 const MAX_SUBAGENT_ACTIVITIES = 500;
 
@@ -36,6 +38,7 @@ interface SubagentActivityStore {
     environmentId: EnvironmentId,
     threadIds: ReadonlySet<ThreadId>,
   ) => void;
+  refreshProjection: (scope: SubagentProjectionScope) => void;
   reset: () => void;
 }
 
@@ -52,6 +55,96 @@ export function subagentActivityThreadKey(scope: SubagentProjectionScope): strin
   return `${scope.environmentId}\u001f${scope.threadId}`;
 }
 
+interface PendingSubagentUpsert {
+  readonly scope: SubagentProjectionScope;
+  activities: OrchestrationThreadActivity[];
+}
+
+const pendingSubagentUpsertsByKey = new Map<string, PendingSubagentUpsert>();
+let subagentUpsertFlushHandle: number | null = null;
+
+type SubagentActivityStoreSetter = (
+  partial:
+    | SubagentActivityStore
+    | Partial<SubagentActivityStore>
+    | ((state: SubagentActivityStore) => SubagentActivityStore | Partial<SubagentActivityStore>),
+) => void;
+
+function queueSubagentActivitiesUpsert(
+  scope: SubagentProjectionScope,
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+  set: SubagentActivityStoreSetter,
+): void {
+  const key = subagentActivityThreadKey(scope);
+  const pending = pendingSubagentUpsertsByKey.get(key);
+  if (pending) {
+    pending.activities.push(...activities);
+  } else {
+    pendingSubagentUpsertsByKey.set(key, {
+      scope,
+      activities: [...activities],
+    });
+  }
+  if (subagentUpsertFlushHandle !== null) {
+    return;
+  }
+  if (typeof requestAnimationFrame !== "function") {
+    flushQueuedSubagentActivitiesUpserts(set);
+    return;
+  }
+  subagentUpsertFlushHandle = requestAnimationFrame(() => {
+    subagentUpsertFlushHandle = null;
+    flushQueuedSubagentActivitiesUpserts(set);
+  });
+}
+
+function flushQueuedSubagentActivitiesUpserts(set: SubagentActivityStoreSetter): void {
+  const queued = [...pendingSubagentUpsertsByKey.values()];
+  pendingSubagentUpsertsByKey.clear();
+  if (queued.length === 0) {
+    return;
+  }
+
+  set((state) => {
+    let projectionByThreadKey = state.projectionByThreadKey;
+    let stateChanged = false;
+
+    for (const { scope, activities } of queued) {
+      const key = subagentActivityThreadKey(scope);
+      const previousProjection = projectionByThreadKey[key] ?? EMPTY_PROJECTION;
+      const changedReplacements = filterChangedSubagentActivityReplacements(
+        previousProjection,
+        dedupeSubagentActivitiesById(activities),
+      );
+      if (changedReplacements.length === 0) {
+        continue;
+      }
+      const projectionOptions = subagentProjectionOptionsForScope(scope);
+      const nextProjection = reduceSubagentActivityProjection(
+        previousProjection,
+        changedReplacements,
+        projectionOptions,
+      );
+      if (nextProjection === previousProjection) {
+        continue;
+      }
+      if (!stateChanged) {
+        projectionByThreadKey = { ...state.projectionByThreadKey };
+        stateChanged = true;
+      }
+      projectionByThreadKey[key] = nextProjection;
+    }
+
+    if (!stateChanged) {
+      return state;
+    }
+    return {
+      ...state,
+      projectionByThreadKey,
+    };
+  });
+}
+
 export const useSubagentActivityStore = create<SubagentActivityStore>((set) => ({
   projectionByThreadKey: {},
   replaceActivities: (scope, activities) => {
@@ -62,8 +155,7 @@ export const useSubagentActivityStore = create<SubagentActivityStore>((set) => (
         if (!previousProjection) {
           return state;
         }
-        const { [key]: _removedProjection, ...projectionByThreadKey } =
-          state.projectionByThreadKey;
+        const { [key]: _removedProjection, ...projectionByThreadKey } = state.projectionByThreadKey;
         return {
           ...state,
           projectionByThreadKey,
@@ -73,6 +165,7 @@ export const useSubagentActivityStore = create<SubagentActivityStore>((set) => (
       const nextProjection = replaceSubagentActivityProjection(
         previousProjection ?? EMPTY_PROJECTION,
         activities,
+        subagentProjectionOptionsForScope(scope),
       );
       if (previousProjection && nextProjection === previousProjection) {
         return state;
@@ -90,10 +183,29 @@ export const useSubagentActivityStore = create<SubagentActivityStore>((set) => (
     if (activities.length === 0) {
       return;
     }
+    queueSubagentActivitiesUpsert(scope, activities, set);
+  },
+  refreshProjection: (scope) => {
+    if (pendingSubagentUpsertsByKey.size > 0) {
+      if (subagentUpsertFlushHandle !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(subagentUpsertFlushHandle);
+      }
+      subagentUpsertFlushHandle = null;
+      flushQueuedSubagentActivitiesUpserts(set);
+    }
     const key = subagentActivityThreadKey(scope);
     set((state) => {
-      const previousProjection = state.projectionByThreadKey[key] ?? EMPTY_PROJECTION;
-      const nextProjection = reduceSubagentActivityProjection(previousProjection, activities);
+      const previousProjection = state.projectionByThreadKey[key];
+      if (!previousProjection) {
+        return state;
+      }
+      const activities = previousProjection.activityIds
+        .map((id) => previousProjection.activityById[id])
+        .filter((activity): activity is OrchestrationThreadActivity => Boolean(activity));
+      const nextProjection = projectionFromOrderedActivities(previousProjection, activities, {
+        includeTranscript: true,
+        reprojectAllSubagents: true,
+      });
       if (nextProjection === previousProjection) {
         return state;
       }
@@ -112,8 +224,7 @@ export const useSubagentActivityStore = create<SubagentActivityStore>((set) => (
       if (!state.projectionByThreadKey[key]) {
         return state;
       }
-      const { [key]: _removedProjection, ...projectionByThreadKey } =
-        state.projectionByThreadKey;
+      const { [key]: _removedProjection, ...projectionByThreadKey } = state.projectionByThreadKey;
       return {
         ...state,
         projectionByThreadKey,
@@ -152,9 +263,59 @@ export function selectSubagentProjection(
   return state.projectionByThreadKey[subagentActivityThreadKey(scope)] ?? EMPTY_PROJECTION;
 }
 
+export function refreshSubagentActivityProjection(scope: SubagentProjectionScope): void {
+  useSubagentActivityStore.getState().refreshProjection(scope);
+}
+
+interface SubagentProjectionOptions {
+  readonly includeTranscript: boolean;
+  readonly reprojectAllSubagents?: boolean;
+}
+
+function subagentProjectionOptionsForScope(
+  scope: SubagentProjectionScope,
+): SubagentProjectionOptions {
+  return {
+    includeTranscript: isSubagentTrayOpenForThread(scope),
+  };
+}
+
+function isSubagentMetadataProjectionActivity(activity: OrchestrationThreadActivity): boolean {
+  return (
+    activity.kind === "subagent.thread.started" ||
+    activity.kind === "subagent.thread.state.changed" ||
+    activity.kind === "subagent.usage.updated"
+  );
+}
+
+function dedupeSubagentActivitiesById(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): OrchestrationThreadActivity[] {
+  const byId = new Map<string, OrchestrationThreadActivity>();
+  for (const activity of activities) {
+    byId.set(activity.id, activity);
+  }
+  return [...byId.values()];
+}
+
+function filterChangedSubagentActivityReplacements(
+  previous: SubagentActivityProjection,
+  replacements: ReadonlyArray<OrchestrationThreadActivity>,
+): OrchestrationThreadActivity[] {
+  const changed: OrchestrationThreadActivity[] = [];
+  for (const replacement of replacements) {
+    const previousActivity = previous.activityById[replacement.id];
+    if (!previousActivity || !subagentActivitiesEqual(previousActivity, replacement)) {
+      changed.push(replacement);
+    }
+  }
+  return changed;
+}
+
 function reduceSubagentActivityProjection(
   previous: SubagentActivityProjection,
   replacements: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentProjectionOptions,
 ): SubagentActivityProjection {
   const currentActivities = previous.activityIds
     .map((id) => previous.activityById[id])
@@ -163,18 +324,34 @@ function reduceSubagentActivityProjection(
   if (nextActivities === currentActivities) {
     return previous;
   }
-  return projectionFromOrderedActivities(previous, nextActivities);
+  const introducesNewActivity = replacements.some(
+    (replacement) => !previous.activityById[replacement.id],
+  );
+  const cacheOnly =
+    !options.includeTranscript &&
+    !introducesNewActivity &&
+    !replacements.some((activity) => isSubagentMetadataProjectionActivity(activity)) &&
+    replacements.every(
+      (activity) =>
+        isSubagentTranscriptStreamingActivity(activity) ||
+        activity.kind === "subagent.thread.started",
+    );
+  if (cacheOnly) {
+    return mergeSubagentActivityCache(previous, nextActivities);
+  }
+  return projectionFromOrderedActivities(previous, nextActivities, options);
 }
 
 function replaceSubagentActivityProjection(
   previous: SubagentActivityProjection,
   activities: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentProjectionOptions,
 ): SubagentActivityProjection {
   const nextActivities = upsertSubagentActivities([], activities);
-  return projectionFromOrderedActivities(previous, nextActivities);
+  return projectionFromOrderedActivities(previous, nextActivities, options);
 }
 
-function projectionFromOrderedActivities(
+function mergeSubagentActivityCache(
   previous: SubagentActivityProjection,
   nextActivities: ReadonlyArray<OrchestrationThreadActivity>,
 ): SubagentActivityProjection {
@@ -182,15 +359,40 @@ function projectionFromOrderedActivities(
   const nextActivityById = Object.fromEntries(
     nextActivities.map((activity) => [activity.id, activity] as const),
   ) as Record<string, OrchestrationThreadActivity>;
-  const affectedSubagentThreadIds = affectedSubagentThreadIdsForProjection(
-    previous,
-    nextActivityIds,
-    nextActivityById,
-  );
+  if (
+    arraysEqual(previous.activityIds, nextActivityIds) &&
+    activitiesByIdEqual(previous.activityById, nextActivityById)
+  ) {
+    return previous;
+  }
+  return {
+    activityIds: nextActivityIds,
+    activityById: nextActivityById,
+    subagentById: previous.subagentById,
+  };
+}
+
+function projectionFromOrderedActivities(
+  previous: SubagentActivityProjection,
+  nextActivities: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentProjectionOptions,
+): SubagentActivityProjection {
+  const nextActivityIds = nextActivities.map((activity) => activity.id);
+  const nextActivityById = Object.fromEntries(
+    nextActivities.map((activity) => [activity.id, activity] as const),
+  ) as Record<string, OrchestrationThreadActivity>;
+  const affectedSubagentThreadIds = options.reprojectAllSubagents
+    ? allSubagentThreadIdsInActivities(nextActivities)
+    : affectedSubagentThreadIdsForProjection(previous, nextActivityIds, nextActivityById);
   const nextSubagentById =
     affectedSubagentThreadIds.size === 0
       ? previous.subagentById
-      : projectAffectedSubagents(previous.subagentById, nextActivities, affectedSubagentThreadIds);
+      : projectAffectedSubagents(
+          previous.subagentById,
+          nextActivities,
+          affectedSubagentThreadIds,
+          options,
+        );
 
   if (
     arraysEqual(previous.activityIds, nextActivityIds) &&
@@ -205,6 +407,16 @@ function projectionFromOrderedActivities(
     activityById: nextActivityById,
     subagentById: nextSubagentById,
   };
+}
+
+function allSubagentThreadIdsInActivities(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): Set<string> {
+  const affected = new Set<string>();
+  for (const activity of activities) {
+    addSubagentThreadId(affected, activity);
+  }
+  return affected;
 }
 
 function affectedSubagentThreadIdsForProjection(
@@ -244,12 +456,15 @@ function projectAffectedSubagents(
   previousSubagents: Record<string, WorkLogSubagent>,
   nextActivities: ReadonlyArray<OrchestrationThreadActivity>,
   affectedSubagentThreadIds: ReadonlySet<string>,
+  options: SubagentProjectionOptions,
 ): Record<string, WorkLogSubagent> {
   const affectedActivities = nextActivities.filter((activity) => {
     const subagentThreadId = subagentThreadIdFromActivity(activity);
     return subagentThreadId !== null && affectedSubagentThreadIds.has(subagentThreadId);
   });
-  const derivedSubagents = deriveWorkLogSubagentsFromOrderedActivities(affectedActivities);
+  const derivedSubagents = deriveWorkLogSubagentsFromOrderedActivities(affectedActivities, {
+    includeTranscript: options.includeTranscript,
+  });
   let nextSubagents = previousSubagents;
 
   for (const subagentThreadId of affectedSubagentThreadIds) {
@@ -265,7 +480,7 @@ function projectAffectedSubagents(
       continue;
     }
 
-    const stableSubagent = stableWorkLogSubagent(previousSubagent, derivedSubagent);
+    const stableSubagent = stableWorkLogSubagent(previousSubagent, derivedSubagent, options);
     if (stableSubagent !== previousSubagent) {
       if (nextSubagents === previousSubagents) {
         nextSubagents = { ...previousSubagents };
@@ -307,7 +522,8 @@ function upsertSubagentActivities(
   if (next === current) {
     return current;
   }
-  const capped = next.length > MAX_SUBAGENT_ACTIVITIES ? next.slice(-MAX_SUBAGENT_ACTIVITIES) : next;
+  const capped =
+    next.length > MAX_SUBAGENT_ACTIVITIES ? next.slice(-MAX_SUBAGENT_ACTIVITIES) : next;
   return capped;
 }
 
@@ -392,16 +608,16 @@ function compareActivities(
 function stableWorkLogSubagent(
   previous: WorkLogSubagent | undefined,
   next: WorkLogSubagent,
+  options: SubagentProjectionOptions,
 ): WorkLogSubagent {
   if (!previous) {
     return next;
   }
   const logs = stableSubagentLogs(previous.logs, next.logs);
-  const transcriptItems = stableSubagentTranscriptItems(
-    previous.transcriptItems,
-    next.transcriptItems,
-  );
-  const stableNext =
+  const transcriptItems = options.includeTranscript
+    ? stableSubagentTranscriptItems(previous.transcriptItems, next.transcriptItems)
+    : previous.transcriptItems;
+  const stableNext: WorkLogSubagent =
     logs === next.logs && transcriptItems === next.transcriptItems
       ? next
       : {
@@ -409,7 +625,15 @@ function stableWorkLogSubagent(
           ...(logs !== next.logs ? { logs } : {}),
           ...(transcriptItems !== next.transcriptItems ? { transcriptItems } : {}),
         };
-  return areSameWorkLogSubagent(previous, stableNext) ? previous : stableNext;
+  const preservedTranscript =
+    !options.includeTranscript && previous.transcriptItems
+      ? {
+          transcriptItems: previous.transcriptItems,
+          hasDetails: stableNext.hasDetails || previous.transcriptItems.length > 0,
+        }
+      : null;
+  const mergedNext = preservedTranscript ? { ...stableNext, ...preservedTranscript } : stableNext;
+  return areSameWorkLogSubagent(previous, mergedNext) ? previous : mergedNext;
 }
 
 function areSameWorkLogSubagent(previous: WorkLogSubagent, next: WorkLogSubagent): boolean {
@@ -447,9 +671,7 @@ function areSameSubagentLogs(
   if (!previous || !next || previous.length !== next.length) {
     return false;
   }
-  return previous.every((previousLog, index) =>
-    areSameSubagentLog(previousLog, next[index]),
-  );
+  return previous.every((previousLog, index) => areSameSubagentLog(previousLog, next[index]));
 }
 
 function areSameSubagentTranscriptItems(
@@ -540,6 +762,7 @@ function areSameSubagentTranscriptItem(
     previous.command === next.command &&
     previous.rawCommand === next.rawCommand &&
     previous.output === next.output &&
+    arraysEqual(previous.changedFiles ?? [], next.changedFiles ?? []) &&
     previous.itemType === next.itemType &&
     previous.status === next.status &&
     previous.streamKind === next.streamKind &&

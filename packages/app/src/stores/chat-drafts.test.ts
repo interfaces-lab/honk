@@ -109,10 +109,50 @@ describe("chat drafts", () => {
     expect(useComposerDraftStore.getState().getDraftSession(draft.draftId)).toBeNull();
     expect(useComposerDraftStore.getState().getComposerDraft(draft.draftId)).toBeNull();
     expect(
-      Object.values(useComposerDraftStore.getState().logicalProjectDraftThreadKeyByLogicalProjectKey),
+      Object.values(
+        useComposerDraftStore.getState().logicalProjectDraftThreadKeyByLogicalProjectKey,
+      ),
     ).not.toContain(draft.draftId satisfies DraftId);
     expect(useComposerDraftStore.getState().listDraftThreadKeys()).not.toContain(
       scopedThreadKey(scopeThreadRef(environmentId, draft.threadId)),
     );
+  });
+
+  it("updateComposerDraft patches prompt and richText immediately", () => {
+    const projectRef = scopeProjectRef(environmentId, projectId);
+    const draft = openProjectNewThreadDraft(projectRef);
+    const store = useComposerDraftStore.getState();
+
+    store.updateComposerDraft(draft.draftId, {
+      prompt: "Hello",
+      richTextJson: '{"type":"doc"}',
+    });
+
+    const saved = store.getComposerDraft(draft.draftId);
+    expect(saved?.prompt).toBe("Hello");
+    expect(saved?.richTextJson).toBe('{"type":"doc"}');
+
+    store.updateComposerDraft(draft.draftId, { prompt: "Hello world" });
+    expect(store.getComposerDraft(draft.draftId)?.prompt).toBe("Hello world");
+    expect(store.getComposerDraft(draft.draftId)?.richTextJson).toBe('{"type":"doc"}');
+  });
+
+  it("clearComposerText empties prompt and richText without removing interaction mode", () => {
+    const projectRef = scopeProjectRef(environmentId, projectId);
+    const draft = openProjectNewThreadDraft(projectRef);
+    const store = useComposerDraftStore.getState();
+
+    store.updateComposerDraft(draft.draftId, {
+      prompt: "Draft text",
+      richTextJson: '{"type":"doc","content":[]}',
+    });
+    store.setInteractionMode(draft.draftId, DEFAULT_INTERACTION_MODE);
+
+    store.clearComposerText(draft.draftId);
+
+    const saved = store.getComposerDraft(draft.draftId);
+    expect(saved?.prompt).toBe("");
+    expect(saved?.richTextJson).toBeNull();
+    expect(saved?.interactionMode).toBe(DEFAULT_INTERACTION_MODE);
   });
 });

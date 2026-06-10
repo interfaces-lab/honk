@@ -1,8 +1,8 @@
 /* Chat markdown: root tokens and generated descendant edge cases. */
 .chat-markdown {
   min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   color: color-mix(in srgb, var(--foreground) 84%, transparent);
   font-size: var(--conversation-text-font-size);
   line-height: var(--multi-markdown-line-height);
@@ -13,8 +13,8 @@
     calc(var(--conversation-text-font-size, 13px) * 1.55)
   );
   --multi-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --multi-markdown-code-background: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --multi-markdown-code-background: var(--cursor-bg-editor);
+  --multi-markdown-inline-code-background: var(--multi-bg-tertiary);
   --multi-markdown-blockquote-background: transparent;
   --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
   --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 68%, transparent);
@@ -35,7 +35,6 @@
 }
 
 .dark .chat-markdown {
-  --multi-markdown-code-border: color-mix(in srgb, var(--foreground) 10%, transparent);
   --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 22%, transparent);
   --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 62%, transparent);
   --multi-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 34%, transparent);
@@ -86,33 +85,53 @@
   margin-bottom: 0;
 }
 
+.chat-markdown li > p {
+  margin-block: 0;
+}
+
+/* Cursor parity: inner table grid only — trim strokes on the last column/row. */
+.chat-markdown :is(th, td):last-child {
+  border-right: 0;
+}
+
+.chat-markdown tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.chat-markdown thead {
+  background: none;
+}
+
 .chat-markdown li:has(input[type="checkbox"]) {
   list-style-type: none;
 }
 
+/* Cursor parity: `.markdown-root code` — 1.5px 4px, radius 5px, 0.9em, no mid-word breaks. */
 .chat-markdown .chat-markdown-inline-code {
   padding: 1.5px 4px;
   border-radius: 5px;
-  background-color: var(--multi-markdown-code-background);
+  background-color: var(--multi-markdown-inline-code-background);
   color: var(--multi-markdown-preformat-foreground);
   font-family: var(--multi-font-mono);
   font-size: 0.9em;
   line-height: 1.4;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
+/* Cursor parity: `.markdown-root pre` — 12px padding on a quiet rounded block. */
 .chat-markdown .chat-markdown-codeblock pre {
   margin: 0;
   padding: 12px;
   max-width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--multi-markdown-code-border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: var(--multi-radius-control);
   background-color: var(--multi-markdown-code-background) !important;
   color: var(--multi-markdown-preformat-foreground);
   font-family: var(--multi-font-mono);
-  font-size: 0.85em;
-  line-height: 1.5;
+  font-size: var(--multi-code-font-size-user, 12px);
+  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
 }
 
 .chat-markdown .chat-markdown-codeblock pre code {
@@ -125,6 +144,48 @@
   font-size: inherit;
   line-height: inherit;
   word-break: normal;
+}
+
+.chat-markdown .chat-markdown-shiki {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-markdown pre.shiki,
+.chat-markdown .chat-markdown-codeblock pre,
+.chat-markdown .chat-markdown-codeblock .chat-markdown-shiki pre.shiki,
+.chat-markdown .chat-markdown-plain-pre {
+  margin: 0;
+  padding: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 0;
+  border-radius: var(--multi-radius-control);
+  background-color: var(--multi-markdown-code-background) !important;
+  color: var(--multi-markdown-preformat-foreground) !important;
+  font-family: var(--multi-font-mono);
+  font-size: var(--multi-code-font-size-user, 12px);
+  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+}
+
+/* Streamdown's built-in code path should match chat transcript surfaces. */
+.chat-markdown [data-streamdown="code-block"],
+.chat-markdown [data-streamdown="code-block-body"] {
+  border: 0 !important;
+  background-color: transparent !important;
+}
+
+.chat-markdown [data-streamdown="code-block-body"] pre {
+  background-color: var(--multi-markdown-code-background) !important;
+  color: var(--multi-markdown-preformat-foreground) !important;
+  font-family: var(--multi-font-mono);
+  font-size: var(--multi-code-font-size-user, 12px);
+  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+}
+
+.chat-markdown .chat-markdown-shiki pre.shiki code,
+.chat-markdown .chat-markdown-shiki pre.shiki code span {
+  background-color: transparent !important;
 }
 
 .chat-markdown .chat-markdown-codeblock:hover .chat-markdown-copy-button,

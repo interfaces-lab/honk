@@ -39,19 +39,13 @@ export type TimelineScrollFollowEvent =
   | { type: "repin" }
   | { type: "restore"; atBottom: boolean };
 
-export function computeLastPairMinHeightPx(
-  viewportHeight: number,
-  scrollInset = 1,
-): number {
+export function computeLastPairMinHeightPx(viewportHeight: number, scrollInset = 1): number {
   if (viewportHeight === 0) {
     return 0;
   }
 
   const contentHeight = viewportHeight - scrollInset;
-  return Math.max(
-    contentHeight * LAST_PAIR_MIN_HEIGHT_RATIO,
-    LAST_PAIR_MIN_HEIGHT_FLOOR_PX,
-  );
+  return Math.max(contentHeight * LAST_PAIR_MIN_HEIGHT_RATIO, LAST_PAIR_MIN_HEIGHT_FLOOR_PX);
 }
 
 export function computeLastTurnContentHeightPx(
@@ -72,8 +66,7 @@ export function computeLastTurnContentHeightPx(
       continue;
     }
 
-    totalHeight +=
-      measuredHeights.get(row.id) ?? estimateRowHeight?.(index) ?? 0;
+    totalHeight += measuredHeights.get(row.id) ?? estimateRowHeight?.(index) ?? 0;
     measuredRowCount += 1;
   }
 
@@ -106,10 +99,8 @@ export function computePinnedState(
       return { pinned: event.atBottom, atBottom: event.atBottom };
     }
 
-    const atBottom =
-      event.maxScrollOffset - event.scrollOffset <= NEAR_BOTTOM_THRESHOLD_PX;
-    const recentUserInput =
-      event.now - event.lastUserInputAt <= USER_SCROLL_INPUT_WINDOW_MS;
+    const atBottom = event.maxScrollOffset - event.scrollOffset <= NEAR_BOTTOM_THRESHOLD_PX;
+    const recentUserInput = event.now - event.lastUserInputAt <= USER_SCROLL_INPUT_WINDOW_MS;
     const scrolledUp = event.scrollDelta < -PIN_SNAP_THRESHOLD_PX;
 
     let pinned = prev.pinned;
@@ -124,11 +115,9 @@ export function computePinnedState(
 
   const nearBottomThresholdPx = event.nearBottomThresholdPx ?? NEAR_BOTTOM_THRESHOLD_PX;
   const userInputWindowMs = event.userInputWindowMs ?? USER_SCROLL_INPUT_WINDOW_MS;
-  const distanceFromBottom =
-    event.totalHeight - event.clampedOffset - event.viewportHeight;
+  const distanceFromBottom = event.totalHeight - event.clampedOffset - event.viewportHeight;
   const atBottom = distanceFromBottom <= nearBottomThresholdPx;
-  const scrolledUp =
-    event.isScrolling && event.clampedOffset < event.lastObservedScrollOffset;
+  const scrolledUp = event.isScrolling && event.clampedOffset < event.lastObservedScrollOffset;
   const hasRecentUserInput =
     event.isUserPointerDown || event.msSinceUserScrollInput <= userInputWindowMs;
 

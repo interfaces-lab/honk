@@ -23,4 +23,3 @@ export function createThreadRefsKey(threadRefs: readonly ScopedThreadRef[]): str
 export function createSectionItemIdsKey(items: readonly { id: string }[]): string {
   return items.map((item) => item.id).join("\0");
 }
-

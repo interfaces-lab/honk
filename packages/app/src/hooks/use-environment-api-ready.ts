@@ -2,16 +2,11 @@ import type { EnvironmentId } from "@multi/contracts";
 import { useSyncExternalStore } from "react";
 
 import { readEnvironmentApi } from "~/environment-api";
-import {
-  readEnvironmentConnection,
-  subscribeEnvironmentConnections,
-} from "~/environments/runtime";
+import { readEnvironmentConnection, subscribeEnvironmentConnections } from "~/environments/runtime";
 
 const NOOP = () => undefined;
 
-function readEnvironmentApiReady(
-  environmentId: EnvironmentId | null | undefined,
-): boolean {
+function readEnvironmentApiReady(environmentId: EnvironmentId | null | undefined): boolean {
   if (!environmentId) {
     return false;
   }
@@ -30,9 +25,8 @@ function subscribeEnvironmentApiReady(
   listener: () => void,
 ): () => void {
   const unsubscribeConnections = subscribeEnvironmentConnections(listener);
-  const unsubscribeBootstrap =
-    environmentId ?
-      (readEnvironmentConnection(environmentId)?.subscribeBootstrap(listener) ?? NOOP)
+  const unsubscribeBootstrap = environmentId
+    ? (readEnvironmentConnection(environmentId)?.subscribeBootstrap(listener) ?? NOOP)
     : NOOP;
 
   return () => {
@@ -41,9 +35,7 @@ function subscribeEnvironmentApiReady(
   };
 }
 
-export function useEnvironmentApiReady(
-  environmentId: EnvironmentId | null | undefined,
-): boolean {
+export function useEnvironmentApiReady(environmentId: EnvironmentId | null | undefined): boolean {
   return useSyncExternalStore(
     (listener) => subscribeEnvironmentApiReady(environmentId, listener),
     () => readEnvironmentApiReady(environmentId),

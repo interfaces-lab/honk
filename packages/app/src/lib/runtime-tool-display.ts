@@ -1,10 +1,7 @@
 import type { RuntimeDisplayTimelineToolDisplay } from "@multi/contracts";
 
 export const MAX_RUNTIME_SUBAGENT_VISIBLE_ACTIVITIES = 80;
-type RuntimeSubagentDisplay = Extract<
-  RuntimeDisplayTimelineToolDisplay,
-  { kind: "subagent" }
->;
+type RuntimeSubagentDisplay = Extract<RuntimeDisplayTimelineToolDisplay, { kind: "subagent" }>;
 type RuntimeSubagentActivity = RuntimeSubagentDisplay["activities"][number];
 
 export function runtimeToolDisplaySignature(

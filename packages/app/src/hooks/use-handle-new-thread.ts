@@ -3,11 +3,7 @@ import { type ScopedProjectRef } from "@multi/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
-import {
-  type DraftThreadEnvMode,
-  DraftId,
-  useComposerDraftStore,
-} from "../stores/chat-drafts";
+import { type DraftThreadEnvMode, DraftId, useComposerDraftStore } from "../stores/chat-drafts";
 import { deriveLogicalProjectKey } from "../stores/project-identity";
 import { type AppState, selectProjectsAcrossEnvironments, useStore } from "../stores/thread-store";
 import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
@@ -113,8 +109,8 @@ export function useHandleNewThread() {
   const routeTarget = useChatRouteTarget();
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useStore(
-    useShallow((store: AppState) =>
-      selectThreadWorkspaceSurfaceByRef(store, routeThreadRef) ?? null,
+    useShallow(
+      (store: AppState) => selectThreadWorkspaceSurfaceByRef(store, routeThreadRef) ?? null,
     ),
   );
   const activeDraftThread = useComposerDraftStore((store) =>

@@ -5,10 +5,7 @@ import { runtimeToolDisplaySignature } from "./runtime-tool-display";
 
 const createdAt = "2026-06-05T20:30:00.000Z";
 
-type RuntimeSubagentDisplay = Extract<
-  RuntimeDisplayTimelineToolDisplay,
-  { kind: "subagent" }
->;
+type RuntimeSubagentDisplay = Extract<RuntimeDisplayTimelineToolDisplay, { kind: "subagent" }>;
 
 function runtimeSubagentDisplay(
   activities: RuntimeSubagentDisplay["activities"],
@@ -115,9 +112,7 @@ function parallelSubagentActivity(input: {
       subagentThreadId: input.subagentThreadId,
       agentId: `agent:${input.subagentThreadId}`,
       nickname: input.subagentThreadId.endsWith("a") ? "Research A" : "Research B",
-      prompt: input.subagentThreadId.endsWith("a")
-        ? "Inspect renderer A"
-        : "Inspect renderer B",
+      prompt: input.subagentThreadId.endsWith("a") ? "Inspect renderer A" : "Inspect renderer B",
       itemId: `${input.subagentThreadId}:item:${input.sequence}`,
     },
   };

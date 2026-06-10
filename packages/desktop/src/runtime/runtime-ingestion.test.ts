@@ -32,7 +32,8 @@ describe("runtime ingestion", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         if (url.endsWith("/api/auth/bootstrap")) {
           return new Response(
             JSON.stringify({

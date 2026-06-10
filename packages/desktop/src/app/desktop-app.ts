@@ -13,10 +13,7 @@ import * as ElectronDialog from "../electron/electron-dialog";
 import * as ElectronProtocol from "../electron/electron-protocol";
 import * as ElectronTheme from "../electron/electron-theme";
 import { installDesktopIpcHandlers } from "../ipc/desktop-ipc-handlers";
-import {
-  installRuntimeHostEventBridge,
-  installRuntimeIngestion,
-} from "../ipc/methods/runtime";
+import { installRuntimeHostEventBridge, installRuntimeIngestion } from "../ipc/methods/runtime";
 import * as DesktopAppIdentity from "./desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
 import * as DesktopBackendManager from "../backend/desktop-backend-manager";

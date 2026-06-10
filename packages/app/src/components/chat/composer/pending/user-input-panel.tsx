@@ -2,10 +2,7 @@ import { type ApprovalRequestId } from "@multi/contracts";
 import { Button } from "@multi/multikit/button";
 import { type KeyboardEvent } from "react";
 import { type PendingUserInput } from "../../../../session-logic";
-import {
-  derivePendingUserInputProgress,
-  type PendingUserInputDraftAnswer,
-} from "./user-input";
+import { derivePendingUserInputProgress, type PendingUserInputDraftAnswer } from "./user-input";
 import { IconCheckmark1 } from "central-icons";
 import { cn } from "~/lib/utils";
 

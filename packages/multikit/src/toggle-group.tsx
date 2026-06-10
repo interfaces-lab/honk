@@ -9,7 +9,8 @@ import { cn } from "./utils";
 import { Separator } from "./separator";
 import { Toggle as ToggleComponent, type toggleVariants } from "./toggle";
 
-const ToggleGroupSizeContext = React.createContext<VariantProps<typeof toggleVariants>["size"]>("default");
+const ToggleGroupSizeContext =
+  React.createContext<VariantProps<typeof toggleVariants>["size"]>("default");
 const ToggleGroupVariantContext =
   React.createContext<VariantProps<typeof toggleVariants>["variant"]>("default");
 
@@ -42,7 +43,9 @@ function ToggleGroup({
       {...props}
     >
       <ToggleGroupSizeContext.Provider value={size}>
-        <ToggleGroupVariantContext.Provider value={variant}>{children}</ToggleGroupVariantContext.Provider>
+        <ToggleGroupVariantContext.Provider value={variant}>
+          {children}
+        </ToggleGroupVariantContext.Provider>
       </ToggleGroupSizeContext.Provider>
     </ToggleGroupPrimitive>
   );

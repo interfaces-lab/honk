@@ -9,6 +9,7 @@ import {
   ThreadId,
   TurnId,
   resolveThreadEntryPath,
+  runtimeSessionEntryMessageId,
   threadEntryIdForMessageId,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
@@ -20,10 +21,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getThreadFromEnvironmentState } from "../thread-derivation";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
-import {
-  selectSubagentProjection,
-  useSubagentActivityStore,
-} from "./subagent-activity-store";
+import { selectSubagentProjection, useSubagentActivityStore } from "./subagent-activity-store";
+import { useSubagentTrayStore } from "./subagent-tray-store";
 import { initialState, selectEnvironmentState, useStore } from "./thread-store";
 
 const environmentId = EnvironmentId.make("environment:pi-runtime-store");
@@ -57,9 +56,7 @@ const thinkingEntryCreatedAt = Date.prototype.toISOString.call(
 const userMessageCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 0, 0)),
 );
-const toolCallCreatedAt = Date.prototype.toISOString.call(
-  new Date(Date.UTC(2026, 5, 1, 12, 0, 1)),
-);
+const toolCallCreatedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 12, 0, 1)));
 const toolResultCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 0, 2)),
 );
@@ -75,7 +72,9 @@ const toolStartedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5,
 const extensionUiRequestedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 0, 25)),
 );
-const subagentUpdatedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 12, 0, 26)));
+const subagentUpdatedAt = Date.prototype.toISOString.call(
+  new Date(Date.UTC(2026, 5, 1, 12, 0, 26)),
+);
 const subagentSnapshotUpdatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 0, 27)),
 );
@@ -86,9 +85,7 @@ const queueUpdatedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5
 const turnInterruptedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 0, 31)),
 );
-const turnCompletedAt = Date.prototype.toISOString.call(
-  new Date(Date.UTC(2026, 5, 1, 12, 0, 32)),
-);
+const turnCompletedAt = Date.prototype.toISOString.call(new Date(Date.UTC(2026, 5, 1, 12, 0, 32)));
 const sessionTreeProjection = {
   threadId,
   runtimeSessionId,
@@ -346,7 +343,25 @@ const otherThreadId = ThreadId.make("thread:pi-runtime-store:other");
 const otherSubagentThreadId = "thread:pi-runtime-store:other:subagent";
 const siblingSubagentThreadId = "thread:pi-runtime-store:sibling-subagent";
 
-function subagentToolUpdatedEvent(detail: string, createdAt = subagentUpdatedAt): AgentRuntimeEvent {
+function openSubagentTrayForTests(input: {
+  readonly threadId?: ThreadId;
+  readonly subagentThreadId?: string;
+} = {}): void {
+  const activeThreadId = input.threadId ?? threadId;
+  const focusedSubagentThreadId = input.subagentThreadId ?? subagentThreadId;
+  useSubagentTrayStore.getState().openTray({
+    key: focusedSubagentThreadId,
+    activeThreadId,
+    environmentId,
+    projectRoot: undefined,
+    subagentThreadId: focusedSubagentThreadId,
+  });
+}
+
+function subagentToolUpdatedEvent(
+  detail: string,
+  createdAt = subagentUpdatedAt,
+): AgentRuntimeEvent {
   return {
     id: EventId.make(`runtime-event:subagent-tool.updated:${detail}`),
     type: "tool.updated",
@@ -749,7 +764,7 @@ const gitActionAssistantCreatedAt = Date.prototype.toISOString.call(
 const gitActionPrompt = "GitAction: commitAndPush\nAction: Commit & Push";
 
 function runtimeSessionThreadEntryId(entryId: RuntimeItemId): ThreadEntryId {
-  return threadEntryIdForMessageId(MessageId.make(`${runtimeSessionId}:${entryId}`));
+  return threadEntryIdForMessageId(runtimeSessionEntryMessageId(runtimeSessionId, entryId));
 }
 
 function serverThreadDetailWithExistingTranscript(input?: {
@@ -942,6 +957,7 @@ describe("Pi runtime thread sync", () => {
   beforeEach(() => {
     useStore.setState(initialState);
     useSubagentActivityStore.getState().reset();
+    useSubagentTrayStore.getState().closeTray();
   });
 
   it("projects Pi session trees into normalized thread state", () => {
@@ -992,6 +1008,47 @@ describe("Pi runtime thread sync", () => {
     expect(environmentState.sidebarThreadSummaryById[threadId]?.title).toBe("Pi runtime thread");
   });
 
+  it("adopts the server's parent when a message-sent echo lands on a projected entry", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+
+    const assistantMessageId = runtimeSessionEntryMessageId(runtimeSessionId, assistantEntryId);
+    const serverParentEntryId = ThreadEntryId.make("thread-entry:server-resolved-parent");
+    useStore.getState().applyOrchestrationEvent(
+      {
+        sequence: 7,
+        eventId: EventId.make("event:assistant-echo"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        occurredAt: messageUpdatedAt,
+        commandId: null,
+        causationEventId: null,
+        correlationId: null,
+        metadata: {},
+        type: "thread.message-sent",
+        payload: {
+          threadId,
+          messageId: assistantMessageId,
+          entryId: assistantRuntimeThreadEntryId,
+          parentEntryId: serverParentEntryId,
+          role: "assistant",
+          text: "Seeded answer",
+          attachments: [],
+          turnId,
+          streaming: false,
+          createdAt: assistantMessageCreatedAt,
+          updatedAt: messageUpdatedAt,
+        },
+      },
+      environmentId,
+    );
+
+    const { thread } = currentThread();
+    const assistantEntry = thread.entries.find(
+      (entry) => entry.id === assistantRuntimeThreadEntryId,
+    );
+    expect(assistantEntry?.parentEntryId).toBe(serverParentEntryId);
+  });
+
   it("merges runtime session projections into existing thread history", () => {
     useStore
       .getState()
@@ -1025,15 +1082,13 @@ describe("Pi runtime thread sync", () => {
         environmentId,
       );
 
-    useStore
-      .getState()
-      .applyRuntimeSessionTreeProjection(
-        gitActionRuntimeSessionTree({
-          clientMessageId: gitActionMessageId,
-          userThreadEntryId: gitActionThreadEntryId,
-        }),
-        environmentId,
-      );
+    useStore.getState().applyRuntimeSessionTreeProjection(
+      gitActionRuntimeSessionTree({
+        clientMessageId: gitActionMessageId,
+        userThreadEntryId: gitActionThreadEntryId,
+      }),
+      environmentId,
+    );
 
     const { thread } = currentThread();
     const actionUserMessages = thread.messages.filter(
@@ -1059,7 +1114,9 @@ describe("Pi runtime thread sync", () => {
         environmentId,
       );
 
-    useStore.getState().applyRuntimeSessionTreeProjection(gitActionRuntimeSessionTree(), environmentId);
+    useStore
+      .getState()
+      .applyRuntimeSessionTreeProjection(gitActionRuntimeSessionTree(), environmentId);
 
     const { thread } = currentThread();
     const actionUserMessages = thread.messages.filter(
@@ -1089,7 +1146,9 @@ describe("Pi runtime thread sync", () => {
       .getState()
       .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
 
-    useStore.getState().applyRuntimeSessionTreeProjection(textEchoRuntimeSessionTree(), environmentId);
+    useStore
+      .getState()
+      .applyRuntimeSessionTreeProjection(textEchoRuntimeSessionTree(), environmentId);
 
     const { thread } = currentThread();
     const helloMessages = thread.messages.filter(
@@ -1098,9 +1157,9 @@ describe("Pi runtime thread sync", () => {
     expect(helloMessages).toHaveLength(1);
     expect(helloMessages[0]?.id).toBe(existingUserMessageId);
     expect(helloMessages[0]?.createdAt).toBe(userMessageCreatedAt);
-    expect(thread.entries.find((entry) => entry.id === existingUserThreadEntryId)?.parentEntryId).toBe(
-      null,
-    );
+    expect(
+      thread.entries.find((entry) => entry.id === existingUserThreadEntryId)?.parentEntryId,
+    ).toBe(null);
     expect(thread.leafId).toBe(existingAssistantThreadEntryId);
     expect(thread.messages.map((message) => [message.role, message.text])).toEqual([
       ["user", "hello!"],
@@ -1204,7 +1263,8 @@ describe("Pi runtime thread sync", () => {
       ]),
     );
 
-    const activityIdsBeforeQueueEvent = currentThread().environmentState.activityIdsByThreadId[threadId];
+    const activityIdsBeforeQueueEvent =
+      currentThread().environmentState.activityIdsByThreadId[threadId];
     useStore.getState().applyAgentRuntimeEvent(queueUpdatedEvent, environmentId);
     expect(currentThread().environmentState.activityIdsByThreadId[threadId]).toEqual(
       activityIdsBeforeQueueEvent,
@@ -1261,10 +1321,9 @@ describe("Pi runtime thread sync", () => {
     });
 
     const updatedSnapshot = { ...snapshot, usedTokens: 61_000 };
-    useStore.getState().applyAgentRuntimeEvent(
-      { ...contextWindowEvent, data: updatedSnapshot },
-      environmentId,
-    );
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent({ ...contextWindowEvent, data: updatedSnapshot }, environmentId);
     const replaced = currentThread().thread.activities.filter(
       (activity) => activity.kind === "context-window.updated",
     );
@@ -1293,7 +1352,9 @@ describe("Pi runtime thread sync", () => {
       storeUpdateCount += 1;
     });
 
-    useStore.getState().applyAgentRuntimeEvent(subagentToolUpdatedEvent("child says hi"), environmentId);
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent(subagentToolUpdatedEvent("child says hi"), environmentId);
     unsubscribe();
 
     expect(useStore.getState()).toBe(previousState);
@@ -1307,10 +1368,25 @@ describe("Pi runtime thread sync", () => {
     expect(subagent).toMatchObject({
       subagentThreadId,
       title: "Review renderer",
-      rawStatus: "running",
       isActive: true,
     });
-    expect(subagent?.transcriptItems).toEqual(
+    expect(subagent?.transcriptItems).toBeUndefined();
+  });
+
+  it("projects subagent transcript only while the tray is open", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent(subagentToolUpdatedEvent("child says hi"), environmentId);
+
+    openSubagentTrayForTests();
+    useSubagentActivityStore.getState().refreshProjection({ environmentId, threadId });
+
+    const projection = selectSubagentProjection(useSubagentActivityStore.getState(), {
+      environmentId,
+      threadId,
+    });
+    expect(projection.subagentById[subagentThreadId]?.transcriptItems).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           itemId: "assistant:review",
@@ -1323,6 +1399,7 @@ describe("Pi runtime thread sync", () => {
 
   it("does not notify the main thread store during repeated subagent stream updates", () => {
     useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    openSubagentTrayForTests();
     const previousState = useStore.getState();
     let storeUpdateCount = 0;
     const unsubscribe = useStore.subscribe(() => {
@@ -1382,7 +1459,9 @@ describe("Pi runtime thread sync", () => {
 
   it("keeps the active subagent projection stable while another thread streams", () => {
     useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
-    useStore.getState().applyAgentRuntimeEvent(subagentToolUpdatedEvent("active child"), environmentId);
+    useStore
+      .getState()
+      .applyAgentRuntimeEvent(subagentToolUpdatedEvent("active child"), environmentId);
     const activeProjectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
       environmentId,
       threadId,
@@ -1407,17 +1486,11 @@ describe("Pi runtime thread sync", () => {
     });
     expect(mainStoreUpdateCount).toBe(0);
     expect(activeProjectionAfter).toBe(activeProjectionBefore);
-    expect(otherProjection.subagentById[otherSubagentThreadId]?.transcriptItems).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          itemId: "assistant:other-review",
-          text: "other child",
-        }),
-      ]),
-    );
+    expect(otherProjection.subagentById[otherSubagentThreadId]?.transcriptItems).toBeUndefined();
   });
 
   it("preserves unchanged transcript row objects when one subagent item streams", () => {
+    openSubagentTrayForTests();
     const store = useSubagentActivityStore.getState();
     store.upsertActivities(
       { environmentId, threadId },
@@ -1449,11 +1522,12 @@ describe("Pi runtime thread sync", () => {
   });
 
   it("preserves sibling subagent objects when one subagent item streams", () => {
+    openSubagentTrayForTests();
     const store = useSubagentActivityStore.getState();
-    store.upsertActivities(
-      { environmentId, threadId },
-      [...subagentProjectionActivities("streaming child part 1"), ...siblingSubagentProjectionActivities()],
-    );
+    store.upsertActivities({ environmentId, threadId }, [
+      ...subagentProjectionActivities("streaming child part 1"),
+      ...siblingSubagentProjectionActivities(),
+    ]);
     const projectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
       environmentId,
       threadId,
@@ -1475,25 +1549,22 @@ describe("Pi runtime thread sync", () => {
   });
 
   it("preserves sibling subagent objects during content delta streams", () => {
+    openSubagentTrayForTests();
     const store = useSubagentActivityStore.getState();
-    store.upsertActivities(
-      { environmentId, threadId },
-      [
-        subagentProjectionActivities("seed child item")[0]!,
-        subagentContentDeltaActivity({ id: "1", delta: "first", sequence: 2 }),
-        ...siblingSubagentProjectionActivities(),
-      ],
-    );
+    store.upsertActivities({ environmentId, threadId }, [
+      subagentProjectionActivities("seed child item")[0]!,
+      subagentContentDeltaActivity({ id: "1", delta: "first", sequence: 2 }),
+      ...siblingSubagentProjectionActivities(),
+    ]);
     const projectionBefore = selectSubagentProjection(useSubagentActivityStore.getState(), {
       environmentId,
       threadId,
     });
     const siblingSubagentBefore = projectionBefore.subagentById[siblingSubagentThreadId];
 
-    store.upsertActivities(
-      { environmentId, threadId },
-      [subagentContentDeltaActivity({ id: "2", delta: " second", sequence: 3 })],
-    );
+    store.upsertActivities({ environmentId, threadId }, [
+      subagentContentDeltaActivity({ id: "2", delta: " second", sequence: 3 }),
+    ]);
 
     const projectionAfter = selectSubagentProjection(useSubagentActivityStore.getState(), {
       environmentId,
@@ -1507,6 +1578,7 @@ describe("Pi runtime thread sync", () => {
   });
 
   it("routes server subagent detail snapshots outside the main thread store", () => {
+    openSubagentTrayForTests();
     useStore
       .getState()
       .syncServerThreadDetail(

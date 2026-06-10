@@ -72,9 +72,7 @@ export class DesktopOrchestrationClient {
   }
 }
 
-async function exchangeBootstrapToken(
-  config: DesktopOrchestrationClientConfig,
-): Promise<string> {
+async function exchangeBootstrapToken(config: DesktopOrchestrationClientConfig): Promise<string> {
   const payload: AuthBootstrapInput = { credential: config.bootstrapToken };
   const response = await fetch(new URL("/api/auth/bootstrap", config.httpBaseUrl), {
     method: "POST",

@@ -76,7 +76,9 @@ function summarizePiEvent(event: AgentSessionEvent): string | undefined {
     case "compaction_start":
       return `Compaction started: ${event.reason}`;
     case "compaction_end":
-      return event.aborted ? `Compaction aborted: ${event.reason}` : `Compaction ended: ${event.reason}`;
+      return event.aborted
+        ? `Compaction aborted: ${event.reason}`
+        : `Compaction ended: ${event.reason}`;
     case "auto_retry_start":
       return event.errorMessage;
     case "auto_retry_end":

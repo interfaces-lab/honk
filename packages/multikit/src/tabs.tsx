@@ -169,36 +169,36 @@ function Tabs({
               onValueChange?.(String(nextValue));
             }}
           >
-      <TabsList
-        activateOnFocus={activateOnFocus}
-        className={cn(
-          "scrollbar-hide relative min-w-0 shrink items-stretch",
-          isSegmented &&
-            "h-7 rounded-[6px] bg-multi-bg-quinary p-0.5 ring-1 ring-multi-stroke-tertiary",
-          isUnderline && "h-7 gap-3 border-b border-multi-stroke-tertiary pb-1",
-          listClassName,
-        )}
-      >
-        {items.map((tab) => (
-          <TabsTab
-            key={tab.value}
-            value={tab.value}
-            render={tab.render}
-            className={cn(
-              "relative z-[2] rounded-[5px] text-body",
-              isSegmented &&
-                "h-6 px-2 text-multi-fg-secondary hover:text-multi-fg-primary aria-selected:text-multi-fg-primary focus-visible:ring-inset",
-              isUnderline &&
-                "px-1.5 py-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary aria-selected:font-medium aria-selected:text-multi-fg-primary",
-              tab.className,
-            )}
-          >
-            {tab.label}
-          </TabsTab>
-        ))}
-        <TabsIndicator render={TabsIndicatorRender} />
-      </TabsList>
-    </TabsRoot>
+            <TabsList
+              activateOnFocus={activateOnFocus}
+              className={cn(
+                "scrollbar-hide relative min-w-0 shrink items-stretch",
+                isSegmented &&
+                  "h-7 rounded-[6px] bg-multi-bg-quinary p-0.5 ring-1 ring-multi-stroke-tertiary",
+                isUnderline && "h-7 gap-3 border-b border-multi-stroke-tertiary pb-1",
+                listClassName,
+              )}
+            >
+              {items.map((tab) => (
+                <TabsTab
+                  key={tab.value}
+                  value={tab.value}
+                  render={tab.render}
+                  className={cn(
+                    "relative z-[2] rounded-[5px] text-body",
+                    isSegmented &&
+                      "h-6 px-2 text-multi-fg-secondary hover:text-multi-fg-primary aria-selected:text-multi-fg-primary focus-visible:ring-inset",
+                    isUnderline &&
+                      "px-1.5 py-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary aria-selected:font-medium aria-selected:text-multi-fg-primary",
+                    tab.className,
+                  )}
+                >
+                  {tab.label}
+                </TabsTab>
+              ))}
+              <TabsIndicator render={TabsIndicatorRender} />
+            </TabsList>
+          </TabsRoot>
         </TabsIndicatorClassNameContext.Provider>
       </TabsIndicatorUnderlineContext.Provider>
     </TabsIndicatorSegmentedContext.Provider>

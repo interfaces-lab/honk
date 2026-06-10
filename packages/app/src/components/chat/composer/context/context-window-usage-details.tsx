@@ -10,9 +10,7 @@ export function ContextWindowUsageDetails(props: { usage: ContextWindowSnapshot 
 
   return (
     <div className="space-y-1.5 leading-tight">
-      <div className="text-detail font-medium uppercase text-muted-foreground">
-        Context window
-      </div>
+      <div className="text-detail font-medium uppercase text-muted-foreground">Context window</div>
       {usage.maxTokens !== null && usedPercentage ? (
         <div className="whitespace-nowrap text-detail font-medium tabular-nums text-foreground">
           <span>{usedPercentage}</span>

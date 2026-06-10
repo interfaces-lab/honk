@@ -3,10 +3,7 @@ import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
 import { type ReactNode, useMemo } from "react";
 
-import {
-  resolveDiffThemeName,
-  WORKBENCH_CODE_UNSAFE_CSS,
-} from "~/lib/diff-rendering";
+import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
 import {
@@ -57,16 +54,9 @@ export function DiffViewer(props: Props) {
 
   if (patch.length > 0) {
     const patchDiff = renderCustomHeader ? (
-      <PatchDiff
-        patch={patch}
-        options={options}
-        renderCustomHeader={() => renderCustomHeader()}
-      />
+      <PatchDiff patch={patch} options={options} renderCustomHeader={() => renderCustomHeader()} />
     ) : (
-      <PatchDiff
-        patch={patch}
-        options={options}
-      />
+      <PatchDiff patch={patch} options={options} />
     );
 
     return (

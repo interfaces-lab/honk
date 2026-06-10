@@ -1,9 +1,6 @@
 import type { GitBranch } from "@multi/contracts";
 
-export function isBranchListed(
-  branches: ReadonlyArray<GitBranch>,
-  branchName: string,
-): boolean {
+export function isBranchListed(branches: ReadonlyArray<GitBranch>, branchName: string): boolean {
   return branches.some((branch) => branch.name === branchName);
 }
 

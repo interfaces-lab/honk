@@ -49,7 +49,11 @@ const requireRuntimeHost = Effect.flatMap(getRuntimeHost, (host) =>
   host ? Effect.succeed(host) : Effect.die(new Error("Desktop runtime host is unavailable.")),
 );
 
-const logRuntimeFailure = (message: string, input: { readonly threadId?: string }, error: unknown) =>
+const logRuntimeFailure = (
+  message: string,
+  input: { readonly threadId?: string },
+  error: unknown,
+) =>
   elog.error(message, {
     ...(input.threadId ? { threadId: input.threadId } : {}),
     cause: error instanceof Error ? error.message : String(error),
@@ -94,14 +98,16 @@ export const getRuntimeHostSnapshot = makeIpcMethod({
   channel: IpcChannels.RUNTIME_GET_HOST_SNAPSHOT_CHANNEL,
   payload: Schema.Void,
   result: MultiRuntimeHostSnapshot,
-  handler: () => Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getHostSnapshot())),
+  handler: () =>
+    Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getHostSnapshot())),
 });
 
 export const getRuntimePreferences = makeIpcMethod({
   channel: IpcChannels.RUNTIME_GET_PREFERENCES_CHANNEL,
   payload: Schema.Void,
   result: AgentPreferences,
-  handler: () => Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getPreferences())),
+  handler: () =>
+    Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getPreferences())),
 });
 
 export const updateRuntimePreferences = makeIpcMethod({
@@ -109,7 +115,9 @@ export const updateRuntimePreferences = makeIpcMethod({
   payload: AgentPreferencesPatch,
   result: AgentPreferences,
   handler: (patch) =>
-    Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.updatePreferences(patch))),
+    Effect.flatMap(requireRuntimeHost, (host) =>
+      Effect.promise(() => host.updatePreferences(patch)),
+    ),
 });
 
 function createRuntimeCredentialLoginCallbacks(
@@ -131,8 +139,7 @@ function createRuntimeCredentialLoginCallbacks(
       throw new Error("Manual OAuth code entry is not available in the desktop settings window.");
     },
     onSelect: async (prompt) =>
-      prompt.options.find((option) => option.id === "device_code")?.id ??
-      prompt.options[0]?.id,
+      prompt.options.find((option) => option.id === "device_code")?.id ?? prompt.options[0]?.id,
   };
 }
 
@@ -168,7 +175,9 @@ export const hydrateRuntimeThread = makeIpcMethod({
       yield* elog.info("runtime thread hydrate started", { threadId: input.threadId });
       const host = yield* requireRuntimeHost;
       yield* Effect.promise(() => host.hydrateThread(input)).pipe(
-        Effect.tapError((error) => logRuntimeFailure("runtime thread hydrate failed", input, error)),
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime thread hydrate failed", input, error),
+        ),
       );
     }),
 });
@@ -212,7 +221,9 @@ export const respondToRuntimeExtensionUiRequest = makeIpcMethod({
       yield* elog.debug("runtime extension ui response", { threadId: input.threadId });
       const host = yield* requireRuntimeHost;
       yield* Effect.promise(() => host.respondToExtensionUiRequest(input)).pipe(
-        Effect.tapError((error) => logRuntimeFailure("runtime extension ui response failed", input, error)),
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime extension ui response failed", input, error),
+        ),
       );
     }),
 });

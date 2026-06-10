@@ -29,7 +29,7 @@ function DialogBackdrop({ className, ...props }: DialogPrimitive.Backdrop.Props)
   return (
     <DialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-[80] bg-black/32 backdrop-blur-sm transition-opacity duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
+        "fixed inset-0 z-(--z-index-dialog-backdrop) bg-black/32 backdrop-blur-sm transition-opacity duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
         className,
       )}
       data-slot="dialog-backdrop"
@@ -42,7 +42,7 @@ function DialogViewport({ className, ...props }: DialogPrimitive.Viewport.Props)
   return (
     <DialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-[80] grid grid-rows-[1fr_auto_3fr] justify-items-center p-4",
+        "fixed inset-0 z-(--z-index-dialog-viewport) grid grid-rows-[1fr_auto_3fr] justify-items-center p-4",
         className,
       )}
       data-slot="dialog-viewport"

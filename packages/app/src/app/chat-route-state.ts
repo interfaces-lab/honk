@@ -73,9 +73,7 @@ export function getCurrentChatRouteTarget(input: {
     }>;
   };
 }): ChatRouteTarget | null {
-  return chatRouteTargetFromParams(
-    (input.state.matches.at(-1)?.params ?? {}) as ChatRouteParams,
-  );
+  return chatRouteTargetFromParams((input.state.matches.at(-1)?.params ?? {}) as ChatRouteParams);
 }
 
 export function useChatRouteTarget(): ChatRouteTarget | null {

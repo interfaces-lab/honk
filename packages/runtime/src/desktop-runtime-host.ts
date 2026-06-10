@@ -101,10 +101,7 @@ interface RuntimeEntry {
   readonly unsubscribe: () => void;
 }
 
-type RuntimeThreadStartInput = Pick<
-  ThreadAgentRuntimeSendTurnInput,
-  "threadId" | "cwd" | "policy"
->;
+type RuntimeThreadStartInput = Pick<ThreadAgentRuntimeSendTurnInput, "threadId" | "cwd" | "policy">;
 
 type RuntimeThreadSendInput = Pick<
   ThreadAgentRuntimeSendTurnInput,
@@ -160,7 +157,9 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
       options.extensionFactories ??
       createDesktopAgentExtensionFactories({ agentDir: this.agentDir });
     this.extensionPaths =
-      options.extensionPaths === undefined ? resolveFffExtensionPaths() : (options.extensionPaths ?? []);
+      options.extensionPaths === undefined
+        ? resolveFffExtensionPaths()
+        : (options.extensionPaths ?? []);
     this.bindRuntimeExtensions = options?.bindExtensions ?? null;
   }
 
@@ -576,9 +575,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         name: model.name.trim() || model.id,
         reasoning: model.reasoning,
         contextWindow: model.contextWindow,
-        thinkingLevels: AGENT_THINKING_LEVELS.filter((level) =>
-          supportedThinkingLevels.has(level),
-        ),
+        thinkingLevels: AGENT_THINKING_LEVELS.filter((level) => supportedThinkingLevels.has(level)),
       };
     });
   }

@@ -7,9 +7,7 @@ import { createEmptyRuntimeHostSnapshot } from "../../lib/multi-runtime-api";
 import { useAgentRuntimeStore } from "../../stores/agent-runtime-store";
 import { AgentRuntimeSettingsSectionsView } from "./settings-panels";
 
-function renderAgentPreferences(
-  snapshot = createEmptyRuntimeHostSnapshot(),
-): string {
+function renderAgentPreferences(snapshot = createEmptyRuntimeHostSnapshot()): string {
   return renderToStaticMarkup(
     <AgentRuntimeSettingsSectionsView snapshot={snapshot} setSnapshot={() => undefined} />,
   );
@@ -26,6 +24,7 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).toContain("Pi runtime");
     expect(html).toContain("Agent mode");
     expect(html).toContain("Deep");
+    expect(html).toContain("GPT-5.5");
     expect(html).toContain("Thinking level");
     expect(html).toContain("High");
     expect(html).toContain("Interaction mode");
@@ -41,8 +40,33 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).toContain("Save key");
     expect(html).toContain("Pi session");
     expect(html).toContain("Session tree");
-    expect(html).toContain("Always on");
     expect(html).toContain("Runtime session trees are persisted");
+  });
+
+  it("renders unavailable model modes when provider credentials are missing", () => {
+    const html = renderAgentPreferences();
+
+    expect(html).toContain("GPT-5.5 unavailable");
+    expect(html).toContain("Requires Codex OAuth or a Codex API Key in Pi auth storage.");
+  });
+
+  it("does not mark the active model unavailable when its provider credential exists", () => {
+    const snapshot = createEmptyRuntimeHostSnapshot();
+    const html = renderAgentPreferences({
+      ...snapshot,
+      authStatuses: [
+        {
+          authProviderId: AuthProviderId.make("openai-codex"),
+          accountId: null,
+          state: "available",
+          label: "Codex OAuth",
+          message: null,
+          updatedAt: "2026-06-09T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(html).not.toContain("GPT-5.5 unavailable");
   });
 
   it("renders the selected thinking level for thinking-capable agent modes", () => {
@@ -121,7 +145,7 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).not.toContain("Tool access");
     expect(html).not.toContain("All access");
     expect(html).not.toContain("Persist runtime session tree");
-    expect(html).not.toContain("role=\"switch\"");
+    expect(html).not.toContain('role="switch"');
     expect(html).not.toContain("Auto-accept edits");
     expect(html).not.toContain("Supervised");
     expect(html).not.toContain("Runtime diagnostics");

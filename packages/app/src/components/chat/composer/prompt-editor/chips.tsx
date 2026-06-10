@@ -42,12 +42,7 @@ const composerPromptChipVariants = cva(
 
 const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
 
-export function ComposerMentionChip({
-  label,
-  lineEnd,
-  lineStart,
-  path,
-}: ComposerMentionPayload) {
+export function ComposerMentionChip({ label, lineEnd, lineStart, path }: ComposerMentionPayload) {
   const theme = resolvedThemeFromDocument();
   const displayedLabel = label ?? basenameOfPath(path);
   const chip = (
@@ -84,10 +79,7 @@ export function ComposerMentionChip({
   );
 }
 
-export function ComposerCommandChip({
-  content,
-  name,
-}: ComposerCommandPayload) {
+export function ComposerCommandChip({ content, name }: ComposerCommandPayload) {
   const label = commandText({ name });
   const chip = (
     <span
@@ -121,10 +113,7 @@ export function ComposerCommandChip({
 
 const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
 
-export function ComposerSkillChip({
-  description,
-  label,
-}: ComposerSkillPayload) {
+export function ComposerSkillChip({ description, label }: ComposerSkillPayload) {
   const chip = (
     <span
       className={composerPromptChipVariants({ kind: "skill" })}
@@ -154,10 +143,7 @@ export function ComposerSkillChip({
   );
 }
 
-export function ComposerInlineTokenChip({
-  label,
-  sourceUri,
-}: ComposerInlineTokenPayload) {
+export function ComposerInlineTokenChip({ label, sourceUri }: ComposerInlineTokenPayload) {
   const chip = (
     <span
       className={composerPromptChipVariants({ kind: "inline-token" })}

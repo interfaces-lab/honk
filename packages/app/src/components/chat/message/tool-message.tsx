@@ -165,9 +165,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
         hasError={status === "error"}
         conversationDensity={conversationDensity}
         subagentConversation={subagentStatusSurface}
-        defaultExpanded={
-          tool.display?.kind === "subagent" || (isLoading && hasStreamingOutput)
-        }
+        defaultExpanded={tool.display?.kind === "subagent" || (isLoading && hasStreamingOutput)}
       />
     </div>
   );
@@ -456,9 +454,7 @@ function runtimeSubagentTitle(nickname: string | undefined, role: string | undef
   return nickname?.trim() || role?.trim() || "Subagent";
 }
 
-function runtimeSubagentStatusLabel(
-  state: RuntimeSubagentRun["state"],
-): string {
+function runtimeSubagentStatusLabel(state: RuntimeSubagentRun["state"]): string {
   switch (state) {
     case "running":
       return "Running";
@@ -694,7 +690,7 @@ function ToolSummaryRow({ text }: { text: string }) {
         className="mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary"
         aria-hidden="true"
       />
-      <div className="min-w-0 flex-1 whitespace-pre-wrap break-words wrap-anywhere">{trimmed}</div>
+      <div className="min-w-0 flex-1 whitespace-pre-wrap break-words">{trimmed}</div>
     </div>
   );
 }
@@ -715,9 +711,7 @@ function SubagentStatusSurface({
   subagents: ReadonlyArray<WorkLogSubagent>;
 }) {
   const openTrayKey = useSubagentTrayStore((state) => state.focus?.key ?? null);
-  const hasOpenTray = subagents.some(
-    (subagent) => subagentTrayKey(subagent) === openTrayKey,
-  );
+  const hasOpenTray = subagents.some((subagent) => subagentTrayKey(subagent) === openTrayKey);
 
   return (
     <div
@@ -929,14 +923,14 @@ function ThinkingMarkdown({
 }) {
   return (
     <div
-      className="min-w-0 py-0.5 text-conversation text-multi-fg-secondary"
+      className="min-w-0 py-0.5 text-conversation text-multi-fg-tertiary"
       data-thinking-markdown=""
     >
       <ChatMarkdown
         text={text}
         cwd={cwd}
         isStreaming={isStreaming}
-        className="text-multi-fg-secondary"
+        className="text-multi-fg-tertiary"
       />
     </div>
   );

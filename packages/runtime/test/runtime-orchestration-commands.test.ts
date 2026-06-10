@@ -26,9 +26,7 @@ const runtimeSessionId = RuntimeSessionId.make("runtime:persistence");
 const turnId = TurnId.make("turn:persistence");
 const createdAt = "2026-06-08T12:00:00.000Z";
 
-function sessionTree(
-  entries: SessionTreeProjection["entries"],
-): SessionTreeProjection {
+function sessionTree(entries: SessionTreeProjection["entries"]): SessionTreeProjection {
   return {
     threadId,
     runtimeSessionId,
@@ -200,9 +198,7 @@ describe("runtime orchestration commands", () => {
     };
 
     expect(runtimeContextWindowActivityCommands(baseEvent)).toEqual([]);
-    expect(
-      runtimeContextWindowActivityCommands({ ...baseEvent, data: undefined }),
-    ).toEqual([]);
+    expect(runtimeContextWindowActivityCommands({ ...baseEvent, data: undefined })).toEqual([]);
     expect(
       runtimeContextWindowActivityCommands({
         ...baseEvent,

@@ -28,9 +28,7 @@ export interface RuntimeDisplayTimelineProjectionInput {
   readonly runtimeSessionId: RuntimeSessionId;
   readonly sessionTree?: SessionTreeProjection | null | undefined;
   readonly runtimeEvents?: ReadonlyArray<AgentRuntimeEvent> | undefined;
-  readonly pendingExtensionUiRequests?:
-    | ReadonlyArray<DesktopExtensionUiRequest>
-    | undefined;
+  readonly pendingExtensionUiRequests?: ReadonlyArray<DesktopExtensionUiRequest> | undefined;
 }
 
 export interface RuntimeDisplayTimelineEventProjectionInput {
@@ -39,9 +37,7 @@ export interface RuntimeDisplayTimelineEventProjectionInput {
   readonly runtimeSessionId: RuntimeSessionId;
   readonly sessionTree?: SessionTreeProjection | null | undefined;
   readonly event: AgentRuntimeEvent;
-  readonly pendingExtensionUiRequests?:
-    | ReadonlyArray<DesktopExtensionUiRequest>
-    | undefined;
+  readonly pendingExtensionUiRequests?: ReadonlyArray<DesktopExtensionUiRequest> | undefined;
 }
 
 interface MutableMessageItem {
@@ -164,7 +160,9 @@ export function projectRuntimeDisplayTimelineEvent(
   });
   const eventItems = eventProjection.items
     .filter((item) => runtimeDisplayTimelineItemCameFromEvent(item, input.event))
-    .map((item) => normalizeIncrementalRuntimeDisplayTimelineEventItem(previousTimeline, item, input.event));
+    .map((item) =>
+      normalizeIncrementalRuntimeDisplayTimelineEventItem(previousTimeline, item, input.event),
+    );
   if (eventItems.length === 0) {
     return previousTimeline;
   }
@@ -209,9 +207,9 @@ function incrementalMessageItemIdForEvent(
   const existingMessageItems = previousItems.filter(
     (item): item is RuntimeDisplayTimelineMessageItem =>
       item.kind === "message" &&
-      ((item.id === baseId || item.id.startsWith(`${baseId}:`)) ||
-        (item.turnId !== undefined &&
-          messageLifecycleKey(item.turnId, item.role) === roleKey)),
+      (item.id === baseId ||
+        item.id.startsWith(`${baseId}:`) ||
+        (item.turnId !== undefined && messageLifecycleKey(item.turnId, item.role) === roleKey)),
   );
   const activeMessageItem = existingMessageItems.find((item) => item.streaming);
   if (event.type !== "message.started" && activeMessageItem) {
@@ -223,10 +221,7 @@ function incrementalMessageItemIdForEvent(
   if (eventClientMessageItemId) {
     return eventClientMessageItemId;
   }
-  const promptUserMessageItem = existingPromptUserMessageItemForEvent(
-    existingMessageItems,
-    event,
-  );
+  const promptUserMessageItem = existingPromptUserMessageItemForEvent(existingMessageItems, event);
   if (promptUserMessageItem) {
     return promptUserMessageItem.id;
   }
@@ -286,7 +281,9 @@ function mergeRuntimeDisplayTimelineItems(
       previousItem ? mergeRuntimeDisplayTimelineItem(previousItem, eventItem) : eventItem,
     );
   }
-  return [...itemsById.values()].toSorted((left, right) => left.orderKey.localeCompare(right.orderKey));
+  return [...itemsById.values()].toSorted((left, right) =>
+    left.orderKey.localeCompare(right.orderKey),
+  );
 }
 
 function mergeRuntimeDisplayTimelineItem(
@@ -696,9 +693,7 @@ function projectToolItems(events: ReadonlyArray<AgentRuntimeEvent>): MutableTool
   return [...itemsByKey.values()];
 }
 
-function toRuntimeDisplayTimelineToolItem(
-  item: MutableToolItem,
-): RuntimeDisplayTimelineToolItem {
+function toRuntimeDisplayTimelineToolItem(item: MutableToolItem): RuntimeDisplayTimelineToolItem {
   return {
     id: item.id,
     kind: "tool",
@@ -711,9 +706,7 @@ function toRuntimeDisplayTimelineToolItem(
     eventIds: item.eventIds,
     ...(item.args !== undefined ? { args: item.args } : {}),
     ...(item.argsComplete !== undefined ? { argsComplete: item.argsComplete } : {}),
-    ...(item.executionStarted !== undefined
-      ? { executionStarted: item.executionStarted }
-      : {}),
+    ...(item.executionStarted !== undefined ? { executionStarted: item.executionStarted } : {}),
     ...(item.isPartial !== undefined ? { isPartial: item.isPartial } : {}),
     ...(item.isError !== undefined ? { isError: item.isError } : {}),
     ...(item.result !== undefined ? { result: item.result } : {}),
@@ -992,8 +985,7 @@ function projectRuntimeToolDisplay(input: {
     };
   }
   if (isShellToolName(normalizedToolName)) {
-    const command =
-      input.command ?? extractToolCommand(input.args, input.result, input.details);
+    const command = input.command ?? extractToolCommand(input.args, input.result, input.details);
     const exitCode = extractExitCode(input.result, input.details);
     return {
       kind: "shell",
@@ -1127,10 +1119,7 @@ function isGrepToolName(toolName: string): boolean {
 
 function isFindToolName(toolName: string): boolean {
   return (
-    toolName === "find" ||
-    toolName === "fffind" ||
-    toolName === "glob" ||
-    toolName.includes("find")
+    toolName === "find" || toolName === "fffind" || toolName === "glob" || toolName.includes("find")
   );
 }
 
@@ -1189,10 +1178,7 @@ function extractProviderIdentifier(args: unknown, details: unknown): string | un
   );
 }
 
-function firstTrimmedRecordString(
-  value: unknown,
-  keys: ReadonlyArray<string>,
-): string | undefined {
+function firstTrimmedRecordString(value: unknown, keys: ReadonlyArray<string>): string | undefined {
   const record = asRecord(value);
   if (!record) {
     return undefined;
@@ -1241,10 +1227,7 @@ function extractFffCounts(
   };
 }
 
-function extractNonNegativeNumber(
-  value: unknown,
-  keys: ReadonlyArray<string>,
-): number | undefined {
+function extractNonNegativeNumber(value: unknown, keys: ReadonlyArray<string>): number | undefined {
   const record = asRecord(value);
   if (!record) {
     return undefined;
@@ -1285,9 +1268,7 @@ function buildOrderKey(createdAt: string, tieBreaker: string): string {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : null;
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function asTrimmedString(value: unknown): string | null {
@@ -1310,9 +1291,7 @@ function asStringArray(value: unknown): string[] | null {
   return result.length > 0 ? result : null;
 }
 
-function asDesktopExtensionUiRequestKind(
-  value: unknown,
-): DesktopExtensionUiRequestKind | null {
+function asDesktopExtensionUiRequestKind(value: unknown): DesktopExtensionUiRequestKind | null {
   switch (value) {
     case "select":
     case "confirm":

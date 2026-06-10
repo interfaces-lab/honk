@@ -21,7 +21,7 @@ function serverPreviewPromotionKey(messages: readonly ChatMessage[] | undefined)
       message.id,
       message.role,
       message.attachments?.map((attachment) =>
-        attachment.type === "image" ? attachment.previewUrl ?? "" : "",
+        attachment.type === "image" ? (attachment.previewUrl ?? "") : "",
       ) ?? [],
     ]) ?? [],
   );
@@ -43,26 +43,26 @@ export function useAttachmentPreviewHandoff(input: {
   const attachmentPreviewHandoffByMessageIdRef = useRef<PreviewHandoffByMessageId>({});
   const attachmentPreviewPromotionInFlightByMessageIdRef = useRef<Record<string, true>>({});
 
-  const clearAttachmentPreviewHandoff = useCallback((
-    messageId: MessageId,
-    previewUrls?: ReadonlyArray<string>,
-  ) => {
-    delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-    const currentPreviewUrls =
-      previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
-    setAttachmentPreviewHandoffByMessageId((existing) => {
-      if (!(messageId in existing)) {
-        return existing;
+  const clearAttachmentPreviewHandoff = useCallback(
+    (messageId: MessageId, previewUrls?: ReadonlyArray<string>) => {
+      delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
+      const currentPreviewUrls =
+        previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
+      setAttachmentPreviewHandoffByMessageId((existing) => {
+        if (!(messageId in existing)) {
+          return existing;
+        }
+        const next = { ...existing };
+        delete next[messageId];
+        attachmentPreviewHandoffByMessageIdRef.current = next;
+        return next;
+      });
+      for (const previewUrl of currentPreviewUrls) {
+        revokeBlobPreviewUrl(previewUrl);
       }
-      const next = { ...existing };
-      delete next[messageId];
-      attachmentPreviewHandoffByMessageIdRef.current = next;
-      return next;
-    });
-    for (const previewUrl of currentPreviewUrls) {
-      revokeBlobPreviewUrl(previewUrl);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const clearAttachmentPreviewHandoffs = useCallback(() => {
     attachmentPreviewPromotionInFlightByMessageIdRef.current = {};

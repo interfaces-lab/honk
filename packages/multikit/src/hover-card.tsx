@@ -9,11 +9,7 @@ const HoverCard = PreviewCardPrimitive.Root;
 
 function HoverCardTrigger({ className, ...props }: PreviewCardPrimitive.Trigger.Props) {
   return (
-    <PreviewCardPrimitive.Trigger
-      className={className}
-      data-slot="hover-card-trigger"
-      {...props}
-    />
+    <PreviewCardPrimitive.Trigger className={className} data-slot="hover-card-trigger" {...props} />
   );
 }
 
@@ -54,7 +50,7 @@ function HoverCardPopup({
         collisionPadding={collisionPadding}
         positionMethod={positionMethod}
         sticky={sticky}
-        className="z-50 max-w-(--available-width)"
+        className="z-(--z-index-hover-card) max-w-(--available-width)"
         data-slot="hover-card-positioner"
         side={side}
         sideOffset={sideOffset}

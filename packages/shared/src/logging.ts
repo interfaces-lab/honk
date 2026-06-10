@@ -186,9 +186,7 @@ export class RotatingFileSink {
   }
 }
 
-export function configureMultiProcessMetadata(
-  processRole: MultiProcessRole,
-): MultiProcessMetadata {
+export function configureMultiProcessMetadata(processRole: MultiProcessRole): MultiProcessMetadata {
   if (processMetadata?.processRole === processRole) {
     return processMetadata;
   }
@@ -364,9 +362,7 @@ function sanitizeRecord(
 ): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields)) {
-    output[key] = SECRET_FIELD_PATTERN.test(key)
-      ? REDACTED
-      : sanitizeValue(value, seen, depth + 1);
+    output[key] = SECRET_FIELD_PATTERN.test(key) ? REDACTED : sanitizeValue(value, seen, depth + 1);
   }
   return output;
 }

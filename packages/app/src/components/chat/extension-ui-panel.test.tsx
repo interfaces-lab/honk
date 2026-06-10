@@ -50,7 +50,7 @@ describe("ComposerPendingExtensionUiRequestPanel", () => {
     });
 
     const html = renderPanel(selectRequest);
-    expect(html).toContain("Pending request");
+    expect(html).toContain("Select an option");
     expect(html).toContain("Choose branch");
     expect(html).toContain("Pick the branch to inspect.");
     expect(html).toContain("sqlite");

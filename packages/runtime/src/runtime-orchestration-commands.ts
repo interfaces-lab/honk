@@ -20,10 +20,7 @@ import { runtimeSubagentActivitiesForToolEvent } from "./runtime-subagent-activi
 const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
 
 export interface RuntimeOrchestrationCommandContext {
-  readonly resolveTurnUserEntryId?: (
-    threadId: ThreadId,
-    turnId: TurnId,
-  ) => ThreadEntryId | null;
+  readonly resolveTurnUserEntryId?: (threadId: ThreadId, turnId: TurnId) => ThreadEntryId | null;
 }
 
 export function runtimeEventIngestionKey(event: AgentRuntimeEvent): string {

@@ -1,9 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  createDraftRouteSession,
-  DraftChatThreadRouteView,
-} from "~/routes/-chat-draft-route";
+import { createDraftRouteSession, DraftChatThreadRouteView } from "~/routes/-chat-draft-route";
 import { DraftId } from "~/stores/chat-drafts";
 
 export const Route = createFileRoute("/_chat/draft/$draftId")({

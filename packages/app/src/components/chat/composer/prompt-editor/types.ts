@@ -50,6 +50,7 @@ export interface ComposerPromptEditorProps {
   value: string;
   cursor: number;
   syncRevision: number;
+  forceSyncGeneration?: number;
   disabled: boolean;
   placeholder: string;
   className?: string | undefined;

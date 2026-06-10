@@ -68,7 +68,7 @@ describe("projectThreadTimeline", () => {
     });
   });
 
-  it("does not append a waiting row after a running runtime tool", () => {
+  it("appends a waiting row after a running non-subagent runtime tool", () => {
     const runtimeTimeline = {
       threadId,
       runtimeSessionId,
@@ -103,10 +103,14 @@ describe("projectThreadTimeline", () => {
         id: "tool-call:toolu-timeline-projector-shell",
         kind: "runtime-tool",
       }),
+      expect.objectContaining({
+        id: "working-indicator-row",
+        kind: "waiting",
+      }),
     ]);
   });
 
-  it("materializes streaming runtime assistant thinking as status only", () => {
+  it("materializes streaming runtime assistant thinking without exposing thinking text", () => {
     const runtimeTimeline = {
       threadId,
       runtimeSessionId,
@@ -144,6 +148,10 @@ describe("projectThreadTimeline", () => {
           role: "assistant",
           streaming: true,
         }),
+      }),
+      expect.objectContaining({
+        id: "working-indicator-row",
+        kind: "waiting",
       }),
     ]);
     const thinkingEntry = entries.find((entry) => entry.kind === "runtime-thinking");
@@ -322,7 +330,7 @@ describe("projectThreadTimeline", () => {
     });
   });
 
-  it("does not append a waiting row after completed runtime thinking before the first tool", () => {
+  it("appends a waiting row after completed runtime thinking before the first tool", () => {
     const thinkingCompletedAt = "2026-06-05T16:00:02.500Z";
     const runtimeTimeline = {
       threadId,
@@ -349,12 +357,17 @@ describe("projectThreadTimeline", () => {
       activeTurnStartedAt: turnStartedAt,
     });
 
-    expect(entries.at(-1)).toEqual(
+    expect(entries.at(-2)).toEqual(
       expect.objectContaining({
         kind: "runtime-thinking",
       }),
     );
-    expect(entries.some((entry) => entry.kind === "waiting")).toBe(false);
+    expect(entries.at(-1)).toEqual(
+      expect.objectContaining({
+        id: "working-indicator-row",
+        kind: "waiting",
+      }),
+    );
   });
 
   it("materializes unacknowledged send intents as message rows", () => {
@@ -451,6 +464,10 @@ describe("projectThreadTimeline", () => {
         kind: "work",
         entry: runningWorkEntry,
       }),
+      expect.objectContaining({
+        id: "working-indicator-row",
+        kind: "waiting",
+      }),
     ]);
   });
 
@@ -509,6 +526,10 @@ describe("projectThreadTimeline", () => {
           }),
         }),
       }),
+      expect.objectContaining({
+        id: "working-indicator-row",
+        kind: "waiting",
+      }),
     ]);
   });
 
@@ -545,5 +566,41 @@ describe("projectThreadTimeline", () => {
       (entry) => entry.kind === "message" && entry.message.id === pendingSendMessageId,
     );
     expect(pendingEntries).toHaveLength(1);
+  });
+
+  it("does not append a send intent row when runtime renders the same user text under its own id", () => {
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:timeline-projector:runtime-user-echo",
+          kind: "message",
+          orderKey: `${pendingSendCreatedAt}:message:timeline-projector:runtime-user-echo`,
+          createdAt: pendingSendCreatedAt,
+          role: "user",
+          text: "Follow up",
+          streaming: false,
+          source: "live-event",
+          eventIds: [],
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    const entries = project({
+      sendIntents: [pendingSendIntent],
+      activeRuntimeDisplayTimeline: runtimeTimeline,
+      isWorking: true,
+      isTurnActive: true,
+      activeTurnStartedAt: turnStartedAt,
+    });
+
+    const followUpUserEntries = entries.filter(
+      (entry) =>
+        entry.kind === "message" &&
+        entry.message.role === "user" &&
+        entry.message.text === "Follow up",
+    );
+    expect(followUpUserEntries).toHaveLength(1);
   });
 });

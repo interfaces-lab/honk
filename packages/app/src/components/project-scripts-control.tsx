@@ -34,10 +34,7 @@ import {
   AlertDialogTitle,
 } from "@multi/multikit/alert-dialog";
 import { Button } from "@multi/multikit/button";
-import {
-  WorkbenchIconButton,
-  workbenchIconButtonVariants,
-} from "@multi/multikit/workbench-button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
 import { WorkbenchChromeActionGroup } from "@multi/multikit/workbench-chrome-row";
 import {
   Dialog,
@@ -308,11 +305,7 @@ export default function ProjectScriptsControl({
   return (
     <>
       {primaryScript ? (
-        <WorkbenchChromeActionGroup
-          gap="sub"
-          role="group"
-          aria-label="Project actions"
-        >
+        <WorkbenchChromeActionGroup gap="sub" role="group" aria-label="Project actions">
           <WorkbenchIconButton
             aria-label={`Run ${primaryScript.name}`}
             onClick={() => onRunScript(primaryScript)}

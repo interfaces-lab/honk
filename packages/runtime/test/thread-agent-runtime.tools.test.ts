@@ -264,7 +264,8 @@ describe("ThreadAgentRuntime tools", () => {
 
     const completedEvent = events.find(
       (event) =>
-        event.type === "tool.completed" && expectRecord(event.data).toolName === CREATE_PLAN_TOOL_NAME,
+        event.type === "tool.completed" &&
+        expectRecord(event.data).toolName === CREATE_PLAN_TOOL_NAME,
     );
     const result = expectRecord(expectRecord(completedEvent?.data).result);
     const details = expectRecord(result.details);

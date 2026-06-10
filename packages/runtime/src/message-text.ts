@@ -49,7 +49,10 @@ export function extractMessageText(message: unknown): string {
     return "";
   }
 
-  return content.filter(isTextPart).map((part) => part.text).join("\n");
+  return content
+    .filter(isTextPart)
+    .map((part) => part.text)
+    .join("\n");
 }
 
 export function extractMessageThinking(message: unknown): string {
@@ -58,7 +61,10 @@ export function extractMessageThinking(message: unknown): string {
     return "";
   }
 
-  return content.filter(isThinkingPart).map((part) => part.thinking).join("\n");
+  return content
+    .filter(isThinkingPart)
+    .map((part) => part.thinking)
+    .join("\n");
 }
 
 export function toUnknownRecord(value: unknown): Record<string, unknown> {

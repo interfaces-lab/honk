@@ -190,7 +190,9 @@ function getThreadDetailSubscriptionKey(environmentId: EnvironmentId, threadId: 
   return scopedThreadKey(scopeThreadRef(environmentId, threadId));
 }
 
-function getThreadDetailEventBatcher(environmentId: EnvironmentId): FrameBatcher<OrchestrationEvent> {
+function getThreadDetailEventBatcher(
+  environmentId: EnvironmentId,
+): FrameBatcher<OrchestrationEvent> {
   let batch = pendingThreadDetailEventBatches.get(environmentId);
   if (!batch) {
     batch = createFrameBatcher({
@@ -606,7 +608,9 @@ function refreshGitStatusForThreadActivityEffects(
     const queryClient = activeService?.queryClient ?? null;
     void (async () => {
       try {
-        await refreshGitStatus({ environmentId: rpcEnvironmentId, cwd }, undefined, { force: true });
+        await refreshGitStatus({ environmentId: rpcEnvironmentId, cwd }, undefined, {
+          force: true,
+        });
       } finally {
         // The service can restart while the git refresh is in flight, so use
         // the QueryClient from the event that scheduled the refresh. Status

@@ -117,8 +117,9 @@ function buildDraftChat(draft: SidebarDraftSummary) {
   return {
     id: draft.id,
     kind: "draft",
-    title: "New chat",
-    state: "draft",
+    title: draft.title?.trim() || "New chat",
+    state: draft.promotedTo ? "running" : "draft",
+    promotedTo: draft.promotedTo,
     unread: false,
     updatedAt: draft.updatedAt,
     ago: formatCompactRelativeTimeLabel(draft.updatedAt),
@@ -300,9 +301,7 @@ export function buildProjectChatSections(
       rootProjectsByKey.size === 1
         ? ([...rootProjectsByKey.values()][0] ?? null)
         : (group.retainedProject ?? null);
-    const rootProjectKey = rootProject
-      ? scopedProjectKey(rootProject.projectRef)
-      : null;
+    const rootProjectKey = rootProject ? scopedProjectKey(rootProject.projectRef) : null;
     const threadRefs = rootProjectKey
       ? (threadRefsByProjectKey.get(rootProjectKey) ?? [])
       : sectionThreadRefs;
@@ -324,7 +323,10 @@ export function buildProjectChatSections(
       projectId: rootProject.projectRef.projectId,
       projectRef: rootProject.projectRef,
       projectCwd: rootProject.projectCwd,
-    } satisfies Pick<SidebarSectionModel, "environmentId" | "projectId" | "projectRef" | "projectCwd">);
+    } satisfies Pick<
+      SidebarSectionModel,
+      "environmentId" | "projectId" | "projectRef" | "projectCwd"
+    >);
   });
 
   if (pinnedItems.length === 0) {

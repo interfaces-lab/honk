@@ -29,9 +29,9 @@ describe("thread send intent store", () => {
     expect(useThreadSendIntentStore.getState().sendIntentsByThreadKey[draftThreadKey]).toEqual([
       intent,
     ]);
-    expect(
-      useThreadSendIntentStore.getState().sendIntentsByThreadKey[promotedThreadKey],
-    ).toEqual([intent]);
+    expect(useThreadSendIntentStore.getState().sendIntentsByThreadKey[promotedThreadKey]).toEqual([
+      intent,
+    ]);
   });
 
   it("copies local dispatch to a promoted thread key", () => {

@@ -118,9 +118,7 @@ const spacerVariants = cva("shrink-0", {
   ],
 });
 
-interface StackProps
-  extends useRender.ComponentProps<"div">,
-    VariantProps<typeof stackVariants> {}
+interface StackProps extends useRender.ComponentProps<"div">, VariantProps<typeof stackVariants> {}
 
 function Stack({ align, className, gap, justify, render, ...props }: StackProps) {
   return useRender({
@@ -178,8 +176,7 @@ function Grid({ className, columns, gap, render, ...props }: GridProps) {
 }
 
 interface SpacerProps
-  extends useRender.ComponentProps<"div">,
-    VariantProps<typeof spacerVariants> {}
+  extends useRender.ComponentProps<"div">, VariantProps<typeof spacerVariants> {}
 
 function Spacer({ className, orientation, render, size, ...props }: SpacerProps) {
   return useRender({
@@ -198,13 +195,4 @@ function Spacer({ className, orientation, render, size, ...props }: SpacerProps)
   });
 }
 
-export {
-  Grid,
-  Row,
-  Spacer,
-  Stack,
-  gridVariants,
-  rowVariants,
-  spacerVariants,
-  stackVariants,
-};
+export { Grid, Row, Spacer, Stack, gridVariants, rowVariants, spacerVariants, stackVariants };

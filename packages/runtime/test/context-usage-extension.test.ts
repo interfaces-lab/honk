@@ -19,7 +19,9 @@ interface MockSessionEntry {
 }
 
 interface MockExtensionContext {
-  readonly getContextUsage: () => { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
+  readonly getContextUsage: () =>
+    | { tokens: number | null; contextWindow: number; percent: number | null }
+    | undefined;
   readonly model: { contextWindow: number } | undefined;
   readonly sessionManager: { getBranch: () => MockSessionEntry[] };
 }

@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
-  useRef,
-  useState,
-} from "react";
+import { type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from "react";
 
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
@@ -138,8 +133,7 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
       return;
     }
 
-    const delta =
-      direction === "right" ? event.clientX - drag.startX : drag.startX - event.clientX;
+    const delta = direction === "right" ? event.clientX - drag.startX : drag.startX - event.clientX;
     const nextWidth = clampColumnWidth(drag.base + delta, limits);
     liveWidthRef.current = nextWidth;
     scheduleWidthApply(nextWidth);

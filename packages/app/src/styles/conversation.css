@@ -1,7 +1,9 @@
 :root {
   --conversation-text-font-size: var(--multi-text-title);
   --conversation-text-leading: var(--multi-leading-title);
-  --conversation-tool-card-padding-x: 8px;
+  /* Cursor parity: tools read their own tier (`--conversation-tool-font-size`),
+   * aliased to the conversation text size until a scope retunes it. */
+  --conversation-tool-font-size: var(--conversation-text-font-size);
   /*
    * Inset system mirrors Cursor's `--conversation-text-inset` and
    * `--conversation-block-inset` (workbench.desktop.main.js).
@@ -10,9 +12,11 @@
    */
   --conversation-text-inset: 11px;
   --conversation-block-inset: 11px;
+  --conversation-tool-card-padding-x: var(--conversation-block-inset);
   --chat-timeline-row-gap: 12px;
   --chat-timeline-padding-block-start: 12px;
-  --chat-timeline-assistant-top-inset: 8px;
+  --chat-timeline-assistant-top-inset: 0.8rem;
+  --chat-timeline-assistant-bottom-inset: 0.4rem;
   --chat-timeline-step-gap: 6px;
   --chat-timeline-collapsible-header-gap: 4px;
   --chat-timeline-work-preview-max-height: 144px;
@@ -31,9 +35,9 @@
   --multi-new-agent-composer-action-height: 30px;
   --multi-new-agent-empty-state-top-spacer: min(32dvh, 300px);
   --multi-composer-chip-max-width: 220px;
-  --multi-composer-chip-font-size: 14px;
-  --multi-composer-chip-line-height: 18px;
-  --multi-composer-chip-line-range-font-size: 13px;
+  --multi-composer-chip-font-size: var(--multi-composer-editor-font-size);
+  --multi-composer-chip-line-height: var(--multi-composer-editor-line-height);
+  --multi-composer-chip-line-range-font-size: calc(var(--multi-composer-editor-font-size) - 1px);
   --multi-composer-chip-icon-size: 14px;
   --multi-composer-mention-text: var(--success);
   --multi-composer-mention-line-range-text: color-mix(
@@ -51,7 +55,8 @@
   --multi-composer-queue-panel-background: var(--multi-composer-surface-background);
   --multi-composer-queue-panel-opaque-background: var(--multi-composer-surface-opaque-background);
   --multi-composer-subagent-preview-max-height: min(70dvh, calc(100dvh - 12rem));
-  --multi-composer-subagent-preview-min-height: 160px;
+  /* Cursor: `min(70dvh, max(220px, available))` with min-height 220px. */
+  --multi-composer-subagent-preview-min-height: 220px;
   --multi-composer-subagent-tray-radius: var(--multi-composer-radius-expanded);
   --multi-composer-subagent-tray-shadow:
     0 1px 2px 0 oklch(0 0 0 / 0.06), 0 6px 24px -10px oklch(0 0 0 / 0.18);
@@ -189,7 +194,7 @@
   min-height: 36px;
   max-height: 200px;
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: var(--multi-composer-editor-font-size);
   line-height: 1.5;
   color: var(--multi-fg-primary);
 }
@@ -498,6 +503,45 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
   -webkit-backdrop-filter: blur(var(--multi-composer-blur, 10px));
 }
 
+/* Cursor parity: 16px column padding (timeline px-4) + per-row text/block inset. */
+[data-chat-timeline-scroll]
+  [data-tool-call-line]:not(
+    [data-shell-tool-call] [data-tool-call-line],
+    [data-task-tool-call] [data-tool-call-line]
+  ) {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-inline: var(--conversation-text-inset);
+}
+
+[data-chat-timeline-scroll] [data-tool-call-line-body] {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-inline: var(--conversation-text-inset);
+}
+
+[data-chat-timeline-scroll] [data-shell-tool-call] [data-tool-call-line],
+[data-chat-timeline-scroll] [data-task-tool-call] [data-tool-call-line] {
+  padding-inline: 0;
+}
+
+[data-chat-timeline-scroll] [data-work-group-summary],
+[data-chat-timeline-scroll] [data-work-group-text],
+[data-chat-timeline-scroll] [data-runtime-thinking] {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-inline: var(--conversation-text-inset);
+}
+
+[data-chat-timeline-scroll] [data-assistant-transcript-row] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--conversation-text-inset);
+  padding-top: var(--chat-timeline-assistant-top-inset);
+  padding-bottom: var(--chat-timeline-assistant-bottom-inset);
+}
+
 [data-work-group-preview] {
   max-height: var(--chat-timeline-work-preview-max-height);
   padding-top: var(--chat-timeline-step-gap);
@@ -518,6 +562,16 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
 }
 
 [data-work-group-preview] [data-work-group-text] .chat-markdown {
+  color: var(--multi-fg-tertiary);
+}
+
+[data-work-group-preview] [data-runtime-thinking],
+[data-work-group-preview] [data-thinking-markdown] {
+  color: var(--multi-fg-tertiary);
+}
+
+[data-work-group-preview] [data-runtime-thinking] .chat-markdown,
+[data-work-group-preview] [data-thinking-markdown] .chat-markdown {
   color: var(--multi-fg-tertiary);
 }
 
@@ -546,7 +600,6 @@ body[data-multi-glass-mode="true"] .multi-slash-menu-popup {
     -webkit-text-fill-color: unset;
   }
 }
-
 
 [data-subagent-followup-tray-stack] {
   position: relative;

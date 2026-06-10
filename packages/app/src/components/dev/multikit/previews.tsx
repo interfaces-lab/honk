@@ -91,11 +91,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@multi/multikit/menu";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/multikit/empty";
-import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from "@multi/multikit/popover";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@multi/multikit/empty";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@multi/multikit/popover";
 import { Radio, RadioGroup } from "@multi/multikit/radio-group";
 import { ScrollArea } from "@multi/multikit/scroll-area";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/multikit/select";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@multi/multikit/select";
 import { Separator } from "@multi/multikit/separator";
 import {
   SidebarItem,
@@ -119,15 +137,18 @@ import { Stat, StatLabel, StatValue } from "@multi/multikit/stat";
 import { StatusDot } from "@multi/multikit/status-dot";
 import { Switch } from "@multi/multikit/switch";
 import { Tabs } from "@multi/multikit/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@multi/multikit/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@multi/multikit/table";
 import { Text } from "@multi/multikit/text";
 import { Textarea } from "@multi/multikit/textarea";
 import { Toggle as ToggleButton } from "@multi/multikit/toggle";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-  ToggleGroupSeparator,
-} from "@multi/multikit/toggle-group";
+import { ToggleGroup, ToggleGroupItem, ToggleGroupSeparator } from "@multi/multikit/toggle-group";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@multi/multikit/tooltip";
 import { toastContentVariants, toastRootVariants } from "@multi/multikit/toast";
 import {
@@ -218,7 +239,11 @@ function WorkbenchButtonPreview() {
   return (
     <PreviewFrame>
       {params.kind === "icon" ? (
-        <WorkbenchIconButton active={params.active} disabled={params.disabled} aria-label={params.label}>
+        <WorkbenchIconButton
+          active={params.active}
+          disabled={params.disabled}
+          aria-label={params.label}
+        >
           <IconSettingsGear1 />
         </WorkbenchIconButton>
       ) : params.kind === "tab" ? (
@@ -271,10 +296,19 @@ function WorkbenchChromeRowPreview() {
           }
           variant={variant}
         >
-          <WorkbenchIconButton active aria-label="Changes" chrome={variant} tabSystem={variant === "tool"}>
+          <WorkbenchIconButton
+            active
+            aria-label="Changes"
+            chrome={variant}
+            tabSystem={variant === "tool"}
+          >
             <IconBubbleText className="size-4" />
           </WorkbenchIconButton>
-          <WorkbenchIconButton aria-label="Terminal" chrome={variant} tabSystem={variant === "tool"}>
+          <WorkbenchIconButton
+            aria-label="Terminal"
+            chrome={variant}
+            tabSystem={variant === "tool"}
+          >
             <IconChevronRightMedium className="size-4 rotate-90" />
           </WorkbenchIconButton>
           <span className="no-drag min-w-0 truncate text-body font-medium text-multi-fg-secondary">
@@ -303,7 +337,12 @@ function SidebarPreview() {
   const mode = pickDialSelect(params.mode, modes);
   const queueItems = Array.from({ length: params.itemCount }, (_, index) => ({
     label: index === 0 ? "Review staged changes before committing" : `Queued prompt ${index + 1}`,
-    status: index === 0 && params.selected ? "Editing" : index === 1 && params.busy ? "Sending" : "Queued",
+    status:
+      index === 0 && params.selected
+        ? "Editing"
+        : index === 1 && params.busy
+          ? "Sending"
+          : "Queued",
     selected: index === 0 && params.selected,
     thumbnails: params.thumbnails && index === 0,
   }));
@@ -374,7 +413,11 @@ function SidebarPreview() {
           </SidebarTrayRow>
         </SidebarTray>
       ) : mode === "tray-row" ? (
-        <SidebarTrayRow selected={params.selected} interactive={params.interactive} className="w-72">
+        <SidebarTrayRow
+          selected={params.selected}
+          interactive={params.interactive}
+          className="w-72"
+        >
           <SidebarTrayRowContent disabled={params.selected}>
             <IconBubbleText className="size-4 shrink-0" />
             <SidebarTrayRowLabel className={cn(params.selected && "text-multi-fg-primary")}>
@@ -639,7 +682,13 @@ function InputGroupPreview() {
   );
 }
 
-const suggestionItems = ["Ask agent", "Attach file", "Run command", "Search project", "Open settings"];
+const suggestionItems = [
+  "Ask agent",
+  "Attach file",
+  "Run command",
+  "Search project",
+  "Open settings",
+];
 
 function AutocompletePreview() {
   const modes = ["list", "both", "inline", "none"] as const;
@@ -776,7 +825,10 @@ function RadioGroupPreview() {
           ["workbench", "Workbench"],
           ["shell", "Shell"],
         ].map(([itemValue, label]) => (
-          <label className="flex items-center gap-2 text-body text-multi-fg-primary" key={itemValue}>
+          <label
+            className="flex items-center gap-2 text-body text-multi-fg-primary"
+            key={itemValue}
+          >
             <Radio value={itemValue} />
             <span>{label}</span>
           </label>
@@ -861,7 +913,10 @@ function BadgePreview() {
 
   return (
     <PreviewFrame>
-      <Badge variant={pickDialSelect(params.variant, variants)} size={pickDialSelect(params.size, sizes)}>
+      <Badge
+        variant={pickDialSelect(params.variant, variants)}
+        size={pickDialSelect(params.size, sizes)}
+      >
         {params.label}
       </Badge>
     </PreviewFrame>
@@ -1026,7 +1081,11 @@ function LayoutPreview() {
   return (
     <PreviewFrame>
       {mode === "stack" ? (
-        <Stack align={align} gap={gap} className="w-72 rounded-multi-card border border-multi-stroke-tertiary p-3">
+        <Stack
+          align={align}
+          gap={gap}
+          className="w-72 rounded-multi-card border border-multi-stroke-tertiary p-3"
+        >
           {items.slice(0, 3).map(previewItem)}
         </Stack>
       ) : mode === "row" ? (
@@ -1196,7 +1255,10 @@ function ScrollAreaPreview() {
 
   return (
     <PreviewFrame>
-      <ScrollArea className="w-56 rounded-lg border border-multi-stroke-tertiary" style={{ height: params.height }}>
+      <ScrollArea
+        className="w-56 rounded-lg border border-multi-stroke-tertiary"
+        style={{ height: params.height }}
+      >
         <div className="flex flex-col gap-2 p-3">
           {Array.from({ length: params.itemCount }, (_, index) => (
             <div
@@ -1245,8 +1307,12 @@ function CollapsiblePreview() {
   return (
     <PreviewFrame>
       <Collapsible defaultOpen={params.defaultOpen} className="w-full max-w-md text-left">
-        <CollapsibleTrigger className="font-medium text-multi-fg-primary">{params.title}</CollapsibleTrigger>
-        <CollapsiblePanel className="pt-2 text-sm text-multi-fg-secondary">{params.body}</CollapsiblePanel>
+        <CollapsibleTrigger className="font-medium text-multi-fg-primary">
+          {params.title}
+        </CollapsibleTrigger>
+        <CollapsiblePanel className="pt-2 text-sm text-multi-fg-secondary">
+          {params.body}
+        </CollapsiblePanel>
       </Collapsible>
     </PreviewFrame>
   );
@@ -1309,7 +1375,9 @@ function PopoverPreview() {
           variant={pickDialSelect(params.variant, variants)}
         >
           <div className={cn("flex flex-col gap-1", params.compact ? "max-w-48" : "max-w-72")}>
-            <PopoverTitle className={params.compact ? "text-body" : undefined}>{params.title}</PopoverTitle>
+            <PopoverTitle className={params.compact ? "text-body" : undefined}>
+              {params.title}
+            </PopoverTitle>
             <PopoverDescription className={params.compact ? "text-detail" : undefined}>
               {params.description}
             </PopoverDescription>
@@ -1466,7 +1534,10 @@ function CommandPreview() {
   const items =
     state === "empty"
       ? []
-      : (itemKind === "path" ? pathItems : slashItems).slice(0, state === "loading" ? 0 : params.itemCount);
+      : (itemKind === "path" ? pathItems : slashItems).slice(
+          0,
+          state === "loading" ? 0 : params.itemCount,
+        );
   const panel = (
     <Command aria-label="Command preview" items={items} mode="none">
       <div
@@ -1480,7 +1551,11 @@ function CommandPreview() {
           <CommandList>
             <CommandGroup>
               <CommandGroupLabel>
-                {itemKind === "path" ? "Files & Folders" : mode === "palette" ? "Commands" : "Composer"}
+                {itemKind === "path"
+                  ? "Files & Folders"
+                  : mode === "palette"
+                    ? "Commands"
+                    : "Composer"}
               </CommandGroupLabel>
               {items.map((item, index) => (
                 <CommandItem
@@ -1611,7 +1686,13 @@ function SpinnerPreview() {
 function ToastPreview() {
   const chrome = ["default", "anchored", "tooltip"] as const;
   const kinds = ["success", "info", "warning", "error", "loading"] as const;
-  const scenarios = ["single", "stack", "collapsed-stack", "error-copy", "anchored-tooltip"] as const;
+  const scenarios = [
+    "single",
+    "stack",
+    "collapsed-stack",
+    "error-copy",
+    "anchored-tooltip",
+  ] as const;
   const positions = ["top-right", "bottom-right", "bottom-center"] as const;
   const params = useDialKit("Toast", {
     scenario: dialSelect(scenarios, "single"),
@@ -1633,7 +1714,11 @@ function ToastPreview() {
   const previewToasts =
     scenario === "stack" || scenario === "collapsed-stack"
       ? [
-          { kind: "loading", title: "Running command", description: "pnpm --filter @multi/app typecheck" },
+          {
+            kind: "loading",
+            title: "Running command",
+            description: "pnpm --filter @multi/app typecheck",
+          },
           { kind: selectedKind, title: params.title, description: params.description },
           { kind: "info", title: "Context updated", description: "3 files added to the prompt" },
         ]
@@ -1642,7 +1727,8 @@ function ToastPreview() {
             {
               kind: "error",
               title: "Command failed",
-              description: "fatal: cannot lock ref refs/heads/main because another process holds the lock",
+              description:
+                "fatal: cannot lock ref refs/heads/main because another process holds the lock",
             },
           ]
         : [{ kind: selectedKind, title: params.title, description: params.description }];
@@ -1714,7 +1800,9 @@ function ToastPreview() {
                     Undo
                   </Button>
                 )}
-                {params.dismiss && selectedChrome !== "tooltip" && scenario !== "anchored-tooltip" ? (
+                {params.dismiss &&
+                selectedChrome !== "tooltip" &&
+                scenario !== "anchored-tooltip" ? (
                   <Button aria-label="Dismiss toast" size="icon-xs" variant="ghost">
                     <IconCrossMediumDefault />
                   </Button>
@@ -1729,7 +1817,12 @@ function ToastPreview() {
 }
 
 function ToolCallPreview() {
-  const statuses = ["idle", "loading", "completed", "error"] as const satisfies readonly ToolCallLineStatus[];
+  const statuses = [
+    "idle",
+    "loading",
+    "completed",
+    "error",
+  ] as const satisfies readonly ToolCallLineStatus[];
   const scenarios = ["line", "status-matrix", "task", "shell"] as const;
   const widths = ["compact", "wide"] as const;
   const params = useDialKit("Tool Call", {
@@ -1772,7 +1865,10 @@ function ToolCallPreview() {
         )}
       >
         {scenario === "task" ? (
-          <ToolCallTaskRoot expanded status={status === "error" ? "error" : status === "loading" ? "running" : "completed"}>
+          <ToolCallTaskRoot
+            expanded
+            status={status === "error" ? "error" : status === "loading" ? "running" : "completed"}
+          >
             <ToolCallTaskHeader aria-expanded>
               <ToolCallTaskStatusIcon>
                 {status === "loading" ? (
@@ -1784,7 +1880,9 @@ function ToolCallPreview() {
                 )}
               </ToolCallTaskStatusIcon>
               <ToolCallTaskTitleArea>
-                <ToolCallTaskTitle loading={status === "loading"}>{params.action}</ToolCallTaskTitle>
+                <ToolCallTaskTitle loading={status === "loading"}>
+                  {params.action}
+                </ToolCallTaskTitle>
                 <ToolCallTaskSubtitle>{params.details}</ToolCallTaskSubtitle>
               </ToolCallTaskTitleArea>
               <ToolCallTaskChevron expanded />
@@ -1796,13 +1894,14 @@ function ToolCallPreview() {
             </ToolCallTaskBody>
           </ToolCallTaskRoot>
         ) : scenario === "shell" ? (
-          <ToolCallShellRoot expanded status={status === "error" ? "error" : status === "loading" ? "running" : "completed"}>
-            <ToolCallShellHeader
-              expandable
-              expanded
-              hasError={status === "error"}
-            >
-              {params.icon ? <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+          <ToolCallShellRoot
+            expanded
+            status={status === "error" ? "error" : status === "loading" ? "running" : "completed"}
+          >
+            <ToolCallShellHeader expandable expanded hasError={status === "error"}>
+              {params.icon ? (
+                <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+              ) : null}
               <span className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
                 <span
                   className={cn(
@@ -1865,7 +1964,9 @@ function AlertDialogPreview() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-            <AlertDialogClose render={<Button variant="destructive" />}>{params.destructiveLabel}</AlertDialogClose>
+            <AlertDialogClose render={<Button variant="destructive" />}>
+              {params.destructiveLabel}
+            </AlertDialogClose>
           </AlertDialogFooter>
         </AlertDialogPopup>
       </AlertDialog>

@@ -13,11 +13,7 @@ import {
 } from "@multi/contracts";
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Schema } from "effect";
-import {
-  makeRuntimeItemId,
-  makeRuntimeSessionId,
-  makeThreadEntryIdForRuntimeEntry,
-} from "./ids";
+import { makeRuntimeItemId, makeRuntimeSessionId, makeThreadEntryIdForRuntimeEntry } from "./ids";
 import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
 
 type RuntimeTreeNode = ReturnType<SessionManager["getTree"]>[number];
@@ -259,10 +255,7 @@ function pushProjectedNode(input: {
   const entryId = makeRuntimeItemId(input.node.entry.id);
   input.output.push({
     entryId,
-    threadEntryId: projectedThreadEntryId(
-      input.node.entry.id,
-      input.clientMessageIdByEntryId,
-    ),
+    threadEntryId: projectedThreadEntryId(input.node.entry.id, input.clientMessageIdByEntryId),
     parentEntryId: input.parentEntryId,
     depth: input.depth,
     isActivePath: input.activeEntryIds.has(input.node.entry.id),
@@ -307,9 +300,7 @@ export function projectRuntimeSessionTree(input: {
     input.clientMessageIdByEntryId || sidecarClientMessageIds.size > 0
       ? new Map([
           ...sidecarClientMessageIds,
-          ...(input.clientMessageIdByEntryId
-            ? [...input.clientMessageIdByEntryId.entries()]
-            : []),
+          ...(input.clientMessageIdByEntryId ? [...input.clientMessageIdByEntryId.entries()] : []),
         ])
       : undefined;
   const leafId = input.sessionManager.getLeafId();
@@ -333,18 +324,20 @@ export function projectRuntimeSessionTree(input: {
     threadId: input.threadId,
     runtimeSessionId: makeRuntimeSessionId(input.sessionManager.getSessionId()),
     leafEntryId: leafId ? nearestProjectedRuntimeEntryId(leafId, entryById) : null,
-    entries: entries.filter((entry) => !isClientMessageIdSidecar(entry)).map((entry) =>
-      projectRuntimeSessionEntry(
-        entry,
-        clientMessageIdByEntryId || input.turnIdByEntryId || entryById
-          ? {
-              ...(clientMessageIdByEntryId ? { clientMessageIdByEntryId } : {}),
-              ...(input.turnIdByEntryId ? { turnIdByEntryId: input.turnIdByEntryId } : {}),
-              entryById,
-            }
-          : undefined,
+    entries: entries
+      .filter((entry) => !isClientMessageIdSidecar(entry))
+      .map((entry) =>
+        projectRuntimeSessionEntry(
+          entry,
+          clientMessageIdByEntryId || input.turnIdByEntryId || entryById
+            ? {
+                ...(clientMessageIdByEntryId ? { clientMessageIdByEntryId } : {}),
+                ...(input.turnIdByEntryId ? { turnIdByEntryId: input.turnIdByEntryId } : {}),
+                entryById,
+              }
+            : undefined,
+        ),
       ),
-    ),
     nodes,
   };
 }

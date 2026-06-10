@@ -5,6 +5,7 @@ import {
   applyAppearanceBaseColors,
   getAppearanceThemeMode,
 } from "./appearance-colors";
+import { BASE_UI_FONT_PX, uiFontSizeToZoomFactor } from "./display-zoom";
 
 export const STORAGE_REDUCE_TRANSPARENCY = "multi:reduce-transparency";
 export const STORAGE_TINT_HUE = "multi:accent-hue";
@@ -83,6 +84,25 @@ function syncVibrancy() {
   void bridge.setVibrancy(wantsVibrancy);
 }
 
+function readStoredUiFontSizePx() {
+  return parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), BASE_UI_FONT_PX, 11, 16);
+}
+
+export function syncAppearanceDisplayZoom() {
+  const uiFontSizePx = readStoredUiFontSizePx();
+  const zoomFactor = uiFontSizeToZoomFactor(uiFontSizePx);
+  const root = document.documentElement;
+  root.style.setProperty("--multi-display-zoom-factor", String(zoomFactor));
+
+  if (!isElectron) {
+    return;
+  }
+
+  const bridge = window.desktopBridge;
+  if (!bridge?.setDisplayZoom) return;
+  void bridge.setDisplayZoom(zoomFactor);
+}
+
 export function syncAppearanceVibrancy() {
   syncVibrancy();
 }
@@ -94,9 +114,8 @@ function applyChromeRoot() {
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
   body.classList.toggle("multi-reduce-transparency", reduce);
 
-  const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);
-  root.style.setProperty("--multi-ui-font-size-user", `${uiPx}px`);
+  root.style.setProperty("--multi-ui-font-size-user", `${BASE_UI_FONT_PX}px`);
   root.style.setProperty("--multi-code-font-size-user", `${codePx}px`);
 
   const uiFont = localStorage.getItem(STORAGE_UI_FONT)?.trim() ?? "";
@@ -127,11 +146,13 @@ function applyChromeRoot() {
 export function applyAppearanceBoot() {
   applyChromeRoot();
   syncVibrancy();
+  syncAppearanceDisplayZoom();
 }
 
 function applyAppearanceSettings() {
   applyChromeRoot();
   syncVibrancy();
+  syncAppearanceDisplayZoom();
   emitAppearanceSettingsChanged();
 }
 

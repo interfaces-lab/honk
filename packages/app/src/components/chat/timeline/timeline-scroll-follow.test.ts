@@ -39,9 +39,7 @@ function row(id: string): MessagesTimelineRow {
   };
 }
 
-function pinnedEvent(
-  overrides: Partial<TimelinePinnedStateEvent> = {},
-): TimelinePinnedStateEvent {
+function pinnedEvent(overrides: Partial<TimelinePinnedStateEvent> = {}): TimelinePinnedStateEvent {
   return {
     totalHeight: 1000,
     clampedOffset: 280,
@@ -124,9 +122,7 @@ describe("computeLastTurnContentHeightPx", () => {
     const rows = [row("human"), row("assistant")];
     const measuredHeights = new Map([["human", 64]]);
 
-    expect(computeLastTurnContentHeightPx(rows, measuredHeights, 0)).toBe(
-      64 + TIMELINE_ROW_GAP_PX,
-    );
+    expect(computeLastTurnContentHeightPx(rows, measuredHeights, 0)).toBe(64 + TIMELINE_ROW_GAP_PX);
   });
 
   it("falls back to row estimates when measurements are missing", () => {
@@ -269,9 +265,10 @@ describe("computePinnedState", () => {
   });
 
   it("supports simplified scroll events for timeline integration", () => {
-    expect(
-      computePinnedState({ pinned: true, atBottom: true }, { type: "repin" }),
-    ).toEqual({ pinned: true, atBottom: true });
+    expect(computePinnedState({ pinned: true, atBottom: true }, { type: "repin" })).toEqual({
+      pinned: true,
+      atBottom: true,
+    });
 
     expect(
       computePinnedState(

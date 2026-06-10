@@ -35,10 +35,7 @@ import {
   startNewThreadFromContext,
 } from "../lib/chat-thread-actions";
 import { isTerminalFocused } from "../lib/terminal-focus";
-import {
-  openWorkspaceFolder,
-  persistProjectSelection,
-} from "../lib/project-selection";
+import { openWorkspaceFolder, persistProjectSelection } from "../lib/project-selection";
 import {
   findWorkspaceProjectForSource,
   getLatestWorkspaceThreadForProject,

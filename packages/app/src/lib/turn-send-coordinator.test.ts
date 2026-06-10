@@ -18,7 +18,10 @@ import {
   applyLocalThreadCreated,
   applyLocalThreadTurnStartRequested,
 } from "~/stores/local-orchestration-events";
-import { createThreadSendIntent, useThreadSendIntentStore } from "~/stores/thread-send-intent-store";
+import {
+  createThreadSendIntent,
+  useThreadSendIntentStore,
+} from "~/stores/thread-send-intent-store";
 import { initialState, selectEnvironmentState, useStore } from "~/stores/thread-store";
 import { getThreadFromEnvironmentState } from "~/thread-derivation";
 import { DEFAULT_RUNTIME_MODE } from "~/types";
@@ -159,7 +162,6 @@ function baseCoordinateInput(input: {
       optimisticAttachments: [],
       getTurnAttachments: async () => [],
     },
-    parentEntryId: null,
     modelSelection,
     titleSeed: "Fix chat",
     runtimeMode: DEFAULT_RUNTIME_MODE,
@@ -168,7 +170,9 @@ function baseCoordinateInput(input: {
     preparedPolicy: input.preparedPolicy,
     api: input.api,
     ...(input.appendSendIntent !== undefined ? { appendSendIntent: input.appendSendIntent } : {}),
-    ...(input.applyLocalTurnStart !== undefined ? { applyLocalTurnStart: input.applyLocalTurnStart } : {}),
+    ...(input.applyLocalTurnStart !== undefined
+      ? { applyLocalTurnStart: input.applyLocalTurnStart }
+      : {}),
     ...(input.startRuntimeBeforePersistence !== undefined
       ? { startRuntimeBeforePersistence: input.startRuntimeBeforePersistence }
       : {}),
@@ -299,6 +303,54 @@ describe("turn-send-coordinator", () => {
         parentEntryId: null,
       }),
     ]);
+  });
+
+  it("omits parentEntryId from thread.turn.start for tip-append sends", async () => {
+    // Tip-append sends let the server resolve its own committed leaf; only branching
+    // sends (message edits) pass an explicit parent the server then validates.
+    const dispatched: unknown[] = [];
+    const dispatchCommand = vi.fn(async (command: unknown) => {
+      dispatched.push(command);
+      return { sequence: 1 };
+    });
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(createRuntimeApi({ snapshot })),
+    });
+    const api = createOrchestrationApi({ dispatchCommand });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+
+    await coordinateTurnSend(
+      baseCoordinateInput({
+        api,
+        preparedPolicy,
+        applyLocalTurnStart: false,
+      }),
+    );
+
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).not.toHaveProperty("parentEntryId");
+  });
+
+  it("passes an explicit parentEntryId through to thread.turn.start for branching sends", () => {
+    const command = buildThreadTurnStartCommand({
+      threadId,
+      clientMessageId: messageId,
+      createdAt,
+      text: "edited message",
+      attachments: [],
+      modelSelection,
+      titleSeed: "Edit thread",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: "agent",
+      parentEntryId: null,
+      sourceProposedPlan: null,
+    });
+
+    expect(command).toHaveProperty("parentEntryId", null);
   });
 
   it("skips send intent when callers already announced optimistic state", async () => {

@@ -188,7 +188,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
   );
 
   return (
-    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-(--multi-sidebar-section-gap) overflow-y-auto pt-0 pb-4">
+    <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-sidebar-section-gap overflow-y-auto pt-0 pb-4">
       <RetainedThreadDetailSubscriptions
         key={prewarmedSidebarThreadRefsKey}
         threadRefs={prewarmedSidebarThreadRefs}
@@ -200,7 +200,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
           data-agent-sidebar-workspaces=""
         >
           <div
-            className="font-multi flex min-h-(--multi-sidebar-item-height) min-w-0 items-center justify-start gap-(--multi-sidebar-item-gap) overflow-hidden rounded-[4px] px-1.5 py-0.5 text-left text-[length:var(--multi-sidebar-label-size)]/[var(--multi-sidebar-label-leading)] text-multi-fg-tertiary [@media(hover:hover)]:hover:text-multi-fg-primary"
+            className="font-multi flex min-h-sidebar-item min-w-0 items-center justify-start gap-sidebar-item-gap overflow-hidden rounded-[4px] px-1.5 py-1 text-left text-sidebar-label text-multi-fg-tertiary [@media(hover:hover)]:hover:text-multi-fg-primary"
             data-agent-sidebar-workspaces-title=""
           >
             <button
@@ -209,7 +209,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
               aria-expanded={workspaceCollectionOpen}
               aria-controls={workspaceCollectionOpen ? workspaceCollectionPanelId : undefined}
               onClick={() => setWorkspaceCollectionOpen((open) => !open)}
-              className="relative m-0 flex min-h-(--multi-sidebar-item-height) w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-1 border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
+              className="relative m-0 flex min-h-sidebar-item w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-1 border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
             >
               <span className="min-w-0 truncate text-left">Workspaces</span>
               <IconChevronRightMedium

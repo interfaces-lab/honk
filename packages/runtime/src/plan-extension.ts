@@ -179,8 +179,7 @@ export const createPlanExtension: ExtensionFactory = (pi) => {
           planMarkdown,
         };
         const label = details.name ? `: ${details.name}` : "";
-        const todoSummary =
-          details.todos.length === 1 ? "1 todo" : `${details.todos.length} todos`;
+        const todoSummary = details.todos.length === 1 ? "1 todo" : `${details.todos.length} todos`;
         return {
           content: [{ type: "text", text: `Created plan${label} (${todoSummary}).` }],
           details,

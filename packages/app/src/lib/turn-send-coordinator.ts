@@ -43,7 +43,12 @@ export interface CoordinateTurnSendInput {
   readonly clientMessageId: MessageId;
   readonly createdAt: string;
   readonly message: TurnSendMessageContent;
-  readonly parentEntryId: ThreadEntryId | null;
+  /**
+   * Explicit branch point for branching sends (message edits). Omit for
+   * tip-append sends: the server resolves its own committed leaf, which the
+   * client cannot know reliably while runtime persistence is in flight.
+   */
+  readonly parentEntryId?: ThreadEntryId | null;
   readonly modelSelection: ModelSelection;
   readonly titleSeed: string;
   readonly runtimeMode?: RuntimeMode;
@@ -64,12 +69,10 @@ export interface CoordinateTurnSendResult {
   readonly serverTurnStartSucceeded: boolean;
   readonly runtimeSendSucceeded: boolean;
   readonly serverPersistenceError: unknown | null;
-  readonly preparedWorktree:
-    | {
-        readonly worktreePath: string;
-        readonly branch: string;
-      }
-    | null;
+  readonly preparedWorktree: {
+    readonly worktreePath: string;
+    readonly branch: string;
+  } | null;
 }
 
 export async function coordinateTurnSend(
@@ -84,7 +87,7 @@ export async function coordinateTurnSend(
         ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),
         attachments: [...input.message.optimisticAttachments],
         createdAt: input.createdAt,
-        parentEntryId: input.parentEntryId,
+        parentEntryId: input.parentEntryId ?? null,
       }),
     );
   }
@@ -103,7 +106,7 @@ export async function coordinateTurnSend(
       titleSeed: input.titleSeed,
       runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
       interactionMode: input.interactionMode,
-      parentEntryId: input.parentEntryId,
+      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
       ...(input.sourceProposedPlan ? { sourceProposedPlan: input.sourceProposedPlan } : {}),
       createdAt: input.createdAt,
     });
@@ -164,7 +167,7 @@ export async function coordinateTurnSend(
       titleSeed: input.titleSeed,
       runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
       interactionMode: input.interactionMode,
-      parentEntryId: input.parentEntryId,
+      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
       sourceProposedPlan: input.sourceProposedPlan ?? null,
       ...(input.bootstrap ? { bootstrap: input.bootstrap } : {}),
     });
@@ -172,7 +175,11 @@ export async function coordinateTurnSend(
     try {
       const dispatchResult = await input.api.orchestration.dispatchCommand(turnStartCommand);
       serverTurnStartSucceeded = true;
-      if (dispatchResult && "preparedWorktree" in dispatchResult && dispatchResult.preparedWorktree) {
+      if (
+        dispatchResult &&
+        "preparedWorktree" in dispatchResult &&
+        dispatchResult.preparedWorktree
+      ) {
         preparedWorktree = {
           worktreePath: dispatchResult.preparedWorktree.worktreePath,
           branch: dispatchResult.preparedWorktree.branch,
@@ -212,7 +219,8 @@ export function buildThreadTurnStartCommand(input: {
   readonly titleSeed: string;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: AgentInteractionMode;
-  readonly parentEntryId: ThreadEntryId | null;
+  /** Explicit branch point; when omitted the server appends at its own leaf. */
+  readonly parentEntryId?: ThreadEntryId | null;
   readonly sourceProposedPlan: SourceProposedPlanReference | null;
   readonly bootstrap?: ThreadTurnStartBootstrap;
 }): ClientOrchestrationCommand {
@@ -231,7 +239,7 @@ export function buildThreadTurnStartCommand(input: {
     titleSeed: input.titleSeed,
     runtimeMode: input.runtimeMode,
     interactionMode: input.interactionMode,
-    parentEntryId: input.parentEntryId,
+    ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
     ...(input.sourceProposedPlan ? { sourceProposedPlan: input.sourceProposedPlan } : {}),
     ...(input.bootstrap ? { bootstrap: input.bootstrap } : {}),
     createdAt: input.createdAt,

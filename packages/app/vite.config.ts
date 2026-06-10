@@ -11,7 +11,8 @@ const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
 const configuredWsUrl = process.env.VITE_WS_URL?.trim();
 const inferredBackendPort = process.env.MULTI_PORT?.trim();
 const resolvedHttpUrl =
-  configuredHttpUrl ?? (inferredBackendPort ? `http://127.0.0.1:${inferredBackendPort}` : undefined);
+  configuredHttpUrl ??
+  (inferredBackendPort ? `http://127.0.0.1:${inferredBackendPort}` : undefined);
 const resolvedWsUrl =
   configuredWsUrl ?? (inferredBackendPort ? `ws://127.0.0.1:${inferredBackendPort}` : undefined);
 const sourcemapEnv = process.env.MULTI_WEB_SOURCEMAP?.trim().toLowerCase();

@@ -1,6 +1,5 @@
 import { DEFAULT_PROJECTLESS_CWD, EnvironmentId, ProjectId } from "@multi/contracts";
 
-
 export const PROJECT_KEY = "multi:project-cwd";
 export const SELECTED_PROJECT_KEY = "multi:selected-project";
 export const SHELL_LAYOUT_CHANGED_EVENT = "multi:shell-layout-changed";

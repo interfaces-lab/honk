@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetLocalApiForTests } from "../local-api";
 import { createEmptyRuntimeHostSnapshot } from "./multi-runtime-api";
 import {
+  hydrateRuntimeThread,
   prepareRuntimeTurnPolicy,
+  resetRuntimeThreadHydrationCache,
   sendRuntimeTurn,
   sendRuntimeTurnWithPreparedPolicy,
 } from "./runtime-turn-dispatch";
@@ -70,8 +72,48 @@ function createLocalApi(runtime: MultiRuntimeApi): LocalApi {
   };
 }
 
+describe("hydrateRuntimeThread", () => {
+  beforeEach(async () => {
+    resetRuntimeThreadHydrationCache();
+    await __resetLocalApiForTests();
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(async () => {
+    resetRuntimeThreadHydrationCache();
+    vi.unstubAllGlobals();
+    await __resetLocalApiForTests();
+  });
+
+  it("hydrates each runtime thread only once per session", async () => {
+    let hydrateCount = 0;
+    const runtime = createRuntimeApi({
+      snapshot: createEmptyRuntimeHostSnapshot(),
+    });
+    runtime.hydrateThread = async () => {
+      hydrateCount += 1;
+    };
+    vi.stubGlobal("window", { nativeApi: createLocalApi(runtime) });
+
+    const threadId = ThreadId.make("thread:hydrate-once");
+    await hydrateRuntimeThread({
+      threadId,
+      cwd: "/tmp",
+      interactionMode: "agent",
+    });
+    await hydrateRuntimeThread({
+      threadId,
+      cwd: "/tmp",
+      interactionMode: "agent",
+    });
+
+    expect(hydrateCount).toBe(1);
+  });
+});
+
 describe("sendRuntimeTurn", () => {
   beforeEach(async () => {
+    resetRuntimeThreadHydrationCache();
     await __resetLocalApiForTests();
     vi.unstubAllGlobals();
   });

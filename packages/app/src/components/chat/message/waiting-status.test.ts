@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveWaitingStatusLabel, resolveWaitingTimelineStatus } from "./waiting-status";
+import {
+  resolveWaitingStatusLabel,
+  resolveWaitingTimelineStatus,
+  WAITING_SLOW_LABEL_THRESHOLD_MS,
+} from "./waiting-status";
 
 describe("resolveWaitingTimelineStatus", () => {
   it("defaults to thinking with active turn start", () => {
@@ -17,7 +21,13 @@ describe("resolveWaitingTimelineStatus", () => {
 });
 
 describe("resolveWaitingStatusLabel", () => {
-  it("shows a stable thinking label", () => {
-    expect(resolveWaitingStatusLabel()).toBe("Thinking...");
+  it("starts with the planning label", () => {
+    expect(resolveWaitingStatusLabel(0)).toBe("Planning next move");
+  });
+
+  it("switches to the slow label past the threshold", () => {
+    expect(resolveWaitingStatusLabel(WAITING_SLOW_LABEL_THRESHOLD_MS)).toBe(
+      "This is taking a bit longer...",
+    );
   });
 });

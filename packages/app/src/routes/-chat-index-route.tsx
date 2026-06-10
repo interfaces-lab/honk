@@ -73,8 +73,7 @@ function ChatIndexAgentPanel(props: {
     initialRouteTarget.threadRef.environmentId === props.activeEnvironmentId
       ? initialRouteTarget.threadRef
       : null;
-  const draftIdToRestore =
-    initialRouteTarget?.kind === "draft" ? initialRouteTarget.draftId : null;
+  const draftIdToRestore = initialRouteTarget?.kind === "draft" ? initialRouteTarget.draftId : null;
 
   useLayoutSyncEffect(() => {
     if (serverThreadRefToRestore) {

@@ -54,8 +54,7 @@ export function PersistentThreadTerminalDrawer(props: {
   const storeCloseTerminal = useTerminalStateStore((state) => state.closeTerminal);
   const [localFocusRequestId, setLocalFocusRequestId] = useState(0);
   const worktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
-  const effectiveWorktreePath =
-    launchContext !== null ? launchContext.worktreePath : worktreePath;
+  const effectiveWorktreePath = launchContext !== null ? launchContext.worktreePath : worktreePath;
   const cwd =
     launchContext?.cwd ??
     (project

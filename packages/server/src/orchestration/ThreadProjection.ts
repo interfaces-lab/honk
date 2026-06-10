@@ -640,16 +640,18 @@ const makeThreadProjection = Effect.gen(function* () {
               for (const row of activityRows) {
                 updatedAt = maxIso(updatedAt, row.createdAt);
                 const threadActivities = activitiesByThread.get(row.threadId) ?? [];
-                threadActivities.push(Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-                  id: row.activityId,
-                  tone: row.tone,
-                  kind: row.kind,
-                  summary: row.summary,
-                  payload: row.payload,
-                  turnId: row.turnId,
-                  ...(row.sequence !== null ? { sequence: row.sequence } : {}),
-                  createdAt: row.createdAt,
-                }));
+                threadActivities.push(
+                  Schema.decodeUnknownSync(OrchestrationThreadActivity)({
+                    id: row.activityId,
+                    tone: row.tone,
+                    kind: row.kind,
+                    summary: row.summary,
+                    payload: row.payload,
+                    turnId: row.turnId,
+                    ...(row.sequence !== null ? { sequence: row.sequence } : {}),
+                    createdAt: row.createdAt,
+                  }),
+                );
                 activitiesByThread.set(row.threadId, threadActivities);
               }
 
@@ -725,26 +727,26 @@ const makeThreadProjection = Effect.gen(function* () {
               }));
 
               const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) => ({
-                  id: row.threadId,
-                  projectId: row.projectId,
-                  title: row.title,
-                  modelSelection: row.modelSelection,
-                  runtimeMode: row.runtimeMode,
-                  interactionMode: row.interactionMode,
-                  branch: row.branch,
-                  worktreePath: row.worktreePath,
-                  latestTurn: latestTurnByThread.get(row.threadId) ?? null,
-                  createdAt: row.createdAt,
-                  updatedAt: row.updatedAt,
-                  archivedAt: row.archivedAt,
-                  deletedAt: row.deletedAt,
-                  messages: messagesByThread.get(row.threadId) ?? [],
-                  leafId: row.leafId,
-                  entries: entriesByThread.get(row.threadId) ?? [],
-                  proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
-                  activities: activitiesByThread.get(row.threadId) ?? [],
-                  session: sessionsByThread.get(row.threadId) ?? null,
-                }));
+                id: row.threadId,
+                projectId: row.projectId,
+                title: row.title,
+                modelSelection: row.modelSelection,
+                runtimeMode: row.runtimeMode,
+                interactionMode: row.interactionMode,
+                branch: row.branch,
+                worktreePath: row.worktreePath,
+                latestTurn: latestTurnByThread.get(row.threadId) ?? null,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt,
+                archivedAt: row.archivedAt,
+                deletedAt: row.deletedAt,
+                messages: messagesByThread.get(row.threadId) ?? [],
+                leafId: row.leafId,
+                entries: entriesByThread.get(row.threadId) ?? [],
+                proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
+                activities: activitiesByThread.get(row.threadId) ?? [],
+                session: sessionsByThread.get(row.threadId) ?? null,
+              }));
 
               const snapshot = {
                 snapshotSequence: computeSnapshotSequence(stateRows),
@@ -1113,71 +1115,69 @@ const makeThreadProjection = Effect.gen(function* () {
       }
 
       return Option.some(
-        yield* decodeThread(
-          {
-            id: threadRow.value.threadId,
-            projectId: threadRow.value.projectId,
-            title: threadRow.value.title,
-            modelSelection: threadRow.value.modelSelection,
-            runtimeMode: threadRow.value.runtimeMode,
-            interactionMode: threadRow.value.interactionMode,
-            branch: threadRow.value.branch,
-            worktreePath: threadRow.value.worktreePath,
-            latestTurn: Option.isSome(latestTurnRow) ? mapLatestTurn(latestTurnRow.value) : null,
-            createdAt: threadRow.value.createdAt,
-            updatedAt: threadRow.value.updatedAt,
-            archivedAt: threadRow.value.archivedAt,
-            deletedAt: null,
-            messages: messageRows.map((row) => {
-              const message = {
-                id: row.messageId,
-                role: row.role,
-                text: row.text,
-                ...(row.richText !== null ? { richText: row.richText } : {}),
-                turnId: row.turnId,
-                streaming: row.isStreaming === 1,
-                createdAt: row.createdAt,
-                updatedAt: row.updatedAt,
-              };
-              if (row.attachments !== null) {
-                return Object.assign(message, { attachments: row.attachments });
-              }
-              return message;
-            }),
-            leafId: threadRow.value.leafId,
-            entries: entryRows.map((row) => ({
-              id: row.entryId,
-              threadId: row.threadId,
-              parentEntryId: row.parentEntryId,
-              kind: row.kind,
-              messageId: row.messageId,
+        yield* decodeThread({
+          id: threadRow.value.threadId,
+          projectId: threadRow.value.projectId,
+          title: threadRow.value.title,
+          modelSelection: threadRow.value.modelSelection,
+          runtimeMode: threadRow.value.runtimeMode,
+          interactionMode: threadRow.value.interactionMode,
+          branch: threadRow.value.branch,
+          worktreePath: threadRow.value.worktreePath,
+          latestTurn: Option.isSome(latestTurnRow) ? mapLatestTurn(latestTurnRow.value) : null,
+          createdAt: threadRow.value.createdAt,
+          updatedAt: threadRow.value.updatedAt,
+          archivedAt: threadRow.value.archivedAt,
+          deletedAt: null,
+          messages: messageRows.map((row) => {
+            const message = {
+              id: row.messageId,
+              role: row.role,
+              text: row.text,
+              ...(row.richText !== null ? { richText: row.richText } : {}),
               turnId: row.turnId,
-              createdAt: row.createdAt,
-            })),
-            proposedPlans: proposedPlanRows.map((row) => ({
-              id: row.planId,
-              turnId: row.turnId,
-              planMarkdown: row.planMarkdown,
-              implementedAt: row.implementedAt,
-              implementationThreadId: row.implementationThreadId,
+              streaming: row.isStreaming === 1,
               createdAt: row.createdAt,
               updatedAt: row.updatedAt,
-            })),
-            activities: activityRows.map((row) =>
-              Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-                id: row.activityId,
-                tone: row.tone,
-                kind: row.kind,
-                summary: row.summary,
-                payload: row.payload,
-                turnId: row.turnId,
-                ...(row.sequence !== null ? { sequence: row.sequence } : {}),
-                createdAt: row.createdAt,
-              }),
-            ),
-            session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
-          },
-        ).pipe(
+            };
+            if (row.attachments !== null) {
+              return Object.assign(message, { attachments: row.attachments });
+            }
+            return message;
+          }),
+          leafId: threadRow.value.leafId,
+          entries: entryRows.map((row) => ({
+            id: row.entryId,
+            threadId: row.threadId,
+            parentEntryId: row.parentEntryId,
+            kind: row.kind,
+            messageId: row.messageId,
+            turnId: row.turnId,
+            createdAt: row.createdAt,
+          })),
+          proposedPlans: proposedPlanRows.map((row) => ({
+            id: row.planId,
+            turnId: row.turnId,
+            planMarkdown: row.planMarkdown,
+            implementedAt: row.implementedAt,
+            implementationThreadId: row.implementationThreadId,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          })),
+          activities: activityRows.map((row) =>
+            Schema.decodeUnknownSync(OrchestrationThreadActivity)({
+              id: row.activityId,
+              tone: row.tone,
+              kind: row.kind,
+              summary: row.summary,
+              payload: row.payload,
+              turnId: row.turnId,
+              ...(row.sequence !== null ? { sequence: row.sequence } : {}),
+              createdAt: row.createdAt,
+            }),
+          ),
+          session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
+        }).pipe(
           Effect.mapError(
             toPersistenceDecodeError("ThreadProjection.getThreadDetailById:decodeThread"),
           ),

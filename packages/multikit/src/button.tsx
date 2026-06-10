@@ -8,16 +8,25 @@ import { cn, controlTransitionClassName, interactiveControlCursorClassName } fro
 
 const buttonVariants = cva(
   cn(
-    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-multi-control border font-multi text-body font-medium outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-multi-control border font-multi outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     interactiveControlCursorClassName,
     controlTransitionClassName,
   ),
   {
     defaultVariants: {
       size: "default",
+      typography: "body",
       variant: "default",
     },
     variants: {
+      typography: {
+        body: "text-body font-medium",
+        caption: "text-caption font-normal",
+        detail: "text-detail font-normal",
+        inherit: "font-normal",
+        sidebar: "text-sidebar-label font-normal",
+        title: "text-title font-medium",
+      },
       size: {
         default: "h-7 px-2.5",
         icon: "size-7 [&_svg:not([class*='size-'])]:size-4",
@@ -56,6 +65,7 @@ const buttonVariants = cva(
 interface ButtonProps extends ButtonPrimitive.Props {
   variant?: VariantProps<typeof buttonVariants>["variant"];
   size?: VariantProps<typeof buttonVariants>["size"];
+  typography?: VariantProps<typeof buttonVariants>["typography"];
 }
 
 const iconButtonSizes = new Set<ButtonProps["size"]>([
@@ -93,7 +103,7 @@ function warnIfMissingIconButtonName({
   );
 }
 
-function Button({ className, variant, size, render, type, ...props }: ButtonProps) {
+function Button({ className, variant, size, typography, render, type, ...props }: ButtonProps) {
   warnIfMissingIconButtonName({
     ariaLabel: props["aria-label"],
     ariaLabelledBy: props["aria-labelledby"],
@@ -104,7 +114,7 @@ function Button({ className, variant, size, render, type, ...props }: ButtonProp
 
   const typeValue: React.ButtonHTMLAttributes<HTMLButtonElement>["type"] =
     type ?? (render ? undefined : "button");
-  const baseClassName = buttonVariants({ size, variant });
+  const baseClassName = buttonVariants({ size, typography, variant });
   const resolvedClassName: ButtonPrimitive.Props["className"] =
     typeof className === "function"
       ? (state) => cn(baseClassName, className(state))

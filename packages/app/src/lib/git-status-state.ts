@@ -11,10 +11,7 @@ import { useCallback, useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atom-registry";
 import { subscribeEnvironmentConnections } from "../environments/runtime";
-import {
-  readResolvedEnvironmentGitApi,
-  type EnvironmentGitApi,
-} from "./environment-git-api";
+import { readResolvedEnvironmentGitApi, type EnvironmentGitApi } from "./environment-git-api";
 import { isTransportConnectionErrorMessage } from "../rpc/transport-error";
 
 interface GitStatusState {
@@ -90,9 +87,7 @@ function readResolvedGitStatusClient(target: GitStatusTarget): ResolvedGitStatus
     return null;
   }
   const resolved = readResolvedEnvironmentGitApi(target.environmentId);
-  return resolved
-    ? { clientIdentity: resolved.clientIdentity, client: resolved.git }
-    : null;
+  return resolved ? { clientIdentity: resolved.clientIdentity, client: resolved.git } : null;
 }
 
 export function getGitStatusSnapshot(target: GitStatusTarget): GitStatusState {
@@ -192,10 +187,7 @@ export function refreshGitStatus(
         });
         return data;
       }
-      const gitError =
-        error instanceof GitManagerError
-          ? error
-          : refreshError(detail);
+      const gitError = error instanceof GitManagerError ? error : refreshError(detail);
       updateError(gitError);
       throw gitError;
     })
@@ -254,10 +246,7 @@ function unwatchGitStatus(targetKey: string): void {
   watchedGitStatuses.delete(targetKey);
 }
 
-function subscribeToGitStatusTarget(
-  targetKey: string,
-  target: GitStatusTarget,
-): () => void {
+function subscribeToGitStatusTarget(targetKey: string, target: GitStatusTarget): () => void {
   if (target.cwd === null) {
     return NOOP;
   }

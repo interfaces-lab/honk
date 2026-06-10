@@ -63,6 +63,8 @@ const defaultThemeBackgrounds: ThemeBackgrounds = {
 let cachedTheme: Theme | undefined;
 
 export function readDefaultPiTheme(): Theme {
-  cachedTheme ??= new Theme(defaultThemeColors, defaultThemeBackgrounds, "truecolor", { name: "multi" });
+  cachedTheme ??= new Theme(defaultThemeColors, defaultThemeBackgrounds, "truecolor", {
+    name: "multi",
+  });
   return cachedTheme;
 }

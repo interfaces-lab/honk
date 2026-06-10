@@ -6,22 +6,22 @@ todos:
     content: "Document and enforce package boundaries: app Promise-only, Pi imports only in @multi/runtime, durable facts through EnvironmentApi, Pi execution through MultiRuntimeApi"
     status: completed
   - id: p1-client-runtime
-    content: "Add/centralize client-runtime APIs; remove fallbackRuntimeApi and scattered runtime host reads from app code"
+    content: Add/centralize client-runtime APIs; remove fallbackRuntimeApi and scattered runtime host reads from app code
     status: completed
   - id: p2-turn-coordinator
     content: "Add coordinateTurnSend and route every send path through it: composer, shell-host git actions, queue/retry, draft/worktree prep, inline edit/plan follow-up"
     status: completed
   - id: p3-runtime-identity-ingestion
-    content: "Keep Pi clientMessageId sidecars; move runtime-to-orchestration ingestion out of renderer stores into desktop main; app runtime store becomes overlay-only"
+    content: Keep Pi clientMessageId sidecars; move runtime-to-orchestration ingestion out of renderer stores into desktop main; app runtime store becomes overlay-only
     status: completed
   - id: p4-ui-projector
     content: "Make thread-timeline-projector the sole semantic row projector: committed facts + runtime overlay + ThreadSendIntent + waiting rows"
     status: completed
   - id: p5-delete-legacy
-    content: "Delete old timeline/display/pending/server-row/renderer-ingestion/fallback surfaces once callers are migrated"
+    content: Delete old timeline/display/pending/server-row/renderer-ingestion/fallback surfaces once callers are migrated
     status: completed
   - id: p6-verify
-    content: "Run focused suites + pnpm run typecheck; live reload new-thread-draft git thread; no commit until explicit authorization"
+    content: Run focused suites + pnpm run typecheck; live reload new-thread-draft git thread; no commit until explicit authorization
     status: completed
 isProject: false
 ---
@@ -82,21 +82,21 @@ flowchart TB
 
 ## Boundary Rules
 
-| Package | Allowed | Delete / forbid |
-|---------|---------|-----------------|
-| `packages/app` | `@multi/contracts`, `@multi/client-runtime`, `@multi/shared`, React stores for UI state | Pi imports, `@multi/runtime`, server imports, Effect services, IPC channel strings, renderer orchestration ingestion |
-| `packages/client-runtime` | Promise clients for `MultiRuntimeApi`, `EnvironmentApi`, `LocalApi` | Pi, server internals, UI state |
-| `packages/runtime` | Pi SDK imports, projections, `ThreadAgentRuntime`, sidecars | React, app stores, desktop IPC details |
-| `packages/desktop` | `@multi/runtime`, IPC, runtime ingestion, Effect runtime services | Pi types in renderer/preload |
-| `packages/server` | durable orchestration facts and projections | Pi execution, runtime display rows, `chatTimelineRows` |
+| Package                   | Allowed                                                                                 | Delete / forbid                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `packages/app`            | `@multi/contracts`, `@multi/client-runtime`, `@multi/shared`, React stores for UI state | Pi imports, `@multi/runtime`, server imports, Effect services, IPC channel strings, renderer orchestration ingestion |
+| `packages/client-runtime` | Promise clients for `MultiRuntimeApi`, `EnvironmentApi`, `LocalApi`                     | Pi, server internals, UI state                                                                                       |
+| `packages/runtime`        | Pi SDK imports, projections, `ThreadAgentRuntime`, sidecars                             | React, app stores, desktop IPC details                                                                               |
+| `packages/desktop`        | `@multi/runtime`, IPC, runtime ingestion, Effect runtime services                       | Pi types in renderer/preload                                                                                         |
+| `packages/server`         | durable orchestration facts and projections                                             | Pi execution, runtime display rows, `chatTimelineRows`                                                               |
 
 App uses two agent-adjacent SDK surfaces:
 
-| API | Transport | Owns |
-|-----|-----------|------|
-| `MultiRuntimeApi` | Electron IPC | Pi execution: `sendTurn`, `abort`, `hydrateThread`, credentials, host events |
-| `EnvironmentApi` | WebSocket RPC | Durable orchestration facts, projects, git, terminal, thread snapshots |
-| `LocalApi` | IPC | Shell/local UI operations only, not agent/environment proxying |
+| API               | Transport     | Owns                                                                         |
+| ----------------- | ------------- | ---------------------------------------------------------------------------- |
+| `MultiRuntimeApi` | Electron IPC  | Pi execution: `sendTurn`, `abort`, `hydrateThread`, credentials, host events |
+| `EnvironmentApi`  | WebSocket RPC | Durable orchestration facts, projects, git, terminal, thread snapshots       |
+| `LocalApi`        | IPC           | Shell/local UI operations only, not agent/environment proxying               |
 
 ## Chat Foundation Invariants
 

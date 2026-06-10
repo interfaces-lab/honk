@@ -23,7 +23,10 @@ const STATIC_CATEGORY_ORDER = [
 
 type StaticCategoryId = (typeof STATIC_CATEGORY_ORDER)[number];
 
-const CATEGORY_DEFINITIONS: Record<StaticCategoryId | "conversation", ContextUsageCategoryDefinition> = {
+const CATEGORY_DEFINITIONS: Record<
+  StaticCategoryId | "conversation",
+  ContextUsageCategoryDefinition
+> = {
   system_prompt: { id: "system_prompt", label: "System prompt" },
   tool_definitions: { id: "tool_definitions", label: "Tool definitions" },
   rules: { id: "rules", label: "Rules" },
@@ -214,7 +217,9 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
         asNonNegativeInteger(contextUsage?.contextWindow) ||
         asNonNegativeInteger(ctx.model?.contextWindow);
       const totalProcessedTokens =
-        state.cumulativeInputTokens + state.cumulativeCachedInputTokens + state.cumulativeOutputTokens;
+        state.cumulativeInputTokens +
+        state.cumulativeCachedInputTokens +
+        state.cumulativeOutputTokens;
 
       sink.publish({
         usedTokens,
@@ -282,7 +287,8 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
         0,
       );
       const skillsTokens = (options.skills ?? []).reduce(
-        (total, skill) => total + estimateTextTokens(skill.name) + estimateTextTokens(skill.description),
+        (total, skill) =>
+          total + estimateTextTokens(skill.name) + estimateTextTokens(skill.description),
         0,
       );
       const systemPromptTokens = Math.max(

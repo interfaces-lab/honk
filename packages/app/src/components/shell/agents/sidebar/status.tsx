@@ -19,12 +19,12 @@ function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
 }
 
 export function StatusDot(props: { item: SidebarChatItem }) {
-  if (props.item.kind === "draft") {
-    return <SidebarDot state="draft" />;
-  }
-
   if (props.item.state === "running") {
     return <ChatLoaderGlyph aria-hidden maxExtent={16} role="presentation" speed={1.1} />;
+  }
+
+  if (props.item.kind === "draft") {
+    return <SidebarDot state="draft" />;
   }
 
   return <SidebarDot state={sidebarDotStateForItem(props.item)} />;
@@ -40,4 +40,3 @@ export function StatusSlot(props: { item: SidebarChatItem }) {
     </span>
   );
 }
-

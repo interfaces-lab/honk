@@ -4,7 +4,9 @@ import type { GitFileState } from "~/lib/ui-session-types";
 
 import { cn } from "~/lib/utils";
 
-const kindBadge: Partial<Record<GitFileState, { className: string; label: string; title: string }>> = {
+const kindBadge: Partial<
+  Record<GitFileState, { className: string; label: string; title: string }>
+> = {
   untracked: {
     className: "text-(--multi-git-status-added)",
     label: "U",

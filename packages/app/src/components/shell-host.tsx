@@ -6,7 +6,6 @@ import {
   type AgentInteractionMode,
   type OrchestrationThreadActivity,
   type SourceProposedPlanReference,
-  type ThreadEntryId,
   type ThreadId,
 } from "@multi/contracts";
 import type { TimestampFormat } from "@multi/contracts/settings";
@@ -31,10 +30,7 @@ import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { readEnvironmentApi } from "~/environment-api";
 import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
 import { prepareRuntimeTurnPolicy } from "~/lib/runtime-turn-dispatch";
-import {
-  coordinateTurnSend,
-  dispatchTurnStartFailure,
-} from "~/lib/turn-send-coordinator";
+import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { resolveProjectlessCwd } from "~/lib/project-state";
 import {
   findWorkspaceProjectByRef,
@@ -42,7 +38,6 @@ import {
   isSourceForWorkspaceProject,
   resolveWorkspaceTarget,
 } from "~/lib/workspace-target";
-import { resolveGitAgentParentEntryId } from "~/lib/git-agent-parent-entry";
 import {
   GIT_AGENT_ACTIONS,
   resolveGitAgentActionFromPrompt,
@@ -91,10 +86,7 @@ import {
 } from "~/stores/thread-selectors";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
 import type { Thread } from "~/types";
-import {
-  sidebarSelectionIdForChatRoute,
-  useChatRouteTarget,
-} from "~/app/chat-route-state";
+import { sidebarSelectionIdForChatRoute, useChatRouteTarget } from "~/app/chat-route-state";
 import { GitPanel } from "./shell/git/panel";
 import { ProjectFilesPanel } from "./shell/files/panel";
 import {
@@ -153,7 +145,6 @@ async function sendRuntimeShellTurn(input: {
   clientMessageId: MessageId;
   modelSelection: Thread["modelSelection"];
   titleSeed: string;
-  parentEntryId: ThreadEntryId | null;
   createdAt: string;
   api: NonNullable<ReturnType<typeof readEnvironmentApi>>;
 }): Promise<void> {
@@ -171,7 +162,6 @@ async function sendRuntimeShellTurn(input: {
       optimisticAttachments: [],
       getTurnAttachments: async () => [],
     },
-    parentEntryId: input.parentEntryId,
     modelSelection: input.modelSelection,
     titleSeed: input.titleSeed,
     interactionMode: input.interactionMode,
@@ -180,7 +170,6 @@ async function sendRuntimeShellTurn(input: {
     preparedPolicy,
     api: input.api,
     appendSendIntent: false,
-    applyLocalTurnStart: false,
     startRuntimeBeforePersistence: true,
   });
 
@@ -199,10 +188,7 @@ async function sendRuntimeShellTurn(input: {
   }
 }
 
-function hasGitAgentStartFailure(
-  thread: ThreadGitAgentSurface,
-  action: GitAgentAction,
-): boolean {
+function hasGitAgentStartFailure(thread: ThreadGitAgentSurface, action: GitAgentAction): boolean {
   const latestUserMessage = thread.latestUserMessage;
   if (!latestUserMessage || resolveGitAgentActionFromPrompt(latestUserMessage.text) !== action) {
     return false;
@@ -525,7 +511,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
         clientMessageId,
         modelSelection: activeThread.modelSelection,
         titleSeed: activeThread.title,
-        parentEntryId: null,
         createdAt,
         api,
       });
@@ -702,18 +687,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
     const projectScopedWorktreePath =
       currentServerThread?.worktreePath ?? currentDraftThread?.worktreePath ?? null;
     const promotedDraftId = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
-    const parentEntryId = currentServerThread
-      ? resolveGitAgentParentEntryId(activeFullThread)
-      : null;
-    if (
-      currentServerThread &&
-      parentEntryId === undefined &&
-      (activeFullThread === null || activeFullThread.entries.length > 0)
-    ) {
-      throw new Error(
-        "Wait for the current thread history to finish loading before running this Git action.",
-      );
-    }
     let draftPromotionMarked = false;
     let localThreadAnnounced = false;
     let localTurnStartAnnounced = false;
@@ -755,7 +728,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
         titleSeed: title,
         runtimeMode,
         interactionMode,
-        parentEntryId: parentEntryId ?? null,
         createdAt,
       });
       localTurnStartAnnounced = true;
@@ -772,6 +744,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         markDraftThreadPromoting(
           promotedDraftId,
           scopeThreadRef(targetThreadEnvironmentId, threadId),
+          title,
         );
         draftPromotionMarked = true;
       }
@@ -790,7 +763,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
           optimisticAttachments: [],
           getTurnAttachments: async () => [],
         },
-        parentEntryId: parentEntryId ?? null,
         modelSelection,
         titleSeed: title,
         runtimeMode,
@@ -870,7 +842,12 @@ function ChatShellHost(props: { children?: ReactNode }) {
     }
   };
   const gitAgentActionMutation = useMutation({
-    mutationKey: ["git", "agent-action", activeRpcEnvironmentId ?? null, activeCwd ?? null] as const,
+    mutationKey: [
+      "git",
+      "agent-action",
+      activeRpcEnvironmentId ?? null,
+      activeCwd ?? null,
+    ] as const,
     mutationFn: startGitAgentAction,
     onError: (error) => {
       setGitAgentOrchestrationHandoff(null);

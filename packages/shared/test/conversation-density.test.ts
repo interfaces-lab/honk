@@ -4,6 +4,7 @@ import {
   normalizeConversationDensity,
   shouldGroupEdits,
   shouldGroupShells,
+  shouldGroupToolCalls,
   shouldUseCompactEdits,
   shouldUseCompactShells,
 } from "../src/conversation-density";
@@ -60,11 +61,14 @@ describe("conversation density predicates", () => {
       expect(shouldUseCompactShells(density)).toBe(compactShells);
       expect(shouldGroupEdits(density)).toBe(groupEdits);
       expect(shouldGroupShells(density)).toBe(groupShells);
+      expect(shouldGroupToolCalls(density)).toBe(groupEdits);
     },
   );
 
   it("normalizes legacy density aliases", () => {
     expect(normalizeConversationDensity("verbose")).toBe("detailed");
     expect(normalizeConversationDensity("minimal")).toBe("compact-all-grouped");
+    expect(normalizeConversationDensity("compact-shells")).toBe("compact-ungrouped");
+    expect(normalizeConversationDensity("compact-grouped")).toBe("compact-all-grouped");
   });
 });

@@ -294,10 +294,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   )}
                   onClick={() => selectProject(project)}
                 >
-                  <IconFolder1
-                    className="size-3.5 shrink-0 text-multi-icon-tertiary"
-                    aria-hidden
-                  />
+                  <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
                   <span className="grid min-w-0 flex-1 text-left">
                     <MiddleTruncate className="min-w-0" split="leaf-path">
                       {projectLabel}

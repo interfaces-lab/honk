@@ -23,7 +23,9 @@ export function AssistantMessage({ message, markdownCwd }: AssistantMessageProps
   );
 
   return (
-    <div className="min-w-0 pt-(--chat-timeline-assistant-top-inset)">
+    // Full width inside the flex transcript row: a flex child sizes to max-content,
+    // which shrinks short messages and their code blocks with them.
+    <div className="w-full min-w-0">
       <ChatMessageBubble messageRole="assistant" body={body} />
     </div>
   );

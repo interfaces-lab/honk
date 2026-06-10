@@ -1,8 +1,14 @@
 import { EnvironmentId, ProjectId, ThreadId } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
-import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
+import {
+  DESKTOP_RUNTIME_ENVIRONMENT_ID,
+  scopeProjectRef,
+  scopeThreadRef,
+} from "~/lib/environment-scope";
+import { getSidebarThreadModifiedAt } from "./use-agent-sidebar-model";
 import { buildProjectChatSections } from "./view-model";
+import type { SidebarThreadSummary as StoreSidebarThreadSummary } from "~/types";
 import type { SidebarThreadSummary } from "./types";
 
 const primaryEnvironmentId = EnvironmentId.make("environment:primary");
@@ -12,6 +18,30 @@ const olderThreadId = ThreadId.make("thread:older");
 const newerThreadId = ThreadId.make("thread:newer");
 const projectRef = scopeProjectRef(primaryEnvironmentId, projectId);
 const routeThreadRef = scopeThreadRef(DESKTOP_RUNTIME_ENVIRONMENT_ID, threadId);
+
+function storeThreadSummary(
+  input: Partial<StoreSidebarThreadSummary> = {},
+): StoreSidebarThreadSummary {
+  return {
+    id: threadId,
+    environmentId: DESKTOP_RUNTIME_ENVIRONMENT_ID,
+    projectId,
+    title: "Pi thread",
+    interactionMode: "agent",
+    session: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    archivedAt: null,
+    updatedAt: "2026-01-02T00:00:00.000Z",
+    latestTurn: null,
+    branch: null,
+    worktreePath: null,
+    latestUserMessageAt: "2026-01-01T00:00:00.000Z",
+    hasPendingApprovals: false,
+    hasPendingUserInput: false,
+    hasActionableProposedPlan: false,
+    ...input,
+  };
+}
 
 function threadSummary(input: Partial<SidebarThreadSummary> = {}): SidebarThreadSummary {
   return {
@@ -134,5 +164,40 @@ describe("buildProjectChatSections", () => {
     );
 
     expect(sections[0]?.items.map((item) => item.id)).toEqual([newerThreadId, olderThreadId]);
+  });
+});
+
+describe("getSidebarThreadModifiedAt", () => {
+  it("uses latest user message time instead of read-side updatedAt bumps", () => {
+    expect(
+      getSidebarThreadModifiedAt(
+        storeThreadSummary({
+          updatedAt: "2026-01-03T00:00:00.000Z",
+          latestUserMessageAt: "2026-01-01T00:00:00.000Z",
+        }),
+      ),
+    ).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("falls back to updatedAt and then createdAt", () => {
+    expect(
+      getSidebarThreadModifiedAt(
+        storeThreadSummary({
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-02T00:00:00.000Z",
+          latestUserMessageAt: null,
+        }),
+      ),
+    ).toBe("2026-01-02T00:00:00.000Z");
+
+    expect(
+      getSidebarThreadModifiedAt(
+        storeThreadSummary({
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: undefined,
+          latestUserMessageAt: null,
+        }),
+      ),
+    ).toBe("2026-01-01T00:00:00.000Z");
   });
 });

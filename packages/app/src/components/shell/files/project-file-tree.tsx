@@ -153,7 +153,9 @@ function openProjectFilePath(input: {
   try {
     void ensureLocalApi()
       .shell.openInEditor(targetPath, editor)
-      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : String(error)));
+      .catch((error: unknown) =>
+        toast.error(error instanceof Error ? error.message : String(error)),
+      );
   } catch (error) {
     toast.error(error instanceof Error ? error.message : String(error));
   }
@@ -629,13 +631,7 @@ function ProjectFileTreeSelectionSync({
     }
     selectedItem.select();
     model.focusPath(externalSelectedPath);
-  }, [
-    externalSelectedPath,
-    filePathSetRef,
-    lastOpenedPathRef,
-    model,
-    suppressSelectionOpenRef,
-  ]);
+  }, [externalSelectedPath, filePathSetRef, lastOpenedPathRef, model, suppressSelectionOpenRef]);
 
   return null;
 }

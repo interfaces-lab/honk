@@ -71,7 +71,10 @@ export interface ThreadAgentRuntimeOptions {
   readonly agentDir: string;
   readonly model?: Model<string>;
   readonly thinkingLevel?: ThinkingLevel;
-  readonly scopedModels?: ReadonlyArray<{ readonly model: Model<string>; readonly thinkingLevel?: ThinkingLevel }>;
+  readonly scopedModels?: ReadonlyArray<{
+    readonly model: Model<string>;
+    readonly thinkingLevel?: ThinkingLevel;
+  }>;
   readonly tools?: readonly string[];
   readonly excludeTools?: readonly string[];
   readonly customTools?: readonly ToolDefinition[];
@@ -197,7 +200,8 @@ export class ThreadAgentRuntime {
     const policyThinkingLevel =
       options.policy.thinkingLevel ?? thinkingLevelForAgentMode(options.policy.agentMode);
     const effectiveThinkingLevel = options.thinkingLevel ?? policyThinkingLevel;
-    const authStorage = options.authStorage ?? AuthStorage.create(join(options.agentDir, "auth.json"));
+    const authStorage =
+      options.authStorage ?? AuthStorage.create(join(options.agentDir, "auth.json"));
     const modelRegistry =
       options.modelRegistry ??
       ModelRegistry.create(authStorage, join(options.agentDir, "models.json"));
@@ -213,7 +217,8 @@ export class ThreadAgentRuntime {
     };
     sessionOptions.agentDir = options.agentDir;
     sessionOptions.sessionManager =
-      options.sessionManager ?? createThreadSessionManager(options.threadId, options.cwd, options.agentDir);
+      options.sessionManager ??
+      createThreadSessionManager(options.threadId, options.cwd, options.agentDir);
     if (effectiveModel) sessionOptions.model = effectiveModel;
     if (effectiveThinkingLevel) {
       sessionOptions.thinkingLevel = effectiveThinkingLevel;
@@ -467,10 +472,7 @@ export class ThreadAgentRuntime {
     }
   }
 
-  async steer(
-    text: string,
-    images: readonly ThreadAgentRuntimeImageAttachment[],
-  ): Promise<void> {
+  async steer(text: string, images: readonly ThreadAgentRuntimeImageAttachment[]): Promise<void> {
     await this.session.steer(text, toPiImageContent(images));
   }
 
@@ -655,8 +657,7 @@ export class ThreadAgentRuntime {
 
       const existingClientMessageId = this.clientMessageIdByEntryId.get(entry.id);
       return (
-        existingClientMessageId === undefined ||
-        existingClientMessageId === input.clientMessageId
+        existingClientMessageId === undefined || existingClientMessageId === input.clientMessageId
       );
     });
 
@@ -781,9 +782,7 @@ export class ThreadAgentRuntime {
   }
 }
 
-function mergeExcludedToolNames(
-  excludeTools: readonly string[] | undefined,
-): string[] {
+function mergeExcludedToolNames(excludeTools: readonly string[] | undefined): string[] {
   return [...new Set([...DEFAULT_EXCLUDED_TOOL_NAMES, ...(excludeTools ?? [])])];
 }
 
@@ -802,7 +801,11 @@ function proposedPlanIdForTurn(threadId: ThreadId, turnId: TurnId): string {
   return `plan:${threadId}:${turnId}`;
 }
 
-function createThreadSessionManager(threadId: ThreadId, cwd: string, agentDir: string): SessionManager {
+function createThreadSessionManager(
+  threadId: ThreadId,
+  cwd: string,
+  agentDir: string,
+): SessionManager {
   const sessionDir = join(agentDir, "multi-thread-sessions", encodeThreadIdForPath(threadId));
   mkdirSync(sessionDir, { recursive: true });
   return SessionManager.continueRecent(cwd, sessionDir);
@@ -940,9 +943,7 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
   }
 }
 
-function toPiImageContent(
-  images: readonly ThreadAgentRuntimeImageAttachment[],
-): ImageContent[] {
+function toPiImageContent(images: readonly ThreadAgentRuntimeImageAttachment[]): ImageContent[] {
   return images.map((image) => ({
     type: "image" as const,
     mimeType: image.mimeType,

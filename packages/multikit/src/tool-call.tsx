@@ -138,7 +138,10 @@ function ToolCallLine({
   if (!onClick) {
     return (
       <div
-        className={cn(toolCallLineVariants({ clickable: false, status: resolvedStatus }), className)}
+        className={cn(
+          toolCallLineVariants({ clickable: false, status: resolvedStatus }),
+          className,
+        )}
         data-status={resolvedStatus}
         data-tool-call-line=""
       >
@@ -233,7 +236,10 @@ function ToolCallTaskRoot({
 }) {
   return (
     <div
-      className={cn("group/task-tool-call min-w-0 max-w-full text-conversation", className)}
+      className={cn(
+        "group/task-tool-call min-w-0 max-w-full px-(--conversation-block-inset) text-conversation",
+        className,
+      )}
       data-expanded={expanded ? "true" : "false"}
       data-status={status}
       data-task-tool-call=""
@@ -250,7 +256,7 @@ function ToolCallTaskHeader({
     <ButtonPrimitive
       type="button"
       className={cn(
-        "inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 border-0 bg-transparent p-0 text-left font-[inherit] text-inherit outline-none select-none",
+        "inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 border-0 bg-transparent py-0 text-left font-[inherit] text-inherit outline-none select-none",
         interactiveControlCursorClassName,
         className,
       )}
@@ -344,7 +350,7 @@ function ToolCallTaskChevron({
 function ToolCallTaskBody({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return (
     <div
-      className={cn("min-w-0 max-w-full pt-1 pl-[18px]", className)}
+      className={cn("min-w-0 max-w-full pt-1", className)}
       data-task-tool-call-body=""
       {...props}
     />
@@ -362,7 +368,10 @@ function ToolCallShellRoot({
 }) {
   return (
     <div
-      className={cn("group/shell-tool-call min-w-0 max-w-full px-0 text-conversation tracking-normal", className)}
+      className={cn(
+        "group/shell-tool-call min-w-0 max-w-full px-(--conversation-block-inset) text-conversation tracking-normal",
+        className,
+      )}
       data-expanded={expanded ? "true" : "false"}
       data-shell-tool-call=""
       data-status={status}
@@ -387,7 +396,7 @@ function ToolCallShellHeader({
       type="button"
       className={cn(
         "group/shell-trigger inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-visible",
-        "border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-primary select-none",
+        "border-0 bg-transparent py-0 text-left text-conversation text-multi-fg-primary select-none",
         expandable ? interactiveControlCursorClassName : "cursor-default",
         hasError && "text-multi-fg-red-primary",
         className,

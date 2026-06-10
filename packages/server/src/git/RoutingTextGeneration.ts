@@ -58,7 +58,4 @@ const InternalClaudeLayer = Layer.effect(
 export const RoutingTextGenerationLive = Layer.effect(
   TextGeneration,
   makeRoutingTextGeneration,
-).pipe(
-  Layer.provide(InternalCodexLayer),
-  Layer.provide(InternalClaudeLayer),
-);
+).pipe(Layer.provide(InternalCodexLayer), Layer.provide(InternalClaudeLayer));

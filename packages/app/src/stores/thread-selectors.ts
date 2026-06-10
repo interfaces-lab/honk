@@ -81,20 +81,19 @@ export function createThreadSelectorAcrossEnvironments(
   });
 }
 
-export interface ThreadWorkspaceSurface
-  extends Pick<
-    ThreadShell,
-    | "id"
-    | "environmentId"
-    | "projectId"
-    | "title"
-    | "modelSelection"
-    | "runtimeMode"
-    | "interactionMode"
-    | "createdAt"
-    | "branch"
-    | "worktreePath"
-  > {
+export interface ThreadWorkspaceSurface extends Pick<
+  ThreadShell,
+  | "id"
+  | "environmentId"
+  | "projectId"
+  | "title"
+  | "modelSelection"
+  | "runtimeMode"
+  | "interactionMode"
+  | "createdAt"
+  | "branch"
+  | "worktreePath"
+> {
   readonly session: ThreadSession | null;
   readonly latestTurn: ThreadTurnState["latestTurn"];
 }
@@ -213,7 +212,9 @@ function selectFilteredActivities(input: {
 }
 
 function sameMessageIds(left: readonly MessageId[], right: readonly MessageId[]): boolean {
-  return left.length === right.length && left.every((messageId, index) => messageId === right[index]);
+  return (
+    left.length === right.length && left.every((messageId, index) => messageId === right[index])
+  );
 }
 
 function selectUserMessages(input: {
@@ -291,10 +292,7 @@ function chatMessageHasRenderableContent(message: ChatMessage): boolean {
   );
 }
 
-function selectThreadHasRenderableUserStart(
-  state: EnvironmentState,
-  threadId: ThreadId,
-): boolean {
+function selectThreadHasRenderableUserStart(state: EnvironmentState, threadId: ThreadId): boolean {
   const messageIds = state.messageIdsByThreadId[threadId];
   const messagesById = state.messageByThreadId[threadId];
   if (!messageIds || !messagesById) {

@@ -13,10 +13,7 @@ interface ExpandedImageDialogProps {
   onClose: () => void;
 }
 
-export function ExpandedImageDialog({
-  preview,
-  onClose,
-}: ExpandedImageDialogProps) {
+export function ExpandedImageDialog({ preview, onClose }: ExpandedImageDialogProps) {
   const [index, setIndex] = useState(() => preview.index);
 
   const navigateImage = (direction: -1 | 1) => {
@@ -52,7 +49,7 @@ export function ExpandedImageDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
+      className="fixed inset-0 z-(--z-index-expanded-image-dialog) flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
       role="dialog"
       aria-modal="true"
       aria-label="Expanded image preview"

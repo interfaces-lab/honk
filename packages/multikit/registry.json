@@ -21,11 +21,7 @@
       "type": "registry:ui",
       "title": "Button",
       "description": "Primary action control with variant and size scales.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
       "files": [
         {
           "path": "src/button.tsx",

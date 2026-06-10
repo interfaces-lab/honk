@@ -72,22 +72,53 @@ export async function sendRuntimeTurn(input: RuntimeTurnInput): Promise<void> {
   });
 }
 
+const hydratedRuntimeThreadIds = new Set<string>();
+const hydrateRuntimeThreadInFlight = new Map<string, Promise<void>>();
+
+export function resetRuntimeThreadHydrationCache(): void {
+  hydratedRuntimeThreadIds.clear();
+  hydrateRuntimeThreadInFlight.clear();
+}
+
 export async function hydrateRuntimeThread(input: {
   readonly threadId: ThreadId;
   readonly cwd: string;
   readonly interactionMode: AgentInteractionMode;
 }): Promise<void> {
-  await assertRuntimeHostAvailable();
-  const runtimeApi = readMultiRuntimeApi();
-  const preferences = await runtimeApi.getPreferences();
-  const policy = createAgentModelPolicy({
-    preferences,
-    interactionMode: input.interactionMode,
-  });
+  const threadKey = String(input.threadId);
+  if (hydratedRuntimeThreadIds.has(threadKey)) {
+    return;
+  }
 
-  await runtimeApi.hydrateThread({
-    threadId: input.threadId,
-    cwd: input.cwd,
-    policy,
-  });
+  const inFlight = hydrateRuntimeThreadInFlight.get(threadKey);
+  if (inFlight) {
+    await inFlight;
+    return;
+  }
+
+  const hydratePromise = (async () => {
+    await assertRuntimeHostAvailable();
+    const runtimeApi = readMultiRuntimeApi();
+    const preferences = await runtimeApi.getPreferences();
+    const policy = createAgentModelPolicy({
+      preferences,
+      interactionMode: input.interactionMode,
+    });
+
+    await runtimeApi.hydrateThread({
+      threadId: input.threadId,
+      cwd: input.cwd,
+      policy,
+    });
+    hydratedRuntimeThreadIds.add(threadKey);
+  })();
+
+  hydrateRuntimeThreadInFlight.set(threadKey, hydratePromise);
+  try {
+    await hydratePromise;
+  } finally {
+    if (hydrateRuntimeThreadInFlight.get(threadKey) === hydratePromise) {
+      hydrateRuntimeThreadInFlight.delete(threadKey);
+    }
+  }
 }

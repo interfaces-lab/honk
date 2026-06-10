@@ -149,11 +149,7 @@ function HumanMessageImageAttachment(props: {
             props.onImageExpand(preview);
           }}
         >
-          <img
-            src={previewSrc}
-            alt={props.image.name}
-            className="block h-8 w-full object-cover"
-          />
+          <img src={previewSrc} alt={props.image.name} className="block h-8 w-full object-cover" />
         </Button>
       ) : (
         <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-multi-fg-tertiary">
@@ -181,10 +177,7 @@ function getGitAgentActionIcon(action: GitAgentAction): GitAgentActionIconCompon
   }
 }
 
-function GitAgentActionMessage(props: {
-  action: GitAgentAction;
-  label: string;
-}) {
+function GitAgentActionMessage(props: { action: GitAgentAction; label: string }) {
   const ActionIcon = getGitAgentActionIcon(props.action);
 
   return (
@@ -196,12 +189,12 @@ function GitAgentActionMessage(props: {
 }
 
 function UserMessageTerminalContextInlineLabel(props: { context: ParsedTerminalContextEntry }) {
-    const tooltipText =
-      props.context.body.length > 0
-        ? `${props.context.header}\n${props.context.body}`
-        : props.context.header;
+  const tooltipText =
+    props.context.body.length > 0
+      ? `${props.context.header}\n${props.context.body}`
+      : props.context.header;
 
-    return <TerminalContextInlineChip label={props.context.header} tooltipText={tooltipText} />;
+  return <TerminalContextInlineChip label={props.context.header} tooltipText={tooltipText} />;
 }
 
 function buildInlineTerminalContextText(
@@ -260,10 +253,7 @@ function textContainsInlineTerminalContextLabels(
   return true;
 }
 
-function UserMessageBody(props: {
-  text: string;
-  terminalContexts: ParsedTerminalContextEntry[];
-}) {
+function UserMessageBody(props: { text: string; terminalContexts: ParsedTerminalContextEntry[] }) {
   if (props.terminalContexts.length > 0) {
     const hasEmbeddedInlineLabels = textContainsInlineTerminalContextLabels(
       props.text,

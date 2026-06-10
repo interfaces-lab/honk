@@ -69,18 +69,19 @@ export type ThreadBranchPathResult<TEntry extends ThreadTreeEntry = Orchestratio
     } & ThreadBranchPathFacts<TEntry>)
   | ThreadBranchPathIssue;
 
-export type ThreadTreeViewNode<TEntry extends ThreadTreeEntryPathEntry = OrchestrationThreadEntry> = {
-  readonly entry: TEntry;
-  readonly depth: number;
-  readonly isActivePath: boolean;
-  readonly isActiveLeaf: boolean;
-  readonly hasChildren: boolean;
-  readonly childCount: number;
-  readonly siblingIndex: number;
-  readonly siblingCount: number;
-  readonly hasNextSibling: boolean;
-  readonly ancestorHasNextSibling: readonly boolean[];
-};
+export type ThreadTreeViewNode<TEntry extends ThreadTreeEntryPathEntry = OrchestrationThreadEntry> =
+  {
+    readonly entry: TEntry;
+    readonly depth: number;
+    readonly isActivePath: boolean;
+    readonly isActiveLeaf: boolean;
+    readonly hasChildren: boolean;
+    readonly childCount: number;
+    readonly siblingIndex: number;
+    readonly siblingCount: number;
+    readonly hasNextSibling: boolean;
+    readonly ancestorHasNextSibling: readonly boolean[];
+  };
 
 export type FlattenThreadEntryTreeResult<
   TEntry extends ThreadTreeEntryPathEntry = OrchestrationThreadEntry,
@@ -97,6 +98,15 @@ export function threadEntryIdForMessageId(messageId: MessageId): ThreadEntryId {
 export function isOrchestrationPersistedMessageId(messageId: MessageId): boolean {
   const value = String(messageId);
   return !value.includes(":") || value.startsWith("runtime:");
+}
+
+/** Live runtime session tree ids (`runtime:<sessionId>:<entryId>`) before orchestration commits them. */
+export function isRuntimeSessionTreeProjectionMessageId(messageId: MessageId): boolean {
+  const value = String(messageId);
+  if (!value.startsWith("runtime:")) {
+    return false;
+  }
+  return value.split(":").length === 3;
 }
 
 export function isNavigableThreadEntry(entry: Pick<OrchestrationThreadEntry, "kind">): boolean {

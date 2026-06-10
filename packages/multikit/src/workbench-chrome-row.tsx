@@ -5,15 +5,18 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "./utils";
 
-const workbenchChromeRowVariants = cva("font-multi flex shrink-0 flex-nowrap select-none text-body font-medium text-multi-fg-secondary", {
-  variants: {
-    variant: {
-      panel:
-        "no-drag multi-workbench-panel-title-row w-full min-w-0 flex-row items-center gap-(--multi-workbench-chrome-action-gap)",
-      tool: "pointer-events-none ui-tab-system multi-workbench-tool-island relative z-20 box-border flex h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) max-h-(--multi-workbench-chrome-row-height) flex-none flex-row select-none items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden border-b px-(--multi-workbench-chrome-padding-inline) [--tab-system-bar-background:transparent] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
+const workbenchChromeRowVariants = cva(
+  "font-multi flex shrink-0 flex-nowrap select-none text-body font-medium text-multi-fg-secondary",
+  {
+    variants: {
+      variant: {
+        panel:
+          "no-drag multi-workbench-panel-title-row w-full min-w-0 flex-row items-center gap-(--multi-workbench-chrome-action-gap)",
+        tool: "pointer-events-none ui-tab-system multi-workbench-tool-island relative z-20 box-border flex h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) max-h-(--multi-workbench-chrome-row-height) flex-none flex-row select-none items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden border-b px-(--multi-workbench-chrome-padding-inline) [--tab-system-bar-background:transparent] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
+      },
     },
   },
-});
+);
 
 const workbenchChromeRowContentVariants = cva(
   "no-scrollbar flex min-h-0 min-w-0 flex-1 items-center overflow-hidden",
@@ -146,7 +149,10 @@ function WorkbenchChromeActionGroup({
 }) {
   return (
     <div
-      className={cn(workbenchChromeActionGroupVariants({ gap, overflow: overflow ?? false }), className)}
+      className={cn(
+        workbenchChromeActionGroupVariants({ gap, overflow: overflow ?? false }),
+        className,
+      )}
       data-slot="workbench-chrome-action-group"
       {...props}
     />
@@ -156,7 +162,10 @@ function WorkbenchChromeActionGroup({
 function WorkbenchChromeDivider({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn("h-(--multi-workbench-action-size) w-px shrink-0 self-center bg-multi-stroke-tertiary", className)}
+      className={cn(
+        "h-(--multi-workbench-action-size) w-px shrink-0 self-center bg-multi-stroke-tertiary",
+        className,
+      )}
       data-slot="workbench-chrome-divider"
       aria-hidden
       {...props}
@@ -167,7 +176,10 @@ function WorkbenchChromeDivider({ className, ...props }: ComponentProps<"div">) 
 function WorkbenchChromeLabel({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
-      className={cn("no-drag inline-flex h-(--multi-workbench-action-size) shrink-0 items-center text-multi-fg-secondary", className)}
+      className={cn(
+        "no-drag inline-flex h-(--multi-workbench-action-size) shrink-0 items-center text-multi-fg-secondary",
+        className,
+      )}
       data-slot="workbench-chrome-label"
       {...props}
     />

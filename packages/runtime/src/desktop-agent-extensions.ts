@@ -18,12 +18,9 @@ const AskUserParams = Type.Object({
   prompt: Type.String({
     description: "The question or confirmation prompt to show the user.",
   }),
-  kind: Type.Union(
-    [Type.Literal("input"), Type.Literal("select"), Type.Literal("confirm")],
-    {
-      description: "Use input for free-form answers, select for choices, and confirm for yes/no.",
-    },
-  ),
+  kind: Type.Union([Type.Literal("input"), Type.Literal("select"), Type.Literal("confirm")], {
+    description: "Use input for free-form answers, select for choices, and confirm for yes/no.",
+  }),
   options: Type.Array(Type.String(), {
     description: "Choices for select mode. Use an empty array for input or confirm mode.",
   }),

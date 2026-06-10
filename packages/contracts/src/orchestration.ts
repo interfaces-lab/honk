@@ -574,7 +574,11 @@ export const OrchestrationThreadActivity = Schema.Union([
   }),
   Schema.Struct({
     ...OrchestrationThreadActivityBaseFields,
-    kind: Schema.Literals(["setup-script.requested", "setup-script.started", "setup-script.failed"]),
+    kind: Schema.Literals([
+      "setup-script.requested",
+      "setup-script.started",
+      "setup-script.failed",
+    ]),
     payload: SetupScriptActivityPayload,
   }),
 ]);

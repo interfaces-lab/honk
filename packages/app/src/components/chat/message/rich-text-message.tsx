@@ -61,17 +61,37 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
   const key = `tiptap:${index}`;
   switch (record.type) {
     case "paragraph":
-      return <p key={key} className="m-0">{children || <br />}</p>;
+      return (
+        <p key={key} className="m-0">
+          {children || <br />}
+        </p>
+      );
     case "heading":
-      return <div key={key} className="m-0 font-semibold">{children}</div>;
+      return (
+        <div key={key} className="m-0 font-semibold">
+          {children}
+        </div>
+      );
     case "bulletList":
-      return <ul key={key} className="m-0 list-disc pl-5">{children}</ul>;
+      return (
+        <ul key={key} className="m-0 list-disc pl-5">
+          {children}
+        </ul>
+      );
     case "orderedList":
-      return <ol key={key} className="m-0 list-decimal pl-5">{children}</ol>;
+      return (
+        <ol key={key} className="m-0 list-decimal pl-5">
+          {children}
+        </ol>
+      );
     case "listItem":
       return <li key={key}>{children}</li>;
     case "blockquote":
-      return <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">{children}</blockquote>;
+      return (
+        <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">
+          {children}
+        </blockquote>
+      );
     case "codeBlock":
       return (
         <Pre
@@ -85,7 +105,9 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
       return <br key={key} />;
     case "text": {
       const text = stringField(record, "text");
-      return text ? <Fragment key={key}>{applyTiptapMarks(text, asArray(record.marks))}</Fragment> : null;
+      return text ? (
+        <Fragment key={key}>{applyTiptapMarks(text, asArray(record.marks))}</Fragment>
+      ) : null;
     }
     case "mentionNode":
     case "commandNode":
@@ -114,19 +136,35 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
   const key = `lexical:${index}`;
   switch (record.type) {
     case "paragraph":
-      return <p key={key} className="m-0">{children || <br />}</p>;
+      return (
+        <p key={key} className="m-0">
+          {children || <br />}
+        </p>
+      );
     case "heading":
-      return <div key={key} className="m-0 font-semibold">{children}</div>;
+      return (
+        <div key={key} className="m-0 font-semibold">
+          {children}
+        </div>
+      );
     case "list":
       return stringField(record, "listType") === "number" ? (
-        <ol key={key} className="m-0 list-decimal pl-5">{children}</ol>
+        <ol key={key} className="m-0 list-decimal pl-5">
+          {children}
+        </ol>
       ) : (
-        <ul key={key} className="m-0 list-disc pl-5">{children}</ul>
+        <ul key={key} className="m-0 list-disc pl-5">
+          {children}
+        </ul>
       );
     case "listitem":
       return <li key={key}>{children}</li>;
     case "quote":
-      return <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">{children}</blockquote>;
+      return (
+        <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">
+          {children}
+        </blockquote>
+      );
     case "code":
       return (
         <Pre
@@ -150,7 +188,11 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
     }
     case "text": {
       const text = stringField(record, "text");
-      return text ? <Fragment key={key}>{applyLexicalFormat(text, numberField(record, "format") ?? 0)}</Fragment> : null;
+      return text ? (
+        <Fragment key={key}>
+          {applyLexicalFormat(text, numberField(record, "format") ?? 0)}
+        </Fragment>
+      ) : null;
     }
     case "mentionNode":
     case "commandNode":
@@ -187,7 +229,9 @@ function applyTiptapMarks(text: string, marks: unknown[]): ReactNode {
           <Link href={href} target="_blank" rel="noreferrer" tone="inherit">
             {node}
           </Link>
-        ) : node;
+        ) : (
+          node
+        );
       }
       default:
         return node;

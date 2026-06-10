@@ -33,6 +33,7 @@ import {
   RuntimeItemId,
   RuntimeTaskId,
   resolveLeafIdAfterThreadMessage,
+  runtimeSessionEntryMessageId,
   threadEntryIdForMessageId,
   ThreadTokenUsageSnapshot,
   TurnId,
@@ -365,9 +366,11 @@ function completedThinkingActivityForSessionEntry(
     return null;
   }
   const turnId = TurnId.make(entry.turnId);
-  const taskId = thinkingTaskIdForTurn(turnId);
+  // Entry-scoped identity: a turn holds one reasoning block per assistant message; a
+  // turn-scoped id would collapse them into a single entry whose content and timestamp
+  // jump to the latest block.
   return {
-    id: thinkingActivityId(turnId, "completed"),
+    id: EventId.make(`runtime-thinking:${turnId}:${entry.id}`),
     kind: "task.completed",
     tone: "info",
     summary: "Task completed",
@@ -375,7 +378,7 @@ function completedThinkingActivityForSessionEntry(
     sequence: 2,
     createdAt: entry.createdAt,
     payload: {
-      taskId,
+      taskId: RuntimeTaskId.make(`pi-thinking:${turnId}:${entry.id}`),
       taskType: "thinking",
       status: "completed",
       detail: thinking,
@@ -450,10 +453,10 @@ function threadFromRuntimeSessionTree(
   const projectedThreadEntryIdByRuntimeId = new Map(
     tree.entries
       .filter(isDisplayableRuntimeMessageEntry)
-      .map((entry) => [
-        entry.id,
-        threadEntryIdForMessageId(runtimeSessionTreeMessageId(tree, entry)),
-      ] as const),
+      .map(
+        (entry) =>
+          [entry.id, threadEntryIdForMessageId(runtimeSessionTreeMessageId(tree, entry))] as const,
+      ),
   );
 
   for (const entry of tree.entries) {
@@ -514,10 +517,13 @@ function threadFromRuntimeSessionTree(
     projectedMessages,
   );
   const projectedThreadEntryIdAliases = new Map(
-    [...projectedMessageIdAliases.entries()].map(([projectedMessageId, resolvedMessageId]) => [
-      threadEntryIdForMessageId(projectedMessageId),
-      threadEntryIdForMessageId(resolvedMessageId),
-    ] as const),
+    [...projectedMessageIdAliases.entries()].map(
+      ([projectedMessageId, resolvedMessageId]) =>
+        [
+          threadEntryIdForMessageId(projectedMessageId),
+          threadEntryIdForMessageId(resolvedMessageId),
+        ] as const,
+    ),
   );
   const messages = mergeRuntimeSessionMessages(
     previousThread,
@@ -611,7 +617,9 @@ function runtimeSessionTreeMessageId(
   tree: SessionTreeProjection,
   entry: ProjectedRuntimeMessageEntry,
 ): MessageId {
-  return entry.clientMessageId ?? MessageId.make(`${tree.runtimeSessionId}:${entry.id}`);
+  return (
+    entry.clientMessageId ?? runtimeSessionEntryMessageId(tree.runtimeSessionId, entry.id)
+  );
 }
 
 function mergeRuntimeSessionMessages(
@@ -658,7 +666,9 @@ function runtimeSessionMessageIdAliases(
   if (!previousThread) {
     return aliases;
   }
-  const existingMessageById = new Map(previousThread.messages.map((message) => [message.id, message]));
+  const existingMessageById = new Map(
+    previousThread.messages.map((message) => [message.id, message]),
+  );
   const existingGitActionUserMessageByAction = new Map<
     NonNullable<ReturnType<typeof resolveGitAgentActionFromPrompt>>,
     ChatMessage
@@ -923,14 +933,6 @@ function buildMessageSlice(thread: Thread): {
   };
 }
 
-function thinkingTaskIdForTurn(turnId: TurnId): RuntimeTaskId {
-  return RuntimeTaskId.make(`pi-thinking:${turnId}`);
-}
-
-function thinkingActivityId(turnId: TurnId, phase: "started" | "progress" | "completed"): EventId {
-  return EventId.make(`runtime-thinking:${turnId}:${phase}`);
-}
-
 function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
   switch (toolName) {
     case "bash":
@@ -949,10 +951,7 @@ function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
   }
 }
 
-function toolActivityId(
-  toolCallId: string,
-  phase: ToolActivityPhase,
-): EventId {
+function toolActivityId(toolCallId: string, phase: ToolActivityPhase): EventId {
   return EventId.make(`runtime-tool:${toolCallId}:${phase}`);
 }
 
@@ -1704,9 +1703,7 @@ function buildActivitySlice(thread: Thread): {
   };
 }
 
-function splitSubagentActivities(
-  activities: ReadonlyArray<OrchestrationThreadActivity>,
-): {
+function splitSubagentActivities(activities: ReadonlyArray<OrchestrationThreadActivity>): {
   parentActivities: ReadonlyArray<OrchestrationThreadActivity>;
   subagentActivities: OrchestrationThreadActivity[];
 } {
@@ -2730,10 +2727,7 @@ function applyShellSnapshotWithSource(
     sidebarThreadSummaryById: {},
     messageIdsByThreadId: retainThreadScopedRecord(state.messageIdsByThreadId, nextThreadIds),
     messageByThreadId: retainThreadScopedRecord(state.messageByThreadId, nextThreadIds),
-    leafIdByThreadId: retainThreadScopedRecord(
-      state.leafIdByThreadId ?? {},
-      nextThreadIds,
-    ),
+    leafIdByThreadId: retainThreadScopedRecord(state.leafIdByThreadId ?? {}, nextThreadIds),
     entryIdsByThreadId: retainThreadScopedRecord(state.entryIdsByThreadId ?? {}, nextThreadIds),
     entryByThreadId: retainThreadScopedRecord(state.entryByThreadId ?? {}, nextThreadIds),
     activityIdsByThreadId: retainThreadScopedRecord(state.activityIdsByThreadId, nextThreadIds),
@@ -2756,11 +2750,7 @@ function applyShellSnapshotWithSource(
     nextState = writeThreadShellState(nextState, mapThreadShell(thread, environmentId));
   }
 
-  if (
-    source === "server" &&
-    previousSnapshotSource === "cache" &&
-    previousThreadIds.length > 0
-  ) {
+  if (source === "server" && previousSnapshotSource === "cache" && previousThreadIds.length > 0) {
     nextState = {
       ...nextState,
       threadIds: mergePreservingOrder(previousThreadIds, nextState.threadIds),
@@ -2827,11 +2817,7 @@ export function syncServerThreadDetail(
     mapThread(thread, environmentId),
     previousThread,
   );
-  return commitEnvironmentState(
-    state,
-    environmentId,
-    nextEnvironmentState,
-  );
+  return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
 export function applyThreadDetailEvent(
@@ -3151,10 +3137,12 @@ export function applyThreadDetailEvent(
             existingEntry?.turnId !== undefined
               ? existingEntry.turnId
               : event.payload.turnId;
+          // The event's parent is authoritative: a server echo corrects any
+          // locally projected guess (optimistic tip or runtime session tree).
           const nextEntry: ThreadTreeEntry = {
             id: entryId,
             threadId: event.payload.threadId,
-            parentEntryId: existingEntry?.parentEntryId ?? event.payload.parentEntryId,
+            parentEntryId: event.payload.parentEntryId,
             kind: "message",
             messageId: event.payload.messageId,
             turnId: nextEntryTurnId,
@@ -3570,8 +3558,7 @@ function applyAgentRuntimeEventToEnvironment(
           event.agentRuntime === "pi" &&
           isIndexableRecord(event.data) &&
           event.data.type === "turn_end";
-        const agentStillRunning =
-          piTurnEnded && thread.session?.orchestrationStatus === "running";
+        const agentStillRunning = piTurnEnded && thread.session?.orchestrationStatus === "running";
         const activeTurnId =
           agentStillRunning && thread.session?.activeTurnId !== completedTurnId
             ? thread.session?.activeTurnId
@@ -3591,8 +3578,7 @@ function applyAgentRuntimeEventToEnvironment(
             turnId: completedTurnId,
             state: preservesTerminalState ? latestTurn.state : "completed",
             requestedAt: latestTurn?.turnId === completedTurnId ? latestTurn.requestedAt : now,
-            startedAt:
-              latestTurn?.turnId === completedTurnId ? (latestTurn.startedAt ?? now) : now,
+            startedAt: latestTurn?.turnId === completedTurnId ? (latestTurn.startedAt ?? now) : now,
             completedAt: preservesTerminalState ? (latestTurn.completedAt ?? now) : now,
             assistantMessageId:
               latestTurn?.turnId === completedTurnId ? latestTurn.assistantMessageId : null,

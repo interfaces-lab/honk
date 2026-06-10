@@ -2,12 +2,7 @@ import { Button } from "@multi/multikit/button";
 import { Input } from "@multi/multikit/input";
 import { Text } from "@multi/multikit/text";
 import { useThrottler } from "@tanstack/react-pacer";
-import {
-  type CSSProperties,
-  type KeyboardEvent,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, type KeyboardEvent, useRef, useState } from "react";
 
 import { DEFAULT_APPEARANCE_TINT_HUE } from "../../../lib/appearance-colors";
 import { appearanceSettingsActions } from "../../../stores/appearance-store";

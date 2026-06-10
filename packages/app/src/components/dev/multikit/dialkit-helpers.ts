@@ -1,9 +1,6 @@
 import type { SelectConfig, TextConfig } from "dialkit";
 
-export function dialSelect<T extends string>(
-  options: readonly T[],
-  defaultValue: T,
-): SelectConfig {
+export function dialSelect<T extends string>(options: readonly T[], defaultValue: T): SelectConfig {
   return { type: "select", options: [...options], default: defaultValue };
 }
 

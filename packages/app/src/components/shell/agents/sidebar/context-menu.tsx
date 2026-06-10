@@ -58,7 +58,7 @@ export function ThreadContextMenu(props: {
   return (
     <ContextMenu data-slot="context-menu-root" onOpenChange={handleOpenChange}>
       <ContextMenuTrigger ref={setTriggerRef} render={props.children} />
-      <WorkbenchContextMenuPopup>
+      <WorkbenchContextMenuPopup positionerClassName="z-(--z-index-sidebar-context-menu)">
         <WorkbenchContextMenuItem
           label="Rename"
           onClick={props.onRename}
@@ -109,7 +109,7 @@ export function SidebarSectionContextMenu(props: {
   return (
     <ContextMenu data-slot="context-menu-root" onOpenChange={handleOpenChange}>
       <ContextMenuTrigger ref={setTriggerRef} render={props.children} />
-      <WorkbenchContextMenuPopup>
+      <WorkbenchContextMenuPopup positionerClassName="z-(--z-index-sidebar-context-menu)">
         {props.canOpenInEditor ? (
           <WorkbenchContextMenuItem
             label="Open in Editor Window"
@@ -151,4 +151,3 @@ export function SidebarSectionContextMenu(props: {
     </ContextMenu>
   );
 }
-

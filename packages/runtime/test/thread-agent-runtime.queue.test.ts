@@ -72,11 +72,9 @@ describe("ThreadAgentRuntime queue behavior", () => {
     await harness.runtime.session.agent.waitForIdle();
 
     const tree = harness.runtime.getSessionTree();
-    expect(tree.entries.filter((entry) => entry.role === "user").map((entry) => entry.text)).toEqual([
-      "start",
-      "steer now",
-      "after current turn",
-    ]);
+    expect(
+      tree.entries.filter((entry) => entry.role === "user").map((entry) => entry.text),
+    ).toEqual(["start", "steer now", "after current turn"]);
     expect(
       harness.runtime.session.messages
         .filter((message): message is UserMessage => message.role === "user")

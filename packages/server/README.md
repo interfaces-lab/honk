@@ -4,10 +4,10 @@ Node.js server and CLI package for Multi.
 
 ## Boundary
 
-| Owns | Does not own |
-|------|----------------|
-| Durable orchestration facts: messages, entries, activities, proposed plans, session metadata | Pi execution, runtime display rows, `chatTimelineRows` |
-| `OrchestrationEngine` command handling and projections | Renderer-side runtime ingestion or semantic chat row synthesis |
+| Owns                                                                                         | Does not own                                                   |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Durable orchestration facts: messages, entries, activities, proposed plans, session metadata | Pi execution, runtime display rows, `chatTimelineRows`         |
+| `OrchestrationEngine` command handling and projections                                       | Renderer-side runtime ingestion or semantic chat row synthesis |
 
 Branch navigation order is derived in the app projector from messages and entries, not a server display row list.
 
@@ -21,12 +21,12 @@ Branch navigation order is derived in the app projector from messages and entrie
 
 The server stores and exports **durable orchestration facts** only. It does not execute Pi, synthesize chat display rows, or own UI timeline projection.
 
-| Owns | Does not own |
-|------|--------------|
-| Messages, thread entries, activities, proposed plans | Pi agent execution (`@multi/runtime`, desktop main) |
-| Session metadata, turns, projects, pending approvals | Runtime display timelines or overlay rows |
-| Event-sourced projection into `OrchestrationThread` | `chatTimelineRows` or other pre-rendered chat row lists |
-| WebSocket RPC for `EnvironmentApi` | Branch navigation order for the chat UI |
+| Owns                                                 | Does not own                                            |
+| ---------------------------------------------------- | ------------------------------------------------------- |
+| Messages, thread entries, activities, proposed plans | Pi agent execution (`@multi/runtime`, desktop main)     |
+| Session metadata, turns, projects, pending approvals | Runtime display timelines or overlay rows               |
+| Event-sourced projection into `OrchestrationThread`  | `chatTimelineRows` or other pre-rendered chat row lists |
+| WebSocket RPC for `EnvironmentApi`                   | Branch navigation order for the chat UI                 |
 
 `OrchestrationThread` is a facts snapshot: `messages`, `entries`, `activities`, `proposedPlans`, and `session`. Branch order and chat row materialization live in the app `thread-timeline-projector`, derived from committed facts plus runtime overlay and local send intent — not from server-side display derivation.
 

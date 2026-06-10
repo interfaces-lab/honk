@@ -365,12 +365,7 @@ function emitTaskCompletionNotifications(
     showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", router);
 
     if (shouldAttemptSystemNotification) {
-      void showSystemThreadNotification(
-        copy,
-        candidate.environmentId,
-        candidate.threadId,
-        router,
-      );
+      void showSystemThreadNotification(copy, candidate.environmentId, candidate.threadId, router);
     }
   }
 }

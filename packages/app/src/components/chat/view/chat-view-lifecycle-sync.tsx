@@ -28,9 +28,7 @@ import {
   reconcileMountedTerminalThreadIds,
   type PullRequestDialogState,
 } from "./thread-lifecycle";
-import {
-  type ThreadTerminalLaunchContext,
-} from "../../../terminal-state-store";
+import { type ThreadTerminalLaunchContext } from "../../../terminal-state-store";
 import { type TerminalLaunchContext } from "./persistent-thread-terminal-drawer";
 import {
   acknowledgedThreadSendIntents,
@@ -261,9 +259,7 @@ export function ThreadSendIntentsServerAckSync({
     if (removedIntents.length === 0) {
       return;
     }
-    const removedClientSendKeys = new Set(
-      removedIntents.map((intent) => intent.clientMessageId),
-    );
+    const removedClientSendKeys = new Set(removedIntents.map((intent) => intent.clientMessageId));
     const storedRemovedIntents = removeThreadSendIntents(threadKey, removedClientSendKeys);
     for (const removedMessage of threadSendIntentMessages(storedRemovedIntents)) {
       const previewUrls = collectUserMessageBlobPreviewUrls(removedMessage);
