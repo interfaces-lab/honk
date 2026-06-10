@@ -18,7 +18,7 @@ import {
   type VirtualItem,
   type Virtualizer,
 } from "@tanstack/react-virtual";
-import { type TimelineEntry } from "../../../session-logic";
+import { type PendingApproval, type TimelineEntry } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
@@ -28,6 +28,10 @@ import {
   type StableMessagesTimelineRowsState,
   type MessagesTimelineRow,
 } from "./timeline-rows";
+import {
+  EMPTY_PENDING_APPROVAL_KINDS,
+  type PendingApprovalRequestKind,
+} from "./timeline-render-items";
 import { cn } from "~/lib/utils";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
@@ -99,6 +103,7 @@ interface MessagesTimelineProps {
   bottomClearancePx?: number | undefined;
   timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
   timelineEntries: ReadonlyArray<TimelineEntry>;
+  pendingApprovals?: ReadonlyArray<PendingApproval> | undefined;
   editableUserMessageIds: ReadonlySet<MessageId>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
@@ -126,6 +131,7 @@ export function MessagesTimeline({
   bottomClearancePx = 0,
   timelineControllerRef,
   timelineEntries,
+  pendingApprovals,
   editableUserMessageIds,
   onImageExpand,
   activeThreadEnvironmentId,
@@ -142,6 +148,13 @@ export function MessagesTimeline({
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
   const conversationDensity = useConversationDensity();
+  const pendingApprovalKinds = useMemo<ReadonlySet<PendingApprovalRequestKind>>(
+    () =>
+      pendingApprovals && pendingApprovals.length > 0
+        ? new Set(pendingApprovals.map((approval) => approval.requestKind))
+        : EMPTY_PENDING_APPROVAL_KINDS,
+    [pendingApprovals],
+  );
   const rawRows = useMemo(
     () =>
       deriveMessagesTimelineRows({
@@ -150,8 +163,16 @@ export function MessagesTimeline({
         editableUserMessageIds,
         projectRoot,
         conversationDensity,
+        pendingApprovalKinds,
       }),
-    [conversationDensity, editableUserMessageIds, isTurnActive, projectRoot, timelineEntries],
+    [
+      conversationDensity,
+      editableUserMessageIds,
+      isTurnActive,
+      pendingApprovalKinds,
+      projectRoot,
+      timelineEntries,
+    ],
   );
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
@@ -503,6 +524,7 @@ export function MessagesTimeline({
       activeThreadId,
       activeThreadEnvironmentId,
       isServerThread,
+      pendingApprovalKinds,
       onBeginEditUserMessage,
       renderEditComposer,
       onUpdateProposedPlan,
@@ -516,6 +538,7 @@ export function MessagesTimeline({
       onBeginEditUserMessage,
       onImageExpand,
       onUpdateProposedPlan,
+      pendingApprovalKinds,
       projectRoot,
       renderEditComposer,
     ],

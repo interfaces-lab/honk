@@ -9,6 +9,7 @@ import {
   isCommandWorkEntry,
   summarizeWorkGroup,
   type GroupedSteps,
+  type PendingApprovalRequestKind,
   type TimelineDurationMessage,
   type TimelineGroupedStep,
   type TimelineMessageStep,
@@ -100,6 +101,7 @@ export function deriveMessagesTimelineRows(input: {
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
   conversationDensity?: ConversationDensity | undefined;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
 }): MessagesTimelineRow[] {
   return deriveTimelineRenderItems(input).map(timelineRenderItemToRow);
 }

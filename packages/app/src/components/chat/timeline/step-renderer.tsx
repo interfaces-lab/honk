@@ -21,6 +21,7 @@ import ChatMarkdown from "../markdown/chat-markdown";
 import {
   isPreviewableWorkGroupStep,
   isShortPlainText,
+  type PendingApprovalRequestKind,
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
   type TimelineGroupedStep,
@@ -53,6 +54,7 @@ export interface StepRendererContext {
   activeThreadId: ThreadId;
   activeThreadEnvironmentId: EnvironmentId;
   isServerThread: boolean;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
   onBeginEditUserMessage: ((messageId: ChatMessage["id"]) => void) | undefined;
   renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
   onUpdateProposedPlan:
@@ -329,6 +331,7 @@ function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRend
       projectRoot={ctx.projectRoot}
       activeThreadId={ctx.activeThreadId}
       environmentId={ctx.activeThreadEnvironmentId}
+      pendingApprovalKinds={ctx.pendingApprovalKinds}
       subagentDetailsEnabled
     />
   );
@@ -347,6 +350,7 @@ function RuntimeToolStepRenderer({
       projectRoot={ctx.projectRoot}
       activeThreadId={ctx.activeThreadId}
       environmentId={ctx.activeThreadEnvironmentId}
+      pendingApprovalKinds={ctx.pendingApprovalKinds}
       subagentDetailsEnabled
     />
   );

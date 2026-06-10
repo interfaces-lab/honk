@@ -2940,6 +2940,7 @@ export default function ChatView(props: ChatViewProps) {
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
                   timelineControllerRef={messagesTimelineControllerRef}
                   timelineEntries={timelineEntries}
+                  pendingApprovals={pendingApprovals}
                   activeThreadId={activeThread.id}
                   timelineCacheKey={activeTimelineCacheKey}
                   activeThreadEnvironmentId={activeThread.environmentId}

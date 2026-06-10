@@ -8,6 +8,9 @@ import {
   isGroupedNarrationMessageStep,
   isPreviewableWorkGroupStep,
   isShortPlainText,
+  runtimeToolHasPendingApproval,
+  workEntryHasPendingApproval,
+  type PendingApprovalRequestKind,
   type TimelineGroupedStep,
   type TimelineRenderItem,
 } from "./timeline-render-items";
@@ -2291,5 +2294,111 @@ describe("deriveTimelineRenderItems", () => {
 
     expect(grouped).toHaveLength(1);
     expect(balanced).toHaveLength(3);
+  });
+});
+
+describe("pending approval handling", () => {
+  const pendingCommandKinds: ReadonlySet<PendingApprovalRequestKind> = new Set(["command"]);
+  const pendingEntries = [
+    runtimeThinkingEntry({
+      id: "thinking:pending-run",
+      createdAt: "2026-06-05T16:00:01.000Z",
+      thinking: "Checking the workspace state.",
+    }),
+    runtimeShellTool({
+      id: "tool:shell-done",
+      createdAt: "2026-06-05T16:00:02.000Z",
+      status: "completed",
+    }),
+    runtimeShellTool({
+      id: "tool:shell-pending",
+      createdAt: "2026-06-05T16:00:03.000Z",
+      status: "running",
+    }),
+  ];
+
+  it("breaks the awaiting tool out of the group and keeps the prior group running", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: pendingEntries,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+      conversationDensity: "compact-all-grouped",
+      pendingApprovalKinds: pendingCommandKinds,
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+        }),
+      }),
+    );
+    expect(rows[1]).toEqual(
+      expect.objectContaining({
+        kind: "single",
+        id: "tool:shell-pending",
+      }),
+    );
+  });
+
+  it("regroups the tool once the approval resolves", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: pendingEntries,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+      conversationDensity: "compact-all-grouped",
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("group");
+  });
+
+  it("ignores pending approvals of a non-matching kind", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: pendingEntries,
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+      conversationDensity: "compact-all-grouped",
+      pendingApprovalKinds: new Set(["file-change"]),
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("group");
+  });
+
+  it("matches work entries by request kind and running status", () => {
+    const runningCommand = workEntry({
+      id: "work:push",
+      createdAt: "2026-06-05T16:00:01.000Z",
+      status: "running",
+      command: "git push origin main",
+    });
+
+    expect(workEntryHasPendingApproval(runningCommand, pendingCommandKinds)).toBe(true);
+    expect(workEntryHasPendingApproval(runningCommand, new Set(["permissions"]))).toBe(true);
+    expect(workEntryHasPendingApproval(runningCommand, new Set(["file-change"]))).toBe(false);
+    expect(
+      workEntryHasPendingApproval({ ...runningCommand, status: "completed" }, pendingCommandKinds),
+    ).toBe(false);
+  });
+
+  it("matches runtime tools by display kind and running status", () => {
+    const runningShell = runtimeShellTool({
+      id: "tool:shell-approval",
+      createdAt: "2026-06-05T16:00:01.000Z",
+      status: "running",
+    }).tool;
+    const completedShell = runtimeShellTool({
+      id: "tool:shell-settled",
+      createdAt: "2026-06-05T16:00:02.000Z",
+      status: "completed",
+    }).tool;
+
+    expect(runtimeToolHasPendingApproval(runningShell, pendingCommandKinds)).toBe(true);
+    expect(runtimeToolHasPendingApproval(runningShell, new Set(["file-read"]))).toBe(false);
+    expect(runtimeToolHasPendingApproval(completedShell, pendingCommandKinds)).toBe(false);
   });
 });

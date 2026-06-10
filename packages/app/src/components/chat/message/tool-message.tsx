@@ -22,7 +22,17 @@ import {
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
 import { useConversationDensity } from "~/hooks/use-conversation-density";
-import { ThinkingStatus, ToolCallRenderer, type ToolCallModel } from "./tool-renderer";
+import {
+  runtimeToolHasPendingApproval,
+  workEntryHasPendingApproval,
+  type PendingApprovalRequestKind,
+} from "../timeline/timeline-render-items";
+import {
+  ThinkingStatus,
+  ToolCallRenderer,
+  type ToolCallApproval,
+  type ToolCallModel,
+} from "./tool-renderer";
 import { cn } from "~/lib/utils";
 import ChatMarkdown from "../markdown/chat-markdown";
 import {
@@ -40,11 +50,14 @@ function stopSubagentStatusRowKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
   event.stopPropagation();
 }
 
+const PENDING_TOOL_CALL_APPROVAL: ToolCallApproval = { status: "pending" };
+
 interface ToolCallMessageProps {
   workEntry: WorkLogEntry;
   projectRoot: string | undefined;
   activeThreadId: ThreadId;
   environmentId: EnvironmentId;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
   subagentDetailsEnabled?: boolean | undefined;
 }
 
@@ -53,6 +66,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   projectRoot,
   activeThreadId,
   environmentId,
+  pendingApprovalKinds,
   subagentDetailsEnabled = true,
 }: ToolCallMessageProps) {
   const conversationDensity = useConversationDensity();
@@ -106,6 +120,11 @@ export const ToolCallMessage = memo(function ToolCallMessage({
         loading={isLoading}
         startedAtMs={Date.parse(workEntry.createdAt)}
         hasError={status === "error"}
+        approval={
+          pendingApprovalKinds && workEntryHasPendingApproval(workEntry, pendingApprovalKinds)
+            ? PENDING_TOOL_CALL_APPROVAL
+            : undefined
+        }
         conversationDensity={conversationDensity}
       />
       {subagentStatusSurface}
@@ -118,12 +137,14 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   projectRoot,
   activeThreadId,
   environmentId,
+  pendingApprovalKinds,
   subagentDetailsEnabled = true,
 }: {
   tool: RuntimeDisplayTimelineToolItem;
   projectRoot?: string | undefined;
   activeThreadId?: ThreadId | undefined;
   environmentId?: EnvironmentId | undefined;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
   subagentDetailsEnabled?: boolean | undefined;
 }) {
   const conversationDensity = useConversationDensity();
@@ -163,6 +184,11 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
         loading={isLoading}
         startedAtMs={Date.parse(tool.createdAt)}
         hasError={status === "error"}
+        approval={
+          pendingApprovalKinds && runtimeToolHasPendingApproval(tool, pendingApprovalKinds)
+            ? PENDING_TOOL_CALL_APPROVAL
+            : undefined
+        }
         conversationDensity={conversationDensity}
         subagentConversation={subagentStatusSurface}
         defaultExpanded={tool.display?.kind === "subagent" || (isLoading && hasStreamingOutput)}

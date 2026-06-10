@@ -13,6 +13,7 @@ import {
 
 import {
   formatDuration,
+  type PendingApproval,
   type TimelineEntry,
   type ToolDiffArtifact,
   type WaitingPhase,
@@ -153,6 +154,99 @@ export function isNeverGroupableWorkEntry(entry: WorkLogEntry): boolean {
   return entry.isToolSummary === true;
 }
 
+export type PendingApprovalRequestKind = PendingApproval["requestKind"];
+
+export const EMPTY_PENDING_APPROVAL_KINDS: ReadonlySet<PendingApprovalRequestKind> = new Set();
+
+interface PendingApprovalToolFlags {
+  isCommand: boolean;
+  isEdit: boolean;
+  isRead: boolean;
+  isMcp: boolean;
+  isDynamic: boolean;
+}
+
+// Approval activities carry no tool-call id, so a pending approval is correlated to the
+// running tool of its request kind. "permissions" requests are not tool-shaped and pause
+// whichever tool is executing.
+function matchesPendingApprovalKinds(
+  kinds: ReadonlySet<PendingApprovalRequestKind>,
+  flags: PendingApprovalToolFlags,
+): boolean {
+  if (kinds.size === 0) {
+    return false;
+  }
+  if (kinds.has("permissions")) {
+    return true;
+  }
+  return (
+    (kinds.has("command") && flags.isCommand) ||
+    (kinds.has("file-change") && flags.isEdit) ||
+    (kinds.has("file-read") && flags.isRead) ||
+    (kinds.has("mcp-elicitation") && flags.isMcp) ||
+    (kinds.has("dynamic-tool") && flags.isDynamic)
+  );
+}
+
+export function workEntryHasPendingApproval(
+  entry: WorkLogEntry,
+  kinds: ReadonlySet<PendingApprovalRequestKind>,
+): boolean {
+  if (entry.status !== "running" || entry.tone === "thinking") {
+    return false;
+  }
+  return matchesPendingApprovalKinds(kinds, {
+    isCommand: isCommandWorkEntry(entry),
+    isEdit: isWorkEditEntry(entry),
+    isRead:
+      entry.requestKind === "file-read" ||
+      entry.itemType === "file_read" ||
+      Boolean(entry.artifacts?.some((artifact) => artifact.type === "read")),
+    isMcp: entry.itemType === "mcp_tool_call",
+    isDynamic: entry.itemType === "dynamic_tool_call",
+  });
+}
+
+export function runtimeToolHasPendingApproval(
+  tool: RuntimeDisplayTimelineToolItem,
+  kinds: ReadonlySet<PendingApprovalRequestKind>,
+): boolean {
+  if (tool.status !== "running") {
+    return false;
+  }
+  const display = tool.display;
+  const toolName = tool.toolName.toLowerCase();
+  return matchesPendingApprovalKinds(kinds, {
+    isCommand: display?.kind === "shell" || toolName === "shell" || typeof tool.command === "string",
+    isEdit:
+      display?.kind === "edit" ||
+      toolName.includes("edit") ||
+      toolName.includes("write") ||
+      toolName.includes("patch") ||
+      toolName.includes("delete"),
+    isRead: display?.kind === "read" || toolName === "read",
+    isMcp: display?.kind === "mcp",
+    isDynamic: false,
+  });
+}
+
+/** Cursor zIb parity: a step awaiting approval breaks out of activity groups. */
+export function groupedStepHasPendingApproval(
+  step: TimelineGroupedStep,
+  kinds: ReadonlySet<PendingApprovalRequestKind>,
+): boolean {
+  if (kinds.size === 0) {
+    return false;
+  }
+  if (step.kind === "work") {
+    return workEntryHasPendingApproval(step.entry, kinds);
+  }
+  if (step.kind === "runtime-tool") {
+    return runtimeToolHasPendingApproval(step.tool, kinds);
+  }
+  return false;
+}
+
 /** Assistant narration that may live inside a collapsed work-group preview. */
 export function isGroupedNarrationMessageStep(
   step: TimelineGroupedStep,
@@ -264,8 +358,10 @@ export function deriveTimelineRenderItems(input: {
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
   conversationDensity?: ConversationDensity | undefined;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
 }): TimelineRenderItem[] {
   const conversationDensity = input.conversationDensity ?? DEFAULT_CONVERSATION_DENSITY;
+  const pendingApprovalKinds = input.pendingApprovalKinds ?? EMPTY_PENDING_APPROVAL_KINDS;
   const items: TimelineRenderItem[] = [];
   let lastMessageDurationBoundary: string | null = null;
   let currentPairId: MessageId | null = null;
@@ -362,7 +458,10 @@ export function deriveTimelineRenderItems(input: {
       // source independently as persistence catches up, so the run must survive the seam
       // or every flip closes the live group ("Worked for Ns · 1 command" per tool).
       const firstStep = groupableStepForTimelineEntry(timelineEntry);
-      if (!isGroupableStepForDensity(firstStep, conversationDensity)) {
+      if (
+        !isGroupableStepForDensity(firstStep, conversationDensity) ||
+        groupedStepHasPendingApproval(firstStep, pendingApprovalKinds)
+      ) {
         pushSingleTimelineStep(items, firstStep);
         continue;
       }
@@ -375,6 +474,7 @@ export function deriveTimelineRenderItems(input: {
         if (nextEntry.kind === "work" || isRuntimeGroupableTimelineEntry(nextEntry)) {
           const nextStep = groupableStepForTimelineEntry(nextEntry);
           if (!isGroupableStepForDensity(nextStep, conversationDensity)) break;
+          if (groupedStepHasPendingApproval(nextStep, pendingApprovalKinds)) break;
           steps.push(nextStep);
           cursor += 1;
           continue;
@@ -522,6 +622,7 @@ export function deriveTimelineRenderItems(input: {
   const result = keepTailGroupRunning(items, {
     isTurnActive: input.isTurnActive,
     projectRoot: input.projectRoot,
+    pendingApprovalKinds,
   });
   return finalizeGroupAssistantMessages(result, {
     isTurnActive: input.isTurnActive,
@@ -1107,7 +1208,11 @@ function isExploreRuntimeToolStep(step: TimelineRuntimeToolStep): boolean {
 
 function keepTailGroupRunning(
   items: TimelineRenderItem[],
-  input: { isTurnActive: boolean; projectRoot?: string | undefined },
+  input: {
+    isTurnActive: boolean;
+    projectRoot?: string | undefined;
+    pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
+  },
 ): TimelineRenderItem[] {
   const nextItems = !input.isTurnActive
     ? items.map((item) => {
@@ -1123,7 +1228,10 @@ function keepTailGroupRunning(
         };
       })
     : (() => {
-        const tailGroupIndex = findTailGroupRenderItemIndex(items);
+        const tailGroupIndex = findTailGroupRenderItemIndex(
+          items,
+          input.pendingApprovalKinds ?? EMPTY_PENDING_APPROVAL_KINDS,
+        );
         if (tailGroupIndex === -1) {
           return items;
         }
@@ -1179,8 +1287,13 @@ function findLastGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>):
 }
 
 // Only meaningful during an active turn: prefer the last group with an actively running
-// step, otherwise fall back to the trailing group when nothing but waiting rows follow it.
-function findTailGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>): number {
+// step, otherwise fall back to the trailing group when nothing but waiting rows or steps
+// broken out by a pending approval follow it (the run is still in flight, so the collapsed
+// preview must not unmount while the user decides).
+function findTailGroupRenderItemIndex(
+  items: ReadonlyArray<TimelineRenderItem>,
+  pendingApprovalKinds: ReadonlySet<PendingApprovalRequestKind>,
+): number {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     if (item?.kind !== "group") {
@@ -1198,6 +1311,13 @@ function findTailGroupRenderItemIndex(items: ReadonlyArray<TimelineRenderItem>):
   for (let index = lastGroupIndex + 1; index < items.length; index += 1) {
     const item = items[index];
     if (!item || item.kind === "waitingGroup") {
+      continue;
+    }
+    if (
+      item.kind === "single" &&
+      (item.step.kind === "work" || item.step.kind === "runtime-tool") &&
+      groupedStepHasPendingApproval(item.step, pendingApprovalKinds)
+    ) {
       continue;
     }
     return -1;
