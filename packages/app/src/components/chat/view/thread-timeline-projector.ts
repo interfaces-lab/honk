@@ -433,11 +433,17 @@ function mergeRunningWorkLogEntriesIntoRuntimeTimeline(input: {
       entry.kind === "runtime-tool" ? [entry.tool.toolCallId] : [],
     ),
   );
+  // Tool entries the runtime overlay does not cover always merge in: live tool items exist
+  // only while the runtime event stream is connected, so after a renderer reload the
+  // committed record is the sole source for the turn's completed tools. Entries without a
+  // tool-call id (thinking/status) merge only while running — their settled counterparts
+  // already render as runtime display items.
   const supplementalWorkEntries = input.committedEntries.filter(
     (entry): entry is Extract<TimelineEntry, { kind: "work" }> =>
       entry.kind === "work" &&
-      entry.entry.status === "running" &&
-      (entry.entry.toolCallId === undefined || !runtimeToolCallIds.has(entry.entry.toolCallId)),
+      (entry.entry.toolCallId !== undefined
+        ? !runtimeToolCallIds.has(entry.entry.toolCallId)
+        : entry.entry.status === "running"),
   );
   if (supplementalWorkEntries.length === 0) {
     return [...input.runtimeEntries];

@@ -1,7 +1,17 @@
 import { type DesktopExtensionUiRequest } from "@multi/contracts";
 import { Button } from "@multi/multikit/button";
-import { Input } from "@multi/multikit/input";
+import { IconBubbleQuestion } from "central-icons";
 import { useState, type KeyboardEvent } from "react";
+import {
+  QuestionnaireActions,
+  QuestionnaireFreeformRow,
+  QuestionnaireHeader,
+  QuestionnaireOptionButton,
+  QuestionnaireOptions,
+  QuestionnaireQuestionLabel,
+  QuestionnaireSurface,
+  questionnaireOptionLetter,
+} from "./questionnaire";
 
 interface ComposerPendingExtensionUiRequestPanelProps {
   readonly request: DesktopExtensionUiRequest | null;
@@ -81,85 +91,65 @@ export function ComposerPendingExtensionUiRequestPanel({
     ) {
       return;
     }
-    const digit = Number.parseInt(event.key, 10);
-    if (Number.isNaN(digit) || digit < 1 || digit > 9) return;
-    const action = responseActions[digit - 1];
+    const key = event.key.toUpperCase();
+    if (key.length !== 1 || key < "A" || key > "Z") return;
+    const action = responseActions[key.charCodeAt(0) - 65];
     if (!action) return;
     event.preventDefault();
     onRespond(request, action.value);
   };
 
   return (
-    <div className="px-4 py-3 sm:px-5" onKeyDownCapture={handleKeyDownCapture}>
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          {pendingCount > 1 ? (
-            <span className="flex h-5 shrink-0 items-center rounded-multi-control bg-multi-bg-tertiary px-1.5 text-caption font-medium tabular-nums text-multi-fg-tertiary">
-              1/{pendingCount}
-            </span>
+    <div onKeyDownCapture={handleKeyDownCapture}>
+      <QuestionnaireSurface>
+        <QuestionnaireHeader
+          icon={<IconBubbleQuestion className="size-3.5" aria-hidden="true" />}
+          title={requestKindLabel(request.kind)}
+          trailing={pendingCount > 1 ? <span>1/{pendingCount}</span> : undefined}
+        />
+        <div className="ml-1 flex flex-col gap-0.5">
+          <QuestionnaireQuestionLabel>{request.title}</QuestionnaireQuestionLabel>
+          {request.message ? (
+            <p className="ml-1.5 mt-0.5 select-text text-caption text-multi-fg-tertiary">
+              {request.message}
+            </p>
           ) : null}
-          <span className="min-w-0 truncate text-detail font-semibold text-multi-fg-tertiary uppercase">
-            {requestKindLabel(request.kind)}
-          </span>
-        </div>
-      </div>
-      <p className="mt-1.5 select-text text-body text-multi-fg-primary">{request.title}</p>
-      {request.message ? (
-        <p className="mt-1 select-text text-caption text-multi-fg-tertiary">{request.message}</p>
-      ) : null}
-      {isOptionsRequest ? (
-        <div className="mt-3 grid gap-1" role="radiogroup" aria-label={request.title}>
-          {responseActions.map((action, index) => {
-            const shortcutKey = index < 9 ? index + 1 : null;
-            return (
-              <Button
-                key={action.label}
-                type="button"
-                variant="ghost"
+          {isOptionsRequest ? (
+            <QuestionnaireOptions label={request.title}>
+              {responseActions.map((action, index) => (
+                <QuestionnaireOptionButton
+                  key={action.label}
+                  letter={questionnaireOptionLetter(index)}
+                  label={action.label}
+                  selected={false}
+                  disabled={isResponding}
+                  onSelect={() => onRespond(request, action.value)}
+                />
+              ))}
+            </QuestionnaireOptions>
+          ) : (
+            <>
+              <QuestionnaireFreeformRow
+                letter="A"
+                value={draftValue}
+                placeholder={request.placeholder ?? "Type your answer"}
                 disabled={isResponding}
-                role="radio"
-                aria-checked={false}
-                onClick={() => onRespond(request, action.value)}
-                className={[
-                  "group flex h-auto min-h-9 w-full justify-start whitespace-normal rounded-multi-control border-transparent bg-multi-bg-quaternary/60 px-2.5 py-2 text-left text-multi-fg-secondary transition-colors duration-100",
-                  "hover:border-multi-stroke-tertiary hover:bg-multi-bg-tertiary hover:text-multi-fg-primary",
-                  isResponding ? "cursor-not-allowed opacity-50" : "",
-                ].join(" ")}
-              >
-                {shortcutKey !== null ? (
-                  <kbd className="flex size-5 shrink-0 items-center justify-center rounded-multi-control bg-multi-bg-tertiary text-detail font-medium tabular-nums text-multi-fg-quaternary transition-colors duration-100 group-hover:text-multi-fg-tertiary">
-                    {shortcutKey}
-                  </kbd>
-                ) : null}
-                <span className="min-w-0 flex-1 text-body font-medium">{action.label}</span>
-              </Button>
-            );
-          })}
+                onChange={setDraftValue}
+                onSubmit={() => onRespond(request, draftValue)}
+              />
+              <QuestionnaireActions>
+                <Button
+                  size="sm"
+                  disabled={isResponding}
+                  onClick={() => onRespond(request, responseActions[0]?.value ?? "")}
+                >
+                  {responseActions[0]?.label ?? "Send"}
+                </Button>
+              </QuestionnaireActions>
+            </>
+          )}
         </div>
-      ) : (
-        <div className="mt-3 flex gap-2">
-          <Input
-            size="sm"
-            value={draftValue}
-            placeholder={request.placeholder ?? "Type your answer"}
-            disabled={isResponding}
-            autoFocus
-            onChange={(event) => setDraftValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || isResponding) return;
-              event.preventDefault();
-              onRespond(request, draftValue);
-            }}
-          />
-          <Button
-            size="sm"
-            disabled={isResponding}
-            onClick={() => onRespond(request, responseActions[0]?.value ?? "")}
-          >
-            {responseActions[0]?.label ?? "Send"}
-          </Button>
-        </div>
-      )}
+      </QuestionnaireSurface>
     </div>
   );
 }
