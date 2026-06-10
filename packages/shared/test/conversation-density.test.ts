@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ConversationDensity } from "@multi/contracts/settings";
+import * as Schema from "effect/Schema";
 import {
-  normalizeConversationDensity,
+  ConversationDensity,
+  USER_CONVERSATION_DENSITY_VALUES,
+} from "@multi/contracts/settings";
+import {
   shouldGroupEdits,
   shouldGroupShells,
   shouldGroupToolCalls,
@@ -16,13 +19,7 @@ const DENSITY_CASES = [
     compactShells: false,
     groupEdits: false,
     groupShells: false,
-  },
-  {
-    density: "compact-shells",
-    compactEdits: false,
-    compactShells: true,
-    groupEdits: false,
-    groupShells: false,
+    groupToolCalls: false,
   },
   {
     density: "compact-ungrouped",
@@ -30,13 +27,7 @@ const DENSITY_CASES = [
     compactShells: true,
     groupEdits: false,
     groupShells: false,
-  },
-  {
-    density: "compact-grouped",
-    compactEdits: true,
-    compactShells: true,
-    groupEdits: true,
-    groupShells: true,
+    groupToolCalls: false,
   },
   {
     density: "compact-all-grouped",
@@ -44,6 +35,7 @@ const DENSITY_CASES = [
     compactShells: true,
     groupEdits: true,
     groupShells: true,
+    groupToolCalls: true,
   },
 ] as const satisfies readonly {
   density: ConversationDensity;
@@ -51,24 +43,50 @@ const DENSITY_CASES = [
   compactShells: boolean;
   groupEdits: boolean;
   groupShells: boolean;
+  groupToolCalls: boolean;
 }[];
 
 describe("conversation density predicates", () => {
+  it("covers every canonical density", () => {
+    expect(DENSITY_CASES.map(({ density }) => density)).toEqual([
+      ...USER_CONVERSATION_DENSITY_VALUES,
+    ]);
+  });
+
   it.each(DENSITY_CASES)(
     "matches Cursor behavior for $density",
-    ({ density, compactEdits, compactShells, groupEdits, groupShells }) => {
+    ({ density, compactEdits, compactShells, groupEdits, groupShells, groupToolCalls }) => {
       expect(shouldUseCompactEdits(density)).toBe(compactEdits);
       expect(shouldUseCompactShells(density)).toBe(compactShells);
       expect(shouldGroupEdits(density)).toBe(groupEdits);
       expect(shouldGroupShells(density)).toBe(groupShells);
-      expect(shouldGroupToolCalls(density)).toBe(groupEdits);
+      expect(shouldGroupToolCalls(density)).toBe(groupToolCalls);
+    },
+  );
+});
+
+describe("conversation density schema migration", () => {
+  const decode = Schema.decodeUnknownSync(ConversationDensity);
+  const encode = Schema.encodeSync(ConversationDensity);
+
+  it.each([
+    ["verbose", "detailed"],
+    ["compact-shells", "compact-ungrouped"],
+    ["minimal", "compact-all-grouped"],
+    ["compact-grouped", "compact-all-grouped"],
+  ] as const)("migrates persisted %s to %s at decode", (legacy, canonical) => {
+    expect(decode(legacy)).toBe(canonical);
+  });
+
+  it.each([...USER_CONVERSATION_DENSITY_VALUES])(
+    "decodes and encodes canonical %s unchanged",
+    (density) => {
+      expect(decode(density)).toBe(density);
+      expect(encode(density)).toBe(density);
     },
   );
 
-  it("normalizes legacy density aliases", () => {
-    expect(normalizeConversationDensity("verbose")).toBe("detailed");
-    expect(normalizeConversationDensity("minimal")).toBe("compact-all-grouped");
-    expect(normalizeConversationDensity("compact-shells")).toBe("compact-ungrouped");
-    expect(normalizeConversationDensity("compact-grouped")).toBe("compact-all-grouped");
+  it("rejects unknown stored values", () => {
+    expect(() => decode("ultra-dense")).toThrow();
   });
 });

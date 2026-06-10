@@ -11,7 +11,6 @@ import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { WorkingStatusRow } from "../message/status-row";
 import {
   RuntimeExtensionUiRequestMessage,
-  RuntimeSubagentTaskMessage,
   RuntimeToolCallMessage,
   ToolCallMessage,
 } from "../message/tool-message";
@@ -210,7 +209,8 @@ function WorkGroupHeaderButton({
   const isWaitingGroup = row.isWaitingGroup;
   const [debouncedLoadingAction] = useDebouncedValue(summary.action, { wait: 200 });
   const actionText = isRunning ? debouncedLoadingAction : summary.action;
-  const showCompletedSummary = !expanded && !isThinkingGroup && !isWaitingGroup && !isRunning;
+  const showHeaderSummaryDetails =
+    !expanded && !isThinkingGroup && !isWaitingGroup && summary.details.length > 0;
 
   return (
     <Button
@@ -246,14 +246,13 @@ function WorkGroupHeaderButton({
             {`Thought for ${row.completedDurationLabel ?? "briefly"}`}
           </span>
         )
-      ) : isRunning ? (
-        <span className="shrink-0 whitespace-nowrap tabular-nums">{actionText}</span>
       ) : (
-        <span className="shrink-0 whitespace-nowrap tabular-nums">
-          {`Worked for ${row.completedDurationLabel ?? "briefly"}`}
-        </span>
+        // Cursor parity (A4b): the header leads with the summary verb (Exploring/Explored,
+        // Editing/Edited, Ran), never a generic "Worked for"; segment details render in both
+        // running and completed states.
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{actionText}</span>
       )}
-      {showCompletedSummary ? (
+      {showHeaderSummaryDetails ? (
         <>
           <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
             ·
@@ -360,8 +359,10 @@ function RuntimeTaskStepRenderer({
   step: TimelineRuntimeTaskStep;
   ctx: StepRendererContext;
 }) {
+  // Subagent display items route through ToolCallRenderer's taskToolCall chrome (Cursor O4b
+  // parity): collapsible task header with the subagent tray rows as its body.
   return (
-    <RuntimeSubagentTaskMessage
+    <RuntimeToolCallMessage
       tool={step.tool}
       projectRoot={ctx.projectRoot}
       activeThreadId={ctx.activeThreadId}

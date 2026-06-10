@@ -157,9 +157,6 @@ export interface ToolCallRendererProps {
   hasError?: boolean | undefined;
   approval?: ToolCallApproval | undefined;
   subagentConversation?: ReactNode;
-  renderStep?:
-    | ((step: unknown, index: number, parentCallId: string | undefined) => ReactNode)
-    | undefined;
   onFileClick?: ((path: string) => void) | undefined;
   onUrlClick?: ((url: string) => void) | undefined;
   onNestedToolExpand?: ((callId: string | undefined, expanded: boolean) => void) | undefined;
@@ -233,7 +230,6 @@ export function ToolCallRenderer({
   hasError = false,
   approval,
   subagentConversation,
-  renderStep,
   onFileClick,
   onUrlClick,
   onNestedToolExpand,
@@ -269,12 +265,23 @@ export function ToolCallRenderer({
     case "shellToolCall": {
       const shellCommand = artifactLookup.command?.command ?? command ?? "";
       if (compactShells) {
+        // Cursor parity (kRm compact): collapsed line, accordion to full output on expand.
         return (
-          <ToolCallLine
+          <ExpandableToolMetadataLine
             icon={showDetailedIcons ? IconConsole : undefined}
             action={displayState.action}
             details={shellCommand}
+            output={artifactLookup.command?.output ?? output ?? null}
+            metadataItems={getCommandMetadataItemsFromValues({
+              exitCode: artifactLookup.command?.exitCode,
+              durationMs: artifactLookup.command?.durationMs,
+              truncated: artifactLookup.command?.truncated,
+              fullOutputPath: artifactLookup.command?.fullOutputPath,
+            })}
             loading={loading}
+            defaultExpanded={defaultExpanded}
+            callId={callId}
+            onNestedToolExpand={onNestedToolExpand}
           />
         );
       }
@@ -323,8 +330,6 @@ export function ToolCallRenderer({
           loading={loading}
           hasError={hasError}
           subagentConversation={subagentConversation}
-          renderStep={renderStep}
-          toolCall={toolCall}
           callId={callId}
           defaultExpanded={defaultExpanded}
           onNestedToolExpand={onNestedToolExpand}
@@ -504,8 +509,6 @@ function TaskToolCall({
   loading,
   hasError,
   subagentConversation,
-  renderStep,
-  toolCall,
   callId,
   defaultExpanded,
   onNestedToolExpand,
@@ -516,17 +519,13 @@ function TaskToolCall({
   loading: boolean;
   hasError: boolean;
   subagentConversation: ReactNode;
-  renderStep:
-    | ((step: unknown, index: number, parentCallId: string | undefined) => ReactNode)
-    | undefined;
-  toolCall: ToolCallModel;
   callId: string | undefined;
   defaultExpanded: boolean;
   onNestedToolExpand: ((callId: string | undefined, expanded: boolean) => void) | undefined;
   showIcon: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const hasBody = Boolean(subagentConversation) || Boolean(renderStep);
+  const hasBody = Boolean(subagentConversation);
   const subtitle = details.trim();
 
   useEffect(() => {
@@ -577,12 +576,7 @@ function TaskToolCall({
         </ToolCallTaskTitleArea>
         <ToolCallTaskChevron expanded={isExpanded} />
       </ToolCallTaskHeader>
-      {isExpanded ? (
-        <ToolCallTaskBody>
-          {subagentConversation}
-          {renderStep?.(toolCall, 0, callId)}
-        </ToolCallTaskBody>
-      ) : null}
+      {isExpanded ? <ToolCallTaskBody>{subagentConversation}</ToolCallTaskBody> : null}
     </ToolCallTaskRoot>
   );
 }
@@ -761,9 +755,9 @@ export function ExpandableToolMetadataLine({
               ) : null}
               <div
                 className={cn(
-                  showStreamingPreview &&
-                    !isExpanded &&
-                    "flex max-h-(--streaming-tool-output-preview-max-height) flex-col-reverse overflow-hidden",
+                  showStreamingPreview && !isExpanded
+                    ? "flex max-h-(--streaming-tool-output-preview-max-height) flex-col-reverse overflow-hidden"
+                    : "max-h-[min(42vh,520px)] overflow-y-auto overscroll-contain",
                 )}
                 style={
                   showStreamingPreview && !isExpanded

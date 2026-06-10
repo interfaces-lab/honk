@@ -14,6 +14,7 @@ describe("AppearanceSettingsPanel", () => {
     expect(html).toContain("Compact");
     expect(html).toContain("Detailed");
     expect(html).not.toContain("Balanced");
-    expect(html).not.toContain('data-density-preview="combined"');
+    // Live preview mounts below the slider; default density renders the grouped sample.
+    expect(html).toContain('data-density-preview="combined"');
   });
 });

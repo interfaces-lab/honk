@@ -1,4 +1,4 @@
-import { MessageId, RuntimeSessionId, ThreadId } from "@multi/contracts";
+import { MessageId, RuntimeSessionId, ThreadId, TurnId } from "@multi/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
@@ -139,12 +139,65 @@ function runtimeShellTool(input: {
       toolName: "shell",
       status: input.status,
       eventIds: [],
-      ...(input.turnId ? { turnId: input.turnId } : {}),
+      ...(input.turnId ? { turnId: TurnId.make(input.turnId) } : {}),
       display: {
         kind: "shell",
         command: "pnpm test",
         output: input.status === "running" ? "running" : "done",
       },
+    },
+  };
+}
+
+function runtimeEditTool(input: {
+  id: string;
+  createdAt: string;
+  status: "running" | "completed";
+  path: string;
+}): Extract<TimelineEntry, { kind: "runtime-tool" }> {
+  return {
+    kind: "runtime-tool",
+    id: input.id,
+    createdAt: input.createdAt,
+    tool: {
+      id: input.id,
+      kind: "tool",
+      orderKey: `${input.createdAt}:${input.id}`,
+      createdAt: input.createdAt,
+      toolCallId: input.id,
+      toolName: "edit",
+      status: input.status,
+      eventIds: [],
+      display: {
+        kind: "edit",
+        path: input.path,
+        additions: 3,
+        deletions: 1,
+      },
+    },
+  };
+}
+
+function runtimeThinkingEntry(input: {
+  id: string;
+  createdAt: string;
+  thinking: string;
+  streaming?: boolean;
+}): Extract<TimelineEntry, { kind: "runtime-thinking" }> {
+  return {
+    kind: "runtime-thinking",
+    id: input.id,
+    createdAt: input.createdAt,
+    message: {
+      id: input.id,
+      kind: "message",
+      source: "live-event",
+      orderKey: `${input.createdAt}:${input.id}`,
+      createdAt: input.createdAt,
+      role: "assistant",
+      eventIds: [],
+      streaming: input.streaming ?? false,
+      thinking: input.thinking,
     },
   };
 }
@@ -166,7 +219,7 @@ function assistantTextEntry(input: {
       text: input.text,
       createdAt: input.createdAt,
       streaming: input.streaming ?? false,
-      ...(input.turnId ? { turnId: input.turnId } : {}),
+      ...(input.turnId ? { turnId: TurnId.make(input.turnId) } : {}),
     },
   };
 }
@@ -1485,7 +1538,10 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows[1]?.kind === "single" ? rows[1].id : null).toBe("message:trapped");
   });
 
-  it("does not merge runtime tools from a later turn into an earlier turn group", () => {
+  it("keeps one ongoing group across internal turn-id flips with no user-visible boundary", () => {
+    // Runtime-driven continuations (GitAction flows, ask_user resumes) mint a new
+    // orchestration turn id per segment within one visible run. Only user-visible
+    // entries break runs — never internal turn ids.
     const rows = deriveTimelineRenderItems({
       timelineEntries: [
         runtimeShellTool({
@@ -1511,14 +1567,13 @@ describe("deriveTimelineRenderItems", () => {
       editableUserMessageIds: new Set(),
     });
 
-    expect(rows.map((row) => row.kind)).toEqual(["group", "group"]);
+    expect(rows.map((row) => row.kind)).toEqual(["group"]);
     expect(rows[0]?.kind === "group" ? rows[0].group.steps.map((step) => step.kind) : []).toEqual([
       "runtime-tool",
       "message",
-    ]);
-    expect(rows[1]?.kind === "group" ? rows[1].group.steps.map((step) => step.kind) : []).toEqual([
       "runtime-tool",
     ]);
+    expect(rows[0]?.kind === "group" ? rows[0].group.isRunning : false).toBe(true);
   });
 
   it("does not start a group with assistant text", () => {
@@ -2124,6 +2179,68 @@ describe("deriveTimelineRenderItems", () => {
         isTurnActive: false,
         editableUserMessageIds: new Set(),
         conversationDensity: "compact-ungrouped",
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toEqual(
+        expect.objectContaining({
+          kind: "group",
+          group: expect.objectContaining({
+            isThinkingGroup: true,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("detailed density", () => {
+    it("keeps mixed shells, edits, and reads as separate rows", () => {
+      const rows = deriveTimelineRenderItems({
+        timelineEntries: [
+          runtimeShellTool({
+            id: "tool:shell-1",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            status: "completed",
+          }),
+          runtimeEditTool({
+            id: "tool:edit-1",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            status: "completed",
+            path: "/repo/src/a.ts",
+          }),
+          runtimeReadTool({
+            id: "tool:read-1",
+            createdAt: "2026-06-05T16:00:03.000Z",
+            status: "completed",
+            path: "/repo/src/b.ts",
+          }),
+        ],
+        isTurnActive: false,
+        editableUserMessageIds: new Set(),
+        conversationDensity: "detailed",
+      });
+
+      expect(rows).toHaveLength(3);
+      expect(rows.every((row) => row.kind === "single")).toBe(true);
+    });
+
+    it("still groups thinking-only runtime runs", () => {
+      const rows = deriveTimelineRenderItems({
+        timelineEntries: [
+          runtimeThinkingEntry({
+            id: "thinking-1",
+            createdAt: "2026-06-05T16:00:01.000Z",
+            thinking: "Reading the failing test first.",
+          }),
+          runtimeThinkingEntry({
+            id: "thinking-2",
+            createdAt: "2026-06-05T16:00:02.000Z",
+            thinking: "The mock omits the branch parent.",
+          }),
+        ],
+        isTurnActive: false,
+        editableUserMessageIds: new Set(),
+        conversationDensity: "detailed",
       });
 
       expect(rows).toHaveLength(1);

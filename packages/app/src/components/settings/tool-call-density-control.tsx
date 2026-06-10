@@ -1,17 +1,17 @@
 import {
   USER_CONVERSATION_DENSITY_VALUES,
-  type UserConversationDensity,
+  type ConversationDensity,
 } from "@multi/contracts/settings";
 import { IconChevronRightMedium } from "central-icons";
 
 import { ToolCallRenderer, type ToolCallModel } from "../chat/message/tool-renderer";
 
 // Slider runs Compact (left) to Detailed (right), matching Cursor's control.
-const SLIDER_DENSITIES: readonly UserConversationDensity[] = [
+const SLIDER_DENSITIES: readonly ConversationDensity[] = [
   ...USER_CONVERSATION_DENSITY_VALUES,
 ].reverse();
 
-const DENSITY_ARIA_LABELS: Record<UserConversationDensity, string> = {
+const DENSITY_ARIA_LABELS: Record<ConversationDensity, string> = {
   detailed: "Detailed, edits with diffs and shells with output",
   "compact-ungrouped": "Balanced, compact edits and compact shells, not grouped",
   "compact-all-grouped": "Compact grouped tool calls",
@@ -51,8 +51,8 @@ export const PREVIEW_SHELL_TOOL_CALL: ToolCallModel = {
 };
 
 export function ToolCallDensitySlider(props: {
-  value: UserConversationDensity;
-  onChange: (value: UserConversationDensity) => void;
+  value: ConversationDensity;
+  onChange: (value: ConversationDensity) => void;
 }) {
   const index = Math.max(0, SLIDER_DENSITIES.indexOf(props.value));
 
@@ -95,7 +95,7 @@ export function ToolCallDensitySlider(props: {
   );
 }
 
-export function ToolCallDensityPreview({ density }: { density: UserConversationDensity }) {
+export function ToolCallDensityPreview({ density }: { density: ConversationDensity }) {
   if (density === "compact-all-grouped") {
     return (
       <div className="mt-2 w-full max-w-72" data-density-preview="combined">
@@ -103,7 +103,7 @@ export function ToolCallDensityPreview({ density }: { density: UserConversationD
           className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden text-conversation text-multi-fg-tertiary"
           data-work-group-header=""
         >
-          <span className="shrink-0 whitespace-nowrap tabular-nums">Worked for briefly</span>
+          <span className="shrink-0 whitespace-nowrap tabular-nums">Explored</span>
           <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
             ·
           </span>

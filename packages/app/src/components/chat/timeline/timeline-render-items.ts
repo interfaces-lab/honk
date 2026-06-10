@@ -197,51 +197,6 @@ function releaseIneligibleRuntimeGroupMessages(steps: ReadonlyArray<TimelineGrou
   return { groupSteps, releasedMessages };
 }
 
-function resolveRuntimeGroupTurnId(steps: ReadonlyArray<TimelineGroupedStep>): string | null {
-  for (const step of steps) {
-    if (step.kind === "runtime-tool") {
-      const turnId = step.tool.turnId;
-      if (turnId) {
-        return turnId;
-      }
-      continue;
-    }
-    if (step.kind === "runtime-thinking") {
-      const turnId = step.message.turnId;
-      if (turnId) {
-        return turnId;
-      }
-    }
-  }
-  return null;
-}
-
-function assistantMessageMatchesRuntimeGroupTurn(
-  message: ChatMessage,
-  steps: ReadonlyArray<TimelineGroupedStep>,
-): boolean {
-  const groupTurnId = resolveRuntimeGroupTurnId(steps);
-  if (groupTurnId == null) {
-    return true;
-  }
-  return message.turnId === groupTurnId;
-}
-
-function runtimeStepMatchesRuntimeGroupTurn(
-  step: TimelineGroupedStep,
-  steps: ReadonlyArray<TimelineGroupedStep>,
-): boolean {
-  if (step.kind !== "runtime-tool" && step.kind !== "runtime-thinking") {
-    return true;
-  }
-  const groupTurnId = resolveRuntimeGroupTurnId(steps);
-  if (groupTurnId == null) {
-    return true;
-  }
-  const stepTurnId = step.kind === "runtime-tool" ? step.tool.turnId : step.message.turnId;
-  return stepTurnId == null || stepTurnId === groupTurnId;
-}
-
 function pushSingleTimelineStep(items: TimelineRenderItem[], step: TimelineGroupedStep): void {
   items.push({
     kind: "single",
@@ -420,19 +375,20 @@ export function deriveTimelineRenderItems(input: {
         if (nextEntry.kind === "work" || isRuntimeGroupableTimelineEntry(nextEntry)) {
           const nextStep = groupableStepForTimelineEntry(nextEntry);
           if (!isGroupableStepForDensity(nextStep, conversationDensity)) break;
-          if (!runtimeStepMatchesRuntimeGroupTurn(nextStep, steps)) break;
           steps.push(nextStep);
           cursor += 1;
           continue;
         }
         // Short plain assistant text joins an open tool group so agent narration streams
         // inside the collapsed preview instead of splitting it; text never starts a group.
+        // Orchestration turn ids are deliberately ignored here: runtime-driven continuations
+        // mint many turn ids inside one visible run, so the only group boundaries are
+        // user-visible entries (user messages, UI requests, transcript-scale text).
         if (
           nextEntry.kind === "message" &&
           nextEntry.message.role === "assistant" &&
           !nextEntry.message.attachments?.length &&
           isShortPlainText(nextEntry.message.text.trim()) &&
-          assistantMessageMatchesRuntimeGroupTurn(nextEntry.message, steps) &&
           steps.some(isToolGroupedStep)
         ) {
           steps.push({

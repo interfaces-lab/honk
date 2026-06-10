@@ -3,26 +3,35 @@ name: Tool Call Density Parity
 overview: Tool Call Density parity with Cursor using exactly three values (Detailed, Balanced, Compact). Legacy modes removed. Plan covers Cursor entry-point chain, Multi mapping, Phase 0 contract collapse, then renderer/grouping parity.
 todos:
   - id: collapse-three-values
-    content: "Remove legacy density values (compact-shells, compact-grouped, verbose, minimal): narrow ConversationDensity to the three USER_CONVERSATION_DENSITY_VALUES, simplify conversation-density.ts predicates, one-time migrate persisted settings on read"
-    status: pending
+    content: "Phase 0: narrow ConversationDensity to 3 values; migrate at decode/hydrate + write-back (settings.ts, desktop-client-settings.ts, use-settings.ts); simplify predicates"
+    status: completed
+  - id: compact-shell-expand
+    content: "Phase 3: Balanced/Compact shells need accordion expand to full output (today text-only ToolCallLine with no expand path)"
+    status: completed
+  - id: pending-approval-parity
+    content: "Wire approval to tool-message.tsx; break groups on pending in deriveTimelineRenderItems; add integration tests"
+    status: completed
+  - id: header-explored-label
+    content: "Phase 4: completed header uses summary.action (Explored/Edited) not generic Worked for; running header shows segment details"
+    status: completed
   - id: doc-entry-points
     content: Add Cursor/Multi entry-point map to packages/app/ARCHITECTURE.md (Layer 0-6 with symbol equivalents)
-    status: pending
+    status: completed
   - id: predicate-parity
     content: Align conversation-density.ts predicates (pqb activity mode, yAm cross-type mixing) and extend timeline-render-items.test.ts matrix
-    status: pending
+    status: completed
   - id: tool-renderer-parity
     content: "Implement XJr/kRm parity in tool-renderer.tsx: detailed card vs compact line, 5-line shell preview, pending override, CSS in tool-call.css"
-    status: pending
+    status: completed
   - id: group-chrome-parity
-    content: "GroupedStepsRenderer: file stats header, preview max-height 144px, autoScrollToBottom during loading in step-renderer.tsx"
-    status: pending
+    content: "Phase 4: running header stats/segments; loading-gated scroll; 144px strip already shipped — polish header parity only"
+    status: completed
   - id: settings-preview
     content: Mount ToolCallDensityPreview in appearance-settings-panel.tsx below slider
-    status: pending
+    status: completed
   - id: tray-renderStep
-    content: Wire renderStep through tool-message.tsx; remove SubagentActivityLine tool fallback in subagent-tray.tsx
-    status: pending
+    content: "Phase 6: restore taskToolCall ToolCallRenderer path; wire renderStep; narrow SubagentActivityLine fallbacks per inventory"
+    status: completed
 isProject: false
 ---
 
@@ -34,11 +43,13 @@ This plan turns the reverse-engineered Cursor research into an actionable parity
 
 **Product decision (locked):** Multi supports exactly **three** density values — the same stops as the settings slider. No legacy modes.
 
-| Slider label | Stored value | Behavior |
-|--------------|--------------|----------|
-| Detailed (right) | `detailed` | Full edit/shell cards; no grouping |
-| Balanced (middle) | `compact-ungrouped` | Compact edit/shell lines; no grouping |
-| Compact (left) | `compact-all-grouped` | Compact edit/shell lines; grouped runs |
+
+| Slider label      | Stored value          | Behavior                               |
+| ----------------- | --------------------- | -------------------------------------- |
+| Detailed (right)  | `detailed`            | Full edit/shell cards; no grouping     |
+| Balanced (middle) | `compact-ungrouped`   | Compact edit/shell lines; no grouping  |
+| Compact (left)    | `compact-all-grouped` | Compact edit/shell lines; grouped runs |
+
 
 **Removed from Multi:** `compact-shells`, `compact-grouped`, `verbose`, `minimal`. Cursor still has these internally (`XBn` aliases, 5-stop `G8i`); we mirror only the **current 3-stop user-facing behavior**, not Cursor's legacy enum.
 
@@ -196,13 +207,13 @@ NAm(steps, options)
 **Density predicates (decision layer):**
 
 
-| Predicate           | Meaning                                                               |
-| ------------------- | --------------------------------------------------------------------- |
-| `R6r(d)`            | `d !== "detailed"` → compact shells (`kRm` gets `compact: true`)      |
-| `I6r(d)` / `vQp(d)` | compact edits (`compact-ungrouped` and `compact-all-grouped`)           |
-| `Wot(d)` / `Hot(d)` | group edits/shells only for `compact-all-grouped`                     |
-| `yAm(d)` / `_Am(d)` | mix edits + shells in same group only for `compact-all-grouped`       |
-| `pqb(d)`            | activity lane `"all"` (Compact) vs `"lane"` (Detailed/Balanced)       |
+| Predicate           | Meaning                                                          |
+| ------------------- | ---------------------------------------------------------------- |
+| `R6r(d)`            | `d !== "detailed"` → compact shells (`kRm` gets `compact: true`) |
+| `I6r(d)` / `vQp(d)` | compact edits (`compact-ungrouped` and `compact-all-grouped`)    |
+| `Wot(d)` / `Hot(d)` | group edits/shells only for `compact-all-grouped`                |
+| `yAm(d)` / `_Am(d)` | mix edits + shells in same group only for `compact-all-grouped`  |
+| `pqb(d)`            | activity lane `"all"` (Compact) vs `"lane"` (Detailed/Balanced)  |
 
 
 **Pending approval override:** `MRm` forces `"detailed"` for edit/delete when `approval.status === "pending"`; shells force card path when pending.
@@ -271,17 +282,108 @@ flowchart TD
 
 ---
 
+## Preview windows (included)
+
+The plan covers **four preview surfaces**. Cursor uses density to decide which appear collapsed vs only on expand.
+
+| Preview | Cursor (`XJr` / `kRm` / `A4b`) | Densities | Multi today | Plan phase |
+|---------|--------------------------------|-----------|-------------|------------|
+| **Edit diff preview** | Collapsed `Bef` inline diff inside card; chevron expands to full diff | Detailed only (Balanced/Compact: line until expand) | `showCollapsedPreview` + `InlineToolDiff` in `tool-renderer.tsx` | Phase 3 |
+| **Shell output preview** | `ui-shell-tool-call__output-preview` — ~5 lines, clipped; expand → full scroll | Detailed card only; Balanced/Compact use compact line, output on accordion expand | `STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX` (90px today) + `data-shell-tool-call-output-preview` | Phase 3 — align line count + max-height with Cursor |
+| **Grouped run preview strip** | `ui-step-group-preview` — grouped step tail, max **144px**, `autoScrollToBottom` while loading | Compact collapsed groups (any running group with preview steps) | `WorkGroupPreview` — **144px + scroll-follow already shipped**; gaps: running header stats, loading-gated scroll semantics | Phase 4 — header polish, not strip infra |
+| **Settings live preview** | `ATA` slider shows sample edit + shell at selected density | All three stops | `ToolCallDensityPreview` built + tested but **not mounted** in appearance panel | Phase 5 |
+
+**Explicitly out of scope (density-agnostic, no change):** read/grep/glob line renderers and hover file lists (`pO` / `q5t`) — same at all three densities.
+
+### Group header → preview hierarchy (Exploring / Thinking)
+
+Collapsed Compact groups have **two layers**: a summary header (`A4b` / `WorkGroupHeaderButton`) and an optional live preview strip (`WorkGroupPreview`). Your mental model is right: an **Exploring** group can contain **thinking** steps inside its preview.
+
+```text
+deriveTimelineRenderItems(entries, density)
+  flush grouped run → GroupedSteps {
+    steps[], summary, isThinkingGroup, isCommandGroup, isRunning, ...
+  }
+
+render GroupedStepsRenderer(row, expanded=false, isRunning=true)
+  │
+  ├─ WorkGroupHeaderButton(summary)
+  │    if isThinkingGroup:
+  │      running  → "Thinking"                    // Cursor: thinking-only group
+  │      complete → "Thought for {duration}"
+  │    else if explorationSegments or explore tools:
+  │      running  → "Exploring" only (details NOT in header today — gap)
+  │      complete → summary says "Explored" BUT header shows "Worked for {duration}" (gap)
+  │    else if edits:
+  │      running  → "Editing" · "{file stats}"
+  │    else:
+  │      running  → "Exploring" | command summary // fallback
+  │      complete → "Worked for {duration}" · "{details}"
+  │
+  └─ if isRunning && !expanded && previewStepCount > 0:
+       WorkGroupPreview(row.steps)
+         previewSteps = ALL eligible steps (not tail slice); scroll pins to bottom
+           runtime-thinking  → include if thinking text non-empty
+                                render: RuntimeThinkingStepRenderer (tertiary ChatMarkdown, NOT shimmer)
+           runtime-tool/work → StepRenderer → ToolCallRenderer (density from hook)
+           assistant message → include only if isShortPlainText (≤100 chars, ≤2 lines)
+           tool.summary meta  → exclude
+         lastRunningShellOrEdit = tail shell/edit with output while running
+         for step in previewSteps:
+           WorkGroupPreviewStep(step)
+             render step line
+             if step == lastRunningShellOrEdit:
+               CompactToolOutputStrip(output, loading)  // max 90px (5×18px)
+         scrollHost.scrollTop = scrollHeight on layout + ResizeObserver
+         maxHeight = 144px (WORK_GROUP_PREVIEW_PX — already in conversation.css)
+         header shimmer (data-group-loading) applies to header only, not thinking in strip
+```
+
+**Density interaction with Exploring groups:**
+
+```text
+shouldCollapseGroupedRun(steps, density):
+  if allThinking(steps):
+    return shouldGroupUnifiedSteps(steps)   // thinking-only groups at any density
+  if !shouldGroupToolCalls(density):        // detailed + balanced
+    return false                              // NO explore/shell/edit collapse today
+  // compact-all-grouped only below:
+  exploreOnly = !hasThinking && every(step is explore OR short narration)
+  minSize = exploreOnly ? max(1, 3) : 1       // runtime explore-only needs 3 reads
+  // work-log explore-only groups at 2 (timelineMinGroupSize) — runtime/work split
+  // shell/edit work groups: timelineMinGroupSize(density) => 2 at compact
+
+isPreviewableWorkGroupStep(step):
+  // Preview content is NOT density-gated — density gates whether the group exists collapsed
+  thinking  → previewable if text present
+  tools     → previewable (compact/detailed rendering comes from ToolCallRenderer + density)
+  long text → not previewable (released to standalone row)
+```
+
+**Cursor equivalents:** `summarizeGroupedRun` action selection (`Exploring`/`Explored`), `isThinkingGroup` all-thinking runs, `A4b` preview children via `eif` → `renderStep`, `zIb` merge rules keeping thinking before tools in same group.
+
+**Multi files:** [`timeline-render-items.ts`](packages/app/src/components/chat/timeline/timeline-render-items.ts) (`formatExploringSummary`, `isPreviewableWorkGroupStep`, `RUNTIME_EXPLORE_ONLY_MIN_GROUP_SIZE`), [`step-renderer.tsx`](packages/app/src/components/chat/timeline/step-renderer.tsx) (`GroupedStepsRenderer`, `WorkGroupPreview`, `WorkGroupPreviewStep`).
+
+**Preview rules by density (implementation checklist):**
+
+- **Detailed:** edit card shows collapsed diff preview; shell card shows clipped output window before expand
+- **Balanced / Compact:** no inline edit diff or shell output until user expands (chevron-right → full body)
+- **Compact grouped:** collapsed group header shows `WorkGroupPreview` tail strip with auto-scroll during active run
+- **Pending approval:** always detailed card previews (no compact/minimal path)
+
+---
+
 ## Multi entry point chain (implementation target)
 
 ### Layer 0 — Constants and storage
 
 
-| Cursor       | Multi equivalent                                                                                                                                        |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HFr`        | `[packages/contracts/src/settings.ts](packages/contracts/src/settings.ts)` — `conversationDensity` (three values only)                                  |
-| `XBn`        | **Removed** — no legacy alias layer; one-time migration in `normalizeConversationDensity` or settings decode                                            |
-| Valid values | `USER_CONVERSATION_DENSITY_VALUES`: `detailed`, `compact-ungrouped`, `compact-all-grouped`                                                              |
-| Feature flag | **Not implemented** — Multi always exposes slider and always applies stored density                                                                     |
+| Cursor       | Multi equivalent                                                                                                       |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `HFr`        | `[packages/contracts/src/settings.ts](packages/contracts/src/settings.ts)` — `conversationDensity` (three values only) |
+| `XBn`        | **Removed** — no legacy alias layer; one-time migration in `normalizeConversationDensity` or settings decode           |
+| Valid values | `USER_CONVERSATION_DENSITY_VALUES`: `detailed`, `compact-ungrouped`, `compact-all-grouped`                             |
+| Feature flag | **Not implemented** — Multi always exposes slider and always applies stored density                                    |
 
 
 ---
@@ -419,11 +521,11 @@ StepRenderer → WorkStepRenderer / RuntimeToolStepRenderer
 | Transcript rows  | `aof`                          | `projectThreadTimeline` (agnostic) + `deriveTimelineRenderItems` | OK split                               |
 | Activity lane    | `pqb`                          | `shouldGroupToolCalls` + grouping in `timeline-render-items.ts`  | Verify `pqb` "all" vs "lane"           |
 | Step grouping    | `NAm`                          | `deriveTimelineRenderItems`                                      | Partial (cross-type mixing, min sizes) |
-| Group UI         | `A4b` / `LRm`                  | `GroupedStepsRenderer`                                           | Partial (preview scroll, stats header) |
+| Group UI         | `A4b` / `LRm`                  | `GroupedStepsRenderer`                                           | Partial (preview strip done; header labels/stats) |
 | Tool router      | `MRm`                          | `ToolCallRenderer`                                               | Partial                                |
 | Edit UI          | `XJr`                          | `editToolCall` branch in `tool-renderer.tsx`                     | Partial (minimal vs card)              |
 | Shell UI         | `kRm`                          | `shellToolCall` branch in `tool-renderer.tsx`                    | Partial (5-line preview detailed-only) |
-| Pending override | `MRm` pending→detailed         | `resolveEffectiveToolCallDensity`                                | OK                                     |
+| Pending override | `MRm` pending→detailed         | `resolveEffectiveToolCallDensity` exists; **not wired** from timeline | **Gap** — helper only, no `approval` prop |
 
 
 ---
@@ -434,13 +536,13 @@ StepRenderer → WorkStepRenderer / RuntimeToolStepRenderer
 
 **Goal:** One enum, one slider, one predicate surface. No `compact-shells`, `compact-grouped`, `verbose`, or `minimal` anywhere in runtime code.
 
-**Contracts** — [`packages/contracts/src/settings.ts`](packages/contracts/src/settings.ts):
+**Contracts** — `[packages/contracts/src/settings.ts](packages/contracts/src/settings.ts)`:
 
 - Set `ConversationDensity` = `UserConversationDensity` (the three literals only)
 - Remove `compact-shells` and `compact-grouped` from `ConversationDensity` schema
 - `DEFAULT_CONVERSATION_DENSITY` stays `compact-all-grouped`
 
-**Shared predicates** — [`packages/shared/src/conversation-density.ts`](packages/shared/src/conversation-density.ts):
+**Shared predicates** — `[packages/shared/src/conversation-density.ts](packages/shared/src/conversation-density.ts)`:
 
 - `normalizeConversationDensity`: accept only the three values at runtime; on read, map any persisted legacy value once:
   - `verbose`, `detailed` → `detailed`
@@ -452,11 +554,11 @@ StepRenderer → WorkStepRenderer / RuntimeToolStepRenderer
   - `shouldGroupEdits` / `shouldGroupShells` / `shouldGroupToolCalls` → true only for `compact-all-grouped`
   - `shouldUseCompactEdits` / `shouldUseCompactShells` → true for `compact-ungrouped` and `compact-all-grouped`
 
-**Persistence migration** — [`packages/app/src/hooks/use-settings.ts`](packages/app/src/hooks/use-settings.ts) or client-settings decode:
+**Persistence migration** — `[packages/app/src/hooks/use-settings.ts](packages/app/src/hooks/use-settings.ts)` or client-settings decode:
 
 - When loading settings, if `conversationDensity` is a legacy value, normalize and **write back** the canonical three-value form so disk state converges
 
-**Tests** — [`packages/shared/test/conversation-density.test.ts`](packages/shared/test/conversation-density.test.ts):
+**Tests** — `[packages/shared/test/conversation-density.test.ts](packages/shared/test/conversation-density.test.ts)`:
 
 - Replace legacy-alias assertions with migration tests (legacy in → canonical out)
 - Assert predicates only for the three values
@@ -481,8 +583,9 @@ Align with Cursor predicates:
 
 - Add `shouldMixEditAndShellGroups(density)` for `compact-all-grouped` only (`yAm`/`_Am`)
 - Add `activityGroupingMode(density)` → `"all"` | `"lane"` (`pqb`)
-- Confirm `timelineMinGroupSize`: Compact uses `minGroupSize: 2` for shell/edit groups; exploration tools keep min 3 at Detailed/Balanced
-- Ensure pending-approval steps **break groups** (Cursor `zIb` guard)
+- Wire `timelineMinGroupSize(2)` into `shouldGroupUnifiedSteps` for compact runtime shell/edit pairs (today only work-log path uses it)
+- **Cursor parity decision:** explore ≥3 at Detailed/Balanced — Multi **does not** do this today (`shouldGroupToolCalls` gate). Document as intentional divergence OR add explicit subtask to change behavior + tests
+- Pending approval: wire `approval` prop `tool-message.tsx` → `ToolCallRenderer`; add `zIb`-style break in grouping loop; correlate `PendingApproval` to tool rows
 
 **Tests:** Extend `[timeline-render-items.test.ts](packages/app/src/components/chat/timeline/timeline-render-items.test.ts)` with matrix cases for all three user-facing densities.
 
@@ -500,7 +603,13 @@ Align with Cursor predicates:
 | Pending     | Always detailed card path                                                       | Same override                                                              |
 
 
-**CSS:** Match Cursor selectors in `[tool-call.css](packages/app/src/styles/tool-call.css)` — preview max-height 144px, `autoScrollToBottom` gated on `loading`.
+**Preview windows (Phase 3 detail):**
+
+- Edit: `showCollapsedPreview` + `InlineToolDiff` only when `effectiveDensity === "detailed"` and not expanded
+- Shell: 5-line clipped output in detailed card (`data-shell-tool-call-output-preview`); reconcile `STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX` (90 today) with Cursor line-height math
+- Expand: full scroll body on chevron; `autoScrollToBottom` while `loading` on detailed shell card
+
+**CSS:** `[tool-call.css](packages/app/src/styles/tool-call.css)` — shell/edit preview clipping; group strip max-height 144px in Phase 4
 
 ---
 
@@ -508,9 +617,12 @@ Align with Cursor predicates:
 
 **Target:** `[step-renderer.tsx](packages/app/src/components/chat/timeline/step-renderer.tsx)`
 
-- Group header: action + file stats (additions/deletions) in Compact
-- Collapsed preview strip: `WorkGroupPreview` with max-height + auto-scroll during active run
-- Running group tail behavior: match Cursor `ui-step-group-preview` scroll-follow
+**Already shipped:** 144px preview cap (`WORK_GROUP_PREVIEW_PX`), `conversation.css` `[data-work-group-preview]`, scroll-to-bottom, 90px nested output strip.
+
+**Remaining:**
+- Completed header: use `summary.action` (`Explored`, `Edited`, `Deleted`) instead of generic `"Worked for {duration}"`
+- Running header: show `summary.details` segments + `WorkGroupStats` while loading (today details only when complete)
+- Loading-gated auto-scroll semantics (today scrolls on any ResizeObserver tick while running)
 
 ---
 
@@ -527,9 +639,12 @@ Align with Cursor predicates:
 
 **Target:** `[tool-message.tsx](packages/app/src/components/chat/message/tool-message.tsx)`, `[subagent-tray.tsx](packages/app/src/components/chat/composer/subagents/subagent-tray.tsx)`
 
-- Wire `renderStep` from `StepRenderer` into `ToolCallRenderer` for `taskToolCall`
-- Remove `SubagentActivityLine` fallback for tool rows; route through `StepRenderer` → `ToolCallRenderer` with same density
-- Cross-reference existing tray work in `[.cursor/plans/subagent-ui-parity-remediation.md](.cursor/plans/subagent-ui-parity-remediation.md)`
+- Restore `RuntimeSubagentTaskMessage` → `ToolCallRenderer` for `taskToolCall` (today only `SubagentStatusSurface`, no density path)
+- Wire `renderStep` from `StepRenderer` into `ToolCallRenderer` for nested subagent transcripts
+- Tray fallback inventory (do not blanket-delete):
+  - `StepRenderer` path for command/tool items — **keep** (already uses density)
+  - `SubagentActivityLine` for running logs / unknown kinds — replace or narrow per subagent remediation plan
+- Cross-reference `[.cursor/plans/subagent-ui-parity-remediation.md](.cursor/plans/subagent-ui-parity-remediation.md)`
 
 ---
 
@@ -558,10 +673,28 @@ flowchart TD
 
 ---
 
+## Council verification (10 subagents, 2026-06-10)
+
+| # | Topic | Verdict | Action for plan |
+|---|-------|---------|-----------------|
+| 1 | Exploring/Thinking header labels | Exploring running OK; **Explored** wrong (shows "Worked for"); Thinking/Thought OK | Phase 4 header fix |
+| 2 | Thinking inside Exploring preview | **CONFIRMED** — `isPreviewableWorkGroupStep` + `RuntimeThinkingStepRenderer` | Pseudocode updated |
+| 3 | Phase 0 three-value collapse | Feasible; **decode-before-narrow** required | Phase 0 expanded |
+| 4 | Grouping predicates | Explore min-3 compact-only; cross-type OK; `pqb`/`yAm` not explicit | Fix pseudo-code; drop or map `activityGroupingMode` |
+| 5 | Edit/shell previews | Detailed OK; **compact shell has no expand** | New todo `compact-shell-expand` |
+| 6 | Group preview strip | **144px already shipped** | Phase 4 reframed |
+| 7 | Entry point chain | Mostly accurate; fix Layer 3 consumer count, exploration matrix | Doc fixes applied |
+| 8 | Exploration density matrix | Detailed/Balanced **never** group explores | Removed wrong plan claims |
+| 9 | Pending approval | Helper exists; **not wired**; no group break | New todo `pending-approval-parity` |
+| 10 | Holistic completeness | Subagent task bypass, test matrix gaps, tray fallback inventory | Phase 6 expanded |
+
+---
+
 ## Open decisions (resolve before Phase 2)
 
 1. **Feature flag:** Should Multi gate the density setting behind `conversation_density_setting` (flag off → always `detailed`), or always honor stored value?
 2. **Context provider:** Introduce `AgentConversationProvider` equivalent to dedupe subscriptions, or keep hook+prop pattern?
+3. **Explore grouping at Detailed/Balanced:** Cursor council said ≥3; Multi never groups explores unless Compact. Intentional divergence or parity gap to fix?
 
 **Resolved:** Legacy density modes removed. Multi uses only `detailed`, `compact-ungrouped`, `compact-all-grouped`.
 
@@ -570,7 +703,11 @@ flowchart TD
 ## Verification checklist
 
 - [ ] `ConversationDensity` type has exactly three values; no legacy literals in schema
-- [ ] Persisted legacy values migrate to canonical three on load
+- [ ] Persisted legacy values migrate at decode/hydrate and write back canonical form
+- [ ] Completed group header shows `Explored`/`Edited` not `Worked for`
+- [ ] Thinking steps render inside Exploring group preview strip
+- [ ] Compact shell expands to full output on chevron (not terminal one-liner)
+- [ ] Pending approval forces detailed cards and breaks groups
 - [ ] Settings slider writes/read round-trip via `setClientSettings` IPC
 - [ ] `deriveTimelineRenderItems` tests cover Detailed / Balanced / Compact grouping matrix
 - [ ] `ToolCallRenderer` tests or snapshot for edit/shell at each density + pending override

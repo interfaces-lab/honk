@@ -16,7 +16,7 @@ describe("ToolCallDensityPreview", () => {
 
     expect(compact).toContain('data-density-preview="combined"');
     expect(compact).toContain("data-work-group-header");
-    expect(compact).toContain("Worked for briefly");
+    expect(compact).toContain("Explored");
     expect(compact).toContain("2 files, ran 2 commands");
 
     expect(balanced).toContain('data-density-preview="rows"');

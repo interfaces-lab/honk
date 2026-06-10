@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import * as Schema from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 import { TrimmedNonEmptyString, TrimmedString } from "./base-schemas";
 import { ModelOptionSelections } from "./model";
 import { ModelSelection, ModelSelectionInstanceId } from "./orchestration";
@@ -48,21 +49,47 @@ export const AgentWindowUsageSummaryDisplay = Schema.Literals(["auto", "always",
 export type AgentWindowUsageSummaryDisplay = typeof AgentWindowUsageSummaryDisplay.Type;
 export const DEFAULT_AGENT_WINDOW_USAGE_SUMMARY_DISPLAY: AgentWindowUsageSummaryDisplay = "auto";
 
-export const ConversationDensity = Schema.Literals([
-  "detailed",
-  "compact-shells",
-  "compact-ungrouped",
-  "compact-grouped",
-  "compact-all-grouped",
-]);
-export type ConversationDensity = typeof ConversationDensity.Type;
-
 export const USER_CONVERSATION_DENSITY_VALUES = [
   "detailed",
   "compact-ungrouped",
   "compact-all-grouped",
-] as const satisfies readonly ConversationDensity[];
-export type UserConversationDensity = (typeof USER_CONVERSATION_DENSITY_VALUES)[number];
+] as const;
+export type ConversationDensity = (typeof USER_CONVERSATION_DENSITY_VALUES)[number];
+
+const LEGACY_CONVERSATION_DENSITY_VALUES = [
+  "verbose",
+  "minimal",
+  "compact-shells",
+  "compact-grouped",
+] as const;
+
+// Exactly three densities exist at runtime (the settings slider stops). Historical stored
+// values migrate at decode; encode only ever writes canonical values, so persisted settings
+// converge on the next write.
+export const ConversationDensity = Schema.Literals([
+  ...USER_CONVERSATION_DENSITY_VALUES,
+  ...LEGACY_CONVERSATION_DENSITY_VALUES,
+]).pipe(
+  Schema.decodeTo(
+    Schema.Literals([...USER_CONVERSATION_DENSITY_VALUES]),
+    SchemaTransformation.transform({
+      decode: (value): ConversationDensity => {
+        switch (value) {
+          case "verbose":
+            return "detailed";
+          case "compact-shells":
+            return "compact-ungrouped";
+          case "minimal":
+          case "compact-grouped":
+            return "compact-all-grouped";
+          default:
+            return value;
+        }
+      },
+      encode: (value) => value,
+    }),
+  ),
+);
 
 export const DEFAULT_CONVERSATION_DENSITY: ConversationDensity = "compact-all-grouped";
 

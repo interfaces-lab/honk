@@ -38,7 +38,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor-preferences";
 import {
-  DIFF_THEME_NAMES,
+  CURSOR_DARK_THEME,
+  CURSOR_LIGHT_THEME,
   resolveDiffThemeName,
   type DiffThemeName,
 } from "../../../lib/diff-rendering";
@@ -1349,7 +1350,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
           mode={isStreaming ? "streaming" : "static"}
           parseIncompleteMarkdown={isStreaming}
           components={CHAT_MARKDOWN_COMPONENTS}
-          shikiTheme={[DIFF_THEME_NAMES.light, DIFF_THEME_NAMES.dark]}
+          shikiTheme={[CURSOR_LIGHT_THEME, CURSOR_DARK_THEME]}
           urlTransform={markdownUrlTransform}
           animated={false}
           controls={false}

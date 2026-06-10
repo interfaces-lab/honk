@@ -1,5 +1,4 @@
 import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
-import { toUserConversationDensity } from "@multi/shared/conversation-density";
 import { Button } from "@multi/multikit/button";
 import {
   Select,
@@ -22,7 +21,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../settings-layout";
-import { ToolCallDensitySlider } from "../tool-call-density-control";
+import { ToolCallDensityPreview, ToolCallDensitySlider } from "../tool-call-density-control";
 import {
   AppearanceTintSlider,
   CodeFontFamilySettingsRow,
@@ -264,13 +263,14 @@ export function AppearanceSettingsPanel() {
           }
           control={
             <ToolCallDensitySlider
-              value={toUserConversationDensity(settings.conversationDensity)}
+              value={settings.conversationDensity}
               onChange={(value) => {
                 void updateSettings({ conversationDensity: value });
               }}
             />
           }
         />
+        <ToolCallDensityPreview density={settings.conversationDensity} />
       </SettingsSection>
     </SettingsPageContainer>
   );

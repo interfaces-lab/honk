@@ -52,3 +52,39 @@ flowchart LR
 - active turn state for waiting-row eligibility
 
 Output: ordered `TimelineEntry[]` with stable ids (`message:${MessageId}`).
+
+## Tool Call Density Entry-Point Map
+
+Multi supports exactly three densities (`detailed`, `compact-ungrouped` = Balanced,
+`compact-all-grouped` = Compact). Legacy stored values migrate inside the
+`ConversationDensity` schema at decode; runtime code never sees them. Cursor symbol
+equivalents (from `workbench.desktop.main.js`) are listed so reverse-engineering lands in
+the right layer.
+
+| Layer              | Cursor symbol            | Multi file / symbol                                                          |
+| ------------------ | ------------------------ | ---------------------------------------------------------------------------- |
+| Storage + migrate  | `HFr` key, `XBn` aliases | `contracts/settings.ts` `ConversationDensity` (decode-time legacy migration) |
+| Settings UI        | `ETA` + `ATA` slider     | `settings/appearance/appearance-settings-panel.tsx` + `tool-call-density-control.tsx` (slider + live preview) |
+| Config read        | `f4o` / `GMS` / `Cjt`    | `hooks/use-settings.ts` → `hooks/use-conversation-density.ts`                |
+| Distribution       | `F5r` / `SCe` context    | hook + prop (`messages-timeline.tsx`, `tool-message.tsx`) — no provider      |
+| Transcript rows    | `aof` + `pqb`/`cof`      | `thread-timeline-projector.ts` (density-agnostic) → `timeline-render-items.ts` `deriveTimelineRenderItems` (density-aware) |
+| Step grouping      | `NAm` + `Wot`/`Hot`      | `deriveTimelineRenderItems` + `@multi/shared/conversation-density` predicates |
+| Group chrome       | `A4b` / `LRm`            | `timeline/step-renderer.tsx` `GroupedStepsRenderer` (header verb + `WorkGroupPreview` 144px strip) |
+| Tool router        | `MRm`                    | `message/tool-renderer.tsx` `ToolCallRenderer`                               |
+| Edit UI            | `XJr`                    | `EditToolCall` (detailed card + collapsed diff; compact minimal line)        |
+| Shell UI           | `kRm`                    | `ShellToolCall` detailed card; compact = `ExpandableToolMetadataLine` accordion |
+| Subagent task      | `O4b`                    | `taskToolCall` branch (`TaskToolCall`); nested transcript lives in the subagent tray, not inline |
+
+Grouping boundaries are user-visible entries only (user messages, extension UI requests,
+transcript-scale assistant text). Orchestration turn ids are ignored: runtime-driven
+continuations (GitAction flows, `ask_user` resumes) mint a new turn id per segment inside
+one visible run.
+
+Known divergences from Cursor (deliberate):
+
+- No feature flag — the stored density always applies.
+- Pending approval → detailed-card override exists in `ToolCallRenderer`
+  (`resolveEffectiveToolCallDensity`), but approvals carry no `toolCallId` in
+  `ApprovalRequestedActivityPayload`, so timeline rows and grouping cannot correlate to
+  approvals; approvals surface in the composer panel instead.
+- Density is hook-per-consumer, not a React context provider.

@@ -171,57 +171,6 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   );
 });
 
-export const RuntimeSubagentTaskMessage = memo(function RuntimeSubagentTaskMessage({
-  tool,
-  projectRoot,
-  activeThreadId,
-  environmentId,
-  subagentDetailsEnabled = true,
-}: {
-  tool: RuntimeDisplayTimelineToolItem;
-  projectRoot?: string | undefined;
-  activeThreadId: ThreadId;
-  environmentId: EnvironmentId;
-  subagentDetailsEnabled?: boolean | undefined;
-}) {
-  const status = resolveRuntimeToolStatus(tool);
-  const subagents = useMemo(() => runtimeToolDisplayToSubagents(tool.display), [tool.display]);
-
-  if (subagents.length === 0) {
-    return (
-      <RuntimeToolCallMessage
-        tool={tool}
-        projectRoot={projectRoot}
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        subagentDetailsEnabled={subagentDetailsEnabled}
-      />
-    );
-  }
-
-  return (
-    <div
-      className="flex w-full min-w-0 max-w-full flex-col gap-1"
-      data-runtime-task=""
-      data-runtime-task-kind="subagent"
-      data-runtime-tool-call=""
-      data-runtime-tool-name={tool.toolName}
-      data-tool-call-id={tool.toolCallId}
-      data-tool-status={status}
-      data-tool-has-error={status === "error" ? "true" : undefined}
-    >
-      <SubagentStatusSurface
-        activeThreadId={activeThreadId}
-        embeddedInTask
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        subagentDetailsEnabled={subagentDetailsEnabled}
-        subagents={subagents}
-      />
-    </div>
-  );
-});
-
 export function RuntimeExtensionUiRequestMessage({
   request,
 }: {

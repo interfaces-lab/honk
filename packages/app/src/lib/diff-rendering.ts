@@ -8,7 +8,7 @@ export const DIFF_THEME_NAMES = {
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];
 type CustomDiffThemeRegistration = Awaited<ReturnType<Parameters<typeof registerCustomTheme>[1]>>;
 
-const CURSOR_DARK_THEME = {
+export const CURSOR_DARK_THEME = {
   name: DIFF_THEME_NAMES.dark,
   type: "dark",
   colors: {
@@ -170,7 +170,7 @@ const CURSOR_DARK_THEME = {
   ],
 } as const satisfies CustomDiffThemeRegistration;
 
-const CURSOR_LIGHT_THEME = {
+export const CURSOR_LIGHT_THEME = {
   name: DIFF_THEME_NAMES.light,
   type: "light",
   colors: {
