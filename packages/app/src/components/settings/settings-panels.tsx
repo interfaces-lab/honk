@@ -92,7 +92,10 @@ import {
   AGENT_THINKING_LEVEL_LABELS,
   AGENT_THINKING_LEVEL_OPTIONS,
   agentModeSupportsThinkingLevelSelection,
+  deriveAgentModeAvailability,
   normalizedConfigurableThinkingLevel,
+  unavailableAgentModeReason,
+  type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
 import {
@@ -866,6 +869,7 @@ function findCredentialAuthStatus(
     authStatuses.find(
       (status) =>
         status.authProviderId === credential.authProviderId &&
+        (status.credentialKind === credential.kind || status.credentialKind === null) &&
         (status.accountId === credential.accountId ||
           status.accountId === null ||
           credential.accountId === null),
@@ -877,7 +881,14 @@ function findCredentialAuthFlow(
   credential: AgentCredentialPreference,
   authFlows: readonly AgentCredentialAuthFlow[],
 ): AgentCredentialAuthFlow | null {
-  return authFlows.find((flow) => flow.authProviderId === credential.authProviderId) ?? null;
+  return (
+    authFlows.find(
+      (flow) =>
+        flow.authProviderId === credential.authProviderId &&
+        (flow.credentialKind === credential.kind ||
+          (flow.credentialKind === null && isOAuthCredential(credential))),
+    ) ?? null
+  );
 }
 
 function describeCredentialState(status: AgentAuthStatus | null): string {
@@ -928,53 +939,36 @@ function resolveCredentialActionLabel(
   credential: AgentCredentialPreference,
   status: AgentAuthStatus | null,
 ): string {
-  if (credential.kind === "codex-oauth") {
+  if (isOAuthCredential(credential)) {
     return status?.state === "available" ? "Reauthorize" : "Login";
   }
   return status?.state === "available" ? "Update key" : "Add key";
 }
 
+function isOAuthCredential(credential: AgentCredentialPreference): boolean {
+  return credential.kind === "claude-oauth" || credential.kind === "codex-oauth";
+}
+
 function isApiKeyCredential(credential: AgentCredentialPreference): boolean {
-  return credential.kind !== "codex-oauth";
+  return !isOAuthCredential(credential);
 }
 
-function isAnthropicCredentialAvailable(authStatuses: readonly AgentAuthStatus[]): boolean {
-  return authStatuses.some(
-    (status) => status.authProviderId === "anthropic" && status.state === "available",
-  );
-}
+function CredentialKindIcon({
+  kind,
+  className,
+}: {
+  kind: AgentCredentialKind;
+  className?: string;
+}) {
+  const Icon = kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
 
-function isCodexCredentialAvailable(authStatuses: readonly AgentAuthStatus[]): boolean {
-  return authStatuses.some(
-    (status) =>
-      (status.authProviderId === "openai-codex" || status.authProviderId === "openai") &&
-      status.state === "available",
-  );
+  return <Icon className={className} aria-hidden />;
 }
 
 function AgentModeIcon({ mode, className }: { mode: AgentMode; className?: string }) {
   const Icon = mode === "smart" ? IconClawd : IconOpenaiCodex;
 
   return <Icon className={className} aria-hidden />;
-}
-
-function isAgentModeAvailable(
-  mode: AgentMode,
-  availability: { anthropic: boolean; codex: boolean },
-): boolean {
-  return mode === "smart" ? availability.anthropic : availability.codex;
-}
-
-function unavailableAgentModeReason(
-  mode: AgentMode,
-  availability: { anthropic: boolean; codex: boolean },
-): string | null {
-  if (isAgentModeAvailable(mode, availability)) {
-    return null;
-  }
-  return mode === "smart"
-    ? "Requires a Claude API Key in Pi auth storage."
-    : "Requires Codex OAuth or a Codex API Key in Pi auth storage.";
 }
 
 function AgentModeSelector({
@@ -984,7 +978,7 @@ function AgentModeSelector({
   onSelectMode,
 }: {
   activeMode: AgentMode;
-  availability: { anthropic: boolean; codex: boolean };
+  availability: AgentModeAvailability;
   disabled: boolean;
   onSelectMode: (mode: AgentMode) => void;
 }) {
@@ -1107,7 +1101,7 @@ function AgentModeInlineSummary({
   availability,
 }: {
   mode: AgentMode;
-  availability: { anthropic: boolean; codex: boolean };
+  availability: AgentModeAvailability;
 }) {
   const details = AGENT_MODE_MODEL_DETAILS[mode];
   const unavailableReason = unavailableAgentModeReason(mode, availability);
@@ -1168,7 +1162,7 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
   };
 
   return (
-    <div className="mt-3 rounded-md border border-multi-stroke-tertiary bg-multi-bg-quaternary px-3 py-2.5">
+    <div className="mt-3 border-t border-multi-stroke-quaternary pt-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <Text render={<div />} size="sm" tone="primary" weight="medium">
@@ -1186,7 +1180,7 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
       </div>
       {flow.userCode ? (
         <div className="mt-2 flex min-w-0 items-center gap-2">
-          <code className="min-w-0 rounded border border-multi-stroke-tertiary bg-multi-bg-primary px-2 py-1 font-multi-mono text-body text-multi-fg-primary">
+          <code className="min-w-0 truncate font-multi-mono text-body tracking-wide text-multi-fg-primary">
             {flow.userCode}
           </code>
           <Button size="xs" variant="ghost" onClick={copyUserCode}>
@@ -1202,7 +1196,6 @@ function CredentialApiKeyForm({
   credential,
   disabled,
   draftValue,
-  showCancel,
   onCancel,
   onDraftChange,
   onSubmit,
@@ -1210,17 +1203,15 @@ function CredentialApiKeyForm({
   credential: AgentCredentialPreference;
   disabled: boolean;
   draftValue: string;
-  showCancel: boolean;
   onCancel: () => void;
   onDraftChange: (value: string) => void;
   onSubmit: (apiKey: string) => void;
 }) {
-  const inputId = `agent-credential-api-key-${credential.kind}`;
   const trimmedDraft = draftValue.trim();
 
   return (
     <form
-      className="mt-2"
+      className="mt-3 border-t border-multi-stroke-quaternary pt-3"
       onSubmit={(event) => {
         event.preventDefault();
         if (trimmedDraft.length > 0) {
@@ -1228,19 +1219,13 @@ function CredentialApiKeyForm({
         }
       }}
     >
-      <label
-        htmlFor={inputId}
-        className={textVariants({ size: "sm", tone: "primary", weight: "medium" })}
-      >
-        API key
-      </label>
-      <div className="mt-1.5 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
         <Input
-          id={inputId}
           type="password"
           size="sm"
           value={draftValue}
           placeholder={`Paste ${credential.label}`}
+          aria-label={`${credential.label} value`}
           autoComplete="off"
           disabled={disabled}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
@@ -1254,18 +1239,16 @@ function CredentialApiKeyForm({
         >
           {disabled ? "Saving..." : "Save key"}
         </Button>
-        {showCancel ? (
-          <Button
-            type="button"
-            size="xs"
-            variant="ghost"
-            disabled={disabled}
-            className="shrink-0"
-            onClick={onCancel}
-          >
-            Cancel
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={disabled}
+          className="shrink-0"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
       </div>
       <Text render={<p />} size="sm" tone="tertiary" className="mt-2">
         Stored in Pi auth storage. Saved keys are never displayed here.
@@ -1291,10 +1274,7 @@ export function AgentRuntimeSettingsSectionsView({
   const preferences = snapshot.preferences;
   const authStatuses = snapshot.authStatuses;
   const authFlows = snapshot.credentialAuthFlows;
-  const modelAvailability = {
-    anthropic: isAnthropicCredentialAvailable(authStatuses),
-    codex: isCodexCredentialAvailable(authStatuses),
-  };
+  const modelAvailability = deriveAgentModeAvailability(authStatuses);
   const [isSaving, setIsSaving] = useState(false);
   const [pendingCredentialKind, setPendingCredentialKind] = useState<AgentCredentialKind | null>(
     null,
@@ -1331,6 +1311,7 @@ export function AgentRuntimeSettingsSectionsView({
       const snapshot = await runtimeApi.configureCredential({
         authProviderId: credential.authProviderId,
         method: "oauth",
+        credentialKind: credential.kind,
       });
       setSnapshot(snapshot);
     } catch (error: unknown) {
@@ -1393,9 +1374,7 @@ export function AgentRuntimeSettingsSectionsView({
         delete next[credential.kind];
         return next;
       });
-      if (isApiKeyCredential(credential)) {
-        setEditingApiKeyCredentialKind(credential.kind);
-      }
+      setEditingApiKeyCredentialKind((current) => (current === credential.kind ? null : current));
     } catch (error: unknown) {
       toastManager.add({
         type: "error",
@@ -1405,6 +1384,29 @@ export function AgentRuntimeSettingsSectionsView({
     } finally {
       setPendingCredentialKind(null);
     }
+  };
+
+  const isCredentialConfigured = (credential: AgentCredentialPreference) => {
+    const status = findCredentialAuthStatus(credential, authStatuses);
+    return status !== null && status.state !== "missing" && status.state !== "unknown";
+  };
+  const visibleCredentials = preferences.credentials.filter(
+    (credential) =>
+      isCredentialConfigured(credential) ||
+      findCredentialAuthFlow(credential, authFlows) !== null ||
+      editingApiKeyCredentialKind === credential.kind ||
+      pendingCredentialKind === credential.kind,
+  );
+  const addableCredentials = preferences.credentials.filter(
+    (credential) => !visibleCredentials.includes(credential),
+  );
+
+  const startAddingCredential = (credential: AgentCredentialPreference) => {
+    if (isOAuthCredential(credential)) {
+      void configureOAuthCredential(credential);
+      return;
+    }
+    setEditingApiKeyCredentialKind(credential.kind);
   };
 
   return (
@@ -1516,25 +1518,68 @@ export function AgentRuntimeSettingsSectionsView({
         />
       </SettingsSection>
 
-      <SettingsSection title="Accounts">
-        {preferences.credentials.map((credential) => {
+      <SettingsSection
+        title="Accounts"
+        headerAction={
+          addableCredentials.length > 0 ? (
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button size="xs" variant="ghost" disabled={pendingCredentialKind !== null}>
+                    Add
+                  </Button>
+                }
+              />
+              <MenuPopup align="end">
+                {addableCredentials.map((credential) => (
+                  <MenuItem
+                    key={credential.kind}
+                    className="gap-2"
+                    onClick={() => startAddingCredential(credential)}
+                  >
+                    <CredentialKindIcon
+                      kind={credential.kind}
+                      className="size-3.5 shrink-0 text-multi-icon-secondary"
+                    />
+                    {credential.label}
+                  </MenuItem>
+                ))}
+              </MenuPopup>
+            </Menu>
+          ) : null
+        }
+      >
+        {visibleCredentials.length === 0 ? (
+          <SettingsRow
+            title="No accounts connected"
+            description="Add a Claude or Codex credential to run agents."
+          />
+        ) : null}
+        {visibleCredentials.map((credential) => {
           const status = findCredentialAuthStatus(credential, authStatuses);
           const authFlow = findCredentialAuthFlow(credential, authFlows);
           const isCredentialPending = pendingCredentialKind === credential.kind;
           const canStartCredentialAction = pendingCredentialKind === null || isCredentialPending;
           const isAvailable = status?.state === "available";
           const showApiKeyEditor =
-            isApiKeyCredential(credential) &&
-            (editingApiKeyCredentialKind === credential.kind || !isAvailable);
+            isApiKeyCredential(credential) && editingApiKeyCredentialKind === credential.kind;
           const draftValue = apiKeyDraftByKind[credential.kind] ?? "";
           return (
             <SettingsRow
               key={credential.kind}
-              title={credential.label}
+              title={
+                <span className="inline-flex items-center gap-1.5">
+                  <CredentialKindIcon
+                    kind={credential.kind}
+                    className="size-3.5 shrink-0 text-multi-icon-secondary"
+                  />
+                  {credential.label}
+                </span>
+              }
               description={describeCredentialDisplayState(status, authFlow)}
               status={resolveCredentialStatusLabel(status, authFlow)}
               control={
-                credential.kind === "codex-oauth" ? (
+                isOAuthCredential(credential) ? (
                   <>
                     <Button
                       size="xs"
@@ -1557,18 +1602,7 @@ export function AgentRuntimeSettingsSectionsView({
                       </Button>
                     ) : null}
                   </>
-                ) : showApiKeyEditor ? (
-                  isAvailable ? (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      disabled={!canStartCredentialAction}
-                      onClick={() => void removeCredential(credential)}
-                    >
-                      Remove
-                    </Button>
-                  ) : null
-                ) : (
+                ) : showApiKeyEditor ? null : (
                   <>
                     <Button
                       size="xs"
@@ -1595,7 +1629,6 @@ export function AgentRuntimeSettingsSectionsView({
                   credential={credential}
                   disabled={!canStartCredentialAction || isCredentialPending}
                   draftValue={draftValue}
-                  showCancel={isAvailable}
                   onCancel={() => {
                     setEditingApiKeyCredentialKind((current) =>
                       current === credential.kind ? null : current,
@@ -1619,28 +1652,6 @@ export function AgentRuntimeSettingsSectionsView({
             </SettingsRow>
           );
         })}
-      </SettingsSection>
-
-      <SettingsSection title="Pi session">
-        <SettingsRow
-          title="Session tree"
-          description="Runtime session trees are persisted and rendered for branch navigation."
-        />
-      </SettingsSection>
-
-      <SettingsSection title="Resources">
-        <SettingsRow
-          title="Workspace files"
-          description="Project files are available to Pi runtime tools."
-        />
-        <SettingsRow
-          title="Git"
-          description="Repository context and git operations are available in runtime sessions."
-        />
-        <SettingsRow
-          title="Terminal"
-          description="Shell-backed tools run through the desktop runtime environment."
-        />
       </SettingsSection>
     </>
   );

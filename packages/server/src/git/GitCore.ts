@@ -85,20 +85,22 @@ const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitStatusDetails>({
 });
 const isGitCommandError = Schema.is(GitCommandError);
 
-const IMAGE_FILE_EXTENSIONS = new Set([
-  "avif",
-  "bmp",
-  "gif",
-  "heic",
-  "heif",
-  "ico",
-  "jpeg",
-  "jpg",
-  "png",
-  "tif",
-  "tiff",
-  "webp",
-]);
+const IMAGE_MEDIA_TYPES_BY_EXTENSION: Record<string, string> = {
+  avif: "image/avif",
+  bmp: "image/bmp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+  ico: "image/x-icon",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+  webp: "image/webp",
+};
+const IMAGE_FILE_EXTENSIONS = new Set(Object.keys(IMAGE_MEDIA_TYPES_BY_EXTENSION));
+const GIT_FILE_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 const VIDEO_FILE_EXTENSIONS = new Set(["avi", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm"]);
 const AUDIO_FILE_EXTENSIONS = new Set(["aac", "aiff", "flac", "m4a", "mp3", "ogg", "wav"]);
 const ARCHIVE_FILE_EXTENSIONS = new Set([
@@ -2132,6 +2134,57 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     return { kind: "untracked", patch: untrackedDiff };
   });
 
+  const getFileImage: GitCoreShape["getFileImage"] = Effect.fn("getFileImage")(function* (input) {
+    const mediaType = IMAGE_MEDIA_TYPES_BY_EXTENSION[fileExtension(input.path)];
+    if (!mediaType) {
+      return { kind: "unsupported" as const };
+    }
+
+    const repoRoot = path.resolve(input.cwd);
+    const absolutePath = path.resolve(repoRoot, input.path);
+    if (!absolutePath.startsWith(`${repoRoot}${path.sep}`)) {
+      return yield* createGitCommandError(
+        "GitCore.getFileImage",
+        input.cwd,
+        [],
+        "Image path must stay within the repository root.",
+      );
+    }
+
+    const fileInfo = yield* fileSystem
+      .stat(absolutePath)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (!fileInfo || fileInfo.type !== "File") {
+      return { kind: "missing" as const };
+    }
+
+    const sizeBytes = Number(fileInfo.size);
+    if (sizeBytes > GIT_FILE_IMAGE_MAX_BYTES) {
+      return { kind: "too_large" as const, sizeBytes };
+    }
+
+    const bytes = yield* fileSystem
+      .readFile(absolutePath)
+      .pipe(
+        Effect.mapError((cause) =>
+          createGitCommandError(
+            "GitCore.getFileImage",
+            input.cwd,
+            [],
+            `Failed to read image file: ${cause.message}`,
+            cause,
+          ),
+        ),
+      );
+
+    return {
+      kind: "image" as const,
+      mediaType,
+      dataBase64: Buffer.from(bytes).toString("base64"),
+      sizeBytes: bytes.byteLength,
+    };
+  });
+
   const readRangeContext: GitCoreShape["readRangeContext"] = Effect.fn("readRangeContext")(
     function* (cwd, baseBranch) {
       const range = `${baseBranch}..HEAD`;
@@ -2733,6 +2786,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     pullCurrentBranch,
     discardPaths,
     getFilePatch,
+    getFileImage,
     readRangeContext,
     readConfigValue,
     isInsideWorkTree,

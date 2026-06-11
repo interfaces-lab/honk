@@ -15,7 +15,7 @@ import {
   selectEnvironmentSnapshotSource,
   type EnvironmentSnapshotSource,
 } from "~/stores/thread-store";
-import { openDraft, openThread } from "~/app/chat-navigation";
+import { openDraft } from "~/app/chat-navigation";
 import { readLastChatRouteTarget } from "~/routes/-chat-route-persistence";
 import {
   readSelectedWorkspaceProject,
@@ -68,22 +68,9 @@ function ChatIndexAgentPanel(props: {
     [selectedProjectRef?.environmentId, selectedProjectRef?.projectId],
   );
 
-  const serverThreadRefToRestore =
-    initialRouteTarget?.kind === "server" &&
-    initialRouteTarget.threadRef.environmentId === props.activeEnvironmentId
-      ? initialRouteTarget.threadRef
-      : null;
   const draftIdToRestore = initialRouteTarget?.kind === "draft" ? initialRouteTarget.draftId : null;
 
   useLayoutSyncEffect(() => {
-    if (serverThreadRefToRestore) {
-      if (props.snapshotSource !== "server") {
-        return;
-      }
-      void openThread(router, serverThreadRefToRestore, { replace: true });
-      return;
-    }
-
     if (draftIdToRestore) {
       const restoredDraftSession = useComposerDraftStore
         .getState()
@@ -169,7 +156,6 @@ function ChatIndexAgentPanel(props: {
     props.activeEnvironmentId,
     props.snapshotSource,
     router,
-    serverThreadRefToRestore,
   ]);
 
   if (!draftRenderState) {
@@ -200,15 +186,8 @@ export function prepareChatIndexRouteDraft(): void {
     return;
   }
 
-  const initialRouteTarget = readLastChatRouteTarget();
-  if (
-    initialRouteTarget?.kind === "server" &&
-    initialRouteTarget.threadRef.environmentId === activeEnvironmentId
-  ) {
-    return;
-  }
-
   const { logicalProjectKey, projectRef: selectedProjectRef } = readSelectedWorkspaceProject();
+  const initialRouteTarget = readLastChatRouteTarget();
   if (initialRouteTarget?.kind === "draft") {
     const restoredDraftSession = useComposerDraftStore
       .getState()
@@ -275,15 +254,9 @@ export function prepareChatIndexRouteDraft(): void {
 function readChatIndexDraftRenderState(
   activeEnvironmentId: EnvironmentId,
 ): ChatIndexDraftRenderState | null {
-  const { projectRef: selectedProjectRef } = readSelectedWorkspaceProject();
+  const { logicalProjectKey, projectRef: selectedProjectRef } = readSelectedWorkspaceProject();
   const draftStore = useComposerDraftStore.getState();
   const initialRouteTarget = readLastChatRouteTarget();
-  if (
-    initialRouteTarget?.kind === "server" &&
-    initialRouteTarget.threadRef.environmentId === activeEnvironmentId
-  ) {
-    return null;
-  }
 
   if (initialRouteTarget?.kind === "draft") {
     const restoredDraftSession = draftStore.getDraftSession(initialRouteTarget.draftId);
@@ -299,7 +272,10 @@ function readChatIndexDraftRenderState(
   }
 
   if (selectedProjectRef) {
-    const draftSession = draftStore.getDraftSessionByProjectRef(selectedProjectRef);
+    const draftSession =
+      (logicalProjectKey
+        ? draftStore.getDraftSessionByLogicalProjectKey(logicalProjectKey)
+        : null) ?? draftStore.getDraftSessionByProjectRef(selectedProjectRef);
     return draftSession ? toChatIndexDraftRenderState(draftSession.draftId, draftSession) : null;
   }
 

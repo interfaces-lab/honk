@@ -51,6 +51,7 @@ describe("readEnvironmentGitApi", () => {
       pull: async () => unusedGitMethod(),
       discardPaths: async () => unusedGitMethod(),
       getFilePatch: async () => unusedGitMethod(),
+      getFileImage: async () => unusedGitMethod(),
       refreshStatus,
       onStatus: () => () => undefined,
     };

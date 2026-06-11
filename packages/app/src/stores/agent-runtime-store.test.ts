@@ -152,6 +152,7 @@ describe("agent runtime store", () => {
   it("updates credential auth flows from host events", () => {
     const flow = {
       authProviderId: AuthProviderId.make("openai-codex"),
+      credentialKind: "codex-oauth",
       state: "pending",
       kind: "oauth-device-code",
       message: "Waiting for authentication.",

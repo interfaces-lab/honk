@@ -56,6 +56,7 @@ function threadSummary(input: Partial<SidebarThreadSummary> = {}): SidebarThread
     createdAt: "2026-01-01T00:00:00.000Z",
     modifiedAt: "2026-01-02T00:00:00.000Z",
     latestReadableAt: "2026-01-02T00:00:00.000Z",
+    archived: false,
     messageCount: 1,
     firstMessage: "Pi thread",
     isStreaming: false,
@@ -99,7 +100,7 @@ describe("buildProjectChatSections", () => {
     });
   });
 
-  it("preserves thread input order while bootstrap is incomplete", () => {
+  it("sorts threads by recency", () => {
     const older = threadSummary({
       id: olderThreadId,
       modifiedAt: "2026-01-01T00:00:00.000Z",
@@ -124,44 +125,6 @@ describe("buildProjectChatSections", () => {
           cwd: "/repo",
         },
       ],
-      {
-        sortByRecency: false,
-        itemOrderRank: new Map([
-          [olderThreadId, 0],
-          [newerThreadId, 1],
-        ]),
-      },
-    );
-
-    expect(sections[0]?.items.map((item) => item.id)).toEqual([olderThreadId, newerThreadId]);
-  });
-
-  it("sorts threads by recency after bootstrap completes", () => {
-    const older = threadSummary({
-      id: olderThreadId,
-      modifiedAt: "2026-01-01T00:00:00.000Z",
-    });
-    const newer = threadSummary({
-      id: newerThreadId,
-      modifiedAt: "2026-01-02T00:00:00.000Z",
-    });
-    const sections = buildProjectChatSections(
-      [older, newer],
-      [],
-      "/repo",
-      null,
-      undefined,
-      ["/repo"],
-      undefined,
-      [
-        {
-          id: projectId,
-          environmentId: primaryEnvironmentId,
-          title: "Repo",
-          cwd: "/repo",
-        },
-      ],
-      { sortByRecency: true },
     );
 
     expect(sections[0]?.items.map((item) => item.id)).toEqual([newerThreadId, olderThreadId]);

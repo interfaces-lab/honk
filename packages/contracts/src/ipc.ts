@@ -18,6 +18,8 @@ import type {
   GitStatusResult,
   GitCreateBranchResult,
   GitDiscardPathsInput,
+  GitFileImageInput,
+  GitFileImageResult,
   GitFilePatchInput,
   GitFilePatchResult,
 } from "./git";
@@ -386,6 +388,7 @@ export interface EnvironmentApi {
     pull: (input: GitPullInput) => Promise<GitPullResult>;
     discardPaths: (input: GitDiscardPathsInput) => Promise<void>;
     getFilePatch: (input: GitFilePatchInput) => Promise<GitFilePatchResult>;
+    getFileImage: (input: GitFileImageInput) => Promise<GitFileImageResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
     onStatus: (
       input: GitStatusInput,

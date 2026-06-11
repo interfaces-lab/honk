@@ -49,6 +49,7 @@ function useContextMenuTriggerFocus() {
 export function ThreadContextMenu(props: {
   children: ReactElement;
   threadId: string;
+  archived: boolean;
   onRename: () => void;
   onMarkUnread: () => void;
   onArchive: () => void;
@@ -83,11 +84,11 @@ export function ThreadContextMenu(props: {
         </WorkbenchContextMenuItem>
         <WorkbenchContextMenuSeparator />
         <WorkbenchContextMenuItem
-          label="Archive"
+          label={props.archived ? "Unarchive" : "Archive"}
           onClick={props.onArchive}
           icon={<IconArchive1 aria-hidden />}
         >
-          Archive
+          {props.archived ? "Unarchive" : "Archive"}
         </WorkbenchContextMenuItem>
       </WorkbenchContextMenuPopup>
     </ContextMenu>

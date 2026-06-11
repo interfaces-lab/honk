@@ -4,7 +4,7 @@ import { SettingsRouteLayout } from "~/routes/-settings-route";
 import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 
 export const Route = createFileRoute("/settings")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: ({ location }) => {
     if (location.pathname === "/settings") {
       throw redirect({ to: DEFAULT_SETTINGS_ROUTE, replace: true });
     }

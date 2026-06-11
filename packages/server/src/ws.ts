@@ -636,6 +636,10 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
           observeRpcEffect(WS_METHODS.gitGetFilePatch, git.getFilePatch(input), {
             "rpc.aggregate": "git",
           }),
+        [WS_METHODS.gitGetFileImage]: (input) =>
+          observeRpcEffect(WS_METHODS.gitGetFileImage, git.getFileImage(input), {
+            "rpc.aggregate": "git",
+          }),
         [WS_METHODS.gitRunStackedAction]: (input) =>
           observeRpcStream(
             WS_METHODS.gitRunStackedAction,

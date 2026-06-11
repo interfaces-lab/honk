@@ -103,8 +103,19 @@ export const AgentAuthState = Schema.Literals([
 ]);
 export type AgentAuthState = typeof AgentAuthState.Type;
 
+export const AgentCredentialKind = Schema.Literals([
+  "claude-api-key",
+  "claude-oauth",
+  "codex-oauth",
+  "codex-api-key",
+]);
+export type AgentCredentialKind = typeof AgentCredentialKind.Type;
+
 export const AgentAuthStatus = Schema.Struct({
   authProviderId: AuthProviderId,
+  credentialKind: Schema.NullOr(AgentCredentialKind).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   accountId: Schema.NullOr(AccountId).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   state: AgentAuthState,
   label: Schema.NullOr(TrimmedNonEmptyString).pipe(
@@ -123,6 +134,9 @@ export type AgentCredentialAuthFlowKind = typeof AgentCredentialAuthFlowKind.Typ
 
 export const AgentCredentialAuthFlow = Schema.Struct({
   authProviderId: AuthProviderId,
+  credentialKind: Schema.NullOr(AgentCredentialKind).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   state: AgentCredentialAuthFlowState,
   kind: AgentCredentialAuthFlowKind,
   message: Schema.NullOr(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
@@ -133,14 +147,6 @@ export const AgentCredentialAuthFlow = Schema.Struct({
   updatedAt: IsoDateTime,
 });
 export type AgentCredentialAuthFlow = typeof AgentCredentialAuthFlow.Type;
-
-export const AgentCredentialKind = Schema.Literals([
-  "claude-api-key",
-  "codex-oauth",
-  "codex-api-key",
-  "xai-api-key",
-]);
-export type AgentCredentialKind = typeof AgentCredentialKind.Type;
 
 export const AgentCredentialPreference = Schema.Struct({
   kind: AgentCredentialKind,
@@ -159,6 +165,7 @@ export const AgentCredentialConfigureInput = Schema.Union([
   Schema.Struct({
     authProviderId: AuthProviderId,
     method: Schema.Literal("oauth"),
+    credentialKind: AgentCredentialKind.pipe(Schema.optional),
   }),
   Schema.Struct({
     authProviderId: AuthProviderId,

@@ -20,7 +20,7 @@ import {
   IconStudioDisplay1,
   IconStop,
 } from "central-icons";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@multi/multikit/button";
@@ -499,7 +499,7 @@ function gitHeaderStatus(meta: GitCodeViewRowMeta): {
   return null;
 }
 
-function GitCodeViewHeader(props: {
+interface GitCodeViewHeaderProps {
   readonly meta: GitCodeViewRowMeta;
   readonly onCopyPath: (path: string) => void;
   readonly onExpandedChange: (id: string, open?: boolean) => void;
@@ -507,14 +507,16 @@ function GitCodeViewHeader(props: {
   readonly onToggleViewed: (path: string) => void;
   readonly requestDiff: (id: string) => void;
   readonly showViewed: boolean;
-}) {
+}
+
+const GitCodeViewHeader = memo(function GitCodeViewHeader(props: GitCodeViewHeaderProps) {
   const { meta } = props;
 
-  useMountEffect(() => {
-    if (meta.expanded && !meta.loaded && meta.error === null) {
+  useEffect(() => {
+    if (meta.expanded && !meta.loaded && !meta.loading && meta.error === null) {
       props.requestDiff(meta.file.id);
     }
-  });
+  }, [meta.error, meta.expanded, meta.file.id, meta.loaded, meta.loading, props.requestDiff]);
 
   const status = gitHeaderStatus(meta);
   const handleCopyPath = () => props.onCopyPath(meta.file.path);
@@ -540,6 +542,46 @@ function GitCodeViewHeader(props: {
       onToggleViewed={handleToggleViewed}
     />
   );
+}, areGitCodeViewHeaderPropsEqual);
+
+function areGitCodeViewHeaderPropsEqual(
+  previous: GitCodeViewHeaderProps,
+  next: GitCodeViewHeaderProps,
+): boolean {
+  return (
+    previous.showViewed === next.showViewed &&
+    previous.onCopyPath === next.onCopyPath &&
+    previous.onExpandedChange === next.onExpandedChange &&
+    previous.onRevert === next.onRevert &&
+    previous.onToggleViewed === next.onToggleViewed &&
+    previous.requestDiff === next.requestDiff &&
+    areGitCodeViewHeaderMetaEqual(previous.meta, next.meta)
+  );
+}
+
+function areGitCodeViewHeaderMetaEqual(
+  previous: GitCodeViewRowMeta,
+  next: GitCodeViewRowMeta,
+): boolean {
+  return (
+    previous.error === next.error &&
+    previous.expanded === next.expanded &&
+    previous.loaded === next.loaded &&
+    previous.loading === next.loading &&
+    previous.patch?.kind === next.patch?.kind &&
+    getGitPatchFileType(previous.patch) === getGitPatchFileType(next.patch) &&
+    previous.viewed === next.viewed &&
+    previous.file.id === next.file.id &&
+    previous.file.path === next.file.path &&
+    previous.file.prevPath === next.file.prevPath &&
+    previous.file.state === next.file.state &&
+    previous.file.add === next.file.add &&
+    previous.file.del === next.file.del
+  );
+}
+
+function getGitPatchFileType(patch: GitFilePatchResult | null): string | null {
+  return patch?.kind === "non_text" ? patch.fileType : null;
 }
 
 function GitPanelInner(props: {
@@ -604,6 +646,8 @@ function GitPanelInner(props: {
     visibleFiles.length > 0 && visibleFiles.every((row) => viewedPathSet.has(row.path));
   const gitRef = useRef(git);
   gitRef.current = git;
+  const viewedRef = useRef(viewed);
+  viewedRef.current = viewed;
 
   const { resolvedTheme } = useTheme();
   const diffTheme = resolveDiffThemeName(resolvedTheme);
@@ -669,20 +713,17 @@ function GitPanelInner(props: {
   const handleRevertFile = useCallback((file: DiffRow) => {
     setPending(file);
   }, []);
-  const handleToggleViewed = useCallback(
-    (path: string) => {
-      viewed.toggleViewed(path);
-    },
-    [viewed],
-  );
+  const handleToggleViewed = useCallback((path: string) => {
+    viewedRef.current.toggleViewed(path);
+  }, []);
   const handleToggleAllViewed = useCallback(() => {
     if (visiblePaths.length === 0) return;
     if (allVisibleFilesViewed) {
-      viewed.unmarkViewed(visiblePaths);
+      viewedRef.current.unmarkViewed(visiblePaths);
       return;
     }
-    viewed.markAllViewed(visiblePaths);
-  }, [allVisibleFilesViewed, viewed, visiblePaths]);
+    viewedRef.current.markAllViewed(visiblePaths);
+  }, [allVisibleFilesViewed, visiblePaths]);
   const handleRequestDiff = useCallback((id: string) => {
     gitRef.current.requestDiff(id);
   }, []);

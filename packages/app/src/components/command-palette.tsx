@@ -105,6 +105,7 @@ import {
 import { resolveAndPersistPreferredEditor } from "../editor-preferences";
 import type { ComposerInputHandle } from "./chat/composer/input";
 import { resolveProjectlessCwd } from "~/lib/project-state";
+import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 
 function joinFileSystemPath(basePath: string, ...segments: string[]): string {
   const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";
@@ -816,7 +817,7 @@ function OpenCommandPaletteDialog() {
     title: "Open settings",
     icon: <IconSettingsGear2 className="size-4 text-multi-icon-tertiary" />,
     run: async () => {
-      await navigate({ to: "/settings" });
+      await navigate({ to: DEFAULT_SETTINGS_ROUTE });
     },
   });
 

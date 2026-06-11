@@ -16,6 +16,8 @@ import type {
   GitCreateWorktreeInput,
   GitCreateWorktreeResult,
   GitDiscardPathsInput,
+  GitFileImageInput,
+  GitFileImageResult,
   GitFilePatchInput,
   GitFilePatchResult,
   GitInitInput,
@@ -251,6 +253,13 @@ export interface GitCoreShape {
   readonly getFilePatch: (
     input: GitFilePatchInput,
   ) => Effect.Effect<GitFilePatchResult, GitCommandError>;
+
+  /**
+   * Read a working tree image file for diff panel preview.
+   */
+  readonly getFileImage: (
+    input: GitFileImageInput,
+  ) => Effect.Effect<GitFileImageResult, GitCommandError>;
 
   /**
    * Create a worktree and branch from a base branch.

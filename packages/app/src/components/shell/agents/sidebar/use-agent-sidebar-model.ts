@@ -4,12 +4,7 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import type {
-  EnvironmentId,
-  ProjectId,
-  ScopedProjectRef,
-  ScopedThreadRef,
-} from "@multi/contracts";
+import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -37,11 +32,10 @@ import {
   type DraftThreadState,
   useComposerDraftStore,
 } from "~/stores/chat-drafts";
-import { useUiStateStore } from "~/stores/ui-state-store";
-import { selectBootstrapCompleteForActiveEnvironment, useStore } from "~/stores/thread-store";
+import { type SidebarThreadFilter, useUiStateStore } from "~/stores/ui-state-store";
 import type { Project, SidebarThreadSummary as StoreSidebarThreadSummary, Thread } from "~/types";
 import type { SidebarDraftSummary, SidebarProjectSummary, SidebarThreadSummary } from "./types";
-import { buildProjectChatSections } from "./view-model";
+import { buildProjectChatSections, threadState } from "./view-model";
 
 type HandleNewThread = (
   projectRef: ScopedProjectRef,
@@ -65,8 +59,6 @@ interface VisibleSidebarDraftShell {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly worktreePath: string | null;
-  readonly promotedTo: ScopedThreadRef | null;
-  readonly promotedTitle: string | null;
 }
 
 interface SidebarThreadVisitInput {
@@ -124,6 +116,24 @@ export function getSidebarThreadModifiedAt(
   return thread.latestUserMessageAt ?? thread.updatedAt ?? thread.createdAt;
 }
 
+/**
+ * Empty filters show every non-archived thread. Status filters narrow by the
+ * row's derived state; "archived" opts archived threads into the list.
+ */
+function summaryMatchesThreadFilters(
+  summary: SidebarThreadSummary,
+  filters: readonly SidebarThreadFilter[],
+): boolean {
+  if (summary.archived && !filters.includes("archived")) {
+    return false;
+  }
+  const statusFilters = filters.filter((filter) => filter !== "archived");
+  if (statusFilters.length === 0) {
+    return true;
+  }
+  return statusFilters.includes(threadState(summary));
+}
+
 function toSummaryFromSidebarThread(
   thread: StoreSidebarThreadSummary,
   project: Project | null,
@@ -146,6 +156,7 @@ function toSummaryFromSidebarThread(
     name: thread.title,
     createdAt: thread.createdAt,
     modifiedAt: getSidebarThreadModifiedAt(thread),
+    archived: thread.archivedAt !== null,
     latestReadableAt: thread.latestTurn?.completedAt ?? null,
     messageCount: 0,
     firstMessage: thread.title,
@@ -175,12 +186,12 @@ export function useAgentSidebarModel(input: {
     useShallow((store) => {
       const entries: VisibleSidebarDraftShellEntry[] = [];
       for (const [draftId, draftThread] of Object.entries(store.draftThreadsByThreadKey)) {
-        // Promoted drafts stay visible (standing in for the promoted thread until it
-        // arrives in the sidebar summaries); unpromoted drafts need composer content.
-        if (
-          draftThread.promotedTo == null &&
-          !composerDraftHasVisibleContent(store.draftsByThreadKey[draftId])
-        ) {
+        // Promoted drafts are owned by their thread row; the sidebar drops them
+        // immediately. Unpromoted drafts need composer content.
+        if (draftThread.promotedTo != null) {
+          continue;
+        }
+        if (!composerDraftHasVisibleContent(store.draftsByThreadKey[draftId])) {
           continue;
         }
         entries.push(...([draftId, draftThread] satisfies VisibleSidebarDraftShellTuple));
@@ -203,17 +214,13 @@ export function useAgentSidebarModel(input: {
         createdAt: draftThread.createdAt,
         updatedAt: draftThread.updatedAt,
         worktreePath: draftThread.worktreePath,
-        promotedTo: draftThread.promotedTo ?? null,
-        promotedTitle: draftThread.promotedTitle ?? null,
       });
     }
     return shells;
   }, [visibleDraftShellEntries]);
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
-  const sidebarBootstrapComplete = useStore((store) =>
-    selectBootstrapCompleteForActiveEnvironment(store),
-  );
+  const sidebarThreadFilters = useUiStateStore((store) => store.sidebarThreadFilters);
   const projectlessCwd = input.projectlessCwd;
   const selectedProjectEnvironmentId = input.selectedProjectRef?.environmentId ?? null;
   const selectedProjectId = input.selectedProjectRef?.projectId ?? null;
@@ -263,33 +270,13 @@ export function useAgentSidebarModel(input: {
     });
   }, [selectedProjectRef, input.selectedProjectCwd]);
 
-  const sidebarThreadKeys = useMemo(
-    () =>
-      new Set(
-        input.sidebarThreads.map((thread) =>
-          scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
-        ),
-      ),
-    [input.sidebarThreads],
-  );
-
   const drafts: SidebarDraftSummary[] = useMemo(
     () =>
       visibleDraftShells.flatMap((draftShell): SidebarDraftSummary[] => {
-        // A promoted draft stands in for its thread only until the thread summary
-        // syncs into the sidebar; from then on the thread item takes over.
-        if (draftShell.promotedTo && sidebarThreadKeys.has(scopedThreadKey(draftShell.promotedTo))) {
-          return [];
-        }
-        // Reuse the promoted thread id so the sidebar row keeps a stable identity
-        // and selection across the draft -> thread transition.
-        const id = draftShell.promotedTo?.threadId ?? draftShell.id;
         if (draftShell.projectId === null) {
           return [
             {
-              id,
-              title: draftShell.promotedTitle,
-              promotedTo: draftShell.promotedTo,
+              id: draftShell.id,
               cwd: projectlessCwd,
               environmentId: draftShell.environmentId,
               projectId: null,
@@ -314,9 +301,7 @@ export function useAgentSidebarModel(input: {
         }
         return [
           {
-            id,
-            title: draftShell.promotedTitle,
-            promotedTo: draftShell.promotedTo,
+            id: draftShell.id,
             cwd: draftShell.worktreePath ?? projectCwd,
             environmentId: draftShell.environmentId,
             projectId: draftShell.projectId,
@@ -331,7 +316,6 @@ export function useAgentSidebarModel(input: {
       input.selectedProjectCwd,
       input.projects,
       projectlessCwd,
-      sidebarThreadKeys,
       visibleDraftShells,
     ],
   );
@@ -339,34 +323,34 @@ export function useAgentSidebarModel(input: {
   const summaries = useMemo(
     () =>
       input.sidebarThreads.flatMap((thread) => {
-        if (thread.archivedAt !== null) {
-          return [];
-        }
-        if (thread.projectId === null) {
-          return [toSummaryFromSidebarThread(thread, null, projectlessCwd)];
-        }
-        const project = findWorkspaceProjectForSource(input.projects, thread);
-        if (project) {
-          return [toSummaryFromSidebarThread(thread, project, projectlessCwd)];
-        }
-        if (
-          isSourceForWorkspaceProjectRef({
-            projectRef: selectedProjectRef,
-            source: thread,
-          }) &&
-          input.selectedProjectCwd
-        ) {
-          return [
-            {
+        const summary = ((): SidebarThreadSummary | null => {
+          if (thread.projectId === null) {
+            return toSummaryFromSidebarThread(thread, null, projectlessCwd);
+          }
+          const project = findWorkspaceProjectForSource(input.projects, thread);
+          if (project) {
+            return toSummaryFromSidebarThread(thread, project, projectlessCwd);
+          }
+          if (
+            isSourceForWorkspaceProjectRef({
+              projectRef: selectedProjectRef,
+              source: thread,
+            }) &&
+            input.selectedProjectCwd
+          ) {
+            return {
               ...toSummaryFromSidebarThread(thread, null, input.selectedProjectCwd),
               workspaceProjectRef: selectedProjectRef,
               projectCwd: input.selectedProjectCwd,
               cwd: thread.worktreePath ?? input.selectedProjectCwd,
               path: thread.worktreePath ?? input.selectedProjectCwd,
-            },
-          ];
-        }
-        return [];
+            };
+          }
+          return null;
+        })();
+        return summary && summaryMatchesThreadFilters(summary, sidebarThreadFilters)
+          ? [summary]
+          : [];
       }),
     [
       selectedProjectRef,
@@ -374,6 +358,7 @@ export function useAgentSidebarModel(input: {
       input.projects,
       input.sidebarThreads,
       projectlessCwd,
+      sidebarThreadFilters,
     ],
   );
 
@@ -420,23 +405,6 @@ export function useAgentSidebarModel(input: {
     () => new Set(pinnedSidebarThreadKeys),
     [pinnedSidebarThreadKeys],
   );
-  const summaryIdsKey = useMemo(
-    () => summaries.map((summary) => summary.id).join("\0"),
-    [summaries],
-  );
-  const draftIdsKey = useMemo(() => drafts.map((draft) => draft.id).join("\0"), [drafts]);
-  const sidebarItemOrderRank = useMemo(() => {
-    const rank = new Map<string, number>();
-    let index = 0;
-    for (const id of summaryIdsKey.length > 0 ? summaryIdsKey.split("\0") : []) {
-      rank.set(id, index++);
-    }
-    for (const id of draftIdsKey.length > 0 ? draftIdsKey.split("\0") : []) {
-      rank.set(id, index++);
-    }
-    return rank;
-  }, [summaryIdsKey, draftIdsKey]);
-
   const sections = useMemo(() => {
     const projectStateKeyByCwd = new Map(
       input.projects.map(
@@ -506,10 +474,6 @@ export function useAgentSidebarModel(input: {
       projectCwds,
       pinnedThreadKeySet,
       retainedSidebarProjects,
-      {
-        sortByRecency: sidebarBootstrapComplete,
-        itemOrderRank: sidebarItemOrderRank,
-      },
     ).map((section) => {
       const sectionProjectKey = section.projectRef ? scopedProjectKey(section.projectRef) : null;
       const projectStateKey =
@@ -533,8 +497,6 @@ export function useAgentSidebarModel(input: {
     input.sidebarThreads,
     pinnedThreadKeySet,
     projectOrder,
-    sidebarBootstrapComplete,
-    sidebarItemOrderRank,
     summaries,
     unreadIds,
   ]);
@@ -577,11 +539,6 @@ export function useAgentSidebarModel(input: {
             persistDefaultProjectSelection();
           }
         }
-        if (draft.promotedTo) {
-          markThreadVisited(scopedThreadKey(draft.promotedTo));
-          void openThread(router, draft.promotedTo);
-          return;
-        }
         void openDraft(router, id);
         return;
       }
@@ -621,16 +578,6 @@ export function useAgentSidebarModel(input: {
     (id: string) => {
       const draft = drafts.find((entry) => entry.id === id);
       if (draft) {
-        if (draft.promotedTo) {
-          prefetchThreadNavigation({
-            router,
-            thread: {
-              environmentId: draft.promotedTo.environmentId,
-              id: draft.promotedTo.threadId,
-            },
-          });
-          return;
-        }
         prefetchDraftNavigation(router, id);
         return;
       }

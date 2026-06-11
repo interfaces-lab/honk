@@ -5,14 +5,17 @@ Requires: Python 3.11+, Pillow (`python3 -m pip install pillow`).
 Requires: ImageMagick (`magick`) for SVG sources.
 Requires (macOS only): `sips` and `iconutil` for `.icns` output.
 
-Default source: assets/brand/multi-app-icon-source.svg (transparent square vector app icon).
+Default source: assets/brand/multi-app-icon-source.png (transparent square app icon).
+Default dev source: assets/brand/multi-app-icon-dev-source.png (rough development app icon).
 
 Writes:
   - assets/brand/generated/* (canonical generated brand assets)
-  - packages/desktop/resources/icon.png, icon.icns, and icon.ico (canonical desktop artwork)
+  - packages/desktop/resources/icon.png, icon.icns, icon.ico, and dev-dock-icon.png
+    (canonical desktop artwork)
   - packages/app/public/* (dev web favicon and touch icon mirrors)
 
-To refresh desktop icons after editing `assets/brand/multi-app-icon-source.svg`:
+To refresh desktop icons after editing `assets/brand/multi-app-icon-source.png` or
+`assets/brand/multi-app-icon-dev-source.png`:
 
   python3 scripts/sync-brand-icons-from-source.py
 """
@@ -32,6 +35,8 @@ except ImportError as e:  # pragma: no cover
     raise SystemExit("Install Pillow: python3 -m pip install pillow") from e
 
 MASTER_SIZE = 1024
+DOCK_ICON_SIZE = 256
+DOCK_ICON_CONTENT_SIZE = 210
 ICO_SIZES = (16, 32, 48, 64, 128, 256)
 ICNS_BASE_SIZES = (16, 32, 128, 256, 512)
 
@@ -92,6 +97,14 @@ def apply_nonprod_blueprint_veil(
 def write_png(path: Path, image: Image.Image) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, optimize=True)
+
+
+def macos_dock_icon(source: Image.Image) -> Image.Image:
+    canvas = Image.new("RGBA", (DOCK_ICON_SIZE, DOCK_ICON_SIZE), (0, 0, 0, 0))
+    content = source.resize((DOCK_ICON_CONTENT_SIZE, DOCK_ICON_CONTENT_SIZE), Image.Resampling.LANCZOS)
+    offset = (DOCK_ICON_SIZE - DOCK_ICON_CONTENT_SIZE) // 2
+    canvas.alpha_composite(content, (offset, offset))
+    return canvas
 
 
 def write_ico(path: Path, master: Image.Image) -> None:
@@ -157,23 +170,36 @@ def main() -> int:
         "source",
         nargs="?",
         default=None,
-        help="Source SVG or PNG (default: <repo>/assets/brand/multi-app-icon-source.svg)",
+        help="Source SVG or PNG (default: <repo>/assets/brand/multi-app-icon-source.png)",
+    )
+    parser.add_argument(
+        "--dev-source",
+        default=None,
+        help=(
+            "Development source SVG or PNG "
+            "(default: <repo>/assets/brand/multi-app-icon-dev-source.png if present)"
+        ),
     )
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
-    default_source = repo / "assets" / "brand" / "multi-app-icon-source.svg"
+    default_source = repo / "assets" / "brand" / "multi-app-icon-source.png"
+    default_dev_source = repo / "assets" / "brand" / "multi-app-icon-dev-source.png"
     source = Path(args.source).expanduser() if args.source else default_source
     if not source.is_file():
         print(f"Missing source SVG or PNG: {source}", file=sys.stderr)
         return 1
+    dev_source = Path(args.dev_source).expanduser() if args.dev_source else default_dev_source
 
     master = master_1024(source)
-    master_dev = apply_nonprod_blueprint_veil(
-        master,
-        DEV_BLUEPRINT_RGB,
-        DEV_BLUEPRINT_VEIL_STRENGTH,
-    )
+    if dev_source.is_file():
+        master_dev = master_1024(dev_source)
+    else:
+        master_dev = apply_nonprod_blueprint_veil(
+            master,
+            DEV_BLUEPRINT_RGB,
+            DEV_BLUEPRINT_VEIL_STRENGTH,
+        )
     desktop_res = repo / "packages" / "desktop" / "resources"
 
     with tempfile.TemporaryDirectory(prefix="multi-icon-src-") as tmp:
@@ -183,6 +209,7 @@ def main() -> int:
         write_png(tmp_dev_1024, master_dev)
 
         write_png(desktop_res / "icon.png", master)
+        write_png(desktop_res / "dev-dock-icon.png", macos_dock_icon(master_dev))
         write_icns_macos(tmp1024, desktop_res / "icon.icns")
         write_ico(desktop_res / "icon.ico", master)
 
@@ -203,6 +230,7 @@ def main() -> int:
         dev = brand / "dev"
         write_icns_macos(tmp_dev_1024, dev / "multi-development-macos-icon.icns")
         write_png(dev / "multi-development-desktop-icon-1024.png", master_dev)
+        write_png(dev / "multi-development-dock-icon-256.png", macos_dock_icon(master_dev))
         write_png(dev / "multi-development-splash-icon-180.png", _resize(master_dev, 180))
         write_png(dev / "blueprint-macos-1024.png", master_dev)
         write_png(dev / "blueprint-universal-1024.png", master_dev)

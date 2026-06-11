@@ -83,6 +83,7 @@ export interface WsRpcClient {
     readonly pull: RpcUnaryMethod<typeof WS_METHODS.gitPull>;
     readonly discardPaths: RpcUnaryMethod<typeof WS_METHODS.gitDiscardPaths>;
     readonly getFilePatch: RpcUnaryMethod<typeof WS_METHODS.gitGetFilePatch>;
+    readonly getFileImage: RpcUnaryMethod<typeof WS_METHODS.gitGetFileImage>;
     readonly refreshStatus: RpcUnaryMethod<typeof WS_METHODS.gitRefreshStatus>;
     readonly onStatus: (
       input: RpcInput<typeof WS_METHODS.subscribeGitStatus>,
@@ -166,6 +167,8 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
         transport.request((client) => client[WS_METHODS.gitDiscardPaths](input)),
       getFilePatch: (input) =>
         transport.request((client) => client[WS_METHODS.gitGetFilePatch](input)),
+      getFileImage: (input) =>
+        transport.request((client) => client[WS_METHODS.gitGetFileImage](input)),
       refreshStatus: (input) =>
         transport.request((client) => client[WS_METHODS.gitRefreshStatus](input)),
       onStatus: (input, listener, options) => {

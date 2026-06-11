@@ -1,28 +1,82 @@
-import type { ScopedThreadRef } from "@multi/contracts";
+import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@multi/multikit/menu";
 import { SidebarItem } from "@multi/multikit/sidebar";
-import { IconChevronRightMedium, IconFolderAddRight } from "central-icons";
+import { IconChevronRightMedium, IconFilter2, IconFolderAddRight } from "central-icons";
 import { type DragEvent, useCallback, useId, useMemo, useState } from "react";
 
 import { useThreadActions } from "~/hooks/use-thread-actions";
-import { useUiStateStore } from "~/stores/ui-state-store";
+import { type SidebarThreadFilter, useUiStateStore } from "~/stores/ui-state-store";
 import { cn } from "~/lib/utils";
-import { EMPTY_VISIBLE_THREAD_REFS, sidebarThreadPrewarmLimit } from "./constants";
 import type { SidebarDragPayload, SidebarDropTarget } from "./drag-and-drop";
-import { areSameThreadRefs, createThreadRefsKey } from "./keys";
 import { AgentSidebarSection } from "./section";
-import { RetainedThreadDetailSubscriptions } from "./section-sync";
 import type { AgentSidebarProps, SidebarSectionModel } from "./types";
 
+const THREAD_STATUS_FILTER_OPTIONS: readonly { value: SidebarThreadFilter; label: string }[] = [
+  { value: "running", label: "Running" },
+  { value: "needs_attention", label: "Needs attention" },
+  { value: "idle", label: "Idle" },
+  { value: "stopped", label: "Stopped" },
+  { value: "error", label: "Error" },
+];
+
+function SidebarThreadFilterMenu() {
+  const sidebarThreadFilters = useUiStateStore((store) => store.sidebarThreadFilters);
+  const toggleSidebarThreadFilter = useUiStateStore((store) => store.toggleSidebarThreadFilter);
+  const filtersActive = sidebarThreadFilters.length > 0;
+
+  return (
+    <Menu>
+      <MenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label="Filter threads"
+            title="Filter threads"
+            className={cn(
+              "relative mr-0 flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-icon-tertiary opacity-0 outline-hidden transition-opacity duration-0 touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 data-popup-open:opacity-100 [@media(hover:hover)]:hover:text-multi-fg-primary [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150",
+              filtersActive &&
+                "bg-multi-bg-quaternary text-primary opacity-100 group-focus-within/workspaces:opacity-100 [@media(hover:hover)]:hover:text-primary [@media(hover:hover)]:group-hover/workspaces:opacity-100",
+            )}
+          />
+        }
+      >
+        <IconFilter2 className="size-4 shrink-0" aria-hidden />
+      </MenuTrigger>
+      <MenuPopup
+        variant="workbench"
+        align="start"
+        side="bottom"
+        positionerClassName="z-(--z-index-sidebar-context-menu)"
+      >
+        {THREAD_STATUS_FILTER_OPTIONS.map((option) => (
+          <MenuCheckboxItem
+            key={option.value}
+            variant="workbench"
+            checked={sidebarThreadFilters.includes(option.value)}
+            onCheckedChange={() => toggleSidebarThreadFilter(option.value)}
+          >
+            {option.label}
+          </MenuCheckboxItem>
+        ))}
+        <MenuSeparator variant="workbench" />
+        <MenuCheckboxItem
+          variant="workbench"
+          checked={sidebarThreadFilters.includes("archived")}
+          onCheckedChange={() => toggleSidebarThreadFilter("archived")}
+        >
+          Archived
+        </MenuCheckboxItem>
+      </MenuPopup>
+    </Menu>
+  );
+}
+
 export function AgentSidebarBody(props: AgentSidebarProps) {
-  const { archiveThread, archiveThreads, commitRename, removeProjectFromSidebar } =
+  const { archiveThread, archiveThreads, unarchiveThread, commitRename, removeProjectFromSidebar } =
     useThreadActions();
   const reorderProjects = useUiStateStore((store) => store.reorderProjects);
   const [dragPayload, setDragPayload] = useState<SidebarDragPayload | null>(null);
   const [dropTarget, setDropTarget] = useState<SidebarDropTarget | null>(null);
   const [workspaceCollectionOpen, setWorkspaceCollectionOpen] = useState(true);
-  const [visibleThreadRefsBySectionId, setVisibleThreadRefsBySectionId] = useState<
-    Record<string, readonly ScopedThreadRef[]>
-  >({});
   const workspaceCollectionLabelId = useId();
   const workspaceCollectionPanelId = useId();
   const onSidebarDragStart = useCallback(
@@ -101,29 +155,6 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
     },
     [dragPayload, dropTarget, reorderProjects],
   );
-  const onVisibleThreadRefsChange = useCallback(
-    (sectionId: string, threadRefs: readonly ScopedThreadRef[]) => {
-      setVisibleThreadRefsBySectionId((current) => {
-        const previousThreadRefs = current[sectionId] ?? EMPTY_VISIBLE_THREAD_REFS;
-        if (areSameThreadRefs(previousThreadRefs, threadRefs)) {
-          return current;
-        }
-        if (threadRefs.length === 0) {
-          if (!(sectionId in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[sectionId];
-          return next;
-        }
-        return {
-          ...current,
-          [sectionId]: threadRefs,
-        };
-      });
-    },
-    [],
-  );
   const pinnedSections = useMemo(
     () => props.sections.filter((section) => section.id === "pinned"),
     [props.sections],
@@ -131,32 +162,6 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
   const workspaceSections = useMemo(
     () => props.sections.filter((section) => section.id !== "pinned"),
     [props.sections],
-  );
-  const visibleSectionIds = useMemo(
-    () =>
-      new Set(
-        [...pinnedSections, ...(workspaceCollectionOpen ? workspaceSections : [])].map(
-          (section) => section.id,
-        ),
-      ),
-    [pinnedSections, workspaceCollectionOpen, workspaceSections],
-  );
-  const visibleThreadRefs = useMemo(
-    () =>
-      props.sections.flatMap((section) =>
-        visibleSectionIds.has(section.id)
-          ? (visibleThreadRefsBySectionId[section.id] ?? EMPTY_VISIBLE_THREAD_REFS)
-          : EMPTY_VISIBLE_THREAD_REFS,
-      ),
-    [props.sections, visibleSectionIds, visibleThreadRefsBySectionId],
-  );
-  const prewarmedSidebarThreadRefs = useMemo(
-    () => visibleThreadRefs.slice(0, sidebarThreadPrewarmLimit),
-    [visibleThreadRefs],
-  );
-  const prewarmedSidebarThreadRefsKey = useMemo(
-    () => createThreadRefsKey(prewarmedSidebarThreadRefs),
-    [prewarmedSidebarThreadRefs],
   );
   const showWorkspaceCollection =
     workspaceSections.length > 0 || props.onOpenWorkspace !== undefined;
@@ -178,10 +183,10 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
       onSidebarDrop={onSidebarDrop}
       archiveThread={archiveThread}
       archiveThreads={archiveThreads}
+      unarchiveThread={unarchiveThread}
       commitRename={commitRename}
       removeProjectFromSidebar={removeProjectFromSidebar}
       onSelectAgent={props.onSelectAgent}
-      onVisibleThreadRefsChange={onVisibleThreadRefsChange}
       {...(props.onNewAgent ? { onNewAgent: props.onNewAgent } : {})}
       {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
     />
@@ -189,10 +194,6 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
 
   return (
     <div className="sidebar-body flex min-h-0 flex-1 flex-col gap-sidebar-section-gap overflow-y-auto pt-0 pb-4">
-      <RetainedThreadDetailSubscriptions
-        key={prewarmedSidebarThreadRefsKey}
-        threadRefs={prewarmedSidebarThreadRefs}
-      />
       {pinnedSections.map(renderSection)}
       {showWorkspaceCollection ? (
         <section
@@ -220,6 +221,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
                 aria-hidden
               />
             </button>
+            <SidebarThreadFilterMenu />
             {props.onOpenWorkspace ? (
               <button
                 type="button"

@@ -23,8 +23,7 @@ import {
   IconSquareChecklist,
 } from "central-icons";
 
-import { openChatIndex, openDraft, openThread } from "~/app/chat-navigation";
-import { readLastChatRouteTarget } from "~/routes/-chat-route-persistence";
+import { openChatIndex, openThread } from "~/app/chat-navigation";
 import { toastManager } from "~/app/toast";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import { isElectron } from "~/env";
@@ -296,16 +295,6 @@ function SettingsShellHost(props: { children?: ReactNode }) {
     (store) => selectProjectsAcrossEnvironments(store)[0]?.cwd ?? null,
   );
   const backToChat = () => {
-    const lastChatRouteTarget = readLastChatRouteTarget();
-    if (lastChatRouteTarget?.kind === "draft") {
-      void openDraft(router, lastChatRouteTarget.draftId);
-      return;
-    }
-    if (lastChatRouteTarget?.kind === "server") {
-      void openThread(router, lastChatRouteTarget.threadRef);
-      return;
-    }
-
     void openChatIndex(router);
   };
 

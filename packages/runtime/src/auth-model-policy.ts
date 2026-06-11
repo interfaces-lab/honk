@@ -100,6 +100,7 @@ export function createAuthStatus(input: {
 }): AgentAuthStatus {
   return {
     authProviderId: input.authProviderId,
+    credentialKind: null,
     accountId: input.accountId ?? null,
     state: input.hasCredential ? "available" : "missing",
     label: null,

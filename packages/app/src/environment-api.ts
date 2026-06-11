@@ -46,6 +46,7 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       preparePullRequestThread: rpcClient.git.preparePullRequestThread,
       discardPaths: rpcClient.git.discardPaths,
       getFilePatch: rpcClient.git.getFilePatch,
+      getFileImage: rpcClient.git.getFileImage,
     },
     orchestration: {
       dispatchCommand: rpcClient.orchestration.dispatchCommand,

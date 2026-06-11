@@ -74,6 +74,7 @@ export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props
   item: SidebarChatItem;
   selected: boolean;
   archiveThread: ArchiveThread;
+  unarchiveThread: ArchiveThread;
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
@@ -94,6 +95,7 @@ export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props
       item={props.item}
       selected={props.selected}
       archiveThread={props.archiveThread}
+      unarchiveThread={props.unarchiveThread}
       commitRename={props.commitRename}
       onSelectAgent={props.onSelectAgent}
       {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
@@ -105,6 +107,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
   item: ThreadSidebarChatItem;
   selected: boolean;
   archiveThread: ArchiveThread;
+  unarchiveThread: ArchiveThread;
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
@@ -172,14 +175,25 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
   };
 
   const threadItem = props.item;
-  const archiveCurrentThread = (event: MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const toggleArchiveThread = () => {
+    if (threadItem.archived) {
+      void props.unarchiveThread(targetThreadRef).catch((error) => {
+        toast.error("Failed to unarchive thread", {
+          description: error instanceof Error ? error.message : "An error occurred.",
+        });
+      });
+      return;
+    }
     void props.archiveThread(targetThreadRef).catch((error) => {
       toast.error("Failed to archive thread", {
         description: error instanceof Error ? error.message : "An error occurred.",
       });
     });
+  };
+  const archiveCurrentThread = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleArchiveThread();
   };
   const togglePinnedThread = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -222,13 +236,8 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
       onMarkUnread={() => {
         markThreadUnread(scopedThreadKey(targetThreadRef), threadItem.latestReadableAt);
       }}
-      onArchive={() => {
-        void props.archiveThread(targetThreadRef).catch((error) => {
-          toast.error("Failed to archive thread", {
-            description: error instanceof Error ? error.message : "An error occurred.",
-          });
-        });
-      }}
+      archived={threadItem.archived}
+      onArchive={toggleArchiveThread}
     >
       <SidebarItem
         render={<div />}
@@ -246,7 +255,11 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
           onFocus={() => props.onPrefetchAgent?.(props.item.id)}
           onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
         >
-          <SidebarItemTitle title={props.item.title} selected={props.selected} />
+          <SidebarItemTitle
+            title={props.item.title}
+            selected={props.selected}
+            muted={threadItem.archived}
+          />
         </SidebarButton>
         <div className="hidden shrink-0 items-center group-focus-within/sidebar-item:flex group-data-[popup-open]/sidebar-item:flex [@media(hover:hover)]:group-hover/sidebar-item:flex">
           <SidebarItemTime ago={props.item.ago} compact selected={props.selected} />
@@ -262,7 +275,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
             )}
           </SidebarIconButton>
           <SidebarIconButton
-            label="Archive"
+            label={threadItem.archived ? "Unarchive" : "Archive"}
             onClick={archiveCurrentThread}
             data-agent-sidebar-archive-action=""
           >

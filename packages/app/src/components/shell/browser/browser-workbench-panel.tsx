@@ -7,7 +7,7 @@ import {
   IconBrowserTabs,
   IconGlobe,
 } from "central-icons";
-import type { FormEvent } from "react";
+import type { FormEvent, MouseEventHandler, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
@@ -127,6 +127,29 @@ function toDetectedLocalhostServers(ports: readonly number[]): DetectedLocalhost
       port,
       url: `http://localhost:${port}`,
     }));
+}
+
+function BrowserToolbarIconButton(props: {
+  "aria-label": string;
+  children: ReactNode;
+  className?: string | undefined;
+  disabled?: boolean | undefined;
+  onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
+}) {
+  return (
+    <WorkbenchIconButton
+      aria-label={props["aria-label"]}
+      chrome="panel"
+      className={cn(
+        "border border-multi-workbench-panel-border-muted bg-multi-bg-quinary text-multi-icon-primary shadow-xs hover:border-multi-stroke-secondary hover:bg-multi-bg-tertiary disabled:border-transparent disabled:bg-transparent disabled:text-multi-fg-quaternary/45 disabled:hover:border-transparent disabled:hover:bg-transparent",
+        props.className,
+      )}
+      disabled={props.disabled}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </WorkbenchIconButton>
+  );
 }
 
 export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
@@ -276,6 +299,12 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
     });
   }, [browserState.committedUrl, updateBrowserState]);
 
+  const syncWebviewNavigationState = useCallback(() => {
+    const webview = webviewRef.current;
+    if (!webview) return;
+    updateBrowserState(readWebviewNavigationState(webview));
+  }, [updateBrowserState]);
+
   const handleWebviewRef = useCallback((element: HTMLElement | null) => {
     const webview = element as HTMLWebViewElement | null;
     webviewRef.current = webview;
@@ -372,49 +401,85 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
     webviewElement,
   ]);
 
-  const goBack = () => {
-    webviewRef.current?.goBack();
-  };
-  const goForward = () => {
-    webviewRef.current?.goForward();
-  };
-  const reload = () => {
+  const goBack = useCallback(() => {
+    const webview = webviewRef.current;
+    if (!webview || !browserState.canGoBack) return;
+    webview.goBack();
+    syncWebviewNavigationState();
+    window.setTimeout(syncWebviewNavigationState, 120);
+  }, [browserState.canGoBack, syncWebviewNavigationState]);
+
+  const goForward = useCallback(() => {
+    const webview = webviewRef.current;
+    if (!webview || !browserState.canGoForward) return;
+    webview.goForward();
+    syncWebviewNavigationState();
+    window.setTimeout(syncWebviewNavigationState, 120);
+  }, [browserState.canGoForward, syncWebviewNavigationState]);
+
+  const reload = useCallback(() => {
+    const targetUrl = browserState.committedUrl;
+    if (!targetUrl) return;
+    updateBrowserState({
+      isLoading: true,
+      loadError: null,
+    });
+
     const webview = webviewRef.current;
     if (!webview) {
-      if (browserState.committedUrl) void navigateToUrl(browserState.committedUrl);
+      void navigateToUrl(targetUrl);
       return;
     }
     webview.reload();
-  };
+  }, [browserState.committedUrl, navigateToUrl, updateBrowserState]);
+
+  const reloadIcon = (
+    <IconArrowRotateClockwise
+      className={cn("size-4 shrink-0", browserState.isLoading && "opacity-0")}
+      aria-hidden
+    />
+  );
+
+  const reloadSpinner = browserState.isLoading ? (
+    <span
+      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      aria-hidden
+    >
+      <span className="size-3.5 animate-spin rounded-full border border-multi-stroke-tertiary border-t-multi-icon-primary" />
+    </span>
+  ) : null;
 
   return (
     <WorkbenchPanel className="bg-multi-bg-secondary">
       <WorkbenchChromeRow variant="panel">
         <WorkbenchChromeActionGroup>
-          <WorkbenchIconButton
+          <BrowserToolbarIconButton
             aria-label="Back"
-            chrome="panel"
             disabled={!browserState.canGoBack}
             onClick={goBack}
           >
             <IconArrowLeft className="size-4 shrink-0" aria-hidden />
-          </WorkbenchIconButton>
-          <WorkbenchIconButton
+          </BrowserToolbarIconButton>
+          <BrowserToolbarIconButton
             aria-label="Forward"
-            chrome="panel"
             disabled={!browserState.canGoForward}
             onClick={goForward}
           >
             <IconArrowRight className="size-4 shrink-0" aria-hidden />
-          </WorkbenchIconButton>
-          <WorkbenchIconButton
-            aria-label="Reload"
-            chrome="panel"
-            disabled={!browserState.committedUrl}
-            onClick={reload}
+          </BrowserToolbarIconButton>
+          <div
+            className="relative flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center"
+            data-loading={browserState.isLoading ? "true" : undefined}
           >
-            <IconArrowRotateClockwise className="size-4 shrink-0" aria-hidden />
-          </WorkbenchIconButton>
+            <BrowserToolbarIconButton
+              aria-label="Reload"
+              disabled={!browserState.committedUrl}
+              onClick={reload}
+            >
+              {reloadIcon}
+            </BrowserToolbarIconButton>
+            {reloadSpinner}
+          </div>
         </WorkbenchChromeActionGroup>
 
         <form

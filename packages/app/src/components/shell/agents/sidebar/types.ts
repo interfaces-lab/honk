@@ -12,10 +12,6 @@ import type { HarnessKind } from "~/lib/ui-session-types";
 
 export interface SidebarDraftSummary {
   id: string;
-  /** Submitted first-message title while the promoted thread is still syncing. */
-  title: string | null;
-  /** Set once the draft has been submitted; the summary then stands in for this thread. */
-  promotedTo: ScopedThreadRef | null;
   cwd: string;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
@@ -44,6 +40,7 @@ export interface SidebarThreadSummary {
   createdAt: string;
   modifiedAt: string;
   latestReadableAt?: string | null;
+  archived: boolean;
   messageCount: number;
   firstMessage: string;
   isStreaming: boolean;
@@ -72,14 +69,14 @@ export type SidebarChatItem =
       state: SidebarThreadState;
       unread: boolean;
       pinned: boolean;
+      archived: boolean;
       latestReadableAt: string | null;
       threadRef: ScopedThreadRef;
     })
   | (SidebarChatItemBase & {
       id: string;
       kind: "draft";
-      state: "draft" | "running";
-      promotedTo: ScopedThreadRef | null;
+      state: "draft";
       unread: false;
     });
 

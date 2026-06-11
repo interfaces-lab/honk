@@ -251,6 +251,44 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
     ).toBe(false);
   });
 
+  it("keeps local dispatch when the session updates before a changed turn is visible", () => {
+    expect(
+      hasServerAcknowledgedLocalDispatch({
+        localDispatch,
+        phase: "ready",
+        latestTurn: null,
+        session: {
+          status: "running",
+          orchestrationStatus: "idle",
+          createdAt,
+          updatedAt: startedAt,
+        },
+        hasPendingApproval: false,
+        hasPendingUserInput: false,
+        threadError: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("acknowledges local dispatch once the session is visibly starting", () => {
+    expect(
+      hasServerAcknowledgedLocalDispatch({
+        localDispatch,
+        phase: "ready",
+        latestTurn: null,
+        session: {
+          status: "running",
+          orchestrationStatus: "starting",
+          createdAt,
+          updatedAt: startedAt,
+        },
+        hasPendingApproval: false,
+        hasPendingUserInput: false,
+        threadError: null,
+      }),
+    ).toBe(true);
+  });
+
   it("acknowledges local dispatch once the changed turn is visibly running", () => {
     expect(
       hasServerAcknowledgedLocalDispatch({

@@ -152,27 +152,42 @@ function MenuCheckboxItem({
   variant = "default",
   ...props
 }: MenuPrimitive.CheckboxItem.Props & {
-  variant?: "default" | "switch" | "workbench-switch";
+  variant?: "default" | "switch" | "workbench" | "workbench-switch";
 }) {
   const isSwitch = variant === "switch" || variant === "workbench-switch";
   return (
     <MenuPrimitive.CheckboxItem
       checked={checked}
       className={cn(
-        variant === "workbench-switch"
-          ? cn(
-              "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-multi-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-              interactiveControlCursorClassName,
-              controlTransitionClassName,
-            )
-          : "grid min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default items-center gap-2 rounded-xs py-1 ps-2 text-base text-foreground outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-        isSwitch ? "grid-cols-[1fr_auto] gap-4 pe-1.5" : "grid-cols-[1rem_1fr] pe-4",
+        variant === "workbench"
+          ? workbenchMenuRadioItemClassName
+          : variant === "workbench-switch"
+            ? cn(
+                "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-multi-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+                interactiveControlCursorClassName,
+                controlTransitionClassName,
+              )
+            : "grid min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default items-center gap-2 rounded-xs py-1 ps-2 text-base text-foreground outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        variant !== "workbench" &&
+          (isSwitch ? "grid-cols-[1fr_auto] gap-4 pe-1.5" : "grid-cols-[1rem_1fr] pe-4"),
         className,
       )}
       data-slot="menu-checkbox-item"
       {...props}
     >
-      {isSwitch ? (
+      {variant === "workbench" ? (
+        <>
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+            <MenuPrimitive.CheckboxItemIndicator
+              className="inline-flex h-4 w-4 items-center justify-center text-multi-fg-primary data-unchecked:opacity-0 [&_svg:not([class*='size-'])]:size-3"
+              keepMounted
+            >
+              <IconCheckmark1 />
+            </MenuPrimitive.CheckboxItemIndicator>
+          </span>
+          <span className="min-w-0 truncate text-multi-fg-primary">{children}</span>
+        </>
+      ) : isSwitch ? (
         <>
           <span className="col-start-1">{children}</span>
           <MenuPrimitive.CheckboxItemIndicator

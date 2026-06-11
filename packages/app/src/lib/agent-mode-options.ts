@@ -1,9 +1,49 @@
 import {
   AGENT_CONFIGURABLE_THINKING_LEVELS,
   AGENT_MODES,
+  type AgentAuthStatus,
   type AgentMode,
   type AgentThinkingLevel,
 } from "@multi/contracts";
+
+export interface AgentModeAvailability {
+  readonly anthropic: boolean;
+  readonly codex: boolean;
+}
+
+export function deriveAgentModeAvailability(
+  authStatuses: readonly AgentAuthStatus[],
+): AgentModeAvailability {
+  return {
+    anthropic: authStatuses.some(
+      (status) => status.authProviderId === "anthropic" && status.state === "available",
+    ),
+    codex: authStatuses.some(
+      (status) =>
+        (status.authProviderId === "openai-codex" || status.authProviderId === "openai") &&
+        status.state === "available",
+    ),
+  };
+}
+
+export function isAgentModeAvailable(
+  mode: AgentMode,
+  availability: AgentModeAvailability,
+): boolean {
+  return mode === "smart" ? availability.anthropic : availability.codex;
+}
+
+export function unavailableAgentModeReason(
+  mode: AgentMode,
+  availability: AgentModeAvailability,
+): string | null {
+  if (isAgentModeAvailable(mode, availability)) {
+    return null;
+  }
+  return mode === "smart"
+    ? "Requires Claude OAuth or a Claude API Key in Pi auth storage."
+    : "Requires Codex OAuth or a Codex API Key in Pi auth storage.";
+}
 
 export const AGENT_MODE_LABELS: Record<AgentMode, string> = {
   rush: "Rush",

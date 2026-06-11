@@ -1,4 +1,5 @@
 import { StatusDot as UiStatusDot } from "@multi/multikit/status-dot";
+import { IconArchive1 } from "central-icons";
 import type { ComponentProps } from "react";
 
 import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";
@@ -20,6 +21,10 @@ function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
 }
 
 export function StatusDot(props: { item: SidebarChatItem }) {
+  if (props.item.kind === "thread" && props.item.archived) {
+    return <IconArchive1 className="size-4 shrink-0 text-multi-icon-tertiary" aria-hidden />;
+  }
+
   if (props.item.state === "running") {
     return <ChatLoaderGlyph aria-hidden maxExtent={16} role="presentation" speed={1.1} />;
   }

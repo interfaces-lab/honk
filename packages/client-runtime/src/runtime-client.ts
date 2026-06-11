@@ -29,6 +29,12 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
       accountId: null,
     },
     {
+      kind: "claude-oauth",
+      label: "Claude OAuth",
+      authProviderId: AuthProviderId.make("anthropic"),
+      accountId: null,
+    },
+    {
       kind: "codex-oauth",
       label: "Codex OAuth",
       authProviderId: AuthProviderId.make("openai-codex"),
@@ -38,12 +44,6 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
       kind: "codex-api-key",
       label: "Codex API Key",
       authProviderId: AuthProviderId.make("openai"),
-      accountId: null,
-    },
-    {
-      kind: "xai-api-key",
-      label: "xAI API Key",
-      authProviderId: AuthProviderId.make("xai"),
       accountId: null,
     },
   ],

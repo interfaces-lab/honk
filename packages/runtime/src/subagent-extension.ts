@@ -18,6 +18,7 @@ import {
   type SubagentMode,
   type SubagentRunSnapshot,
   type SubagentRunState,
+  type SubagentScope,
   type SubagentToolDetails,
 } from "@multi/contracts";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
@@ -26,18 +27,51 @@ import {
   authProviderIdFromPiModel,
   modelIdFromPiModel,
 } from "./auth-model-policy";
+import {
+  childCanFanOut,
+  resolveSubagentModel,
+  resolveSubagentProfile,
+  subagentSystemPromptForChild,
+  type ResolvedSubagentProfile,
+  type SubagentProfileOverrides,
+} from "./subagent-profiles";
 
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
 const MAX_TASK_DESCRIPTION_LENGTH = 80;
+// Absolute cap on subagent nesting depth. The top-level agent is depth 0; its children are depth 1.
+// A child only receives the `subagent` tool when its profile authorizes fanout AND its depth is below
+// this cap, so recursive fan-out is bounded. A profile may tighten (never widen) this.
+const DEFAULT_MAX_SUBAGENT_DEPTH = 2;
+// Pi forwards every child SSE chunk. Publishing parent progress on each one re-copies the combined
+// activities array (across all concurrent children) and re-broadcasts it per chunk — the O(n^2)
+// source. Throttle to ~10 Hz (trailing edge, flushed on completion) so the live tray stays responsive
+// without flooding the host. The final tool result is computed unthrottled, so nothing is lost.
+const SUBAGENT_PUBLISH_INTERVAL_MS = 100;
+// Cap any single progress detail we mirror into the parent. The child's full output lives in its own
+// session, and the final answer is returned as the tool result; the parent only needs a bounded
+// preview for the live tray. Assistant/reasoning text keeps its head (the message as written); command
+// and tool output keeps its tail (the most recent output).
+const MAX_SUBAGENT_TEXT_DETAIL_CHARS = 16_000;
+const MAX_SUBAGENT_OUTPUT_DETAIL_CHARS = 8_000;
 const AGENT_THINKING_LEVEL_SET: ReadonlySet<ThinkingLevel> = new Set(AGENT_THINKING_LEVELS);
 
 function isAgentThinkingLevel(level: ThinkingLevel): level is AgentThinkingLevel {
   return AGENT_THINKING_LEVEL_SET.has(level);
 }
 
+function normalizeAgentThinkingLevel(value: string | undefined): AgentThinkingLevel | null {
+  return value && (AGENT_THINKING_LEVELS as readonly string[]).includes(value)
+    ? (value as AgentThinkingLevel)
+    : null;
+}
+
 interface SubagentExtensionOptions {
   readonly agentDir: string;
+  // Depth of the agent this extension is registered on (0 = top-level). Threaded to children so the
+  // recursion guard can bound nesting in-process (there is no child process / env to carry it).
+  readonly depth?: number;
+  readonly maxSubagentDepth?: number;
 }
 
 interface SubagentTask {
@@ -45,6 +79,8 @@ interface SubagentTask {
   readonly description: string | null;
   readonly cwd: string | null;
   readonly step: number | null;
+  // Supplemental context prepended to the child's first message (the child cannot see this thread).
+  readonly context: string | null;
 }
 
 interface MutableSubagentRun {
@@ -65,7 +101,7 @@ interface MutableSubagentRun {
 
 interface SubagentExecutionState {
   readonly mode: SubagentMode;
-  readonly agentScope: "user";
+  readonly agentScope: SubagentScope;
   readonly projectAgentsDir: string | null;
   readonly runs: MutableSubagentRun[];
   readonly activities: SubagentActivityDetails[];
@@ -78,6 +114,11 @@ const TaskItem = Type.Object({
   description: Type.Optional(
     Type.String({ description: "Short display label for this subagent task." }),
   ),
+  agent: Type.Optional(
+    Type.String({ description: "Named agent for this task (scout, oracle, or general-purpose)." }),
+  ),
+  model: Type.Optional(Type.String({ description: "Override model id for this task." })),
+  context: Type.Optional(Type.String({ description: "Extra context to give this task." })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this subagent run." })),
 });
 
@@ -88,6 +129,11 @@ const ChainItem = Type.Object({
   description: Type.Optional(
     Type.String({ description: "Short display label for this chain step." }),
   ),
+  agent: Type.Optional(
+    Type.String({ description: "Named agent for this step (scout, oracle, or general-purpose)." }),
+  ),
+  model: Type.Optional(Type.String({ description: "Override model id for this step." })),
+  context: Type.Optional(Type.String({ description: "Extra context to give this step." })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this chain step." })),
 });
 
@@ -95,6 +141,27 @@ const SubagentParams = Type.Object({
   prompt: Type.Optional(Type.String({ description: "Specific prompt for a single subagent." })),
   description: Type.Optional(
     Type.String({ description: "Short display label for the single subagent task." }),
+  ),
+  agent: Type.Optional(
+    Type.String({
+      description:
+        "Default named agent for all tasks (scout, oracle, general-purpose, or a user/project agent). Per-task agent overrides this.",
+    }),
+  ),
+  model: Type.Optional(Type.String({ description: "Default override model id for all tasks." })),
+  thinkingLevel: Type.Optional(
+    Type.String({ description: "Override thinking level (off, low, medium, high, xhigh)." }),
+  ),
+  tools: Type.Optional(
+    Type.Array(Type.String(), {
+      description: "Override tool allowlist for the subagents (e.g. read, grep, find, ls).",
+    }),
+  ),
+  context: Type.Optional(Type.String({ description: "Shared context given to every task." })),
+  agentScope: Type.Optional(
+    Type.Union([Type.Literal("user"), Type.Literal("project"), Type.Literal("both")], {
+      description: "Where to resolve named agents from. Defaults to both.",
+    }),
   ),
   tasks: Type.Optional(Type.Array(TaskItem, { description: "Parallel subagent tasks." })),
   chain: Type.Optional(Type.Array(ChainItem, { description: "Sequential subagent tasks." })),
@@ -105,11 +172,61 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function createExecutionState(mode: SubagentMode): SubagentExecutionState {
+function clampDetailHead(value: string, max: number): string {
+  return value.length <= max ? value : `${value.slice(0, max)}\n… [truncated]`;
+}
+
+function clampDetailTail(value: string, max: number): string {
+  return value.length <= max ? value : `… [truncated]\n${value.slice(value.length - max)}`;
+}
+
+interface TrailingThrottle {
+  readonly schedule: () => void;
+  readonly flush: () => void;
+}
+
+// Leading + trailing throttle: the first call fires immediately, subsequent calls within the window
+// collapse into a single trailing call, and flush() forces an immediate final call (used on
+// completion so the tray always lands on the terminal state). fn re-reads current state at call time.
+function createTrailingThrottle(fn: () => void, intervalMs: number): TrailingThrottle {
+  let lastRun = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const run = () => {
+    timer = null;
+    lastRun = Date.now();
+    fn();
+  };
+  return {
+    schedule: () => {
+      if (timer !== null) {
+        return;
+      }
+      const elapsed = Date.now() - lastRun;
+      if (elapsed >= intervalMs) {
+        run();
+      } else {
+        timer = setTimeout(run, intervalMs - elapsed);
+      }
+    },
+    flush: () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      run();
+    },
+  };
+}
+
+function createExecutionState(
+  mode: SubagentMode,
+  agentScope: SubagentScope,
+  projectAgentsDir: string | null,
+): SubagentExecutionState {
   return {
     mode,
-    agentScope: "user",
-    projectAgentsDir: null,
+    agentScope,
+    projectAgentsDir,
     runs: [],
     activities: [],
     activityIndexById: new Map(),
@@ -219,10 +336,6 @@ function subagentActivityId(
   }
 }
 
-function modelLabel(ctx: ExtensionContext): string | null {
-  return ctx.model?.id ?? null;
-}
-
 function policyThinkingLevel(level: ThinkingLevel): AgentModelPolicy["thinkingLevel"] | null {
   return isAgentThinkingLevel(level) ? level : null;
 }
@@ -231,7 +344,8 @@ function createMutableRun(input: {
   readonly parentThreadId: string;
   readonly toolCallId: string;
   readonly task: SubagentTask;
-  readonly ctx: ExtensionContext;
+  readonly role: string;
+  readonly model: string | null;
 }): MutableSubagentRun {
   const subagentThreadId = `${input.parentThreadId}:subagent:${input.toolCallId}:${crypto.randomUUID()}`;
   const title = taskDisplayName(input.task);
@@ -239,8 +353,8 @@ function createMutableRun(input: {
     subagentThreadId,
     agentId: subagentThreadId,
     nickname: title,
-    role: "general-purpose",
-    model: modelLabel(input.ctx),
+    role: input.role,
+    model: input.model,
     prompt: input.task.prompt,
     parentThreadId: input.parentThreadId,
     parentItemId: input.toolCallId,
@@ -336,7 +450,7 @@ function captureChildEvent(
             itemId: `assistant:${event.turnId ?? event.id}`,
             status: event.type === "message.completed" ? "completed" : "running",
             title: "Assistant",
-            detail: text,
+            detail: clampDetailHead(text, MAX_SUBAGENT_TEXT_DETAIL_CHARS),
           },
         );
       }
@@ -361,7 +475,7 @@ function captureChildEvent(
             itemId: `reasoning:${event.turnId ?? event.id}`,
             status: event.type === "message.completed" ? "completed" : "running",
             title: "Reasoning",
-            detail: thinking,
+            detail: clampDetailHead(thinking, MAX_SUBAGENT_TEXT_DETAIL_CHARS),
           },
         );
       }
@@ -377,7 +491,9 @@ function captureChildEvent(
     const toolCallId = typeof data?.toolCallId === "string" ? data.toolCallId : event.id;
     const toolName = typeof data?.toolName === "string" ? data.toolName : "tool";
     const result = event.type === "tool.completed" ? data?.result : data?.partialResult;
-    const detail = toolResultText(result);
+    const rawDetail = toolResultText(result);
+    const detail =
+      rawDetail === null ? null : clampDetailTail(rawDetail, MAX_SUBAGENT_OUTPUT_DETAIL_CHARS);
     pushActivity(
       state,
       run,
@@ -408,13 +524,24 @@ async function runSubagentTask(input: {
   readonly ctx: ExtensionContext;
   readonly signal: AbortSignal | undefined;
   readonly thinkingLevel: ThinkingLevel;
-  readonly onUpdate: ((details: SubagentToolDetails) => void) | undefined;
+  readonly profile: ResolvedSubagentProfile;
+  readonly depth: number;
+  readonly maxSubagentDepth: number;
+  readonly notify: (() => void) | undefined;
 }): Promise<MutableSubagentRun> {
+  const profile = input.profile;
+  // Resolve the child's model from the profile/override id when it exists in the registry; otherwise
+  // inherit the parent's current model. Thinking level falls back to the parent's the same way.
+  const childModel =
+    resolveSubagentModel(input.ctx.modelRegistry, profile.model) ?? input.ctx.model;
+  const childThinkingLevel: ThinkingLevel = profile.thinkingLevel ?? input.thinkingLevel;
+
   const run = createMutableRun({
     parentThreadId: input.parentThreadId,
     toolCallId: input.toolCallId,
     task: input.task,
-    ctx: input.ctx,
+    role: profile.name,
+    model: childModel?.id ?? null,
   });
   const title = taskDisplayName(input.task);
   input.state.runs.push(run);
@@ -428,41 +555,63 @@ async function runSubagentTask(input: {
     title: "Task",
     detail: input.task.prompt,
   });
-  input.onUpdate?.(toolDetails(input.state));
+  input.notify?.();
+
+  // A child may itself fan out only when its resolved tools include "subagent" and it is still below
+  // the (possibly profile-tightened) depth cap. Otherwise it gets no fanout extension at all.
+  const childDepth = input.depth + 1;
+  const effectiveMaxDepth =
+    profile.maxSubagentDepth > 0
+      ? Math.min(input.maxSubagentDepth, profile.maxSubagentDepth)
+      : input.maxSubagentDepth;
+  const childExtensionFactories: ExtensionFactory[] =
+    childCanFanOut(profile) && childDepth < effectiveMaxDepth
+      ? [
+          createSubagentExtension({
+            agentDir: input.agentDir,
+            depth: childDepth,
+            maxSubagentDepth: effectiveMaxDepth,
+          }),
+        ]
+      : [];
 
   const resourceLoader = new DefaultResourceLoader({
     cwd: input.task.cwd ?? input.ctx.cwd,
     agentDir: input.agentDir,
-    extensionFactories: [],
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
+    extensionFactories: childExtensionFactories,
+    appendSystemPrompt: subagentSystemPromptForChild(profile),
+    noExtensions: !profile.resourceAccess.extensions,
+    noSkills: !profile.resourceAccess.skills,
+    noPromptTemplates: !profile.resourceAccess.promptTemplates,
+    noThemes: !profile.resourceAccess.themes,
   });
   await resourceLoader.reload();
 
-  const productThinkingLevel = policyThinkingLevel(input.thinkingLevel);
-  const modelSelection: AgentModelPolicy["modelSelection"] = input.ctx.model
+  const productThinkingLevel = policyThinkingLevel(childThinkingLevel);
+  const modelSelection: AgentModelPolicy["modelSelection"] = childModel
     ? {
         type: "explicit",
-        authProviderId: authProviderIdFromPiModel(input.ctx.model),
-        accountId: accountIdFromProvider(input.ctx.model.provider),
-        modelId: modelIdFromPiModel(input.ctx.model),
+        authProviderId: authProviderIdFromPiModel(childModel),
+        accountId: accountIdFromProvider(childModel.provider),
+        modelId: modelIdFromPiModel(childModel),
       }
     : { type: "pi-managed" };
   const runtime = await ThreadAgentRuntime.create({
     threadId: ThreadId.make(run.subagentThreadId),
     cwd: input.task.cwd ?? input.ctx.cwd,
     agentDir: input.agentDir,
-    ...(input.ctx.model ? { model: input.ctx.model } : {}),
-    thinkingLevel: input.thinkingLevel,
+    ...(childModel ? { model: childModel } : {}),
+    thinkingLevel: childThinkingLevel,
+    ...(profile.tools ? { tools: [...profile.tools] } : {}),
     modelRegistry: input.ctx.modelRegistry,
     resourceLoader,
     policy: {
-      agentMode: "smart",
+      agentMode: profile.agentMode,
       interactionMode: "agent",
       modelSelection,
       thinkingLevel: productThinkingLevel,
+      // The effective allowlist is driven by the `tools` option above (create derives the policy's
+      // allowedToolNames from it); leave this empty so we don't fight the branded policy type.
       allowedToolNames: [],
       excludedToolNames: [],
     },
@@ -470,7 +619,7 @@ async function runSubagentTask(input: {
 
   const unsubscribe = runtime.subscribe((event) => {
     captureChildEvent(input.state, run, event);
-    input.onUpdate?.(toolDetails(input.state));
+    input.notify?.();
   });
   const abortChild = () => {
     void runtime.abort();
@@ -482,7 +631,10 @@ async function runSubagentTask(input: {
     if (input.signal?.aborted) {
       throw new Error("Subagent aborted.");
     }
-    await runtime.sendMessage(input.task.prompt, {
+    const childMessage = input.task.context
+      ? `Context:\n${input.task.context}\n\nTask:\n${input.task.prompt}`
+      : input.task.prompt;
+    await runtime.sendMessage(childMessage, {
       clientMessageId: null,
       interactionMode: "agent",
       sourceProposedPlan: null,
@@ -508,7 +660,7 @@ async function runSubagentTask(input: {
     input.signal?.removeEventListener("abort", abortChild);
     unsubscribe();
     runtime.dispose();
-    input.onUpdate?.(toolDetails(input.state));
+    input.notify?.();
   }
 
   return run;
@@ -547,19 +699,31 @@ function resultTextForRun(run: MutableSubagentRun): string {
 }
 
 export function createSubagentExtension(options: SubagentExtensionOptions): ExtensionFactory {
+  const depth = options.depth ?? 0;
+  const maxSubagentDepth = options.maxSubagentDepth ?? DEFAULT_MAX_SUBAGENT_DEPTH;
   return (pi) => {
+    // Recursion guard: an agent at or beyond the depth cap never receives the subagent tool, so it
+    // cannot fan out further no matter what its prompt asks. Children only reach this code when their
+    // profile authorized fanout (see runSubagentTask), so the cap is the only remaining gate here.
+    if (depth >= maxSubagentDepth) {
+      return;
+    }
     pi.registerTool(
       defineTool({
         name: "subagent",
         label: "Subagent",
         description:
-          "Spawn embedded child Pi sessions for specific task prompts with isolated context.",
+          "Delegate a focused task to a separate subagent running in its own context. Use scout for fast codebase reconnaissance, oracle for deep analysis and debugging, or general-purpose when no specialist fits. Supports single prompt, parallel tasks, and chain steps where {previous} carries the prior step output.",
         promptSnippet:
-          "Use subagent to run isolated research, planning, review, or implementation work from a specific prompt.",
+          "Use subagent for independent research or analysis work; give it complete context and a precise expected output.",
         promptGuidelines: [
-          "Write the prompt with all context the subagent needs; do not rely on a named subagent role.",
-          "Use parallel tasks when delegated work can run independently.",
-          "Use chain mode when each step should receive the previous step output through {previous}.",
+          "Use scout for fast codebase reconnaissance and file/symbol mapping.",
+          "Use oracle for deep reasoning, debugging, architecture analysis, and tradeoff review.",
+          "Use general-purpose when no specialist fits.",
+          "Give each subagent all required context: goal, relevant files, constraints, and expected output. The child cannot see this conversation unless you pass context.",
+          "Use parallel tasks only when the tasks are independent.",
+          "Use chain when each step depends on the previous step's output via {previous}.",
+          "Do not delegate trivial work you can do with one local read or search.",
         ],
         parameters: SubagentParams,
         async execute(toolCallId, params, signal, onUpdate, ctx) {
@@ -569,15 +733,37 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
           const hasSingle = Boolean(params.prompt);
           const modeCount = Number(hasChain) + Number(hasTasks) + Number(hasSingle);
           const mode: SubagentMode = hasChain ? "chain" : hasTasks ? "parallel" : "single";
-          const state = createExecutionState(mode);
-          const publish = onUpdate
-            ? (details: SubagentToolDetails) => {
+          const agentScope: SubagentScope = params.agentScope ?? "both";
+          const thinkingOverride = normalizeAgentThinkingLevel(params.thinkingLevel);
+          const sharedOverrides: SubagentProfileOverrides = {
+            ...(params.model ? { model: params.model } : {}),
+            ...(thinkingOverride ? { thinkingLevel: thinkingOverride } : {}),
+            ...(params.tools && params.tools.length > 0 ? { tools: params.tools } : {}),
+          };
+          // Resolve a profile per task: builtin < user < project agents, then per-call overrides
+          // (per-task agent/model win over the shared defaults).
+          const resolveProfileForTask = (taskAgent?: string, taskModel?: string) =>
+            resolveSubagentProfile({
+              name: taskAgent ?? params.agent ?? null,
+              scope: agentScope,
+              cwd: ctx.cwd,
+              agentDir,
+              overrides: { ...sharedOverrides, ...(taskModel ? { model: taskModel } : {}) },
+            });
+          const state = createExecutionState(mode, agentScope, null);
+          // Compute + publish the combined details at most ~10 Hz (trailing edge). runSubagentTask
+          // calls `notify()` on every child event; the throttle reads the current `state` only when
+          // it actually fires, so the expensive `toolDetails` copy no longer runs per child chunk.
+          const publisher = onUpdate
+            ? createTrailingThrottle(() => {
+                const details = toolDetails(state);
                 onUpdate({
                   content: [{ type: "text", text: summarizeSubagentDetails(details) }],
                   details,
                 });
-              }
-            : undefined;
+              }, SUBAGENT_PUBLISH_INTERVAL_MS)
+            : null;
+          const notify = publisher ? () => publisher.schedule() : undefined;
 
           if (modeCount !== 1) {
             const details = toolDetails(state);
@@ -621,12 +807,16 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
                   description: step.description ?? null,
                   cwd: step.cwd ?? null,
                   step: index + 1,
+                  context: step.context ?? params.context ?? null,
                 },
                 agentDir,
                 ctx,
                 signal,
                 thinkingLevel: pi.getThinkingLevel(),
-                onUpdate: publish,
+                profile: resolveProfileForTask(step.agent, step.model),
+                depth,
+                maxSubagentDepth,
+                notify,
               });
               previousOutput = resultTextForRun(run);
               if (run.state !== "completed") {
@@ -644,12 +834,16 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
                   description: task.description ?? null,
                   cwd: task.cwd ?? null,
                   step: null,
+                  context: task.context ?? params.context ?? null,
                 },
                 agentDir,
                 ctx,
                 signal,
                 thinkingLevel: pi.getThinkingLevel(),
-                onUpdate: publish,
+                profile: resolveProfileForTask(task.agent, task.model),
+                depth,
+                maxSubagentDepth,
+                notify,
               }),
             );
           } else if (params.prompt) {
@@ -662,15 +856,20 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
                 description: params.description ?? null,
                 cwd: params.cwd ?? null,
                 step: null,
+                context: params.context ?? null,
               },
               agentDir,
               ctx,
               signal,
               thinkingLevel: pi.getThinkingLevel(),
-              onUpdate: publish,
+              profile: resolveProfileForTask(params.agent, params.model),
+              depth,
+              maxSubagentDepth,
+              notify,
             });
           }
 
+          publisher?.flush();
           const details = toolDetails(state);
           return {
             content: [{ type: "text", text: summarizeSubagentDetails(details) }],

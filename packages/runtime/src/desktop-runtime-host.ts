@@ -7,6 +7,7 @@ import {
   type AgentCredentialAuthFlow,
   type AgentCredentialConfigureInput,
   type AgentAuthStatus,
+  type AgentCredentialKind,
   type AgentRuntimeModelDescriptor,
   type AgentPreferences,
   type AgentPreferencesPatch,
@@ -27,6 +28,7 @@ import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-
 import {
   AuthStorage,
   ModelRegistry,
+  type AuthCredential,
   type AuthStatus,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
@@ -54,6 +56,12 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
       accountId: null,
     },
     {
+      kind: "claude-oauth",
+      label: "Claude OAuth",
+      authProviderId: AuthProviderId.make("anthropic"),
+      accountId: null,
+    },
+    {
       kind: "codex-oauth",
       label: "Codex OAuth",
       authProviderId: AuthProviderId.make("openai-codex"),
@@ -65,16 +73,28 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
       authProviderId: AuthProviderId.make("openai"),
       accountId: null,
     },
-    {
-      kind: "xai-api-key",
-      label: "xAI API Key",
-      authProviderId: AuthProviderId.make("xai"),
-      accountId: null,
-    },
   ],
 };
 
 const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
+// Live runtime events are retained only to (a) feed the host snapshot and (b) re-project the live
+// display timeline for the in-flight turn; committed history lives in the session tree. Both arrays
+// were previously unbounded, which retained every streaming delta (and every full subagent activity
+// snapshot) for a thread's whole lifetime — the O(n^2) growth behind the crash. Cap them.
+const MAX_RUNTIME_EVENTS_PER_THREAD = 1000;
+// Coalesce the (full-timeline) display-timeline broadcasts: each one re-encodes and re-broadcasts the
+// entire projection to every window, so emitting one per streaming event is the dominant freeze/energy
+// cost. We keep the projection current per event but flush at most one emit per thread per interval.
+const DISPLAY_TIMELINE_FLUSH_INTERVAL_MS = 16;
+
+// Push with amortized O(1) trimming: let the array grow to 2x the cap, then trim back to the cap in a
+// single splice, so steady-state retention is bounded without an O(n) shift on every push.
+function boundedPush<T>(array: T[], item: T, max: number): void {
+  array.push(item);
+  if (array.length > max * 2) {
+    array.splice(0, array.length - max);
+  }
+}
 
 function describeAuthSource(status: AuthStatus | undefined): string | null {
   switch (status?.source) {
@@ -93,6 +113,18 @@ function describeAuthSource(status: AuthStatus | undefined): string | null {
     default:
       return null;
   }
+}
+
+function isOAuthCredentialKind(credentialKind: AgentCredentialKind): boolean {
+  return credentialKind === "claude-oauth" || credentialKind === "codex-oauth";
+}
+
+function credentialKindMatchesStoredCredential(
+  credentialKind: AgentCredentialKind,
+  storedCredential: AuthCredential | undefined,
+): boolean {
+  const expectedType = isOAuthCredentialKind(credentialKind) ? "oauth" : "api_key";
+  return storedCredential?.type === expectedType;
 }
 
 interface RuntimeEntry {
@@ -137,6 +169,8 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   private readonly credentialAuthFlows = new Map<string, AgentCredentialAuthFlow>();
   private readonly listeners = new Set<(event: MultiRuntimeHostEvent) => void>();
   private readonly startOperations = new Map<string, Promise<void>>();
+  private readonly pendingDisplayTimelineThreadIds = new Set<string>();
+  private displayTimelineFlushHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: DesktopRuntimeHostOptions) {
     if (options.agentDir.trim().length === 0) {
@@ -208,7 +242,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         if (!callbacks) {
           throw new Error("OAuth login callbacks are unavailable.");
         }
-        await this.loginCredential(input.authProviderId, callbacks);
+        await this.loginCredential(input.authProviderId, input.credentialKind ?? null, callbacks);
         break;
       case "logout":
         this.authStorage.logout(input.authProviderId);
@@ -223,10 +257,12 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
 
   private async loginCredential(
     authProviderId: AuthProviderId,
+    credentialKind: AgentCredentialKind | null,
     callbacks: OAuthLoginCallbacks,
   ): Promise<void> {
     this.setCredentialAuthFlow({
       authProviderId,
+      credentialKind,
       state: "pending",
       kind: "oauth-browser",
       message: "Starting login...",
@@ -241,6 +277,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         onAuth: (info) => {
           this.setCredentialAuthFlow({
             authProviderId,
+            credentialKind,
             state: "pending",
             kind: "oauth-browser",
             message: info.instructions ?? "Complete login in the browser.",
@@ -253,6 +290,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
         onDeviceCode: (info) => {
           this.setCredentialAuthFlow({
             authProviderId,
+            credentialKind,
             state: "pending",
             kind: "oauth-device-code",
             message: "Waiting for authentication.",
@@ -271,6 +309,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     } catch (error) {
       this.setCredentialAuthFlow({
         authProviderId,
+        credentialKind,
         state: "error",
         kind: this.credentialAuthFlows.get(authProviderId)?.kind ?? "oauth-browser",
         message: error instanceof Error ? error.message : "Login failed.",
@@ -355,20 +394,18 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
       });
       const ui = createDesktopExtensionUi();
       const unsubscribeRuntime = runtime.subscribe((event) => {
-        this.runtimeEvents.push(event);
-        this.pushRuntimeEventForThread(event);
+        this.recordRuntimeEvent(event);
         this.emit({ type: "runtime-event", event });
-        this.emit({
-          type: "display-timeline",
-          timeline: this.applyRuntimeEventToDisplayTimeline(runtime, event),
-        });
+        this.applyRuntimeEventToDisplayTimeline(runtime, event);
+        this.scheduleDisplayTimelineEmit(runtime.threadId);
         if (event.type === "tree.updated") {
           this.publishSessionTree(runtime);
         }
       });
       const unsubscribeUi = ui.onPendingRequestsChanged(() => {
         this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
-        this.emit({ type: "display-timeline", timeline: this.refreshDisplayTimeline(runtime) });
+        this.refreshDisplayTimeline(runtime);
+        this.scheduleDisplayTimelineEmit(runtime.threadId);
       });
       const unsubscribe = () => {
         unsubscribeRuntime();
@@ -464,7 +501,8 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     }
     entry.ui.resolveRequest(input.requestId, input.value);
     this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
-    this.emit({ type: "display-timeline", timeline: this.refreshDisplayTimeline(entry.runtime) });
+    this.refreshDisplayTimeline(entry.runtime);
+    this.scheduleDisplayTimelineEmit(entry.runtime.threadId);
   }
 
   onHostEvent(listener: (event: MultiRuntimeHostEvent) => void): () => void {
@@ -478,6 +516,11 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     for (const threadId of this.runtimes.keys()) {
       this.disposeRuntime(threadId);
     }
+    if (this.displayTimelineFlushHandle !== null) {
+      clearTimeout(this.displayTimelineFlushHandle);
+      this.displayTimelineFlushHandle = null;
+    }
+    this.pendingDisplayTimelineThreadIds.clear();
     this.listeners.clear();
   }
 
@@ -485,8 +528,40 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     const tree = runtime.getSessionTree();
     this.sessionTrees.set(runtime.threadId, tree);
     this.emit({ type: "session-tree", tree });
-    this.emit({ type: "display-timeline", timeline: this.refreshDisplayTimeline(runtime) });
+    this.refreshDisplayTimeline(runtime);
+    this.scheduleDisplayTimelineEmit(runtime.threadId);
     this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
+  }
+
+  private scheduleDisplayTimelineEmit(threadId: string): void {
+    this.pendingDisplayTimelineThreadIds.add(threadId);
+    if (this.displayTimelineFlushHandle === null) {
+      this.displayTimelineFlushHandle = setTimeout(() => {
+        this.displayTimelineFlushHandle = null;
+        this.flushDisplayTimelineEmits();
+      }, DISPLAY_TIMELINE_FLUSH_INTERVAL_MS);
+    }
+  }
+
+  private flushDisplayTimelineEmits(): void {
+    const threadIds = [...this.pendingDisplayTimelineThreadIds];
+    this.pendingDisplayTimelineThreadIds.clear();
+    for (const threadId of threadIds) {
+      const timeline = this.displayTimelines.get(threadId);
+      if (timeline) {
+        this.emit({ type: "display-timeline", timeline });
+      }
+    }
+  }
+
+  private recordRuntimeEvent(event: AgentRuntimeEvent): void {
+    boundedPush(this.runtimeEvents, event, MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
+    const threadEvents = this.runtimeEventsByThreadId.get(event.threadId);
+    if (threadEvents) {
+      boundedPush(threadEvents, event, MAX_RUNTIME_EVENTS_PER_THREAD);
+    } else {
+      this.runtimeEventsByThreadId.set(event.threadId, [event]);
+    }
   }
 
   private getDisplayTimelines(): RuntimeDisplayTimelineProjection[] {
@@ -531,15 +606,6 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     return timeline;
   }
 
-  private pushRuntimeEventForThread(event: AgentRuntimeEvent): void {
-    const events = this.runtimeEventsByThreadId.get(event.threadId);
-    if (events) {
-      events.push(event);
-      return;
-    }
-    this.runtimeEventsByThreadId.set(event.threadId, [event]);
-  }
-
   private getPendingExtensionUiRequestsForRuntime(
     runtime: ThreadAgentRuntime,
   ): DesktopExtensionUiRequest[] {
@@ -582,17 +648,27 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
 
   private getAuthStatuses(): AgentAuthStatus[] {
     const updatedAt = new Date().toISOString();
-    const byProvider = new Map<string, AgentAuthStatus>();
+    const statuses: AgentAuthStatus[] = [];
 
     for (const credential of this.preferences.credentials) {
       const status = this.authStorage?.getAuthStatus(credential.authProviderId);
-      const hasCredential = status?.configured === true || status?.source !== undefined;
-      byProvider.set(credential.authProviderId, {
+      const storedCredential = this.authStorage?.get(credential.authProviderId);
+      const hasStoredCredential = credentialKindMatchesStoredCredential(
+        credential.kind,
+        storedCredential,
+      );
+      const hasExternalCredential =
+        storedCredential === undefined &&
+        !isOAuthCredentialKind(credential.kind) &&
+        status?.source !== undefined;
+      const hasCredential = hasStoredCredential || hasExternalCredential;
+      statuses.push({
         authProviderId: credential.authProviderId,
+        credentialKind: credential.kind,
         accountId: credential.accountId,
         state: hasCredential ? "available" : "missing",
         label: credential.label,
-        message: describeAuthSource(status),
+        message: hasCredential ? describeAuthSource(status) : null,
         updatedAt,
       });
     }
@@ -600,11 +676,11 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     for (const entry of this.runtimes.values()) {
       const status = entry.runtime.authStatus;
       if (status) {
-        byProvider.set(status.authProviderId, status);
+        statuses.push(status);
       }
     }
 
-    return [...byProvider.values()];
+    return statuses;
   }
 
   private emit(event: MultiRuntimeHostEvent): void {
@@ -625,6 +701,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     this.sessionTrees.delete(threadId);
     this.runtimeEventsByThreadId.delete(threadId);
     this.displayTimelines.delete(threadId);
+    this.pendingDisplayTimelineThreadIds.delete(threadId);
     for (let index = this.runtimeEvents.length - 1; index >= 0; index -= 1) {
       if (this.runtimeEvents[index]?.threadId === threadId) {
         this.runtimeEvents.splice(index, 1);

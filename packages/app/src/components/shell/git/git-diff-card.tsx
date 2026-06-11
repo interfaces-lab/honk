@@ -2,7 +2,7 @@
 import { IconChevronRightMedium, IconClipboard, IconStepBack } from "central-icons";
 import type { GitFilePatchResult } from "@multi/contracts";
 import { MiddleTruncate } from "@pierre/truncate/react";
-import { type RefObject, useRef } from "react";
+import { memo, type RefObject, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@multi/multikit/button";
 import { Checkbox } from "@multi/multikit/checkbox";
@@ -182,13 +182,7 @@ export function GitDiffCardHeader(props: {
           <VsFileIcon path={props.file.path} className="size-4" />
         </span>
         <span className="flex min-w-0 flex-1 basis-0 items-center overflow-hidden">
-          <MiddleTruncate
-            split="leaf-path"
-            priority="end"
-            className="min-w-0 flex-1 whitespace-normal font-normal text-multi-fg-primary [--truncate-marker-background-color:var(--multi-git-diff-editor-background)]"
-          >
-            {props.file.path}
-          </MiddleTruncate>
+          <GitDiffHeaderPath path={props.file.path} />
         </span>
         <span className="flex shrink-0 items-center gap-1.5 font-multi-mono tabular-nums @max-[360px]:gap-1">
           {props.file.add > 0 ? (
@@ -237,6 +231,18 @@ export function GitDiffCardHeader(props: {
     </div>
   );
 }
+
+const GitDiffHeaderPath = memo(function GitDiffHeaderPath(props: { readonly path: string }) {
+  return (
+    <MiddleTruncate
+      split="leaf-path"
+      priority="end"
+      className="min-w-0 flex-1 whitespace-normal font-normal text-multi-fg-primary [--truncate-marker-background-color:var(--multi-git-diff-editor-background)]"
+    >
+      {props.path}
+    </MiddleTruncate>
+  );
+});
 
 function GitDiffHeaderIconButton(props: {
   readonly "aria-label": string;

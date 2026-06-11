@@ -62,9 +62,15 @@ describe("DesktopRuntimeHost", () => {
     expect(existsSync(join(agentDir, "auth.json"))).toBe(true);
     expect(snapshot.authStatuses.map((status) => status.authProviderId)).toEqual([
       "anthropic",
+      "anthropic",
       "openai-codex",
       "openai",
-      "xai",
+    ]);
+    expect(snapshot.authStatuses.map((status) => status.credentialKind)).toEqual([
+      "claude-api-key",
+      "claude-oauth",
+      "codex-oauth",
+      "codex-api-key",
     ]);
     expect(snapshot.authStatuses.every((status) => status.state === "missing")).toBe(true);
 
@@ -83,6 +89,7 @@ describe("DesktopRuntimeHost", () => {
     );
 
     expect(anthropicStatus?.state).toBe("available");
+    expect(anthropicStatus?.credentialKind).toBe("claude-api-key");
     expect(anthropicStatus?.message).toBe("Stored in Pi auth storage.");
 
     host.dispose();
@@ -201,6 +208,7 @@ describe("DesktopRuntimeHost", () => {
           expect.arrayContaining([
             expect.objectContaining({
               authProviderId: providerId,
+              credentialKind: null,
               state: "pending",
               kind: "oauth-browser",
               verificationUri: "https://example.com/login",
@@ -288,6 +296,7 @@ describe("DesktopRuntimeHost", () => {
       expect(snapshot.credentialAuthFlows).toEqual([
         expect.objectContaining({
           authProviderId: providerId,
+          credentialKind: null,
           state: "error",
           kind: "oauth-device-code",
           message: "Device login expired.",

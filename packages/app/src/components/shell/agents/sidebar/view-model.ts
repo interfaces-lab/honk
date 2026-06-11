@@ -88,6 +88,7 @@ function buildThreadChat(
     state: threadState(sum),
     unread: unreadIds?.has(sum.id) ?? false,
     pinned: pinnedThreadKeys?.has(scopedThreadKey(threadRef)) ?? false,
+    archived: sum.archived,
     updatedAt: sum.modifiedAt,
     latestReadableAt: sum.latestReadableAt ?? sum.modifiedAt,
     ago: formatCompactRelativeTimeLabel(sum.modifiedAt),
@@ -100,7 +101,7 @@ function buildThreadChat(
   } satisfies SidebarChatItem;
 }
 
-function threadState(sum: SidebarThreadSummary): SidebarThreadState {
+export function threadState(sum: SidebarThreadSummary): SidebarThreadState {
   if (sum.orchestrationStatus === "error") return "error";
   if (sum.orchestrationStatus === "stopped" || sum.latestTurnState === "interrupted") {
     return "stopped";
@@ -120,9 +121,8 @@ function buildDraftChat(draft: SidebarDraftSummary) {
   return {
     id: draft.id,
     kind: "draft",
-    title: draft.title?.trim() || "New chat",
-    state: draft.promotedTo ? "running" : "draft",
-    promotedTo: draft.promotedTo,
+    title: "New chat",
+    state: "draft",
     unread: false,
     updatedAt: draft.updatedAt,
     ago: formatCompactRelativeTimeLabel(draft.updatedAt),
@@ -134,11 +134,6 @@ function buildDraftChat(draft: SidebarDraftSummary) {
   } satisfies SidebarChatItem;
 }
 
-export interface BuildProjectChatSectionsOptions {
-  sortByRecency?: boolean;
-  itemOrderRank?: ReadonlyMap<string, number>;
-}
-
 function compareUpdatedAtDesc(
   left: Pick<SidebarChatItem, "id" | "updatedAt">,
   right: Pick<SidebarChatItem, "id" | "updatedAt">,
@@ -148,25 +143,8 @@ function compareUpdatedAtDesc(
   return left.id.localeCompare(right.id);
 }
 
-function compareSidebarChatItems(
-  left: SidebarChatItem,
-  right: SidebarChatItem,
-  options: BuildProjectChatSectionsOptions,
-) {
-  if (options.sortByRecency === false && options.itemOrderRank) {
-    const leftRank = options.itemOrderRank.get(left.id) ?? Number.MAX_SAFE_INTEGER;
-    const rightRank = options.itemOrderRank.get(right.id) ?? Number.MAX_SAFE_INTEGER;
-    if (leftRank !== rightRank) return leftRank - rightRank;
-    return left.id.localeCompare(right.id);
-  }
-  return compareUpdatedAtDesc(left, right);
-}
-
-function sortSidebarChatItems<T extends SidebarChatItem>(
-  items: readonly T[],
-  options: BuildProjectChatSectionsOptions,
-): T[] {
-  return items.toSorted((left, right) => compareSidebarChatItems(left, right, options));
+function sortSidebarChatItems<T extends SidebarChatItem>(items: readonly T[]): T[] {
+  return items.toSorted(compareUpdatedAtDesc);
 }
 
 function isPinnedThreadItem(item: SidebarChatItem): item is SidebarThreadChatItem {
@@ -182,7 +160,6 @@ export function buildProjectChatSections(
   projectCwds: readonly string[] = [],
   pinnedThreadKeys?: ReadonlySet<string>,
   retainedProjects: readonly SidebarProjectSummary[] = [],
-  options: BuildProjectChatSectionsOptions = {},
 ): SidebarSectionModel[] {
   const list: SidebarChatItem[] = [
     ...threadSummaries.map((sum) => buildThreadChat(sum, unreadIds, pinnedThreadKeys)),
@@ -190,7 +167,7 @@ export function buildProjectChatSections(
   ];
   if (list.length === 0 && retainedProjects.length === 0) return [];
 
-  const pinnedItems = sortSidebarChatItems(list.filter(isPinnedThreadItem), options);
+  const pinnedItems = sortSidebarChatItems(list.filter(isPinnedThreadItem));
   const projectItems = list.filter((item) => !isPinnedThreadItem(item));
 
   const by = new Map<string, SidebarChatItem[]>();
@@ -233,7 +210,7 @@ export function buildProjectChatSections(
   }
 
   const groups = [...by.entries()].map(([dir, items], index) => {
-    const sorted = sortSidebarChatItems(items, options);
+    const sorted = sortSidebarChatItems(items);
     const retainedProjectCandidates = projectsByCwd.get(dir) ?? [];
     const retainedProjectCandidate =
       retainedProjectCandidates.length === 1 ? (retainedProjectCandidates[0] ?? null) : null;

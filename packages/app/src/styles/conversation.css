@@ -79,6 +79,14 @@
     ease-out;
 }
 
+/* `--success`/`--warning` are tuned for fills, not text; darken them in light
+ * mode so chip labels keep enough contrast against the light composer surface.
+ * Dark mode keeps the brighter base tokens, which read fine on the dark surface. */
+:root:not(.dark) {
+  --multi-composer-mention-text: oklch(0.52 0.12 179.6);
+  --multi-composer-command-text: oklch(0.58 0.14 72);
+}
+
 [data-multi-composer-shell="thread"] {
   display: flex;
   align-items: center;
@@ -465,20 +473,23 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-queued-compos
 }
 
 [data-composer-thread-status-bar] {
-  opacity: 1;
+  max-height: 0;
+  min-height: 0;
+  opacity: 0;
   overflow: hidden;
+  padding-block: 0;
   transition:
     max-height var(--multi-motion-duration-normal) var(--multi-motion-ease-default),
     opacity var(--multi-motion-duration-normal) var(--multi-motion-ease-default),
     visibility var(--multi-motion-duration-normal) var(--multi-motion-ease-default);
-  visibility: visible;
+  visibility: hidden;
 }
 
-:not([data-scrolled-to-bottom]) [data-composer-thread-status-bar] {
-  max-height: 0;
-  opacity: 0;
-  padding-block: 0;
-  visibility: hidden;
+[data-scrolled-to-bottom] [data-composer-thread-status-bar] {
+  max-height: 3rem;
+  min-height: 1.5rem;
+  opacity: 1;
+  visibility: visible;
 }
 
 body.multi-reduce-transparency[data-multi-glass-mode="true"] .multi-shell-sidebar,

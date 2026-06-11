@@ -41,6 +41,11 @@ import {
   type PreparedRuntimeTurnPolicy,
   prepareRuntimeTurnPolicy,
 } from "~/lib/runtime-turn-dispatch";
+import {
+  AGENT_MODE_LABELS,
+  deriveAgentModeAvailability,
+  unavailableAgentModeReason,
+} from "~/lib/agent-mode-options";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { isElectron } from "../../../env";
 import { readLocalApi } from "../../../local-api";
@@ -1622,6 +1627,20 @@ export default function ChatView(props: ChatViewProps) {
     </div>
   ) : null;
 
+  const requireAvailableAgentModeForSend = (targetThreadId: ThreadId): boolean => {
+    const { snapshot } = useAgentRuntimeStore.getState();
+    const agentMode = snapshot.preferences.agentMode;
+    const reason = unavailableAgentModeReason(
+      agentMode,
+      deriveAgentModeAvailability(snapshot.authStatuses),
+    );
+    if (reason === null) {
+      return true;
+    }
+    setThreadError(targetThreadId, `${AGENT_MODE_LABELS[agentMode]} mode is unavailable. ${reason}`);
+    return false;
+  };
+
   const prepareRuntimePolicyForSend = (
     targetThreadId: ThreadId,
     nextInteractionMode: AgentInteractionMode,
@@ -1679,6 +1698,9 @@ export default function ChatView(props: ChatViewProps) {
     const runtimeCwd = workspaceTarget.cwd;
     if (!runtimeCwd) {
       setThreadError(threadIdForSend, "Pi runtime requires an active project before sending.");
+      return false;
+    }
+    if (!requireAvailableAgentModeForSend(threadIdForSend)) {
       return false;
     }
     const preparedRuntimePolicy = prepareRuntimePolicyForSend(
@@ -1906,6 +1928,9 @@ export default function ChatView(props: ChatViewProps) {
     const initialRuntimeCwd = workspaceTarget.cwd;
     if (!initialRuntimeCwd) {
       setThreadError(threadIdForSend, "Pi runtime requires an active project before sending.");
+      return;
+    }
+    if (!requireAvailableAgentModeForSend(threadIdForSend)) {
       return;
     }
     const preparedRuntimePolicy = prepareRuntimePolicyForSend(

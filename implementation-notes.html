@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Subagent perf/memory fix — implementation notes</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1.25rem; }
+  h1 { font-size: 1.7rem; margin-bottom: .25rem; }
+  h2 { margin-top: 2.25rem; border-bottom: 1px solid color-mix(in oklab, currentColor 18%, transparent); padding-bottom: .3rem; }
+  h3 { margin-top: 1.6rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: color-mix(in oklab, currentColor 9%, transparent); padding: .1em .35em; border-radius: .3em; font-size: .88em; }
+  pre { background: color-mix(in oklab, currentColor 7%, transparent); padding: .8rem 1rem; border-radius: .5rem; overflow-x: auto; font-size: .82rem; }
+  .meta { color: color-mix(in oklab, currentColor 60%, transparent); font-size: .85rem; }
+  .tag { display: inline-block; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: .12em .5em; border-radius: .4em; vertical-align: middle; }
+  .tag.decision { background: #3b82f633; color: #2563eb; }
+  .tag.tradeoff { background: #f59e0b33; color: #b45309; }
+  .tag.changed { background: #8b5cf633; color: #7c3aed; }
+  .tag.deferred { background: #6b728033; color: #4b5563; }
+  .tag.risk { background: #ef444433; color: #dc2626; }
+  .entry { margin: 1rem 0; padding-left: .9rem; border-left: 3px solid color-mix(in oklab, currentColor 22%, transparent); }
+  .entry h3 { margin-top: .2rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1rem 0; }
+  th, td { border: 1px solid color-mix(in oklab, currentColor 18%, transparent); padding: .45rem .6rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in oklab, currentColor 8%, transparent); }
+  .file { font-family: ui-monospace, monospace; font-size: .85em; }
+  ul.compact { margin: .3rem 0; }
+</style>
+</head>
+<body>
+<h1>Subagent perf/memory fix — implementation notes</h1>
+<p class="meta">Branch <code>bigrefactor</code> · started 2026-06-11 · running log of decisions, deviations, and tradeoffs not in the original review/spec. Newest entries appended under each section.</p>
+
+<h2>Goal &amp; scope</h2>
+<p>
+Implement the surgical half of the subagent research review: kill the UI freeze, the energy burn during
+parallel runs, and the O(n²) memory growth that crashed the system — <em>without</em> the larger structural
+rewrites (moving execution off the main thread; unifying the subagent UI on the chat renderer), which are
+deferred to their own focused PRs and documented at the bottom.
+</p>
+<p>Four landing changes, each isolated to one file, each mapped to a defect from the review:</p>
+<table>
+  <thead><tr><th>#</th><th>Change</th><th>File</th><th>Defect it fixes</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>Cap the two host event arrays</td><td class="file">packages/runtime/src/desktop-runtime-host.ts</td><td>Leak #1 — unbounded retention → crash</td></tr>
+    <tr><td>B</td><td>Coalesce display-timeline emits</td><td class="file">packages/runtime/src/desktop-runtime-host.ts</td><td>Freeze/energy — per-event full encode + broadcast + decode</td></tr>
+    <tr><td>C</td><td>Throttle + bound subagent publishes</td><td class="file">packages/runtime/src/subagent-extension.ts</td><td>Source quadratic — full activities copy + full text per child chunk</td></tr>
+    <tr><td>D</td><td>Bound ingestion dedup Sets</td><td class="file">packages/desktop/src/runtime/runtime-ingestion.ts</td><td>Leak #3 — module-singleton Sets grow for app lifetime</td></tr>
+  </tbody>
+</table>
+
+<h2>Decisions, deviations &amp; tradeoffs</h2>
+
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Scope: ship the surgical four, defer the two structural rewrites</h3>
+  <p>
+    The review ranked six fixes. I implemented the four that are each isolated to one file, high-confidence,
+    and directly eliminate the crash + the bulk of the freeze/energy (plus one bonus per-event size cut, "E"),
+    and deferred the two large structural items (off-main-thread execution; UI unification) to their own PRs —
+    they carry real lifecycle/parity risk and deserve focused review. Rationale per item below; deferred items
+    at the bottom.
+  </p>
+</div>
+
+<h3>A · Cap host runtime event arrays <span class="file">desktop-runtime-host.ts</span></h3>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Amortized 2× trim, not trim-on-every-push</h3>
+  <p>
+    A naïve cap (<code>splice</code> one element whenever <code>length &gt; max</code>) is an O(max) array shift on
+    <em>every</em> event — itself a per-event cost under the exact load we're fixing. Instead <code>boundedPush</code>
+    lets the array grow to <code>2×max</code> then trims back to <code>max</code> in one splice → amortized O(1) per push,
+    steady-state memory bounded at 2×max.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Two different caps for two different roles</h3>
+  <p>
+    Global <code>runtimeEvents</code> capped at <code>MAX_RUNTIME_EVENTS_IN_SNAPSHOT</code> (500): it only ever feeds the
+    host snapshot, which already exposes at most 500. Per-thread <code>runtimeEventsByThreadId</code> capped at
+    <code>MAX_RUNTIME_EVENTS_PER_THREAD</code> (1000): it feeds the live display re-projection, so it must comfortably
+    exceed one in-flight turn's live events.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag risk">Risk / tradeoff</span> Full re-projection after a &gt;1000-event uncommitted turn</h3>
+  <p>
+    <code>refreshDisplayTimeline</code> re-projects over the (now capped) per-thread array. If a single turn streamed
+    &gt;1000 live events <em>before any session-tree commit</em>, the full re-projection could miss the earliest live
+    items. In practice this is safe: (1) the incremental projector keeps the current timeline in
+    <code>displayTimelines</code> independently of the event array, and (2) committed work is restored from the session
+    tree, and turns commit per-tool / per-message so the live backlog stays well under the cap. The snapshot-cap test
+    still passes unchanged (the snapshot path still slices to the last 500).
+  </p>
+</div>
+
+<h3>B · Coalesce display-timeline emits <span class="file">desktop-runtime-host.ts</span></h3>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Timer-coalesced trailing flush at 16 ms, per-thread</h3>
+  <p>
+    Each <code>display-timeline</code> event carries the <em>entire</em> projection and was emitted once per runtime
+    event, then full-Effect-encoded in main + structured-cloned to every window + full-Effect-decoded in the renderer.
+    Intermediate ones are redundant (the app renders from the latest timeline; <code>reduceHostEvent</code> upserts by
+    threadId). A dirty-set + <code>setTimeout(16ms)</code> trailing flush emits at most one per thread per frame.
+    Chose a timer over a microtask because pi events arrive <em>asynchronously</em> (per SSE chunk), so a microtask
+    wouldn't coalesce across them; 16 ms ≈ 60 fps matches Cursor's render cap.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag changed">Changed behavior</span> display-timeline emission is now async (≤16 ms)</h3>
+  <p>
+    Previously synchronous per event. No test asserted synchronous emit timing, and <code>getHostSnapshot()</code> still
+    reads <code>displayTimelines</code> directly (kept fresh by the per-event incremental projection), so snapshot reads
+    are unaffected. Only the <em>push</em> is coalesced; the expensive encode/broadcast/decode is what we cut. Flush
+    timer is cleared in <code>dispose()</code>; a thread is removed from the dirty set in <code>disposeRuntime</code>.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Did NOT coalesce <code>runtime-event</code></h3>
+  <p>
+    Each <code>runtime-event</code> is semantically distinct (unique id; subagent activity sync and ingestion both ride
+    on it), so dropping/merging them is unsafe without the larger delta-refactor. Fix C shrinks the subagent ones at the
+    source and fix E halves all of them instead.
+  </p>
+</div>
+
+<h3>C · Throttle + bound subagent publishes <span class="file">subagent-extension.ts</span></h3>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> <code>onUpdate(toolDetails)</code> → zero-arg <code>notify()</code></h3>
+  <p>
+    The core source fix. <code>runSubagentTask</code> previously computed <code>toolDetails(state)</code> — a full copy of
+    the combined activities array across all concurrent children — and published it on <em>every</em> child SSE chunk.
+    It now calls a zero-arg <code>notify()</code>; a leading+trailing throttle computes <code>toolDetails</code> and
+    publishes only when it actually fires (≤10 Hz). The full-array copy no longer runs per chunk.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> 100 ms interval, flush-on-completion, unthrottled final result</h3>
+  <p>
+    100 ms (10 Hz) sits between Cursor's 16 ms render cap and pi-subagents' 250 ms poll — live enough, not a flood.
+    <code>flush()</code> on completion guarantees the tray lands on the terminal state, and the returned tool
+    <em>result</em> is computed unthrottled, so throttling can never drop data — at worst it skips an intermediate
+    progress frame.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag risk">Tradeoff</span> Clamp progress detail (head for text, tail for output)</h3>
+  <p>
+    A single child tool result can be ~50&nbsp;KB and was mirrored into the parent activity and re-shipped. Detail is now
+    clamped: assistant/reasoning keep their <strong>head</strong> (16&nbsp;KB — the message as written); command/tool
+    output keeps its <strong>tail</strong> (8&nbsp;KB — the most recent output). <code>run.finalText</code> /
+    <code>lastAssistantText</code> stay <em>full</em> — only the displayed <code>detail</code> is clamped, and the child's
+    complete output remains in its own session. Tradeoff: the live tray may show a truncated preview for very large
+    outputs; the full final answer still reaches the parent conversation as the tool result.
+  </p>
+</div>
+
+<h3>D · Bound ingestion dedup sets <span class="file">runtime-ingestion.ts</span></h3>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> FIFO eviction at 5000 keys</h3>
+  <p>
+    The two module-singleton <code>Set</code>s grew for the whole app lifetime. <code>rememberPersistedKey</code> evicts the
+    oldest once over 5000. <span class="tag risk">Tradeoff</span> a re-arriving evicted (very old) key could be
+    re-dispatched — harmless because backend persistence is keyed by <code>commandId</code> (idempotent).
+  </p>
+</div>
+
+<h3>E · Drop the unused <code>raw</code> field <span class="file">event-projection.ts</span></h3>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Stop populating <code>event.raw</code></h3>
+  <p>
+    <code>raw: event</code> duplicated the whole pi event already shallow-copied into <code>data</code> — for a
+    <code>message_update</code> that's the full accumulated message a third time (it appears as <code>data.message</code>,
+    <code>data.assistantMessageEvent.partial</code>, and <code>raw</code>). Grep confirmed <strong>zero consumers</strong>
+    of <code>event.raw</code> across app/runtime/desktop. Dropping it ~halves every runtime-event payload that crosses IPC.
+  </p>
+  <p>
+    <span class="tag decision">Decision</span> I kept <code>raw</code> in the <em>contract schema</em> as
+    <code>Schema.optional</code> rather than removing it — removing a schema field is a broader change and decoders
+    already tolerate its absence; the producer simply no longer sets it. (Noted as an intentionally dead-but-optional
+    schema field.) I did <em>not</em> attempt to also slim <code>data</code> for message events: many
+    <code>payload.data</code> readers live in the 3700-line <code>session-logic.ts</code>, so that belongs in the
+    delta-refactor (deferred).
+  </p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag changed">Incidental</span> Removed two pre-existing meaningless <code>void</code> operators</h3>
+  <p>
+    <code>void this.dispatchCommand(...)</code> (×2) in <code>runtime-ingestion.ts</code> — the method returns
+    <code>void</code>, so the operator was meaningless and oxlint flagged it once the file was in my diff. Pre-existing
+    (not introduced here); cleaned up to keep the edited file lint-clean.
+  </p>
+</div>
+
+<h2>Verification</h2>
+<ul class="compact">
+  <li>Full-repo typecheck: <strong>10/10 packages pass</strong> (confirms the <code>raw</code> drop broke no consumer).</li>
+  <li>oxlint on all four changed files: <strong>clean</strong>.</li>
+  <li>Affected suites pass: <code>desktop-runtime-host</code> + <code>display-timeline-projection</code> +
+      <code>thread-agent-runtime.tools</code> (32), <code>runtime-ingestion</code> (2), <code>agent-runtime-store</code> (20).</li>
+  <li><span class="tag risk">Pre-existing</span> 8 files under <code>packages/runtime/test/pi-source/</code> fail to
+      <em>import</em> (missing <code>./utilities.ts</code>, <code>src/core/*</code>) — a vendored pi-source test tree that
+      expects a pi checkout layout absent from this repo. Unrelated to these changes; all 67 runnable runtime tests pass.</li>
+  <li>No new regression tests added, per the repo's canonical style (behavior covered by existing host/projection suites).</li>
+</ul>
+
+<h2>Phase 2 — Specialized named subagents (pi-subagents pattern)</h2>
+<p>
+  Second piece of work: turn the generic fan-out tool into a specialized named-agent system like
+  pi-subagents — named agents (scout, reviewer, oracle, worker, …) each with their own model, thinking
+  level, tool allowlist, system prompt, resource scope, and fan-out permission. New module
+  <span class="file">packages/runtime/src/subagent-profiles.ts</span> (the resolver + builtin bodies);
+  the rest is wiring in <span class="file">subagent-extension.ts</span>.
+</p>
+<table>
+  <thead><tr><th>Task</th><th>Where</th><th>What changed</th></tr></thead>
+  <tbody>
+    <tr><td>Profile resolver</td><td class="file">subagent-profiles.ts</td><td>builtin &lt; user &lt; project &lt; per-call overrides; <code>resolveSubagentProfile()</code></td></tr>
+    <tr><td>Params</td><td class="file">subagent-extension.ts</td><td>added <code>agent</code>, <code>model</code>, <code>thinkingLevel</code>, <code>tools</code>, <code>context</code>, <code>agentScope</code> (top-level + per-task <code>agent</code>/<code>model</code>/<code>context</code>)</td></tr>
+    <tr><td>Child config</td><td class="file">subagent-extension.ts</td><td><code>runSubagentTask</code> sources role/model/thinking/agentMode/tools/system-prompt/resource-access from the resolved profile</td></tr>
+    <tr><td>Depth guard</td><td class="file">subagent-extension.ts</td><td>in-process depth threaded through the factory; child gets the <code>subagent</code> tool only if authorized</td></tr>
+  </tbody>
+</table>
+
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Builtin agents live in code, not on disk</h3>
+  <p>
+    <code>general-purpose</code>, <code>scout</code>, <code>reviewer</code>, <code>oracle</code>, and
+    <code>worker</code> are defined as constants in <code>subagent-profiles.ts</code> — no filesystem read,
+    always available, and testable. User/project agents are still loaded from <code>.md</code> files and can
+    override a builtin of the same name. (pi-subagents ships its builtins as bundled files; in-code is simpler
+    for an embedded runtime and avoids a packaging step.)
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Resolution order &amp; agent directories</h3>
+  <p>
+    Precedence is <strong>builtin &lt; user &lt; project &lt; per-call overrides</strong> (later wins). User agents:
+    <code>&lt;agentDir&gt;/agents/*.md</code> (the pi-agent dir, multi's equivalent of <code>~/.pi/agent/agents</code>).
+    Project agents: the nearest <code>.multi/agents</code> directory at or above the working dir.
+    <span class="tag decision">Assumption</span> I chose <code>.multi/agents</code> for the project scope (the spec
+    didn't name it); pi-subagents uses <code>.pi/agents</code>. Easy to change or additionally support if you'd
+    prefer <code>.pi/agents</code>. Per-call <code>agentScope</code> (<code>user</code>/<code>project</code>/<code>both</code>)
+    gates which scopes are read; default <code>user</code>.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> System prompt is <em>appended</em> in-process, not replaced</h3>
+  <p>
+    The load-bearing mechanism: <code>DefaultResourceLoader({ appendSystemPrompt: [...] })</code> — the in-process
+    SDK equivalent of pi-subagents' <code>--append-system-prompt</code> CLI flag (confirmed in the 0.78.1 dist,
+    <code>resource-loader.d.ts</code>). I append (the profile body + a short boundary note that the child is a
+    subagent and shouldn't try to converse with the user) rather than replace, so the base pi prompt — tool docs,
+    safety guidance — survives. <span class="tag risk">Tradeoff</span> a profile can't fully replace the base prompt;
+    if that's ever needed, the loader also exposes <code>systemPrompt</code> (replace) and override callbacks.
+    The prompt is fixed at child-session creation (no mid-run rewrite); dynamic context goes through the task
+    message via the new <code>context</code> param.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag risk">Tradeoff</span> Tool allowlists drop <code>read</code>; specialists use <code>bash</code></h3>
+  <p>
+    multi force-excludes the pi builtin <code>read</code> (<code>DEFAULT_EXCLUDED_TOOL_NAMES</code> in
+    thread-agent-runtime) — it reads via its fff extension, which children don't load. So the builtin profiles use
+    <code>grep/find/ls/bash</code> for read-only work (bash reaches file content) and add <code>edit/write</code> for the
+    worker. Including <code>read</code> in an allowlist would be a silent no-op. This matches pi-subagents' own reviewer/scout
+    (which include <code>bash</code>). Consequence: a "read-only" reviewer technically has <code>bash</code> and could
+    modify — we rely on the system prompt to keep it read-only, as the reference does.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> The <code>tools</code> option drives the allowlist; policy field left empty</h3>
+  <p>
+    <code>ThreadAgentRuntime.create</code> derives the session's effective allowlist from its <code>tools</code> option
+    (and re-derives <code>policy.allowedToolNames</code> from it internally), so I pass <code>tools: profile.tools</code>
+    and leave <code>policy.allowedToolNames: []</code> — both because it's overridden anyway and to avoid fighting the
+    branded <code>TrimmedNonEmptyString[]</code> policy type. A null profile <code>tools</code> means "inherit the
+    parent's default tools".
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Depth guard is in-process (no env/subprocess to carry it)</h3>
+  <p>
+    pi-subagents propagates depth via an env var to spawned child processes. multi runs children in-process, so depth is
+    threaded explicitly: <code>createSubagentExtension({ depth, maxSubagentDepth })</code>. The factory refuses to register
+    the <code>subagent</code> tool when <code>depth &gt;= maxSubagentDepth</code>, and a child is handed its own fan-out
+    extension <em>only</em> when its resolved <code>tools</code> include <code>"subagent"</code> and it's still below the
+    cap. A profile's <code>maxSubagentDepth</code> can only tighten the global cap (default <strong>2</strong>). No builtin
+    includes <code>subagent</code> in its tools, so by default subagents cannot themselves fan out — exactly the requested
+    behavior.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag decision">Decision</span> Model resolution falls back to inheritance</h3>
+  <p>
+    A profile/override <code>model</code> string ("provider/id" or a bare id) is resolved against the registry
+    (<code>ModelRegistry.find</code>/<code>getAll</code>); if it's absent or unknown, the child inherits the parent's current
+    model rather than erroring. Same fall-through for thinking level and tools.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag changed">Note</span> Verification &amp; what I did not add</h3>
+  <p>
+    Full-repo typecheck passes 10/10; the affected runtime suites pass (32 tests); under the real project lint config
+    both new/changed subagent files are clean (the <code>no-redundant-type-constituents</code> hits only appear when
+    oxlint runs on isolated files and can't resolve <code>@multi/contracts</code> types — they vanish with project type
+    resolution). No new unit tests for the resolver, per the repo's canonical no-regression-tests style; the resolver is
+    pure and typechecked. Not done (out of the requested scope): a settings UI for managing agents, user-confirmation
+    before running project-scoped agents (pi-subagents prompts; multi runs headless), and shipping example agent
+    <code>.md</code> files.
+  </p>
+</div>
+
+<h2>Deferred to follow-up PRs</h2>
+<div class="entry">
+  <h3><span class="tag deferred">Deferred · review #4</span> Move child execution off the Electron main thread</h3>
+  <p>
+    Today every subagent runs as an in-process <code>ThreadAgentRuntime.create()</code> on the main thread (up to 4 + the
+    parent), so heavy parallel work still saturates the one event loop even after the IPC fixes. Two routes:
+    (a) host <code>DesktopRuntimeHost</code> in an Electron <code>utilityProcess</code> and forward host events over its
+    <code>MessagePort</code>; (b) genuinely spawn <code>pi --mode json -p --session &lt;fork&gt;</code> per child — pi's own
+    sample design and pi-subagents' design. <span class="tag risk">Risk</span> lifecycle/teardown, sharing auth + model
+    registry across processes, transcript transport. <strong>Starting point:</strong> the host is instantiated at
+    <code>packages/desktop/src/ipc/methods/runtime.ts:41</code>; the child path is
+    <code>subagent-extension.ts → ThreadAgentRuntime.create</code>.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag deferred">Deferred · review #6</span> Unify the subagent UI on the chat renderer + one click</h3>
+  <p>
+    The subagent transcript renders through a bespoke flat tray instead of the main timeline's
+    <code>StepRenderer</code>/markdown tree, and reaching a running child takes two clicks (expand the work-group
+    collapsible, then click the row). Cursor's lesson: a subagent <em>is</em> a composer — same store, same renderer —
+    reachable one click from a persistent pill. <strong>Starting point:</strong>
+    <code>packages/app/src/components/chat/composer/subagents/subagent-tray.tsx</code> already converts some transcript
+    items to <code>TimelineStep</code> and calls <code>StepRenderer</code>; extend that to the whole transcript and
+    replace the collapsible→row→tray path with a single persistent affordance.
+  </p>
+</div>
+<div class="entry">
+  <h3><span class="tag deferred">Deferred · review #1</span> Forward deltas, not accumulated message text</h3>
+  <p>
+    The base (non-subagent) assistant stream still emits one <code>runtime-event</code> per chunk whose
+    <code>data</code> holds the full accumulated message — inherent O(n²) on that channel for a single long message
+    (now halved by dropping <code>raw</code>, and its render path is covered by the coalesced display-timeline, but the
+    channel cost remains). The real fix is to consume <code>assistantMessageEvent.delta</code> (pi's documented consumer
+    pattern) and have the host's incremental message projection accumulate from deltas. Deferred because
+    <code>event.text</code> being full-accumulated is load-bearing across the projection and many
+    <code>session-logic.ts</code> consumers read <code>payload.data</code> — a semantic refactor, not a surgical one.
+  </p>
+</div>
+
+</body>
+</html>

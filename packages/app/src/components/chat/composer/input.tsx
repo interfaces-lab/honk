@@ -108,6 +108,9 @@ import {
   AGENT_MODE_LABELS,
   AGENT_MODE_THINKING_LEVELS,
   AGENT_THINKING_LEVEL_OPTIONS,
+  deriveAgentModeAvailability,
+  unavailableAgentModeReason,
+  type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
 
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
@@ -286,7 +289,7 @@ function AgentModeProviderIcon(props: { agentMode: AgentMode; className?: string
   return <Icon className={props.className} aria-hidden />;
 }
 
-function AgentModeDetailsPopup(props: { mode: AgentMode }) {
+function AgentModeDetailsPopup(props: { mode: AgentMode; unavailableReason?: string | null }) {
   const details = AGENT_MODE_MODEL_DETAILS[props.mode];
 
   return (
@@ -299,6 +302,9 @@ function AgentModeDetailsPopup(props: { mode: AgentMode }) {
         <span>{details.modelName}</span>
       </div>
       <p className="text-multi-fg-secondary">{details.description}</p>
+      {props.unavailableReason ? (
+        <p className="text-multi-fg-tertiary">Unavailable. {props.unavailableReason}</p>
+      ) : null}
     </div>
   );
 }
@@ -328,6 +334,7 @@ function isAgentModeEditTarget(target: EventTarget | null): boolean {
 function ComposerAgentModePicker(props: {
   agentMode: AgentMode;
   thinkingLevel: AgentThinkingLevel;
+  availability: AgentModeAvailability;
   disabled: boolean;
   onAgentModeChange: (agentMode: AgentMode) => void;
   onAgentModeThinkingLevelChange: (agentMode: AgentMode, thinkingLevel: AgentThinkingLevel) => void;
@@ -368,7 +375,10 @@ function ComposerAgentModePicker(props: {
             props.thinkingLevel,
           );
           const label = AGENT_MODE_LABELS[mode];
-          const showEffortSettings = openSubmenu?.mode === mode && openSubmenu.kind === "effort";
+          const unavailableReason = unavailableAgentModeReason(mode, props.availability);
+          const modeUnavailable = unavailableReason !== null;
+          const showEffortSettings =
+            !modeUnavailable && openSubmenu?.mode === mode && openSubmenu.kind === "effort";
 
           return (
             <MenuSub
@@ -391,9 +401,12 @@ function ComposerAgentModePicker(props: {
             >
               <MenuSubTrigger
                 variant="workbench"
-                className="group/model gap-2 pe-1 transition-none [&>svg:last-child]:hidden"
+                className={cn(
+                  "group/model gap-2 pe-1 transition-none [&>svg:last-child]:hidden",
+                  modeUnavailable && "opacity-50",
+                )}
                 onPointerDownCapture={(event) => {
-                  if (isAgentModeEditTarget(event.target) || selected) {
+                  if (isAgentModeEditTarget(event.target) || selected || modeUnavailable) {
                     return;
                   }
                   setOpenSubmenu(null);
@@ -403,14 +416,14 @@ function ComposerAgentModePicker(props: {
                   if (event.key !== "Enter" && event.key !== " ") {
                     return;
                   }
-                  if (isAgentModeEditTarget(event.target) || selected) {
+                  if (isAgentModeEditTarget(event.target) || selected || modeUnavailable) {
                     return;
                   }
                   setOpenSubmenu(null);
                   props.onAgentModeChange(mode);
                 }}
                 onClick={(event) => {
-                  if (isAgentModeEditTarget(event.target)) {
+                  if (!modeUnavailable && isAgentModeEditTarget(event.target)) {
                     setOpenSubmenu({ mode, kind: "effort" });
                   }
                 }}
@@ -436,7 +449,7 @@ function ComposerAgentModePicker(props: {
                     </span>
                   ) : null}
                 </span>
-                {isThinkingAgentMode(mode) ? (
+                {isThinkingAgentMode(mode) && !modeUnavailable ? (
                   <span
                     className={cn(
                       "hidden shrink-0 text-detail text-multi-fg-secondary",
@@ -485,7 +498,7 @@ function ComposerAgentModePicker(props: {
                     ))}
                   </MenuRadioGroup>
                 ) : (
-                  <AgentModeDetailsPopup mode={mode} />
+                  <AgentModeDetailsPopup mode={mode} unavailableReason={unavailableReason} />
                 )}
               </MenuSubPopup>
             </MenuSub>
@@ -1276,7 +1289,9 @@ export const ComposerInput = memo(
     const composerImages = composerDraft.images;
     const nonPersistedComposerImageIds = composerDraft.nonPersistedImageIds;
     const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
+    const runtimeAuthStatuses = useAgentRuntimeStore((state) => state.snapshot.authStatuses);
     const setRuntimeSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
+    const agentModeAvailability = deriveAgentModeAvailability(runtimeAuthStatuses);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
     const statusContextWindow = useMemo(() => {
@@ -2131,6 +2146,7 @@ export const ComposerInput = memo(
         <ComposerAgentModePicker
           agentMode={runtimePreferences.agentMode}
           thinkingLevel={runtimePreferences.thinkingLevel}
+          availability={agentModeAvailability}
           disabled={isAgentModeSaving || isConnecting}
           onAgentModeChange={handleAgentModeChange}
           onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}

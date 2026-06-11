@@ -29,6 +29,21 @@ const decodeRuntimePersistenceCommand = Schema.decodeUnknownExit(ClientOrchestra
 const elog = EffectLogger.create({ service: "desktop.runtime.ingestion" });
 let installedClientConfig: DesktopOrchestrationClientConfig | null = null;
 
+// These dedup sets are module-singleton and live for the whole app lifetime. Bound them so a long
+// session with heavy event volume cannot grow them without limit. Eviction is FIFO; re-dispatching an
+// evicted (very old) key is harmless — backend persistence is keyed by commandId.
+const MAX_PERSISTED_KEYS = 5000;
+
+function rememberPersistedKey(set: Set<string>, key: string): void {
+  set.add(key);
+  if (set.size > MAX_PERSISTED_KEYS) {
+    const oldest = set.values().next().value;
+    if (oldest !== undefined) {
+      set.delete(oldest);
+    }
+  }
+}
+
 class RuntimeIngestionState {
   private readonly persistedRuntimeEventKeys = new Set<string>();
   private readonly persistedRuntimeAssistantEntryKeys = new Set<string>();
@@ -131,7 +146,7 @@ class RuntimeIngestionState {
       if (this.persistedRuntimeAssistantEntryKeys.has(entryKey)) {
         continue;
       }
-      void this.dispatchCommand({
+      this.dispatchCommand({
         command,
         persistenceKey: entryKey,
         persistedKeys: this.persistedRuntimeAssistantEntryKeys,
@@ -151,9 +166,9 @@ class RuntimeIngestionState {
     if (commands.length === 0) {
       return;
     }
-    this.persistedRuntimeEventKeys.add(eventKey);
+    rememberPersistedKey(this.persistedRuntimeEventKeys, eventKey);
     for (const command of commands) {
-      void this.dispatchCommand({
+      this.dispatchCommand({
         command,
         persistenceKey: eventKey,
         persistedKeys: this.persistedRuntimeEventKeys,
@@ -183,7 +198,7 @@ class RuntimeIngestionState {
       return;
     }
 
-    input.persistedKeys.add(input.persistenceKey);
+    rememberPersistedKey(input.persistedKeys, input.persistenceKey);
     void this.ensureConfigured()
       .then((client) => client.dispatchCommand(decoded.value))
       .catch((error: unknown) => {

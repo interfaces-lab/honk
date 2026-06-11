@@ -2,23 +2,16 @@ import { scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedProjectRef, ScopedThreadRef } from "@multi/contracts";
 import { SidebarItem } from "@multi/multikit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
-import { type DragEvent, memo, useRef, useState } from "react";
+import { type DragEvent, memo, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
 import { readLocalApi } from "~/local-api";
 import { cn } from "~/lib/utils";
 import { useUiStateStore } from "~/stores/ui-state-store";
-import {
-  EMPTY_VISIBLE_THREAD_REFS,
-  initialMaxVisible,
-  nearViewportPrefetchLimit,
-  pageStep,
-} from "./constants";
+import { initialMaxVisible, nearViewportPrefetchLimit, pageStep } from "./constants";
 import { SidebarSectionContextMenu } from "./context-menu";
 import type { SidebarDragPayload, SidebarDropTarget } from "./drag-and-drop";
-import { createSectionItemIdsKey, createThreadRefsKey } from "./keys";
-import { SectionPrefetchSync, SectionVisibleThreadRefsSync } from "./section-sync";
 import { AgentSidebarThreadItem } from "./thread-item";
 import type { SidebarSectionModel } from "./types";
 
@@ -43,18 +36,6 @@ function minVisibleForSelection(
   return Math.min(items.length, Math.max(firstPage, index + 1));
 }
 
-function useCallbackIdentityVersion<TCallback extends ((...args: never[]) => unknown) | undefined>(
-  callback: TCallback,
-): number {
-  const callbackRef = useRef<TCallback>(callback);
-  const versionRef = useRef(0);
-  if (callbackRef.current !== callback) {
-    callbackRef.current = callback;
-    versionRef.current += 1;
-  }
-  return versionRef.current;
-}
-
 export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
   section: SidebarSectionModel;
   selectedId: string | null;
@@ -66,15 +47,14 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
   onSidebarDrop: (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => void;
   archiveThread: ArchiveThread;
   archiveThreads: ArchiveThreads;
+  unarchiveThread: ArchiveThread;
   commitRename: CommitThreadRename;
   removeProjectFromSidebar: RemoveProjectFromSidebar;
   onSelectAgent: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
   onPrefetchAgent?: (id: string) => void;
-  onVisibleThreadRefsChange: (sectionId: string, threadRefs: readonly ScopedThreadRef[]) => void;
 }) {
   const { onPrefetchAgent, section } = props;
-  const prefetchAgentVersion = useCallbackIdentityVersion(onPrefetchAgent);
   const savedOpen = useUiStateStore((store) =>
     section.projectStateKey ? (store.projectExpandedById[section.projectStateKey] ?? true) : true,
   );
@@ -111,14 +91,19 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
     props.dropTarget?.sectionId === section.id ? props.dropTarget.position : null;
   const draggingProject = props.dragPayload?.sectionId === section.id;
   const canRemoveProject = section.projectRef !== undefined && section.projectCwd !== undefined;
-  const visibleThreadRefs = open
-    ? section.items
-        .slice(0, visible)
-        .flatMap((item) => (item.kind === "thread" ? [item.threadRef] : []))
-    : EMPTY_VISIBLE_THREAD_REFS;
-  const visibleThreadRefsKey = createThreadRefsKey(visibleThreadRefs);
-  const prefetchItems = open ? section.items.slice(0, visible + nearViewportPrefetchLimit) : [];
-  const prefetchItemsKey = createSectionItemIdsKey(prefetchItems);
+  const prefetchItems = useMemo(
+    () => (open ? section.items.slice(0, visible + nearViewportPrefetchLimit) : []),
+    [open, section.items, visible],
+  );
+
+  useEffect(() => {
+    if (!onPrefetchAgent) {
+      return;
+    }
+    for (const item of prefetchItems) {
+      onPrefetchAgent(item.id);
+    }
+  }, [onPrefetchAgent, prefetchItems]);
 
   const openSectionInEditor = () => {
     const localApi = readLocalApi();
@@ -170,7 +155,6 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
     });
   };
 
-  const { onVisibleThreadRefsChange } = props;
   const toggleOpen = () => {
     if (section.projectStateKey) {
       setProjectExpanded(section.projectStateKey, !open);
@@ -210,19 +194,6 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
           )}
         />
       ) : null}
-      {onPrefetchAgent ? (
-        <SectionPrefetchSync
-          key={`${section.id}:${prefetchAgentVersion}:${prefetchItemsKey}`}
-          items={prefetchItems}
-          onPrefetchAgent={onPrefetchAgent}
-        />
-      ) : null}
-      <SectionVisibleThreadRefsSync
-        key={`${section.id}:${visibleThreadRefsKey}`}
-        onVisibleThreadRefsChange={onVisibleThreadRefsChange}
-        sectionId={section.id}
-        threadRefs={visibleThreadRefs}
-      />
       <SidebarSectionContextMenu
         hasThreads={section.threadRefs.length > 0}
         canOpenInEditor={canOpenInEditor}
@@ -320,6 +291,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
               item={item}
               selected={props.selectedId === item.id}
               archiveThread={props.archiveThread}
+              unarchiveThread={props.unarchiveThread}
               commitRename={props.commitRename}
               onSelectAgent={props.onSelectAgent}
               {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}

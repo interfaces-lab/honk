@@ -109,7 +109,10 @@ const make = ElectronApp.of({
     }),
   setDockIcon: (iconPath) =>
     Effect.sync(() => {
-      Electron.app.dock?.setIcon(iconPath);
+      const icon = Electron.nativeImage.createFromPath(iconPath);
+      if (!icon.isEmpty()) {
+        Electron.app.dock?.setIcon(icon);
+      }
     }),
   appendCommandLineSwitch: (switchName, value) =>
     Effect.sync(() => {

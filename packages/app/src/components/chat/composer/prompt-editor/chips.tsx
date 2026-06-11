@@ -92,7 +92,7 @@ export function ComposerCommandChip({ content, name }: ComposerCommandPayload) {
         type="button"
         variant="ghost"
         tabIndex={-1}
-        className="h-auto min-w-0 justify-start truncate border-0 bg-transparent p-0 text-left text-inherit shadow-none before:hidden hover:bg-transparent hover:underline data-pressed:bg-transparent"
+        className="h-auto min-w-0 justify-start truncate border-0 bg-transparent p-0 text-left text-inherit shadow-none transition-none before:hidden hover:bg-transparent hover:underline data-pressed:bg-transparent"
       >
         {label}
       </Button>

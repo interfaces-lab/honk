@@ -17,7 +17,8 @@ import { invalidateGitQueries } from "../lib/git-react-query";
 import { ensureEnvironmentGitApi } from "../lib/environment-git-api";
 import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
 import { newCommandId } from "../lib/utils";
-import { readLocalApi } from "../local-api";
+import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
+import { ensureLocalApi, readLocalApi } from "../local-api";
 import {
   selectProjectsAcrossEnvironments,
   selectThreadByRef,
@@ -178,6 +179,45 @@ async function commitRename(
   });
 }
 
+function threadHasOngoingWork(thread: Pick<Thread, "session">): boolean {
+  return thread.session?.status === "running" || thread.session?.status === "connecting";
+}
+
+async function stopThreadWork(target: ScopedThreadRef, thread: Pick<Thread, "session">) {
+  try {
+    await readMultiRuntimeApi().abort({ threadId: target.threadId });
+  } catch {
+    // The runtime host may be unavailable or the thread may not be runtime-owned.
+  }
+  if (!thread.session || thread.session.status === "closed") {
+    return;
+  }
+  const api = readEnvironmentApi(target.environmentId);
+  if (!api) {
+    return;
+  }
+  await api.orchestration
+    .dispatchCommand({
+      type: "thread.session.stop",
+      commandId: newCommandId(),
+      threadId: target.threadId,
+      createdAt: new Date().toISOString(),
+    })
+    .catch(() => undefined);
+}
+
+async function confirmArchiveWithOngoingWork(threadTitles: readonly string[]): Promise<boolean> {
+  if (threadTitles.length === 0) {
+    return true;
+  }
+  const localApi = readLocalApi() ?? ensureLocalApi();
+  const subject =
+    threadTitles.length === 1
+      ? `"${threadTitles[0]}" still has tasks running.`
+      : `${threadTitles.length} threads still have tasks running.`;
+  return localApi.dialogs.confirm([subject, "Archiving force-stops them. Continue?"].join("\n"));
+}
+
 async function unarchiveThread(target: ScopedThreadRef): Promise<void> {
   const api = readEnvironmentApi(target.environmentId);
   if (!api) return;
@@ -237,6 +277,12 @@ export function useThreadActions() {
       if (!resolved) return;
       const { thread, threadRef } = resolved;
 
+      if (threadHasOngoingWork(thread)) {
+        const confirmed = await confirmArchiveWithOngoingWork([thread.title]);
+        if (!confirmed) return;
+      }
+      await stopThreadWork(threadRef, thread);
+
       await api.orchestration.dispatchCommand({
         type: "thread.archive",
         commandId: newCommandId(),
@@ -283,6 +329,25 @@ export function useThreadActions() {
       const archiveTargets = [...targetByKey.values()];
       if (archiveTargets.length === 0) {
         return;
+      }
+
+      const targetsWithOngoingWork = archiveTargets.flatMap((target) => {
+        const thread = selectThreadByRef(state, target);
+        return thread && threadHasOngoingWork(thread) ? [{ target, thread }] : [];
+      });
+      if (targetsWithOngoingWork.length > 0) {
+        const confirmed = await confirmArchiveWithOngoingWork(
+          targetsWithOngoingWork.map(({ thread }) => thread.title),
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+      for (const target of archiveTargets) {
+        const thread = selectThreadByRef(state, target);
+        if (thread) {
+          await stopThreadWork(target, thread);
+        }
       }
 
       const currentRouteThreadRef = getCurrentRouteThreadRef();

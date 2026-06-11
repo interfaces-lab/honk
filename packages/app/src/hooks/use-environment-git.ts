@@ -1,5 +1,6 @@
 import {
   type EnvironmentId,
+  type GitFileImageResult,
   type GitFilePatchResult,
   type GitManagerServiceError,
   type GitStatusResult,
@@ -13,14 +14,19 @@ import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } f
 import { readEnvironmentGitApi, type EnvironmentGitApi } from "../lib/environment-git-api";
 import { refreshGitStatus, useGitStatus } from "../lib/git-status-state";
 import {
+  gitImageQueryOptions,
   gitPatchQueryOptions,
   gitQueryKeys,
+  invalidateGitImageQueries,
   invalidateGitPatchQueries,
 } from "../lib/environment-git-react-query";
 import { useLocalStorage } from "./use-local-storage";
 
 const DiffStyle = Schema.Literals(["unified", "split"]);
 const MAX_ACTIVE_GIT_PATCH_QUERIES = 80;
+type GitImagePatchResult = Extract<GitFilePatchResult, { kind: "non_text" }> & {
+  readonly fileType: "image";
+};
 
 export function useDiffStylePreference() {
   return useLocalStorage<"unified" | "split", "unified" | "split">(
@@ -59,8 +65,11 @@ export interface GitPanelModel {
   totalDel: number;
   focusId: string | null;
   patchesByPath: Map<string, GitFilePatchResult>;
+  imagesByPath: Map<string, GitFileImageResult>;
   diffLoadingByPath: Set<string>;
   diffErrorByPath: Map<string, string>;
+  imageLoadingByPath: Set<string>;
+  imageErrorByPath: Map<string, string>;
   expandedIds: Set<string>;
   activeDiffIds: Set<string>;
   lifecycleSync: ReactNode;
@@ -171,6 +180,12 @@ function getGitErrorMessage(error: GitManagerServiceError | null): string {
   return "Unable to load Git status.";
 }
 
+function isGitImagePatch(
+  patch: GitFilePatchResult | null | undefined,
+): patch is GitImagePatchResult {
+  return patch?.kind === "non_text" && patch.fileType === "image";
+}
+
 export function syncRows(prev: DiffRow[], next: DiffRow[]) {
   const rows = new Map(prev.map((row) => [row.id, row]));
   const ids = new Set<string>();
@@ -233,11 +248,17 @@ function EnvironmentGitPanelRowsSync({
       queryClient.removeQueries({
         queryKey: gitQueryKeys.patch(environmentId, cwd, id),
       });
+      queryClient.removeQueries({
+        queryKey: gitQueryKeys.image(environmentId, cwd, id),
+      });
     }
 
     for (const id of next.drop) {
       void queryClient.invalidateQueries({
         queryKey: gitQueryKeys.patch(environmentId, cwd, id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: gitQueryKeys.image(environmentId, cwd, id),
       });
     }
   }, [cwd, environmentId, queryClient, rows]);
@@ -253,7 +274,10 @@ export async function revalidateGitPanelPatches(input: {
 }): Promise<void> {
   const target = { environmentId: input.environmentId, cwd: input.cwd };
   await refreshGitStatus(target, input.api, { force: true });
-  await invalidateGitPatchQueries(input.queryClient, target);
+  await Promise.all([
+    invalidateGitPatchQueries(input.queryClient, target),
+    invalidateGitImageQueries(input.queryClient, target),
+  ]);
 }
 
 export function deriveGitPanelViewState(input: {
@@ -391,6 +415,59 @@ export function useEnvironmentGitPanel(
     }
   }
 
+  const activeImageRows = activeDiffRows.filter((row) => isGitImagePatch(patchesByPath.get(row.path)));
+  const imageQueries = useQueries({
+    queries: activeImageRows.map((row) =>
+      gitImageQueryOptions({
+        environmentId: environmentId ?? null,
+        cwd,
+        path: row.path,
+        state: row.state,
+        enabled: Boolean(cwd && environmentId),
+      }),
+    ),
+  });
+
+  const imagesByPath = new Map<string, GitFileImageResult>();
+  const imageLoadingByPath = new Set<string>();
+  const imageErrorByPath = new Map<string, string>();
+
+  if (cwd) {
+    for (const row of rows) {
+      if (!requestedDiffIds.has(row.id) || !isGitImagePatch(patchesByPath.get(row.path))) {
+        continue;
+      }
+      const cachedImage = queryClient.getQueryData<GitFileImageResult>(
+        gitQueryKeys.image(environmentId ?? null, cwd, row.path, row.state),
+      );
+      if (cachedImage) {
+        imagesByPath.set(row.path, cachedImage);
+      }
+    }
+  }
+
+  for (const [index, row] of activeImageRows.entries()) {
+    const query = imageQueries[index];
+    if (!query) continue;
+
+    const isFetching = query.isPending || query.fetchStatus === "fetching";
+
+    if (query.data) {
+      imagesByPath.set(row.path, query.data);
+    }
+
+    if (!query.data && isFetching) {
+      imageLoadingByPath.add(row.path);
+    }
+
+    if (!query.data && query.error) {
+      imageErrorByPath.set(
+        row.path,
+        query.error instanceof Error ? query.error.message : String(query.error),
+      );
+    }
+  }
+
   const focusId = null;
 
   const revalidate = async () => {
@@ -506,8 +583,11 @@ export function useEnvironmentGitPanel(
     totalDel,
     focusId,
     patchesByPath,
+    imagesByPath,
     diffLoadingByPath,
     diffErrorByPath,
+    imageLoadingByPath,
+    imageErrorByPath,
     expandedIds,
     activeDiffIds,
     lifecycleSync: gitPanelRowsSync,

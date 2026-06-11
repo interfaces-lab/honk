@@ -303,8 +303,5 @@ export function hasServerAcknowledgedLocalDispatch(input: {
     return latestTurn === null || latestTurn.completedAt !== null;
   }
 
-  return (
-    input.localDispatch.sessionOrchestrationStatus !== (session?.orchestrationStatus ?? null) ||
-    input.localDispatch.sessionUpdatedAt !== (session?.updatedAt ?? null)
-  );
+  return session?.orchestrationStatus === "starting" || session?.orchestrationStatus === "running";
 }

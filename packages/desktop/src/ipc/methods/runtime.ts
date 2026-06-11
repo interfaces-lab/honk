@@ -135,9 +135,6 @@ function createRuntimeCredentialLoginCallbacks(
       throw new Error("This OAuth login prompt is not available in the desktop settings window.");
     },
     onProgress: () => undefined,
-    onManualCodeInput: async () => {
-      throw new Error("Manual OAuth code entry is not available in the desktop settings window.");
-    },
     onSelect: async (prompt) =>
       prompt.options.find((option) => option.id === "device_code")?.id ?? prompt.options[0]?.id,
   };

@@ -197,6 +197,7 @@ function sidebarThread(input: {
     state: "idle",
     unread: false,
     pinned: false,
+    archived: false,
     latestReadableAt: "2026-06-06T21:36:38.000Z",
     threadRef: threadRef(id),
     title: input.title,

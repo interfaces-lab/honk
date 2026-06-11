@@ -21,7 +21,6 @@ import {
   requireProjectAbsent,
   requireThread,
   requireThreadAbsent,
-  requireThreadNotArchived,
 } from "./command-invariants.ts";
 
 const nowIso = () => new Date().toISOString();
@@ -377,7 +376,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.archive": {
-      const thread = yield* requireThreadNotArchived({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
@@ -393,7 +392,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         type: "thread.archived",
         payload: {
           threadId: command.threadId,
-          archivedAt: occurredAt,
+          archivedAt: thread.archivedAt ?? occurredAt,
           updatedAt: thread.updatedAt,
         },
       };

@@ -29,18 +29,40 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).toContain("High");
     expect(html).toContain("Interaction mode");
     expect(html).toContain("Accounts");
+    expect(html).not.toContain("xAI API Key");
+    expect(html).not.toContain("Session tree");
+    expect(html).not.toContain("Workspace files");
+  });
+
+  it("renders only configured credentials and offers the rest behind Add", () => {
+    const emptyHtml = renderAgentPreferences();
+    expect(emptyHtml).toContain("No accounts connected");
+    expect(emptyHtml).toContain("Add");
+    expect(emptyHtml).not.toContain("Paste Claude API Key");
+    expect(emptyHtml).not.toContain("Update key");
+    expect(emptyHtml).not.toContain("Login");
+
+    const html = renderAgentPreferences({
+      ...createEmptyRuntimeHostSnapshot(),
+      authStatuses: [
+        {
+          authProviderId: AuthProviderId.make("anthropic"),
+          credentialKind: "claude-api-key",
+          accountId: null,
+          state: "available",
+          label: "Claude API Key",
+          message: null,
+          updatedAt: "2026-06-09T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(html).not.toContain("No accounts connected");
     expect(html).toContain("Claude API Key");
-    expect(html).toContain("Codex OAuth");
-    expect(html).toContain("Codex API Key");
-    expect(html).toContain("xAI API Key");
-    expect(html).toContain("Login");
-    expect(html).toContain("Paste Claude API Key");
-    expect(html).toContain("Paste Codex API Key");
-    expect(html).toContain("Paste xAI API Key");
-    expect(html).toContain("Save key");
-    expect(html).toContain("Pi session");
-    expect(html).toContain("Session tree");
-    expect(html).toContain("Runtime session trees are persisted");
+    expect(html).toContain("Available");
+    expect(html).toContain("Update key");
+    expect(html).toContain("Remove");
+    expect(html).not.toContain("Login");
   });
 
   it("renders unavailable model modes when provider credentials are missing", () => {
@@ -50,6 +72,20 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).toContain("Requires Codex OAuth or a Codex API Key in Pi auth storage.");
   });
 
+  it("includes Claude OAuth in the default credentials", () => {
+    const snapshot = createEmptyRuntimeHostSnapshot();
+
+    expect(snapshot.preferences.credentials).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "claude-oauth",
+          label: "Claude OAuth",
+          authProviderId: "anthropic",
+        }),
+      ]),
+    );
+  });
+
   it("does not mark the active model unavailable when its provider credential exists", () => {
     const snapshot = createEmptyRuntimeHostSnapshot();
     const html = renderAgentPreferences({
@@ -57,6 +93,7 @@ describe("AgentRuntimeSettingsSections", () => {
       authStatuses: [
         {
           authProviderId: AuthProviderId.make("openai-codex"),
+          credentialKind: "codex-oauth",
           accountId: null,
           state: "available",
           label: "Codex OAuth",
@@ -103,11 +140,10 @@ describe("AgentRuntimeSettingsSections", () => {
   });
 
   it("keeps API key entry integrated in the settings surface", () => {
-    const html = renderAgentPreferences();
     const source = readFileSync(new URL("./settings-panels.tsx", import.meta.url), "utf8");
 
-    expect(html).toContain('type="password"');
-    expect(html).toContain("Stored in Pi auth storage. Saved keys are never displayed here.");
+    expect(source).toContain('type="password"');
+    expect(source).toContain("Stored in Pi auth storage. Saved keys are never displayed here.");
     expect(source).not.toContain("window.prompt");
   });
 
@@ -117,6 +153,7 @@ describe("AgentRuntimeSettingsSections", () => {
       credentialAuthFlows: [
         {
           authProviderId: AuthProviderId.make("openai-codex"),
+          credentialKind: "codex-oauth",
           state: "pending",
           kind: "oauth-device-code",
           message: "Waiting for browser login.",
@@ -133,6 +170,28 @@ describe("AgentRuntimeSettingsSections", () => {
     expect(html).toContain("Open login page");
     expect(html).toContain("ABCD-1234");
     expect(html).toContain("Copy code");
+  });
+
+  it("does not render Claude OAuth flow state on the API key row", () => {
+    const html = renderAgentPreferences({
+      ...createEmptyRuntimeHostSnapshot(),
+      credentialAuthFlows: [
+        {
+          authProviderId: AuthProviderId.make("anthropic"),
+          credentialKind: "claude-oauth",
+          state: "error",
+          kind: "oauth-browser",
+          message: "Login failed.",
+          verificationUri: "https://example.com/login",
+          userCode: null,
+          updatedAt: "2026-06-02T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(html).not.toContain("Claude API Key");
+    expect(html).toContain("Claude OAuth");
+    expect(html).toContain("Login failed.");
   });
 
   it("does not expose provider/model picker or raw Pi access controls", () => {

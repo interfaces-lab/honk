@@ -133,6 +133,7 @@ function createOrchestrationApi(input: {
       preparePullRequestThread: async () => notCalled(),
       discardPaths: async () => notCalled(),
       getFilePatch: async () => notCalled(),
+      getFileImage: async () => notCalled(),
     },
     orchestration: {
       dispatchCommand: input.dispatchCommand ?? (async () => ({ sequence: 1 })),

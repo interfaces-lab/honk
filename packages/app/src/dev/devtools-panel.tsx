@@ -1,3 +1,4 @@
+import { DevPerformanceMonitor } from "./performance-monitor";
 import { RouterDevtoolsPanel } from "./router-devtools";
 
 export function DevDevtoolsPanel() {
@@ -5,5 +6,10 @@ export function DevDevtoolsPanel() {
     return null;
   }
 
-  return <RouterDevtoolsPanel />;
+  return (
+    <>
+      <DevPerformanceMonitor />
+      <RouterDevtoolsPanel />
+    </>
+  );
 }

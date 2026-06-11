@@ -78,12 +78,34 @@
         justify-content: center;
         width: 96px;
         height: 96px;
+        animation: boot-shell-float 1.8s ease-in-out infinite;
       }
 
       #boot-shell-logo {
         width: 64px;
         height: 64px;
         object-fit: contain;
+      }
+
+      @keyframes boot-shell-float {
+        0%,
+        100% {
+          transform: translateY(0) rotate(0deg);
+        }
+
+        45% {
+          transform: translateY(-3px) rotate(-2deg);
+        }
+
+        70% {
+          transform: translateY(1px) rotate(1deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #boot-shell-card {
+          animation: none;
+        }
       }
     </style>
     <script>

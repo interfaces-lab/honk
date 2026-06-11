@@ -128,6 +128,5 @@ export function projectPiAgentSessionEvent(
     ...(text ? { text } : {}),
     ...(thinking ? { thinking } : {}),
     data: toUnknownRecord(event),
-    raw: event,
   };
 }
