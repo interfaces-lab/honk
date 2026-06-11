@@ -24,6 +24,10 @@ function resolvePublishConfig(): Configuration["publish"] {
   ];
 }
 
+function resolveMacIdentity(): NonNullable<Configuration["mac"]>["identity"] {
+  return process.env.MULTI_DESKTOP_SKIP_MAC_SIGNING === "true" ? null : undefined;
+}
+
 export default {
   appId: "com.interfacesco.multi",
   productName: "Multi",
@@ -43,6 +47,7 @@ export default {
     target: ["dmg", "zip"],
     icon: "icon.icns",
     category: "public.app-category.developer-tools",
+    identity: resolveMacIdentity(),
   },
   linux: {
     target: ["AppImage"],

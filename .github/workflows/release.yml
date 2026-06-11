@@ -181,6 +181,7 @@ jobs:
             else
               echo "macOS signing disabled (missing one or more Apple signing secrets)."
               export CSC_IDENTITY_AUTO_DISCOVERY=false
+              export MULTI_DESKTOP_SKIP_MAC_SIGNING=true
             fi
           else
             echo "Signing disabled for ${{ matrix.platform }}."
