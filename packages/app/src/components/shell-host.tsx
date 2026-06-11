@@ -12,6 +12,7 @@ import type { TimestampFormat } from "@multi/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
 import { Outlet, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -31,6 +32,8 @@ import { formatGitActionErrorDescription } from "~/git/action-error-description"
 import { useEnvironmentGitPanel } from "~/hooks/use-environment-git";
 import { useHandleNewThread } from "~/hooks/use-handle-new-thread";
 import { useRouteThreadId } from "~/hooks/use-route-thread-id";
+import { readEnvironmentGitApi } from "~/lib/environment-git-api";
+import { refreshGitStatus, useGitStatus } from "~/lib/git-status-state";
 import { useServerAvailableEditors, useServerConfig } from "~/rpc/server-state";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { readEnvironmentApi } from "~/environment-api";
@@ -353,7 +356,15 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const settings = useSettings();
   const threadEnvMode = settings.defaultThreadEnvMode;
 
-  const selectedId = sidebarSelectionIdForChatRoute(routeTarget);
+  const routeSelectedId = sidebarSelectionIdForChatRoute(routeTarget);
+  const [clickedSidebarId, setClickedSidebarId] = useState<string | null>(null);
+  const selectedId = clickedSidebarId ?? routeSelectedId;
+
+  useEffect(() => {
+    if (clickedSidebarId !== null && clickedSidebarId === routeSelectedId) {
+      setClickedSidebarId(null);
+    }
+  }, [clickedSidebarId, routeSelectedId]);
 
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = routeActiveThread ?? null;
@@ -593,9 +604,18 @@ function ChatShellHost(props: { children?: ReactNode }) {
     projectlessCwd,
     projects,
     routeActiveThread: routeActiveThread ?? null,
-    selectedId,
+    selectedId: routeSelectedId,
     sidebarThreads,
   });
+  const selectSidebarAgent = useCallback(
+    (id: string) => {
+      flushSync(() => {
+        setClickedSidebarId(id);
+      });
+      sidebarModel.select(id);
+    },
+    [sidebarModel.select],
+  );
 
   const startGitAgentAction = async (action: GitAgentAction) => {
     if (gitAgentActionInFlightRef.current || activeGitAgentRun !== null) {
@@ -930,7 +950,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         error={false}
         sections={sidebarModel.sections}
         selectedId={selectedId}
-        onSelectAgent={sidebarModel.select}
+        onSelectAgent={selectSidebarAgent}
         onPrefetchAgent={sidebarModel.prefetchAgent}
         onNewAgent={sidebarModel.create}
         onOpenWorkspace={openAddProject}
@@ -1036,6 +1056,34 @@ function GitWorkbenchPanel(props: {
       />
     </WorkbenchPanel>
   );
+}
+
+function GitStatusSync(props: {
+  cwd: string | null;
+  environmentId: EnvironmentId | null;
+}) {
+  const status = useGitStatus({
+    environmentId: props.environmentId,
+    cwd: props.cwd,
+  });
+  const hasStatusData = status.data !== null;
+
+  useEffect(() => {
+    if (!props.cwd || !props.environmentId) {
+      return;
+    }
+    const gitApi = readEnvironmentGitApi(props.environmentId);
+    if (!gitApi) {
+      return;
+    }
+    void refreshGitStatus(
+      { environmentId: props.environmentId, cwd: props.cwd },
+      gitApi,
+      { force: !hasStatusData },
+    ).catch(() => undefined);
+  }, [props.cwd, props.environmentId, hasStatusData]);
+
+  return null;
 }
 
 function ChatWorkbenchShellHost(props: {
@@ -1183,6 +1231,7 @@ function ChatWorkbenchShellHost(props: {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+      <GitStatusSync cwd={props.cwd} environmentId={props.environmentId} />
       <AppShell
         cwd={props.cwd}
         workspaceKey={props.workspaceKey}

@@ -1,8 +1,8 @@
-import { useMemo } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useMatch } from "@tanstack/react-router";
 import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@multi/contracts";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
+import type { AppRouter } from "~/router";
 import { DraftId, type DraftId as DraftIdType } from "~/stores/chat-drafts";
 
 export type ChatRouteTarget =
@@ -66,23 +66,25 @@ export function chatRouteTargetFromParams(params: ChatRouteParams): ChatRouteTar
   };
 }
 
-export function getCurrentChatRouteTarget(input: {
-  readonly state: {
-    readonly matches: ReadonlyArray<{
-      readonly params: unknown;
-    }>;
-  };
-}): ChatRouteTarget | null {
-  return chatRouteTargetFromParams((input.state.matches.at(-1)?.params ?? {}) as ChatRouteParams);
+export function readChatRouteTarget(router: Pick<AppRouter, "state">): ChatRouteTarget | null {
+  const params = (router.state.matches.at(-1)?.params ?? {}) as ChatRouteParams;
+  return chatRouteTargetFromParams(params);
 }
 
 export function useChatRouteTarget(): ChatRouteTarget | null {
-  const params = useRouterState({
-    select: (state: { readonly matches: ReadonlyArray<{ readonly params: unknown }> }) =>
-      state.matches.at(-1)?.params as ChatRouteParams | undefined,
-    structuralSharing: true,
+  const threadMatch = useMatch({
+    from: "/_chat/$environmentId/$threadId",
+    shouldThrow: false,
   });
-  return useMemo(() => chatRouteTargetFromParams(params ?? {}), [params]);
+  const draftMatch = useMatch({
+    from: "/_chat/draft/$draftId",
+    shouldThrow: false,
+  });
+
+  if (threadMatch) {
+    return { kind: "server", threadRef: threadMatch.params };
+  }
+  return draftMatch ? { kind: "draft", draftId: draftMatch.params.draftId } : null;
 }
 
 export function sidebarSelectionIdForChatRoute(target: ChatRouteTarget | null): string | null {

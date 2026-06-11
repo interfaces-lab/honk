@@ -21,16 +21,19 @@ import { useThreadSelectionStore } from "~/stores/thread-selection-store";
 import { readSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { selectProjectsAcrossEnvironments, useStore } from "~/stores/thread-store";
-import { getCurrentRouteTarget } from "~/routes/-thread-route-targets";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 
 function ChatRouteGlobalShortcuts() {
   const router = useRouter();
+  const routeTarget = useRouteTarget();
   const keybindings = useServerKeybindings();
   const routerRef = useRef(router);
+  const routeTargetRef = useRef(routeTarget);
   const shortcutValuesRef = useRef({
     keybindings,
   });
   routerRef.current = router;
+  routeTargetRef.current = routeTarget;
   shortcutValuesRef.current = {
     keybindings,
   };
@@ -43,7 +46,7 @@ function ChatRouteGlobalShortcuts() {
     const onWindowKeyDown = (event: KeyboardEvent) => {
       const values = shortcutValuesRef.current;
       if (event.defaultPrevented) return;
-      const routeTarget = getCurrentRouteTarget(routerRef.current);
+      const routeTarget = routeTargetRef.current;
       const terminalOpen =
         routeTarget?.kind === "server"
           ? selectThreadTerminalState(

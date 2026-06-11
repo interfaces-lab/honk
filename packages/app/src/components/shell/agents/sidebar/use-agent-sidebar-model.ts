@@ -15,6 +15,7 @@ import {
   prefetchDraftNavigation,
   prefetchThreadNavigation,
 } from "~/app/chat-navigation";
+import { retainThreadDetailSubscription } from "~/environments/runtime/service";
 import {
   type ChatThreadActionContext,
   startNewThreadFromContext,
@@ -526,39 +527,49 @@ export function useAgentSidebarModel(input: {
       }
       const draft = drafts.find((entry) => entry.id === id);
       if (draft) {
-        if (draft.projectId !== null) {
-          const project = findWorkspaceProjectForSource(input.projects, draft);
-          if (project) {
-            persistProjectSelection(project);
-          } else if (
-            isSourceForWorkspaceProjectRef({
-              projectRef: selectedProjectRef,
-              source: draft,
-            })
-          ) {
-            persistDefaultProjectSelection();
-          }
-        }
         void openDraft(router, id);
+        setTimeout(() => {
+          if (draft.projectId !== null) {
+            const project = findWorkspaceProjectForSource(input.projects, draft);
+            if (project) {
+              persistProjectSelection(project);
+            } else if (
+              isSourceForWorkspaceProjectRef({
+                projectRef: selectedProjectRef,
+                source: draft,
+              })
+            ) {
+              persistDefaultProjectSelection();
+            }
+          }
+        }, 0);
         return;
       }
       const summary = summaries.find((entry) => entry.id === id);
       if (summary) {
-        markThreadVisited(scopedThreadKey(scopeThreadRef(summary.environmentId, summary.id)));
-        if (summary.projectId !== null && summary.cwd) {
-          const project = findWorkspaceProjectForSource(input.projects, summary);
-          if (project) {
-            persistProjectSelection(project);
-          } else if (
-            isSourceForWorkspaceProjectRef({
-              projectRef: selectedProjectRef,
-              source: summary,
-            })
-          ) {
-            persistDefaultProjectSelection();
+        const threadRef = scopeThreadRef(summary.environmentId, summary.id);
+        void openThread(router, threadRef);
+        const releaseThreadDetail = retainThreadDetailSubscription(
+          threadRef.environmentId,
+          threadRef.threadId,
+        );
+        setTimeout(releaseThreadDetail, 10_000);
+        setTimeout(() => {
+          markThreadVisited(scopedThreadKey(threadRef));
+          if (summary.projectId !== null && summary.cwd) {
+            const project = findWorkspaceProjectForSource(input.projects, summary);
+            if (project) {
+              persistProjectSelection(project);
+            } else if (
+              isSourceForWorkspaceProjectRef({
+                projectRef: selectedProjectRef,
+                source: summary,
+              })
+            ) {
+              persistDefaultProjectSelection();
+            }
           }
-        }
-        void openThread(router, scopeThreadRef(summary.environmentId, summary.id));
+        }, 0);
       }
     },
     [

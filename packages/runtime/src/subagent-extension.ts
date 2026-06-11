@@ -96,7 +96,9 @@ interface MutableSubagentRun {
   finalText: string | null;
   errorMessage: string | null;
   lastAssistantText: string;
+  lastAssistantTextItemId: string | null;
   lastThinkingText: string;
+  lastThinkingTextItemId: string | null;
 }
 
 interface SubagentExecutionState {
@@ -362,7 +364,9 @@ function createMutableRun(input: {
     finalText: null,
     errorMessage: null,
     lastAssistantText: "",
+    lastAssistantTextItemId: null,
     lastThinkingText: "",
+    lastThinkingTextItemId: null,
   };
 }
 
@@ -431,13 +435,22 @@ function captureChildEvent(
   run: MutableSubagentRun,
   event: AgentRuntimeEvent,
 ): void {
-  if (event.type === "message.updated" || event.type === "message.completed") {
+  if (
+    (event.type === "message.updated" || event.type === "message.completed") &&
+    event.messageRole === "assistant"
+  ) {
+    const assistantItemId = `assistant:${event.turnId ?? event.id}`;
     const eventText = event.text?.trim();
-    const text = eventText || (event.type === "message.completed" ? run.lastAssistantText : null);
+    const text =
+      eventText ||
+      (event.type === "message.completed" && run.lastAssistantTextItemId === assistantItemId
+        ? run.lastAssistantText
+        : null);
     if (text) {
       const textChanged = text !== run.lastAssistantText;
       if (textChanged) {
         run.lastAssistantText = text;
+        run.lastAssistantTextItemId = assistantItemId;
       }
       if (textChanged || event.type === "message.completed") {
         pushActivity(
@@ -447,7 +460,7 @@ function captureChildEvent(
           "Subagent response",
           {
             itemType: "assistant_message",
-            itemId: `assistant:${event.turnId ?? event.id}`,
+            itemId: assistantItemId,
             status: event.type === "message.completed" ? "completed" : "running",
             title: "Assistant",
             detail: clampDetailHead(text, MAX_SUBAGENT_TEXT_DETAIL_CHARS),
@@ -456,13 +469,18 @@ function captureChildEvent(
       }
     }
 
+    const thinkingItemId = `reasoning:${event.turnId ?? event.id}`;
     const eventThinking = event.thinking?.trim();
     const thinking =
-      eventThinking || (event.type === "message.completed" ? run.lastThinkingText : null);
+      eventThinking ||
+      (event.type === "message.completed" && run.lastThinkingTextItemId === thinkingItemId
+        ? run.lastThinkingText
+        : null);
     if (thinking) {
       const thinkingChanged = thinking !== run.lastThinkingText;
       if (thinkingChanged) {
         run.lastThinkingText = thinking;
+        run.lastThinkingTextItemId = thinkingItemId;
       }
       if (thinkingChanged || event.type === "message.completed") {
         pushActivity(
@@ -472,7 +490,7 @@ function captureChildEvent(
           "Subagent reasoning",
           {
             itemType: "reasoning",
-            itemId: `reasoning:${event.turnId ?? event.id}`,
+            itemId: thinkingItemId,
             status: event.type === "message.completed" ? "completed" : "running",
             title: "Reasoning",
             detail: clampDetailHead(thinking, MAX_SUBAGENT_TEXT_DETAIL_CHARS),

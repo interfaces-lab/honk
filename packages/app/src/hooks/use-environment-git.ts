@@ -317,21 +317,24 @@ export function useEnvironmentGitPanel(
 ): GitPanelModel {
   const enabled = options?.enabled ?? true;
   const queryClient = useQueryClient();
-  const gitApi = enabled && cwd ? readEnvironmentGitApi(environmentId) : null;
+  const gitApi = cwd ? readEnvironmentGitApi(environmentId) : null;
   const status = useGitStatus({
     environmentId: environmentId ?? null,
-    cwd: enabled ? cwd : null,
+    cwd,
   });
   const view = deriveGitPanelViewState({
     cwd: enabled ? cwd : null,
     status,
   });
+  const hasStatusData = status.data !== null;
   useEffect(() => {
-    if (!enabled || !cwd || !gitApi || !environmentId) {
+    if (!cwd || !gitApi || !environmentId) {
       return;
     }
-    void refreshGitStatus({ environmentId, cwd }, gitApi, { force: true }).catch(() => undefined);
-  }, [cwd, enabled, environmentId, gitApi]);
+    void refreshGitStatus({ environmentId, cwd }, gitApi, { force: !hasStatusData }).catch(
+      () => undefined,
+    );
+  }, [cwd, environmentId, gitApi, hasStatusData]);
   const rowReuseRef = useRef<DiffRow[]>([]);
 
   const nextRows = view.kind === "changed" ? toRowsWithReuse(status.data, rowReuseRef.current) : [];

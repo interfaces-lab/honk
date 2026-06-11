@@ -10,7 +10,7 @@ import {
   type DraftId as DraftIdType,
   type DraftThreadState,
 } from "~/stores/chat-drafts";
-import { useRouterState } from "@tanstack/react-router";
+import { useMatch } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -188,42 +188,24 @@ export function resolvePreThreadServerRouteTarget(input: {
   );
 }
 
-export function getCurrentRouteTarget(input: {
-  readonly state: {
-    readonly matches: ReadonlyArray<{
-      readonly params: unknown;
-    }>;
-  };
-}): ThreadRouteTarget | null {
-  const baseTarget = resolveThreadRouteTarget(
-    (input.state.matches.at(-1)?.params ?? {}) as ThreadRouteParams,
-  );
-  if (baseTarget?.kind !== "server") {
-    return baseTarget;
-  }
-  const draftMatch = findDraftRouteMatch(
-    useComposerDraftStore.getState().draftThreadsByThreadKey,
-    baseTarget.threadRef,
-  );
-  const draftIdForRoute = resolveDraftIdForRoute({
-    threadRef: baseTarget.threadRef,
-    draftRouteId: draftMatch.draftRouteId,
-  });
-  const serverThread = createThreadSelectorByRef(baseTarget.threadRef)(useStore.getState());
-  return resolvePreThreadServerRouteTarget({
-    baseTarget,
-    draftRouteId: draftMatch.draftRouteId,
-    serverThread,
-  });
-}
-
 export function useRouteTarget(): ThreadRouteTarget | null {
-  const params = useRouterState({
-    select: (state: { readonly matches: ReadonlyArray<{ readonly params: unknown }> }) =>
-      state.matches.at(-1)?.params as ThreadRouteParams | undefined,
-    structuralSharing: true,
+  const threadMatch = useMatch({
+    from: "/_chat/$environmentId/$threadId",
+    shouldThrow: false,
   });
-  const baseTarget = useMemo(() => resolveThreadRouteTarget(params ?? {}), [params]);
+  const draftMatch = useMatch({
+    from: "/_chat/draft/$draftId",
+    shouldThrow: false,
+  });
+  const baseTarget = useMemo(() => {
+    if (threadMatch) {
+      return { kind: "server", threadRef: threadMatch.params } satisfies ThreadRouteTarget;
+    }
+    if (draftMatch) {
+      return { kind: "draft", draftId: draftMatch.params.draftId } satisfies ThreadRouteTarget;
+    }
+    return null;
+  }, [draftMatch, threadMatch]);
   const serverThreadRef = baseTarget?.kind === "server" ? baseTarget.threadRef : null;
   const serverThreadSelector = useMemo(
     () => createThreadSelectorByRef(serverThreadRef),

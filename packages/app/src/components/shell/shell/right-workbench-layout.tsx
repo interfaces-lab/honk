@@ -28,6 +28,7 @@ export function RightWorkbenchLayout(props: {
   );
   const railOpen = props.railOpen ?? persistedRailOpen;
   const hasRail = props.rail != null;
+  const animateRailWidth = props.tab !== "files" && props.tab !== "git";
 
   const railRef = useRef<HTMLDivElement | null>(null);
   const resize = useColumnResize({
@@ -56,7 +57,7 @@ export function RightWorkbenchLayout(props: {
         <div
           className={cn(
             "multi-shell-secondary-rail relative flex min-h-0 shrink-0 overflow-hidden bg-(--multi-workbench-panel-background)",
-            resize.dragging
+            resize.dragging || !animateRailWidth
               ? "transition-none"
               : "transition-[width] duration-100 ease-out motion-reduce:transition-none",
             props.railHostClassName,

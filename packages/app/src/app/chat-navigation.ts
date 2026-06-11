@@ -8,7 +8,7 @@ import {
 import type { AppRouter } from "~/router";
 import {
   draftRouteParams,
-  getCurrentChatRouteTarget,
+  readChatRouteTarget,
   threadRouteParams,
 } from "~/app/chat-route-state";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
@@ -43,14 +43,7 @@ type ChatNavigate = (options: ChatNavigateOptions) => unknown;
 
 type ChatRouterNavigator = {
   readonly navigate: ChatNavigate;
-  readonly state?: {
-    readonly location?: {
-      readonly pathname?: string;
-    };
-    readonly matches: ReadonlyArray<{
-      readonly params: unknown;
-    }>;
-  };
+  readonly state?: AppRouter["state"];
 };
 type ChatNavigator = ChatNavigate | ChatRouterNavigator;
 
@@ -66,7 +59,7 @@ function readCurrentTarget(target: ChatNavigator) {
   if (typeof target === "function" || !target.state) {
     return null;
   }
-  return getCurrentChatRouteTarget({ state: target.state });
+  return readChatRouteTarget({ state: target.state });
 }
 
 function isCurrentChatIndex(target: ChatNavigator): boolean {
@@ -75,7 +68,7 @@ function isCurrentChatIndex(target: ChatNavigator): boolean {
   }
   return (
     target.state?.location?.pathname === "/" &&
-    getCurrentChatRouteTarget({ state: target.state }) === null
+    readChatRouteTarget({ state: target.state }) === null
   );
 }
 

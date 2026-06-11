@@ -7,7 +7,7 @@ import { type DraftThreadEnvMode, DraftId, useComposerDraftStore } from "../stor
 import { deriveLogicalProjectKey } from "../stores/project-identity";
 import { type AppState, selectProjectsAcrossEnvironments, useStore } from "../stores/thread-store";
 import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
-import { getCurrentChatRouteTarget, useChatRouteTarget } from "~/app/chat-route-state";
+import { readChatRouteTarget, useChatRouteTarget } from "~/app/chat-route-state";
 import { clearNewThreadDraftSendArtifacts, openDraft } from "~/app/chat-navigation";
 import type { AppRouter } from "~/router";
 import { useSelectedWorkspaceProject } from "../lib/selected-workspace-project";
@@ -27,7 +27,7 @@ export async function openNewThreadWithRouter(
   options?: NewThreadActionOptions,
 ): Promise<void> {
   const store = useComposerDraftStore.getState();
-  const currentRouteTarget = getCurrentChatRouteTarget(router);
+  const currentRouteTarget = readChatRouteTarget(router);
   const projects = selectProjectsAcrossEnvironments(useStore.getState());
   const project = projects.find(
     (candidate) =>

@@ -1,12 +1,14 @@
 "use client";
 
-import type { GitFilePatchResult } from "@multi/contracts";
+import type { GitFileImageResult, GitFilePatchResult } from "@multi/contracts";
 import {
   type ChangeTypes,
   type CodeViewItem,
   type CodeViewLayout,
   type CodeViewOptions,
+  type DiffLineAnnotation,
   type FileDiffMetadata,
+  type LineAnnotation,
   processFile,
 } from "@pierre/diffs";
 import { CodeView, type CodeViewHandle } from "@pierre/diffs/react";
@@ -73,6 +75,7 @@ import { cn } from "~/lib/utils";
 import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-store";
 import { GitChangesFileTree } from "./git-changes-file-tree";
 import { GitDiffCardHeader } from "./git-diff-card";
+import { GitImageView } from "./git-image-view";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeRow,
@@ -99,7 +102,16 @@ const GIT_CHANGES_FILTER_LABELS: Record<GitChangesFilter, string> = {
   branch: "Branch",
 };
 const EMPTY_BRANCH_COMMIT_OPTIONS: readonly BranchCommitOption[] = [];
-type GitCodeViewAnnotation = never;
+type GitImagePatchResult = Extract<GitFilePatchResult, { kind: "non_text" }> & {
+  readonly fileType: "image";
+};
+interface GitCodeViewImageAnnotation {
+  readonly kind: "image";
+}
+type GitCodeViewAnnotation = GitCodeViewImageAnnotation;
+type GitCodeViewLineAnnotation =
+  | LineAnnotation<GitCodeViewAnnotation>
+  | DiffLineAnnotation<GitCodeViewAnnotation>;
 type GitCodeViewItem = CodeViewItem<GitCodeViewAnnotation>;
 
 interface BranchCommitOption {
@@ -109,9 +121,14 @@ interface BranchCommitOption {
 }
 
 interface GitCodeViewRowMeta {
+  readonly active: boolean;
   readonly error: string | null;
   readonly expanded: boolean;
   readonly file: DiffRow;
+  readonly image: GitFileImageResult | null;
+  readonly imageError: string | null;
+  readonly imageLoaded: boolean;
+  readonly imageLoading: boolean;
   readonly loaded: boolean;
   readonly loading: boolean;
   readonly patch: GitFilePatchResult | null;
@@ -135,6 +152,12 @@ interface GitCodeViewItemCacheEntry {
 }
 
 const GIT_CODE_VIEW_DIFF_HEADER_HEIGHT = 32;
+const GIT_IMAGE_ANNOTATION_LINE_NUMBER = 1;
+const GIT_IMAGE_ANNOTATION: DiffLineAnnotation<GitCodeViewAnnotation> = {
+  side: "additions",
+  lineNumber: GIT_IMAGE_ANNOTATION_LINE_NUMBER,
+  metadata: { kind: "image" },
+};
 const GIT_CODE_VIEW_LAYOUT = {
   paddingTop: 0,
   gap: 0,
@@ -193,10 +216,8 @@ export function GitPanel(props: {
   switch (git.view.kind) {
     case "loading":
       return (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-          <div className="h-3 w-24 animate-pulse rounded bg-muted/40" />
-          <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
-          <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
+        <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8 text-center">
+          <p className="text-detail text-muted-foreground/72">Loading changes...</p>
         </div>
       );
     case "idle":
@@ -289,6 +310,10 @@ function GitPanelChangesRail({
   selectedId: string | null;
   onSelect: (file: DiffRow) => void;
 }) {
+  if (!active) {
+    return null;
+  }
+
   return (
     <GitChangesFileTree
       active={active}
@@ -304,6 +329,12 @@ function isRenderablePatch(
   patch: GitFilePatchResult | null,
 ): patch is Extract<GitFilePatchResult, { kind: "patch" | "untracked" }> {
   return (patch?.kind === "patch" || patch?.kind === "untracked") && patch.patch.trim().length > 0;
+}
+
+function isGitImagePatch(
+  patch: GitFilePatchResult | null | undefined,
+): patch is GitImagePatchResult {
+  return patch?.kind === "non_text" && patch.fileType === "image";
 }
 
 function gitRowChangeType(file: DiffRow, patch: GitFilePatchResult | null): ChangeTypes {
@@ -347,6 +378,58 @@ function createHeaderOnlyFileDiff(
   };
 }
 
+function createImageAnnotationFileDiff(file: DiffRow, patch: GitImagePatchResult): FileDiffMetadata {
+  const cacheKey = [
+    "git-panel-image",
+    file.id,
+    file.path,
+    file.prevPath ?? "",
+    file.state,
+    patch.fileType,
+  ].join(":");
+  const prevName = file.prevPath ?? undefined;
+
+  return {
+    name: file.path,
+    ...(prevName !== undefined ? { prevName } : {}),
+    type: gitRowChangeType(file, patch),
+    hunks: [
+      {
+        collapsedBefore: 0,
+        additionStart: GIT_IMAGE_ANNOTATION_LINE_NUMBER,
+        additionCount: 1,
+        additionLines: 1,
+        additionLineIndex: 0,
+        deletionStart: 0,
+        deletionCount: 0,
+        deletionLines: 0,
+        deletionLineIndex: 0,
+        hunkContent: [
+          {
+            type: "change",
+            deletions: 0,
+            additions: 1,
+            deletionLineIndex: 0,
+            additionLineIndex: 0,
+          },
+        ],
+        splitLineStart: 0,
+        splitLineCount: 1,
+        unifiedLineStart: 0,
+        unifiedLineCount: 1,
+        noEOFCRDeletions: false,
+        noEOFCRAdditions: false,
+      },
+    ],
+    splitLineCount: 1,
+    unifiedLineCount: 1,
+    isPartial: true,
+    deletionLines: [],
+    additionLines: [""],
+    cacheKey,
+  };
+}
+
 function normalizeParsedFileDiff(
   file: DiffRow,
   patch: Extract<GitFilePatchResult, { kind: "patch" | "untracked" }>,
@@ -373,6 +456,18 @@ function resolveGitCodeViewFileDiff(
   patch: GitFilePatchResult | null,
   cache: Map<string, GitCodeViewFileDiffCacheEntry>,
 ): FileDiffMetadata {
+  if (isGitImagePatch(patch)) {
+    const signature = `image:${file.path}:${file.prevPath ?? ""}:${file.state}:${patch.fileType}`;
+    const cached = cache.get(file.id);
+    if (cached?.signature === signature) {
+      return cached.fileDiff;
+    }
+
+    const fileDiff = createImageAnnotationFileDiff(file, patch);
+    cache.set(file.id, { signature, fileDiff });
+    return fileDiff;
+  }
+
   if (!isRenderablePatch(patch)) {
     const signature = `header:${file.path}:${file.prevPath ?? ""}:${file.state}:${patch?.kind ?? "none"}`;
     const cached = cache.get(file.id);
@@ -406,10 +501,14 @@ function resolveGitCodeViewFileDiff(
 }
 
 function buildGitCodeViewData(input: {
+  readonly activeDiffIds: ReadonlySet<string>;
   readonly diffErrorByPath: ReadonlyMap<string, string>;
   readonly diffLoadingByPath: ReadonlySet<string>;
   readonly expandedIds: ReadonlySet<string>;
   readonly fileDiffCache: Map<string, GitCodeViewFileDiffCacheEntry>;
+  readonly imageErrorByPath: ReadonlyMap<string, string>;
+  readonly imageLoadingByPath: ReadonlySet<string>;
+  readonly imagesByPath: ReadonlyMap<string, GitFileImageResult>;
   readonly itemCache: Map<string, GitCodeViewItemCacheEntry>;
   readonly patchesByPath: ReadonlyMap<string, GitFilePatchResult>;
   readonly viewedPaths: readonly string[];
@@ -423,11 +522,17 @@ function buildGitCodeViewData(input: {
   for (const file of input.visibleFiles) {
     seenIds.add(file.id);
     const patch = input.patchesByPath.get(file.path) ?? null;
-    const fileDiff = resolveGitCodeViewFileDiff(file, patch, input.fileDiffCache);
     const expanded = input.expandedIds.has(file.id);
-    const renderBody = expanded && isRenderablePatch(patch);
-    const collapsed = !renderBody;
-    const itemSignature = `${fileDiff.cacheKey ?? file.id}:${collapsed ? "collapsed" : "expanded"}`;
+    const active = input.activeDiffIds.has(file.id);
+    const renderImageBody = active && expanded && isGitImagePatch(patch);
+    const renderPatchBody = active && expanded && isRenderablePatch(patch);
+    const fileDiff =
+      renderPatchBody || renderImageBody
+        ? resolveGitCodeViewFileDiff(file, patch, input.fileDiffCache)
+        : createHeaderOnlyFileDiff(file, null);
+    const collapsed = false;
+    const bodyKind = renderImageBody ? "image" : renderPatchBody ? "patch" : "none";
+    const itemSignature = `${fileDiff.cacheKey ?? file.id}:${bodyKind}:${collapsed ? "collapsed" : "expanded"}`;
     const cachedItem = input.itemCache.get(file.id);
     const item =
       cachedItem?.signature === itemSignature
@@ -436,6 +541,7 @@ function buildGitCodeViewData(input: {
             id: file.id,
             type: "diff",
             fileDiff,
+            ...(renderImageBody ? { annotations: [GIT_IMAGE_ANNOTATION] } : {}),
             collapsed,
             version: (cachedItem?.version ?? -1) + 1,
           } satisfies GitCodeViewItem);
@@ -450,9 +556,14 @@ function buildGitCodeViewData(input: {
 
     items.push(item);
     metaById.set(file.id, {
+      active,
       error: input.diffErrorByPath.get(file.path) ?? null,
       expanded,
       file,
+      image: input.imagesByPath.get(file.path) ?? null,
+      imageError: input.imageErrorByPath.get(file.path) ?? null,
+      imageLoaded: input.imagesByPath.has(file.path),
+      imageLoading: input.imageLoadingByPath.has(file.path),
       loaded: input.patchesByPath.has(file.path),
       loading: input.diffLoadingByPath.has(file.path),
       patch,
@@ -481,7 +592,10 @@ function gitHeaderStatus(meta: GitCodeViewRowMeta): {
   if (meta.error !== null) {
     return { label: "Error", tone: "danger" };
   }
-  if (meta.expanded && meta.loading) {
+  if (meta.imageError !== null) {
+    return { label: "Error", tone: "danger" };
+  }
+  if (meta.expanded && (meta.loading || meta.imageLoading)) {
     return { label: "Loading", tone: "muted" };
   }
   if (meta.patch?.kind === "rename_only") {
@@ -513,10 +627,18 @@ const GitCodeViewHeader = memo(function GitCodeViewHeader(props: GitCodeViewHead
   const { meta } = props;
 
   useEffect(() => {
-    if (meta.expanded && !meta.loaded && !meta.loading && meta.error === null) {
+    if (meta.expanded && (!meta.active || (!meta.loaded && !meta.loading)) && meta.error === null) {
       props.requestDiff(meta.file.id);
     }
-  }, [meta.error, meta.expanded, meta.file.id, meta.loaded, meta.loading, props.requestDiff]);
+  }, [
+    meta.active,
+    meta.error,
+    meta.expanded,
+    meta.file.id,
+    meta.loaded,
+    meta.loading,
+    props.requestDiff,
+  ]);
 
   const status = gitHeaderStatus(meta);
   const handleCopyPath = () => props.onCopyPath(meta.file.path);
@@ -564,8 +686,12 @@ function areGitCodeViewHeaderMetaEqual(
   next: GitCodeViewRowMeta,
 ): boolean {
   return (
+    previous.active === next.active &&
     previous.error === next.error &&
     previous.expanded === next.expanded &&
+    previous.imageError === next.imageError &&
+    previous.imageLoaded === next.imageLoaded &&
+    previous.imageLoading === next.imageLoading &&
     previous.loaded === next.loaded &&
     previous.loading === next.loading &&
     previous.patch?.kind === next.patch?.kind &&
@@ -685,10 +811,14 @@ function GitPanelInner(props: {
   const codeViewData = useMemo(
     () =>
       buildGitCodeViewData({
+        activeDiffIds: git.activeDiffIds,
         diffErrorByPath: git.diffErrorByPath,
         diffLoadingByPath: git.diffLoadingByPath,
         expandedIds: git.expandedIds,
         fileDiffCache: fileDiffCacheRef.current,
+        imageErrorByPath: git.imageErrorByPath,
+        imageLoadingByPath: git.imageLoadingByPath,
+        imagesByPath: git.imagesByPath,
         itemCache: itemCacheRef.current,
         patchesByPath: git.patchesByPath,
         viewedPaths: viewed.viewed,
@@ -697,7 +827,11 @@ function GitPanelInner(props: {
     [
       git.diffErrorByPath,
       git.diffLoadingByPath,
+      git.activeDiffIds,
       git.expandedIds,
+      git.imageErrorByPath,
+      git.imageLoadingByPath,
+      git.imagesByPath,
       git.patchesByPath,
       viewed.viewed,
       visibleFiles,
@@ -727,6 +861,29 @@ function GitPanelInner(props: {
   const handleRequestDiff = useCallback((id: string) => {
     gitRef.current.requestDiff(id);
   }, []);
+  const renderGitCodeViewAnnotation = useCallback(
+    (annotation: GitCodeViewLineAnnotation, item: GitCodeViewItem) => {
+      if (annotation.metadata.kind !== "image") {
+        return null;
+      }
+
+      const meta = codeViewData.metaById.get(item.id);
+      if (meta === undefined) {
+        return null;
+      }
+
+      return (
+        <GitImageView
+          path={meta.file.path}
+          patch={meta.patch}
+          image={meta.image}
+          loading={meta.imageLoading && !meta.imageLoaded}
+          error={meta.imageError}
+        />
+      );
+    },
+    [codeViewData.metaById],
+  );
   const renderGitCodeViewHeader = useCallback(
     (item: GitCodeViewItem) => {
       const meta = codeViewData.metaById.get(item.id);
@@ -851,8 +1008,9 @@ function GitPanelInner(props: {
         <RightWorkbenchLayout
           workspaceKey={props.workspaceKey}
           tab="git"
+          railOpen={gitRailOpen}
           railHostClassName="bg-(--multi-shell-sidebar-bg) shadow-[inset_-1px_0_0_color-mix(in_srgb,var(--multi-stroke-quaternary)_78%,transparent)]"
-          rail={changesRail}
+          rail={gitRailOpen ? changesRail : undefined}
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)">
             {selectedId ? (
@@ -878,6 +1036,7 @@ function GitPanelInner(props: {
                 items={codeViewData.items}
                 className="git-diff-scroll-root web-component relative h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [contain:strict] [overflow-anchor:none] scrollbar-gutter-stable"
                 options={codeViewOptions}
+                renderAnnotation={renderGitCodeViewAnnotation}
                 renderCustomHeader={renderGitCodeViewHeader}
               />
             )}

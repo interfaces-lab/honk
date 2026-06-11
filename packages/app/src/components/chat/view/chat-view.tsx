@@ -68,7 +68,6 @@ import {
   type WorkLogSubagent,
 } from "../../../session-logic";
 import {
-  selectEnvironmentState,
   selectProjectsAcrossEnvironments,
   selectThreadExistsByRef,
   selectThreadKeysAcrossEnvironments,
@@ -452,13 +451,6 @@ export default function ChatView(props: ChatViewProps) {
     [routeKind, routeThreadRef],
   );
   const serverThread = useStore(serverThreadSelector);
-  const serverThreadDetailLoaded = useStore((store) => {
-    if (routeKind !== "server") {
-      return true;
-    }
-    const environmentState = selectEnvironmentState(store, environmentId);
-    return Object.prototype.hasOwnProperty.call(environmentState.messageIdsByThreadId, threadId);
-  });
   const setStoreThreadError = useStore((store) => store.setError);
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
   const activeThreadLastVisitedAt = useUiStateStore((store) =>
@@ -2980,7 +2972,6 @@ export default function ChatView(props: ChatViewProps) {
                     activeEditingUserMessageId !== null ? renderEditComposer : undefined
                   }
                   onUpdateProposedPlan={onUpdateProposedPlan}
-                  awaitingServerThreadDetail={isServerThread && !serverThreadDetailLoaded}
                   onIsAtBottomChange={onIsAtBottomChange}
                 />
 

@@ -16,9 +16,7 @@ import { Route as SettingsGeneralRouteImport } from './routes/settings.general'
 import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
-import { Route as DevQueuedMessageDemoRouteImport } from './routes/dev.queued-message-demo'
 import { Route as DevMultikitRouteImport } from './routes/dev.multikit'
-import { Route as DevCursorAgentWindowDemoRouteImport } from './routes/dev.cursor-agent-window-demo'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
@@ -56,22 +54,11 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => SettingsRoute,
 } as any)
-const DevQueuedMessageDemoRoute = DevQueuedMessageDemoRouteImport.update({
-  id: '/dev/queued-message-demo',
-  path: '/dev/queued-message-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DevMultikitRoute = DevMultikitRouteImport.update({
   id: '/dev/multikit',
   path: '/dev/multikit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevCursorAgentWindowDemoRoute =
-  DevCursorAgentWindowDemoRouteImport.update({
-    id: '/dev/cursor-agent-window-demo',
-    path: '/dev/cursor-agent-window-demo',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
   id: '/draft/$draftId',
   path: '/draft/$draftId',
@@ -87,9 +74,7 @@ const ChatEnvironmentIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/cursor-agent-window-demo': typeof DevCursorAgentWindowDemoRoute
   '/dev/multikit': typeof DevMultikitRoute
-  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -99,9 +84,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/cursor-agent-window-demo': typeof DevCursorAgentWindowDemoRoute
   '/dev/multikit': typeof DevMultikitRoute
-  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -114,9 +97,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/cursor-agent-window-demo': typeof DevCursorAgentWindowDemoRoute
   '/dev/multikit': typeof DevMultikitRoute
-  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -130,9 +111,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
-    | '/dev/cursor-agent-window-demo'
     | '/dev/multikit'
-    | '/dev/queued-message-demo'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -142,9 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/settings'
-    | '/dev/cursor-agent-window-demo'
     | '/dev/multikit'
-    | '/dev/queued-message-demo'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -156,9 +133,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_chat'
     | '/settings'
-    | '/dev/cursor-agent-window-demo'
     | '/dev/multikit'
-    | '/dev/queued-message-demo'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -171,9 +146,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
-  DevCursorAgentWindowDemoRoute: typeof DevCursorAgentWindowDemoRoute
   DevMultikitRoute: typeof DevMultikitRoute
-  DevQueuedMessageDemoRoute: typeof DevQueuedMessageDemoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -227,25 +200,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAgentsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/dev/queued-message-demo': {
-      id: '/dev/queued-message-demo'
-      path: '/dev/queued-message-demo'
-      fullPath: '/dev/queued-message-demo'
-      preLoaderRoute: typeof DevQueuedMessageDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dev/multikit': {
       id: '/dev/multikit'
       path: '/dev/multikit'
       fullPath: '/dev/multikit'
       preLoaderRoute: typeof DevMultikitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dev/cursor-agent-window-demo': {
-      id: '/dev/cursor-agent-window-demo'
-      path: '/dev/cursor-agent-window-demo'
-      fullPath: '/dev/cursor-agent-window-demo'
-      preLoaderRoute: typeof DevCursorAgentWindowDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_chat/draft/$draftId': {
@@ -300,9 +259,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
-  DevCursorAgentWindowDemoRoute: DevCursorAgentWindowDemoRoute,
   DevMultikitRoute: DevMultikitRoute,
-  DevQueuedMessageDemoRoute: DevQueuedMessageDemoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

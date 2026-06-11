@@ -81,7 +81,7 @@ function WorkbenchIconButton(props: {
   return (
     <Button
       type="button"
-      size="icon"
+      size="icon-xs"
       variant="ghost"
       aria-current={props["aria-current"]}
       aria-label={props["aria-label"]}

@@ -237,6 +237,7 @@ export const ProjectFileTree = forwardRef<
     environmentId: EnvironmentId | null;
     availableEditors: readonly EditorId[];
     onOpenFile?: (relativePath: string) => void;
+    onFilePathsChange?: (relativePaths: readonly string[]) => void;
     selectedPath?: string | null;
     className?: string;
     active?: boolean;
@@ -356,7 +357,11 @@ export const ProjectFileTree = forwardRef<
         props.className,
       )}
     >
-      <ProjectFileTreePathSetSync filePathSetRef={filePathSetRef} treePaths={treePaths} />
+      <ProjectFileTreePathSetSync
+        filePathSetRef={filePathSetRef}
+        {...(props.onFilePathsChange ? { onFilePathsChange: props.onFilePathsChange } : {})}
+        treePaths={treePaths}
+      />
       <ProjectFileTreePathsSync model={model} treePaths={treePaths} />
       {canLoad ? (
         <ProjectFileTreeInitialLoadSync
@@ -439,21 +444,27 @@ export const ProjectFileTree = forwardRef<
 
 function ProjectFileTreePathSetSync({
   filePathSetRef,
+  onFilePathsChange,
   treePaths,
 }: {
   filePathSetRef: RefObject<Set<string> | null>;
+  onFilePathsChange?: (relativePaths: readonly string[]) => void;
   treePaths: readonly string[];
 }) {
   useEffect(() => {
     const filePathSet = filePathSetRef.current;
     if (!filePathSet) return;
     filePathSet.clear();
+    const filePaths: string[] = [];
     for (const path of treePaths) {
       if (!path.endsWith("/") && !isDirectoryPlaceholderPath(path)) {
-        filePathSet.add(normalizeTreePath(path));
+        const normalizedPath = normalizeTreePath(path);
+        filePathSet.add(normalizedPath);
+        filePaths.push(normalizedPath);
       }
     }
-  }, [filePathSetRef, treePaths]);
+    onFilePathsChange?.(filePaths);
+  }, [filePathSetRef, onFilePathsChange, treePaths]);
 
   return null;
 }

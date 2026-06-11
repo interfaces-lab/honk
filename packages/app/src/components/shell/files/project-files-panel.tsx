@@ -1,8 +1,25 @@
 "use client";
 
 import type { EditorId, EnvironmentId } from "@multi/contracts";
-import { IconBarsThree, IconChevronLeftMedium, IconChevronRightMedium } from "central-icons";
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Command,
+  CommandCollection,
+  CommandDialog,
+  CommandDialogPopup,
+  CommandGroup,
+  CommandGroupLabel,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandPanel,
+} from "@multi/multikit/command";
+import {
+  IconBarsThree,
+  IconChevronLeftMedium,
+  IconChevronRightMedium,
+} from "central-icons";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   shellPanelsActions,
@@ -10,12 +27,13 @@ import {
   useSecondaryRail,
 } from "~/stores/shell-panels-store";
 import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
-import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
 import { useRightWorkbenchPanelRuntime } from "../shell/app";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 import { EmptyFilePreview } from "./empty-file-preview";
 import { ModeButton, NavButton } from "./project-files-panel-buttons";
 import { SourcePreview } from "./source-preview";
+import { FileTreeFileIcon, FileTreeIconSprite } from "../../tree";
+import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
 
 type PreviewHistory = {
   readonly index: number;
@@ -27,6 +45,8 @@ const EMPTY_PREVIEW_HISTORY: PreviewHistory = {
   paths: [],
 };
 const MAX_PREVIEW_HISTORY = 50;
+const MAX_OPEN_FILE_RESULTS = 100;
+
 function pushPreviewHistory(current: PreviewHistory, relativePath: string): PreviewHistory {
   if (current.paths[current.index] === relativePath) {
     return current;
@@ -37,6 +57,18 @@ function pushPreviewHistory(current: PreviewHistory, relativePath: string): Prev
     index: trimmedPaths.length - 1,
     paths: trimmedPaths,
   };
+}
+
+function filterOpenFilePaths(paths: readonly string[], query: string): string[] {
+  const normalizedQuery = query.trim().toLowerCase().replace(/\s+/g, " ");
+  const sortedPaths = [...paths].toSorted((left, right) => left.localeCompare(right));
+  if (!normalizedQuery) {
+    return sortedPaths.slice(0, MAX_OPEN_FILE_RESULTS);
+  }
+
+  return sortedPaths
+    .filter((path) => path.trim().toLowerCase().replace(/\s+/g, " ").includes(normalizedQuery))
+    .slice(0, MAX_OPEN_FILE_RESULTS);
 }
 
 export function ProjectFilesPanel(props: {
@@ -55,6 +87,8 @@ function ProjectFilesPanelContent(props: {
   availableEditors: readonly EditorId[];
 }) {
   const [history, setHistory] = useState<PreviewHistory>(EMPTY_PREVIEW_HISTORY);
+  const [loadedFilePaths, setLoadedFilePaths] = useState<readonly string[]>([]);
+  const [openFileDialogOpen, setOpenFileDialogOpen] = useState(false);
   const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
   const runtime = useRightWorkbenchPanelRuntime();
   const isFilesPanelActive = runtime.open && runtime.activeTab === "files";
@@ -96,8 +130,9 @@ function ProjectFilesPanelContent(props: {
       environmentId={props.environmentId}
       availableEditors={props.availableEditors}
       onOpenFile={openPreviewPath}
+      onFilePathsChange={setLoadedFilePaths}
       selectedPath={selectedPath}
-      active={fileRailOpen}
+      active={fileRailOpen || openFileDialogOpen}
       className="min-h-36 flex-1 border-b-0 bg-(--multi-workbench-panel-background)"
     />
   );
@@ -115,13 +150,6 @@ function ProjectFilesPanelContent(props: {
         >
           <IconBarsThree className="size-[15px]" aria-hidden />
         </ModeButton>
-        <WorkbenchIconButton
-          aria-label="Refresh files"
-          chrome="panel"
-          onClick={() => fileTreeRef.current?.refresh()}
-        >
-          <IconChevronRightMedium className="size-4" />
-        </WorkbenchIconButton>
         <NavButton
           disabled={!canGoBack}
           chrome="panel"
@@ -155,18 +183,133 @@ function ProjectFilesPanelContent(props: {
                 environmentId={props.environmentId}
                 selectedPath={selectedPath}
                 wordWrap
-                active={isFilesPanelActive}
               />
             ) : (
               <EmptyFilePreview
                 onOpenFile={() => {
-                  fileTreeRef.current?.refresh();
+                  setOpenFileDialogOpen(true);
                 }}
               />
             )}
           </div>
         </div>
       </RightWorkbenchLayout>
+      <OpenFileCommandDialog
+        cwd={props.cwd}
+        environmentId={props.environmentId}
+        filePaths={loadedFilePaths}
+        open={openFileDialogOpen}
+        onOpenChange={setOpenFileDialogOpen}
+        onOpenFile={openPreviewPath}
+      />
     </div>
+  );
+}
+
+function OpenFileCommandDialog(props: {
+  cwd: string | null;
+  environmentId: EnvironmentId | null;
+  filePaths: readonly string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onOpenFile: (relativePath: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const searchQuery = deferredQuery.trim();
+  const projectEntriesQuery = useQuery(
+    projectSearchEntriesQueryOptions({
+      environmentId: props.environmentId,
+      cwd: props.cwd,
+      query: searchQuery,
+      enabled: props.open && searchQuery.length > 0,
+      limit: MAX_OPEN_FILE_RESULTS,
+    }),
+  );
+  const searchedFilePaths = useMemo(
+    () =>
+      (projectEntriesQuery.data?.entries ?? [])
+        .filter((entry) => entry.kind === "file")
+        .map((entry) => entry.path),
+    [projectEntriesQuery.data?.entries],
+  );
+  const filteredFilePaths = useMemo(
+    () =>
+      searchQuery.length > 0
+        ? searchedFilePaths
+        : filterOpenFilePaths(props.filePaths, deferredQuery),
+    [deferredQuery, props.filePaths, searchQuery.length, searchedFilePaths],
+  );
+  const isSearching = searchQuery.length > 0 && projectEntriesQuery.isFetching;
+
+  useEffect(() => {
+    if (!props.open) {
+      setQuery("");
+    }
+  }, [props.open]);
+
+  function openFile(relativePath: string): void {
+    props.onOpenChange(false);
+    props.onOpenFile(relativePath);
+  }
+
+  return (
+    <CommandDialog open={props.open} onOpenChange={props.onOpenChange}>
+      <CommandDialogPopup
+        aria-label="Open file"
+        className="max-h-[min(23rem,calc(100vh-2rem))] overflow-hidden p-0 transition-none! duration-0!"
+      >
+        <FileTreeIconSprite />
+        <Command
+          aria-label="Open file"
+          autoHighlight="always"
+          mode="none"
+          onValueChange={setQuery}
+          value={query}
+        >
+          <CommandInput placeholder="Search files..." />
+          <CommandPanel className="max-h-[min(21rem,64vh)]">
+            {filteredFilePaths.length > 0 ? (
+              <CommandList>
+                <CommandGroup items={filteredFilePaths} key="files">
+                  <CommandGroupLabel>Files</CommandGroupLabel>
+                  <CommandCollection>
+                    {(relativePath) => (
+                      <CommandItem
+                        className="min-h-6 cursor-pointer gap-1.5 px-2 py-0.5"
+                        key={relativePath}
+                        value={relativePath}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                        }}
+                        onClick={() => {
+                          openFile(relativePath);
+                        }}
+                      >
+                        <FileTreeFileIcon
+                          path={relativePath}
+                          className="size-3.5 text-multi-icon-tertiary"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-body text-multi-fg-primary">
+                          {relativePath}
+                        </span>
+                      </CommandItem>
+                    )}
+                  </CommandCollection>
+                </CommandGroup>
+              </CommandList>
+            ) : (
+              <div className="py-8 text-center text-body text-muted-foreground">
+                {isSearching || (searchQuery.length === 0 && props.filePaths.length === 0) ? (
+                  "Loading files..."
+                ) : (
+                  "No matching files."
+                )}
+              </div>
+            )}
+          </CommandPanel>
+        </Command>
+      </CommandDialogPopup>
+    </CommandDialog>
   );
 }

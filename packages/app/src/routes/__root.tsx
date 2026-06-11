@@ -10,12 +10,7 @@ import {
 import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/multi-runtime-api";
 
 function isStandaloneDevRoute(pathname: string): boolean {
-  return (
-    import.meta.env.DEV &&
-    (pathname === "/dev/queued-message-demo" ||
-      pathname === "/dev/multikit" ||
-      pathname === "/dev/cursor-agent-window-demo")
-  );
+  return import.meta.env.DEV && pathname === "/dev/multikit";
 }
 
 export const Route = createRootRouteWithContext<{

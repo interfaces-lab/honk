@@ -6,7 +6,6 @@ import { DraftId, useComposerDraftStore, type DraftThreadState } from "~/stores/
 import { DEFAULT_INTERACTION_MODE } from "~/types";
 import {
   findDraftRouteMatch,
-  getCurrentRouteTarget,
   resolvePreThreadServerRouteTarget,
   resolveDraftIdForRoute,
   resolveSidebarSelectionId,
@@ -93,42 +92,6 @@ describe("findDraftRouteMatch", () => {
     expect(match).toEqual({
       draftRouteId: draftId,
       draftThread: draftThreadState(),
-    });
-  });
-});
-
-describe("getCurrentRouteTarget", () => {
-  beforeEach(() => {
-    useComposerDraftStore.setState({
-      draftsByThreadKey: {},
-      draftThreadsByThreadKey: {},
-      logicalProjectDraftThreadKeyByLogicalProjectKey: {},
-    });
-  });
-
-  it("shows draft route for pre-thread server urls while the draft session is active", () => {
-    useComposerDraftStore.setState({
-      draftThreadsByThreadKey: {
-        [draftId]: draftThreadState(),
-      },
-    });
-
-    expect(
-      getCurrentRouteTarget({
-        state: {
-          matches: [
-            {
-              params: {
-                environmentId,
-                threadId: draftThreadId,
-              },
-            },
-          ],
-        },
-      }),
-    ).toEqual({
-      kind: "draft",
-      draftId,
     });
   });
 });

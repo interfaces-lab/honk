@@ -116,7 +116,6 @@ interface MessagesTimelineProps {
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer?: ((message: ChatMessage) => ReactNode) | undefined;
   onUpdateProposedPlan?: (proposedPlan: ProposedPlan, nextMarkdown: string) => Promise<boolean>;
-  awaitingServerThreadDetail?: boolean | undefined;
   onIsAtBottomChange: (isAtBottom: boolean) => void;
 }
 
@@ -144,7 +143,6 @@ export function MessagesTimeline({
   onBeginEditUserMessage,
   renderEditComposer,
   onUpdateProposedPlan,
-  awaitingServerThreadDetail = false,
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
   const conversationDensity = useConversationDensity();
@@ -557,18 +555,6 @@ export function MessagesTimeline({
     </>
   );
 
-  if (rows.length === 0 && !isWorking && awaitingServerThreadDetail) {
-    return (
-      <>
-        {lifecycleSync}
-        <TimelineLoadingPlaceholder
-          bottomClearancePx={virtualizerBottomPadding}
-          reportIsAtBottom={reportIsAtBottom}
-        />
-      </>
-    );
-  }
-
   const virtualItems = rowVirtualizer.getVirtualItems();
   const activeStickyUserRowIndex = findActiveStickyUserRowIndex(
     stickyUserRowIndices,
@@ -737,47 +723,6 @@ function ProgrammaticScrollTrackingCleanup({
   });
 
   return null;
-}
-
-function TimelineLoadingPlaceholder({
-  bottomClearancePx,
-  reportIsAtBottom,
-}: {
-  bottomClearancePx: number;
-  reportIsAtBottom: (isAtBottom: boolean, options?: { force?: boolean }) => void;
-}) {
-  useMountEffect(() => {
-    reportIsAtBottom(true, { force: true });
-  });
-
-  const placeholderContentStyle = {
-    paddingBottom: `calc(var(--chat-timeline-row-gap) + ${bottomClearancePx}px)`,
-  } satisfies CSSProperties;
-
-  return (
-    <div
-      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden pt-(--chat-timeline-padding-block-start)"
-      aria-busy="true"
-      aria-label="Loading conversation"
-    >
-      <div className="h-full min-h-0 flex-1 overflow-hidden scrollbar-gutter-stable-both-edges">
-        <div
-          className="mx-auto box-border flex min-h-full w-full max-w-agent-chat flex-col justify-end gap-5 px-4"
-          style={placeholderContentStyle}
-        >
-          <span className="sr-only">Loading conversation</span>
-          <div className="flex w-full justify-end">
-            <div className="h-12 w-2/3 max-w-136 animate-pulse rounded-2xl bg-muted/35" />
-          </div>
-          <div className="flex w-full flex-col gap-3">
-            <div className="h-3 w-24 animate-pulse rounded-full bg-muted/35" />
-            <div className="h-3 w-11/12 animate-pulse rounded-full bg-muted/25" />
-            <div className="h-3 w-8/12 animate-pulse rounded-full bg-muted/25" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function isUserMessageRow(row: MessagesTimelineRow): row is UserMessageTimelineRow {

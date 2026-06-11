@@ -2,8 +2,16 @@
 
 import pierreDark from "@pierre/theme/pierre-dark";
 import pierreLight from "@pierre/theme/pierre-light";
-import type { FileTreeOptions, TreeThemeInput, TreeThemeStyles } from "@pierre/trees";
-import { themeToTreeStyles } from "@pierre/trees";
+import type {
+  FileTreeOptions,
+  TreeThemeInput,
+  TreeThemeStyles,
+} from "@pierre/trees";
+import {
+  createFileTreeIconResolver,
+  getBuiltInSpriteSheet,
+  themeToTreeStyles,
+} from "@pierre/trees";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type { FileTreeProps as PierreFileTreeProps } from "@pierre/trees/react";
 import type { CSSProperties } from "react";
@@ -12,6 +20,9 @@ import { cn } from "~/lib/utils";
 
 export type TreeHostStyle = CSSProperties & Record<`--${string}`, string | number>;
 type PierreTheme = typeof pierreDark;
+const FILE_TREE_ICON_SET = "complete";
+const fileTreeIconResolver = createFileTreeIconResolver(FILE_TREE_ICON_SET);
+const fileTreeIconSpriteSheet = getBuiltInSpriteSheet(FILE_TREE_ICON_SET);
 
 export type TreeProps = Omit<PierreFileTreeProps, "className" | "style"> & {
   className?: string;
@@ -123,7 +134,7 @@ export function useTreeModel(options: FileTreeOptions): ReturnType<typeof useFil
     density: "compact",
     itemHeight: 22,
     flattenEmptyDirectories: true,
-    icons: "complete",
+    icons: FILE_TREE_ICON_SET,
     ...options,
     unsafeCSS: treeUnsafeCss(options.unsafeCSS),
   });
@@ -143,4 +154,42 @@ export function Tree({ className, resolvedTheme, style, ...props }: TreeProps) {
 
 export function normalizeTreePath(path: string): string {
   return path.replace(/\\/g, "/");
+}
+
+export function FileTreeIconSprite() {
+  return (
+    <span
+      aria-hidden
+      className="hidden"
+      dangerouslySetInnerHTML={{ __html: fileTreeIconSpriteSheet }}
+    />
+  );
+}
+
+export function FileTreeFileIcon(props: {
+  path: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const icon = fileTreeIconResolver.resolveIcon("file-tree-icon-file", normalizeTreePath(props.path));
+  const href = `#${icon.name.replace(/^#/, "")}`;
+  const width = icon.width ?? 16;
+  const height = icon.height ?? 16;
+  const viewBox = icon.viewBox ?? `0 0 ${width} ${height}`;
+
+  return (
+    <svg
+      aria-hidden
+      className={props.className}
+      data-align-capitals="false"
+      data-icon-name={icon.remappedFrom ?? icon.name}
+        data-icon-token={icon.token}
+        height={height}
+        style={props.style}
+      viewBox={viewBox}
+      width={width}
+    >
+      <use href={href} />
+    </svg>
+  );
 }

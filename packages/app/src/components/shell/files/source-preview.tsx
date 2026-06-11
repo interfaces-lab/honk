@@ -14,15 +14,15 @@ export function SourcePreview(props: {
   environmentId: EnvironmentId | null;
   selectedPath: string | null;
   wordWrap: boolean;
-  active: boolean;
 }) {
   const { resolvedTheme } = useTheme();
+  const canReadFile = Boolean(props.cwd && props.environmentId && props.selectedPath);
   const fileQuery = useQuery(
     projectReadFileQueryOptions({
       cwd: props.cwd,
       environmentId: props.environmentId,
       relativePath: props.selectedPath,
-      enabled: props.active && Boolean(props.cwd && props.environmentId && props.selectedPath),
+      enabled: canReadFile,
     }),
   );
   const fileOptions: FileOptions<undefined> = {
@@ -47,7 +47,7 @@ export function SourcePreview(props: {
     return <EmptyFilePreview onOpenFile={() => undefined} />;
   }
 
-  if (fileQuery.isPending) {
+  if (canReadFile && fileQuery.isPending) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="space-y-2 bg-(--multi-workbench-editor-surface-background) p-3">

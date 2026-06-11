@@ -74,12 +74,11 @@ function SidebarItem({
       nativeButton={nativeButton ?? (render ? false : undefined)}
       render={render}
       className={cn(
-        "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-sidebar-item-gap rounded-multi-control border border-transparent px-1.5 py-1 text-left [-webkit-user-drag:none]",
+        "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-sidebar-item-gap rounded-multi-control border border-transparent px-1.5 py-1 text-left transition-none [-webkit-user-drag:none]",
         interactive &&
           cn(
-            "outline-none ring-offset-0 transition-[background-color,color] hover:bg-multi-bg-quaternary data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
+            "outline-none ring-offset-0 hover:bg-multi-bg-quaternary data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
             interactiveControlCursorClassName,
-            controlTransitionClassName,
           ),
         "data-[selected=true]:bg-multi-bg-quaternary data-[selected=true]:hover:bg-multi-bg-quaternary",
         "bg-transparent shadow-none before:hidden",

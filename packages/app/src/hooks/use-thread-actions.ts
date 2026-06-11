@@ -27,7 +27,7 @@ import {
 } from "../stores/thread-store";
 import { useTerminalStateStore } from "../terminal-state-store";
 import { openChatIndex, openThread } from "~/app/chat-navigation";
-import { getCurrentRouteTarget as getCurrentRouteTargetFromRouter } from "~/routes/-thread-route-targets";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 import {
   formatWorktreePathForDisplay,
   getOrphanedWorktreePathForThread,
@@ -240,18 +240,21 @@ export function useThreadActions() {
   );
   const clearTerminalState = useTerminalStateStore((state) => state.clearTerminalState);
   const router = useRouter();
+  const routeTarget = useRouteTarget();
   const { handleNewThread } = useNewThreadHandler();
   // Keep a ref so archiveThread can call handleNewThread without appearing in
   // its dependency array — handleNewThread is inherently unstable (depends on
   // the projects list) and would otherwise cascade new references into every
   // sidebar row via archiveThread → attemptArchiveThread.
   const handleNewThreadRef = useRef(handleNewThread);
+  const routeTargetRef = useRef(routeTarget);
   handleNewThreadRef.current = handleNewThread;
+  routeTargetRef.current = routeTarget;
   const queryClient = useQueryClient();
 
   const getCurrentRouteTarget = useCallback(() => {
-    return getCurrentRouteTargetFromRouter(router);
-  }, [router]);
+    return routeTargetRef.current;
+  }, []);
   const getCurrentRouteThreadRef = useCallback(() => {
     const target = getCurrentRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;

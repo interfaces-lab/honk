@@ -17,9 +17,7 @@ import {
   IconProjects,
   IconSettingsGear2,
   IconSettingsSliderHor,
-  IconSquareChecklist,
   IconThread,
-  IconWindowCursor,
 } from "central-icons";
 import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -53,7 +51,7 @@ import { useComposerDraftStore } from "../stores/chat-drafts";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
 import { shellPanelsActions } from "../stores/shell-panels-store";
 import { openThread } from "~/app/chat-navigation";
-import { getCurrentChatRouteTarget, useChatRouteTarget } from "~/app/chat-route-state";
+import { useChatRouteTarget } from "~/app/chat-route-state";
 import {
   buildProjectActionItems,
   buildRootGroups,
@@ -258,6 +256,7 @@ function CommandPaletteResultRow(props: {
 
 export function CommandPalette({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const routeTarget = useChatRouteTarget();
   const open = useCommandPaletteStore((store) => store.open);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
   const toggleOpen = useCommandPaletteStore((store) => store.toggleOpen);
@@ -265,17 +264,19 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   const composerHandleRef = useRef<ComposerInputHandle | null>(null);
   const keybindingsRef = useRef(keybindings);
   const routerRef = useRef(router);
+  const routeTargetRef = useRef(routeTarget);
   const toggleOpenRef = useRef(toggleOpen);
   const activeKeybindings =
     keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
   keybindingsRef.current = activeKeybindings;
   routerRef.current = router;
+  routeTargetRef.current = routeTarget;
   toggleOpenRef.current = toggleOpen;
 
   useMountEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      const routeTarget = getCurrentChatRouteTarget(routerRef.current);
+      const routeTarget = routeTargetRef.current;
       const terminalOpen =
         routeTarget?.kind === "server"
           ? selectThreadTerminalState(
@@ -899,45 +900,6 @@ function OpenCommandPaletteDialog() {
       },
     });
 
-    actionItems.push({
-      kind: "action",
-      value: "action:dev:queued-message-demo",
-      searchTerms: [
-        "queue",
-        "queued message",
-        "queued follow up",
-        "follow up",
-        "composer",
-        "chat",
-        "dev",
-      ],
-      title: "Open queued message demo",
-      description: "Exercise queued follow-up panel states (dev)",
-      icon: <IconSquareChecklist className="size-4 text-multi-icon-tertiary" />,
-      run: async () => {
-        await navigate({ to: "/dev/queued-message-demo" });
-      },
-    });
-
-    actionItems.push({
-      kind: "action",
-      value: "action:dev:cursor-agent-window-demo",
-      searchTerms: [
-        "cursor",
-        "agent window",
-        "cursor agent",
-        "cursor chat parity",
-        "screenshot",
-        "demo",
-        "dev",
-      ],
-      title: "Open Cursor agent window demo",
-      description: "Inspect the Cursor-style agent window parity mock (dev)",
-      icon: <IconWindowCursor className="size-4 text-multi-icon-tertiary" />,
-      run: async () => {
-        await navigate({ to: "/dev/cursor-agent-window-demo" });
-      },
-    });
   }
 
   const rootGroups = buildRootGroups({
@@ -992,7 +954,7 @@ function OpenCommandPaletteDialog() {
   return (
     <CommandDialogPopup
       aria-label="Command palette"
-      className="overflow-hidden p-0"
+      className="overflow-hidden p-0 transition-none! duration-0!"
       data-testid="command-palette"
       finalFocus={() => {
         composerHandleRef?.current?.focusAtEnd();
