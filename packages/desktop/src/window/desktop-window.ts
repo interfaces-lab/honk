@@ -266,8 +266,11 @@ const make = Effect.gen(function* () {
       width: DEFAULT_WINDOW_WIDTH,
       height: DEFAULT_WINDOW_HEIGHT,
       center: true,
-      minWidth: 840,
-      minHeight: 620,
+      // Cursor glass-window minimums (WIDTH: 400, HEIGHT_GLASS: 520): the
+      // shell handles narrow widths itself — left sidebar becomes an overlay
+      // drawer and the workbench grows the window when it cannot fit.
+      minWidth: 400,
+      minHeight: 520,
       show: false,
       autoHideMenuBar: true,
       backgroundColor: getInitialWindowBackgroundColor(shouldUseDarkColors),

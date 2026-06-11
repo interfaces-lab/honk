@@ -17,6 +17,7 @@ import { getServerExposureState, setServerExposureMode } from "./methods/server-
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
   confirm,
+  expandWindowWidth,
   getAppBranding,
   getLocalEnvironmentBootstrap,
   getWindowChromeState,
@@ -58,6 +59,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);
   yield* ipc.handle(setDisplayZoom);
+  yield* ipc.handle(expandWindowWidth);
   yield* ipc.handle(setVibrancy);
   yield* ipc.handle(showContextMenu);
   yield* ipc.handle(openExternal);

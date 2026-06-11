@@ -9,7 +9,7 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
         <SidebarButton
           variant="chrome"
           onClick={props.onNewChat}
-          className="flex-1 bg-multi-bg-quinary pl-2 pr-1.5 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+          className="flex-1 pl-2 pr-1.5 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
           data-testid="new-thread-button"
         >
           <IconCollaborationPointerRight className="size-4 shrink-0 opacity-65" />

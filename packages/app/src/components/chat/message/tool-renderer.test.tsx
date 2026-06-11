@@ -44,6 +44,28 @@ describe("tool renderer conversation density", () => {
     );
   });
 
+  it("renders pending-approval shells as detailed cards at compact density", () => {
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "shellToolCall",
+            value: {
+              action: "Running",
+              details: "git push origin main",
+              command: "git push origin main",
+              output: "Pushing to origin",
+            },
+          },
+        }}
+        approval={{ status: "pending" }}
+        conversationDensity="compact-all-grouped"
+      />,
+    );
+
+    expect(html).toContain("data-shell-tool-call-output");
+  });
+
   it("renders compact shells as text-only lines", () => {
     const html = renderToStaticMarkup(
       <ToolCallRenderer

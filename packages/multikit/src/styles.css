@@ -30,6 +30,8 @@
   --multi-radius-pill: var(--multi-radius-chip-user, 20px);
   --z-index-chat-timeline-sticky-user-message: 40;
   --z-index-chat-timeline-floating-edit-row: 40;
+  --z-index-shell-overlay-backdrop: 45;
+  --z-index-shell-overlay-panel: 48;
   --z-index-shell-titlebar-controls: 50;
   --z-index-popover: 60;
   --z-index-menu: 60;
@@ -429,6 +431,7 @@ html {
 
   --motion-duration-hover: 100ms;
   --motion-duration-collapsible: 100ms;
+  --motion-duration-drawer: 200ms;
   --motion-duration-shimmer: 2000ms;
   --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
 }
@@ -438,6 +441,7 @@ html {
   html {
     --motion-duration-hover: 0ms;
     --motion-duration-collapsible: 0ms;
+    --motion-duration-drawer: 0ms;
   }
 }
 

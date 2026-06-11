@@ -4,6 +4,7 @@ export const SET_THEME_CHANNEL = "desktop:set-theme";
 export const SET_BACKGROUND_COLOR_CHANNEL = "desktop:set-background-color";
 export const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
 export const SET_DISPLAY_ZOOM_CHANNEL = "desktop:set-display-zoom";
+export const EXPAND_WINDOW_WIDTH_CHANNEL = "desktop:expand-window-width";
 export const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 export const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 export const MENU_ACTION_CHANNEL = "desktop:menu-action";

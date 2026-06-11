@@ -1,7 +1,7 @@
 import { type DesktopExtensionUiRequest } from "@multi/contracts";
 import { Button } from "@multi/multikit/button";
 import { IconBubbleQuestion } from "central-icons";
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import {
   QuestionnaireActions,
   QuestionnaireFreeformRow,
@@ -71,12 +71,27 @@ export function ComposerPendingExtensionUiRequestPanel({
   onRespond,
 }: ComposerPendingExtensionUiRequestPanelProps) {
   const [draftValue, setDraftValue] = useState("");
+  const [selectedActionIndex, setSelectedActionIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setDraftValue("");
+    setSelectedActionIndex(null);
+  }, [request?.id]);
 
   if (!request) {
     return null;
   }
   const responseActions = pendingExtensionUiRequestResponseActions(request, draftValue);
   const isOptionsRequest = request.kind === "select" || request.kind === "confirm";
+  const selectedAction =
+    selectedActionIndex === null ? null : (responseActions[selectedActionIndex] ?? null);
+
+  const submitSelectedAction = () => {
+    if (!selectedAction || isResponding) {
+      return;
+    }
+    onRespond(request, selectedAction.value);
+  };
 
   const handleKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!isOptionsRequest || isResponding) return;
@@ -91,12 +106,17 @@ export function ComposerPendingExtensionUiRequestPanel({
     ) {
       return;
     }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      submitSelectedAction();
+      return;
+    }
     const key = event.key.toUpperCase();
     if (key.length !== 1 || key < "A" || key > "Z") return;
-    const action = responseActions[key.charCodeAt(0) - 65];
-    if (!action) return;
+    const actionIndex = key.charCodeAt(0) - 65;
+    if (!responseActions[actionIndex]) return;
     event.preventDefault();
-    onRespond(request, action.value);
+    setSelectedActionIndex(actionIndex);
   };
 
   return (
@@ -115,18 +135,29 @@ export function ComposerPendingExtensionUiRequestPanel({
             </p>
           ) : null}
           {isOptionsRequest ? (
-            <QuestionnaireOptions label={request.title}>
-              {responseActions.map((action, index) => (
-                <QuestionnaireOptionButton
-                  key={action.label}
-                  letter={questionnaireOptionLetter(index)}
-                  label={action.label}
-                  selected={false}
-                  disabled={isResponding}
-                  onSelect={() => onRespond(request, action.value)}
-                />
-              ))}
-            </QuestionnaireOptions>
+            <>
+              <QuestionnaireOptions label={request.title}>
+                {responseActions.map((action, index) => (
+                  <QuestionnaireOptionButton
+                    key={action.label}
+                    letter={questionnaireOptionLetter(index)}
+                    label={action.label}
+                    selected={selectedActionIndex === index}
+                    disabled={isResponding}
+                    onSelect={() => setSelectedActionIndex(index)}
+                  />
+                ))}
+              </QuestionnaireOptions>
+              <QuestionnaireActions>
+                <Button
+                  size="sm"
+                  disabled={isResponding || selectedAction === null}
+                  onClick={submitSelectedAction}
+                >
+                  {isResponding ? "Submitting..." : "Continue"}
+                </Button>
+              </QuestionnaireActions>
+            </>
           ) : (
             <>
               <QuestionnaireFreeformRow

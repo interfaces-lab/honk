@@ -24,7 +24,7 @@ function eventTypeForPiEvent(event: AgentSessionEvent): AgentRuntimeEventType {
     case "agent_start":
       return "agent.started";
     case "agent_end":
-      return "agent.completed";
+      return event.willRetry ? "session.state.changed" : "agent.completed";
     case "turn_start":
       return "turn.started";
     case "turn_end":
@@ -53,7 +53,7 @@ function eventTypeForPiEvent(event: AgentSessionEvent): AgentRuntimeEventType {
     case "auto_retry_start":
       return "runtime.warning";
     case "auto_retry_end":
-      return "runtime.error";
+      return event.success ? "session.state.changed" : "runtime.error";
     default:
       return "session.state.changed";
   }

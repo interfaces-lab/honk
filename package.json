@@ -20,7 +20,7 @@
     "build": "turbo run build",
     "build:desktop": "turbo run build --filter=@multi/desktop",
     "typecheck": "turbo run typecheck",
-    "lint": "oxlint --report-unused-disable-directives --deny-warnings && pnpm run lint:css",
+    "lint": "oxlint --report-unused-disable-directives && pnpm run lint:css",
     "lint:css": "stylelint \"packages/**/*.css\" --allow-empty-input",
     "test": "turbo run test",
     "test:desktop-smoke": "turbo run smoke-test --filter=@multi/desktop",

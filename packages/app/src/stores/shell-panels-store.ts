@@ -62,7 +62,7 @@ interface ShellPanelsStoreState {
   setLeftOpen: (open: boolean) => void;
   setRightOpen: (open: boolean, workspaceKey?: string | null) => void;
   setLeftWidth: (width: number) => void;
-  setRightWidth: (width: number) => void;
+  setRightWidth: (width: number, workspaceKey?: string | null) => void;
   setActiveTab: (tab: WorkbenchTab, workspaceKey?: string | null) => void;
   setMuted: (muted: boolean, workspaceKey?: string | null) => void;
   setSecondaryRailOpen: (workspaceKey: string | null, tab: WorkbenchTab, open: boolean) => void;
@@ -428,14 +428,10 @@ export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
       return { leftW: nextWidth };
     });
   },
-  setRightWidth: (width) => {
+  setRightWidth: (width, workspaceKey = null) => {
     set((state) => {
-      const current = {
-        rightOpen: state.rightOpen,
-        rightW: state.rightW,
-        activeTab: state.activeTab,
-        muted: state.muted,
-      };
+      const key = resolveWorkspacePanelKey(workspaceKey);
+      const current = readWorkbenchState(state.rightWorkbenchByWorkspaceKey, workspaceKey);
       const nextWidth = clampWidth(
         width,
         RIGHT_WORKBENCH_WIDTH_LIMITS.min,
@@ -446,8 +442,13 @@ export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
         return state;
       }
 
+      const rightWorkbenchByWorkspaceKey = {
+        ...state.rightWorkbenchByWorkspaceKey,
+        [key]: next,
+      };
+      persistRightWorkbenches(rightWorkbenchByWorkspaceKey);
       persistPanels({ leftOpen: state.leftOpen, leftW: state.leftW, ...next });
-      return { rightW: nextWidth };
+      return { rightW: nextWidth, rightWorkbenchByWorkspaceKey };
     });
   },
   setActiveTab: (activeTab, workspaceKey = null) => {
@@ -584,8 +585,12 @@ export function useLeftWidth(): number {
   return useShellPanelsStore((state) => state.leftW);
 }
 
-export function useRightWidth(): number {
-  return useShellPanelsStore((state) => state.rightW);
+export function useRightWidth(workspaceKey?: string | null): number {
+  return useShellPanelsStore((state) =>
+    workspaceKey === undefined
+      ? state.rightW
+      : readWorkbenchState(state.rightWorkbenchByWorkspaceKey, workspaceKey).rightW,
+  );
 }
 
 export function useActiveTab(workspaceKey?: string | null): WorkbenchTab {
@@ -639,7 +644,8 @@ export const shellPanelsActions = {
   setRightOpen: (open: boolean, workspaceKey?: string | null) =>
     useShellPanelsStore.getState().setRightOpen(open, workspaceKey),
   setLeftWidth: (width: number) => useShellPanelsStore.getState().setLeftWidth(width),
-  setRightWidth: (width: number) => useShellPanelsStore.getState().setRightWidth(width),
+  setRightWidth: (width: number, workspaceKey?: string | null) =>
+    useShellPanelsStore.getState().setRightWidth(width, workspaceKey),
   setActiveTab: (tab: WorkbenchTab, workspaceKey?: string | null) =>
     useShellPanelsStore.getState().setActiveTab(tab, workspaceKey),
   setMuted: (muted: boolean, workspaceKey?: string | null) =>

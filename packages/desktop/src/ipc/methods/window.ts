@@ -11,6 +11,8 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import * as Electron from "electron";
+
 import * as DesktopBackendManager from "../../backend/desktop-backend-manager";
 import * as DesktopActiveWork from "../../app/desktop-active-work";
 import * as DesktopEnvironment from "../../app/desktop-environment";
@@ -189,6 +191,36 @@ export const setDisplayZoom = makeIpcMethod({
       Math.max(DISPLAY_ZOOM_FACTOR_MIN, factor),
     );
     window.value.webContents.setZoomFactor(clamped);
+  }),
+});
+
+export const expandWindowWidth = makeIpcMethod({
+  channel: IpcChannels.EXPAND_WINDOW_WIDTH_CHANNEL,
+  payload: Schema.Number,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.expandWindowWidth")(function* (additionalWidth) {
+    const electronWindow = yield* ElectronWindow.ElectronWindow;
+    const window = yield* electronWindow.focusedMainOrFirst;
+    if (
+      Option.isNone(window) ||
+      window.value.isDestroyed() ||
+      window.value.isFullScreen() ||
+      window.value.isMaximized() ||
+      !Number.isFinite(additionalWidth) ||
+      additionalWidth <= 0
+    ) {
+      return;
+    }
+
+    const target = window.value;
+    // The renderer measures in CSS px; window bounds are DIP, which differ by
+    // the webContents zoom factor.
+    const additionalDip = Math.round(additionalWidth * target.webContents.getZoomFactor());
+    const bounds = target.getBounds();
+    const workArea = Electron.screen.getDisplayMatching(bounds).workArea;
+    const width = Math.min(bounds.width + additionalDip, workArea.width);
+    const x = Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - width));
+    target.setBounds({ x, y: bounds.y, width, height: bounds.height }, true);
   }),
 });
 

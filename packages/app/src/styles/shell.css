@@ -211,6 +211,10 @@ body.multi-reduce-transparency {
   --multi-shell-right-workbench-header-end-space: calc(
     var(--multi-shell-titlebar-control-size) + var(--multi-shell-titlebar-gutter)
   );
+  /* Left titlebar group is two controls (sidebar toggle + search) with a 2px gap. */
+  --multi-shell-left-controls-end-space: calc(
+    2 * var(--multi-shell-titlebar-control-size) + 2px + var(--multi-shell-titlebar-gutter)
+  );
   --multi-shell-center-surface-background: var(
     --multi-chat-surface-background,
     var(--multi-color-chat)
@@ -305,13 +309,28 @@ html:not([data-electron]) .agent-window {
     var(--multi-shell-right-effective-width),
     var(--multi-shell-right-workbench-min-width)
   );
-  max-width: var(--multi-shell-right-workbench-max-width);
+  /* Force-expand priority: the workbench keeps its stored width inline and
+   * the center (min-w-0) gives way; the cqw cap only stops it outgrowing the
+   * shell itself. min-width still wins below it, keeping the panel usable. */
+  max-width: min(var(--multi-shell-right-workbench-max-width), 100cqw);
 }
 
+/*
+ * Collapsed panels stay visible (no `visibility: hidden`) so the width
+ * transition is seen; `inert` + pointer-events cover interaction. Transparent
+ * borders stop a zero-width panel from painting a 1px line.
+ */
 .agent-window__workbench[data-state="collapsed"],
 .agent-window__sidebar[data-state="collapsed"] {
   pointer-events: none;
-  visibility: hidden;
+}
+
+.agent-window:not([data-shell-left-mode="overlay"]) .agent-window__sidebar[data-state="collapsed"] {
+  border-right-color: transparent;
+}
+
+.agent-window__workbench[data-state="collapsed"] {
+  border-left-color: transparent;
 }
 
 .multi-shell-titlebar-left-controls {
@@ -440,40 +459,69 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] .editor-panel-tab-r
 
 .multi-shell-secondary-rail[data-state="collapsed"] {
   pointer-events: none;
-  visibility: hidden;
 }
 
-@container (max-width: 980px) {
-  .multi-shell-workbench-columns {
-    --multi-shell-secondary-rail-effective-width: var(
-      --multi-shell-secondary-rail-collapsed-width,
-      0px
-    );
-  }
-
-  .multi-shell-secondary-rail {
-    pointer-events: none;
-    visibility: hidden;
-  }
+.agent-window:not([data-shell-secondary-rail-mode="overlay"])
+  .multi-shell-secondary-rail[data-state="collapsed"]::after {
+  content: none;
 }
 
-@container (max-width: 900px) {
-  .agent-window .agent-window__workbench {
-    width: var(--multi-shell-right-workbench-collapsed-width);
-    min-width: 0;
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
-  }
+/*
+ * Overlay drawers — agent-list sidebar and secondary rail only. The right
+ * workbench never overlays: it force-expands inline and the center gives way
+ * (Cursor's docked/fill/ratio pane model). Drawers float over the content;
+ * only transform animates, never width. The 48px overshoot parks a drawer far
+ * enough offscreen that --multi-shadow-popup (48px blur) cannot bleed back
+ * in. The snap rule stays last: it ties the drawer rules on specificity, so
+ * source order is what lets a mode cross reposition without a slide.
+ */
+.agent-window[data-shell-left-mode="overlay"] .agent-window__sidebar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-index-shell-overlay-panel);
+  width: min(var(--multi-shell-left-width), calc(100cqw - 48px));
+  min-width: 0;
+  transform: translateX(calc(-100% - 48px));
+  transition: transform var(--motion-duration-drawer) cubic-bezier(0.19, 1, 0.22, 1);
+  box-shadow: var(--multi-shadow-popup);
+  -webkit-app-region: no-drag;
 }
 
-@container (max-width: 620px) {
-  .agent-window__sidebar {
-    width: var(--multi-shell-left-collapsed-width);
-    min-width: 0;
-    pointer-events: none;
-    visibility: hidden;
-  }
+.agent-window[data-shell-left-presentation="overlay-expanded"] .agent-window__sidebar {
+  transform: translateX(0);
+}
+
+.agent-window[data-shell-secondary-rail-mode="overlay"] .multi-shell-workbench-columns {
+  position: relative;
+}
+
+.agent-window[data-shell-secondary-rail-mode="overlay"] .multi-shell-secondary-rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-index-shell-overlay-panel);
+  width: min(var(--multi-shell-secondary-rail-width), calc(100cqw - 48px));
+  min-width: 0;
+  transform: translateX(calc(-100% - 48px));
+  transition: transform var(--motion-duration-drawer) cubic-bezier(0.19, 1, 0.22, 1);
+  box-shadow: var(--multi-shadow-popup);
+}
+
+.agent-window[data-shell-secondary-rail-mode="overlay"]
+  .multi-shell-secondary-rail[data-state="expanded"] {
+  transform: translateX(0);
+}
+
+.agent-window .agent-window__sidebar[data-transition-snap="true"] {
+  transition: none;
+}
+
+/* Blur over a live-resizing edge shimmers; go opaque for the drag. */
+.multi-shell-sidebar[data-resizing="true"] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--multi-color-sidebar-opaque);
 }
 
 .editor-panel-container {
@@ -485,9 +533,16 @@ body.multi-reduce-transparency[data-multi-glass-mode="true"] .editor-panel-tab-r
   color: var(--multi-fg-secondary);
 }
 
-[data-electron] .agent-window[data-shell-left-intent="collapsed"] .agent-window-chat-header {
+/*
+ * Left side keys on presentation, not intent: a sidebar in overlay mode
+ * leaves the traffic lights over the chat header just like a collapsed one,
+ * so both need the offsets.
+ */
+[data-electron]
+  .agent-window:not([data-shell-left-presentation="inline-expanded"])
+  .agent-window-chat-header {
   margin-left: var(--multi-electron-traffic-inset);
-  padding-left: calc(var(--multi-shell-titlebar-control-size) + var(--multi-shell-titlebar-gutter));
+  padding-left: var(--multi-shell-left-controls-end-space);
 }
 
 [data-electron]

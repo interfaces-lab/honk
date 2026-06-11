@@ -56,6 +56,9 @@ export function RightWorkbenchLayout(props: {
         <div
           className={cn(
             "multi-shell-secondary-rail relative flex min-h-0 shrink-0 overflow-hidden bg-(--multi-workbench-panel-background)",
+            resize.dragging
+              ? "transition-none"
+              : "transition-[width] duration-100 ease-out motion-reduce:transition-none",
             props.railHostClassName,
           )}
           data-shell-panel="secondary"
@@ -66,16 +69,7 @@ export function RightWorkbenchLayout(props: {
           inert={!railOpen}
           ref={railRef}
         >
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-              resize.dragging
-                ? "transition-none"
-                : "transition-[width] duration-100 ease-out motion-reduce:transition-none",
-            )}
-          >
-            {props.rail}
-          </div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{props.rail}</div>
           <div
             aria-label="Resize secondary pane width"
             aria-orientation="vertical"

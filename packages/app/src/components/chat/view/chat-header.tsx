@@ -16,7 +16,7 @@ export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden md:hidden"
+          className="hidden size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden in-data-[shell-left-mode=overlay]:flex"
           aria-label="Toggle sidebar"
           onClick={() => shellPanelsActions.toggleLeft()}
         >

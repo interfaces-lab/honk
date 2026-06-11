@@ -61,8 +61,7 @@ function ComposerPendingUserInputCard({
 
   const handleOptionSelection = (questionId: string, optionLabel: string) => {
     if (!activeQuestion || isResponding) return;
-    const advanceAfterSelect = !activeQuestion.multiSelect;
-    onToggleOption(questionId, optionLabel, advanceAfterSelect);
+    onToggleOption(questionId, optionLabel);
   };
 
   const handleKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {

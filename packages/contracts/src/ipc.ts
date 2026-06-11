@@ -288,6 +288,7 @@ export interface DesktopBridge {
   setBackgroundColor: (color: string) => Promise<void>;
   setVibrancy: (enabled: boolean) => Promise<void>;
   setDisplayZoom: (factor: number) => Promise<void>;
+  expandWindowWidth?: (additionalWidth: number) => Promise<void>;
   showContextMenu: <T extends string>(
     items: readonly ContextMenuItem<T>[],
     position?: { x: number; y: number },

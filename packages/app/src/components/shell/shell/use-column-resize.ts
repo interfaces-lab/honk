@@ -87,7 +87,6 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
       applyWidthFrameRef.current = null;
     }
     pendingWidthRef.current = null;
-    applyWidth(nextWidth);
     if (drag.sash.hasPointerCapture(pointerId)) {
       drag.sash.releasePointerCapture(pointerId);
     }
@@ -97,6 +96,11 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
     document.body.style.removeProperty("cursor");
     document.body.style.removeProperty("user-select");
     onCommitRef.current(nextWidth);
+    // The commit flushes before paint, so the CSS width vars on
+    // `.agent-window` already carry nextWidth. Drop the inline width so they
+    // stay the single steady-state authority — a sticky inline width fights
+    // collapse and overlay modes.
+    elementRef.current?.style.removeProperty("width");
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {

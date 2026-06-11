@@ -738,10 +738,6 @@ function ComposerMenuAnchorObserverSync({
     if (typeof MutationObserver === "undefined") {
       return;
     }
-    const anchor = composerMenuAnchorRef.current;
-    if (!anchor) {
-      return;
-    }
 
     // Cursor observes the fake caret's style attribute and refreshes Floating
     // UI when it moves. The anchor reads live DOM rects; this revision bump
@@ -749,8 +745,28 @@ function ComposerMenuAnchorObserverSync({
     const observer = new MutationObserver(() => {
       setComposerMenuAnchorRevision((value) => value + 1);
     });
-    observer.observe(anchor, { attributeFilter: ["style"] });
+    // The caret span lives in the prompt editor's subtree and can attach after
+    // this sync mounts (editor remount with the menu opening in the same
+    // commit). Retry on animation frames until it exists, then bump once so
+    // the popover snaps from the 0,0 fallback rect to the real caret.
+    let frameId: number | null = null;
+    const attach = () => {
+      frameId = null;
+      const anchor = composerMenuAnchorRef.current;
+      if (!anchor) {
+        if (typeof requestAnimationFrame !== "undefined") {
+          frameId = requestAnimationFrame(attach);
+        }
+        return;
+      }
+      observer.observe(anchor, { attributeFilter: ["style"] });
+      setComposerMenuAnchorRevision((value) => value + 1);
+    };
+    attach();
     return () => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
       observer.disconnect();
     };
   });
@@ -1984,7 +2000,7 @@ export const ComposerInput = memo(
       if (menuIsActive) {
         const currentItems = composerMenuItemsRef.current;
         if (currentItems.length === 0) {
-          return key !== "Enter";
+          return true;
         }
         const selectedItem = activeComposerMenuItemRef.current ?? currentItems[0];
         if (key === "ArrowDown") {

@@ -588,7 +588,7 @@ export class ThreadAgentRuntime {
       this.activeTurnId = undefined;
       return;
     }
-    if (event.type === "agent_end") {
+    if (event.type === "agent_end" && !event.willRetry) {
       this.pendingFirstTurnId = undefined;
       this.activeTurnId = undefined;
       this.activeRunFirstTurnId = undefined;

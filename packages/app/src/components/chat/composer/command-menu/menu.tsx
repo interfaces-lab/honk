@@ -7,7 +7,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconBug, IconBubbleQuestion, IconRobot, IconSquareChecklist } from "central-icons";
-import { type ComponentProps } from "react";
+import { useMemo, type ComponentProps } from "react";
 
 import { Popover, PopoverPopup } from "@multi/multikit/popover";
 import { cn } from "~/lib/utils";
@@ -416,7 +416,8 @@ export function ComposerCommandMenu(props: {
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >
-        <CommandList className="max-h-[min(20rem,var(--available-height))] overflow-y-auto">
+        {/* 340px = 342px popup shell cap minus the 1px top/bottom border. */}
+        <CommandList className="max-h-[min(340px,var(--available-height))] overflow-y-auto">
           {groups.map((group, groupIndex) => (
             <div key={group.id}>
               {groupIndex > 0 ? <CommandSeparator className="my-px" /> : null}
@@ -523,19 +524,25 @@ type ComposerCommandMenuPositionedProps = ComponentProps<typeof ComposerCommandM
 };
 
 export function ComposerCommandMenuPositioned(props: ComposerCommandMenuPositionedProps) {
-  const { open, anchor, menuKind, ...menuProps } = props;
+  const { open, anchor, anchorRevision, menuKind, ...menuProps } = props;
   const menuOpen = open;
   const collisionPadding = open
     ? composerMenuCollisionPadding()
     : { top: 8, bottom: 8, left: 8, right: 8 };
   const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
+  // The caret anchor is a virtual element (no DOM node), so Base UI's autoUpdate cannot
+  // observe it. A new anchor identity per revision re-runs Floating UI positioning when
+  // the caret span moves (Cursor-style MutationObserver → updateFloating). Do not
+  // `key={anchorRevision}` the popup — remounting causes jitter (see AGENTS.md).
+  const revisionedAnchor = useMemo<ComposerMenuPopoverAnchor>(
+    () => ({ getBoundingClientRect: () => anchor.getBoundingClientRect() }),
+    [anchor, anchorRevision],
+  );
 
-  // Floating UI reads the live DOM anchor rect; anchorRevision repositions after
-  // Cursor-style MutationObserver updates on the hidden caret span.
   return (
     <Popover open={menuOpen}>
       <PopoverPopup
-        anchor={anchor}
+        anchor={revisionedAnchor}
         align="start"
         collisionAvoidance={COMPOSER_MENU_COLLISION_AVOIDANCE}
         collisionBoundary={collisionBoundary}
@@ -554,12 +561,13 @@ export function ComposerCommandMenuPositioned(props: ComposerCommandMenuPosition
           // its natural height; the positioner then gets sized past the
           // viewport and collision-shifts the popup off-screen.
           "max-h-[342px]",
-          menuKind === "mentions"
-            ? "w-64 max-w-[min(16rem,var(--available-width))]"
-            : "w-80 max-w-[min(20rem,var(--available-width))]",
+          // Cursor parity: both menus use one 300px shell.
+          "w-[300px] max-w-[min(300px,var(--available-width))]",
         )}
         data-composer-command-menu-root=""
         data-menu-kind={menuKind}
+        data-anchor-revision={anchorRevision}
+        data-menu-direction="up"
       >
         <ComposerCommandMenu menuKind={menuKind} {...menuProps} />
       </PopoverPopup>
