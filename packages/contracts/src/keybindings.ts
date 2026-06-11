@@ -42,6 +42,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "route.back",
   "threadSelection.clear",
   "editor.openFavorite",
+  "browser.focusLocationBar",
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;
 

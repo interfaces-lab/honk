@@ -11,6 +11,16 @@ interface ImportMeta {
 }
 
 declare global {
+  interface HTMLWebViewElement extends HTMLElement {
+    canGoBack: () => boolean;
+    canGoForward: () => boolean;
+    getURL: () => string;
+    goBack: () => void;
+    goForward: () => void;
+    loadURL: (url: string) => Promise<void>;
+    reload: () => void;
+  }
+
   interface Window {
     nativeApi?: LocalApi;
     desktopBridge?: DesktopBridge;

@@ -50,6 +50,7 @@ export interface DesktopEnvironmentShape {
   readonly backendEntryPath: string;
   readonly backendCwd: string;
   readonly preloadPath: string;
+  readonly browserWebviewPreloadPath: string;
   readonly appUpdateYmlPath: string;
   readonly devServerUrl: Option.Option<URL>;
   readonly configuredBackendPort: Option.Option<number>;
@@ -135,6 +136,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     backendEntryPath,
     backendCwd: defaultBackendCwd,
     preloadPath: path.join(input.dirname, "../preload/index.js"),
+    browserWebviewPreloadPath: path.join(input.dirname, "../preload/browser-webview.js"),
     appUpdateYmlPath: input.isPackaged
       ? path.join(resourcesPath, "app-update.yml")
       : path.join(input.appPath, "dev-app-update.yml"),

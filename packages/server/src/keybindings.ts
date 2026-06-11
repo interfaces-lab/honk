@@ -71,6 +71,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "escape", command: "route.back", when: "!terminalFocus" },
   { key: "escape", command: "threadSelection.clear", when: "threadSelectionActive" },
   { key: "mod+o", command: "editor.openFavorite" },
+  { key: "mod+l", command: "browser.focusLocationBar", when: "browserActive && !terminalFocus" },
   { key: "mod+shift+[", command: "thread.previous" },
   { key: "mod+shift+]", command: "thread.next" },
   ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({

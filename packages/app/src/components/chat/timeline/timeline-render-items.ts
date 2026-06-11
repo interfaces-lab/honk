@@ -624,7 +624,8 @@ export function deriveTimelineRenderItems(input: {
     projectRoot: input.projectRoot,
     pendingApprovalKinds,
   });
-  return finalizeGroupAssistantMessages(result, {
+  const waitingDedupedResult = suppressRedundantWaitingGroups(result, input.isTurnActive);
+  return finalizeGroupAssistantMessages(waitingDedupedResult, {
     isTurnActive: input.isTurnActive,
     projectRoot: input.projectRoot,
   });
@@ -1069,7 +1070,7 @@ function summarizeGroupedRunSteps(input: {
   if (input.analysis.commandCount === input.toolCount && input.analysis.commandCount > 0) {
     return {
       action: input.running ? "Running" : "Ran",
-      details: formatCommandCountDetails(input.analysis.commandCount),
+      details: input.running ? "" : formatCommandCountDetails(input.analysis.commandCount),
     };
   }
   if (input.browserCount === input.toolCount && input.browserCount > 0) {
@@ -1265,6 +1266,26 @@ function keepTailGroupRunning(
       })();
 
   return nextItems;
+}
+
+function suppressRedundantWaitingGroups(
+  items: TimelineRenderItem[],
+  isTurnActive: boolean,
+): TimelineRenderItem[] {
+  if (!isTurnActive || !items.some(isLiveThinkingStatusRenderItem)) {
+    return items;
+  }
+  return items.filter((item) => item.kind !== "waitingGroup");
+}
+
+function isLiveThinkingStatusRenderItem(item: TimelineRenderItem): boolean {
+  if (item.kind === "single") {
+    return item.step.kind === "runtime-thinking" && item.step.message.streaming === true;
+  }
+  if (item.kind !== "group") {
+    return false;
+  }
+  return item.group.isRunning && item.group.isThinkingGroup;
 }
 
 export function isActivelyRunningGroupedStep(step: TimelineGroupedStep): boolean {
@@ -1607,7 +1628,7 @@ function summarizeAnalyzedWorkGroup(
   if (analysis.commandCount === entries.length && analysis.commandCount > 0) {
     return {
       action: analysis.running ? "Running" : "Ran",
-      details: formatCommandCountDetails(analysis.commandCount),
+      details: analysis.running ? "" : formatCommandCountDetails(analysis.commandCount),
     };
   }
 

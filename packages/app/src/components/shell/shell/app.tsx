@@ -127,7 +127,7 @@ function setRightPanelOpen(open: boolean, workspaceKey: string | null): void {
   shellPanelsActions.setMuted(!open, workspaceKey);
 }
 
-const SHOW_RIGHT_WORKBENCH_LABEL = "Show project panel — files, Git changes, terminal.";
+const SHOW_RIGHT_WORKBENCH_LABEL = "Show project panel: files, Git changes, terminal, browser.";
 
 /**
  * Crossing inline<->overlay must reposition the panel without a slide: the
@@ -228,6 +228,11 @@ function RightAsideHeader(props: {
       terminalSessions={terminalState.sessions}
       activeTerminalId={terminalState.activeId}
       onTerminalTab={(id) => shellPanelsActions.setActiveTerminal(props.workspaceKey, id)}
+      onCloseTab={(tab) => {
+        if (tab === "dev") {
+          shellPanelsActions.closeDevTab(props.workspaceKey);
+        }
+      }}
       onNewTerminal={() => {
         const id = `term-${Date.now()}`;
         shellPanelsActions.addTerminalSession(props.workspaceKey, {
@@ -551,8 +556,7 @@ export function AppShell(props: {
     // Resolve the sidebar's flow width from the live measurement: the
     // observed mode state can lag a frame behind at mount.
     const leftInline = leftOpen && resolveShellPanelModes(shellWidth).left === "inline";
-    const deficit =
-      (leftInline ? leftWidth : 0) + rightWidth + SHELL_CENTER_MIN_WIDTH - shellWidth;
+    const deficit = (leftInline ? leftWidth : 0) + rightWidth + SHELL_CENTER_MIN_WIDTH - shellWidth;
     if (deficit > 0) {
       void window.desktopBridge?.expandWindowWidth?.(deficit);
     }

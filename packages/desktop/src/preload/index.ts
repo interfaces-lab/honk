@@ -26,6 +26,8 @@ const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
+const GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL = "desktop:get-browser-webview-preload-path";
+const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL = "desktop:get-local-environment-bootstrap";
 const GET_WINDOW_CHROME_STATE_CHANNEL = "desktop:get-window-chrome-state";
 const WINDOW_CHROME_STATE_CHANNEL = "desktop:window-chrome-state";
@@ -87,6 +89,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     }
     return result as DesktopAppBranding;
   },
+  getBrowserWebviewPreloadPath: () => {
+    const result: unknown = ipcRenderer.sendSync(GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL);
+    return typeof result === "string" && result.length > 0 ? result : null;
+  },
+  detectLocalhostPorts: (ports) => ipcRenderer.invoke(DETECT_LOCALHOST_PORTS_CHANNEL, ports),
   getLocalEnvironmentBootstrap: () => {
     const result: unknown = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL);
     if (typeof result !== "object" || result === null) {

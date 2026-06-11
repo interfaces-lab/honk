@@ -285,11 +285,17 @@ function MenuSeparator({
   );
 }
 
-function MenuShortcut({ className, ...props }: React.ComponentProps<"kbd">) {
+function MenuShortcut({
+  className,
+  variant = "default",
+  ...props
+}: React.ComponentProps<"kbd"> & { variant?: "default" | "workbench" }) {
   return (
     <kbd
       className={cn(
-        "ms-auto font-medium font-sans text-muted-foreground/72 text-xs tracking-widest",
+        variant === "workbench"
+          ? "ms-auto shrink-0 font-multi text-body font-normal tracking-normal text-multi-fg-tertiary"
+          : "ms-auto font-medium font-sans text-muted-foreground/72 text-xs tracking-widest",
         className,
       )}
       data-slot="menu-shortcut"

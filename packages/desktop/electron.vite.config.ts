@@ -103,12 +103,15 @@ export default defineConfig({
       sourcemap: true,
       emptyOutDir: true,
       lib: {
-        entry: "src/preload/index.ts",
+        entry: {
+          index: "src/preload/index.ts",
+          "browser-webview": "src/preload/browser-webview.ts",
+        },
         formats: ["cjs"],
       },
       rolldownOptions: {
         output: {
-          entryFileNames: "index.js",
+          entryFileNames: "[name].js",
           chunkFileNames: "[name]-[hash].cjs",
         },
       },

@@ -6,7 +6,7 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import { getSidebarThreadModifiedAt } from "./use-agent-sidebar-model";
+import { getSidebarThreadModifiedAt, needsSidebarAttention } from "./use-agent-sidebar-model";
 import { buildProjectChatSections } from "./view-model";
 import type { SidebarThreadSummary as StoreSidebarThreadSummary } from "~/types";
 import type { SidebarThreadSummary } from "./types";
@@ -60,6 +60,7 @@ function threadSummary(input: Partial<SidebarThreadSummary> = {}): SidebarThread
     firstMessage: "Pi thread",
     isStreaming: false,
     orchestrationStatus: null,
+    latestTurnState: null,
     needsAttention: false,
     ...input,
   };
@@ -165,6 +166,47 @@ describe("buildProjectChatSections", () => {
 
     expect(sections[0]?.items.map((item) => item.id)).toEqual([newerThreadId, olderThreadId]);
   });
+
+  it("maps stopped sessions to the stopped sidebar state", () => {
+    const sections = buildProjectChatSections(
+      [
+        threadSummary({
+          orchestrationStatus: "stopped",
+        }),
+      ],
+      [],
+      "/repo",
+      null,
+      undefined,
+      ["/repo"],
+    );
+
+    expect(sections[0]?.items[0]).toMatchObject({
+      kind: "thread",
+      state: "stopped",
+    });
+  });
+
+  it("maps interrupted latest turns to the stopped sidebar state", () => {
+    const sections = buildProjectChatSections(
+      [
+        threadSummary({
+          orchestrationStatus: "ready",
+          latestTurnState: "interrupted",
+        }),
+      ],
+      [],
+      "/repo",
+      null,
+      undefined,
+      ["/repo"],
+    );
+
+    expect(sections[0]?.items[0]).toMatchObject({
+      kind: "thread",
+      state: "stopped",
+    });
+  });
 });
 
 describe("getSidebarThreadModifiedAt", () => {
@@ -199,5 +241,39 @@ describe("getSidebarThreadModifiedAt", () => {
         }),
       ),
     ).toBe("2026-01-01T00:00:00.000Z");
+  });
+});
+
+describe("needsSidebarAttention", () => {
+  it("treats actionable proposed plans as sidebar attention after the run settles", () => {
+    expect(
+      needsSidebarAttention(
+        storeThreadSummary({
+          hasActionableProposedPlan: true,
+          session: {
+            status: "ready",
+            orchestrationStatus: "ready",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps running threads on the loading state instead of plan attention", () => {
+    expect(
+      needsSidebarAttention(
+        storeThreadSummary({
+          hasActionableProposedPlan: true,
+          session: {
+            status: "running",
+            orchestrationStatus: "running",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+          },
+        }),
+      ),
+    ).toBe(false);
   });
 });

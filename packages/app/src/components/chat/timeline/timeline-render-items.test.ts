@@ -402,6 +402,43 @@ describe("deriveTimelineRenderItems", () => {
     ]);
   });
 
+  it("suppresses waiting entries when live thinking already renders", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeThinkingEntry({
+          id: "thinking:active",
+          createdAt: "2026-06-05T16:00:00.000Z",
+          thinking: "Checking the branch.",
+          streaming: true,
+        }),
+        {
+          kind: "waiting",
+          id: "working-indicator-row",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          phase: "thinking",
+          elapsedStartedAt: "2026-06-05T16:00:01.000Z",
+        },
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        id: "thinking:active",
+        group: expect.objectContaining({
+          isRunning: true,
+          isThinkingGroup: true,
+          summary: {
+            action: "Thinking",
+            details: "",
+          },
+        }),
+      }),
+    ]);
+  });
+
   it("groups adjacent runtime thinking and runtime tool rows without committed work entries", () => {
     const rows = deriveTimelineRenderItems({
       timelineEntries: [
@@ -478,7 +515,7 @@ describe("deriveTimelineRenderItems", () => {
           isTailGroup: true,
           summary: {
             action: "Running",
-            details: "2 commands",
+            details: "",
           },
           steps: [
             expect.objectContaining({ kind: "runtime-thinking" }),
@@ -551,7 +588,7 @@ describe("deriveTimelineRenderItems", () => {
           completedDurationLabel: null,
           summary: {
             action: "Running",
-            details: "2 commands",
+            details: "",
           },
           steps: [
             expect.objectContaining({ kind: "work", id: "tool-call:cmd-1" }),
@@ -731,7 +768,7 @@ describe("deriveTimelineRenderItems", () => {
           isTailGroup: true,
           summary: {
             action: "Running",
-            details: "1 command",
+            details: "",
           },
           steps: [
             expect.objectContaining({ kind: "runtime-thinking" }),
@@ -1004,7 +1041,7 @@ describe("deriveTimelineRenderItems", () => {
           completedDurationLabel: null,
           summary: {
             action: "Running",
-            details: "1 command",
+            details: "",
           },
         }),
       }),
@@ -1194,7 +1231,7 @@ describe("deriveTimelineRenderItems", () => {
           isTailGroup: true,
           summary: {
             action: "Running",
-            details: "1 command",
+            details: "",
           },
         }),
       }),
@@ -1284,7 +1321,7 @@ describe("deriveTimelineRenderItems", () => {
           completedDurationLabel: null,
           summary: {
             action: "Running",
-            details: "2 commands",
+            details: "",
           },
         }),
       }),

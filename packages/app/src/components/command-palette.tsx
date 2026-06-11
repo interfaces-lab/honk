@@ -4,6 +4,7 @@ import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
 import { type ResolvedKeybindingsConfig } from "@multi/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
+  IconCode,
   IconChevronLeftMedium,
   IconChevronRightMedium,
   IconAgent,
@@ -37,8 +38,10 @@ import {
 import { isTerminalFocused } from "../lib/terminal-focus";
 import { openWorkspaceFolder, persistProjectSelection } from "../lib/project-selection";
 import {
+  findWorkspaceProjectByRef,
   findWorkspaceProjectForSource,
   getLatestWorkspaceThreadForProject,
+  resolveWorkspaceTarget,
 } from "../lib/workspace-target";
 import {
   selectProjectsAcrossEnvironments,
@@ -48,6 +51,7 @@ import {
 import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
+import { shellPanelsActions } from "../stores/shell-panels-store";
 import { openThread } from "~/app/chat-navigation";
 import { getCurrentChatRouteTarget, useChatRouteTarget } from "~/app/chat-route-state";
 import {
@@ -68,6 +72,7 @@ import { ProjectFavicon } from "./project-favicon";
 import { formatSchemaBackedTransportErrorDescription } from "~/rpc/transport-error";
 import {
   useServerAvailableEditors,
+  useServerConfig,
   useServerKeybindings,
   useServerKeybindingsConfigPath,
   useServerObservability,
@@ -99,6 +104,7 @@ import {
 } from "./chat/composer/context/handle-context";
 import { resolveAndPersistPreferredEditor } from "../editor-preferences";
 import type { ComposerInputHandle } from "./chat/composer/input";
+import { resolveProjectlessCwd } from "~/lib/project-state";
 
 function joinFileSystemPath(basePath: string, ...segments: string[]): string {
   const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";
@@ -349,8 +355,12 @@ function OpenCommandPaletteDialog() {
   const openAddProjectFlowRef = useRef<() => void>(() => undefined);
   const settings = useSettings();
   const routeTarget = useChatRouteTarget();
-  const { logicalProjectKey: selectedLogicalProjectKey, projectRef: selectedProjectRef } =
-    useSelectedWorkspaceProject();
+  const {
+    logicalProjectKey: selectedLogicalProjectKey,
+    projectCwd: selectedProjectCwd,
+    projectEnvironmentId: selectedProjectEnvironmentId,
+    projectRef: selectedProjectRef,
+  } = useSelectedWorkspaceProject();
   const { handleNewThread } = useNewThreadHandler();
   const activeThread = useStore(
     useShallow((store) =>
@@ -372,8 +382,10 @@ function OpenCommandPaletteDialog() {
   const keybindings = useServerKeybindings();
   const keybindingsConfigPath = useServerKeybindingsConfigPath();
   const availableEditors = useServerAvailableEditors();
+  const serverConfig = useServerConfig();
   const observability = useServerObservability();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const storeActiveEnvironmentId = useStore((state) => state.activeEnvironmentId);
 
   const activeThreadId = activeThread?.id;
   const serverTracePath = (() => {
@@ -388,6 +400,19 @@ function OpenCommandPaletteDialog() {
       ? findWorkspaceProjectForSource(projects, activeDraftThread)
       : null;
   const currentProjectCwd = currentWorkspaceProject?.cwd ?? null;
+  const selectedProject = selectedProjectRef
+    ? findWorkspaceProjectByRef(projects, selectedProjectRef)
+    : null;
+  const workspaceTarget = resolveWorkspaceTarget({
+    source: activeThread ?? activeDraftThread ?? null,
+    defaultProject: selectedProject,
+    defaultProjectCwd: selectedProjectCwd,
+    defaultProjectEnvironmentId: selectedProjectEnvironmentId,
+    defaultProjectRef: selectedProjectRef,
+    projects,
+    projectlessCwd: resolveProjectlessCwd(serverConfig?.cwd),
+    fallbackEnvironmentId: storeActiveEnvironmentId ?? primaryEnvironmentId,
+  });
 
   async function openProjectFromSearch(project: (typeof projects)[number]) {
     persistProjectSelection(project);
@@ -792,6 +817,27 @@ function OpenCommandPaletteDialog() {
     icon: <IconSettingsGear2 className="size-4 text-multi-icon-tertiary" />,
     run: async () => {
       await navigate({ to: "/settings" });
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:open-dev-panel",
+    searchTerms: [
+      "open dev panel",
+      "developer panel",
+      "debug panel",
+      "runtime panel",
+      "context usage",
+      "pi runtime",
+      "session tree",
+      "timeline",
+    ],
+    title: "Open Dev Panel",
+    description: "Inspect the active thread runtime, context, timeline, and tree",
+    icon: <IconCode className="size-4 text-multi-icon-tertiary" />,
+    run: async () => {
+      shellPanelsActions.activateDevTab(workspaceTarget.workspaceKey);
     },
   });
 

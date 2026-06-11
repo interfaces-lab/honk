@@ -1,5 +1,6 @@
 import type {
   EnvironmentId,
+  OrchestrationLatestTurn,
   OrchestrationSessionStatus,
   ProjectId,
   ScopedProjectRef,
@@ -47,10 +48,11 @@ export interface SidebarThreadSummary {
   firstMessage: string;
   isStreaming: boolean;
   orchestrationStatus?: OrchestrationSessionStatus | null;
+  latestTurnState?: OrchestrationLatestTurn["state"] | null;
   needsAttention?: boolean;
 }
 
-export type SidebarThreadState = "idle" | "running" | "needs_attention" | "error";
+export type SidebarThreadState = "idle" | "running" | "needs_attention" | "stopped" | "error";
 
 interface SidebarChatItemBase {
   title: string;

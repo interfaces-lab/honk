@@ -14,6 +14,7 @@ function SidebarDot(props: { state: UiStatusDotState }) {
 
 function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
   if (item.state === "error") return "critical";
+  if (item.state === "stopped") return "inactive";
   if (item.state === "needs_attention") return "needsAttention";
   return item.unread ? "doneUnseen" : "doneSeen";
 }

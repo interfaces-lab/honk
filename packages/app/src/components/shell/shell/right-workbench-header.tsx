@@ -28,6 +28,7 @@ export interface WorkbenchTabMeta {
   label: string;
   icon: ComponentType<{ className?: string }>;
   badge?: string | null;
+  closable?: boolean;
 }
 
 function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
@@ -136,6 +137,7 @@ interface RightWorkbenchHeaderProps {
   onTerminalTab?: (id: string) => void;
   onNewTerminal?: () => void;
   onCloseTerminal?: (id: string) => void;
+  onCloseTab?: (tab: WorkbenchTab) => void;
   trailing?: ReactNode;
 }
 
@@ -143,6 +145,7 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
   const isTerminal = props.activeTab === "terminal";
   const sessions = props.terminalSessions ?? [];
   const showTerminalSessionTabs = isTerminal && sessions.length > 0;
+  const activeMeta = props.tabs.find((tab) => tab.id === props.activeTab) ?? null;
 
   return (
     <RightWorkbenchToolIsland
@@ -179,6 +182,15 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
         ) : null}
 
         <WorkbenchChromeSpacer />
+
+        {activeMeta?.closable && props.onCloseTab ? (
+          <WorkbenchChromeButton
+            label={`Close ${activeMeta.label}`}
+            onClick={() => props.onCloseTab?.(activeMeta.id)}
+          >
+            <IconCrossMediumDefault className="size-4 shrink-0" aria-hidden />
+          </WorkbenchChromeButton>
+        ) : null}
       </>
     </RightWorkbenchToolIsland>
   );

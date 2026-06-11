@@ -17,8 +17,10 @@ import { getServerExposureState, setServerExposureMode } from "./methods/server-
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
   confirm,
+  detectLocalhostPorts,
   expandWindowWidth,
   getAppBranding,
+  getBrowserWebviewPreloadPath,
   getLocalEnvironmentBootstrap,
   getWindowChromeState,
   openExternal,
@@ -35,6 +37,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
 
   yield* ipc.handleSync(getAppBranding);
+  yield* ipc.handleSync(getBrowserWebviewPreloadPath);
   yield* ipc.handleSync(getLocalEnvironmentBootstrap);
   yield* ipc.handleSync(getWindowChromeState);
 
@@ -55,6 +58,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* ipc.handle(pickFolder);
   yield* ipc.handle(confirm);
+  yield* ipc.handle(detectLocalhostPorts);
   yield* ipc.handle(setActiveWorkState);
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);

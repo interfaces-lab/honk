@@ -22,7 +22,7 @@ describe("resolveWaitingTimelineStatus", () => {
 
 describe("resolveWaitingStatusLabel", () => {
   it("starts with the planning label", () => {
-    expect(resolveWaitingStatusLabel(0)).toBe("Planning next move");
+    expect(resolveWaitingStatusLabel(0)).toBe("Planning next moves");
   });
 
   it("switches to the slow label past the threshold", () => {

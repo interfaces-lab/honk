@@ -87,7 +87,9 @@ function composerDraftHasVisibleContent(draft: ComposerThreadDraftState | undefi
   );
 }
 
-function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefined): boolean {
+export function needsSidebarAttention(
+  sidebarThread: StoreSidebarThreadSummary | undefined,
+): boolean {
   if (!sidebarThread) return false;
   if (sidebarThread.hasPendingApprovals || sidebarThread.hasPendingUserInput) {
     return true;
@@ -98,7 +100,7 @@ function needsSidebarAttention(sidebarThread: StoreSidebarThreadSummary | undefi
   ) {
     return false;
   }
-  return false;
+  return sidebarThread.hasActionableProposedPlan;
 }
 
 function isUnreadFromVisitBoundary(
@@ -149,6 +151,7 @@ function toSummaryFromSidebarThread(
     firstMessage: thread.title,
     isStreaming: orchestrationStatus === "starting" || orchestrationStatus === "running",
     orchestrationStatus,
+    latestTurnState: thread.latestTurn?.state ?? null,
     needsAttention: needsSidebarAttention(thread),
   };
 }

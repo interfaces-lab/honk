@@ -274,6 +274,8 @@ export const DesktopRendererDiagnosticInputSchema = Schema.Struct({
 
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
+  getBrowserWebviewPreloadPath?: () => string | null;
+  detectLocalhostPorts?: (ports: readonly number[]) => Promise<readonly number[]>;
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   getWindowChromeState: () => DesktopWindowChromeState;
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;

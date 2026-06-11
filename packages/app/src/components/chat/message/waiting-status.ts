@@ -2,7 +2,7 @@ import type { WaitingPhase } from "../../../session-logic";
 
 export type { WaitingPhase };
 
-export const WAITING_PHASE_LABEL = "Planning next move";
+export const WAITING_PHASE_LABEL = "Planning next moves";
 export const WAITING_PHASE_SLOW_LABEL = "This is taking a bit longer...";
 export const WAITING_SLOW_LABEL_THRESHOLD_MS = 15_000;
 

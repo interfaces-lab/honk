@@ -102,6 +102,9 @@ function buildThreadChat(
 
 function threadState(sum: SidebarThreadSummary): SidebarThreadState {
   if (sum.orchestrationStatus === "error") return "error";
+  if (sum.orchestrationStatus === "stopped" || sum.latestTurnState === "interrupted") {
+    return "stopped";
+  }
   if (sum.needsAttention === true) return "needs_attention";
   if (
     sum.isStreaming ||

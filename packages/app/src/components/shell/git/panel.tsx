@@ -970,35 +970,27 @@ function LocalBranchBarTrailing(props: {
           </MenuTrigger>
           <MenuPopup
             align="end"
-            className="min-w-56 rounded-[12px]"
+            className="min-w-56"
             positionerClassName="z-(--z-index-workbench-menu)"
             sideOffset={4}
             variant="workbench"
           >
             <MenuSub>
-              <MenuSubTrigger className="min-h-8 rounded-[7px] px-3 py-1.5" variant="workbench">
+              <MenuSubTrigger variant="workbench">
                 <span className="min-w-0 flex-1 truncate">Layout</span>
                 <span className="shrink-0 text-multi-fg-tertiary">{diffStyleLabel}</span>
               </MenuSubTrigger>
               <MenuSubPopup
-                className="min-w-44 rounded-[12px]"
+                className="min-w-44"
                 positionerClassName="z-(--z-index-workbench-submenu)"
                 sideOffset={6}
                 variant="workbench"
               >
                 <MenuRadioGroup value={props.diffStyle} onValueChange={handleDiffStyleChange}>
-                  <MenuRadioItem
-                    className="min-h-8 rounded-[7px] px-2 py-1.5"
-                    value="unified"
-                    variant="workbench"
-                  >
+                  <MenuRadioItem value="unified" variant="workbench">
                     Unified
                   </MenuRadioItem>
-                  <MenuRadioItem
-                    className="min-h-8 rounded-[7px] px-2 py-1.5"
-                    value="split"
-                    variant="workbench"
-                  >
+                  <MenuRadioItem value="split" variant="workbench">
                     Split
                   </MenuRadioItem>
                 </MenuRadioGroup>
@@ -1006,31 +998,22 @@ function LocalBranchBarTrailing(props: {
             </MenuSub>
             <MenuCheckboxItem
               checked={props.ignoreWhitespace}
-              className="min-h-8 rounded-[7px] px-3 py-1.5"
               onCheckedChange={handleIgnoreWhitespaceChange}
               variant="workbench-switch"
             >
               Ignore Whitespace
             </MenuCheckboxItem>
             <MenuSeparator className="my-1" variant="workbench" />
-            <MenuItem className="min-h-8 rounded-[7px] px-3 py-1.5" disabled variant="workbench">
+            <MenuItem disabled variant="workbench">
               <span className="min-w-0 flex-1 truncate">Find in Diff</span>
-              <MenuShortcut className="text-detail tracking-normal">⌘F</MenuShortcut>
+              <MenuShortcut variant="workbench">⌘F</MenuShortcut>
             </MenuItem>
-            <MenuItem
-              className="min-h-8 rounded-[7px] px-3 py-1.5"
-              onClick={handleCollapseAll}
-              variant="workbench"
-            >
+            <MenuItem onClick={handleCollapseAll} variant="workbench">
               Collapse All
             </MenuItem>
-            <MenuItem
-              className="min-h-8 rounded-[7px] px-3 py-1.5"
-              onClick={handleRefreshChanges}
-              variant="workbench"
-            >
+            <MenuItem onClick={handleRefreshChanges} variant="workbench">
               <span className="min-w-0 flex-1 truncate">Refresh Changes</span>
-              <MenuShortcut className="text-detail tracking-normal">⌘R</MenuShortcut>
+              <MenuShortcut variant="workbench">⌘R</MenuShortcut>
             </MenuItem>
           </MenuPopup>
         </Menu>

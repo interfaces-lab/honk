@@ -12,6 +12,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as Electron from "electron";
+import * as Net from "node:net";
 
 import * as DesktopBackendManager from "../../backend/desktop-backend-manager";
 import * as DesktopActiveWork from "../../app/desktop-active-work";
@@ -46,12 +47,54 @@ const ContextMenuInput = Schema.Struct({
   position: Schema.optionalKey(ContextMenuPosition),
 });
 
+const LocalhostPort = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
+const LocalhostPortsInput = Schema.Array(LocalhostPort).check(Schema.isMaxLength(64));
+
+function uniqueLocalhostPorts(ports: readonly number[]): number[] {
+  return [...new Set(ports.filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
+}
+
+function probeLocalhostPort(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = Net.createConnection({ host, port });
+    let settled = false;
+    const finish = (open: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(open);
+    };
+
+    socket.setTimeout(220);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+  });
+}
+
+async function isLocalhostPortOpen(port: number): Promise<boolean> {
+  return (
+    (await probeLocalhostPort("127.0.0.1", port)) ||
+    (await probeLocalhostPort("localhost", port))
+  );
+}
+
 export const getAppBranding = makeSyncIpcMethod({
   channel: IpcChannels.GET_APP_BRANDING_CHANNEL,
   result: Schema.NullOr(DesktopAppBrandingSchema),
   handler: Effect.fn("desktop.ipc.window.getAppBranding")(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     return environment.branding;
+  }),
+});
+
+export const getBrowserWebviewPreloadPath = makeSyncIpcMethod({
+  channel: IpcChannels.GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL,
+  result: Schema.NullOr(Schema.String),
+  handler: Effect.fn("desktop.ipc.window.getBrowserWebviewPreloadPath")(function* () {
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    return environment.browserWebviewPreloadPath;
   }),
 });
 
@@ -77,6 +120,24 @@ export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
           runId: bootstrap.runId,
         };
       },
+    });
+  }),
+});
+
+export const detectLocalhostPorts = makeIpcMethod({
+  channel: IpcChannels.DETECT_LOCALHOST_PORTS_CHANNEL,
+  payload: LocalhostPortsInput,
+  result: LocalhostPortsInput,
+  handler: Effect.fn("desktop.ipc.window.detectLocalhostPorts")(function* (ports) {
+    const candidates = uniqueLocalhostPorts(ports);
+    return yield* Effect.promise(async () => {
+      const checks = await Promise.all(
+        candidates.map(async (port) => ({
+          port,
+          open: await isLocalhostPortOpen(port),
+        })),
+      );
+      return checks.filter((check) => check.open).map((check) => check.port);
     });
   }),
 });

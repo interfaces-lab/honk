@@ -7,6 +7,7 @@ const STORAGE_KEY = "multi.shell.panels.v3";
 const RIGHT_WORKBENCH_STORAGE_KEY = "multi.shell.rightWorkbench.v1";
 const SECONDARY_RAIL_STORAGE_KEY = "multi.shell.secondaryRail.v1";
 const TERMINAL_SESSIONS_STORAGE_KEY = "multi.shell.terminalSessions.v1";
+const BROWSER_WORKBENCH_STORAGE_KEY = "multi.shell.browserWorkbench.v1";
 const DEFAULT_CWD_KEY = "default";
 
 /** Persisted width limits for the chat/settings thread rail (`LeftAside`). */
@@ -49,6 +50,16 @@ export interface TerminalSessionsState {
   sessions: TerminalSessionEntry[];
 }
 
+export interface BrowserWorkbenchState {
+  inputValue: string;
+  committedUrl: string;
+  pendingUrl: string | null;
+  isLoading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  loadError: string | null;
+}
+
 interface ShellPanelsStoreState {
   leftOpen: boolean;
   leftW: number;
@@ -59,6 +70,7 @@ interface ShellPanelsStoreState {
   rightWorkbenchByWorkspaceKey: Record<string, WorkbenchPanelState>;
   railByWorkspaceKeyAndTab: Record<string, SecondaryRailState>;
   terminalByWorkspaceKey: Record<string, TerminalSessionsState>;
+  browserByWorkspaceKey: Record<string, BrowserWorkbenchState>;
   setLeftOpen: (open: boolean) => void;
   setRightOpen: (open: boolean, workspaceKey?: string | null) => void;
   setLeftWidth: (width: number) => void;
@@ -70,6 +82,10 @@ interface ShellPanelsStoreState {
   setActiveTerminal: (workspaceKey: string | null, terminalId: string) => void;
   addTerminalSession: (workspaceKey: string | null, session: TerminalSessionEntry) => void;
   removeTerminalSession: (workspaceKey: string | null, terminalId: string) => void;
+  setBrowserWorkbenchState: (
+    workspaceKey: string | null,
+    patch: Partial<BrowserWorkbenchState>,
+  ) => void;
 }
 
 interface PersistedShellPanelsState {
@@ -108,6 +124,10 @@ const PersistedTerminalSessionsStateSchema = Schema.Struct({
   activeId: Schema.String,
   sessions: Schema.Array(PersistedTerminalSessionEntrySchema),
 });
+const PersistedBrowserWorkbenchStateSchema = Schema.Struct({
+  inputValue: Schema.optionalKey(Schema.String),
+  committedUrl: Schema.optionalKey(Schema.String),
+});
 const decodePersistedShellPanelsStateOption = Schema.decodeUnknownOption(
   PersistedShellPanelsStateSchema,
 );
@@ -119,6 +139,9 @@ const decodePersistedWorkbenchPanelStateOption = Schema.decodeUnknownOption(
 );
 const decodePersistedTerminalSessionsStateOption = Schema.decodeUnknownOption(
   PersistedTerminalSessionsStateSchema,
+);
+const decodePersistedBrowserWorkbenchStateOption = Schema.decodeUnknownOption(
+  PersistedBrowserWorkbenchStateSchema,
 );
 
 const DEFAULT_LEFT_PANEL_STATE: LeftPanelState = Object.freeze({
@@ -145,8 +168,27 @@ const DEFAULT_TERMINAL_SESSIONS: TerminalSessionsState = Object.freeze({
   sessions: [{ id: DEFAULT_TERMINAL_SESSION_ID, label: "Terminal" }],
 });
 
+const DEFAULT_BROWSER_WORKBENCH_STATE: BrowserWorkbenchState = Object.freeze({
+  inputValue: "",
+  committedUrl: "",
+  pendingUrl: null,
+  isLoading: false,
+  canGoBack: false,
+  canGoForward: false,
+  loadError: null,
+});
+
+const previousWorkbenchTabBeforeDevByWorkspaceKey = new Map<string, WorkbenchTab>();
+
 function clampWidth(width: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(width) ? width : min));
+}
+
+function normalizePersistedActiveTab(tab: WorkbenchTab | undefined): WorkbenchTab {
+  if (!tab || tab === "dev") {
+    return DEFAULT_WORKBENCH_PANEL_STATE.activeTab;
+  }
+  return tab;
 }
 
 function normalizePersistedLeftWidth(width: unknown): number {
@@ -202,7 +244,7 @@ function readPersistedPanels(): {
         RIGHT_WORKBENCH_WIDTH_LIMITS.min,
         RIGHT_WORKBENCH_WIDTH_LIMITS.max,
       ),
-      activeTab: parsed.activeTab ?? DEFAULT_WORKBENCH_PANEL_STATE.activeTab,
+      activeTab: normalizePersistedActiveTab(parsed.activeTab),
       muted: DEFAULT_WORKBENCH_PANEL_STATE.muted,
     };
   } catch {
@@ -257,7 +299,7 @@ function readPersistedRightWorkbenches(
           RIGHT_WORKBENCH_WIDTH_LIMITS.min,
           RIGHT_WORKBENCH_WIDTH_LIMITS.max,
         ),
-        activeTab: decoded.activeTab ?? DEFAULT_WORKBENCH_PANEL_STATE.activeTab,
+        activeTab: normalizePersistedActiveTab(decoded.activeTab),
         muted: decoded.muted ?? DEFAULT_WORKBENCH_PANEL_STATE.muted,
       };
     }
@@ -342,6 +384,46 @@ function persistTerminalSessions(data: Record<string, TerminalSessionsState>): v
   window.localStorage.setItem(TERMINAL_SESSIONS_STORAGE_KEY, JSON.stringify(data));
 }
 
+function readPersistedBrowserWorkbenches(): Record<string, BrowserWorkbenchState> {
+  if (typeof window === "undefined") return {};
+  const raw = window.localStorage.getItem(BROWSER_WORKBENCH_STORAGE_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== "object") return {};
+    const result: Record<string, BrowserWorkbenchState> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const decoded = Option.getOrElse(
+        decodePersistedBrowserWorkbenchStateOption(value),
+        () => null,
+      );
+      if (!decoded) continue;
+      const committedUrl = decoded.committedUrl ?? DEFAULT_BROWSER_WORKBENCH_STATE.committedUrl;
+      result[key] = {
+        ...DEFAULT_BROWSER_WORKBENCH_STATE,
+        committedUrl,
+        inputValue: decoded.inputValue ?? committedUrl,
+      };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function persistBrowserWorkbenches(data: Record<string, BrowserWorkbenchState>): void {
+  if (typeof window === "undefined") return;
+  const persisted: Record<string, { inputValue: string; committedUrl: string }> = {};
+  for (const [key, state] of Object.entries(data)) {
+    if (!state.inputValue && !state.committedUrl) continue;
+    persisted[key] = {
+      inputValue: state.inputValue,
+      committedUrl: state.committedUrl,
+    };
+  }
+  window.localStorage.setItem(BROWSER_WORKBENCH_STORAGE_KEY, JSON.stringify(persisted));
+}
+
 function arePanelStatesEqual(left: WorkbenchPanelState, right: WorkbenchPanelState): boolean {
   return (
     left.rightOpen === right.rightOpen &&
@@ -360,6 +442,7 @@ const INITIAL_RIGHT_WORKBENCHES = readPersistedRightWorkbenches({
 });
 const INITIAL_RAILS = readPersistedSecondaryRails();
 const INITIAL_TERMINAL_SESSIONS = readPersistedTerminalSessions();
+const INITIAL_BROWSER_WORKBENCHES = readPersistedBrowserWorkbenches();
 
 export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
   leftOpen: INITIAL_PANELS.leftOpen,
@@ -371,6 +454,7 @@ export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
   rightWorkbenchByWorkspaceKey: INITIAL_RIGHT_WORKBENCHES,
   railByWorkspaceKeyAndTab: INITIAL_RAILS,
   terminalByWorkspaceKey: INITIAL_TERMINAL_SESSIONS,
+  browserByWorkspaceKey: INITIAL_BROWSER_WORKBENCHES,
   setLeftOpen: (leftOpen) => {
     set((state) => {
       if (state.leftOpen === leftOpen) {
@@ -567,6 +651,27 @@ export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
       return { terminalByWorkspaceKey };
     });
   },
+  setBrowserWorkbenchState: (workspaceKey, patch) => {
+    set((state) => {
+      const key = resolveWorkspacePanelKey(workspaceKey);
+      const current = state.browserByWorkspaceKey[key] ?? DEFAULT_BROWSER_WORKBENCH_STATE;
+      const next: BrowserWorkbenchState = { ...current, ...patch };
+      if (
+        current.inputValue === next.inputValue &&
+        current.committedUrl === next.committedUrl &&
+        current.pendingUrl === next.pendingUrl &&
+        current.isLoading === next.isLoading &&
+        current.canGoBack === next.canGoBack &&
+        current.canGoForward === next.canGoForward &&
+        current.loadError === next.loadError
+      ) {
+        return state;
+      }
+      const browserByWorkspaceKey = { ...state.browserByWorkspaceKey, [key]: next };
+      persistBrowserWorkbenches(browserByWorkspaceKey);
+      return { browserByWorkspaceKey };
+    });
+  },
 }));
 
 export function useLeftOpen(): boolean {
@@ -632,6 +737,14 @@ export function useTerminalSessions(workspaceKey: string | null): TerminalSessio
   );
 }
 
+export function useBrowserWorkbenchState(workspaceKey: string | null): BrowserWorkbenchState {
+  return useShellPanelsStore(
+    (state) =>
+      state.browserByWorkspaceKey[resolveWorkspacePanelKey(workspaceKey)] ??
+      DEFAULT_BROWSER_WORKBENCH_STATE,
+  );
+}
+
 export function readTerminalSessions(workspaceKey: string | null): TerminalSessionsState {
   return (
     useShellPanelsStore.getState().terminalByWorkspaceKey[resolveWorkspacePanelKey(workspaceKey)] ??
@@ -653,6 +766,30 @@ export const shellPanelsActions = {
   activatePlanTab: (workspaceKey?: string | null) => {
     useShellPanelsStore.getState().setActiveTab("plan", workspaceKey);
     useShellPanelsStore.getState().setMuted(false, workspaceKey);
+  },
+  activateDevTab: (workspaceKey?: string | null) => {
+    const state = useShellPanelsStore.getState();
+    const current =
+      workspaceKey === undefined
+        ? {
+            activeTab: state.activeTab,
+          }
+        : readWorkbenchState(state.rightWorkbenchByWorkspaceKey, workspaceKey);
+    const key = resolveWorkspacePanelKey(workspaceKey ?? null);
+    if (current.activeTab !== "dev") {
+      previousWorkbenchTabBeforeDevByWorkspaceKey.set(key, current.activeTab);
+    }
+    state.setActiveTab("dev", workspaceKey);
+    state.setMuted(false, workspaceKey);
+  },
+  closeDevTab: (workspaceKey?: string | null) => {
+    const key = resolveWorkspacePanelKey(workspaceKey ?? null);
+    const previousTab = previousWorkbenchTabBeforeDevByWorkspaceKey.get(key);
+    previousWorkbenchTabBeforeDevByWorkspaceKey.delete(key);
+    const nextTab = previousTab && previousTab !== "dev" ? previousTab : "git";
+    const state = useShellPanelsStore.getState();
+    state.setActiveTab(nextTab, workspaceKey);
+    state.setMuted(false, workspaceKey);
   },
   toggleLeft: () => {
     const current = useShellPanelsStore.getState().leftOpen;
@@ -682,4 +819,8 @@ export const shellPanelsActions = {
     useShellPanelsStore.getState().addTerminalSession(workspaceKey, session),
   removeTerminalSession: (workspaceKey: string | null, terminalId: string) =>
     useShellPanelsStore.getState().removeTerminalSession(workspaceKey, terminalId),
+  setBrowserWorkbenchState: (
+    workspaceKey: string | null,
+    patch: Partial<BrowserWorkbenchState>,
+  ) => useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch),
 };

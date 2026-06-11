@@ -14,7 +14,14 @@ import { Outlet, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
-import { IconBranch, IconConsole, IconFileText, IconSquareChecklist } from "central-icons";
+import {
+  IconBranch,
+  IconBrowserTabs,
+  IconCode,
+  IconConsole,
+  IconFileText,
+  IconSquareChecklist,
+} from "central-icons";
 
 import { openChatIndex, openDraft, openThread } from "~/app/chat-navigation";
 import { readLastChatRouteTarget } from "~/routes/-chat-route-persistence";
@@ -48,6 +55,7 @@ import {
 import type { GitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import {
   shellPanelsActions,
+  useActiveTab,
   useSecondaryRail,
   useTerminalSessions,
 } from "~/stores/shell-panels-store";
@@ -104,6 +112,8 @@ import { ShellSidebarFooter } from "./shell/sidebar/footer";
 import { ShellSidebarHeader } from "./shell/sidebar/header";
 import { AgentSidebar } from "./shell/agents/agent-sidebar";
 import { useAgentSidebarModel } from "./shell/agents/sidebar/use-agent-sidebar-model";
+import { BrowserWorkbenchPanel } from "./shell/browser/browser-workbench-panel";
+import { DevWorkbenchPanel } from "./shell/dev/dev-workbench-panel";
 import { TerminalPanel } from "./shell/terminal/panel";
 import { TerminalRail } from "./shell/terminal/terminal-rail";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
@@ -949,6 +959,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
       workspaceKey={workspaceTarget.workspaceKey}
       environmentId={activeRpcEnvironmentId}
       availableEditors={availableEditors}
+      thread={activeFullThread}
+      threadId={activeThread?.id ?? activeDraftThread?.threadId ?? null}
+      threadTitle={activeThread?.title ?? activeDraftThread?.promotedTitle ?? null}
       plan={planWorkbench}
       onGitAgentAction={runGitAgentAction}
       onStopGitAgentAction={stopGitAgentAction}
@@ -1044,6 +1057,9 @@ function ChatWorkbenchShellHost(props: {
   workspaceKey: string;
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
+  thread: Thread | null;
+  threadId: ThreadId | null;
+  threadTitle: string | null;
   plan: PlanWorkbenchState;
   onGitAgentAction: (action: GitAgentAction) => void;
   onStopGitAgentAction: (() => void) | null;
@@ -1051,6 +1067,8 @@ function ChatWorkbenchShellHost(props: {
   pendingGitAgentAction: GitAgentAction | null;
 }) {
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
+  const activeWorkbenchTab = useActiveTab(props.workspaceKey);
+  const devTabAvailable = activeWorkbenchTab === "dev";
   const workbenchTabs: WorkbenchTabMeta[] = useMemo(() => {
     const tabs: WorkbenchTabMeta[] = planTabAvailable
       ? [
@@ -1061,6 +1079,14 @@ function ChatWorkbenchShellHost(props: {
           },
         ]
       : [];
+    if (devTabAvailable) {
+      tabs.push({
+        id: "dev",
+        label: "Dev",
+        icon: IconCode,
+        closable: true,
+      });
+    }
     tabs.push(
       {
         id: "git",
@@ -1069,9 +1095,10 @@ function ChatWorkbenchShellHost(props: {
       },
       { id: "terminal", label: "Terminal", icon: IconConsole },
       { id: "files", label: "Files", icon: IconFileText },
+      { id: "browser", label: "Browser", icon: IconBrowserTabs },
     );
     return tabs;
-  }, [planTabAvailable, props.plan.label]);
+  }, [devTabAvailable, planTabAvailable, props.plan.label]);
 
   const right: RightWorkbenchDefinition = useMemo(() => {
     const panels: RightWorkbenchDefinition["panels"] = {
@@ -1103,6 +1130,7 @@ function ChatWorkbenchShellHost(props: {
           environmentId={props.environmentId}
         />
       ),
+      browser: <BrowserWorkbenchPanel workspaceKey={props.workspaceKey} />,
     };
 
     if (planTabAvailable && props.plan.environmentId) {
@@ -1124,8 +1152,21 @@ function ChatWorkbenchShellHost(props: {
       );
     }
 
+    if (devTabAvailable) {
+      panels.dev = (
+        <WorkbenchPanel>
+          <DevWorkbenchPanel
+            thread={props.thread}
+            threadId={props.threadId}
+            threadTitle={props.threadTitle}
+          />
+        </WorkbenchPanel>
+      );
+    }
+
     return { tabs: workbenchTabs, panels };
   }, [
+    devTabAvailable,
     planTabAvailable,
     props.availableEditors,
     props.cwd,
@@ -1144,6 +1185,9 @@ function ChatWorkbenchShellHost(props: {
     props.plan.onSaveProposedPlan,
     props.plan.timestampFormat,
     props.stoppingGitAgentAction,
+    props.thread,
+    props.threadId,
+    props.threadTitle,
     props.workspaceKey,
     workbenchTabs,
   ]);
