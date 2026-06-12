@@ -1,7 +1,14 @@
 "use client";
 
-import type { CSSProperties, HTMLAttributes, MouseEventHandler, RefObject } from "react";
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type HTMLAttributes,
+  type MouseEventHandler,
+  type RefObject,
+} from "react";
 
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { cn } from "~/lib/utils";
@@ -174,12 +181,12 @@ function useChatLoaderPhases(options: { animated: boolean; hoverAnimated: boolea
 } {
   const { animated, hoverAnimated } = options;
   const [isHovered, setIsHovered] = useState(false);
-  const onMouseEnter = useCallback<MouseEventHandler<HTMLDivElement>>(() => {
+  const onMouseEnter: MouseEventHandler<HTMLDivElement> = () => {
     setIsHovered(true);
-  }, []);
-  const onMouseLeave = useCallback<MouseEventHandler<HTMLDivElement>>(() => {
+  };
+  const onMouseLeave: MouseEventHandler<HTMLDivElement> = () => {
     setIsHovered(false);
-  }, []);
+  };
   const phase: ChatLoaderPhase = hoverAnimated
     ? isHovered
       ? "active"
@@ -212,23 +219,17 @@ export function ChatLoader({
     onMouseEnter: onLoaderMouseEnter,
     onMouseLeave: onLoaderMouseLeave,
   } = useChatLoaderPhases({
-    animated: Boolean(animated && !reducedMotion),
-    hoverAnimated: Boolean(hoverAnimated && !reducedMotion),
+    animated: animated && !reducedMotion,
+    hoverAnimated: hoverAnimated && !reducedMotion,
   });
-  const handleMouseEnter = useCallback<MouseEventHandler<HTMLDivElement>>(
-    (event) => {
-      onMouseEnter?.(event);
-      onLoaderMouseEnter(event);
-    },
-    [onMouseEnter, onLoaderMouseEnter],
-  );
-  const handleMouseLeave = useCallback<MouseEventHandler<HTMLDivElement>>(
-    (event) => {
-      onMouseLeave?.(event);
-      onLoaderMouseLeave(event);
-    },
-    [onMouseLeave, onLoaderMouseLeave],
-  );
+  const handleMouseEnter: MouseEventHandler<HTMLDivElement> = (event) => {
+    onMouseEnter?.(event);
+    onLoaderMouseEnter(event);
+  };
+  const handleMouseLeave: MouseEventHandler<HTMLDivElement> = (event) => {
+    onMouseLeave?.(event);
+    onLoaderMouseLeave(event);
+  };
 
   return (
     <div
@@ -243,21 +244,7 @@ export function ChatLoader({
       style={style}
       {...props}
     >
-      <ChatLoaderMatrix
-        aria-hidden="true"
-        cellPadding={cellPadding}
-        dotSize={dotSize}
-        fitToLineHeight={maxExtent == null}
-        {...(maxExtent == null ? {} : { maxExtent })}
-        pattern={pattern}
-        phase={phase}
-        reducedMotion={reducedMotion}
-        speed={speed}
-      />
-      <span
-        className="text-body font-medium thinking-shimmer motion-reduce:animate-none"
-        aria-hidden="true"
-      >
+      <span className="thinking-shimmer motion-reduce:animate-none" aria-hidden="true">
         {label}
       </span>
     </div>

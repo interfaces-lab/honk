@@ -5,13 +5,19 @@ import {
   type ScopedThreadRef,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Schema } from "effect";
-import { type DraftThreadState } from "../../../stores/chat-drafts";
-import { selectThreadByRef, useStore } from "../../../stores/thread-store";
-import { type SessionPhase, type Thread, type ThreadSession } from "../../../types";
+import { type DraftId as DraftIdType, type DraftThreadState } from "../../../stores/chat-drafts";
+import { useStore } from "../../../stores/thread-store";
+import { selectThreadRouteLifecycleSurfaceByRef } from "../../../stores/thread-selectors";
+import {
+  DEFAULT_RUNTIME_MODE,
+  type SessionPhase,
+  type Thread,
+  type ThreadSession,
+} from "../../../types";
 
-export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "multi:last-invoked-script-by-project";
+export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "honk:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
 export const LastInvokedScriptByProjectSchema = Schema.Record(ProjectId, Schema.String);
@@ -34,7 +40,7 @@ export function buildLocalDraftThread(
     projectId: draftThread.projectId,
     title: "New thread",
     modelSelection: fallbackModelSelection,
-    runtimeMode: draftThread.runtimeMode,
+    runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: draftThread.interactionMode,
     session: null,
     messages: [],
@@ -48,7 +54,6 @@ export function buildLocalDraftThread(
     worktreePath: draftThread.worktreePath,
     turnDiffSummaries: [],
     activities: [],
-    chatTimelineRows: [],
     proposedPlans: [],
   };
 }
@@ -105,11 +110,78 @@ export function reconcileMountedTerminalThreadIds(input: {
 
 export function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(
-    thread &&
-      (thread.latestTurn !== null ||
-        thread.messages.length > 0 ||
-        thread.session !== null ||
-        (thread.chatTimelineRows?.length ?? 0) > 0),
+    thread && (thread.latestTurn !== null || thread.messages.length > 0 || thread.session !== null),
+  );
+}
+
+export function isNewThreadHeroDraft(input: {
+  readonly activeThread: Thread | null | undefined;
+  readonly isLocalDraftThread: boolean;
+  readonly pendingLocalSendCount: number;
+  readonly promotedTo: ScopedThreadRef | null | undefined;
+}): boolean {
+  return Boolean(
+    input.activeThread &&
+    input.isLocalDraftThread &&
+    !threadHasStarted(input.activeThread) &&
+    input.pendingLocalSendCount === 0 &&
+    !input.promotedTo,
+  );
+}
+
+export function threadHasRenderableUserStart(thread: Thread | null | undefined): boolean {
+  if (!thread) {
+    return false;
+  }
+  return thread.messages.some(
+    (message) => message.role === "user" && userMessageHasRenderableContent(message),
+  );
+}
+
+function userMessageHasRenderableContent(message: Thread["messages"][number]): boolean {
+  return (
+    message.text.trim().length > 0 ||
+    message.richText !== undefined ||
+    (message.attachments?.length ?? 0) > 0
+  );
+}
+
+export function resolveRenderableDraftCanonicalThreadRef(input: {
+  readonly promotedTo: ScopedThreadRef | null | undefined;
+  readonly serverThread: Thread | null | undefined;
+}): ScopedThreadRef | null {
+  if (!input.promotedTo || !threadHasRenderableUserStart(input.serverThread)) {
+    return null;
+  }
+  return input.promotedTo;
+}
+
+export function resolveDraftPromotionRouteTarget(input: {
+  readonly draftRouteId: DraftIdType | null;
+  readonly serverThread: Thread | null | undefined;
+  readonly serverThreadRef: ScopedThreadRef | null | undefined;
+}):
+  | { readonly kind: "draft"; readonly draftId: DraftIdType }
+  | { readonly kind: "server"; readonly threadRef: ScopedThreadRef }
+  | null {
+  if (!input.serverThreadRef) {
+    return null;
+  }
+  if (input.draftRouteId !== null && !threadHasRenderableUserStart(input.serverThread)) {
+    return { kind: "draft", draftId: input.draftRouteId };
+  }
+  return { kind: "server", threadRef: input.serverThreadRef };
+}
+
+export function threadExistsBeforeSend(input: {
+  readonly serverThreadExists: boolean;
+  readonly draftPromotedTo: ScopedThreadRef | null | undefined;
+  readonly targetThreadRef: ScopedThreadRef;
+}): boolean {
+  return (
+    input.serverThreadExists ||
+    (input.draftPromotedTo?.environmentId === input.targetThreadRef.environmentId &&
+      input.draftPromotedTo.threadId === input.targetThreadRef.threadId)
   );
 }
 
@@ -117,10 +189,10 @@ export async function waitForStartedServerThread(
   threadRef: ScopedThreadRef,
   timeoutMs = 1_000,
 ): Promise<boolean> {
-  const getThread = () => selectThreadByRef(useStore.getState(), threadRef);
-  const thread = getThread();
+  const getThreadHasStarted = () =>
+    selectThreadRouteLifecycleSurfaceByRef(useStore.getState(), threadRef)?.hasStarted ?? false;
 
-  if (threadHasStarted(thread)) {
+  if (getThreadHasStarted()) {
     return true;
   }
 
@@ -140,13 +212,13 @@ export async function waitForStartedServerThread(
     };
 
     const unsubscribe = useStore.subscribe((state) => {
-      if (!threadHasStarted(selectThreadByRef(state, threadRef))) {
+      if (!(selectThreadRouteLifecycleSurfaceByRef(state, threadRef)?.hasStarted ?? false)) {
         return;
       }
       finish(true);
     });
 
-    if (threadHasStarted(getThread())) {
+    if (getThreadHasStarted()) {
       finish(true);
       return;
     }
@@ -214,22 +286,22 @@ export function hasServerAcknowledgedLocalDispatch(input: {
     if (!latestTurnChanged) {
       return false;
     }
-    if (latestTurn?.startedAt === null || latestTurn === null) {
+    if (latestTurn === null || latestTurn.startedAt === null) {
       return false;
     }
     if (
       session?.activeTurnId !== undefined &&
       session.activeTurnId !== null &&
-      latestTurn?.turnId !== session.activeTurnId
+      latestTurn.turnId !== session.activeTurnId
     ) {
       return false;
     }
     return true;
   }
 
-  return (
-    latestTurnChanged ||
-    input.localDispatch.sessionOrchestrationStatus !== (session?.orchestrationStatus ?? null) ||
-    input.localDispatch.sessionUpdatedAt !== (session?.updatedAt ?? null)
-  );
+  if (latestTurnChanged) {
+    return latestTurn === null || latestTurn.completedAt !== null;
+  }
+
+  return session?.orchestrationStatus === "starting" || session?.orchestrationStatus === "running";
 }

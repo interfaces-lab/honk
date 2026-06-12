@@ -4,7 +4,7 @@ import {
   readPathFromLaunchctl,
   readEnvironmentFromLoginShell,
   ShellEnvironmentReader,
-} from "@multi/shared/shell";
+} from "@honk/shared/shell";
 
 const LOGIN_SHELL_ENV_NAMES = [
   "PATH",

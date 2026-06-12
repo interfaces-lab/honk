@@ -22,15 +22,15 @@ interface BufferedAnalyticsEvent {
 }
 
 const TelemetryEnvConfig = Config.all({
-  posthogKey: Config.string("MULTI_POSTHOG_KEY").pipe(
+  posthogKey: Config.string("HONK_POSTHOG_KEY").pipe(
     Config.withDefault("phc_XOWci4oZP4VvLiEyrFqkFjP4CZn55mjYYBMREK5Wd6m"),
   ),
-  posthogHost: Config.string("MULTI_POSTHOG_HOST").pipe(
+  posthogHost: Config.string("HONK_POSTHOG_HOST").pipe(
     Config.withDefault("https://us.i.posthog.com"),
   ),
-  enabled: Config.boolean("MULTI_TELEMETRY_ENABLED").pipe(Config.withDefault(true)),
-  flushBatchSize: Config.number("MULTI_TELEMETRY_FLUSH_BATCH_SIZE").pipe(Config.withDefault(20)),
-  maxBufferedEvents: Config.number("MULTI_TELEMETRY_MAX_BUFFERED_EVENTS").pipe(
+  enabled: Config.boolean("HONK_TELEMETRY_ENABLED").pipe(Config.withDefault(true)),
+  flushBatchSize: Config.number("HONK_TELEMETRY_FLUSH_BATCH_SIZE").pipe(Config.withDefault(20)),
+  maxBufferedEvents: Config.number("HONK_TELEMETRY_MAX_BUFFERED_EVENTS").pipe(
     Config.withDefault(1_000),
   ),
 });

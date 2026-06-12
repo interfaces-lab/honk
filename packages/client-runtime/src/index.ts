@@ -1,2 +1,30 @@
-export * from "./known-environment";
-export * from "./scoped";
+export {
+  assertRuntimeApiAvailable,
+  assertRuntimeHostAvailable,
+  configureRuntimeClientBootstrap,
+  createEmptyRuntimeHostSnapshot,
+  createRuntimeClient,
+  createRuntimeClientFromApi,
+  isDesktopRuntimeApiAvailable,
+  readHonkRuntimeApi,
+  registerRuntimeApiResolver,
+  resetRuntimeApiResolverForTests,
+  resetRuntimeClientBootstrapForTests,
+  runtimeHostUnavailableError,
+  type HonkRuntimeApi,
+  type HonkRuntimeHostEvent,
+  type HonkRuntimeHostSnapshot,
+  type RuntimeApiResolver,
+  type RuntimeClientBootstrap,
+} from "./runtime-client";
+export { createEnvironmentClient, type EnvironmentRpcClient } from "./environment-client";
+export {
+  configureLocalApiHost,
+  createLocalApi,
+  ensureLocalApi,
+  readLocalApi,
+  resetLocalApiForTests,
+  resetLocalApiHostForTests,
+  type LocalApiHost,
+  type LocalApiRpcClient,
+} from "./local-client";

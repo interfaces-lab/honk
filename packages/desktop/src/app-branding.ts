@@ -1,6 +1,6 @@
-import type { DesktopAppBranding, DesktopAppStageLabel } from "@multi/contracts";
+import type { DesktopAppBranding, DesktopAppStageLabel } from "@honk/contracts";
 
-const APP_BASE_NAME = "Multi";
+const APP_BASE_NAME = "Honk";
 
 export function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;

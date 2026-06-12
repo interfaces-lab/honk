@@ -2,14 +2,15 @@ import { type QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import { APP_DISPLAY_NAME } from "~/app/branding";
-import { RootRouteErrorView, RootRouteNotFoundView, RootRouteView } from "~/app/routes/root-route";
+import { RootRouteErrorView, RootRouteNotFoundView, RootRouteView } from "~/routes/-root-route";
 import {
   ensurePrimaryEnvironmentReady,
   resolveInitialServerAuthGateState,
 } from "~/environments/primary";
+import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/honk-runtime-api";
 
 function isStandaloneDevRoute(pathname: string): boolean {
-  return import.meta.env.DEV && pathname === "/dev/queued-message-demo";
+  return import.meta.env.DEV && pathname === "/dev/honkkit";
 }
 
 export const Route = createRootRouteWithContext<{
@@ -20,6 +21,14 @@ export const Route = createRootRouteWithContext<{
       return {
         authGateState: { status: "authenticated" } as const,
         devStandalone: true,
+      };
+    }
+
+    if (isDesktopRuntimeApiAvailable()) {
+      await Promise.all([ensurePrimaryEnvironmentReady(), assertRuntimeHostAvailable()]);
+      return {
+        authGateState: { status: "authenticated" } as const,
+        devStandalone: false,
       };
     }
 

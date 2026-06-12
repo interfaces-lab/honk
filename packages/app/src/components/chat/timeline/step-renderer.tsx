@@ -1,20 +1,34 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
+import { type EnvironmentId, type ThreadId } from "@honk/contracts";
+import { Button } from "@honk/honkkit/button";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
-import { memo, useCallback, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { formatDuration } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
+import { hasRenderableText, resolveStreamingShellOutput } from "../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { WorkingStatusRow } from "../message/status-row";
-import { ToolCallMessage } from "../message/tool-message";
+import {
+  RuntimeExtensionUiRequestMessage,
+  RuntimeToolCallMessage,
+  ToolCallMessage,
+} from "../message/tool-message";
 import { ProposedPlanMessage } from "../message/proposed-plan-message";
 import { AssistantTranscriptRow, HumanTranscriptRow } from "../message/transcript-rows";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
+import ChatMarkdown from "../markdown/chat-markdown";
 import {
-  isCommandWorkEntry,
+  isPreviewableWorkGroupStep,
+  isShortPlainText,
+  type PendingApprovalRequestKind,
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
+  type TimelineGroupedStep,
+  type TimelineRuntimeExtensionUiRequestStep,
+  type TimelineRuntimeTaskStep,
+  type TimelineRuntimeThinkingStep,
+  type TimelineRuntimeToolStep,
   type TimelineStep,
   type TimelineWaitingStep,
   type TimelineWorkStep,
@@ -24,10 +38,15 @@ import { type WorkTimelineRow } from "./timeline-rows";
 
 export const WORK_GROUP_PREVIEW_PX = 144;
 export const WORK_GROUP_PREVIEW_ENTRY_PX = 28;
+/** Glanceable output strip on the last running shell/edit step in preview (5 × 18px mono lines). */
+export const WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX = 90;
 export const WORK_GROUP_HEADER_PX = 28;
 export const WORK_GROUP_HEADER_GAP_PX = 4;
 export const WORK_GROUP_STEP_GAP_PX = 6;
-export const WORK_GROUP_PREVIEW_MAX_ENTRIES = 6;
+
+// messages-timeline estimateTimelineRowSize (running preview): when the last preview step is a
+// running shell/edit with output, add WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX + WORK_GROUP_STEP_GAP_PX
+// on top of the one-liner WORK_GROUP_PREVIEW_ENTRY_PX for that step instead of entry height only.
 
 export interface StepRendererContext {
   markdownCwd: string | undefined;
@@ -35,6 +54,7 @@ export interface StepRendererContext {
   activeThreadId: ThreadId;
   activeThreadEnvironmentId: EnvironmentId;
   isServerThread: boolean;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
   onBeginEditUserMessage: ((messageId: ChatMessage["id"]) => void) | undefined;
   renderEditComposer: ((message: ChatMessage) => ReactNode) | undefined;
   onUpdateProposedPlan:
@@ -43,15 +63,17 @@ export interface StepRendererContext {
   onImageExpand: (preview: ExpandedImagePreview) => void;
 }
 
-export const StepRenderer = memo(function StepRenderer({
+export function StepRenderer({
   step,
   editUserMessagesDisabled,
   isEditingUserMessage = false,
+  defaultEditExpanded = false,
   ctx,
 }: {
   step: TimelineStep;
   editUserMessagesDisabled: boolean;
   isEditingUserMessage?: boolean;
+  defaultEditExpanded?: boolean;
   ctx: StepRendererContext;
 }) {
   switch (step.kind) {
@@ -68,15 +90,35 @@ export const StepRenderer = memo(function StepRenderer({
     case "proposed-plan":
       return <ProposedPlanStepRenderer step={step} ctx={ctx} />;
 
+    case "runtime-tool":
+      return (
+        <RuntimeToolStepRenderer
+          step={step}
+          ctx={ctx}
+          defaultEditExpanded={defaultEditExpanded}
+        />
+      );
+
+    case "runtime-task":
+      return <RuntimeTaskStepRenderer step={step} ctx={ctx} />;
+
+    case "runtime-thinking":
+      return <RuntimeThinkingStepRenderer step={step} ctx={ctx} />;
+
+    case "runtime-extension-ui-request":
+      return <RuntimeExtensionUiRequestStepRenderer step={step} />;
+
     case "work":
-      return <WorkStepRenderer step={step} ctx={ctx} />;
+      return (
+        <WorkStepRenderer step={step} ctx={ctx} defaultEditExpanded={defaultEditExpanded} />
+      );
 
     case "waiting":
       return <WaitingStepRenderer step={step} />;
   }
-});
+}
 
-export const GroupedStepsRenderer = memo(function GroupedStepsRenderer({
+export function GroupedStepsRenderer({
   row,
   expanded,
   onToggleExpanded,
@@ -89,78 +131,161 @@ export const GroupedStepsRenderer = memo(function GroupedStepsRenderer({
   editUserMessagesDisabled: boolean;
   ctx: StepRendererContext;
 }) {
-  const summary = row.summary;
   const isRunning = row.isRunning;
-  const isThinkingGroup = row.groupedEntries.every((entry) => entry.tone === "thinking");
-  const isCommandGroup = row.groupedEntries.every(isCommandWorkEntry);
-  const headerLabel = isThinkingGroup
-    ? [summary.action, summary.details].filter(Boolean).join(" ")
-    : isRunning
-      ? summary.action
-      : `Worked for ${formatDuration(row.durationMs)}`;
+  const isCommandGroup = row.isCommandGroup;
+  const isThinkingGroup = row.isThinkingGroup;
+  const isWaitingGroup = row.isWaitingGroup;
+  const isBrowserGroup = row.isBrowserGroup;
+  const previewStepCount = countRenderableWorkGroupPreviewSteps(row.steps);
+  const showPreview = isRunning && !expanded && previewStepCount > 0;
+  const [previewScrollable, setPreviewScrollable] = useState(false);
+  const onPreviewScrollableChange = useCallback((scrollable: boolean) => {
+    setPreviewScrollable((current) => current || scrollable);
+  }, []);
   const contentId = `timeline-work-group:${row.id}`;
-  const handleToggle = useCallback(() => {
+  const handleToggle = () => {
     onToggleExpanded(row.id);
-  }, [onToggleExpanded, row.id]);
+  };
+
+  useEffect(() => {
+    if (!showPreview) {
+      setPreviewScrollable(false);
+    }
+  }, [showPreview]);
 
   return (
     <div
       className="flex min-h-0 min-w-0 max-w-agent-chat flex-1 flex-col gap-(--chat-timeline-collapsible-header-gap) py-0.5 text-conversation"
       data-assistant-work-group=""
+      data-waiting-group={isWaitingGroup ? "" : undefined}
+      data-browser-group={isBrowserGroup ? "" : undefined}
       data-work-group-expanded={expanded ? "true" : "false"}
       data-work-group-running={isRunning ? "true" : "false"}
+      data-group-loading={isRunning ? "true" : undefined}
+      data-preview-scrollable={showPreview ? (previewScrollable ? "true" : "false") : undefined}
       aria-busy={isRunning ? "true" : undefined}
     >
-      <button
-        type="button"
-        className={cn(
-          "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
-          "border-0 bg-transparent p-0 text-left select-none",
-          "text-conversation text-multi-fg-tertiary",
-          "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
-        )}
-        aria-expanded={expanded}
-        aria-controls={contentId}
-        onClick={handleToggle}
-        data-work-group-header=""
-      >
-        <span className="shrink-0 whitespace-nowrap tabular-nums">{headerLabel}</span>
-        {!expanded && !isThinkingGroup ? (
-          <>
-            <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
-              ·
-            </span>
-            <WorkGroupSummaryLine summary={summary} />
-          </>
-        ) : null}
-        <IconChevronRightMedium
-          className={cn(
-            "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
-            expanded && "rotate-90",
-          )}
-          aria-hidden="true"
-        />
-      </button>
+      <WorkGroupHeaderButton
+        row={row}
+        expanded={expanded}
+        contentId={contentId}
+        onToggle={handleToggle}
+      />
       <div id={contentId} className="contents">
         {expanded ? (
           <div className="flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)">
-            {!isCommandGroup ? <WorkGroupSummaryLine summary={summary} /> : null}
-            {row.steps.map((step) => (
-              <StepRenderer
-                key={`work-row:${step.id}`}
-                step={step}
-                editUserMessagesDisabled={editUserMessagesDisabled}
-                ctx={ctx}
-              />
-            ))}
+            {!isCommandGroup && !isThinkingGroup && !isWaitingGroup ? (
+              <WorkGroupSummaryLine summary={row.summary} />
+            ) : null}
+            {row.steps.map((step) =>
+              step.kind === "message" ? (
+                <GroupedWorkMessageStep key={`work-row:${step.id}`} step={step} ctx={ctx} />
+              ) : (
+                <StepRenderer
+                  key={`work-row:${step.id}`}
+                  step={step}
+                  editUserMessagesDisabled={editUserMessagesDisabled}
+                  defaultEditExpanded
+                  ctx={ctx}
+                />
+              ),
+            )}
           </div>
-        ) : isRunning ? (
-          <WorkGroupPreview key={`work-preview:${row.id}`} row={row} onExpand={handleToggle} ctx={ctx} />
+        ) : showPreview ? (
+          <WorkGroupPreview
+            key={`work-preview:${row.id}`}
+            row={row}
+            onExpand={handleToggle}
+            onPreviewScrollableChange={onPreviewScrollableChange}
+            ctx={ctx}
+          />
         ) : null}
       </div>
     </div>
   );
-});
+}
+
+function WorkGroupHeaderButton({
+  row,
+  expanded,
+  contentId,
+  onToggle,
+}: {
+  row: WorkTimelineRow;
+  expanded: boolean;
+  contentId: string;
+  onToggle: () => void;
+}) {
+  const summary = row.summary;
+  const isRunning = row.isRunning;
+  const isThinkingGroup = row.isThinkingGroup;
+  const isWaitingGroup = row.isWaitingGroup;
+  const [debouncedLoadingAction] = useDebouncedValue(summary.action, { wait: 200 });
+  const actionText = isRunning ? debouncedLoadingAction : summary.action;
+  const showHeaderSummaryDetails =
+    !expanded && !isThinkingGroup && !isWaitingGroup && summary.details.length > 0;
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
+        "h-auto border-0 bg-transparent px-(--conversation-text-inset) py-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+        "text-conversation text-honk-fg-tertiary",
+        "hover:text-honk-fg-secondary focus-visible:text-honk-fg-secondary",
+      )}
+      aria-expanded={expanded}
+      aria-controls={contentId}
+      onClick={onToggle}
+      data-work-group-header=""
+    >
+      {isWaitingGroup ? (
+        <>
+          <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
+            {actionText}
+          </span>
+          {!isRunning && summary.details ? (
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums">
+              {summary.details}
+            </span>
+          ) : null}
+        </>
+      ) : isThinkingGroup ? (
+        isRunning ? (
+          <span className="shrink-0 whitespace-nowrap tabular-nums">{actionText}</span>
+        ) : (
+          <span className="shrink-0 whitespace-nowrap tabular-nums">
+            {`Thought for ${row.completedDurationLabel ?? "briefly"}`}
+          </span>
+        )
+      ) : (
+        // Cursor parity (A4b): the header leads with the summary verb (Exploring/Explored,
+        // Editing/Edited, Ran), never a generic "Worked for"; segment details render in both
+        // running and completed states.
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{actionText}</span>
+      )}
+      {showHeaderSummaryDetails ? (
+        <>
+          <span aria-hidden="true" className="shrink-0 text-honk-fg-tertiary">
+            ·
+          </span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums">
+            {summary.details}
+          </span>
+          <WorkGroupStats summary={summary} />
+        </>
+      ) : null}
+      <IconChevronRightMedium
+        className={cn(
+          "size-3 shrink-0 text-honk-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
+          expanded && "rotate-90",
+        )}
+        aria-hidden="true"
+      />
+    </Button>
+  );
+}
 
 function MessageStepRenderer({
   step,
@@ -181,7 +306,9 @@ function MessageStepRenderer({
         isEditing={isEditingUserMessage}
         editDisabled={editUserMessagesDisabled}
         isServerThread={ctx.isServerThread}
-        editComposer={isEditingUserMessage ? (ctx.renderEditComposer?.(step.message) ?? null) : null}
+        editComposer={
+          isEditingUserMessage ? (ctx.renderEditComposer?.(step.message) ?? null) : null
+        }
         onImageExpand={ctx.onImageExpand}
         onBeginEditUserMessage={ctx.onBeginEditUserMessage}
       />
@@ -208,16 +335,146 @@ function ProposedPlanStepRenderer({
   );
 }
 
-function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRendererContext }) {
+function WorkStepRenderer({
+  step,
+  ctx,
+  defaultEditExpanded,
+}: {
+  step: TimelineWorkStep;
+  ctx: StepRendererContext;
+  defaultEditExpanded: boolean;
+}) {
   return (
     <ToolCallMessage
       workEntry={step.entry}
       projectRoot={ctx.projectRoot}
       activeThreadId={ctx.activeThreadId}
       environmentId={ctx.activeThreadEnvironmentId}
+      pendingApprovalKinds={ctx.pendingApprovalKinds}
+      subagentDetailsEnabled
+      defaultEditExpanded={defaultEditExpanded}
+    />
+  );
+}
+
+function RuntimeToolStepRenderer({
+  step,
+  ctx,
+  defaultEditExpanded,
+}: {
+  step: TimelineRuntimeToolStep;
+  ctx: StepRendererContext;
+  defaultEditExpanded: boolean;
+}) {
+  return (
+    <RuntimeToolCallMessage
+      tool={step.tool}
+      projectRoot={ctx.projectRoot}
+      activeThreadId={ctx.activeThreadId}
+      environmentId={ctx.activeThreadEnvironmentId}
+      pendingApprovalKinds={ctx.pendingApprovalKinds}
+      subagentDetailsEnabled
+      defaultEditExpanded={defaultEditExpanded}
+    />
+  );
+}
+
+function RuntimeTaskStepRenderer({
+  step,
+  ctx,
+}: {
+  step: TimelineRuntimeTaskStep;
+  ctx: StepRendererContext;
+}) {
+  // Subagent display items route through ToolCallRenderer's taskToolCall chrome (Cursor O4b
+  // parity): collapsible task header with the subagent tray rows as its body.
+  return (
+    <RuntimeToolCallMessage
+      tool={step.tool}
+      projectRoot={ctx.projectRoot}
+      activeThreadId={ctx.activeThreadId}
+      environmentId={ctx.activeThreadEnvironmentId}
       subagentDetailsEnabled
     />
   );
+}
+
+function GroupedWorkMessageStep({
+  step,
+  ctx,
+}: {
+  step: TimelineMessageStep;
+  ctx: StepRendererContext;
+}) {
+  const isGroupedNarration =
+    step.message.role === "assistant" && isShortPlainText(step.message.text.trim());
+  if (isGroupedNarration) {
+    return <GroupedMessageText step={step} ctx={ctx} />;
+  }
+  return <AssistantTranscriptRow message={step.message} markdownCwd={ctx.markdownCwd} />;
+}
+
+// Short assistant narration inside a work group renders as a plain markdown line (like
+// thinking), not as a full transcript row. The preview CSS dims these via the group container.
+function GroupedMessageText({
+  step,
+  ctx,
+}: {
+  step: TimelineMessageStep;
+  ctx: StepRendererContext;
+}) {
+  const text = step.message.text.trim();
+  if (!text) {
+    return null;
+  }
+  return (
+    <div
+      className="min-w-0 py-0.5 text-conversation text-honk-fg-secondary"
+      data-work-group-text=""
+    >
+      <ChatMarkdown
+        text={text}
+        cwd={ctx.markdownCwd}
+        isStreaming={step.message.streaming === true}
+        className="text-honk-fg-secondary"
+      />
+    </div>
+  );
+}
+
+function RuntimeThinkingStepRenderer({
+  step,
+  ctx,
+}: {
+  step: TimelineRuntimeThinkingStep;
+  ctx: StepRendererContext;
+}) {
+  const thinking = step.message.thinking?.trim();
+  if (!thinking) {
+    return null;
+  }
+  return (
+    <div
+      className="min-w-0 py-0.5 text-conversation text-honk-fg-tertiary"
+      data-runtime-thinking=""
+      data-runtime-thinking-streaming={step.message.streaming ? "true" : undefined}
+    >
+      <ChatMarkdown
+        text={thinking}
+        cwd={ctx.markdownCwd}
+        isStreaming={step.message.streaming === true}
+        className="text-honk-fg-tertiary"
+      />
+    </div>
+  );
+}
+
+function RuntimeExtensionUiRequestStepRenderer({
+  step,
+}: {
+  step: TimelineRuntimeExtensionUiRequestStep;
+}) {
+  return <RuntimeExtensionUiRequestMessage request={step.request} />;
 }
 
 function WaitingStepRenderer({ step }: { step: TimelineWaitingStep }) {
@@ -228,7 +485,7 @@ function WaitingStepRenderer({ step }: { step: TimelineWaitingStep }) {
       data-waiting-group=""
       data-waiting-step-id={step.id}
     >
-      <WorkingStatusRow />
+      <WorkingStatusRow phase={step.phase} elapsedStartedAt={step.elapsedStartedAt} />
     </div>
   );
 }
@@ -239,10 +496,10 @@ function WorkGroupSummaryLine({ summary }: { summary: WorkGroupSummary }) {
       className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-conversation"
       data-work-group-summary=""
     >
-      <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary">
+      <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
         {summary.action}
       </span>
-      <span className="min-w-0 overflow-hidden text-ellipsis text-multi-fg-tertiary tabular-nums">
+      <span className="min-w-0 overflow-hidden text-ellipsis text-honk-fg-tertiary tabular-nums">
         {summary.details}
       </span>
       <WorkGroupStats summary={summary} />
@@ -250,45 +507,61 @@ function WorkGroupSummaryLine({ summary }: { summary: WorkGroupSummary }) {
   );
 }
 
-const WorkGroupPreview = memo(function WorkGroupPreview({
+function WorkGroupPreview({
   row,
   onExpand,
+  onPreviewScrollableChange,
   ctx,
 }: {
   row: WorkTimelineRow;
   onExpand: () => void;
+  onPreviewScrollableChange: (scrollable: boolean) => void;
   ctx: StepRendererContext;
 }) {
   const scrollHostRef = useRef<HTMLDivElement | null>(null);
+  const [previewScrollable, setPreviewScrollable] = useState(false);
   const steps = row.steps;
-  const previewSteps = steps.slice(-WORK_GROUP_PREVIEW_MAX_ENTRIES);
-  const lastStepId = steps.at(-1)?.id;
+  const previewSteps = steps.filter(isRenderableWorkGroupPreviewStep);
+  const lastStep = previewSteps.at(-1);
+  const lastStepId = lastStep?.id;
   const previewStepCount = previewSteps.length;
+  const lastRunningOutputStepId = resolveLastRunningPreviewOutputStepId(lastStep);
+  const lastStepOutputScrollKey =
+    lastStep && lastRunningOutputStepId === lastStep.id
+      ? getPreviewStepOutputScrollKey(lastStep)
+      : null;
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
     if (!host) return;
     host.scrollTop = host.scrollHeight;
-    updatePreviewScrollable(host);
-  }, [lastStepId, previewStepCount, row.isRunning]);
+    const scrollable = isPreviewScrollable(host);
+    setPreviewScrollable(scrollable);
+    onPreviewScrollableChange(scrollable);
+  }, [lastStepId, lastStepOutputScrollKey, onPreviewScrollableChange, previewStepCount, row.id]);
 
   useLayoutSyncEffect(() => {
     const host = scrollHostRef.current;
     if (!host) return;
     if (typeof ResizeObserver === "undefined") {
-      updatePreviewScrollable(host);
+      const scrollable = isPreviewScrollable(host);
+      setPreviewScrollable(scrollable);
+      onPreviewScrollableChange(scrollable);
       return;
     }
     const observer = new ResizeObserver(() => {
-      updatePreviewScrollable(host);
+      host.scrollTop = host.scrollHeight;
+      const scrollable = isPreviewScrollable(host);
+      setPreviewScrollable(scrollable);
+      onPreviewScrollableChange(scrollable);
     });
     observer.observe(host);
     return () => observer.disconnect();
-  }, []);
+  }, [onPreviewScrollableChange]);
 
-  const onPreviewClick = useCallback(() => {
+  const onPreviewClick = () => {
     onExpand();
-  }, [onExpand]);
+  };
 
   return (
     <div
@@ -303,27 +576,227 @@ const WorkGroupPreview = memo(function WorkGroupPreview({
         onExpand();
       }}
       data-work-group-preview=""
-      data-work-preview-scrollable="false"
-      className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      style={{
-        maxHeight: WORK_GROUP_PREVIEW_PX,
-      }}
+      {...(previewScrollable ? { "data-work-group-preview-dimmed": "" } : {})}
+      className="relative w-full min-h-0 max-w-full cursor-default overflow-x-hidden overflow-y-auto [overflow-anchor:none] scrollbar-thin"
     >
-      {previewSteps.map((step) => (
-        <StepRenderer
-          key={`work-preview-row:${step.id}`}
-          step={step}
-          editUserMessagesDisabled={false}
-          ctx={ctx}
-        />
-      ))}
+      <div
+        inert
+        data-work-group-preview-content=""
+        className="pointer-events-none flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)"
+      >
+        {previewSteps.map((step) => (
+          <WorkGroupPreviewStep
+            key={`work-preview-row:${step.id}`}
+            step={step}
+            ctx={ctx}
+            showOutputStrip={step.id === lastRunningOutputStepId}
+          />
+        ))}
+      </div>
     </div>
   );
-});
+}
 
-function updatePreviewScrollable(host: HTMLDivElement): void {
-  const scrollable = host.scrollHeight > host.clientHeight + 1;
-  host.dataset.workPreviewScrollable = scrollable ? "true" : "false";
+function WorkGroupPreviewStep({
+  step,
+  ctx,
+  showOutputStrip,
+}: {
+  step: TimelineGroupedStep;
+  ctx: StepRendererContext;
+  showOutputStrip: boolean;
+}) {
+  const output = showOutputStrip ? resolvePreviewStepOutput(step) : null;
+
+  return (
+    <div
+      className="flex min-w-0 max-w-full flex-col gap-1"
+      data-work-preview-step=""
+      data-work-preview-output={output ? "true" : undefined}
+    >
+      {step.kind === "message" ? (
+        <GroupedWorkMessageStep step={step} ctx={ctx} />
+      ) : (
+        <StepRenderer step={step} editUserMessagesDisabled={false} ctx={ctx} />
+      )}
+      {output ? <CompactToolOutputStrip output={output.text} loading={output.loading} /> : null}
+    </div>
+  );
+}
+
+function CompactToolOutputStrip({ output, loading }: { output: string; loading: boolean }) {
+  const scrollRef = useRef<HTMLPreElement | null>(null);
+  const displayOutput = useMemo(
+    () => resolveStreamingShellOutput(output, loading),
+    [loading, output],
+  );
+
+  useLayoutSyncEffect(() => {
+    const host = scrollRef.current;
+    if (!host) return;
+    host.scrollTop = host.scrollHeight;
+  }, [displayOutput.text]);
+
+  if (!hasRenderableText(displayOutput.text)) {
+    return null;
+  }
+
+  return (
+    <pre
+      ref={scrollRef}
+      data-work-preview-output=""
+      className={cn(
+        "m-0 overflow-x-hidden overflow-y-auto",
+        "font-mono text-detail leading-[18px] text-honk-fg-tertiary",
+        "whitespace-pre-wrap wrap-anywhere select-none",
+        "[overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      )}
+      style={{
+        maxHeight: WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX,
+      }}
+    >
+      {displayOutput.text}
+    </pre>
+  );
+}
+
+function resolveLastRunningPreviewOutputStepId(
+  lastStep: TimelineGroupedStep | undefined,
+): string | null {
+  if (!lastStep || !isPreviewShellOrEditStep(lastStep) || !isPreviewOutputStepRunning(lastStep)) {
+    return null;
+  }
+  return resolvePreviewStepOutput(lastStep) ? lastStep.id : null;
+}
+
+/** Extra preview height when the last running shell/edit step shows the output strip. */
+export function runningWorkGroupPreviewOutputStripExtraPx(
+  steps: readonly TimelineGroupedStep[],
+): number {
+  const lastStep = findLastRenderableWorkGroupPreviewStep(steps);
+  if (!lastStep || resolveLastRunningPreviewOutputStepId(lastStep) !== lastStep.id) {
+    return 0;
+  }
+
+  return WORK_GROUP_PREVIEW_OUTPUT_STRIP_PX + WORK_GROUP_STEP_GAP_PX - WORK_GROUP_PREVIEW_ENTRY_PX;
+}
+
+export function countRenderableWorkGroupPreviewSteps(
+  steps: readonly TimelineGroupedStep[],
+): number {
+  let count = 0;
+  for (const step of steps) {
+    if (isRenderableWorkGroupPreviewStep(step)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function isRenderableWorkGroupPreviewStep(step: TimelineGroupedStep): boolean {
+  return isPreviewableWorkGroupStep(step);
+}
+
+function findLastRenderableWorkGroupPreviewStep(
+  steps: readonly TimelineGroupedStep[],
+): TimelineGroupedStep | undefined {
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
+    if (step && isRenderableWorkGroupPreviewStep(step)) {
+      return step;
+    }
+  }
+  return undefined;
+}
+
+function getPreviewStepOutputScrollKey(step: TimelineStep): string {
+  const output = resolvePreviewStepOutput(step);
+  if (!output) {
+    return step.id;
+  }
+  return `${step.id}:${output.text.length}:${output.loading ? "1" : "0"}`;
+}
+
+interface PreviewStepOutput {
+  text: string;
+  loading: boolean;
+}
+
+function isPreviewOutputStepRunning(step: TimelineStep): boolean {
+  if (step.kind === "runtime-tool") {
+    return step.tool.status === "running";
+  }
+  if (step.kind === "work") {
+    return step.entry.status === "running";
+  }
+  return false;
+}
+
+function isPreviewShellOrEditStep(step: TimelineStep): boolean {
+  if (step.kind === "runtime-tool") {
+    const displayKind = step.tool.display?.kind;
+    return displayKind === "shell" || displayKind === "edit";
+  }
+  if (step.kind === "work") {
+    const entry = step.entry;
+    if (
+      entry.requestKind === "command" ||
+      entry.itemType === "command_execution" ||
+      entry.command
+    ) {
+      return true;
+    }
+    return (
+      entry.requestKind === "file-change" ||
+      entry.itemType === "file_change" ||
+      (entry.changedFiles?.length ?? 0) > 0
+    );
+  }
+  return false;
+}
+
+function resolvePreviewStepOutput(step: TimelineStep): PreviewStepOutput | null {
+  if (step.kind === "runtime-tool") {
+    const display = step.tool.display;
+    if (display?.kind !== "shell" && display?.kind !== "edit") {
+      return null;
+    }
+    const output = display.output?.trim();
+    if (!output || !hasRenderableText(output)) {
+      return null;
+    }
+    return {
+      text: output,
+      loading: step.tool.status === "running",
+    };
+  }
+
+  if (step.kind === "work") {
+    const entry = step.entry;
+    const loading = entry.status === "running";
+    const commandArtifact = entry.artifacts?.find((artifact) => artifact.type === "command");
+    const shellOutput = commandArtifact?.output ?? (entry.command ? entry.output : null);
+    if (shellOutput && hasRenderableText(shellOutput)) {
+      return { text: shellOutput, loading };
+    }
+
+    const editDetail = entry.detail?.trim();
+    if (
+      editDetail &&
+      hasRenderableText(editDetail) &&
+      (entry.requestKind === "file-change" ||
+        entry.itemType === "file_change" ||
+        (entry.changedFiles?.length ?? 0) > 0)
+    ) {
+      return { text: editDetail, loading };
+    }
+  }
+
+  return null;
+}
+
+function isPreviewScrollable(host: HTMLDivElement): boolean {
+  return host.scrollHeight > host.clientHeight + 1;
 }
 
 function WorkGroupStats({ summary }: { summary: WorkGroupSummary }) {
@@ -335,8 +808,8 @@ function WorkGroupStats({ summary }: { summary: WorkGroupSummary }) {
 
   return (
     <span className="inline-flex shrink-0 gap-1 tabular-nums" data-work-group-stats="">
-      {additions > 0 ? <span className="text-multi-diff-addition">+{additions}</span> : null}
-      {deletions > 0 ? <span className="text-multi-diff-deletion">-{deletions}</span> : null}
+      {additions > 0 ? <span className="text-honk-diff-addition">+{additions}</span> : null}
+      {deletions > 0 ? <span className="text-honk-diff-deletion">-{deletions}</span> : null}
     </span>
   );
 }

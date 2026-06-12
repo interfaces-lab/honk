@@ -1,4 +1,4 @@
-import type { MessageId, ProviderInteractionMode, RuntimeMode } from "@multi/contracts";
+import type { MessageId, AgentInteractionMode } from "@honk/contracts";
 
 import type {
   QueuedComposerItem,
@@ -9,8 +9,7 @@ import type { ComposerSubmitContext } from "../composer-submit";
 export function createQueuedComposerItem(input: {
   threadKey: string;
   sendContext: ComposerSubmitContext;
-  runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   planFollowUp: QueuedComposerPlanFollowUp | null;
   itemId: MessageId;
   createdAt: string;
@@ -22,7 +21,6 @@ export function createQueuedComposerItem(input: {
       ...input.sendContext,
       images: [...input.sendContext.images],
     },
-    runtimeMode: input.runtimeMode,
     interactionMode: input.interactionMode,
     planFollowUp: input.planFollowUp,
     createdAt: input.createdAt,

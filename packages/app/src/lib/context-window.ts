@@ -1,4 +1,8 @@
-import type { OrchestrationThreadActivity, ThreadTokenUsageSnapshot } from "@multi/contracts";
+import type {
+  OrchestrationThreadActivity,
+  ThreadTokenUsageCategory,
+  ThreadTokenUsageSnapshot,
+} from "@honk/contracts";
 import * as Predicate from "effect/Predicate";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -11,6 +15,38 @@ function asFiniteNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+function asTrimmedNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function asContextUsageCategories(value: unknown): ThreadTokenUsageCategory[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const categories: ThreadTokenUsageCategory[] = [];
+  for (const candidate of value) {
+    const category = asRecord(candidate);
+    const id = asTrimmedNonEmptyString(category?.id);
+    const label = asTrimmedNonEmptyString(category?.label);
+    const tokens = asFiniteNumber(category?.tokens);
+    if (id === null || label === null || tokens === null || tokens < 0) {
+      continue;
+    }
+    categories.push({
+      id,
+      label,
+      tokens: Math.round(tokens),
+    });
+  }
+
+  return categories.length > 0 ? categories : null;
 }
 
 type NullableContextWindowUsage = {
@@ -52,6 +88,7 @@ export function deriveLatestContextWindowSnapshot(
       usedTokens,
       totalProcessedTokens: asFiniteNumber(payload?.totalProcessedTokens),
       maxTokens,
+      categories: asContextUsageCategories(payload?.categories),
       remainingTokens,
       usedPercentage,
       remainingPercentage,

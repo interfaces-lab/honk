@@ -13,10 +13,9 @@ export function AgentSidebar(props: AgentSidebarProps) {
     return <SidebarErrorState />;
   }
 
-  if (props.sections.length === 0) {
+  if (props.sections.length === 0 && props.onOpenWorkspace === undefined) {
     return <SidebarEmptyState />;
   }
 
   return <AgentSidebarBody {...props} />;
 }
-

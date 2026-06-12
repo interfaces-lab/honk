@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@multi/ui/button";
+import { Button } from "@honk/honkkit/button";
 import {
   Dialog,
   DialogDescription,
@@ -9,11 +9,12 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
-import { Input } from "@multi/ui/input";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@multi/ui/menu";
-import type { EnvironmentId } from "@multi/contracts";
-import type { TimestampFormat } from "@multi/contracts/settings";
+} from "@honk/honkkit/dialog";
+import { Input } from "@honk/honkkit/input";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@honk/honkkit/menu";
+import { ScrollArea } from "@honk/honkkit/scroll-area";
+import type { EnvironmentId } from "@honk/contracts";
+import type { TimestampFormat } from "@honk/contracts/settings";
 import {
   IconArrowUp,
   IconCheckmark1,
@@ -24,8 +25,8 @@ import {
   IconLoader,
   IconPencilLine,
 } from "central-icons";
-import { WorkbenchIconButton } from "@multi/ui/workbench-button";
-import { memo, type FormEvent, useEffect, useId, useState } from "react";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { toastManager } from "~/app/toast";
@@ -40,7 +41,7 @@ import {
   stripDisplayedPlanMarkdown,
 } from "~/plan/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
-import { WorkbenchTextButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";
+import { WorkbenchTextButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { PlanEditor } from "./editor/plan-editor";
 import { planEditorMarkdownMatches } from "./editor/markdown";
 
@@ -75,7 +76,7 @@ export interface PlanWorkbenchPanelProps {
   onSaveProposedPlan?: ((nextMarkdown: string) => Promise<boolean>) | undefined;
 }
 
-export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
+export function PlanWorkbenchPanel({
   activePlan,
   activeProposedPlan,
   environmentId,
@@ -142,8 +143,8 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
 
   return (
     <div className="plan-tab-content min-h-0 min-w-0 flex-1 text-title">
-      <div className="plan-tab-header no-drag flex h-(--multi-workbench-chrome-row-height) min-h-(--multi-workbench-chrome-row-height) shrink-0 items-center justify-between gap-2 border-b border-(--cursor-stroke-tertiary) px-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="plan-tab-header no-drag flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) shrink-0 items-center justify-between gap-(--honk-workbench-chrome-action-gap) border-b border-(--cursor-stroke-tertiary) px-(--honk-workbench-chrome-padding-inline)">
+        <div className="flex min-w-0 items-center gap-(--honk-workbench-text-control-gap)">
           <IconFileText className="size-4 shrink-0 text-(--cursor-text-secondary)" aria-hidden />
           <span className="min-w-0 truncate text-detail font-medium text-(--cursor-text-primary)">
             {title}
@@ -151,7 +152,7 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
         </div>
 
         {planMarkdown ? (
-          <div className="plan-breadcrumb-controls breadcrumbs-extra-actions flex shrink-0 items-center gap-(--multi-workbench-chrome-action-gap)">
+          <div className="plan-breadcrumb-controls breadcrumbs-extra-actions flex shrink-0 items-center gap-(--honk-workbench-chrome-action-gap)">
             {canEditPlan && !editingPlan ? (
               <WorkbenchIconButton
                 aria-label="Edit plan"
@@ -174,7 +175,7 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
                 title="Build plan"
                 tone="primary"
                 disabled={!canImplementPlan || isImplementingPlan}
-                className="breadcrumbs-action-btn plan-build-button bg-(--cursor-bg-yellow-primary) text-title leading-(--multi-leading-title) text-(--vscode-editor-background) shadow-none hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] disabled:bg-multi-bg-tertiary disabled:text-multi-fg-quaternary/45 [&_svg]:text-(--vscode-editor-background)"
+                className="breadcrumbs-action-btn plan-build-button bg-(--cursor-bg-yellow-primary) text-title leading-(--honk-leading-title) text-(--vscode-editor-background) shadow-none hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] disabled:bg-honk-bg-tertiary disabled:text-honk-fg-quaternary/45 [&_svg]:text-(--vscode-editor-background)"
               >
                 {isImplementingPlan ? (
                   <IconLoader className="size-4 shrink-0 animate-spin" aria-hidden />
@@ -189,7 +190,7 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
       </div>
 
       <div className="plan-tab-editor-region min-h-0 flex-1">
-        <div className="plan-tab-scroll ui-scroll-area min-h-0 flex-1 overflow-y-auto">
+        <ScrollArea className="plan-tab-scroll min-h-0 flex-1" scrollFade>
           <div className="composer-plan-container">
             <div className="composer-plan-content mx-auto flex w-full max-w-[840px] flex-col px-3 py-3">
               {planMarkdown ? (
@@ -220,15 +221,15 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
               {activePlan ? (
                 <section className="composer-plan-todos mt-2 border-t border-(--vscode-widget-border) pt-3">
                   {activePlan.explanation ? (
-                    <p className="mb-3 px-1.5 text-title leading-(--multi-leading-title) text-(--cursor-text-secondary)">
+                    <p className="mb-3 px-1.5 text-title leading-(--honk-leading-title) text-(--cursor-text-secondary)">
                       {activePlan.explanation}
                     </p>
                   ) : null}
                   <div className="composer-plan-section-header mb-3 flex items-center gap-2 px-1.5">
-                    <h2 className="composer-plan-section-title m-0 text-title leading-(--multi-leading-title) font-semibold text-(--cursor-text-primary)">
+                    <h2 className="composer-plan-section-title m-0 text-title leading-(--honk-leading-title) font-semibold text-(--cursor-text-primary)">
                       Tasks
                     </h2>
-                    <span className="composer-plan-section-count text-detail leading-(--multi-leading-detail) text-(--cursor-text-secondary) opacity-70">
+                    <span className="composer-plan-section-count text-detail leading-(--honk-leading-detail) text-(--cursor-text-secondary) opacity-70">
                       {activePlan.steps.length}
                     </span>
                   </div>
@@ -238,9 +239,9 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
                         <div className="mt-0.5 shrink-0">{stepStatusIcon(step.status)}</div>
                         <p
                           className={cn(
-                            "m-0 min-w-0 text-title leading-(--multi-leading-title)",
+                            "m-0 min-w-0 text-title leading-(--honk-leading-title)",
                             step.status === "completed"
-                              ? "text-(--cursor-text-tertiary) line-through decoration-multi-fg-quaternary"
+                              ? "text-(--cursor-text-tertiary) line-through decoration-honk-fg-quaternary"
                               : step.status === "inProgress"
                                 ? "text-(--cursor-text-primary)"
                                 : "text-(--cursor-text-secondary)",
@@ -256,18 +257,18 @@ export const PlanWorkbenchPanel = memo(function PlanWorkbenchPanel({
 
               {!activePlan && !planMarkdown ? (
                 <div className="composer-plan-empty-state flex min-h-0 flex-1 items-center justify-center px-4 py-10 text-center">
-                  <p className="text-title leading-(--multi-leading-title) text-(--cursor-text-tertiary)">
+                  <p className="text-title leading-(--honk-leading-title) text-(--cursor-text-tertiary)">
                     No plan data available.
                   </p>
                 </div>
               ) : null}
             </div>
           </div>
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );
-});
+}
 
 function PlanActions(props: {
   environmentId: EnvironmentId | null;
@@ -407,7 +408,7 @@ function PlanActions(props: {
           </DialogHeader>
           <DialogPanel>
             <form id={formId} className="space-y-2" onSubmit={savePlan}>
-              <label className="grid gap-1.5 text-sm text-multi-fg-secondary">
+              <label className="grid gap-1.5 text-sm text-honk-fg-secondary">
                 <span>Path</span>
                 <Input
                   autoFocus

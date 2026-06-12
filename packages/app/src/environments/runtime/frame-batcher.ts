@@ -16,10 +16,7 @@ export function createFrameBatcher<T>({
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   const clearScheduledFlush = () => {
-    if (
-      animationFrameId !== null &&
-      typeof globalThis.cancelAnimationFrame === "function"
-    ) {
+    if (animationFrameId !== null && typeof globalThis.cancelAnimationFrame === "function") {
       globalThis.cancelAnimationFrame(animationFrameId);
     }
     if (timeoutId !== null) {

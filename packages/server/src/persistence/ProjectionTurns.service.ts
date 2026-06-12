@@ -13,7 +13,7 @@ import {
   ThreadEntryId,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -105,14 +105,14 @@ export interface ProjectionTurnRepositoryShape {
   ) => Effect.Effect<void, ProjectionRepositoryError>;
 
   /**
-   * Appends a pending-start placeholder row. Multiple rows may exist briefly when provider start events lag behind client dispatch.
+   * Appends a pending-start placeholder row. Multiple rows may exist briefly when runtime start events lag behind client dispatch.
    */
   readonly appendPendingTurnStart: (
     row: ProjectionPendingTurnStart,
   ) => Effect.Effect<void, ProjectionRepositoryError>;
 
   /**
-   * Returns the oldest pending-start placeholder for a thread so concrete provider turn starts consume requests in dispatch order.
+   * Returns the oldest pending-start placeholder for a thread so concrete runtime turn starts consume requests in dispatch order.
    */
   readonly getNextPendingTurnStartByThreadId: (
     input: GetProjectionPendingTurnStartInput,
@@ -150,4 +150,4 @@ export interface ProjectionTurnRepositoryShape {
 export class ProjectionTurnRepository extends Context.Service<
   ProjectionTurnRepository,
   ProjectionTurnRepositoryShape
->()("multi/persistence/ProjectionTurns.service/ProjectionTurnRepository") {}
+>()("honk/persistence/ProjectionTurns.service/ProjectionTurnRepository") {}

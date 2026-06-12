@@ -11,7 +11,7 @@ import {
   OrchestrationThread,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Schema, Struct } from "effect";
 
 import { ProjectionState } from "../persistence/ProjectionState.service.ts";

@@ -15,6 +15,8 @@ import {
   GitCreateWorktreeInput,
   GitCreateWorktreeResult,
   GitDiscardPathsInput,
+  GitFileImageInput,
+  GitFileImageResult,
   GitFilePatchInput,
   GitFilePatchResult,
   GitInitInput,
@@ -38,8 +40,6 @@ import {
   ClientOrchestrationCommand,
   ORCHESTRATION_WS_METHODS,
   OrchestrationDispatchCommandError,
-  OrchestrationGetProviderThreadSnapshotInput,
-  OrchestrationGetProviderThreadSnapshotResult,
   OrchestrationGetSnapshotError,
   OrchestrationReplayEventsError,
   OrchestrationReplayEventsInput,
@@ -74,7 +74,6 @@ import {
   ServerConfigStreamEvent,
   ServerConfig,
   ServerLifecycleStreamEvent,
-  ServerProviderUpdatedPayload,
   ServerUpsertKeybindingInput,
   ServerUpsertKeybindingResult,
 } from "./server";
@@ -100,6 +99,7 @@ export const WS_METHODS = {
   gitPull: "git.pull",
   gitDiscardPaths: "git.discardPaths",
   gitGetFilePatch: "git.getFilePatch",
+  gitGetFileImage: "git.getFileImage",
   gitRefreshStatus: "git.refreshStatus",
   gitRunStackedAction: "git.runStackedAction",
   gitListBranches: "git.listBranches",
@@ -121,7 +121,6 @@ export const WS_METHODS = {
 
   // Server meta
   serverGetConfig: "server.getConfig",
-  serverRefreshProviders: "server.refreshProviders",
   serverUpsertKeybinding: "server.upsertKeybinding",
   serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
@@ -144,11 +143,6 @@ export const WsServerGetConfigRpc = Rpc.make(WS_METHODS.serverGetConfig, {
   payload: Schema.Struct({}),
   success: ServerConfig,
   error: Schema.Union([KeybindingsConfigError, ServerSettingsError]),
-});
-
-export const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProviders, {
-  payload: Schema.Struct({}),
-  success: ServerProviderUpdatedPayload,
 });
 
 export const WsServerGetSettingsRpc = Rpc.make(WS_METHODS.serverGetSettings, {
@@ -219,6 +213,12 @@ export const WsGitDiscardPathsRpc = Rpc.make(WS_METHODS.gitDiscardPaths, {
 export const WsGitGetFilePatchRpc = Rpc.make(WS_METHODS.gitGetFilePatch, {
   payload: GitFilePatchInput,
   success: GitFilePatchResult,
+  error: GitCommandError,
+});
+
+export const WsGitGetFileImageRpc = Rpc.make(WS_METHODS.gitGetFileImage, {
+  payload: GitFileImageInput,
+  success: GitFileImageResult,
   error: GitCommandError,
 });
 
@@ -322,15 +322,6 @@ export const WsOrchestrationDispatchCommandRpc = Rpc.make(
   },
 );
 
-export const WsOrchestrationGetProviderThreadSnapshotRpc = Rpc.make(
-  ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot,
-  {
-    payload: OrchestrationGetProviderThreadSnapshotInput,
-    success: OrchestrationGetProviderThreadSnapshotResult,
-    error: OrchestrationGetSnapshotError,
-  },
-);
-
 export const WsOrchestrationReplayEventsRpc = Rpc.make(ORCHESTRATION_WS_METHODS.replayEvents, {
   payload: OrchestrationReplayEventsInput,
   success: OrchestrationRpcSchemas.replayEvents.output,
@@ -381,7 +372,6 @@ export const WsSubscribeAuthAccessRpc = Rpc.make(WS_METHODS.subscribeAuthAccess,
 
 export const WsRpcGroup = RpcGroup.make(
   WsServerGetConfigRpc,
-  WsServerRefreshProvidersRpc,
   WsServerUpsertKeybindingRpc,
   WsServerGetSettingsRpc,
   WsServerUpdateSettingsRpc,
@@ -395,6 +385,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsGitPullRpc,
   WsGitDiscardPathsRpc,
   WsGitGetFilePatchRpc,
+  WsGitGetFileImageRpc,
   WsGitRefreshStatusRpc,
   WsGitRunStackedActionRpc,
   WsGitResolvePullRequestRpc,
@@ -416,7 +407,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeServerLifecycleRpc,
   WsSubscribeAuthAccessRpc,
   WsOrchestrationDispatchCommandRpc,
-  WsOrchestrationGetProviderThreadSnapshotRpc,
   WsOrchestrationReplayEventsRpc,
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,

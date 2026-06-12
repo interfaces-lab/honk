@@ -3,7 +3,7 @@ import type {
   OrchestrationSession,
   OrchestrationProject,
   OrchestrationProjectShell,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { Schema } from "effect";
 
 import {
@@ -80,7 +80,6 @@ export function mapSessionRow(
   return {
     threadId: row.threadId,
     status: row.status,
-    providerName: row.providerName,
     runtimeMode: row.runtimeMode,
     activeTurnId: row.activeTurnId,
     lastError: row.lastError,

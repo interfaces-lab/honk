@@ -3,20 +3,32 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist-electron/**"],
+      "dependsOn": ["^build", "usehonk#build"],
+      "outputs": ["out/**"],
     },
     "dev": {
-      "dependsOn": ["usemulti#build"],
+      "dependsOn": ["usehonk#build"],
       "persistent": true,
     },
+    "package": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "package:mac": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "package:linux": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
     "start": {
-      "dependsOn": ["build", "@multi/app#build", "usemulti#build"],
+      "dependsOn": ["build", "@honk/app#build", "usehonk#build"],
       "cache": false,
       "persistent": true,
     },
     "smoke-test": {
-      "dependsOn": ["build", "@multi/app#build", "usemulti#build"],
+      "dependsOn": ["build", "@honk/app#build", "usehonk#build"],
       "cache": false,
       "outputs": [],
     },

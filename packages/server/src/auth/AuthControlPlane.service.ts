@@ -3,7 +3,7 @@ import type {
   AuthClientSession,
   AuthPairingLink,
   AuthSessionId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Data, DateTime, Duration, Effect, Context } from "effect";
 import type { SessionRole } from "./SessionCredentialService.service.ts";
 
@@ -65,5 +65,5 @@ export interface AuthControlPlaneShape {
 }
 
 export class AuthControlPlane extends Context.Service<AuthControlPlane, AuthControlPlaneShape>()(
-  "multi/AuthControlPlane",
+  "honk/AuthControlPlane",
 ) {}

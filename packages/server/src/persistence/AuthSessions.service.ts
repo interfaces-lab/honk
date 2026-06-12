@@ -1,4 +1,4 @@
-import { AuthClientMetadataDeviceType, AuthSessionId } from "@multi/contracts";
+import { AuthClientMetadataDeviceType, AuthSessionId } from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -18,7 +18,7 @@ export const AuthSessionRecord = Schema.Struct({
   sessionId: AuthSessionId,
   subject: Schema.String,
   role: Schema.Literals(["owner", "client"]),
-  method: Schema.Literals(["browser-session-cookie", "bearer-session-token"]),
+  method: Schema.Literal("bearer-session-token"),
   client: AuthSessionClientMetadataRecord,
   issuedAt: Schema.DateTimeUtcFromString,
   expiresAt: Schema.DateTimeUtcFromString,
@@ -31,7 +31,7 @@ export const CreateAuthSessionInput = Schema.Struct({
   sessionId: AuthSessionId,
   subject: Schema.String,
   role: Schema.Literals(["owner", "client"]),
-  method: Schema.Literals(["browser-session-cookie", "bearer-session-token"]),
+  method: Schema.Literal("bearer-session-token"),
   client: AuthSessionClientMetadataRecord,
   issuedAt: Schema.DateTimeUtcFromString,
   expiresAt: Schema.DateTimeUtcFromString,
@@ -90,4 +90,4 @@ export interface AuthSessionRepositoryShape {
 export class AuthSessionRepository extends Context.Service<
   AuthSessionRepository,
   AuthSessionRepositoryShape
->()("multi/persistence/AuthSessions.service/AuthSessionRepository") {}
+>()("honk/persistence/AuthSessions.service/AuthSessionRepository") {}

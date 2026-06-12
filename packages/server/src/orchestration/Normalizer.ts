@@ -3,8 +3,8 @@ import {
   type ClientOrchestrationCommand,
   type OrchestrationCommand,
   OrchestrationDispatchCommandError,
-  PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
-} from "@multi/contracts";
+  RUNTIME_SEND_TURN_MAX_IMAGE_BYTES,
+} from "@honk/contracts";
 
 import { createAttachmentId, resolveAttachmentPath } from "../attachment-store";
 import { ServerConfig } from "../config";
@@ -79,7 +79,7 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
           }
 
           const bytes = Buffer.from(parsed.base64, "base64");
-          if (bytes.byteLength === 0 || bytes.byteLength > PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) {
+          if (bytes.byteLength === 0 || bytes.byteLength > RUNTIME_SEND_TURN_MAX_IMAGE_BYTES) {
             return yield* new OrchestrationDispatchCommandError({
               message: `Image attachment '${attachment.name}' is empty or too large.`,
             });

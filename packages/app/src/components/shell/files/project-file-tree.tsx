@@ -1,38 +1,41 @@
 "use client";
 
-import type {
-  FileTreeDirectoryHandle,
-  FileTreeItemHandle,
-  GitStatus,
-  GitStatusEntry,
+import {
+  prepareFileTreeInput,
+  type FileTreeDirectoryHandle,
+  type FileTreeItemHandle,
+  type GitStatus,
+  type GitStatusEntry,
 } from "@pierre/trees";
 import type {
   EditorId,
   EnvironmentId,
   GitWorkingTreeFileStatus,
   ProjectEntry,
-} from "@multi/contracts";
-import { useQueryClient } from "@tanstack/react-query";
+} from "@honk/contracts";
+import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
+  type Dispatch,
   forwardRef,
   type RefObject,
-  useCallback,
+  type SetStateAction,
   useImperativeHandle,
-  useMemo,
+  useEffect,
   useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
 
-import { resolveAndPersistPreferredEditor } from "~/editor/preferences";
+import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
 import { useGitStatus } from "~/lib/git-status-state";
-import { ensureNativeApi } from "~/lib/native-runtime-api";
+import { ensureLocalApi } from "~/local-api";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import { projectListDirectoryQueryOptions } from "~/lib/project-react-query";
 import { cn } from "~/lib/utils";
+import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
 import { useTheme } from "~/hooks/use-theme";
-import { useMountEffect } from "~/hooks/use-mount-effect";
-import { normalizeTreePath, Tree, useTreeModel } from "../../tree";
+import { Tree, useTreeModel } from "../../tree";
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
 type ProjectTreeModel = ReturnType<typeof useTreeModel>["model"];
@@ -54,7 +57,11 @@ function directoryPlaceholderPath(relativeDir: string): string {
 }
 
 function isDirectoryPlaceholderPath(path: string): boolean {
-  return normalizeTreePath(path).endsWith(`/${DIRECTORY_PLACEHOLDER_FILE_NAME}`);
+  const normalizedPath = normalizeTreePath(path);
+  return (
+    normalizedPath === DIRECTORY_PLACEHOLDER_FILE_NAME ||
+    normalizedPath.endsWith(`/${DIRECTORY_PLACEHOLDER_FILE_NAME}`)
+  );
 }
 
 function isDirectoryHandle(item: FileTreeItemHandle | null): item is FileTreeDirectoryHandle {
@@ -130,26 +137,94 @@ function getExpandedDirectoryPaths(
   });
 }
 
-function createProjectFileTreeContextKey(input: {
+function openProjectFilePath(input: {
+  relativePath: string;
+  cwd: string | null;
+  availableEditors: readonly EditorId[];
+}): void {
+  if (!input.cwd) return;
+
+  const editor = resolveAndPersistPreferredEditor(input.availableEditors);
+  if (!editor) {
+    toast.error("No available editor found.");
+    return;
+  }
+
+  const targetPath = joinProjectPath(input.cwd, input.relativePath);
+  try {
+    void ensureLocalApi()
+      .shell.openInEditor(targetPath, editor)
+      .catch((error: unknown) =>
+        toast.error(error instanceof Error ? error.message : String(error)),
+      );
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function loadProjectDirectory(input: {
   active: boolean | undefined;
   cwd: string | null;
   environmentId: EnvironmentId | null;
-}): string {
-  return JSON.stringify([input.active === true, input.cwd, input.environmentId]);
-}
-
-function createGitStatusKey(gitStatusEntries: readonly GitStatusEntry[]): string {
-  return gitStatusEntries.map((entry) => `${entry.path}:${entry.status}`).join("\0");
-}
-
-function useValueIdentityVersion<TValue>(value: TValue): number {
-  const valueRef = useRef(value);
-  const versionRef = useRef(0);
-  if (valueRef.current !== value) {
-    valueRef.current = value;
-    versionRef.current += 1;
+  relativeDir: string;
+  queryClient: QueryClient;
+  loadedDirectoriesRef: RefObject<Set<string> | null>;
+  loadingDirectoriesRef: RefObject<Set<string> | null>;
+  mountedRef: RefObject<boolean>;
+  setLoadError: Dispatch<SetStateAction<unknown>>;
+  setTreePaths: Dispatch<SetStateAction<string[]>>;
+}): Promise<void> {
+  const cwd = input.cwd;
+  const environmentId = input.environmentId;
+  const normalizedRelativeDir = treeDirectoryPathToRelativeDir(input.relativeDir);
+  if (!input.active || !cwd || !environmentId) {
+    return;
   }
-  return versionRef.current;
+  if (!input.mountedRef.current) {
+    return;
+  }
+  const loadedDirectories = input.loadedDirectoriesRef.current;
+  const loadingDirectories = input.loadingDirectoriesRef.current;
+  if (!loadedDirectories || !loadingDirectories) {
+    return;
+  }
+  if (
+    loadedDirectories.has(normalizedRelativeDir) ||
+    loadingDirectories.has(normalizedRelativeDir)
+  ) {
+    return;
+  }
+  loadingDirectories.add(normalizedRelativeDir);
+  try {
+    const result = await input.queryClient.fetchQuery(
+      projectListDirectoryQueryOptions({
+        environmentId,
+        cwd,
+        relativeDir: normalizedRelativeDir,
+      }),
+    );
+    if (!input.mountedRef.current) {
+      return;
+    }
+
+    loadedDirectories.add(normalizedRelativeDir);
+    input.setLoadError(null);
+    input.setTreePaths((currentPaths) => {
+      const nextPaths = new Set(
+        currentPaths.filter((path) => path !== directoryPlaceholderPath(normalizedRelativeDir)),
+      );
+      for (const treePath of entriesToTreePaths(result.entries, loadedDirectories)) {
+        nextPaths.add(treePath);
+      }
+      return [...nextPaths];
+    });
+  } catch (error) {
+    if (input.mountedRef.current) {
+      input.setLoadError(error);
+    }
+  } finally {
+    loadingDirectories.delete(normalizedRelativeDir);
+  }
 }
 
 export type ProjectFileTreeHandle = {
@@ -163,58 +238,53 @@ export const ProjectFileTree = forwardRef<
     environmentId: EnvironmentId | null;
     availableEditors: readonly EditorId[];
     onOpenFile?: (relativePath: string) => void;
+    onFilePathsChange?: (relativePaths: readonly string[]) => void;
     selectedPath?: string | null;
     className?: string;
     active?: boolean;
   }
 >(function ProjectFileTree(props, ref) {
-  const filePathSetRef = useRef<ReadonlySet<string>>(new Set());
-  const availableEditorsRef = useRef(props.availableEditors);
-  const cwdRef = useRef(props.cwd);
-  const onOpenFileRef = useRef(props.onOpenFile);
-  const loadContextRef = useRef({
-    cwd: props.cwd,
-    environmentId: props.environmentId,
-  });
-  const loadedDirectoriesRef = useRef<Set<string>>(new Set());
-  const loadingDirectoriesRef = useRef<Set<string>>(new Set());
+  const filePathSetRef = useRef<Set<string> | null>(null);
+  if (filePathSetRef.current === null) {
+    filePathSetRef.current = new Set();
+  }
+  const mountedRef = useRef(true);
+  const loadedDirectoriesRef = useRef<Set<string> | null>(null);
+  if (loadedDirectoriesRef.current === null) {
+    loadedDirectoriesRef.current = new Set();
+  }
+  const loadingDirectoriesRef = useRef<Set<string> | null>(null);
+  if (loadingDirectoriesRef.current === null) {
+    loadingDirectoriesRef.current = new Set();
+  }
   const lastOpenedPathRef = useRef<string | null>(null);
   const suppressSelectionOpenRef = useRef<string | null>(null);
   const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
   const [treePaths, setTreePaths] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<unknown>(null);
-  const [, setLoadRevision] = useState(0);
+  const environmentApiReady = useEnvironmentApiReady(props.environmentId);
+  const isActive = props.active !== false;
+  const canLoad = Boolean(props.cwd && props.environmentId);
+  const canQuery = canLoad && environmentApiReady && isActive;
+  const canRenderTree = Boolean(canLoad && isActive);
 
-  availableEditorsRef.current = props.availableEditors;
-  cwdRef.current = props.cwd;
-  onOpenFileRef.current = props.onOpenFile;
-  loadContextRef.current = {
-    cwd: props.cwd,
-    environmentId: props.environmentId,
-  };
-
-  const openPath = useCallback((relativePath: string) => {
-    const cwd = cwdRef.current;
-    if (!cwd) return;
-
-    const editor = resolveAndPersistPreferredEditor(availableEditorsRef.current);
-    if (!editor) {
-      toast.error("No available editor found.");
-      return;
-    }
-
-    const targetPath = joinProjectPath(cwd, relativePath);
-    try {
-      void ensureNativeApi()
-        .shell.openInEditor(targetPath, editor)
-        .catch((error: unknown) =>
-          toast.error(error instanceof Error ? error.message : String(error)),
-        );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
-    }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
+
+  useEffect(() => {
+    loadedDirectoriesRef.current?.clear();
+    loadingDirectoriesRef.current?.clear();
+    filePathSetRef.current?.clear();
+    lastOpenedPathRef.current = null;
+    suppressSelectionOpenRef.current = null;
+    setTreePaths([]);
+    setLoadError(null);
+  }, [props.cwd, props.environmentId]);
 
   const { model } = useTreeModel({
     paths: [],
@@ -226,7 +296,7 @@ export const ProjectFileTree = forwardRef<
       if (
         !selectedPath ||
         selectedPath === lastOpenedPathRef.current ||
-        !filePathSetRef.current.has(selectedPath)
+        filePathSetRef.current?.has(selectedPath) !== true
       ) {
         return;
       }
@@ -236,169 +306,120 @@ export const ProjectFileTree = forwardRef<
         return;
       }
       lastOpenedPathRef.current = selectedPath;
-      const onOpenFile = onOpenFileRef.current;
-      if (onOpenFile) {
-        onOpenFile(selectedPath);
+      if (props.onOpenFile) {
+        props.onOpenFile(selectedPath);
         return;
       }
-      openPath(selectedPath);
+      openProjectFilePath({
+        relativePath: selectedPath,
+        cwd: props.cwd,
+        availableEditors: props.availableEditors,
+      });
     },
   });
 
-  const loadDirectory = useCallback(
-    async (relativeDir: string) => {
-      const cwd = props.cwd;
-      const environmentId = props.environmentId;
-      const normalizedRelativeDir = treeDirectoryPathToRelativeDir(relativeDir);
-      if (!props.active || !cwd || !environmentId) {
-        return;
-      }
-      if (
-        loadedDirectoriesRef.current.has(normalizedRelativeDir) ||
-        loadingDirectoriesRef.current.has(normalizedRelativeDir)
-      ) {
-        return;
-      }
-
-      loadingDirectoriesRef.current.add(normalizedRelativeDir);
-      setLoadRevision((revision) => revision + 1);
-      try {
-        const result = await queryClient.fetchQuery(
-          projectListDirectoryQueryOptions({
-            environmentId,
-            cwd,
-            relativeDir: normalizedRelativeDir,
-          }),
-        );
-        if (
-          loadContextRef.current.cwd !== cwd ||
-          loadContextRef.current.environmentId !== environmentId
-        ) {
-          return;
-        }
-
-        loadedDirectoriesRef.current.add(normalizedRelativeDir);
-        setLoadError(null);
-        setTreePaths((currentPaths) => {
-          const nextPaths = new Set(
-            currentPaths.filter((path) => path !== directoryPlaceholderPath(normalizedRelativeDir)),
-          );
-          for (const treePath of entriesToTreePaths(result.entries, loadedDirectoriesRef.current)) {
-            nextPaths.add(treePath);
-          }
-          return [...nextPaths];
-        });
-      } catch (error) {
-        if (
-          loadContextRef.current.cwd === cwd &&
-          loadContextRef.current.environmentId === environmentId
-        ) {
-          setLoadError(error);
-        }
-      } finally {
-        loadingDirectoriesRef.current.delete(normalizedRelativeDir);
-        setLoadRevision((revision) => revision + 1);
-      }
-    },
-    [props.active, props.cwd, props.environmentId, queryClient],
-  );
   const gitStatus = useGitStatus({
     environmentId: props.environmentId,
-    cwd: props.active ? props.cwd : null,
-  });
-
-  const filePathSet = useMemo(
-    () =>
-      new Set(
-        treePaths
-          .filter((path) => !path.endsWith("/") && !isDirectoryPlaceholderPath(path))
-          .map((path) => normalizeTreePath(path)),
-      ),
-    [treePaths],
-  );
-  const treePathsKey = useMemo(() => treePaths.join("\0"), [treePaths]);
-  const gitStatusEntries = useMemo(() => toGitStatusEntries(gitStatus.data), [gitStatus.data]);
-  const gitStatusKey = useMemo(() => createGitStatusKey(gitStatusEntries), [gitStatusEntries]);
-  const externalSelectedPath = props.selectedPath ? normalizeTreePath(props.selectedPath) : null;
-  const projectFileTreeContextKey = createProjectFileTreeContextKey({
-    active: props.active,
     cwd: props.cwd,
-    environmentId: props.environmentId,
   });
-  const loadDirectoryVersion = useValueIdentityVersion(loadDirectory);
 
-  filePathSetRef.current = filePathSet;
-
-  const refreshFiles = useCallback(() => {
-    loadedDirectoriesRef.current = new Set();
-    loadingDirectoriesRef.current = new Set();
-    setTreePaths([]);
-    setLoadError(null);
-    setLoadRevision((revision) => revision + 1);
-    void loadDirectory("");
-  }, [loadDirectory]);
+  const externalSelectedPath = props.selectedPath ? normalizeTreePath(props.selectedPath) : null;
+  const gitStatusEntries = toGitStatusEntries(gitStatus.data);
 
   useImperativeHandle(
     ref,
     () => ({
-      refresh: refreshFiles,
+      refresh: () => {
+        loadedDirectoriesRef.current?.clear();
+        loadingDirectoriesRef.current?.clear();
+        setTreePaths([]);
+        setLoadError(null);
+        void loadProjectDirectory({
+          active: canQuery,
+          cwd: props.cwd,
+          environmentId: props.environmentId,
+          relativeDir: "",
+          queryClient,
+          loadedDirectoriesRef,
+          loadingDirectoriesRef,
+          mountedRef,
+          setLoadError,
+          setTreePaths,
+        });
+      },
     }),
-    [refreshFiles],
+    [canQuery, props.cwd, props.environmentId, queryClient],
   );
 
   return (
     <section
       className={cn(
-        "project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-multi-bg-quinary text-multi-fg-primary",
+        "project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--honk-workbench-panel-background) text-honk-fg-primary",
         props.className,
       )}
     >
-      <ProjectFileTreePathsSync key={`paths:${treePathsKey}`} model={model} treePaths={treePaths} />
-      <ProjectFileTreeInitialLoadSync
-        key={`initial:${projectFileTreeContextKey}:${loadDirectoryVersion}`}
-        active={props.active}
-        cwd={props.cwd}
-        environmentId={props.environmentId}
-        loadDirectory={loadDirectory}
-      />
-      <ProjectFileTreeExpandedDirectoryLoader
-        key={`expanded:${projectFileTreeContextKey}:${loadDirectoryVersion}:${treePathsKey}`}
-        active={props.active}
-        cwd={props.cwd}
-        environmentId={props.environmentId}
-        loadDirectory={loadDirectory}
-        model={model}
+      <ProjectFileTreePathSetSync
+        filePathSetRef={filePathSetRef}
+        {...(props.onFilePathsChange ? { onFilePathsChange: props.onFilePathsChange } : {})}
         treePaths={treePaths}
       />
+      <ProjectFileTreePathsSync model={model} treePaths={treePaths} />
+      {canLoad ? (
+        <ProjectFileTreeInitialLoadSync
+          active={canQuery}
+          cwd={props.cwd}
+          environmentId={props.environmentId}
+          queryClient={queryClient}
+          loadedDirectoriesRef={loadedDirectoriesRef}
+          loadingDirectoriesRef={loadingDirectoriesRef}
+          mountedRef={mountedRef}
+          setLoadError={setLoadError}
+          setTreePaths={setTreePaths}
+        />
+      ) : null}
+      {canLoad ? (
+        <ProjectFileTreeExpandedDirectoryLoader
+          active={canQuery}
+          cwd={props.cwd}
+          environmentId={props.environmentId}
+          queryClient={queryClient}
+          loadedDirectoriesRef={loadedDirectoriesRef}
+          loadingDirectoriesRef={loadingDirectoriesRef}
+          mountedRef={mountedRef}
+          model={model}
+          setLoadError={setLoadError}
+          setTreePaths={setTreePaths}
+          treePaths={treePaths}
+        />
+      ) : null}
       <ProjectFileTreeSelectionSync
-        key={`selection:${treePathsKey}:${externalSelectedPath ?? ""}`}
         externalSelectedPath={externalSelectedPath}
-        filePathSet={filePathSet}
+        filePathSetRef={filePathSetRef}
         lastOpenedPathRef={lastOpenedPathRef}
         model={model}
         suppressSelectionOpenRef={suppressSelectionOpenRef}
       />
-      <ProjectFileTreeGitStatusSync
-        key={`git:${gitStatusKey}`}
-        gitStatusEntries={gitStatusEntries}
-        model={model}
-      />
+      <ProjectFileTreeGitStatusSync gitStatusEntries={gitStatusEntries} model={model} />
       <div className="min-h-0 flex-1 overflow-hidden">
-        {props.cwd && props.environmentId ? (
+        {canRenderTree ? (
           <Tree
             model={model}
             resolvedTheme={resolvedTheme}
             renderContextMenu={(item, context) => (
               <div
-                className="min-w-32 rounded-multi-control border border-multi-border/70 bg-multi-bubble-opaque p-1 font-multi text-body text-foreground shadow-multi-popup"
+                className="min-w-32 rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-body text-foreground shadow-honk-popup"
                 data-file-tree-context-menu-root="true"
               >
                 <button
                   type="button"
-                  className="flex min-h-6 w-full items-center rounded-sm px-2 text-left text-muted-foreground hover:bg-multi-hover hover:text-foreground"
+                  className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground hover:bg-honk-hover hover:text-foreground"
                   onClick={() => {
                     context.close();
-                    openPath(item.path);
+                    openProjectFilePath({
+                      relativePath: item.path,
+                      cwd: props.cwd,
+                      availableEditors: props.availableEditors,
+                    });
                   }}
                 >
                   Open in Editor
@@ -408,7 +429,7 @@ export const ProjectFileTree = forwardRef<
           />
         ) : (
           <div className="px-3 py-2 text-detail text-muted-foreground/55">
-            Add a project to browse files.
+            {canLoad ? "Open the file sidebar to browse files." : "Add a project to browse files."}
           </div>
         )}
 
@@ -422,6 +443,33 @@ export const ProjectFileTree = forwardRef<
   );
 });
 
+function ProjectFileTreePathSetSync({
+  filePathSetRef,
+  onFilePathsChange,
+  treePaths,
+}: {
+  filePathSetRef: RefObject<Set<string> | null>;
+  onFilePathsChange?: (relativePaths: readonly string[]) => void;
+  treePaths: readonly string[];
+}) {
+  useEffect(() => {
+    const filePathSet = filePathSetRef.current;
+    if (!filePathSet) return;
+    filePathSet.clear();
+    const filePaths: string[] = [];
+    for (const path of treePaths) {
+      if (!path.endsWith("/") && !isDirectoryPlaceholderPath(path)) {
+        const normalizedPath = normalizeTreePath(path);
+        filePathSet.add(normalizedPath);
+        filePaths.push(normalizedPath);
+      }
+    }
+    onFilePathsChange?.(filePaths);
+  }, [filePathSetRef, onFilePathsChange, treePaths]);
+
+  return null;
+}
+
 function ProjectFileTreePathsSync({
   model,
   treePaths,
@@ -429,10 +477,13 @@ function ProjectFileTreePathsSync({
   model: ProjectTreeModel;
   treePaths: readonly string[];
 }) {
-  useMountEffect(() => {
+  useEffect(() => {
     const expandedPaths = getExpandedDirectoryPaths(model, treePaths);
-    model.resetPaths(treePaths, { initialExpandedPaths: expandedPaths });
-  });
+    model.resetPaths(treePaths, {
+      initialExpandedPaths: expandedPaths,
+      preparedInput: prepareFileTreeInput(treePaths),
+    });
+  }, [model, treePaths]);
 
   return null;
 }
@@ -441,19 +492,47 @@ function ProjectFileTreeInitialLoadSync({
   active,
   cwd,
   environmentId,
-  loadDirectory,
+  loadedDirectoriesRef,
+  loadingDirectoriesRef,
+  mountedRef,
+  queryClient,
+  setLoadError,
+  setTreePaths,
 }: {
   active: boolean | undefined;
   cwd: string | null;
   environmentId: EnvironmentId | null;
-  loadDirectory: (relativeDir: string) => Promise<void>;
+  loadedDirectoriesRef: RefObject<Set<string> | null>;
+  loadingDirectoriesRef: RefObject<Set<string> | null>;
+  mountedRef: RefObject<boolean>;
+  queryClient: QueryClient;
+  setLoadError: Dispatch<SetStateAction<unknown>>;
+  setTreePaths: Dispatch<SetStateAction<string[]>>;
 }) {
-  useMountEffect(() => {
-    if (!active || !cwd || !environmentId) {
-      return;
-    }
-    void loadDirectory("");
-  });
+  useEffect(() => {
+    void loadProjectDirectory({
+      active,
+      cwd,
+      environmentId,
+      relativeDir: "",
+      queryClient,
+      loadedDirectoriesRef,
+      loadingDirectoriesRef,
+      mountedRef,
+      setLoadError,
+      setTreePaths,
+    });
+  }, [
+    active,
+    cwd,
+    environmentId,
+    loadedDirectoriesRef,
+    loadingDirectoriesRef,
+    mountedRef,
+    queryClient,
+    setLoadError,
+    setTreePaths,
+  ]);
 
   return null;
 }
@@ -462,51 +541,85 @@ function ProjectFileTreeExpandedDirectoryLoader({
   active,
   cwd,
   environmentId,
-  loadDirectory,
+  loadedDirectoriesRef,
+  loadingDirectoriesRef,
+  mountedRef,
   model,
+  queryClient,
+  setLoadError,
+  setTreePaths,
   treePaths,
 }: {
   active: boolean | undefined;
   cwd: string | null;
   environmentId: EnvironmentId | null;
-  loadDirectory: (relativeDir: string) => Promise<void>;
+  loadedDirectoriesRef: RefObject<Set<string> | null>;
+  loadingDirectoriesRef: RefObject<Set<string> | null>;
+  mountedRef: RefObject<boolean>;
   model: ProjectTreeModel;
+  queryClient: QueryClient;
+  setLoadError: Dispatch<SetStateAction<unknown>>;
+  setTreePaths: Dispatch<SetStateAction<string[]>>;
   treePaths: readonly string[];
 }) {
-  useMountEffect(() => {
-    return model.subscribe(() => {
-      if (!active || !cwd || !environmentId) {
-        return;
-      }
+  useEffect(() => {
+    const loadExpandedDirectories = () => {
       for (const treePath of treePaths) {
         if (!treePath.endsWith("/")) {
           continue;
         }
         const item = model.getItem(treePath);
         if (isDirectoryHandle(item) && item.isExpanded()) {
-          void loadDirectory(treeDirectoryPathToRelativeDir(treePath));
+          void loadProjectDirectory({
+            active,
+            cwd,
+            environmentId,
+            relativeDir: treeDirectoryPathToRelativeDir(treePath),
+            queryClient,
+            loadedDirectoriesRef,
+            loadingDirectoriesRef,
+            mountedRef,
+            setLoadError,
+            setTreePaths,
+          });
         }
       }
-    });
-  });
+    };
+
+    loadExpandedDirectories();
+    return model.subscribe(loadExpandedDirectories);
+  }, [
+    active,
+    cwd,
+    environmentId,
+    loadedDirectoriesRef,
+    loadingDirectoriesRef,
+    model,
+    mountedRef,
+    queryClient,
+    setLoadError,
+    setTreePaths,
+    treePaths,
+  ]);
 
   return null;
 }
 
 function ProjectFileTreeSelectionSync({
   externalSelectedPath,
-  filePathSet,
+  filePathSetRef,
   lastOpenedPathRef,
   model,
   suppressSelectionOpenRef,
 }: {
   externalSelectedPath: string | null;
-  filePathSet: ReadonlySet<string>;
+  filePathSetRef: RefObject<Set<string> | null>;
   lastOpenedPathRef: RefObject<string | null>;
   model: ProjectTreeModel;
   suppressSelectionOpenRef: RefObject<string | null>;
 }) {
-  useMountEffect(() => {
+  useEffect(() => {
+    const filePathSet = filePathSetRef.current;
     if (!externalSelectedPath) {
       for (const selectedPath of model.getSelectedPaths()) {
         model.getItem(selectedPath)?.deselect();
@@ -515,7 +628,7 @@ function ProjectFileTreeSelectionSync({
       return;
     }
     if (
-      !filePathSet.has(externalSelectedPath) ||
+      filePathSet?.has(externalSelectedPath) !== true ||
       normalizeTreePath(model.getSelectedPaths()[0] ?? "") === externalSelectedPath
     ) {
       return;
@@ -530,7 +643,7 @@ function ProjectFileTreeSelectionSync({
     }
     selectedItem.select();
     model.focusPath(externalSelectedPath);
-  });
+  }, [externalSelectedPath, filePathSetRef, lastOpenedPathRef, model, suppressSelectionOpenRef]);
 
   return null;
 }
@@ -542,9 +655,9 @@ function ProjectFileTreeGitStatusSync({
   gitStatusEntries: readonly GitStatusEntry[];
   model: ProjectTreeModel;
 }) {
-  useMountEffect(() => {
+  useEffect(() => {
     model.setGitStatus(gitStatusEntries);
-  });
+  }, [gitStatusEntries, model]);
 
   return null;
 }

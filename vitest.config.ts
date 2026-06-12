@@ -5,7 +5,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@multi\/contracts$/,
+        find: /^@honk\/contracts$/,
         replacement: path.resolve(import.meta.dirname, "./packages/contracts/src/index.ts"),
       },
     ],

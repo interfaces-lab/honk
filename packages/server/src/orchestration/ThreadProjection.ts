@@ -9,7 +9,7 @@ import {
   OrchestrationThreadActivity,
   type OrchestrationThreadEntry,
   type OrchestrationThreadShell,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect, Layer, Option, Schema } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
@@ -28,7 +28,6 @@ import {
   mapProjectShellRow,
   maxIso,
 } from "./ThreadProjectionAssembly.ts";
-import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
 import {
   decodeReadModel,
   decodeShellSnapshot,
@@ -62,21 +61,6 @@ function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: st
     Schema.isSchemaError(cause)
       ? toPersistenceDecodeError(decodeOperation)(cause)
       : toPersistenceSqlError(sqlOperation)(cause);
-}
-
-function attachChatTimelineRows(
-  thread: Omit<OrchestrationThread, "chatTimelineRows">,
-): OrchestrationThread {
-  return {
-    ...thread,
-    chatTimelineRows: deriveChatTimelineRows({
-      messages: thread.messages,
-      entries: thread.entries,
-      activities: thread.activities,
-      proposedPlans: thread.proposedPlans,
-      activeRunningTurnId: thread.session?.activeTurnId ?? null,
-    }),
-  };
 }
 
 const makeThreadProjection = Effect.gen(function* () {
@@ -223,9 +207,6 @@ const makeThreadProjection = Effect.gen(function* () {
         SELECT
           thread_id AS "threadId",
           status,
-          provider_name AS "providerName",
-          provider_session_id AS "providerSessionId",
-          provider_thread_id AS "providerThreadId",
           runtime_mode AS "runtimeMode",
           active_turn_id AS "activeTurnId",
           last_error AS "lastError",
@@ -463,7 +444,6 @@ const makeThreadProjection = Effect.gen(function* () {
         SELECT
           thread_id AS "threadId",
           status,
-          provider_name AS "providerName",
           runtime_mode AS "runtimeMode",
           active_turn_id AS "activeTurnId",
           last_error AS "lastError",
@@ -660,16 +640,18 @@ const makeThreadProjection = Effect.gen(function* () {
               for (const row of activityRows) {
                 updatedAt = maxIso(updatedAt, row.createdAt);
                 const threadActivities = activitiesByThread.get(row.threadId) ?? [];
-                threadActivities.push(Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-                  id: row.activityId,
-                  tone: row.tone,
-                  kind: row.kind,
-                  summary: row.summary,
-                  payload: row.payload,
-                  turnId: row.turnId,
-                  ...(row.sequence !== null ? { sequence: row.sequence } : {}),
-                  createdAt: row.createdAt,
-                }));
+                threadActivities.push(
+                  Schema.decodeUnknownSync(OrchestrationThreadActivity)({
+                    id: row.activityId,
+                    tone: row.tone,
+                    kind: row.kind,
+                    summary: row.summary,
+                    payload: row.payload,
+                    turnId: row.turnId,
+                    ...(row.sequence !== null ? { sequence: row.sequence } : {}),
+                    createdAt: row.createdAt,
+                  }),
+                );
                 activitiesByThread.set(row.threadId, threadActivities);
               }
 
@@ -714,7 +696,6 @@ const makeThreadProjection = Effect.gen(function* () {
                 sessionsByThread.set(row.threadId, {
                   threadId: row.threadId,
                   status: row.status,
-                  providerName: row.providerName,
                   runtimeMode: row.runtimeMode,
                   activeTurnId: row.activeTurnId,
                   lastError: row.lastError,
@@ -745,29 +726,27 @@ const makeThreadProjection = Effect.gen(function* () {
                 deletedAt: row.deletedAt,
               }));
 
-              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) =>
-                attachChatTimelineRows({
-                  id: row.threadId,
-                  projectId: row.projectId,
-                  title: row.title,
-                  modelSelection: row.modelSelection,
-                  runtimeMode: row.runtimeMode,
-                  interactionMode: row.interactionMode,
-                  branch: row.branch,
-                  worktreePath: row.worktreePath,
-                  latestTurn: latestTurnByThread.get(row.threadId) ?? null,
-                  createdAt: row.createdAt,
-                  updatedAt: row.updatedAt,
-                  archivedAt: row.archivedAt,
-                  deletedAt: row.deletedAt,
-                  messages: messagesByThread.get(row.threadId) ?? [],
-                  leafId: row.leafId,
-                  entries: entriesByThread.get(row.threadId) ?? [],
-                  proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
-                  activities: activitiesByThread.get(row.threadId) ?? [],
-                  session: sessionsByThread.get(row.threadId) ?? null,
-                }),
-              );
+              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) => ({
+                id: row.threadId,
+                projectId: row.projectId,
+                title: row.title,
+                modelSelection: row.modelSelection,
+                runtimeMode: row.runtimeMode,
+                interactionMode: row.interactionMode,
+                branch: row.branch,
+                worktreePath: row.worktreePath,
+                latestTurn: latestTurnByThread.get(row.threadId) ?? null,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt,
+                archivedAt: row.archivedAt,
+                deletedAt: row.deletedAt,
+                messages: messagesByThread.get(row.threadId) ?? [],
+                leafId: row.leafId,
+                entries: entriesByThread.get(row.threadId) ?? [],
+                proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
+                activities: activitiesByThread.get(row.threadId) ?? [],
+                session: sessionsByThread.get(row.threadId) ?? null,
+              }));
 
               const snapshot = {
                 snapshotSequence: computeSnapshotSequence(stateRows),
@@ -1136,71 +1115,69 @@ const makeThreadProjection = Effect.gen(function* () {
       }
 
       return Option.some(
-        yield* decodeThread(
-          attachChatTimelineRows({
-            id: threadRow.value.threadId,
-            projectId: threadRow.value.projectId,
-            title: threadRow.value.title,
-            modelSelection: threadRow.value.modelSelection,
-            runtimeMode: threadRow.value.runtimeMode,
-            interactionMode: threadRow.value.interactionMode,
-            branch: threadRow.value.branch,
-            worktreePath: threadRow.value.worktreePath,
-            latestTurn: Option.isSome(latestTurnRow) ? mapLatestTurn(latestTurnRow.value) : null,
-            createdAt: threadRow.value.createdAt,
-            updatedAt: threadRow.value.updatedAt,
-            archivedAt: threadRow.value.archivedAt,
-            deletedAt: null,
-            messages: messageRows.map((row) => {
-              const message = {
-                id: row.messageId,
-                role: row.role,
-                text: row.text,
-                ...(row.richText !== null ? { richText: row.richText } : {}),
-                turnId: row.turnId,
-                streaming: row.isStreaming === 1,
-                createdAt: row.createdAt,
-                updatedAt: row.updatedAt,
-              };
-              if (row.attachments !== null) {
-                return Object.assign(message, { attachments: row.attachments });
-              }
-              return message;
-            }),
-            leafId: threadRow.value.leafId,
-            entries: entryRows.map((row) => ({
-              id: row.entryId,
-              threadId: row.threadId,
-              parentEntryId: row.parentEntryId,
-              kind: row.kind,
-              messageId: row.messageId,
+        yield* decodeThread({
+          id: threadRow.value.threadId,
+          projectId: threadRow.value.projectId,
+          title: threadRow.value.title,
+          modelSelection: threadRow.value.modelSelection,
+          runtimeMode: threadRow.value.runtimeMode,
+          interactionMode: threadRow.value.interactionMode,
+          branch: threadRow.value.branch,
+          worktreePath: threadRow.value.worktreePath,
+          latestTurn: Option.isSome(latestTurnRow) ? mapLatestTurn(latestTurnRow.value) : null,
+          createdAt: threadRow.value.createdAt,
+          updatedAt: threadRow.value.updatedAt,
+          archivedAt: threadRow.value.archivedAt,
+          deletedAt: null,
+          messages: messageRows.map((row) => {
+            const message = {
+              id: row.messageId,
+              role: row.role,
+              text: row.text,
+              ...(row.richText !== null ? { richText: row.richText } : {}),
               turnId: row.turnId,
-              createdAt: row.createdAt,
-            })),
-            proposedPlans: proposedPlanRows.map((row) => ({
-              id: row.planId,
-              turnId: row.turnId,
-              planMarkdown: row.planMarkdown,
-              implementedAt: row.implementedAt,
-              implementationThreadId: row.implementationThreadId,
+              streaming: row.isStreaming === 1,
               createdAt: row.createdAt,
               updatedAt: row.updatedAt,
-            })),
-            activities: activityRows.map((row) =>
-              Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-                id: row.activityId,
-                tone: row.tone,
-                kind: row.kind,
-                summary: row.summary,
-                payload: row.payload,
-                turnId: row.turnId,
-                ...(row.sequence !== null ? { sequence: row.sequence } : {}),
-                createdAt: row.createdAt,
-              }),
-            ),
-            session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
+            };
+            if (row.attachments !== null) {
+              return Object.assign(message, { attachments: row.attachments });
+            }
+            return message;
           }),
-        ).pipe(
+          leafId: threadRow.value.leafId,
+          entries: entryRows.map((row) => ({
+            id: row.entryId,
+            threadId: row.threadId,
+            parentEntryId: row.parentEntryId,
+            kind: row.kind,
+            messageId: row.messageId,
+            turnId: row.turnId,
+            createdAt: row.createdAt,
+          })),
+          proposedPlans: proposedPlanRows.map((row) => ({
+            id: row.planId,
+            turnId: row.turnId,
+            planMarkdown: row.planMarkdown,
+            implementedAt: row.implementedAt,
+            implementationThreadId: row.implementationThreadId,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          })),
+          activities: activityRows.map((row) =>
+            Schema.decodeUnknownSync(OrchestrationThreadActivity)({
+              id: row.activityId,
+              tone: row.tone,
+              kind: row.kind,
+              summary: row.summary,
+              payload: row.payload,
+              turnId: row.turnId,
+              ...(row.sequence !== null ? { sequence: row.sequence } : {}),
+              createdAt: row.createdAt,
+            }),
+          ),
+          session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
+        }).pipe(
           Effect.mapError(
             toPersistenceDecodeError("ThreadProjection.getThreadDetailById:decodeThread"),
           ),

@@ -1,0 +1,71 @@
+{
+  "name": "Honk Goose SVG Construction",
+  "viewBox": "0 0 1024 1024",
+  "sourcePng": "../../honk-app-icon-source.png",
+  "assets": {
+    "primaryTrace": "honk-goose-trace.svg",
+    "loading": "honk-goose-loading.svg",
+    "black": "honk-goose-black.svg",
+    "glossy": "honk-goose-glossy.svg",
+    "transparent": "honk-goose-transparent.svg",
+    "devSketch": "honk-goose-dev-sketch.svg"
+  },
+  "steps": [
+    {
+      "id": "tile",
+      "label": "Rounded blue macOS tile",
+      "intent": "Establish the 1024px icon silhouette and blue brand field.",
+      "animate": "fade-scale",
+      "durationMs": 240
+    },
+    {
+      "id": "tile-rim",
+      "label": "Subtle glossy rim",
+      "intent": "Adds the top-left app-icon polish without changing the silhouette.",
+      "animate": "path-draw",
+      "durationMs": 420
+    },
+    {
+      "id": "body-shadow",
+      "label": "Cool body shadow",
+      "intent": "Draws the pale blue edge that separates the white goose from the blue field.",
+      "animate": "path-draw",
+      "durationMs": 520
+    },
+    {
+      "id": "body",
+      "label": "White goose body",
+      "intent": "Primary goose silhouette: head, neck, chest, tail flick, and lower-right body.",
+      "animate": "path-draw-fill",
+      "durationMs": 760
+    },
+    {
+      "id": "beak",
+      "label": "Orange beak",
+      "intent": "Left-facing beak mass, aligned to the PNG reference.",
+      "animate": "path-draw-fill",
+      "durationMs": 360
+    },
+    {
+      "id": "beak-shade",
+      "label": "Lower beak shade",
+      "intent": "Orange underside line tucked inside the beak, not a separate brown shape.",
+      "animate": "path-draw",
+      "durationMs": 260
+    },
+    {
+      "id": "eye",
+      "label": "Eye and catchlight",
+      "intent": "Black eye with small white highlight for character.",
+      "animate": "pop",
+      "durationMs": 180
+    },
+    {
+      "id": "loading-orbit",
+      "label": "Loading orbit",
+      "intent": "Blue orbit arcs that can rotate around the goose for loading/splash states.",
+      "animate": "loop-rotate",
+      "durationMs": 1180
+    }
+  ]
+}

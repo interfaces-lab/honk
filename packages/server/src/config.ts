@@ -24,14 +24,10 @@ export interface ServerDerivedPaths {
   readonly dbPath: string;
   readonly keybindingsConfigPath: string;
   readonly settingsPath: string;
-  readonly providerStatusCacheDir: string;
   readonly worktreesDir: string;
   readonly attachmentsDir: string;
   readonly logsDir: string;
-  readonly serverLogPath: string;
   readonly serverTracePath: string;
-  readonly providerLogsDir: string;
-  readonly providerEventLogPath: string;
   readonly terminalLogsDir: string;
   readonly anonymousIdPath: string;
   readonly environmentIdPath: string;
@@ -76,21 +72,15 @@ export const deriveServerPaths = Effect.fn(function* (
   const dbPath = join(stateDir, "state.sqlite");
   const attachmentsDir = join(stateDir, "attachments");
   const logsDir = join(stateDir, "logs");
-  const providerLogsDir = join(logsDir, "provider");
-  const providerStatusCacheDir = join(baseDir, "caches");
   return {
     stateDir,
     dbPath,
     keybindingsConfigPath: join(stateDir, "keybindings.json"),
     settingsPath: join(stateDir, "settings.json"),
-    providerStatusCacheDir,
     worktreesDir: join(baseDir, "worktrees"),
     attachmentsDir,
     logsDir,
-    serverLogPath: join(logsDir, "server.log"),
     serverTracePath: join(logsDir, "server.trace.ndjson"),
-    providerLogsDir,
-    providerEventLogPath: join(providerLogsDir, "events.log"),
     terminalLogsDir: join(logsDir, "terminals"),
     anonymousIdPath: join(stateDir, "anonymous-id"),
     environmentIdPath: join(stateDir, "environment-id"),
@@ -107,13 +97,11 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
     [
       fs.makeDirectory(derivedPaths.stateDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.logsDir, { recursive: true }),
-      fs.makeDirectory(derivedPaths.providerLogsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.terminalLogsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.attachmentsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.worktreesDir, { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.keybindingsConfigPath), { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.settingsPath), { recursive: true }),
-      fs.makeDirectory(derivedPaths.providerStatusCacheDir, { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.anonymousIdPath), { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.serverRuntimeStatePath), { recursive: true }),
     ],
@@ -125,7 +113,7 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
  * ServerConfig - Service tag for server runtime configuration.
  */
 export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShape>()(
-  "multi/config/ServerConfig",
+  "honk/config/ServerConfig",
 ) {
   static readonly layerTest = (cwd: string, baseDirOrPrefix: string | { prefix: string }) =>
     Layer.effect(
@@ -151,7 +139,7 @@ export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShap
           otlpTracesUrl: undefined,
           otlpMetricsUrl: undefined,
           otlpExportIntervalMs: 10_000,
-          otlpServiceName: "multi-server",
+          otlpServiceName: "honk-server",
           cwd,
           baseDir,
           ...derivedPaths,

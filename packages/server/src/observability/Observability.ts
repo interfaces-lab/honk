@@ -1,15 +1,33 @@
+import path from "node:path";
+
+import {
+  configureHonkEvlog,
+  configureHonkProcessMetadata,
+  effectLogLevel,
+} from "@honk/shared/logging";
+import { makeLocalFileTracer, makeTraceSink } from "@honk/shared/observability";
 import { Effect, Layer, References, Tracer } from "effect";
 import { OtlpMetrics, OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
-import { makeLocalFileTracer, makeTraceSink } from "@multi/shared/observability";
 
 import { ServerConfig } from "../config.ts";
 import { ServerLoggerLive } from "../server-logger.ts";
 
 const otlpSerializationLayer = OtlpSerialization.layerJson;
+const SERVER_EVLOG_MAX_BYTES = 10 * 1024 * 1024;
 
 export const ObservabilityLive = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig;
+    const processMetadata = configureHonkProcessMetadata("server");
+
+    configureHonkEvlog({
+      filePath: path.join(config.logsDir, "server.log.ndjson"),
+      service: "honk-server",
+      environment: config.mode,
+      minLevel: effectLogLevel(config.logLevel),
+      maxFiles: config.traceMaxFiles,
+      maxSizePerFile: SERVER_EVLOG_MAX_BYTES,
+    });
 
     const traceReferencesLayer = Layer.mergeAll(
       Layer.succeed(Tracer.MinimumTraceLevel, config.traceMinLevel),
@@ -33,8 +51,10 @@ export const ObservabilityLive = Layer.unwrap(
                 resource: {
                   serviceName: config.otlpServiceName,
                   attributes: {
-                    "service.runtime": "multi-server",
+                    "service.runtime": "honk-server",
                     "service.mode": config.mode,
+                    "honk.run_id": processMetadata.runId,
+                    "honk.process_role": processMetadata.processRole,
                   },
                 },
               });
@@ -61,8 +81,10 @@ export const ObservabilityLive = Layer.unwrap(
             resource: {
               serviceName: config.otlpServiceName,
               attributes: {
-                "service.runtime": "multi-server",
+                "service.runtime": "honk-server",
                 "service.mode": config.mode,
+                "honk.run_id": processMetadata.runId,
+                "honk.process_role": processMetadata.processRole,
               },
             },
           }).pipe(Layer.provideMerge(otlpSerializationLayer));

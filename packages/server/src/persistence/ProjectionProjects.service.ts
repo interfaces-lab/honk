@@ -6,7 +6,7 @@
  *
  * @module ProjectionProjectRepository
  */
-import { IsoDateTime, ModelSelection, ProjectId, ProjectScript } from "@multi/contracts";
+import { IsoDateTime, ModelSelection, ProjectId, ProjectScript } from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -76,4 +76,4 @@ export interface ProjectionProjectRepositoryShape {
 export class ProjectionProjectRepository extends Context.Service<
   ProjectionProjectRepository,
   ProjectionProjectRepositoryShape
->()("multi/persistence/ProjectionProjects.service/ProjectionProjectRepository") {}
+>()("honk/persistence/ProjectionProjects.service/ProjectionProjectRepository") {}

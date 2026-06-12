@@ -1,16 +1,14 @@
 import {
-  type AuthBearerBootstrapResult,
+  type AuthBootstrapResult,
   AuthBootstrapInput,
   AuthCreatePairingCredentialInput,
   AuthRevokeClientSessionInput,
   AuthRevokePairingLinkInput,
-  type AuthWebSocketTokenResult,
-} from "@multi/contracts";
-import { DateTime, Effect, Schema } from "effect";
+} from "@honk/contracts";
+import { Effect, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { AuthError, ServerAuth } from "./ServerAuth.service.ts";
-import { SessionCredentialService } from "./SessionCredentialService.service.ts";
 import { deriveAuthClientMetadata } from "./utils.ts";
 
 export const respondToAuthError = (error: AuthError) =>
@@ -63,7 +61,6 @@ export const authBootstrapRouteLayer = HttpRouter.add(
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const serverAuth = yield* ServerAuth;
-    const sessions = yield* SessionCredentialService;
     const payload = yield* HttpServerRequest.schemaBodyJson(AuthBootstrapInput).pipe(
       Effect.mapError(
         (cause) =>
@@ -78,53 +75,7 @@ export const authBootstrapRouteLayer = HttpRouter.add(
       payload.credential,
       deriveAuthClientMetadata({ request }),
     );
-
-    return yield* HttpServerResponse.jsonUnsafe(result.response, { status: 200 }).pipe(
-      HttpServerResponse.setCookie(sessions.cookieName, result.sessionToken, {
-        expires: DateTime.toDate(result.response.expiresAt),
-        httpOnly: true,
-        path: "/",
-        sameSite: "lax",
-      }),
-    );
-  }).pipe(Effect.catchTag("AuthError", (error) => respondToAuthError(error))),
-);
-
-export const authBearerBootstrapRouteLayer = HttpRouter.add(
-  "POST",
-  "/api/auth/bootstrap/bearer",
-  Effect.gen(function* () {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const serverAuth = yield* ServerAuth;
-    const payload = yield* HttpServerRequest.schemaBodyJson(AuthBootstrapInput).pipe(
-      Effect.mapError(
-        (cause) =>
-          new AuthError({
-            message: "Invalid bootstrap payload.",
-            status: 400,
-            cause,
-          }),
-      ),
-    );
-    const result = yield* serverAuth.exchangeBootstrapCredentialForBearerSession(
-      payload.credential,
-      deriveAuthClientMetadata({ request }),
-    );
-    return HttpServerResponse.jsonUnsafe(result satisfies AuthBearerBootstrapResult, {
-      status: 200,
-    });
-  }).pipe(Effect.catchTag("AuthError", (error) => respondToAuthError(error))),
-);
-
-export const authWebSocketTokenRouteLayer = HttpRouter.add(
-  "POST",
-  "/api/auth/ws-token",
-  Effect.gen(function* () {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const serverAuth = yield* ServerAuth;
-    const session = yield* serverAuth.authenticateHttpRequest(request);
-    const result = yield* serverAuth.issueWebSocketToken(session);
-    return HttpServerResponse.jsonUnsafe(result satisfies AuthWebSocketTokenResult, {
+    return HttpServerResponse.jsonUnsafe(result satisfies AuthBootstrapResult, {
       status: 200,
     });
   }).pipe(Effect.catchTag("AuthError", (error) => respondToAuthError(error))),

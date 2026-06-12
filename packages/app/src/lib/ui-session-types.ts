@@ -1,11 +1,11 @@
-import type { OrchestrationSessionStatus } from "@multi/contracts";
+import type { OrchestrationSessionStatus } from "@honk/contracts";
 
 /**
- * UI session types (formerly in @multi/contracts).
+ * UI session types (formerly in @honk/contracts).
  *
- * Types that already exist in @multi/contracts (ProviderDriverKind, ThreadId,
- * ModelSelection, ProviderInteractionMode, etc.) are NOT duplicated here --
- * import those directly from @multi/contracts.
+ * Types that already exist in @honk/contracts (ThreadId, ModelSelection,
+ * AgentInteractionMode, etc.) are NOT duplicated here --
+ * import those directly from @honk/contracts.
  */
 
 // ── Primitive ────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export interface UiAskQuestion {
   id: string;
   text: string;
   options: UiAskOption[];
-  multi?: boolean;
+  honk?: boolean;
   optional?: boolean;
 }
 
@@ -274,7 +274,6 @@ export interface HarnessModelRef {
 }
 
 export interface HarnessCapabilities {
-  modelPicker: boolean;
   thinkingLevels: boolean;
   commands: boolean;
   interactive: boolean;
@@ -323,7 +322,7 @@ export interface UiSkill {
   body: string;
 }
 
-// ── Git (Glass-specific shapes, not in @multi/contracts) ───────────
+// ── Git (Glass-specific shapes, not in @honk/contracts) ───────────
 
 export type GitFileState =
   | "modified"
@@ -357,15 +356,3 @@ export interface GitState {
   behind: number;
   files: GitFileSummary[];
 }
-
-// ── Provider notice ──────────────────────────────────────────────────
-
-export const PROVIDER_NOTICE_KIND = {
-  rateLimit: "provider.notice.rate-limit",
-  auth: "provider.notice.auth",
-  config: "provider.notice.config",
-} as const;
-
-export type ProviderNoticeKind = (typeof PROVIDER_NOTICE_KIND)[keyof typeof PROVIDER_NOTICE_KIND];
-
-export const PROVIDER_NOTICE_KINDS = Object.values(PROVIDER_NOTICE_KIND);

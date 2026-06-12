@@ -1,4 +1,4 @@
-import { ModelSelection, ProjectId, ProjectScript } from "@multi/contracts";
+import { ModelSelection, ProjectId, ProjectScript } from "@honk/contracts";
 import { Schema, Struct } from "effect";
 
 import { ProjectionProject } from "../persistence/ProjectionProjects.service.ts";

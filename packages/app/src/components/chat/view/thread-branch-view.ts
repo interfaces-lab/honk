@@ -2,19 +2,12 @@ import {
   formatThreadEntryPathIssue,
   resolveThreadEntryPath,
   type MessageId,
-  type OrchestrationChatTimelineRow,
   type OrchestrationThreadActivity,
   type ThreadEntryId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
-import type { ChatMessage, ProposedPlan, Thread, ThreadTreeEntry } from "../../../types";
-import {
-  deriveWorkLogEntries,
-  type TimelineEntry,
-  type WorkLogDerivationOptions,
-  type WorkLogEntry,
-} from "../../../session-logic";
+import type { ChatMessage, Thread, ThreadTreeEntry } from "../../../types";
 
 /**
  * Result of projecting a thread tree onto a single branch path. When `status`
@@ -120,9 +113,9 @@ export function filterMessagesToBranch(
 }
 
 export function filterActivitiesToBranch(
-  activities: OrchestrationThreadActivity[],
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
   branchView: ThreadBranchView,
-): OrchestrationThreadActivity[] {
+): ReadonlyArray<OrchestrationThreadActivity> {
   const turnIds = branchView.turnIds;
   if (branchView.status === "invalid") {
     return [];
@@ -131,183 +124,6 @@ export function filterActivitiesToBranch(
     return activities;
   }
   return activities.filter((activity) => activity.turnId !== null && turnIds.has(activity.turnId));
-}
-
-export function filterChatTimelineRowsToBranch(
-  rows: ReadonlyArray<OrchestrationChatTimelineRow>,
-  branchView: ThreadBranchView,
-): OrchestrationChatTimelineRow[] {
-  if (branchView.status === "invalid") {
-    return [];
-  }
-  if (branchView.status === "unfiltered") {
-    return [...rows];
-  }
-
-  const messageIds = branchView.messageIds;
-  const entryIds = branchView.entryIds;
-  const turnIds = branchView.turnIds;
-
-  return rows.filter((row) => {
-    switch (row.kind) {
-      case "message":
-        if (row.entryId !== null) {
-          return entryIds?.has(row.entryId) ?? false;
-        }
-        return messageIds?.has(row.messageId) ?? false;
-      case "work":
-        return row.turnId === null || (turnIds?.has(row.turnId) ?? false);
-      case "proposed-plan":
-        return row.turnId !== null && (turnIds?.has(row.turnId) ?? false);
-    }
-  });
-}
-
-export function materializeTimelineEntriesFromChatTimelineRows(input: {
-  rows: ReadonlyArray<OrchestrationChatTimelineRow>;
-  messages: ReadonlyArray<ChatMessage>;
-  proposedPlans: ReadonlyArray<ProposedPlan>;
-  activities: ReadonlyArray<OrchestrationThreadActivity>;
-  workLogOptions?: WorkLogDerivationOptions;
-}): TimelineEntry[] {
-  const messagesById = new Map(input.messages.map((message) => [message.id, message] as const));
-  const proposedPlansById = new Map(
-    input.proposedPlans.map((proposedPlan) => [proposedPlan.id, proposedPlan] as const),
-  );
-  const activitiesById = new Map(
-    input.activities.map((activity) => [activity.id, activity] as const),
-  );
-  const workEntriesByRowId = buildWorkEntriesByTimelineRowId({
-    rows: input.rows,
-    activities: input.activities,
-    ...(input.workLogOptions ? { workLogOptions: input.workLogOptions } : {}),
-  });
-  const entries: TimelineEntry[] = [];
-
-  for (const row of input.rows) {
-    switch (row.kind) {
-      case "message": {
-        const message = messagesById.get(row.messageId);
-        if (!message) {
-          continue;
-        }
-        entries.push({
-          id: row.id,
-          kind: "message",
-          createdAt: row.createdAt,
-          message,
-        });
-        break;
-      }
-      case "proposed-plan": {
-        const proposedPlan = proposedPlansById.get(row.planId);
-        if (!proposedPlan) {
-          continue;
-        }
-        entries.push({
-          id: row.id,
-          kind: "proposed-plan",
-          createdAt: row.createdAt,
-          proposedPlan,
-        });
-        break;
-      }
-      case "work": {
-        const workEntry = workEntriesByRowId.get(row.id);
-        if (!workEntry) {
-          continue;
-        }
-        entries.push({
-          id: row.id,
-          kind: "work",
-          createdAt: row.createdAt,
-          entry: workEntry,
-        });
-        break;
-      }
-    }
-  }
-
-  return entries;
-}
-
-function buildWorkEntriesByTimelineRowId(input: {
-  rows: ReadonlyArray<OrchestrationChatTimelineRow>;
-  activities: ReadonlyArray<OrchestrationThreadActivity>;
-  workLogOptions?: WorkLogDerivationOptions;
-}): Map<string, WorkLogEntry> {
-  const relevantActivityIds = new Set<string>();
-  const visibleParentItemIds = new Set<string>();
-  const visibleProviderThreadIds = new Set<string>();
-
-  for (const row of input.rows) {
-    if (row.kind === "work") {
-      for (const activityId of row.activityIds) {
-        relevantActivityIds.add(activityId);
-      }
-      if (row.toolCallId) {
-        visibleParentItemIds.add(row.toolCallId);
-      }
-      continue;
-    }
-  }
-
-  for (const activity of input.activities) {
-    if (!isSubagentRuntimeActivity(activity)) {
-      continue;
-    }
-    const payload = asRecord(activity.payload);
-    const parentItemId = asTrimmedString(payload?.parentItemId);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
-    if (parentItemId && visibleParentItemIds.has(parentItemId) && providerThreadId) {
-      visibleProviderThreadIds.add(providerThreadId);
-    }
-  }
-
-  const relevantActivities = input.activities.filter((activity) => {
-    if (relevantActivityIds.has(activity.id)) {
-      return true;
-    }
-    if (!isSubagentRuntimeActivity(activity)) {
-      return false;
-    }
-    const payload = asRecord(activity.payload);
-    const parentItemId = asTrimmedString(payload?.parentItemId);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
-    return (
-      (parentItemId !== undefined && visibleParentItemIds.has(parentItemId)) ||
-      (providerThreadId !== undefined && visibleProviderThreadIds.has(providerThreadId))
-    );
-  });
-
-  const workEntries = deriveWorkLogEntries(
-    relevantActivities,
-    undefined,
-    input.workLogOptions ?? {},
-  );
-  const byRowId = new Map<string, WorkLogEntry>();
-  for (const workEntry of workEntries) {
-    if (workEntry.isToolSummary) {
-      byRowId.set(`tool-summary:${workEntry.id}`, workEntry);
-      continue;
-    }
-    byRowId.set(`work:${workEntry.id}`, workEntry);
-    byRowId.set(`work:activity:${workEntry.id}`, workEntry);
-    byRowId.set(`global-status:${workEntry.id}`, workEntry);
-  }
-  return byRowId;
-}
-
-function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boolean {
-  return activity.kind.startsWith("subagent.");
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
-
-function asTrimmedString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export function containsThreadEntry(

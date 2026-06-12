@@ -1,5 +1,6 @@
-import { NetService } from "@multi/shared/Net";
-import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
+import { NetService } from "@honk/shared/Net";
+import { configureHonkProcessMetadata, HONK_RUN_ID_ENV } from "@honk/shared/logging";
+import { parsePersistedServerObservabilitySettings } from "@honk/shared/server-settings";
 import {
   AuthSessionId,
   CommandId,
@@ -8,7 +9,7 @@ import {
   OrchestrationReadModel,
   ProjectId,
   type ClientOrchestrationCommand,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   Config,
   Console,
@@ -73,10 +74,11 @@ const BootstrapEnvelopeSchema = Schema.Struct({
   mode: Schema.optional(RuntimeMode),
   port: Schema.optional(PortSchema),
   host: Schema.optional(Schema.String),
-  multiHome: Schema.optional(Schema.String),
+  honkHome: Schema.optional(Schema.String),
   devUrl: Schema.optional(Schema.URLFromString),
   noBrowser: Schema.optional(Schema.Boolean),
   desktopBootstrapToken: Schema.optional(Schema.String),
+  runId: Schema.optional(Schema.String),
   autoBootstrapProjectFromCwd: Schema.optional(Schema.Boolean),
   logWebSocketEvents: Schema.optional(Schema.Boolean),
   otlpTracesUrl: Schema.optional(Schema.String),
@@ -99,7 +101,7 @@ const hostFlag = Flag.string("host").pipe(
   Flag.optional,
 );
 const baseDirFlag = Flag.string("base-dir").pipe(
-  Flag.withDescription("Base directory path (equivalent to MULTI_HOME)."),
+  Flag.withDescription("Base directory path (equivalent to HONK_HOME)."),
   Flag.optional,
 );
 const devUrlFlag = Flag.string("dev-url").pipe(
@@ -124,58 +126,58 @@ const autoBootstrapProjectFromCwdFlag = Flag.boolean("auto-bootstrap-project-fro
 );
 const logWebSocketEventsFlag = Flag.boolean("log-websocket-events").pipe(
   Flag.withDescription(
-    "Emit server-side logs for outbound WebSocket push traffic (equivalent to MULTI_LOG_WS_EVENTS).",
+    "Emit server-side logs for outbound WebSocket push traffic (equivalent to HONK_LOG_WS_EVENTS).",
   ),
   Flag.withAlias("log-ws-events"),
   Flag.optional,
 );
 
 const EnvServerConfig = Config.all({
-  logLevel: Config.logLevel("MULTI_LOG_LEVEL").pipe(Config.withDefault("Info")),
-  traceMinLevel: Config.logLevel("MULTI_TRACE_MIN_LEVEL").pipe(Config.withDefault("Info")),
-  traceTimingEnabled: Config.boolean("MULTI_TRACE_TIMING_ENABLED").pipe(Config.withDefault(true)),
-  traceFile: Config.string("MULTI_TRACE_FILE").pipe(
+  logLevel: Config.logLevel("HONK_LOG_LEVEL").pipe(Config.withDefault("Info")),
+  traceMinLevel: Config.logLevel("HONK_TRACE_MIN_LEVEL").pipe(Config.withDefault("Info")),
+  traceTimingEnabled: Config.boolean("HONK_TRACE_TIMING_ENABLED").pipe(Config.withDefault(true)),
+  traceFile: Config.string("HONK_TRACE_FILE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  traceMaxBytes: Config.int("MULTI_TRACE_MAX_BYTES").pipe(Config.withDefault(10 * 1024 * 1024)),
-  traceMaxFiles: Config.int("MULTI_TRACE_MAX_FILES").pipe(Config.withDefault(10)),
-  traceBatchWindowMs: Config.int("MULTI_TRACE_BATCH_WINDOW_MS").pipe(Config.withDefault(200)),
-  otlpTracesUrl: Config.string("MULTI_OTLP_TRACES_URL").pipe(
+  traceMaxBytes: Config.int("HONK_TRACE_MAX_BYTES").pipe(Config.withDefault(10 * 1024 * 1024)),
+  traceMaxFiles: Config.int("HONK_TRACE_MAX_FILES").pipe(Config.withDefault(10)),
+  traceBatchWindowMs: Config.int("HONK_TRACE_BATCH_WINDOW_MS").pipe(Config.withDefault(200)),
+  otlpTracesUrl: Config.string("HONK_OTLP_TRACES_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpMetricsUrl: Config.string("MULTI_OTLP_METRICS_URL").pipe(
+  otlpMetricsUrl: Config.string("HONK_OTLP_METRICS_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpExportIntervalMs: Config.int("MULTI_OTLP_EXPORT_INTERVAL_MS").pipe(
+  otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(
     Config.withDefault(10_000),
   ),
-  otlpServiceName: Config.string("MULTI_OTLP_SERVICE_NAME").pipe(
-    Config.withDefault("multi-server"),
+  otlpServiceName: Config.string("HONK_OTLP_SERVICE_NAME").pipe(
+    Config.withDefault("honk-server"),
   ),
-  mode: Config.schema(RuntimeMode, "MULTI_MODE").pipe(
+  mode: Config.schema(RuntimeMode, "HONK_MODE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  port: Config.port("MULTI_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  host: Config.string("MULTI_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  multiHome: Config.string("MULTI_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  port: Config.port("HONK_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  host: Config.string("HONK_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  honkHome: Config.string("HONK_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
   devUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  noBrowser: Config.boolean("MULTI_NO_BROWSER").pipe(
+  noBrowser: Config.boolean("HONK_NO_BROWSER").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  bootstrapFd: Config.int("MULTI_BOOTSTRAP_FD").pipe(
+  bootstrapFd: Config.int("HONK_BOOTSTRAP_FD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  autoBootstrapProjectFromCwd: Config.boolean("MULTI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
+  autoBootstrapProjectFromCwd: Config.boolean("HONK_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  logWebSocketEvents: Config.boolean("MULTI_LOG_WS_EVENTS").pipe(
+  logWebSocketEvents: Config.boolean("HONK_LOG_WS_EVENTS").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
@@ -245,6 +247,9 @@ export const resolveServerConfig = (
         ? yield* readBootstrapEnvelope(BootstrapEnvelopeSchema, bootstrapFd)
         : Option.none();
     const bootstrap = Option.getOrUndefined(bootstrapEnvelope);
+    if (bootstrap?.runId) {
+      process.env[HONK_RUN_ID_ENV] = bootstrap.runId;
+    }
 
     const mode: RuntimeMode = Option.getOrElse(
       resolveOptionPrecedence(
@@ -283,8 +288,8 @@ export const resolveServerConfig = (
       Option.getOrUndefined(
         resolveOptionPrecedence(
           normalizedFlags.baseDir,
-          Option.fromUndefinedOr(env.multiHome),
-          Option.fromUndefinedOr(bootstrap?.multiHome),
+          Option.fromUndefinedOr(env.honkHome),
+          Option.fromUndefinedOr(bootstrap?.honkHome),
         ),
       ),
     );
@@ -513,7 +518,7 @@ const withProjectCliSessionToken = <A, E, R>(
   Effect.acquireUseRelease(
     authControlPlane.issueSession({
       role: "owner",
-      label: "multi project cli",
+      label: "honk project cli",
     }),
     (issued) => run(issued.token),
     (issued) => authControlPlane.revokeSession(issued.sessionId).pipe(Effect.ignore({ log: true })),
@@ -765,7 +770,7 @@ const sharedServerCommandFlags = {
   baseDir: baseDirFlag,
   cwd: Argument.string("cwd").pipe(
     Argument.withDescription(
-      "Working directory for provider sessions (defaults to the current directory).",
+      "Working directory for runtime sessions (defaults to the current directory).",
     ),
     Argument.optional,
   ),
@@ -1162,16 +1167,19 @@ const runServerCommand = (
   Effect.gen(function* () {
     const logLevel = yield* GlobalFlag.LogLevel;
     const config = yield* resolveServerConfig(flags, logLevel, options);
+    const { runId, processInstanceId, processRole } = configureHonkProcessMetadata("server");
+    yield* Effect.annotateLogsScoped({ scope: "server", runId, processInstanceId, processRole });
+    yield* Effect.annotateCurrentSpan({ scope: "server", runId, processInstanceId, processRole });
     return yield* runServer.pipe(Effect.provideService(ServerConfig, config));
   });
 
 const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
-  Command.withDescription("Run the Multi server."),
+  Command.withDescription("Run the Honk server."),
   Command.withHandler((flags) => runServerCommand(flags)),
 );
 
 const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe(
-  Command.withDescription("Run the Multi server without opening a browser and print auth details."),
+  Command.withDescription("Run the Honk server without opening a browser and print auth details."),
   Command.withHandler((flags) =>
     runServerCommand(flags, {
       startupPresentation: "headless",
@@ -1180,8 +1188,8 @@ const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe
   ),
 );
 
-export const cli = Command.make("multi", { ...sharedServerCommandFlags }).pipe(
-  Command.withDescription("Run the Multi server."),
+export const cli = Command.make("honk", { ...sharedServerCommandFlags }).pipe(
+  Command.withDescription("Run the Honk server."),
   Command.withHandler((flags) => runServerCommand(flags)),
   Command.withSubcommands([startCommand, serveCommand, authCommand, projectCommand]),
 );

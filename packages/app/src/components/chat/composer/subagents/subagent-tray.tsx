@@ -2,48 +2,70 @@ import {
   isToolLifecycleItemType,
   type EnvironmentId,
   MessageId,
-  type ProviderThreadSnapshot,
-  type ProviderThreadSnapshotItem,
   type ThreadId,
   type ToolLifecycleItemType,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { IconCrossSmall } from "central-icons";
-import { memo, useEffect, useMemo, useState } from "react";
 import {
-  ExpandableToolMetadataLine,
-  ToolCallLine,
-} from "../../message/tool-renderer";
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type RefObject,
+} from "react";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import { Button } from "@honk/honkkit/button";
+import { ToolCallLine } from "@honk/honkkit/tool-call";
+import { ExpandableToolMetadataLine } from "../../message/tool-renderer";
 import { cn } from "~/lib/utils";
-import { readEnvironmentApi } from "~/environment-api";
 import {
   type SubagentTranscriptItem,
+  type ToolDisplayArtifact,
   type WorkLogEntry,
+  type WorkLogSubagent,
   type WorkLogSubagentLog,
 } from "../../../../session-logic";
 import {
   isSubagentTrayLogVisible,
-  subagentTrayKey,
   useSubagentTrayStore,
   type SubagentTraySelection,
 } from "../../../../stores/subagent-tray-store";
 import {
-  StepRenderer,
-  type StepRendererContext,
-} from "../../timeline/step-renderer";
+  refreshSubagentActivityProjection,
+  selectSubagentProjection,
+  useSubagentActivityStore,
+} from "../../../../stores/subagent-activity-store";
+import { StepRenderer, type StepRendererContext } from "../../timeline/step-renderer";
 import { type TimelineStep } from "../../timeline/timeline-render-items";
 
 const EMPTY_SUBAGENT_LOGS: ReadonlyArray<WorkLogSubagentLog> = [];
 const EMPTY_SUBAGENT_TRANSCRIPT_ITEMS: ReadonlyArray<SubagentTranscriptItem> = [];
-const EMPTY_SUBAGENT_SNAPSHOT_ITEMS: ReadonlyArray<SubagentSnapshotListItem> = [];
-type WorkLogStatus = NonNullable<WorkLogEntry["status"]>;
-const SUBAGENT_SNAPSHOT_ITEMS_CAP = 200;
+const DEFAULT_SUBAGENT_TRAY_RECT = { width: 0, height: 360 };
+const SUBAGENT_TRANSCRIPT_OVERSCAN = 8;
+const SUBAGENT_TRANSCRIPT_ROW_GAP_PX = 8;
+const SUBAGENT_TRANSCRIPT_NEAR_BOTTOM_PX = 48;
 
-export interface SubagentSnapshotListItem {
-  readonly key: string;
-  readonly item: ProviderThreadSnapshotItem;
-}
+type SubagentTrayVirtualRow =
+  | {
+      readonly kind: "transcript";
+      readonly id: string;
+      readonly item: SubagentTranscriptItem;
+      readonly streaming: boolean;
+    }
+  | {
+      readonly kind: "log";
+      readonly id: string;
+      readonly log: WorkLogSubagentLog;
+      readonly loading: boolean;
+    }
+  | {
+      readonly kind: "empty";
+      readonly id: string;
+    };
 
-export const SubagentTrayStack = memo(function SubagentTrayStack(props: {
+export function SubagentTrayStack(props: {
   activeThreadId: ThreadId | null;
   compact: boolean;
   visible: boolean;
@@ -84,7 +106,7 @@ export const SubagentTrayStack = memo(function SubagentTrayStack(props: {
         data-subagent-followup-tray-stack=""
       >
         <div
-          className={cn("font-multi text-conversation", props.compact ? "w-full" : "")}
+          className={cn("font-honk text-conversation", props.compact ? "w-full" : "")}
           data-subagent-followup-tray=""
           data-subagent-tray-open=""
         >
@@ -93,7 +115,7 @@ export const SubagentTrayStack = memo(function SubagentTrayStack(props: {
       </div>
     </>
   );
-});
+}
 
 export function shouldPresentSubagentTray(input: {
   activeThreadId: ThreadId | null;
@@ -132,204 +154,386 @@ function SubagentTrayActiveThreadSync({
   return null;
 }
 
-const SubagentTray = memo(function SubagentTray(props: {
-  selection: SubagentTraySelection;
-  onClose: () => void;
-}) {
+function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => void }) {
   const { selection, onClose } = props;
-  const subagent = selection.subagent;
-  const title = subagent.title ?? subagent.nickname ?? subagent.role;
+  useEffect(() => {
+    refreshSubagentActivityProjection({
+      environmentId: selection.environmentId,
+      threadId: selection.activeThreadId,
+    });
+  }, [selection.activeThreadId, selection.environmentId, selection.key]);
+  const subagent = useFocusedSubagent(selection);
+  const title = subagent?.title ?? subagent?.nickname ?? subagent?.role ?? "Subagent";
+  const subagentThreadId = subagent?.subagentThreadId ?? selection.subagentThreadId;
 
   return (
     <div
-      className="flex w-full min-w-0 flex-col overflow-hidden text-multi-fg-primary"
+      className="flex w-full min-w-0 flex-col overflow-hidden text-honk-fg-primary"
       data-subagent-tray-container=""
-      data-subagent-provider-thread-id={subagent.providerThreadId}
+      data-subagent-thread-id={subagentThreadId}
     >
       <div
         className="flex min-w-0 shrink-0 items-center gap-2 px-3 py-2"
         data-subagent-tray-header=""
       >
-        {title ? (
-          <div
-            className="min-w-0 flex-1 truncate text-title font-medium text-multi-fg-primary"
-            title={title}
-          >
-            {title}
-          </div>
-        ) : null}
-        <button
-          type="button"
-          className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-multi-control border-0 bg-transparent text-multi-icon-secondary transition-colors hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+        <div
+          className="min-w-0 flex-1 truncate text-title font-medium text-honk-fg-primary"
+          title={title}
+        >
+          {title}
+        </div>
+        <Button
+          className="ml-auto shrink-0 text-honk-icon-secondary hover:text-honk-icon-primary"
+          size="icon-sm"
+          variant="ghost"
           aria-label="Close subagent tray"
           title="Close subagent tray"
           onClick={onClose}
         >
           <IconCrossSmall className="size-3.5" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
-      <SubagentTrayBody key={subagentTrayBodyKey(selection)} selection={selection} />
+      <SubagentTrayBody
+        key={subagentTrayBodyKey(selection)}
+        selection={selection}
+        subagent={subagent}
+      />
     </div>
   );
-});
+}
 
 function subagentTrayBodyKey(selection: SubagentTraySelection): string {
-  const subagent = selection.subagent;
   return [
     selection.activeThreadId,
     selection.environmentId,
-    subagentTrayKey(subagent),
-    subagent.providerThreadId?.trim() ?? "",
-    subagent.isActive === true ? "1" : "0",
+    selection.key,
+    selection.subagentThreadId?.trim() ?? "",
+    selection.threadId ?? "",
+    selection.agentId ?? "",
   ].join("\u001f");
 }
 
-type SubagentSnapshotState =
-  | { readonly status: "idle" }
-  | { readonly status: "loading" }
-  | { readonly status: "loaded"; readonly snapshot: ProviderThreadSnapshot }
-  | { readonly status: "error"; readonly message: string };
-
-const SubagentTrayBody = memo(function SubagentTrayBody(props: {
+function SubagentTrayBody(props: {
   selection: SubagentTraySelection;
+  subagent: WorkLogSubagent | null;
 }) {
-  const { activeThreadId, environmentId, projectRoot, subagent } = props.selection;
-  const [snapshotState, setSnapshotState] = useState<SubagentSnapshotState>({ status: "idle" });
-  const providerThreadId = subagent.providerThreadId?.trim();
-  const canReadTranscript = (providerThreadId?.length ?? 0) > 0;
-  const transcriptItems = subagent.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
+  const { activeThreadId, environmentId, projectRoot } = props.selection;
+  const { subagent } = props;
+  const transcriptItems = subagent?.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
+  const logs = subagent?.logs ?? EMPTY_SUBAGENT_LOGS;
   const renderableTranscriptItems = useMemo(
     () => transcriptItems.filter(hasRenderableSubagentTranscriptItem),
     [transcriptItems],
   );
   const hasActivityTranscript = renderableTranscriptItems.length > 0;
-  const hasSnapshotTranscript =
-    snapshotState.status === "loaded" && snapshotHasItems(snapshotState.snapshot);
-  const hasCanonicalTranscript = hasActivityTranscript || hasSnapshotTranscript;
-  const logs = subagent.logs ?? EMPTY_SUBAGENT_LOGS;
   const runningLogs = useMemo(
-    () => deriveVisibleSubagentLogs(logs, hasCanonicalTranscript),
-    [hasCanonicalTranscript, logs],
+    () => deriveVisibleSubagentLogs(logs, hasActivityTranscript),
+    [hasActivityTranscript, logs],
   );
   const streamingLogId = runningLogs.at(-1)?.id;
-
-  useEffect(() => {
-    if (!canReadTranscript || !providerThreadId || hasActivityTranscript) {
-      return;
-    }
-
-    const api = readEnvironmentApi(environmentId);
-    if (!api) {
-      setSnapshotState({ status: "error", message: "Environment API unavailable." });
-      return;
-    }
-
-    let cancelled = false;
-
-    setSnapshotState((current) => (current.status === "loaded" ? current : { status: "loading" }));
-
-    void api.orchestration
-      .getProviderThreadSnapshot({
-        threadId: activeThreadId,
-        providerThreadId,
-        includeTurns: true,
-      })
-      .then((snapshot) => {
-        if (cancelled) {
-          return;
-        }
-        setSnapshotState({ status: "loaded", snapshot });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setSnapshotState({
-          status: "error",
-          message: error instanceof Error ? error.message : "Failed to load thread snapshot.",
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeThreadId, canReadTranscript, environmentId, hasActivityTranscript, providerThreadId]);
+  const scrollElementRef = useRef<HTMLDivElement | null>(null);
+  const isStreaming = subagent?.isActive === true;
+  const rows = useMemo(
+    () =>
+      deriveSubagentTrayVirtualRows({
+        items: renderableTranscriptItems,
+        isStreaming,
+        logs: runningLogs,
+        streamingLogId,
+      }),
+    [isStreaming, renderableTranscriptItems, runningLogs, streamingLogId],
+  );
 
   return (
     <div
+      ref={scrollElementRef}
       data-subagent-tray-body=""
-      className="flex min-h-0 min-w-0 flex-1 flex-col gap-(--chat-timeline-step-gap) overflow-y-auto overscroll-contain px-3 py-2 text-conversation text-multi-fg-primary"
+      className="min-h-0 min-w-0 flex-1 px-3 py-2 text-conversation text-honk-fg-primary"
     >
-      {hasActivityTranscript ? (
-        <SubagentActivityTranscriptSection
-          activeThreadId={activeThreadId}
-          environmentId={environmentId}
-          isStreaming={subagent.isActive === true}
-          items={renderableTranscriptItems}
-          projectRoot={projectRoot}
-        />
-      ) : canReadTranscript ? (
-        <SubagentSnapshotSection
-          activeThreadId={activeThreadId}
-          environmentId={environmentId}
-          isStreaming={subagent.isActive === true}
-          projectRoot={projectRoot}
-          snapshotState={snapshotState}
-        />
-      ) : null}
-      {runningLogs.length > 0 ? (
-        <div
-          data-subagent-running-log=""
-          className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
-        >
-          {runningLogs.map((log) => (
-            <SubagentActivityLine
-              key={log.id}
-              action={log.label}
-              detail={log.detail}
-              loading={log.id === streamingLogId}
-            />
-          ))}
-        </div>
-      ) : null}
-      {!hasActivityTranscript && !canReadTranscript && runningLogs.length === 0 ? (
-        <div className="py-1 text-detail text-multi-fg-tertiary">No thread content yet.</div>
-      ) : null}
+      <SubagentTrayVirtualRows
+        activeThreadId={activeThreadId}
+        environmentId={environmentId}
+        isStreaming={isStreaming}
+        projectRoot={projectRoot}
+        rows={rows}
+        scrollElementRef={scrollElementRef}
+      />
     </div>
   );
-});
+}
 
-const SubagentActivityTranscriptSection = memo(function SubagentActivityTranscriptSection({
+function deriveSubagentTrayVirtualRows(input: {
+  items: ReadonlyArray<SubagentTranscriptItem>;
+  isStreaming: boolean;
+  logs: ReadonlyArray<WorkLogSubagentLog>;
+  streamingLogId: string | undefined;
+}): ReadonlyArray<SubagentTrayVirtualRow> {
+  if (input.items.length === 0 && input.logs.length === 0) {
+    return [{ kind: "empty", id: "empty" }];
+  }
+
+  const rows: SubagentTrayVirtualRow[] = [];
+  for (const [index, item] of input.items.entries()) {
+    rows.push({
+      kind: "transcript",
+      id: `transcript:${item.id}`,
+      item,
+      streaming: input.isStreaming && index === input.items.length - 1 && item.loading,
+    });
+  }
+  for (const log of input.logs) {
+    rows.push({
+      kind: "log",
+      id: `log:${log.id}`,
+      log,
+      loading: log.id === input.streamingLogId,
+    });
+  }
+  return rows;
+}
+
+function useFocusedSubagent(selection: SubagentTraySelection): WorkLogSubagent | null {
+  return useSubagentActivityStore((state) => {
+    const subagentThreadId = selectedSubagentThreadId(selection);
+    if (!subagentThreadId) {
+      return null;
+    }
+    return (
+      selectSubagentProjection(state, {
+        environmentId: selection.environmentId,
+        threadId: selection.activeThreadId,
+      }).subagentById[subagentThreadId] ?? null
+    );
+  });
+}
+
+function selectedSubagentThreadId(selection: SubagentTraySelection): string | null {
+  return (
+    selection.subagentThreadId?.trim() || selection.threadId?.trim() || selection.key.trim() || null
+  );
+}
+
+function SubagentTrayVirtualRows({
   activeThreadId,
   environmentId,
   isStreaming,
-  items,
   projectRoot,
+  rows,
+  scrollElementRef,
 }: {
   activeThreadId: ThreadId;
   environmentId: EnvironmentId;
   isStreaming: boolean;
-  items: ReadonlyArray<SubagentTranscriptItem>;
   projectRoot: string | undefined;
+  rows: ReadonlyArray<SubagentTrayVirtualRow>;
+  scrollElementRef: RefObject<HTMLDivElement | null>;
 }) {
+  const shouldFollowScrollRef = useRef(true);
+  const estimateSize = useCallback(
+    (index: number) => estimateSubagentTrayVirtualRowSize(rows[index]),
+    [rows],
+  );
+  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: rows.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize,
+    getItemKey: (index) => rows[index]?.id ?? index,
+    overscan: SUBAGENT_TRANSCRIPT_OVERSCAN,
+    initialRect: DEFAULT_SUBAGENT_TRAY_RECT,
+    anchorTo: "end",
+    followOnAppend: true,
+    scrollEndThreshold: SUBAGENT_TRANSCRIPT_NEAR_BOTTOM_PX,
+    useAnimationFrameWithResizeObserver: true,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const virtualContentHeight = rowVirtualizer.getTotalSize();
+  const virtualContentStyle = {
+    height: virtualContentHeight,
+    position: "relative",
+  } satisfies CSSProperties;
+
+  useEffect(() => {
+    const scrollElement = scrollElementRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const updateShouldFollowScroll = () => {
+      shouldFollowScrollRef.current =
+        scrollElement.scrollHeight -
+          scrollElement.scrollTop -
+          scrollElement.clientHeight <=
+        SUBAGENT_TRANSCRIPT_NEAR_BOTTOM_PX;
+    };
+
+    updateShouldFollowScroll();
+    scrollElement.addEventListener("scroll", updateShouldFollowScroll, { passive: true });
+    return () => scrollElement.removeEventListener("scroll", updateShouldFollowScroll);
+  }, [scrollElementRef]);
+
+  useEffect(() => {
+    if (!isStreaming || !shouldFollowScrollRef.current || rows.length === 0) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const scrollElement = scrollElementRef.current;
+      if (!scrollElement) {
+        return;
+      }
+      scrollElement.scrollTop = scrollElement.scrollHeight - scrollElement.clientHeight;
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isStreaming, rows.length, scrollElementRef, virtualContentHeight]);
+
   return (
     <div
-      data-subagent-activity-transcript=""
-      className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
+      data-subagent-tray-virtual-content=""
+      className="relative min-w-0"
+      style={virtualContentStyle}
     >
-      {items.map((item, index) => (
-        <SubagentTranscriptItemRow
-          key={item.id}
-          activeThreadId={activeThreadId}
-          environmentId={environmentId}
-          isStreaming={isStreaming && index === items.length - 1 && item.loading}
-          item={item}
-          projectRoot={projectRoot}
-        />
-      ))}
+      {virtualItems.map((virtualRow) => {
+        const row = rows[virtualRow.index];
+        if (!row) {
+          return null;
+        }
+
+        return (
+          <div
+            key={virtualRow.key}
+            ref={rowVirtualizer.measureElement}
+            data-index={virtualRow.index}
+            className="absolute left-0 top-0 w-full pb-(--chat-timeline-step-gap) [contain:layout]"
+            style={subagentVirtualRowStyle(virtualRow)}
+          >
+            <SubagentTrayVirtualRowContent
+              activeThreadId={activeThreadId}
+              environmentId={environmentId}
+              projectRoot={projectRoot}
+              row={row}
+            />
+          </div>
+        );
+      })}
     </div>
   );
-});
+}
+
+const SubagentTrayVirtualRowContent = memo(function SubagentTrayVirtualRowContent({
+  activeThreadId,
+  environmentId,
+  projectRoot,
+  row,
+}: {
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  projectRoot: string | undefined;
+  row: SubagentTrayVirtualRow;
+}) {
+  switch (row.kind) {
+    case "transcript":
+      return (
+        <SubagentTranscriptItemRow
+          activeThreadId={activeThreadId}
+          environmentId={environmentId}
+          isStreaming={row.streaming}
+          item={row.item}
+          projectRoot={projectRoot}
+        />
+      );
+    case "log":
+      return (
+        <div data-subagent-running-log="">
+          <SubagentActivityLine
+            action={row.log.label}
+            detail={row.log.detail}
+            loading={row.loading}
+          />
+        </div>
+      );
+    case "empty":
+      return <div className="py-1 text-detail text-honk-fg-tertiary">No thread content yet.</div>;
+  }
+}, areSameSubagentTrayVirtualRowContentProps);
+
+function areSameSubagentTrayVirtualRowContentProps(
+  previous: {
+    activeThreadId: ThreadId;
+    environmentId: EnvironmentId;
+    projectRoot: string | undefined;
+    row: SubagentTrayVirtualRow;
+  },
+  next: {
+    activeThreadId: ThreadId;
+    environmentId: EnvironmentId;
+    projectRoot: string | undefined;
+    row: SubagentTrayVirtualRow;
+  },
+): boolean {
+  return (
+    previous.activeThreadId === next.activeThreadId &&
+    previous.environmentId === next.environmentId &&
+    previous.projectRoot === next.projectRoot &&
+    previous.row === next.row
+  );
+}
+
+function subagentVirtualRowStyle(virtualRow: VirtualItem): CSSProperties {
+  return {
+    transform: `translateY(${virtualRow.start}px)`,
+  };
+}
+
+function estimateSubagentTrayVirtualRowSize(row: SubagentTrayVirtualRow | undefined): number {
+  if (!row) {
+    return 64 + SUBAGENT_TRANSCRIPT_ROW_GAP_PX;
+  }
+  if (row.kind === "empty") {
+    return 32 + SUBAGENT_TRANSCRIPT_ROW_GAP_PX;
+  }
+  if (row.kind === "log") {
+    return estimateSubagentTextRowSize(row.log.detail, 32);
+  }
+
+  const item = row.item;
+  const messageRole = subagentTranscriptMessageRole(item);
+  if (messageRole === "assistant") {
+    return estimateSubagentTextRowSize(item.text, 112);
+  }
+  if (messageRole === "user") {
+    return estimateSubagentTextRowSize(item.text, 72);
+  }
+  if (isSubagentReasoningTranscriptItem(item)) {
+    return estimateSubagentTextRowSize(item.text, 64);
+  }
+  if (item.kind === "command" || item.kind === "tool") {
+    return estimateSubagentTextRowSize(item.output ?? item.text ?? item.command, 64);
+  }
+  return estimateSubagentTextRowSize(item.text, 44);
+}
+
+function estimateSubagentTextRowSize(text: string | undefined, minimum: number): number {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    return minimum + SUBAGENT_TRANSCRIPT_ROW_GAP_PX;
+  }
+
+  const lineCount = trimmed.split("\n").length;
+  const wrappedLineEstimate = Math.ceil(trimmed.length / 96);
+  return (
+    minimum +
+    Math.min(420, Math.max(lineCount, wrappedLineEstimate) * 18) +
+    SUBAGENT_TRANSCRIPT_ROW_GAP_PX
+  );
+}
+
+interface SubagentTranscriptItemRowProps {
+  activeThreadId: ThreadId;
+  environmentId: EnvironmentId;
+  isStreaming: boolean;
+  item: SubagentTranscriptItem;
+  projectRoot: string | undefined;
+}
 
 export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow({
   activeThreadId,
@@ -337,13 +541,7 @@ export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow
   isStreaming,
   item,
   projectRoot,
-}: {
-  activeThreadId: ThreadId;
-  environmentId: EnvironmentId;
-  isStreaming: boolean;
-  item: SubagentTranscriptItem;
-  projectRoot: string | undefined;
-}) {
+}: SubagentTranscriptItemRowProps) {
   const detail = item.text;
   const messageRole = subagentTranscriptMessageRole(item);
 
@@ -398,28 +596,15 @@ export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow
     ) : null;
   }
 
-  if (item.kind === "command") {
-    const step = subagentTranscriptItemStep(item, isStreaming);
-    return step ? (
+  if (item.kind === "command" || item.kind === "tool") {
+    return (
       <SubagentTimelineStep
         activeThreadId={activeThreadId}
         environmentId={environmentId}
         projectRoot={projectRoot}
-        step={step}
+        step={subagentTranscriptItemStep(item, isStreaming)}
       />
-    ) : null;
-  }
-
-  if (isSubagentToolTranscriptItem(item)) {
-    const step = subagentTranscriptItemStep(item, isStreaming);
-    return step ? (
-      <SubagentTimelineStep
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        step={step}
-      />
-    ) : null;
+    );
   }
 
   return (
@@ -429,258 +614,46 @@ export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow
       loading={isStreaming}
     />
   );
-});
+}, areSameSubagentTranscriptItemRowProps);
 
-const SubagentSnapshotSection = memo(function SubagentSnapshotSection({
-  activeThreadId,
-  environmentId,
-  isStreaming,
-  projectRoot,
-  snapshotState,
-}: {
-  activeThreadId: ThreadId;
-  environmentId: EnvironmentId;
-  isStreaming: boolean;
-  projectRoot: string | undefined;
-  snapshotState: SubagentSnapshotState;
-}) {
-  const snapshotItems = useMemo(
-    () =>
-      snapshotState.status === "loaded"
-        ? flattenSubagentSnapshotItems(snapshotState.snapshot.turns).slice(
-            -SUBAGENT_SNAPSHOT_ITEMS_CAP,
-          )
-        : EMPTY_SUBAGENT_SNAPSHOT_ITEMS,
-    [snapshotState],
-  );
-
-  if (snapshotState.status === "idle" || snapshotState.status === "loading") {
-    return (
-      <div className="py-1 text-detail text-multi-fg-tertiary">
-        {snapshotState.status === "loading" ? "Loading..." : null}
-      </div>
-    );
-  }
-
-  if (snapshotState.status === "error") {
-    return (
-      <div className="py-1 text-detail text-multi-fg-red-primary">{snapshotState.message}</div>
-    );
-  }
-
-  if (snapshotItems.length === 0) {
-    return null;
-  }
-
-  return (
-    <div
-      data-subagent-thread-snapshot=""
-      className="flex min-w-0 flex-col gap-(--chat-timeline-step-gap)"
-    >
-      {snapshotItems.map((snapshotItem, index) => (
-        <SubagentSnapshotItem
-          key={snapshotItem.key}
-          activeThreadId={activeThreadId}
-          environmentId={environmentId}
-          isStreaming={isStreaming && index === snapshotItems.length - 1}
-          item={snapshotItem.item}
-          projectRoot={projectRoot}
-        />
-      ))}
-    </div>
-  );
-});
-
-export function flattenSubagentSnapshotItems(
-  turns: ProviderThreadSnapshot["turns"],
-): ReadonlyArray<SubagentSnapshotListItem> {
-  const orderedKeys: string[] = [];
-  const itemsByKey = new Map<string, SubagentSnapshotListItem>();
-
-  for (const turn of turns) {
-    turn.items.forEach((item, itemIndex) => {
-      if (!hasRenderableSubagentSnapshotItem(item)) {
-        return;
-      }
-
-      const key = subagentSnapshotCanonicalKey(String(turn.id), item, itemIndex);
-      const existing = itemsByKey.get(key);
-      if (!existing) {
-        orderedKeys.push(key);
-        itemsByKey.set(key, { key, item });
-        return;
-      }
-
-      itemsByKey.set(key, { key, item: mergeSubagentSnapshotItem(existing.item, item) });
-    });
-  }
-
-  return orderedKeys.flatMap((key) => {
-    const item = itemsByKey.get(key);
-    return item ? [item] : [];
-  });
-}
-
-function subagentSnapshotCanonicalKey(
-  turnId: string,
-  item: ProviderThreadSnapshotItem,
-  itemIndex: number,
-): string {
-  const payloadItemId = extractSnapshotPayloadItemId(item);
-  const toolCallId = extractSnapshotPayloadToolCallId(item);
-  const providerItemId = item.id?.trim();
-  const stableItemId = toolCallId ?? payloadItemId ?? providerItemId ?? String(itemIndex);
-  return `${turnId}\u001f${item.itemType}\u001f${stableItemId}`;
-}
-
-function mergeSubagentSnapshotItem(
-  previous: ProviderThreadSnapshotItem,
-  next: ProviderThreadSnapshotItem,
-): ProviderThreadSnapshotItem {
-  const previousDetail = subagentSnapshotDisplayDetail(previous);
-  const nextDetail = subagentSnapshotDisplayDetail(next);
-  const detail = mergeSubagentSnapshotDetail(previousDetail, nextDetail);
-  const data = shouldPreferNextSnapshotData(previous, next)
-    ? (next.data ?? previous.data)
-    : (previous.data ?? next.data);
-
-  return {
-    ...previous,
-    ...next,
-    ...(previous.title && !next.title ? { title: previous.title } : {}),
-    ...(detail ? { detail } : {}),
-    ...(data !== undefined ? { data } : {}),
-  };
-}
-
-function mergeSubagentSnapshotDetail(
-  previous: string | undefined,
-  next: string | undefined,
-): string | undefined {
-  if (!previous) {
-    return next;
-  }
-  if (!next || next === previous || previous.startsWith(next) || previous.endsWith(next)) {
-    return previous;
-  }
-  if (next.startsWith(previous)) {
-    return next;
-  }
-  return next.length >= previous.length ? next : previous;
-}
-
-function shouldPreferNextSnapshotData(
-  previous: ProviderThreadSnapshotItem,
-  next: ProviderThreadSnapshotItem,
+function areSameSubagentTranscriptItemRowProps(
+  previous: SubagentTranscriptItemRowProps,
+  next: SubagentTranscriptItemRowProps,
 ): boolean {
-  if (next.itemType === "command_execution" || previous.itemType === "command_execution") {
-    const previousCommand = snapshotCommandParts(previous);
-    const nextCommand = snapshotCommandParts(next);
-    if (nextCommand.output && !previousCommand.output) {
-      return true;
-    }
-    if (nextCommand.command && !previousCommand.command) {
-      return true;
-    }
-  }
-
-  const previousLength = subagentSnapshotDisplayDetail(previous)?.length ?? 0;
-  const nextLength = subagentSnapshotDisplayDetail(next)?.length ?? 0;
-  return nextLength >= previousLength;
+  return (
+    previous.activeThreadId === next.activeThreadId &&
+    previous.environmentId === next.environmentId &&
+    previous.isStreaming === next.isStreaming &&
+    previous.projectRoot === next.projectRoot &&
+    areSameSubagentTranscriptItem(previous.item, next.item)
+  );
 }
 
-const SubagentSnapshotItem = memo(function SubagentSnapshotItem({
-  activeThreadId,
-  environmentId,
-  isStreaming,
-  item,
-  projectRoot,
-}: {
-  activeThreadId: ThreadId;
-  environmentId: EnvironmentId;
-  isStreaming: boolean;
-  item: ProviderThreadSnapshotItem;
-  projectRoot: string | undefined;
-}) {
-  const detail = subagentSnapshotDisplayDetail(item);
-  const messageRole = subagentSnapshotMessageRole(item);
-
-  if (messageRole === "assistant" && detail) {
-    return (
-      <SubagentTimelineStep
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        step={subagentMessageStep({
-          id: item.id ?? "snapshot-assistant-message",
-          role: "assistant",
-          text: detail,
-          createdAt: "1970-01-01T00:00:00.000Z",
-          streaming: isStreaming,
-        })}
-      />
-    );
-  }
-
-  if (messageRole === "user" && detail) {
-    return (
-      <SubagentTimelineStep
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        step={subagentMessageStep({
-          id: item.id ?? `snapshot-user:${detail}`,
-          role: "user",
-          text: detail,
-          createdAt: "1970-01-01T00:00:00.000Z",
-          streaming: false,
-        })}
-      />
-    );
-  }
-
-  if (messageRole === "assistant" || messageRole === "user") {
-    return null;
-  }
-
-  if (isSubagentReasoningSnapshotItem(item)) {
-    return detail ? (
-      <SubagentTimelineStep
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        step={subagentThinkingStep(
-          item.id ?? "snapshot-reasoning",
-          "1970-01-01T00:00:00.000Z",
-          detail,
-          isStreaming,
-        )}
-      />
-    ) : null;
-  }
-
-  if (isSubagentSnapshotToolItem(item)) {
-    const step = subagentSnapshotItemStep(item, isStreaming);
-    return step ? (
-      <SubagentTimelineStep
-        activeThreadId={activeThreadId}
-        environmentId={environmentId}
-        projectRoot={projectRoot}
-        step={step}
-      />
-    ) : null;
-  }
-
+function areSameSubagentTranscriptItem(
+  previous: SubagentTranscriptItem,
+  next: SubagentTranscriptItem,
+): boolean {
   return (
-    <SubagentActivityLine
-      action={item.title ?? formatSnapshotTypeLabel(item.itemType)}
-      detail={detail}
-      loading={isStreaming}
-    />
+    previous.id === next.id &&
+    previous.itemId === next.itemId &&
+    previous.kind === next.kind &&
+    previous.role === next.role &&
+    previous.title === next.title &&
+    previous.text === next.text &&
+    previous.command === next.command &&
+    previous.rawCommand === next.rawCommand &&
+    previous.output === next.output &&
+    previous.changedFiles?.join("\u0000") === next.changedFiles?.join("\u0000") &&
+    previous.itemType === next.itemType &&
+    previous.status === next.status &&
+    previous.streamKind === next.streamKind &&
+    previous.loading === next.loading &&
+    previous.createdAt === next.createdAt &&
+    previous.sequence === next.sequence
   );
-});
+}
 
-const SubagentTimelineStep = memo(function SubagentTimelineStep({
+function SubagentTimelineStep({
   activeThreadId,
   environmentId,
   projectRoot,
@@ -691,23 +664,20 @@ const SubagentTimelineStep = memo(function SubagentTimelineStep({
   projectRoot: string | undefined;
   step: TimelineStep;
 }) {
-  const ctx = useMemo<StepRendererContext>(
-    () => ({
-      markdownCwd: projectRoot,
-      projectRoot,
-      activeThreadId,
-      activeThreadEnvironmentId: environmentId,
-      isServerThread: false,
-      onBeginEditUserMessage: undefined,
-      renderEditComposer: undefined,
-      onUpdateProposedPlan: undefined,
-      onImageExpand: noopImageExpand,
-    }),
-    [activeThreadId, environmentId, projectRoot],
-  );
+  const ctx: StepRendererContext = {
+    markdownCwd: projectRoot,
+    projectRoot,
+    activeThreadId,
+    activeThreadEnvironmentId: environmentId,
+    isServerThread: false,
+    onBeginEditUserMessage: undefined,
+    renderEditComposer: undefined,
+    onUpdateProposedPlan: undefined,
+    onImageExpand: noopImageExpand,
+  };
 
   return <StepRenderer step={step} editUserMessagesDisabled ctx={ctx} />;
-});
+}
 
 function noopImageExpand(): void {
   return;
@@ -716,27 +686,9 @@ function noopImageExpand(): void {
 function subagentTranscriptItemStep(
   item: SubagentTranscriptItem,
   isStreaming: boolean,
-): TimelineStep | null {
+): TimelineStep {
   const workEntry = subagentTranscriptItemToWorkEntry(item, isStreaming);
-  if (!workEntry) {
-    return null;
-  }
   return subagentWorkStep(`subagent-tool-step:${item.id}`, item.createdAt, workEntry);
-}
-
-function subagentSnapshotItemStep(
-  item: ProviderThreadSnapshotItem,
-  isStreaming: boolean,
-): TimelineStep | null {
-  const workEntry = subagentSnapshotItemToWorkEntry(item, isStreaming);
-  if (!workEntry) {
-    return null;
-  }
-  return subagentWorkStep(
-    `subagent-snapshot-tool-step:${item.id ?? workEntry.id}`,
-    "1970-01-01T00:00:00.000Z",
-    workEntry,
-  );
 }
 
 function subagentMessageStep(input: {
@@ -790,10 +742,6 @@ function subagentWorkStep(id: string, createdAt: string, entry: WorkLogEntry): T
   };
 }
 
-function isSubagentToolTranscriptItem(item: SubagentTranscriptItem): boolean {
-  return isToolLifecycleItemType(item.itemType ?? "");
-}
-
 export function hasRenderableSubagentTranscriptItem(item: SubagentTranscriptItem): boolean {
   if (subagentTranscriptMessageRole(item)) {
     return Boolean(item.text?.trim());
@@ -807,23 +755,10 @@ export function hasRenderableSubagentTranscriptItem(item: SubagentTranscriptItem
   if (item.itemType === "collab_agent_tool_call") {
     return false;
   }
-  if (isSubagentToolTranscriptItem(item)) {
+  if (item.kind === "tool") {
     return true;
   }
   return Boolean(item.text?.trim());
-}
-
-export function hasRenderableSubagentSnapshotItem(item: ProviderThreadSnapshotItem): boolean {
-  if (subagentSnapshotMessageRole(item)) {
-    return Boolean(subagentSnapshotDisplayDetail(item)?.trim());
-  }
-  if (isSubagentReasoningSnapshotItem(item) || item.itemType === "plan") {
-    return Boolean(subagentSnapshotDisplayDetail(item)?.trim());
-  }
-  if (isSubagentSnapshotToolItem(item)) {
-    return true;
-  }
-  return Boolean(subagentSnapshotDisplayDetail(item)?.trim());
 }
 
 function subagentTranscriptMessageRole(
@@ -850,105 +785,6 @@ function subagentTranscriptMessageRole(
   }
 }
 
-function subagentSnapshotMessageRole(
-  item: ProviderThreadSnapshotItem,
-): "user" | "assistant" | undefined {
-  if (item.role === "user" || item.role === "assistant") {
-    return item.role;
-  }
-  switch (item.itemType) {
-    case "user_message":
-      return "user";
-    case "assistant_message":
-      return "assistant";
-    default:
-      break;
-  }
-  switch (item.title) {
-    case "User message":
-      return "user";
-    case "Assistant message":
-      return "assistant";
-    default:
-      return undefined;
-  }
-}
-
-export function subagentSnapshotDisplayDetail(
-  item: ProviderThreadSnapshotItem,
-): string | undefined {
-  const itemText = extractSnapshotPayloadItemText(item);
-  if (shouldPreferRawSnapshotItemText(item.itemType) && itemText) {
-    return itemText;
-  }
-  return item.detail ?? itemText;
-}
-
-function extractSnapshotPayloadItemText(item: ProviderThreadSnapshotItem): string | undefined {
-  const data = asRecord(item.data);
-  const dataItem = asRecord(data?.item) ?? data;
-  const text = asString(dataItem?.text);
-  if (text) {
-    return text;
-  }
-  return extractSnapshotContentText(dataItem?.content);
-}
-
-function extractSnapshotPayloadItemId(item: ProviderThreadSnapshotItem): string | undefined {
-  const data = asRecord(item.data);
-  const dataItem = asRecord(data?.item) ?? data;
-  return (
-    asString(dataItem?.id) ??
-    asString(dataItem?.itemId) ??
-    asString(data?.itemId) ??
-    asString(data?.providerItemId)
-  );
-}
-
-function extractSnapshotPayloadToolCallId(item: ProviderThreadSnapshotItem): string | undefined {
-  const data = asRecord(item.data);
-  const dataItem = asRecord(data?.item) ?? data;
-  return (
-    asString(dataItem?.toolCallId) ??
-    asString(dataItem?.tool_call_id) ??
-    asString(dataItem?.callId) ??
-    asString(data?.toolCallId) ??
-    asString(data?.tool_call_id) ??
-    asString(data?.callId)
-  );
-}
-
-function extractSnapshotContentText(content: unknown): string | undefined {
-  if (!Array.isArray(content)) {
-    return undefined;
-  }
-  const text = content
-    .map((entry) => {
-      if (typeof entry === "string") {
-        return entry;
-      }
-      const record = asRecord(entry);
-      const nestedContent = asRecord(record?.content);
-      return asString(record?.text) ?? asString(nestedContent?.text);
-    })
-    .filter((entry): entry is string => entry !== undefined)
-    .join("\n")
-    .trim();
-  return text.length > 0 ? text : undefined;
-}
-
-function shouldPreferRawSnapshotItemText(itemType: string): boolean {
-  switch (itemType) {
-    case "assistant_message":
-    case "user_message":
-    case "reasoning":
-    case "plan":
-      return true;
-    default:
-      return false;
-  }
-}
-
 function isSubagentReasoningTranscriptItem(item: SubagentTranscriptItem): boolean {
   if (item.kind === "reasoning") {
     return true;
@@ -961,30 +797,15 @@ function isSubagentReasoningTranscriptItem(item: SubagentTranscriptItem): boolea
   }
 }
 
-export function isSubagentReasoningSnapshotItem(item: ProviderThreadSnapshotItem): boolean {
-  switch (item.itemType) {
-    case "reasoning":
-      return true;
-    default:
-      return item.title === "Reasoning";
-  }
-}
-
-function isSubagentSnapshotToolItem(item: ProviderThreadSnapshotItem): boolean {
-  return typeof item.itemType === "string" && isToolLifecycleItemType(item.itemType);
-}
-
 function subagentTranscriptItemToWorkEntry(
   item: SubagentTranscriptItem,
   isStreaming: boolean,
-): WorkLogEntry | null {
+): WorkLogEntry {
   const itemType =
     item.kind === "command" ? "command_execution" : toToolLifecycleItemType(item.itemType);
-  if (!itemType) {
-    return null;
-  }
-  const label = item.title ?? formatSnapshotTypeLabel(itemType);
-  const status = resolveSubagentToolStatus(item.status, isStreaming || item.loading);
+  const label = item.title ?? formatSnapshotTypeLabel(itemType ?? item.itemType ?? item.kind);
+  const status = resolveSubagentWorkStatus(item.status, isStreaming || item.loading);
+  const artifacts = subagentTranscriptItemArtifacts(item, itemType, status);
   return {
     id: `subagent-tool:${item.id}`,
     createdAt: item.createdAt,
@@ -992,51 +813,99 @@ function subagentTranscriptItemToWorkEntry(
     tone: status === "error" ? "error" : "tool",
     status,
     toolCallId: item.itemId,
-    itemType,
+    ...(itemType ? { itemType } : {}),
     ...(item.text ? { detail: item.text } : {}),
     ...(item.command ? { command: item.command } : {}),
     ...(item.rawCommand ? { rawCommand: item.rawCommand } : {}),
     ...(item.output ? { output: item.output } : {}),
+    ...(item.changedFiles?.length ? { changedFiles: item.changedFiles } : {}),
+    ...(artifacts.length > 0 ? { artifacts } : {}),
     ...(item.title ? { toolTitle: item.title } : {}),
   };
 }
 
-function subagentSnapshotItemToWorkEntry(
-  item: ProviderThreadSnapshotItem,
-  isStreaming: boolean,
-): WorkLogEntry | null {
-  const itemType = toToolLifecycleItemType(item.itemType);
-  if (!itemType) {
-    return null;
+function subagentTranscriptItemArtifacts(
+  item: SubagentTranscriptItem,
+  itemType: ToolLifecycleItemType | null,
+  status: NonNullable<WorkLogEntry["status"]>,
+): ToolDisplayArtifact[] {
+  const output = item.output?.trim() || item.text?.trim();
+  switch (itemType) {
+    case "command_execution": {
+      const command = item.command?.trim() || item.rawCommand?.trim();
+      if (!command && !output) {
+        return [];
+      }
+      return [
+        {
+          type: "command",
+          ...(command ? { command } : {}),
+          ...(output ? { output } : {}),
+          ...(status === "running" ? { isPartial: true } : {}),
+        },
+      ];
+    }
+    case "file_read": {
+      const path = item.changedFiles?.[0]?.trim();
+      if (!path && !output) {
+        return [];
+      }
+      return [
+        {
+          type: "read",
+          ...(path ? { path } : {}),
+          ...(output ? { output } : {}),
+          ...(status === "running" ? { isPartial: true } : {}),
+        },
+      ];
+    }
+    case "file_search": {
+      const query = item.command?.trim() || item.text?.trim();
+      if (!query && !output && !item.changedFiles?.length) {
+        return [];
+      }
+      return [
+        {
+          type: "search",
+          flavor: subagentSearchFlavor(item.title),
+          ...(query ? { query } : {}),
+          ...(output ? { output } : {}),
+          ...(item.changedFiles?.length ? { matchedFiles: item.changedFiles } : {}),
+          ...(status === "running" ? { isPartial: true } : {}),
+        },
+      ];
+    }
+    case "dynamic_tool_call":
+    case "mcp_tool_call":
+    case "web_search":
+    case "web_fetch":
+    case "image_view":
+      return output ? [{ type: "raw", text: output }] : [];
+    default:
+      return [];
   }
-  const { command, output } =
-    itemType === "command_execution" ? snapshotCommandParts(item) : { command: "", output: null };
-  const label = item.title ?? formatSnapshotTypeLabel(itemType);
-  const detail = subagentSnapshotDisplayDetail(item);
-  const status = resolveSubagentToolStatus(undefined, isStreaming);
-  return {
-    id: `subagent-snapshot-tool:${item.id ?? label}`,
-    createdAt: "1970-01-01T00:00:00.000Z",
-    label,
-    tone: status === "error" ? "error" : "tool",
-    status,
-    ...(item.id ? { toolCallId: item.id } : {}),
-    itemType,
-    ...(detail && itemType !== "command_execution" ? { detail } : {}),
-    ...(command ? { command } : {}),
-    ...(output ? { output } : {}),
-    ...(item.title ? { toolTitle: item.title } : {}),
-  };
+}
+
+function subagentSearchFlavor(title: string | undefined): "grep" | "find" | undefined {
+  switch (title?.trim().toLowerCase()) {
+    case "grep":
+      return "grep";
+    case "find":
+    case "ls":
+      return "find";
+    default:
+      return undefined;
+  }
 }
 
 function toToolLifecycleItemType(value: string | undefined): ToolLifecycleItemType | null {
   return value && isToolLifecycleItemType(value) ? value : null;
 }
 
-function resolveSubagentToolStatus(
+function resolveSubagentWorkStatus(
   status: string | undefined,
   isStreaming: boolean,
-): WorkLogStatus {
+): NonNullable<WorkLogEntry["status"]> {
   if (status === "failed" || status === "error") {
     return "error";
   }
@@ -1046,44 +915,7 @@ function resolveSubagentToolStatus(
   return "completed";
 }
 
-function snapshotCommandParts(item: ProviderThreadSnapshotItem): {
-  command: string;
-  output: string | null;
-} {
-  const data = asRecord(item.data);
-  const dataItem = asRecord(data?.item) ?? data;
-  const args = asRecord(dataItem?.args);
-  const result = asRecord(dataItem?.result);
-  const command =
-    asString(dataItem?.command) ??
-    asString(dataItem?.cmd) ??
-    asString(args?.command) ??
-    asString(args?.cmd) ??
-    "";
-  const output =
-    asString(dataItem?.aggregatedOutput) ??
-    asString(dataItem?.output) ??
-    asString(result?.output) ??
-    asString(result?.stdout) ??
-    null;
-  const detail = item.detail?.trim() ?? "";
-  if (command || output || !detail) {
-    return { command, output };
-  }
-  return { command: detail, output: null };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-const SubagentActivityLine = memo(function SubagentActivityLine({
+function SubagentActivityLine({
   action,
   detail,
   loading = false,
@@ -1107,14 +939,10 @@ const SubagentActivityLine = memo(function SubagentActivityLine({
   }
 
   return <ToolCallLine action={action} details={body ?? ""} loading={loading} />;
-});
+}
 
 function shouldExpandSubagentActivityDetail(detail: string): boolean {
   return detail.includes("\n") || detail.length > 160;
-}
-
-function snapshotHasItems(snapshot: ProviderThreadSnapshot): boolean {
-  return snapshot.turns.some((turn) => turn.items.some(hasRenderableSubagentSnapshotItem));
 }
 
 function formatSnapshotTypeLabel(value: string): string {

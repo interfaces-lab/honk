@@ -5,7 +5,7 @@
  */
 import { Schema } from "effect";
 
-import { TextGenerationError } from "@multi/contracts";
+import { TextGenerationError } from "@honk/contracts";
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";

@@ -1,12 +1,6 @@
+import { normalizePathSeparators, stripWindowsDriveLeadingSlash } from "@honk/shared/paths";
+
 import { splitPathAndPosition } from "../../../lib/terminal-links";
-
-function normalizePathSeparators(path: string): string {
-  return path.replaceAll("\\", "/");
-}
-
-function canonicalizeWindowsDrivePath(path: string): string {
-  return /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path;
-}
 
 function trimTrailingPathSeparators(path: string): string {
   return path.replace(/[\\/]+$/, "");
@@ -26,11 +20,11 @@ export function formatProjectRelativePath(
   projectRoot: string | undefined,
 ): string {
   const { path, line, column } = splitPathAndPosition(pathWithPosition);
-  const normalizedPath = canonicalizeWindowsDrivePath(normalizePathSeparators(path));
+  const normalizedPath = stripWindowsDriveLeadingSlash(normalizePathSeparators(path));
 
   let displayPath = normalizedPath;
   if (projectRoot) {
-    const normalizedProjectRoot = canonicalizeWindowsDrivePath(
+    const normalizedProjectRoot = stripWindowsDriveLeadingSlash(
       normalizePathSeparators(trimTrailingPathSeparators(projectRoot)),
     );
     const projectLabel = basenameOfPath(normalizedProjectRoot);

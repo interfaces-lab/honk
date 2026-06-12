@@ -1,4 +1,4 @@
-import type { ProviderRequestKind } from "@multi/contracts";
+import type { RuntimeRequestKind } from "@honk/contracts";
 import type { Thread, ThreadSession } from "../types";
 import {
   derivePendingApprovals,
@@ -23,7 +23,7 @@ export interface ThreadAttentionCandidate {
   title: string;
   requestId: string;
   createdAt: string;
-  requestKind?: ProviderRequestKind;
+  requestKind?: RuntimeRequestKind;
   summary?: string;
 }
 
@@ -114,7 +114,7 @@ export function collectCompletedThreadCandidates(
   return candidates;
 }
 
-function approvalSummary(requestKind: ProviderRequestKind): string {
+function approvalSummary(requestKind: RuntimeRequestKind): string {
   switch (requestKind) {
     case "command":
       return "Command approval requested.";

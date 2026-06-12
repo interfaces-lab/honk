@@ -4,7 +4,7 @@ import {
   type OrchestrationThreadActivity,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { useCallback, useMemo, useState, type RefObject } from "react";
 
 import { readEnvironmentApi } from "../../../environment-api";
@@ -25,10 +25,9 @@ const EMPTY_PENDING_USER_INPUTS: PendingUserInput[] = [];
 
 export interface UseThreadPendingUserInputArgs {
   composerRef: RefObject<ComposerInputHandle | null>;
-  promptRef: RefObject<string>;
   environmentId: EnvironmentId;
   activeThreadId: ThreadId | null;
-  threadActivities: OrchestrationThreadActivity[];
+  threadActivities: ReadonlyArray<OrchestrationThreadActivity>;
   activeLatestTurnTurnId: TurnId | null;
   // When the latest turn has settled, pending user inputs no longer apply.
   // Allows callers to short-circuit derivation with a stable empty result.
@@ -71,7 +70,6 @@ export function useThreadPendingUserInput(
 ): UseThreadPendingUserInputReturn {
   const {
     composerRef,
-    promptRef,
     environmentId,
     activeThreadId,
     threadActivities,
@@ -98,16 +96,13 @@ export function useThreadPendingUserInput(
   );
 
   const activePendingUserInput = pendingUserInputs[0] ?? null;
-  const activePendingDraftAnswers = useMemo(
-    () =>
-      activePendingUserInput
-        ? (pendingUserInputAnswersByRequestId[activePendingUserInput.requestId] ??
-          EMPTY_PENDING_USER_INPUT_ANSWERS)
-        : EMPTY_PENDING_USER_INPUT_ANSWERS,
-    [activePendingUserInput, pendingUserInputAnswersByRequestId],
-  );
-  const activePendingQuestionIndex = activePendingUserInput
-    ? (pendingUserInputQuestionIndexByRequestId[activePendingUserInput.requestId] ?? 0)
+  const activePendingRequestId = activePendingUserInput?.requestId ?? null;
+  const activePendingDraftAnswers = activePendingRequestId
+    ? (pendingUserInputAnswersByRequestId[activePendingRequestId] ??
+      EMPTY_PENDING_USER_INPUT_ANSWERS)
+    : EMPTY_PENDING_USER_INPUT_ANSWERS;
+  const activePendingQuestionIndex = activePendingRequestId
+    ? (pendingUserInputQuestionIndexByRequestId[activePendingRequestId] ?? 0)
     : 0;
   const activePendingProgress = useMemo(
     () =>
@@ -127,9 +122,9 @@ export function useThreadPendingUserInput(
         : null,
     [activePendingDraftAnswers, activePendingUserInput],
   );
-  const activePendingIsResponding = activePendingUserInput
-    ? respondingUserInputRequestIds.includes(activePendingUserInput.requestId)
-    : false;
+  const activePendingIsResponding =
+    activePendingRequestId !== null &&
+    respondingUserInputRequestIds.includes(activePendingRequestId);
 
   const onRespondToUserInput = useCallback(
     async (requestId: ApprovalRequestId, answers: Record<string, unknown>) => {
@@ -163,15 +158,15 @@ export function useThreadPendingUserInput(
 
   const setActivePendingUserInputQuestionIndex = useCallback(
     (nextQuestionIndex: number) => {
-      if (!activePendingUserInput) {
+      if (!activePendingRequestId) {
         return;
       }
       setPendingUserInputQuestionIndexByRequestId((existing) => ({
         ...existing,
-        [activePendingUserInput.requestId]: nextQuestionIndex,
+        [activePendingRequestId]: nextQuestionIndex,
       }));
     },
-    [activePendingUserInput],
+    [activePendingRequestId],
   );
 
   const onAdvanceActivePendingUserInput = useCallback(
@@ -238,8 +233,7 @@ export function useThreadPendingUserInput(
           [activePendingUserInput.requestId]: nextRequestDraftAnswers,
         };
       });
-      promptRef.current = "";
-      composerRef.current?.resetCursorState({ cursor: 0 });
+      composerRef.current?.clearComposer();
 
       if (advanceAfterSelect) {
         onAdvanceActivePendingUserInput(nextRequestDraftAnswers);
@@ -250,7 +244,6 @@ export function useThreadPendingUserInput(
       composerRef,
       onAdvanceActivePendingUserInput,
       pendingUserInputAnswersByRequestId,
-      promptRef,
     ],
   );
 
@@ -265,7 +258,6 @@ export function useThreadPendingUserInput(
       if (!activePendingUserInput) {
         return;
       }
-      promptRef.current = value;
       setPendingUserInputAnswersByRequestId((existing) => ({
         ...existing,
         [activePendingUserInput.requestId]: {
@@ -285,7 +277,7 @@ export function useThreadPendingUserInput(
         composerRef.current?.focusAt(nextCursor);
       }
     },
-    [activePendingUserInput, composerRef, promptRef],
+    [activePendingUserInput, composerRef],
   );
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {
@@ -295,18 +287,34 @@ export function useThreadPendingUserInput(
     setActivePendingUserInputQuestionIndex(Math.max(activePendingProgress.questionIndex - 1, 0));
   }, [activePendingProgress, setActivePendingUserInputQuestionIndex]);
 
-  return {
-    pendingUserInputs,
-    activePendingUserInput,
-    activePendingDraftAnswers,
-    activePendingQuestionIndex,
-    activePendingProgress,
-    activePendingResolvedAnswers,
-    activePendingIsResponding,
-    onRespondToUserInput,
-    onAdvanceActivePendingUserInput,
-    onSelectActivePendingUserInputOption,
-    onChangeActivePendingUserInputCustomAnswer,
-    onPreviousActivePendingUserInputQuestion,
-  };
+  return useMemo(
+    () => ({
+      pendingUserInputs,
+      activePendingUserInput,
+      activePendingDraftAnswers,
+      activePendingQuestionIndex,
+      activePendingProgress,
+      activePendingResolvedAnswers,
+      activePendingIsResponding,
+      onRespondToUserInput,
+      onAdvanceActivePendingUserInput,
+      onSelectActivePendingUserInputOption,
+      onChangeActivePendingUserInputCustomAnswer,
+      onPreviousActivePendingUserInputQuestion,
+    }),
+    [
+      activePendingDraftAnswers,
+      activePendingIsResponding,
+      activePendingProgress,
+      activePendingQuestionIndex,
+      activePendingResolvedAnswers,
+      activePendingUserInput,
+      onAdvanceActivePendingUserInput,
+      onChangeActivePendingUserInputCustomAnswer,
+      onPreviousActivePendingUserInputQuestion,
+      onRespondToUserInput,
+      onSelectActivePendingUserInputOption,
+      pendingUserInputs,
+    ],
+  );
 }

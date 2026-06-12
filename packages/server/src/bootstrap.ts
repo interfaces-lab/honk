@@ -4,7 +4,7 @@ import * as readline from "node:readline";
 import type { Readable } from "node:stream";
 
 import { Data, Effect, Option, Predicate, Result, Schema } from "effect";
-import { decodeJsonResult } from "@multi/shared/schema-json";
+import { decodeJsonResult } from "@honk/shared/schema-json";
 
 class BootstrapError extends Data.TaggedError("BootstrapError")<{
   readonly message: string;

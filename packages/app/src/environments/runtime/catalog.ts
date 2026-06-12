@@ -1,5 +1,5 @@
-import { getKnownEnvironmentHttpBaseUrl } from "@multi/client-runtime";
-import type { EnvironmentId } from "@multi/contracts";
+import { getKnownEnvironmentHttpBaseUrl } from "~/lib/environment-scope";
+import type { EnvironmentId } from "@honk/contracts";
 
 import { getPrimaryKnownEnvironment } from "../primary";
 

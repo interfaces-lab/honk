@@ -23,7 +23,7 @@ type ToastIdRef = RefObject<ToastId | null>;
 type TimeoutIdRef = RefObject<number | null>;
 
 function syncBrowserOnlineStatus() {
-  setBrowserOnlineStatus(navigator.onLine !== false);
+  setBrowserOnlineStatus(navigator.onLine);
 }
 
 const connectionTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -345,7 +345,7 @@ function WsConnectionToastSync({
               },
               description: "Retries exhausted trying to reconnect",
               timeout: 0,
-              title: "Disconnected from Multi Server",
+              title: "Disconnected from Honk Server",
               type: "error" as const,
               data: {
                 hideCopyButton: true,
@@ -361,7 +361,7 @@ function WsConnectionToastSync({
                   ? `Reconnecting... ${reconnectAttemptLabel}`
                   : `Reconnecting in ${reconnectCountdown}... ${reconnectAttemptLabel}`,
               timeout: 0,
-              title: "Disconnected from Multi Server",
+              title: "Disconnected from Honk Server",
               type: "loading" as const,
               data: {
                 hideCopyButton: true,
@@ -397,7 +397,7 @@ function WsConnectionToastSync({
             : "Connection restored.";
       const successToast = {
         description,
-        title: "Reconnected to Multi Server",
+        title: "Reconnected to Honk Server",
         type: "success" as const,
         timeout: 0,
         data: {

@@ -174,7 +174,9 @@ export class TerminalCwdError extends Schema.TaggedErrorClass<TerminalCwdError>(
     }
     const causeMessage =
       this.cause && typeof this.cause === "object" && "message" in this.cause
-        ? this.cause.message
+        ? typeof this.cause.message === "string"
+          ? this.cause.message
+          : undefined
         : undefined;
     return causeMessage
       ? `Failed to access terminal cwd: ${this.cwd} (${causeMessage})`

@@ -1,17 +1,31 @@
 export type AppearanceThemeMode = "light" | "dark";
 
 export type AppearanceBaseTokenName =
-  | "--multi-base-sidebar"
-  | "--multi-base-chrome"
-  | "--multi-base-editor"
-  | "--multi-base-accent"
-  | "--multi-base-focus";
+  | "--honk-base-sidebar"
+  | "--honk-base-chrome"
+  | "--honk-base-editor"
+  | "--honk-base-accent"
+  | "--honk-base-focus";
 
 export type AppearanceBaseColors = Record<AppearanceBaseTokenName, string>;
 
 type CursorCoreToken = "sidebar" | "chrome" | "editor" | "accent" | "focus";
 
 type CursorCoreColors = Record<CursorCoreToken, string>;
+
+type CursorCoreTokenName =
+  | "--cursor-sidebar"
+  | "--cursor-chrome"
+  | "--cursor-editor"
+  | "--cursor-accent"
+  | "--cursor-focus";
+
+type HonkCursorTokenName =
+  | "--honk-cursor-sidebar"
+  | "--honk-cursor-chrome"
+  | "--honk-cursor-editor"
+  | "--honk-cursor-accent"
+  | "--honk-cursor-focus";
 
 type HslColor = {
   readonly h: number;
@@ -49,6 +63,32 @@ const TINT_TOKENS: readonly TintTokenConfig[] = [
   { token: "accent", hueShift: true },
   { token: "focus", hueShift: true },
 ];
+
+const APPEARANCE_BASE_TOKEN_NAMES: readonly AppearanceBaseTokenName[] = [
+  "--honk-base-sidebar",
+  "--honk-base-chrome",
+  "--honk-base-editor",
+  "--honk-base-accent",
+  "--honk-base-focus",
+];
+
+const HONK_CURSOR_TOKEN_NAMES: readonly HonkCursorTokenName[] = [
+  "--honk-cursor-sidebar",
+  "--honk-cursor-chrome",
+  "--honk-cursor-editor",
+  "--honk-cursor-accent",
+  "--honk-cursor-focus",
+];
+
+const CURSOR_CORE_TOKEN_NAMES: readonly CursorCoreTokenName[] = [
+  "--cursor-sidebar",
+  "--cursor-chrome",
+  "--cursor-editor",
+  "--cursor-accent",
+  "--cursor-focus",
+];
+
+const APPEARANCE_TINT_STYLE_ID = "honk-custom-tint-tokens";
 
 export const DEFAULT_APPEARANCE_TINT_HUE = 261;
 export const DEFAULT_APPEARANCE_TINT_INTENSITY = 20;
@@ -95,19 +135,21 @@ function hexToHsl(hex: string): HslColor {
   return { h: h * 360, s, l };
 }
 
-function hslToHex(color: HslColor) {
-  const hueToRgb = (p: number, q: number, t: number) => {
-    let normalizedT = t;
-    if (normalizedT < 0) normalizedT += 1;
-    if (normalizedT > 1) normalizedT -= 1;
-    if (normalizedT < 1 / 6) return p + (q - p) * 6 * normalizedT;
-    if (normalizedT < 1 / 2) return q;
-    if (normalizedT < 2 / 3) return p + (q - p) * (2 / 3 - normalizedT) * 6;
-    return p;
-  };
+function hueToRgb(p: number, q: number, t: number) {
+  let normalizedT = t;
+  if (normalizedT < 0) normalizedT += 1;
+  if (normalizedT > 1) normalizedT -= 1;
+  if (normalizedT < 1 / 6) return p + (q - p) * 6 * normalizedT;
+  if (normalizedT < 1 / 2) return q;
+  if (normalizedT < 2 / 3) return p + (q - p) * (2 / 3 - normalizedT) * 6;
+  return p;
+}
 
+function hslToHex(color: HslColor) {
   if (color.s === 0) {
-    const channel = Math.round(color.l * 255).toString(16).padStart(2, "0");
+    const channel = Math.round(color.l * 255)
+      .toString(16)
+      .padStart(2, "0");
     return `#${channel}${channel}${channel}`.toUpperCase();
   }
 
@@ -137,6 +179,27 @@ export function getAppearanceThemeMode(root: Pick<Element, "classList">): Appear
   return root.classList.contains("dark") ? "dark" : "light";
 }
 
+function getAppearanceTintStyleElement(root: HTMLElement) {
+  const ownerDocument = root.ownerDocument;
+  const existing = ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID);
+  if (existing instanceof HTMLStyleElement) return existing;
+
+  const style = ownerDocument.createElement("style");
+  style.id = APPEARANCE_TINT_STYLE_ID;
+  ownerDocument.head.append(style);
+  return style;
+}
+
+function removeAppearanceTintStyleElement(root: HTMLElement) {
+  root.ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID)?.remove();
+}
+
+function removeStaleInlineTintTokens(root: HTMLElement) {
+  for (const token of APPEARANCE_BASE_TOKEN_NAMES) root.style.removeProperty(token);
+  for (const token of HONK_CURSOR_TOKEN_NAMES) root.style.removeProperty(token);
+  for (const token of CURSOR_CORE_TOKEN_NAMES) root.style.removeProperty(token);
+}
+
 export function buildAppearanceBaseColors(
   mode: AppearanceThemeMode,
   hue: number,
@@ -157,11 +220,11 @@ export function buildAppearanceBaseColors(
   }
 
   return {
-    "--multi-base-sidebar": colors.sidebar,
-    "--multi-base-chrome": colors.chrome,
-    "--multi-base-editor": colors.editor,
-    "--multi-base-accent": colors.accent,
-    "--multi-base-focus": colors.focus,
+    "--honk-base-sidebar": colors.sidebar,
+    "--honk-base-chrome": colors.chrome,
+    "--honk-base-editor": colors.editor,
+    "--honk-base-accent": colors.accent,
+    "--honk-base-focus": colors.focus,
   };
 }
 
@@ -171,9 +234,22 @@ export function applyAppearanceBaseColors(
   hue: number,
   intensity: number,
 ) {
-  const colors = buildAppearanceBaseColors(mode, hue, intensity);
-  for (const [token, value] of Object.entries(colors)) {
-    root.style.setProperty(token, value);
-    root.style.setProperty(token.replace("--multi-base-", "--multi-cursor-"), value);
+  if (normalizeIntensity(intensity) <= 0) {
+    removeStaleInlineTintTokens(root);
+    removeAppearanceTintStyleElement(root);
+    return;
   }
+
+  const colors = buildAppearanceBaseColors(mode, hue, intensity);
+  const lines: string[] = [];
+
+  for (const [token, value] of Object.entries(colors) as Array<[AppearanceBaseTokenName, string]>) {
+    lines.push(`  ${token}: ${value};`);
+    lines.push(`  ${token.replace("--honk-base-", "--honk-cursor-")}: ${value};`);
+    lines.push(`  ${token.replace("--honk-base-", "--cursor-")}: ${value};`);
+  }
+
+  removeStaleInlineTintTokens(root);
+  getAppearanceTintStyleElement(root).textContent =
+    `body[data-honk-glass-mode="true"] {\n${lines.join("\n")}\n}`;
 }

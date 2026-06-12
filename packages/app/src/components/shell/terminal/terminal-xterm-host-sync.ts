@@ -16,7 +16,7 @@ export type TerminalHostSyncOptions = {
 };
 
 /**
- * Subscribe to document theme and Multi appearance updates; keep an xterm instance aligned with the host.
+ * Subscribe to document theme and Honk appearance updates; keep an xterm instance aligned with the host.
  * Uses getters so refs stay current across StrictMode and remounts.
  */
 export function subscribeTerminalHostDocument(

@@ -2,15 +2,16 @@ import {
   attachEnvironmentDescriptor,
   createKnownEnvironment,
   type KnownEnvironment,
-} from "@multi/client-runtime";
-import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@multi/contracts";
+} from "~/lib/environment-scope";
+import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@honk/contracts";
 import { create } from "zustand";
 
 import { BootstrapHttpError, retryTransientBootstrap } from "./auth";
 
 import { readPrimaryEnvironmentTarget, resolvePrimaryEnvironmentHttpUrl } from "./target";
+import { useStore } from "~/stores/thread-store";
 
-const SERVER_ENVIRONMENT_DESCRIPTOR_PATH = "/.well-known/multi/environment";
+const SERVER_ENVIRONMENT_DESCRIPTOR_PATH = "/.well-known/honk/environment";
 
 interface PrimaryEnvironmentBootstrapState {
   readonly descriptor: ExecutionEnvironmentDescriptor | null;
@@ -76,6 +77,9 @@ export function writePrimaryEnvironmentDescriptor(
   descriptor: ExecutionEnvironmentDescriptor | null,
 ): void {
   usePrimaryEnvironmentBootstrapStore.getState().setDescriptor(descriptor);
+  if (descriptor) {
+    useStore.getState().setActiveEnvironmentId(descriptor.environmentId);
+  }
 }
 
 export function getPrimaryKnownEnvironment(): KnownEnvironment | null {

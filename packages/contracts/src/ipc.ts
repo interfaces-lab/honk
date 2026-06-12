@@ -18,6 +18,8 @@ import type {
   GitStatusResult,
   GitCreateBranchResult,
   GitDiscardPathsInput,
+  GitFileImageInput,
+  GitFileImageResult,
   GitFilePatchInput,
   GitFilePatchResult,
 } from "./git";
@@ -32,11 +34,7 @@ import type {
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project";
-import type {
-  ServerConfig,
-  ServerProviderUpdatedPayload,
-  ServerUpsertKeybindingResult,
-} from "./server";
+import type { ServerConfig, ServerUpsertKeybindingResult } from "./server";
 import type {
   TerminalClearInput,
   TerminalCloseInput,
@@ -49,13 +47,13 @@ import type {
 } from "./terminal";
 import type { ServerUpsertKeybindingInput } from "./server";
 import type {
+  DispatchResult,
   ClientOrchestrationCommand,
-  OrchestrationGetProviderThreadSnapshotInput,
-  OrchestrationGetProviderThreadSnapshotResult,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
 } from "./orchestration";
+import type { HonkRuntimeApi } from "./runtime";
 import { Schema } from "effect";
 
 import { EditorId } from "./editor";
@@ -198,16 +196,18 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
 
 export interface DesktopEnvironmentBootstrap {
   label: string;
-  httpBaseUrl: string | null;
-  wsBaseUrl: string | null;
-  bootstrapToken?: string;
+  httpBaseUrl: string;
+  browserBootstrapUrl: string;
+  bootstrapToken: string;
+  runId: string;
 }
 
 export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
   label: Schema.String,
-  httpBaseUrl: Schema.NullOr(Schema.String),
-  wsBaseUrl: Schema.NullOr(Schema.String),
-  bootstrapToken: Schema.optionalKey(Schema.String),
+  httpBaseUrl: Schema.String,
+  browserBootstrapUrl: Schema.String,
+  bootstrapToken: Schema.String,
+  runId: Schema.String,
 });
 
 export type DesktopServerExposureMode = "local-only" | "network-accessible";
@@ -253,8 +253,31 @@ export const PickFolderOptionsSchema = Schema.Struct({
   initialPath: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
 
+export type DesktopRendererDiagnosticLevel = "error" | "warn" | "info" | "debug";
+
+export const DesktopRendererDiagnosticLevelSchema = Schema.Literals([
+  "error",
+  "warn",
+  "info",
+  "debug",
+]);
+
+export interface DesktopRendererDiagnosticInput {
+  level: DesktopRendererDiagnosticLevel;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export const DesktopRendererDiagnosticInputSchema = Schema.Struct({
+  level: DesktopRendererDiagnosticLevelSchema,
+  message: Schema.String,
+  details: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
+});
+
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
+  getBrowserWebviewPreloadPath?: () => string | null;
+  detectLocalhostPorts?: (ports: readonly number[]) => Promise<readonly number[]>;
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   getWindowChromeState: () => DesktopWindowChromeState;
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;
@@ -268,6 +291,8 @@ export interface DesktopBridge {
   setTheme: (theme: DesktopTheme) => Promise<void>;
   setBackgroundColor: (color: string) => Promise<void>;
   setVibrancy: (enabled: boolean) => Promise<void>;
+  setDisplayZoom: (factor: number) => Promise<void>;
+  expandWindowWidth?: (additionalWidth: number) => Promise<void>;
   showContextMenu: <T extends string>(
     items: readonly ContextMenuItem<T>[],
     position?: { x: number; y: number },
@@ -279,6 +304,8 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  logRendererDiagnostic?: (input: DesktopRendererDiagnosticInput) => Promise<void>;
+  runtime?: HonkRuntimeApi;
 }
 
 /**
@@ -292,6 +319,7 @@ export interface DesktopBridge {
  * concepts.
  */
 export interface LocalApi {
+  runtime?: HonkRuntimeApi;
   dialogs: {
     pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
@@ -312,7 +340,6 @@ export interface LocalApi {
   };
   server: {
     getConfig: () => Promise<ServerConfig>;
-    refreshProviders: () => Promise<ServerProviderUpdatedPayload>;
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
@@ -361,6 +388,7 @@ export interface EnvironmentApi {
     pull: (input: GitPullInput) => Promise<GitPullResult>;
     discardPaths: (input: GitDiscardPathsInput) => Promise<void>;
     getFilePatch: (input: GitFilePatchInput) => Promise<GitFilePatchResult>;
+    getFileImage: (input: GitFileImageInput) => Promise<GitFileImageResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
     onStatus: (
       input: GitStatusInput,
@@ -371,10 +399,7 @@ export interface EnvironmentApi {
     ) => () => void;
   };
   orchestration: {
-    dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
-    getProviderThreadSnapshot: (
-      input: OrchestrationGetProviderThreadSnapshotInput,
-    ) => Promise<OrchestrationGetProviderThreadSnapshotResult>;
+    dispatchCommand: (command: ClientOrchestrationCommand) => Promise<DispatchResult>;
     subscribeShell: (
       callback: (event: OrchestrationShellStreamItem) => void,
       options?: {

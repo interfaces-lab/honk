@@ -1,10 +1,9 @@
 import {
   type ModelCapabilities,
   type ModelSelection,
-  ProviderInstanceId,
-  type ProviderOptionDescriptor,
-  type ProviderOptionSelection,
-} from "@multi/contracts";
+  type ModelOptionDescriptor,
+  type ModelOptionSelection,
+} from "@honk/contracts";
 
 export interface SelectableModelOption {
   slug: string;
@@ -12,7 +11,7 @@ export interface SelectableModelOption {
 }
 
 export function createModelCapabilities(input: {
-  optionDescriptors: ReadonlyArray<ProviderOptionDescriptor>;
+  optionDescriptors: ReadonlyArray<ModelOptionDescriptor>;
 }): ModelCapabilities {
   return {
     optionDescriptors: input.optionDescriptors.map(cloneDescriptor),
@@ -20,33 +19,33 @@ export function createModelCapabilities(input: {
 }
 
 function getRawSelectionValueById(
-  selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
+  selections: ReadonlyArray<ModelOptionSelection> | null | undefined,
   id: string,
 ): string | boolean | undefined {
   const selection = selections?.find((candidate) => candidate.id === id);
   return selection?.value;
 }
 
-export function getProviderOptionSelectionValue(
-  selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
+export function getModelOptionSelectionValue(
+  selections: ReadonlyArray<ModelOptionSelection> | null | undefined,
   id: string,
 ): string | boolean | undefined {
   return getRawSelectionValueById(selections, id);
 }
 
-export function getProviderOptionStringSelectionValue(
-  selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
+export function getModelOptionStringSelectionValue(
+  selections: ReadonlyArray<ModelOptionSelection> | null | undefined,
   id: string,
 ): string | undefined {
-  const value = getProviderOptionSelectionValue(selections, id);
+  const value = getModelOptionSelectionValue(selections, id);
   return typeof value === "string" ? value : undefined;
 }
 
-export function getProviderOptionBooleanSelectionValue(
-  selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
+export function getModelOptionBooleanSelectionValue(
+  selections: ReadonlyArray<ModelOptionSelection> | null | undefined,
   id: string,
 ): boolean | undefined {
-  const value = getProviderOptionSelectionValue(selections, id);
+  const value = getModelOptionSelectionValue(selections, id);
   return typeof value === "boolean" ? value : undefined;
 }
 
@@ -54,25 +53,25 @@ export function getModelSelectionOptionValue(
   modelSelection: ModelSelection | null | undefined,
   id: string,
 ): string | boolean | undefined {
-  return getProviderOptionSelectionValue(modelSelection?.options, id);
+  return getModelOptionSelectionValue(modelSelection?.options, id);
 }
 
 export function getModelSelectionStringOptionValue(
   modelSelection: ModelSelection | null | undefined,
   id: string,
 ): string | undefined {
-  return getProviderOptionStringSelectionValue(modelSelection?.options, id);
+  return getModelOptionStringSelectionValue(modelSelection?.options, id);
 }
 
 export function getModelSelectionBooleanOptionValue(
   modelSelection: ModelSelection | null | undefined,
   id: string,
 ): boolean | undefined {
-  return getProviderOptionBooleanSelectionValue(modelSelection?.options, id);
+  return getModelOptionBooleanSelectionValue(modelSelection?.options, id);
 }
 
 function resolveDescriptorChoiceValue(
-  descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
+  descriptor: Extract<ModelOptionDescriptor, { type: "select" }>,
   raw: string | null | undefined,
 ): string | undefined {
   const trimmed = trimOrNull(raw);
@@ -94,7 +93,7 @@ function resolveDescriptorChoiceValue(
   return descriptor.currentValue ?? descriptor.options.find((option) => option.isDefault)?.id;
 }
 
-function cloneDescriptor(descriptor: ProviderOptionDescriptor): ProviderOptionDescriptor {
+function cloneDescriptor(descriptor: ModelOptionDescriptor): ModelOptionDescriptor {
   return descriptor.type === "select"
     ? {
         ...descriptor,
@@ -106,14 +105,14 @@ function cloneDescriptor(descriptor: ProviderOptionDescriptor): ProviderOptionDe
     : { ...descriptor };
 }
 
-function cloneSelection(selection: ProviderOptionSelection): ProviderOptionSelection {
+function cloneSelection(selection: ModelOptionSelection): ModelOptionSelection {
   return { ...selection };
 }
 
 function withDescriptorCurrentValue(
-  descriptor: ProviderOptionDescriptor,
+  descriptor: ModelOptionDescriptor,
   rawCurrentValue: string | boolean | undefined,
-): ProviderOptionDescriptor {
+): ModelOptionDescriptor {
   if (descriptor.type === "boolean") {
     if (typeof rawCurrentValue === "boolean") {
       return {
@@ -137,10 +136,10 @@ function withDescriptorCurrentValue(
   };
 }
 
-export function getProviderOptionDescriptors(input: {
+export function getModelOptionDescriptors(input: {
   caps: ModelCapabilities;
-  selections?: ReadonlyArray<ProviderOptionSelection> | null | undefined;
-}): ReadonlyArray<ProviderOptionDescriptor> {
+  selections?: ReadonlyArray<ModelOptionSelection> | null | undefined;
+}): ReadonlyArray<ModelOptionDescriptor> {
   const { caps, selections } = input;
   const baseDescriptors = (caps.optionDescriptors ?? []).map(cloneDescriptor);
 
@@ -152,8 +151,8 @@ export function getProviderOptionDescriptors(input: {
   );
 }
 
-export function getProviderOptionCurrentValue(
-  descriptor: ProviderOptionDescriptor | null | undefined,
+export function getModelOptionCurrentValue(
+  descriptor: ModelOptionDescriptor | null | undefined,
 ): string | boolean | undefined {
   if (!descriptor) {
     return undefined;
@@ -167,8 +166,8 @@ export function getProviderOptionCurrentValue(
   return descriptor.options.find((option) => option.isDefault)?.id;
 }
 
-export function getProviderOptionCurrentLabel(
-  descriptor: ProviderOptionDescriptor | null | undefined,
+export function getModelOptionCurrentLabel(
+  descriptor: ModelOptionDescriptor | null | undefined,
 ): string | undefined {
   if (!descriptor) {
     return undefined;
@@ -180,24 +179,24 @@ export function getProviderOptionCurrentLabel(
         : "Off"
       : undefined;
   }
-  const currentValue = getProviderOptionCurrentValue(descriptor);
+  const currentValue = getModelOptionCurrentValue(descriptor);
   if (typeof currentValue !== "string") {
     return undefined;
   }
   return descriptor.options.find((option) => option.id === currentValue)?.label;
 }
 
-export function buildProviderOptionSelectionsFromDescriptors(
-  descriptors: ReadonlyArray<ProviderOptionDescriptor> | null | undefined,
-): Array<ProviderOptionSelection> | undefined {
+export function buildModelOptionSelectionsFromDescriptors(
+  descriptors: ReadonlyArray<ModelOptionDescriptor> | null | undefined,
+): Array<ModelOptionSelection> | undefined {
   if (!descriptors || descriptors.length === 0) {
     return undefined;
   }
 
-  const nextSelections: Array<ProviderOptionSelection> = [];
+  const nextSelections: Array<ModelOptionSelection> = [];
 
   for (const descriptor of descriptors) {
-    const value = getProviderOptionCurrentValue(descriptor);
+    const value = getModelOptionCurrentValue(descriptor);
     if (typeof value === "string" || typeof value === "boolean") {
       nextSelections.push({ id: descriptor.id, value });
     }
@@ -208,15 +207,15 @@ export function buildProviderOptionSelectionsFromDescriptors(
 
 export function getModelSelectionOptionDescriptors(
   modelSelection: ModelSelection | null | undefined,
-  caps?: ModelCapabilities | null | undefined,
-): ReadonlyArray<ProviderOptionDescriptor> {
+  caps?: ModelCapabilities | null,
+): ReadonlyArray<ModelOptionDescriptor> {
   if (!modelSelection) {
     return [];
   }
   if (!caps) {
     return [];
   }
-  return getProviderOptionDescriptors({
+  return getModelOptionDescriptors({
     caps,
     selections: modelSelection.options,
   });
@@ -272,22 +271,22 @@ export function resolveSelectableModel(
 }
 
 /** Trim a string, returning null for empty/missing values. */
-export function trimOrNull<T extends string>(value: T | null | undefined): T | null {
+export function trimOrNull(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim() as T;
-  return trimmed || null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function cloneSelections(
-  selections: ReadonlyArray<ProviderOptionSelection>,
-): Array<ProviderOptionSelection> {
+  selections: ReadonlyArray<ModelOptionSelection>,
+): Array<ModelOptionSelection> {
   return selections.map(cloneSelection);
 }
 
 export function createModelSelection(
-  instanceId: ProviderInstanceId,
+  instanceId: ModelSelection["instanceId"],
   model: string,
-  options?: ReadonlyArray<ProviderOptionSelection> | null,
+  options?: ReadonlyArray<ModelOptionSelection> | null,
 ): ModelSelection {
   const selections = options ? cloneSelections(options) : [];
   const base: ModelSelection = {
@@ -311,7 +310,7 @@ export function resolvePromptInjectedEffort(
 ): string | null {
   const trimmed = trimOrNull(rawEffort);
   if (!trimmed) return null;
-  const descriptors = getProviderOptionDescriptors({ caps });
+  const descriptors = getModelOptionDescriptors({ caps });
   for (const descriptor of descriptors) {
     if (descriptor.type === "select" && descriptor.promptInjectedValues?.includes(trimmed)) {
       return trimmed;

@@ -1,4 +1,5 @@
-import { StatusDot as UiStatusDot } from "@multi/ui/status-dot";
+import { StatusDot as UiStatusDot } from "@honk/honkkit/status-dot";
+import { IconArchive1 } from "central-icons";
 import type { ComponentProps } from "react";
 
 import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";
@@ -14,17 +15,22 @@ function SidebarDot(props: { state: UiStatusDotState }) {
 
 function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
   if (item.state === "error") return "critical";
+  if (item.state === "stopped") return "inactive";
   if (item.state === "needs_attention") return "needsAttention";
   return item.unread ? "doneUnseen" : "doneSeen";
 }
 
 export function StatusDot(props: { item: SidebarChatItem }) {
-  if (props.item.kind === "draft") {
-    return <SidebarDot state="draft" />;
+  if (props.item.kind === "thread" && props.item.archived) {
+    return <IconArchive1 className="size-4 shrink-0 text-honk-icon-tertiary" aria-hidden />;
   }
 
   if (props.item.state === "running") {
     return <ChatLoaderGlyph aria-hidden maxExtent={16} role="presentation" speed={1.1} />;
+  }
+
+  if (props.item.kind === "draft") {
+    return <SidebarDot state="draft" />;
   }
 
   return <SidebarDot state={sidebarDotStateForItem(props.item)} />;
@@ -33,11 +39,10 @@ export function StatusDot(props: { item: SidebarChatItem }) {
 export function StatusSlot(props: { item: SidebarChatItem }) {
   return (
     <span
-      className="flex size-5 shrink-0 items-center justify-center text-multi-icon-secondary"
+      className="flex size-5 shrink-0 items-center justify-center text-honk-icon-secondary"
       data-agent-sidebar-status=""
     >
       <StatusDot item={props.item} />
     </span>
   );
 }
-

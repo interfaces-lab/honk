@@ -1,8 +1,10 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { useMemo, useRef } from "react";
+import { type EnvironmentId, type ThreadId } from "@honk/contracts";
+import { useRouter } from "@tanstack/react-router";
+import { useRef } from "react";
 import { toastManager } from "~/app/toast";
-import { resolveThreadRouteTarget } from "~/app/routes/thread-route-targets";
+import { openThread } from "~/app/chat-navigation";
+import { scopeThreadRef } from "~/lib/environment-scope";
+import { useRouteTarget } from "~/routes/-thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "../stores/thread-store";
 import type { SidebarThreadSummary } from "../types";
@@ -60,7 +62,7 @@ interface ThreadNotificationCopy {
   body: string;
 }
 
-const SEEN_ATTENTION_NOTIFICATION_IDS_KEY = "multi.seenAttentionNotificationIds.v1";
+const SEEN_ATTENTION_NOTIFICATION_IDS_KEY = "honk.seenAttentionNotificationIds.v1";
 const MAX_SEEN_ATTENTION_NOTIFICATION_IDS = 200;
 
 function readSeenAttentionNotificationIds(): Set<string> {
@@ -101,19 +103,16 @@ function markAttentionNotificationSeen(requestId: string): void {
 function focusThread(
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
 ): void {
-  void navigate({
-    to: "/$environmentId/$threadId",
-    params: { environmentId, threadId },
-  });
+  void openThread(router, scopeThreadRef(environmentId, threadId));
 }
 
 async function showSystemThreadNotification(
   copy: ThreadNotificationCopy,
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
 ): Promise<boolean> {
   const { body, title } = copy;
 
@@ -127,7 +126,7 @@ async function showSystemThreadNotification(
   });
   notification.addEventListener("click", () => {
     window.focus();
-    focusThread(environmentId, threadId, navigate);
+    focusThread(environmentId, threadId, router);
   });
   return true;
 }
@@ -137,7 +136,7 @@ function showThreadToast(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   tone: "success" | "warning",
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
 ): void {
   const { body, title } = copy;
   toastManager.add({
@@ -150,7 +149,7 @@ function showThreadToast(
     },
     actionProps: {
       children: "Open",
-      onClick: () => focusThread(environmentId, threadId, navigate),
+      onClick: () => focusThread(environmentId, threadId, router),
     },
   });
 }
@@ -277,31 +276,26 @@ function collectInputNeededSummaryCandidates(
 }
 
 function useVisibleThreadIdsFromRoute(): ReadonlySet<ThreadId> {
-  const routeTarget = useParams({
-    strict: false,
-    select: (params) => resolveThreadRouteTarget(params),
-  });
+  const routeTarget = useRouteTarget();
   const activeDraftSession = useComposerDraftStore((store) =>
     routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
   );
 
-  return useMemo(() => {
-    if (routeTarget?.kind === "server") {
-      return new Set([routeTarget.threadRef.threadId]);
-    }
-    if (routeTarget?.kind === "draft" && activeDraftSession) {
-      return new Set([activeDraftSession.threadId]);
-    }
-    return new Set<ThreadId>();
-  }, [activeDraftSession, routeTarget]);
+  if (routeTarget?.kind === "server") {
+    return new Set([routeTarget.threadRef.threadId]);
+  }
+  if (routeTarget?.kind === "draft" && activeDraftSession) {
+    return new Set([activeDraftSession.threadId]);
+  }
+  return new Set<ThreadId>();
 }
 
 export function TaskCompletionNotifications() {
-  const navigate = useNavigate();
-  const navigateRef = useRef(navigate);
+  const router = useRouter();
+  const routerRef = useRef(router);
   const visibleThreadIds = useVisibleThreadIdsFromRoute();
   const visibleThreadIdsRef = useRef(visibleThreadIds);
-  navigateRef.current = navigate;
+  routerRef.current = router;
   visibleThreadIdsRef.current = visibleThreadIds;
 
   useMountEffect(() => {
@@ -312,7 +306,7 @@ export function TaskCompletionNotifications() {
       emitTaskCompletionNotifications(
         previousThreads,
         threads,
-        navigateRef.current,
+        routerRef.current,
         visibleThreadIdsRef.current,
       );
       previousThreads = threads;
@@ -325,7 +319,7 @@ export function TaskCompletionNotifications() {
 function emitTaskCompletionNotifications(
   previousThreads: readonly SidebarThreadSummary[],
   threads: readonly SidebarThreadSummary[],
-  navigate: ReturnType<typeof useNavigate>,
+  router: ReturnType<typeof useRouter>,
   visibleThreadIds: ReadonlySet<ThreadId>,
 ): void {
   const completions = collectCompletedSummaryCandidates(previousThreads, threads);
@@ -346,7 +340,7 @@ function emitTaskCompletionNotifications(
         copy,
         completion.environmentId,
         completion.threadId,
-        navigate,
+        router,
       );
     }
   }
@@ -368,15 +362,10 @@ function emitTaskCompletionNotifications(
     }
 
     const copy = buildInputNeededCopy(candidate);
-    showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", navigate);
+    showThreadToast(copy, candidate.environmentId, candidate.threadId, "warning", router);
 
     if (shouldAttemptSystemNotification) {
-      void showSystemThreadNotification(
-        copy,
-        candidate.environmentId,
-        candidate.threadId,
-        navigate,
-      );
+      void showSystemThreadNotification(copy, candidate.environmentId, candidate.threadId, router);
     }
   }
 }

@@ -4,7 +4,7 @@ import {
   WorkbenchContextMenuItem,
   WorkbenchContextMenuPopup,
   WorkbenchContextMenuSeparator,
-} from "@multi/ui/context-menu";
+} from "@honk/honkkit/context-menu";
 import {
   IconArchive1,
   IconBell,
@@ -14,16 +14,16 @@ import {
   IconEditSmall1,
   IconTrashCan,
 } from "central-icons";
-import { useCallback, useRef, type ReactElement } from "react";
+import { useRef, type ReactElement } from "react";
 
 function useContextMenuTriggerFocus() {
   const triggerRef = useRef<HTMLDivElement | null>(null);
 
-  const setTriggerRef = useCallback((element: HTMLDivElement | null) => {
+  const setTriggerRef = (element: HTMLDivElement | null) => {
     triggerRef.current = element;
-  }, []);
+  };
 
-  const handleOpenChange = useCallback((open: boolean) => {
+  const handleOpenChange = (open: boolean) => {
     const trigger = triggerRef.current;
     if (!trigger) return;
 
@@ -41,7 +41,7 @@ function useContextMenuTriggerFocus() {
         : (trigger.querySelector<HTMLElement>("[tabindex]:not([tabindex='-1'])") ??
           trigger.querySelector<HTMLElement>("[tabindex]"));
     focusTarget?.focus({ preventScroll: true });
-  }, []);
+  };
 
   return { handleOpenChange, setTriggerRef };
 }
@@ -49,6 +49,7 @@ function useContextMenuTriggerFocus() {
 export function ThreadContextMenu(props: {
   children: ReactElement;
   threadId: string;
+  archived: boolean;
   onRename: () => void;
   onMarkUnread: () => void;
   onArchive: () => void;
@@ -58,7 +59,7 @@ export function ThreadContextMenu(props: {
   return (
     <ContextMenu data-slot="context-menu-root" onOpenChange={handleOpenChange}>
       <ContextMenuTrigger ref={setTriggerRef} render={props.children} />
-      <WorkbenchContextMenuPopup>
+      <WorkbenchContextMenuPopup positionerClassName="z-(--z-index-sidebar-context-menu)">
         <WorkbenchContextMenuItem
           label="Rename"
           onClick={props.onRename}
@@ -83,11 +84,11 @@ export function ThreadContextMenu(props: {
         </WorkbenchContextMenuItem>
         <WorkbenchContextMenuSeparator />
         <WorkbenchContextMenuItem
-          label="Archive"
+          label={props.archived ? "Unarchive" : "Archive"}
           onClick={props.onArchive}
           icon={<IconArchive1 aria-hidden />}
         >
-          Archive
+          {props.archived ? "Unarchive" : "Archive"}
         </WorkbenchContextMenuItem>
       </WorkbenchContextMenuPopup>
     </ContextMenu>
@@ -109,7 +110,7 @@ export function SidebarSectionContextMenu(props: {
   return (
     <ContextMenu data-slot="context-menu-root" onOpenChange={handleOpenChange}>
       <ContextMenuTrigger ref={setTriggerRef} render={props.children} />
-      <WorkbenchContextMenuPopup>
+      <WorkbenchContextMenuPopup positionerClassName="z-(--z-index-sidebar-context-menu)">
         {props.canOpenInEditor ? (
           <WorkbenchContextMenuItem
             label="Open in Editor Window"
@@ -151,4 +152,3 @@ export function SidebarSectionContextMenu(props: {
     </ContextMenu>
   );
 }
-

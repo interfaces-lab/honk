@@ -1,127 +1,44 @@
 import {
-  ClientSettingsSchema,
-  type ClientSettings,
-  type ContextMenuItem,
-  type LocalApi,
-} from "@multi/contracts";
+  configureLocalApiHost,
+  createLocalApi as createLocalApiFromClient,
+  ensureLocalApi,
+  readLocalApi,
+  resetLocalApiForTests,
+} from "@honk/client-runtime";
+import { ClientSettingsSchema, type LocalApi } from "@honk/contracts";
 
 import { resetGitStatusStateForTests } from "./lib/git-status-state";
 import { resetRequestLatencyStateForTests } from "./rpc/request-latency-state";
 import { resetServerStateForTests } from "./rpc/server-state";
 import { resetWsConnectionStateForTests } from "./rpc/ws-connection-state";
-import {
-  getPrimaryEnvironmentConnection,
-  resetEnvironmentServiceForTests,
-} from "./environments/runtime";
+import { resetEnvironmentServiceForTests } from "./environments/runtime";
 import { type WsRpcClient } from "./rpc/ws-rpc-client";
 import { showContextMenuFallback } from "./browser/context-menu-fallback";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/use-local-storage";
 
-let cachedApi: LocalApi | undefined;
-const CLIENT_SETTINGS_STORAGE_KEY = "multi:client-settings:v1";
+const CLIENT_SETTINGS_STORAGE_KEY = "honk:client-settings:v1";
 
-function readBrowserClientSettings(): ClientSettings | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return getLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, ClientSettingsSchema);
-}
-
-function writeBrowserClientSettings(settings: ClientSettings): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  setLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, settings, ClientSettingsSchema);
-}
+configureLocalApiHost({
+  showContextMenuFallback,
+  readBrowserClientSettings: () =>
+    getLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, ClientSettingsSchema),
+  writeBrowserClientSettings: (settings) =>
+    setLocalStorageItem(CLIENT_SETTINGS_STORAGE_KEY, settings, ClientSettingsSchema),
+});
 
 export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
-  return {
-    dialogs: {
-      pickFolder: async (options) => {
-        if (!window.desktopBridge) return null;
-        return window.desktopBridge.pickFolder(options);
-      },
-      confirm: async (message) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.confirm(message);
-        }
-        return window.confirm(message);
-      },
-    },
+  return createLocalApiFromClient({
+    server: rpcClient.server,
     shell: {
       openInEditor: (cwd, editor) => rpcClient.shell.openInEditor({ cwd, editor }),
-      openExternal: async (url) => {
-        if (window.desktopBridge) {
-          const opened = await window.desktopBridge.openExternal(url);
-          if (!opened) {
-            throw new Error("Unable to open link.");
-          }
-          return;
-        }
-
-        window.open(url, "_blank", "noopener,noreferrer");
-      },
     },
-    contextMenu: {
-      show: async <T extends string>(
-        items: readonly ContextMenuItem<T>[],
-        position?: { x: number; y: number },
-      ): Promise<T | null> => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.showContextMenu(items, position) as Promise<T | null>;
-        }
-        return showContextMenuFallback(items, position);
-      },
-    },
-    persistence: {
-      getClientSettings: async () => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.getClientSettings();
-        }
-        return readBrowserClientSettings();
-      },
-      setClientSettings: async (settings) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.setClientSettings(settings);
-        }
-        writeBrowserClientSettings(settings);
-      },
-    },
-    server: {
-      getConfig: rpcClient.server.getConfig,
-      refreshProviders: rpcClient.server.refreshProviders,
-      upsertKeybinding: rpcClient.server.upsertKeybinding,
-      getSettings: rpcClient.server.getSettings,
-      updateSettings: rpcClient.server.updateSettings,
-    },
-  };
+  });
 }
 
-export function readLocalApi(): LocalApi | undefined {
-  if (typeof window === "undefined") return undefined;
-  if (cachedApi) return cachedApi;
-
-  if (window.nativeApi) {
-    cachedApi = window.nativeApi;
-    return cachedApi;
-  }
-
-  cachedApi = createLocalApi(getPrimaryEnvironmentConnection().client);
-  return cachedApi;
-}
-
-export function ensureLocalApi(): LocalApi {
-  const api = readLocalApi();
-  if (!api) {
-    throw new Error("Local API not found");
-  }
-  return api;
-}
+export { ensureLocalApi, readLocalApi };
 
 export async function __resetLocalApiForTests() {
-  cachedApi = undefined;
+  resetLocalApiForTests();
   await resetEnvironmentServiceForTests();
   resetGitStatusStateForTests();
   resetRequestLatencyStateForTests();

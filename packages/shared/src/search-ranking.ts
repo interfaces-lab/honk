@@ -14,9 +14,10 @@ export function normalizeSearchQuery(
   if (!trimmed) {
     return "";
   }
-  return options?.trimLeadingPattern
-    ? trimmed.replace(options.trimLeadingPattern, "").toLowerCase()
-    : trimmed.toLowerCase();
+  const withoutLeadingPattern = options?.trimLeadingPattern
+    ? trimmed.replace(options.trimLeadingPattern, "")
+    : trimmed;
+  return withoutLeadingPattern.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 export function scoreSubsequenceMatch(value: string, query: string): number | null {
@@ -81,7 +82,7 @@ function findBoundaryMatchIndex(
  * Scores how well `value` matches `query` using tiered match strategies.
  *
  * **Expects pre-normalized inputs**: both `value` and `query` must already be
- * trimmed and lowercased (e.g. via {@link normalizeSearchQuery}).
+ * trimmed, lowercased, and whitespace-collapsed (e.g. via {@link normalizeSearchQuery}).
  */
 export function scoreQueryMatch(input: {
   value: string;

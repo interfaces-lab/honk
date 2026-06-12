@@ -1,17 +1,16 @@
-import { type ApprovalRequestId, type ProviderApprovalDecision } from "@multi/contracts";
-import { memo } from "react";
-import { Button } from "@multi/ui/button";
+import { type ApprovalRequestId, type RuntimeApprovalDecision } from "@honk/contracts";
+import { Button } from "@honk/honkkit/button";
 
 interface ComposerPendingApprovalActionsProps {
   requestId: ApprovalRequestId;
   isResponding: boolean;
   onRespondToApproval: (
     requestId: ApprovalRequestId,
-    decision: ProviderApprovalDecision,
+    decision: RuntimeApprovalDecision,
   ) => Promise<void>;
 }
 
-export const ComposerPendingApprovalActions = memo(function ComposerPendingApprovalActions({
+export function ComposerPendingApprovalActions({
   requestId,
   isResponding,
   onRespondToApproval,
@@ -52,4 +51,4 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
       </Button>
     </>
   );
-});
+}

@@ -1,8 +1,10 @@
-import { Fragment, memo, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
+import { Code, Pre } from "@honk/honkkit/code";
+import { Link } from "@honk/honkkit/link";
 
 type RichTextRecord = Record<string, unknown>;
 
-export const ReadonlyRichTextMessage = memo(function ReadonlyRichTextMessage({
+export function ReadonlyRichTextMessage({
   fallbackText,
   richText,
 }: {
@@ -24,7 +26,7 @@ export const ReadonlyRichTextMessage = memo(function ReadonlyRichTextMessage({
       {body}
     </div>
   );
-});
+}
 
 export function hasRenderableRichText(richText: unknown): boolean {
   return renderRichTextBody(richText) !== null;
@@ -59,24 +61,53 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
   const key = `tiptap:${index}`;
   switch (record.type) {
     case "paragraph":
-      return <p key={key} className="m-0">{children || <br />}</p>;
+      return (
+        <p key={key} className="m-0">
+          {children || <br />}
+        </p>
+      );
     case "heading":
-      return <div key={key} className="m-0 font-semibold">{children}</div>;
+      return (
+        <div key={key} className="m-0 font-semibold">
+          {children}
+        </div>
+      );
     case "bulletList":
-      return <ul key={key} className="m-0 list-disc pl-5">{children}</ul>;
+      return (
+        <ul key={key} className="m-0 list-disc pl-5">
+          {children}
+        </ul>
+      );
     case "orderedList":
-      return <ol key={key} className="m-0 list-decimal pl-5">{children}</ol>;
+      return (
+        <ol key={key} className="m-0 list-decimal pl-5">
+          {children}
+        </ol>
+      );
     case "listItem":
       return <li key={key}>{children}</li>;
     case "blockquote":
-      return <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">{children}</blockquote>;
+      return (
+        <blockquote key={key} className="m-0 border-l border-honk-stroke-secondary pl-2">
+          {children}
+        </blockquote>
+      );
     case "codeBlock":
-      return <pre key={key} className="m-0 overflow-x-auto whitespace-pre-wrap rounded-multi-control bg-multi-bg-tertiary px-2 py-1 font-mono text-detail">{plainTextFromTiptap(record)}</pre>;
+      return (
+        <Pre
+          key={key}
+          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-honk-bg-tertiary px-2 py-1 text-detail"
+        >
+          {plainTextFromTiptap(record)}
+        </Pre>
+      );
     case "hardBreak":
       return <br key={key} />;
     case "text": {
       const text = stringField(record, "text");
-      return text ? <Fragment key={key}>{applyTiptapMarks(text, asArray(record.marks))}</Fragment> : null;
+      return text ? (
+        <Fragment key={key}>{applyTiptapMarks(text, asArray(record.marks))}</Fragment>
+      ) : null;
     }
     case "mentionNode":
     case "commandNode":
@@ -105,34 +136,63 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
   const key = `lexical:${index}`;
   switch (record.type) {
     case "paragraph":
-      return <p key={key} className="m-0">{children || <br />}</p>;
+      return (
+        <p key={key} className="m-0">
+          {children || <br />}
+        </p>
+      );
     case "heading":
-      return <div key={key} className="m-0 font-semibold">{children}</div>;
+      return (
+        <div key={key} className="m-0 font-semibold">
+          {children}
+        </div>
+      );
     case "list":
       return stringField(record, "listType") === "number" ? (
-        <ol key={key} className="m-0 list-decimal pl-5">{children}</ol>
+        <ol key={key} className="m-0 list-decimal pl-5">
+          {children}
+        </ol>
       ) : (
-        <ul key={key} className="m-0 list-disc pl-5">{children}</ul>
+        <ul key={key} className="m-0 list-disc pl-5">
+          {children}
+        </ul>
       );
     case "listitem":
       return <li key={key}>{children}</li>;
     case "quote":
-      return <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">{children}</blockquote>;
+      return (
+        <blockquote key={key} className="m-0 border-l border-honk-stroke-secondary pl-2">
+          {children}
+        </blockquote>
+      );
     case "code":
-      return <pre key={key} className="m-0 overflow-x-auto whitespace-pre-wrap rounded-multi-control bg-multi-bg-tertiary px-2 py-1 font-mono text-detail">{lexicalPlainText(record)}</pre>;
+      return (
+        <Pre
+          key={key}
+          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-honk-bg-tertiary px-2 py-1 text-detail"
+        >
+          {lexicalPlainText(record)}
+        </Pre>
+      );
     case "linebreak":
       return <br key={key} />;
     case "link": {
       const url = safeHref(stringField(record, "url"));
       return url ? (
-        <a key={key} href={url} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>
+        <Link key={key} href={url} target="_blank" rel="noreferrer" tone="inherit">
+          {children}
+        </Link>
       ) : (
         <Fragment key={key}>{children}</Fragment>
       );
     }
     case "text": {
       const text = stringField(record, "text");
-      return text ? <Fragment key={key}>{applyLexicalFormat(text, numberField(record, "format") ?? 0)}</Fragment> : null;
+      return text ? (
+        <Fragment key={key}>
+          {applyLexicalFormat(text, numberField(record, "format") ?? 0)}
+        </Fragment>
+      ) : null;
     }
     case "mentionNode":
     case "commandNode":
@@ -162,10 +222,16 @@ function applyTiptapMarks(text: string, marks: unknown[]): ReactNode {
       case "strike":
         return <s>{node}</s>;
       case "code":
-        return <code className="rounded-multi-control bg-multi-bg-tertiary px-1 font-mono text-detail">{node}</code>;
+        return <Code className="rounded-honk-control px-1 py-0 text-detail">{node}</Code>;
       case "link": {
         const href = safeHref(stringField(asRecord(record.attrs), "href"));
-        return href ? <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">{node}</a> : node;
+        return href ? (
+          <Link href={href} target="_blank" rel="noreferrer" tone="inherit">
+            {node}
+          </Link>
+        ) : (
+          node
+        );
       }
       default:
         return node;
@@ -180,7 +246,7 @@ function applyLexicalFormat(text: string, format: number): ReactNode {
   if ((format & 4) !== 0) node = <s>{node}</s>;
   if ((format & 8) !== 0) node = <span className="underline underline-offset-2">{node}</span>;
   if ((format & 16) !== 0) {
-    node = <code className="rounded-multi-control bg-multi-bg-tertiary px-1 font-mono text-detail">{node}</code>;
+    node = <Code className="rounded-honk-control px-1 py-0 text-detail">{node}</Code>;
   }
   return node;
 }

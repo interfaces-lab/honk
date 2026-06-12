@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 
 import {
   Cache,
+  Cause,
   Duration,
   Effect,
   Exit,
@@ -19,19 +20,25 @@ import {
   GitCommandError,
   GitRunStackedActionResult,
   GitStackedAction,
+  CommandId,
+  type DispatchResult,
+  EventId,
+  OrchestrationDispatchCommandError,
+  ThreadId,
+  type OrchestrationCommand,
   type GitStatusLocalResult,
   type GitStatusRemoteResult,
   ModelSelection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   detectGitHostingProviderFromRemoteUrl,
   mergeGitStatusParts,
   resolveAutoFeatureBranchName,
   sanitizeBranchFragment,
   sanitizeFeatureBranchName,
-} from "@multi/shared/git";
+} from "@honk/shared/git";
 
-import { GitManagerError } from "@multi/contracts";
+import { GitManagerError } from "@honk/contracts";
 import {
   GitManager,
   type GitActionProgressReporter,
@@ -42,9 +49,10 @@ import { GitCore, GitStatusDetails } from "./GitCore.service.ts";
 import { GitHubCli, type GitHubPullRequestSummary } from "./GitHubCli.service.ts";
 import { TextGeneration } from "./TextGeneration.service.ts";
 import { ProjectSetupScriptRunner } from "../project/ProjectSetupScriptRunner.service.ts";
+import { OrchestrationEngineService } from "../orchestration/OrchestrationEngine.service.ts";
 import { extractBranchNameFromRemoteRef } from "./remote-refs.ts";
 import { ServerSettingsService } from "../server-settings.ts";
-import type { GitManagerServiceError } from "@multi/contracts";
+import type { GitManagerServiceError } from "@honk/contracts";
 import {
   decodeGitHubPullRequestListJson,
   formatGitHubJsonDecodeError,
@@ -59,6 +67,7 @@ const STATUS_RESULT_CACHE_CAPACITY = 2_048;
 type StripProgressContext<T> = T extends any ? Omit<T, "actionId" | "cwd" | "action"> : never;
 type GitActionProgressPayload = StripProgressContext<GitActionProgressEvent>;
 type GitActionProgressEmitter = (event: GitActionProgressPayload) => Effect.Effect<void, never>;
+type BootstrapTurnStartCommand = Extract<OrchestrationCommand, { type: "thread.turn.start" }>;
 
 function isNotGitRepositoryError(error: GitCommandError): boolean {
   return error.message.toLowerCase().includes("not a git repository");
@@ -140,7 +149,7 @@ function resolvePullRequestWorktreeLocalBranchName(
 
   const sanitizedHeadBranch = sanitizeBranchFragment(pullRequest.headBranch).trim();
   const suffix = sanitizedHeadBranch.length > 0 ? sanitizedHeadBranch : "head";
-  return `multi/pr-${pullRequest.number}/${suffix}`;
+  return `honk/pr-${pullRequest.number}/${suffix}`;
 }
 
 function parseGitHubRepositoryNameWithOwnerFromRemoteUrl(url: string | null): string | null {
@@ -492,6 +501,7 @@ function toPullRequestHeadRemoteInfo(pr: {
 export const makeGitManager = Effect.fn("makeGitManager")(function* () {
   const gitCore = yield* GitCore;
   const gitHubCli = yield* GitHubCli;
+  const orchestrationEngine = yield* OrchestrationEngineService;
   const textGeneration = yield* TextGeneration;
   const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
   const serverSettingsService = yield* ServerSettingsService;
@@ -1254,7 +1264,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       modelSelection,
     });
 
-    const bodyFile = path.join(tempDir, `multi-pr-body-${process.pid}-${randomUUID()}.md`);
+    const bodyFile = path.join(tempDir, `honk-pr-body-${process.pid}-${randomUUID()}.md`);
     yield* fileSystem
       .writeFileString(bodyFile, generated.body)
       .pipe(
@@ -1325,6 +1335,249 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       yield* invalidateRemoteStatusResultCache(cwd);
     },
   );
+
+  const serverCommandId = (tag: string): CommandId =>
+    CommandId.make(`server:${tag}:${randomUUID()}`);
+
+  const isOrchestrationDispatchCommandError = (
+    cause: unknown,
+  ): cause is OrchestrationDispatchCommandError =>
+    cause instanceof OrchestrationDispatchCommandError;
+
+  const toBootstrapDispatchCommandCauseError = (cause: Cause.Cause<unknown>) => {
+    const error = Cause.squash(cause);
+    return isOrchestrationDispatchCommandError(error)
+      ? error
+      : new OrchestrationDispatchCommandError({
+          message:
+            error instanceof Error ? error.message : "Failed to bootstrap thread turn start.",
+          cause,
+        });
+  };
+
+  const appendSetupScriptActivity = (input: {
+    readonly threadId: ThreadId;
+    readonly kind: "setup-script.requested" | "setup-script.started" | "setup-script.failed";
+    readonly summary: string;
+    readonly createdAt: string;
+    readonly payload: Record<string, unknown>;
+    readonly tone: "info" | "error";
+  }) =>
+    orchestrationEngine.dispatch({
+      type: "thread.activity.append",
+      commandId: serverCommandId("setup-script-activity"),
+      threadId: input.threadId,
+      activity: {
+        id: EventId.make(randomUUID()),
+        tone: input.tone,
+        kind: input.kind,
+        summary: input.summary,
+        payload: input.payload,
+        turnId: null,
+        createdAt: input.createdAt,
+      },
+      createdAt: input.createdAt,
+    });
+
+  const dispatchBootstrapTurnStart: GitManagerShape["dispatchBootstrapTurnStart"] = Effect.fn(
+    "dispatchBootstrapTurnStart",
+  )(function* (command: BootstrapTurnStartCommand) {
+    const bootstrap = command.bootstrap;
+    const { bootstrap: _bootstrap, ...finalTurnStartCommand } = command;
+    let createdThread = false;
+    let targetProjectId = bootstrap?.createThread?.projectId;
+    let targetProjectCwd = bootstrap?.prepareWorktree?.projectCwd;
+    let targetBranch = bootstrap?.createThread?.branch ?? null;
+    let targetWorktreePath = bootstrap?.createThread?.worktreePath ?? null;
+
+    const cleanupCreatedThread = () =>
+      createdThread
+        ? orchestrationEngine
+            .dispatch({
+              type: "thread.delete",
+              commandId: serverCommandId("bootstrap-thread-delete"),
+              threadId: command.threadId,
+            })
+            .pipe(Effect.ignoreCause({ log: true }))
+        : Effect.void;
+
+    const recordSetupScriptLaunchFailure = (input: {
+      readonly error: unknown;
+      readonly requestedAt: string;
+      readonly worktreePath: string;
+    }) => {
+      const detail = input.error instanceof Error ? input.error.message : "Unknown setup failure.";
+      return appendSetupScriptActivity({
+        threadId: command.threadId,
+        kind: "setup-script.failed",
+        summary: "Setup script failed to start",
+        createdAt: input.requestedAt,
+        payload: {
+          detail,
+          worktreePath: input.worktreePath,
+        },
+        tone: "error",
+      }).pipe(
+        Effect.ignoreCause({ log: false }),
+        Effect.flatMap(() =>
+          Effect.logWarning("bootstrap turn start failed to launch setup script", {
+            threadId: command.threadId,
+            worktreePath: input.worktreePath,
+            detail,
+          }),
+        ),
+      );
+    };
+
+    const recordSetupScriptStarted = (input: {
+      readonly requestedAt: string;
+      readonly worktreePath: string;
+      readonly scriptId: string;
+      readonly scriptName: string;
+      readonly terminalId: string;
+    }) => {
+      const payload = {
+        scriptId: input.scriptId,
+        scriptName: input.scriptName,
+        terminalId: input.terminalId,
+        worktreePath: input.worktreePath,
+      };
+      return Effect.all([
+        appendSetupScriptActivity({
+          threadId: command.threadId,
+          kind: "setup-script.requested",
+          summary: "Starting setup script",
+          createdAt: input.requestedAt,
+          payload,
+          tone: "info",
+        }),
+        appendSetupScriptActivity({
+          threadId: command.threadId,
+          kind: "setup-script.started",
+          summary: "Setup script started",
+          createdAt: new Date().toISOString(),
+          payload,
+          tone: "info",
+        }),
+      ]).pipe(
+        Effect.asVoid,
+        Effect.catch((error) =>
+          Effect.logWarning(
+            "bootstrap turn start launched setup script but failed to record setup activity",
+            {
+              threadId: command.threadId,
+              worktreePath: input.worktreePath,
+              scriptId: input.scriptId,
+              terminalId: input.terminalId,
+              detail: error.message,
+            },
+          ),
+        ),
+      );
+    };
+
+    const runSetupProgram = () =>
+      bootstrap?.runSetupScript && targetWorktreePath
+        ? (() => {
+            const worktreePath = targetWorktreePath;
+            const requestedAt = new Date().toISOString();
+            return projectSetupScriptRunner
+              .runForThread({
+                threadId: command.threadId,
+                ...(targetProjectId ? { projectId: targetProjectId } : {}),
+                ...(targetProjectCwd ? { projectCwd: targetProjectCwd } : {}),
+                worktreePath,
+              })
+              .pipe(
+                Effect.matchEffect({
+                  onFailure: (error) =>
+                    recordSetupScriptLaunchFailure({
+                      error,
+                      requestedAt,
+                      worktreePath,
+                    }),
+                  onSuccess: (setupResult) => {
+                    if (setupResult.status !== "started") {
+                      return Effect.void;
+                    }
+                    return recordSetupScriptStarted({
+                      requestedAt,
+                      worktreePath,
+                      scriptId: setupResult.scriptId,
+                      scriptName: setupResult.scriptName,
+                      terminalId: setupResult.terminalId,
+                    });
+                  },
+                }),
+              );
+          })()
+        : Effect.void;
+
+    const bootstrapProgram = Effect.gen(function* () {
+      if (bootstrap?.createThread) {
+        yield* orchestrationEngine.dispatch({
+          type: "thread.create",
+          commandId: serverCommandId("bootstrap-thread-create"),
+          threadId: command.threadId,
+          projectId: bootstrap.createThread.projectId,
+          title: bootstrap.createThread.title,
+          modelSelection: bootstrap.createThread.modelSelection,
+          runtimeMode: bootstrap.createThread.runtimeMode,
+          interactionMode: bootstrap.createThread.interactionMode,
+          branch: bootstrap.createThread.branch,
+          worktreePath: bootstrap.createThread.worktreePath,
+          createdAt: bootstrap.createThread.createdAt,
+        });
+        createdThread = true;
+      }
+
+      if (bootstrap?.prepareWorktree) {
+        const worktree = yield* gitCore.createWorktree({
+          cwd: bootstrap.prepareWorktree.projectCwd,
+          branch: bootstrap.prepareWorktree.baseBranch,
+          newBranch: bootstrap.prepareWorktree.branch,
+          path: null,
+        });
+        targetProjectCwd = bootstrap.prepareWorktree.projectCwd;
+        targetBranch = worktree.worktree.branch;
+        targetWorktreePath = worktree.worktree.path;
+        yield* orchestrationEngine.dispatch({
+          type: "thread.meta.update",
+          commandId: serverCommandId("bootstrap-thread-meta-update"),
+          threadId: command.threadId,
+          branch: worktree.worktree.branch,
+          worktreePath: targetWorktreePath,
+        });
+        yield* invalidateStatus(bootstrap.prepareWorktree.projectCwd);
+        yield* invalidateStatus(targetWorktreePath);
+        yield* status({ cwd: targetWorktreePath }).pipe(Effect.ignoreCause({ log: true }));
+      }
+
+      yield* runSetupProgram();
+
+      const result = yield* orchestrationEngine.dispatch(finalTurnStartCommand);
+      if (!targetBranch || !targetWorktreePath) {
+        return result satisfies DispatchResult;
+      }
+      return {
+        ...result,
+        preparedWorktree: {
+          branch: targetBranch,
+          worktreePath: targetWorktreePath,
+        },
+      } satisfies DispatchResult;
+    });
+
+    const result = yield* Effect.exit(bootstrapProgram);
+    if (Exit.isSuccess(result)) {
+      return result.value;
+    }
+    const dispatchError = toBootstrapDispatchCommandCauseError(result.cause);
+    if (Cause.hasInterruptsOnly(result.cause)) {
+      return yield* Effect.fail(dispatchError);
+    }
+    return yield* cleanupCreatedThread().pipe(Effect.flatMap(() => Effect.fail(dispatchError)));
+  });
 
   const resolvePullRequest: GitManagerShape["resolvePullRequest"] = Effect.fn("resolvePullRequest")(
     function* (input) {
@@ -1718,6 +1971,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
   );
 
   return {
+    dispatchBootstrapTurnStart,
     localStatus,
     remoteStatus,
     status,

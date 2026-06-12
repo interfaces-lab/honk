@@ -1,25 +1,29 @@
 import {
   IconArchive1,
   IconArchiveJunk,
-  IconChevronRightMedium,
-  IconLoader,
-  IconPlusLarge,
+  IconCheckmark1,
+  IconChevronDownSmall,
+  IconClawd,
+  IconOpenaiCodex,
 } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import {
+  AGENT_INTERACTION_MODES,
+  type AgentAuthStatus,
+  type AgentCredentialAuthFlow,
+  type AgentCredentialKind,
+  type AgentCredentialPreference,
+  type AgentInteractionMode,
+  type AgentMode,
+  type AgentPreferencesPatch,
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
-  defaultInstanceIdForDriver,
-  type ProviderInstanceConfig,
-  type ProviderInstanceId,
-  type RuntimeMode,
+  type HonkRuntimeHostSnapshot,
   type ScopedThreadRef,
-  ProviderDriverKind,
-} from "@multi/contracts";
-import { scopeThreadRef } from "@multi/client-runtime";
-import { DEFAULT_UNIFIED_SETTINGS, type UnifiedSettings } from "@multi/contracts/settings";
-import { createModelSelection } from "@multi/shared/model";
+} from "@honk/contracts";
+import { scopeThreadRef } from "~/lib/environment-scope";
+import { DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
 import { Equal } from "effect";
 import { APP_VERSION } from "~/app/branding";
 import {
@@ -33,9 +37,7 @@ import {
   getDesktopUpdateInstallConfirmationMessage,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktop-update-state";
-import { ProviderModelPicker } from "../chat/picker/model-picker";
-import { TraitsPicker } from "../chat/picker/traits-picker";
-import { resolveAndPersistPreferredEditor } from "../../editor/preferences";
+import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 import { isElectron } from "../../env";
 import { useTheme } from "../../hooks/use-theme";
 import { useSettings, useUpdateSettings } from "../../hooks/use-settings";
@@ -44,7 +46,6 @@ import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
 } from "../../lib/desktop-update-react-query";
-import { resolveAppProviderModelState } from "../../model/selection";
 import { ensureLocalApi, readLocalApi } from "../../local-api";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -53,15 +54,50 @@ import {
   useStore,
 } from "../../stores/thread-store";
 import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
-import { Button } from "@multi/ui/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@multi/ui/empty";
-import { Input } from "@multi/ui/input";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@multi/ui/select";
-import { Switch } from "@multi/ui/switch";
-import { Text, textVariants } from "@multi/ui/text";
+import { Button } from "@honk/honkkit/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@honk/honkkit/empty";
+import { Input } from "@honk/honkkit/input";
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
+  MenuTrigger,
+} from "@honk/honkkit/menu";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@honk/honkkit/select";
+import { Switch } from "@honk/honkkit/switch";
+import { Text, textVariants } from "@honk/honkkit/text";
 import { toastManager } from "~/app/toast";
-import { formatProviderErrorDescription } from "~/lib/provider-error-description";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { cn } from "~/lib/utils";
+import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
+import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
+import {
+  AGENT_MODE_LABELS,
+  AGENT_MODE_OPTIONS,
+  AGENT_MODE_THINKING_LEVELS,
+  AGENT_THINKING_LEVEL_LABELS,
+  AGENT_THINKING_LEVEL_OPTIONS,
+  agentModeSupportsThinkingLevelSelection,
+  deriveAgentModeAvailability,
+  normalizedConfigurableThinkingLevel,
+  unavailableAgentModeReason,
+  type AgentModeAvailability,
+} from "~/lib/agent-mode-options";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -70,15 +106,10 @@ import {
 } from "./settings-layout";
 import { ProjectFavicon } from "../project-favicon";
 import {
-  applyProvidersUpdated,
   useServerAvailableEditors,
   useServerKeybindingsConfigPath,
   useServerObservability,
-  useServerProviders,
 } from "../../rpc/server-state";
-import { AddProviderInstanceDialog } from "./add-provider-instance-dialog";
-import { ProviderInstanceCard } from "./provider-instance-card";
-import { DRIVER_OPTIONS, getDriverOption } from "./provider-driver-meta";
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -101,53 +132,6 @@ const AGENT_WINDOW_USAGE_SUMMARY_DISPLAY_LABELS: Record<AgentWindowUsageSummaryD
   never: "Never",
 };
 
-const RUNTIME_MODE_LABELS: Record<RuntimeMode, string> = {
-  "full-access": "Full access",
-  "auto-accept-edits": "Auto-accept edits",
-  "approval-required": "Supervised",
-};
-
-function isRuntimeMode(value: string | null | undefined): value is RuntimeMode {
-  return value === "full-access" || value === "auto-accept-edits" || value === "approval-required";
-}
-
-type ProviderSettingsDescriptor = {
-  provider: typeof ProviderDriverKind.Type;
-};
-
-const PROVIDER_SETTINGS: readonly ProviderSettingsDescriptor[] = DRIVER_OPTIONS.map(
-  (definition) => ({
-    provider: definition.value,
-  }),
-);
-
-function buildProviderInstanceUpdatePatch(input: {
-  readonly settings: Pick<UnifiedSettings, "providerInstances">;
-  readonly instanceId: ProviderInstanceId;
-  readonly instance: ProviderInstanceConfig;
-  readonly textGenerationModelSelection?:
-    | UnifiedSettings["textGenerationModelSelection"]
-    | undefined;
-}): Partial<UnifiedSettings> {
-  return {
-    providerInstances: {
-      ...input.settings.providerInstances,
-      [input.instanceId]: input.instance,
-    },
-    ...(input.textGenerationModelSelection !== undefined
-      ? { textGenerationModelSelection: input.textGenerationModelSelection }
-      : {}),
-  };
-}
-
-function showProviderSettingsError(title: string, error: unknown): void {
-  toastManager.add({
-    type: "error",
-    title,
-    description: formatProviderErrorDescription(error, "Provider settings update failed."),
-  });
-}
-
 function AboutVersionTitle() {
   return (
     <Text
@@ -158,7 +142,7 @@ function AboutVersionTitle() {
       weight="medium"
     >
       <span>Version</span>
-      <code className="font-multi-mono text-multi-code font-medium text-multi-fg-secondary">
+      <code className="font-honk-mono text-honk-sm font-medium text-honk-fg-secondary">
         {APP_VERSION}
       </code>
     </Text>
@@ -171,7 +155,7 @@ function AboutVersionSection() {
 
   const updateState = updateStateQuery.data ?? null;
 
-  const handleButtonClick = useCallback(() => {
+  const handleButtonClick = () => {
     const bridge = window.desktopBridge;
     if (!bridge) return;
 
@@ -236,7 +220,7 @@ function AboutVersionSection() {
           description: error instanceof Error ? error.message : "Update check failed.",
         });
       });
-  }, [queryClient, updateState]);
+  };
 
   const action = updateState ? resolveDesktopUpdateButtonAction(updateState) : "none";
   const buttonTooltip = updateState ? getDesktopUpdateButtonTooltip(updateState) : null;
@@ -287,87 +271,54 @@ export function useSettingsRestore(onRestored?: () => void) {
   const { resetSettings } = useUpdateSettings();
   const appearance = useAppearanceSettingsSnapshot();
 
-  const isGitWritingModelDirty = !Equal.equals(
-    settings.textGenerationModelSelection ?? null,
-    DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
-  );
   const isAgentWindowAppearanceDirty =
     settings.agentWindowFontSmoothingAntialiased !==
       DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased ||
-    settings.agentWindowChatMaxWidth !== DEFAULT_UNIFIED_SETTINGS.agentWindowChatMaxWidth ||
     settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons;
   const isAppearanceDirty = !Equal.equals(appearance, DEFAULT_APPEARANCE_SNAPSHOT);
-  const areProviderSettingsDirty = PROVIDER_SETTINGS.some((providerSettings) => {
-    const provider = providerSettings.provider as keyof typeof DEFAULT_UNIFIED_SETTINGS.providers;
-    const currentSettings = settings.providers[provider];
-    const defaultSettings = DEFAULT_UNIFIED_SETTINGS.providers[provider];
-    return !Equal.equals(currentSettings, defaultSettings);
-  });
 
-  const changedSettingLabels = useMemo(
-    () => [
-      ...(theme !== "system" ? ["Theme"] : []),
-      ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
-        ? ["Time format"]
-        : []),
-      ...(settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap
-        ? ["Diff line wrapping"]
-        : []),
-      ...(settings.enableAssistantStreaming !== DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming
-        ? ["Assistant output"]
-        : []),
-      ...(settings.defaultRuntimeMode !== DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode
-        ? ["Agent access"]
-        : []),
-      ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
-        ? ["New thread mode"]
-        : []),
-      ...(settings.agentWindowSendWhileStreamingBehavior !==
-      DEFAULT_UNIFIED_SETTINGS.agentWindowSendWhileStreamingBehavior
-        ? ["Running send behavior"]
-        : []),
-      ...(settings.agentWindowUsageSummaryDisplay !==
-      DEFAULT_UNIFIED_SETTINGS.agentWindowUsageSummaryDisplay
-        ? ["Usage summary"]
-        : []),
-      ...(settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons
-        ? ["Pointer cursors"]
-        : []),
-      ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
-        ? ["Add project base directory"]
-        : []),
-      ...(settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive
-        ? ["Archive confirmation"]
-        : []),
-      ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
-        ? ["Delete confirmation"]
-        : []),
-      ...(isAgentWindowAppearanceDirty ? ["Agent Window"] : []),
-      ...(isAppearanceDirty ? ["Appearance"] : []),
-      ...(isGitWritingModelDirty ? ["Git writing model"] : []),
-      ...(areProviderSettingsDirty ? ["Providers"] : []),
-    ],
-    [
-      areProviderSettingsDirty,
-      isAgentWindowAppearanceDirty,
-      isAppearanceDirty,
-      isGitWritingModelDirty,
-      settings.agentWindowSendWhileStreamingBehavior,
-      settings.agentWindowUsageSummaryDisplay,
-      settings.confirmThreadArchive,
-      settings.confirmThreadDelete,
-      settings.cursorPointerOnButtons,
-      settings.addProjectBaseDirectory,
-      settings.defaultRuntimeMode,
-      settings.defaultThreadEnvMode,
-      settings.diffWordWrap,
-      settings.enableAssistantStreaming,
-      settings.timestampFormat,
-      theme,
-    ],
-  );
+  const changedSettingLabels = [
+    ...(theme !== "system" ? ["Theme"] : []),
+    ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
+      ? ["Time format"]
+      : []),
+    ...(settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap
+      ? ["Diff line wrapping"]
+      : []),
+    ...(settings.enableAssistantStreaming !== DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming
+      ? ["Assistant output"]
+      : []),
+    ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
+      ? ["New thread mode"]
+      : []),
+    ...(settings.agentWindowSendWhileStreamingBehavior !==
+    DEFAULT_UNIFIED_SETTINGS.agentWindowSendWhileStreamingBehavior
+      ? ["Running send behavior"]
+      : []),
+    ...(settings.agentWindowUsageSummaryDisplay !==
+    DEFAULT_UNIFIED_SETTINGS.agentWindowUsageSummaryDisplay
+      ? ["Usage summary"]
+      : []),
+    ...(settings.conversationDensity !== DEFAULT_UNIFIED_SETTINGS.conversationDensity
+      ? ["Tool call density"]
+      : []),
+    ...(settings.cursorPointerOnButtons !== DEFAULT_UNIFIED_SETTINGS.cursorPointerOnButtons
+      ? ["Pointer cursors"]
+      : []),
+    ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
+      ? ["Add project base directory"]
+      : []),
+    ...(settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive
+      ? ["Archive confirmation"]
+      : []),
+    ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
+      ? ["Delete confirmation"]
+      : []),
+    ...(isAgentWindowAppearanceDirty ? ["Agent Window"] : []),
+    ...(isAppearanceDirty ? ["Appearance"] : []),
+  ];
 
-  const restoreDefaults = useCallback(async () => {
+  const restoreDefaults = async () => {
     if (changedSettingLabels.length === 0) return;
     const api = readLocalApi();
     const confirmed = await (api ?? ensureLocalApi()).dialogs.confirm(
@@ -383,9 +334,13 @@ export function useSettingsRestore(onRestored?: () => void) {
       await resetSettings();
       onRestored?.();
     } catch (error) {
-      showProviderSettingsError("Failed to restore default settings", error);
+      toastManager.add({
+        type: "error",
+        title: "Failed to restore default settings",
+        description: error instanceof Error ? error.message : "Settings reset failed.",
+      });
     }
-  }, [changedSettingLabels, onRestored, resetSettings, setTheme]);
+  };
 
   return {
     changedSettingLabels,
@@ -409,39 +364,40 @@ export function GeneralSettingsPanel() {
 
   const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
   const diagnosticsDescription = observability?.localTracingEnabled
-    ? "Local trace file."
-    : "Terminal logs only.";
+    ? "Structured logs (JSONL) and local trace files."
+    : "Structured logs (JSONL).";
 
-  const openInPreferredEditor = useCallback(
-    (target: "keybindings" | "logsDirectory", path: string | null, failureMessage: string) => {
-      if (!path) return;
-      setOpenPathErrorByTarget((existing) => ({ ...existing, [target]: null }));
-      setOpeningPathByTarget((existing) => ({ ...existing, [target]: true }));
+  const openInPreferredEditor = (
+    target: "keybindings" | "logsDirectory",
+    path: string | null,
+    failureMessage: string,
+  ) => {
+    if (!path) return;
+    setOpenPathErrorByTarget((existing) => ({ ...existing, [target]: null }));
+    setOpeningPathByTarget((existing) => ({ ...existing, [target]: true }));
 
-      const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
-      if (!editor) {
+    const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
+    if (!editor) {
+      setOpenPathErrorByTarget((existing) => ({
+        ...existing,
+        [target]: "No available editors found.",
+      }));
+      setOpeningPathByTarget((existing) => ({ ...existing, [target]: false }));
+      return;
+    }
+
+    void ensureLocalApi()
+      .shell.openInEditor(path, editor)
+      .catch((error) => {
         setOpenPathErrorByTarget((existing) => ({
           ...existing,
-          [target]: "No available editors found.",
+          [target]: error instanceof Error ? error.message : failureMessage,
         }));
+      })
+      .finally(() => {
         setOpeningPathByTarget((existing) => ({ ...existing, [target]: false }));
-        return;
-      }
-
-      void ensureLocalApi()
-        .shell.openInEditor(path, editor)
-        .catch((error) => {
-          setOpenPathErrorByTarget((existing) => ({
-            ...existing,
-            [target]: error instanceof Error ? error.message : failureMessage,
-          }));
-        })
-        .finally(() => {
-          setOpeningPathByTarget((existing) => ({ ...existing, [target]: false }));
-        });
-    },
-    [availableEditors],
-  );
+      });
+  };
 
   return (
     <SettingsPageContainer>
@@ -464,7 +420,7 @@ export function GeneralSettingsPanel() {
               value={settings.timestampFormat}
               onValueChange={(value) => {
                 if (value === "locale" || value === "12-hour" || value === "24-hour") {
-                  updateSettings({ timestampFormat: value });
+                  void updateSettings({ timestampFormat: value });
                 }
               }}
             >
@@ -509,7 +465,7 @@ export function GeneralSettingsPanel() {
           control={
             <Input
               size="sm"
-              className="w-full border-multi-stroke-tertiary bg-multi-bg-quinary shadow-none has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused sm:w-34"
+              className="w-full border-honk-stroke-tertiary bg-honk-bg-quinary shadow-none has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused sm:w-34"
               value={settings.addProjectBaseDirectory}
               onChange={(event) => updateSettings({ addProjectBaseDirectory: event.target.value })}
               placeholder="~/"
@@ -526,7 +482,7 @@ export function GeneralSettingsPanel() {
           description="Open the persisted keybindings file to edit advanced bindings directly."
           status={
             <>
-              <span className="block break-all font-multi-mono text-multi-code text-multi-fg-secondary">
+              <span className="block break-all font-honk-mono text-honk-sm text-honk-fg-secondary">
                 {keybindingsConfigPath ?? "Resolving keybindings path..."}
               </span>
               {openPathErrorByTarget.keybindings ? (
@@ -569,7 +525,7 @@ export function GeneralSettingsPanel() {
           description={diagnosticsDescription}
           status={
             <>
-              <span className="block break-all font-multi-mono text-multi-code text-multi-fg-secondary">
+              <span className="block break-all font-honk-mono text-honk-sm text-honk-fg-secondary">
                 {logsDirectoryPath ?? "Resolving logs directory..."}
               </span>
               {openPathErrorByTarget.logsDirectory ? (
@@ -607,6 +563,8 @@ export function AgentsSettingsPanel() {
 
   return (
     <SettingsPageContainer>
+      <AgentRuntimeSettingsSections />
+
       <SettingsSection title="Agents">
         <SettingsRow
           title="Assistant output"
@@ -629,55 +587,9 @@ export function AgentsSettingsPanel() {
               checked={settings.enableAssistantStreaming}
               aria-label="Stream assistant messages"
               onCheckedChange={(checked) =>
-                updateSettings({ enableAssistantStreaming: Boolean(checked) })
+                void updateSettings({ enableAssistantStreaming: checked })
               }
             />
-          }
-        />
-        <SettingsRow
-          title="Agent access"
-          description="Default tool and command access for agent turns."
-          resetAction={
-            settings.defaultRuntimeMode !== DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode ? (
-              <SettingResetButton
-                label="agent access"
-                onClick={() =>
-                  updateSettings({
-                    defaultRuntimeMode: DEFAULT_UNIFIED_SETTINGS.defaultRuntimeMode,
-                  })
-                }
-              />
-            ) : null
-          }
-          control={
-            <Select
-              value={settings.defaultRuntimeMode}
-              onValueChange={(value) => {
-                if (isRuntimeMode(value)) {
-                  updateSettings({ defaultRuntimeMode: value });
-                }
-              }}
-            >
-              <SelectTrigger
-                size="xs"
-                variant="outline"
-                className="w-full sm:w-42"
-                aria-label="Agent access"
-              >
-                <SelectValue>{RUNTIME_MODE_LABELS[settings.defaultRuntimeMode]}</SelectValue>
-              </SelectTrigger>
-              <SelectPopup align="end" alignItemWithTrigger={false}>
-                <SelectItem hideIndicator value="full-access">
-                  {RUNTIME_MODE_LABELS["full-access"]}
-                </SelectItem>
-                <SelectItem hideIndicator value="auto-accept-edits">
-                  {RUNTIME_MODE_LABELS["auto-accept-edits"]}
-                </SelectItem>
-                <SelectItem hideIndicator value="approval-required">
-                  {RUNTIME_MODE_LABELS["approval-required"]}
-                </SelectItem>
-              </SelectPopup>
-            </Select>
           }
         />
         <SettingsRow
@@ -702,7 +614,7 @@ export function AgentsSettingsPanel() {
               value={settings.agentWindowSendWhileStreamingBehavior}
               onValueChange={(value) => {
                 if (value === "queue" || value === "stop-and-send" || value === "send") {
-                  updateSettings({ agentWindowSendWhileStreamingBehavior: value });
+                  void updateSettings({ agentWindowSendWhileStreamingBehavior: value });
                 }
               }}
             >
@@ -756,7 +668,7 @@ export function AgentsSettingsPanel() {
               value={settings.agentWindowUsageSummaryDisplay}
               onValueChange={(value) => {
                 if (value === "auto" || value === "always" || value === "never") {
-                  updateSettings({ agentWindowUsageSummaryDisplay: value });
+                  void updateSettings({ agentWindowUsageSummaryDisplay: value });
                 }
               }}
             >
@@ -808,7 +720,7 @@ export function AgentsSettingsPanel() {
               value={settings.defaultThreadEnvMode}
               onValueChange={(value) => {
                 if (value === "local" || value === "worktree") {
-                  updateSettings({ defaultThreadEnvMode: value });
+                  void updateSettings({ defaultThreadEnvMode: value });
                 }
               }}
             >
@@ -853,7 +765,7 @@ export function AgentsSettingsPanel() {
             <Switch
               checked={settings.diffWordWrap}
               aria-label="Wrap diff lines by default"
-              onCheckedChange={(checked) => updateSettings({ diffWordWrap: Boolean(checked) })}
+              onCheckedChange={(checked) => void updateSettings({ diffWordWrap: checked })}
             />
           }
         />
@@ -876,9 +788,7 @@ export function AgentsSettingsPanel() {
             <Switch
               checked={settings.confirmThreadArchive}
               aria-label="Confirm thread archiving"
-              onCheckedChange={(checked) =>
-                updateSettings({ confirmThreadArchive: Boolean(checked) })
-              }
+              onCheckedChange={(checked) => void updateSettings({ confirmThreadArchive: checked })}
             />
           }
         />
@@ -901,9 +811,7 @@ export function AgentsSettingsPanel() {
             <Switch
               checked={settings.confirmThreadDelete}
               aria-label="Confirm thread deletion"
-              onCheckedChange={(checked) =>
-                updateSettings({ confirmThreadDelete: Boolean(checked) })
-              }
+              onCheckedChange={(checked) => void updateSettings({ confirmThreadDelete: checked })}
             />
           }
         />
@@ -912,465 +820,840 @@ export function AgentsSettingsPanel() {
   );
 }
 
-function withoutProviderInstanceKey<V>(
-  record: Readonly<Record<ProviderInstanceId, V>> | undefined,
-  key: ProviderInstanceId,
-): Record<ProviderInstanceId, V> {
-  const next = { ...record } as Record<ProviderInstanceId, V>;
-  delete next[key];
-  return next;
+const AGENT_INTERACTION_MODE_LABELS: Partial<Record<AgentInteractionMode, string>> = {
+  agent: "Agent",
+  ask: "Ask",
+  plan: "Plan",
+  debug: "Debug",
+};
+
+const AGENT_INTERACTION_MODE_OPTIONS = AGENT_INTERACTION_MODES.map((value) => ({
+  value,
+  label: AGENT_INTERACTION_MODE_LABELS[value] ?? value,
+}));
+
+const AGENT_MODE_MODEL_DETAILS: Record<
+  AgentMode,
+  {
+    readonly modelName: string;
+    readonly description: string;
+  }
+> = {
+  deep: {
+    modelName: "GPT-5.5",
+    description: "Most capable coding mode, with deep reasoning.",
+  },
+  smart: {
+    modelName: "Claude Opus 4.8",
+    description: "Strong intelligence for any task.",
+  },
+  rush: {
+    modelName: "GPT-5.5",
+    description: "Fast, low-token work for small, well-defined tasks.",
+  },
+};
+
+const AGENT_AUTH_STATE_LABELS: Record<AgentAuthStatus["state"], string> = {
+  available: "Available",
+  missing: "Missing",
+  expired: "Expired",
+  error: "Error",
+  unknown: "Unknown",
+};
+
+function findCredentialAuthStatus(
+  credential: AgentCredentialPreference,
+  authStatuses: readonly AgentAuthStatus[],
+): AgentAuthStatus | null {
+  return (
+    authStatuses.find(
+      (status) =>
+        status.authProviderId === credential.authProviderId &&
+        (status.credentialKind === credential.kind || status.credentialKind === null) &&
+        (status.accountId === credential.accountId ||
+          status.accountId === null ||
+          credential.accountId === null),
+    ) ?? null
+  );
 }
 
-function withoutProviderInstanceFavorites(
-  favorites: ReadonlyArray<{ readonly provider: ProviderInstanceId; readonly model: string }>,
-  instanceId: ProviderInstanceId,
-) {
-  return favorites.filter((favorite) => favorite.provider !== instanceId);
+function findCredentialAuthFlow(
+  credential: AgentCredentialPreference,
+  authFlows: readonly AgentCredentialAuthFlow[],
+): AgentCredentialAuthFlow | null {
+  return (
+    authFlows.find(
+      (flow) =>
+        flow.authProviderId === credential.authProviderId &&
+        (flow.credentialKind === credential.kind ||
+          (flow.credentialKind === null && isOAuthCredential(credential))),
+    ) ?? null
+  );
 }
 
-export function ModelsSettingsPanel() {
-  const settings = useSettings();
-  const { updateSettings } = useUpdateSettings();
-  const serverProviders = useServerProviders();
-  const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
-  const [isAddInstanceDialogOpen, setIsAddInstanceDialogOpen] = useState(false);
-  const [openInstanceDetails, setOpenInstanceDetails] = useState<Record<string, boolean>>({});
-  const refreshingRef = useRef<Promise<void> | null>(null);
-
-  const visibleProviderSettings = PROVIDER_SETTINGS;
-  const textGenerationModelState = resolveAppProviderModelState({
-    settings,
-    providers: serverProviders,
-    requestedSelection: settings.textGenerationModelSelection,
-  });
-  const textGenerationModelStatus =
-    textGenerationModelState.status.kind === "ready"
-      ? null
-      : textGenerationModelState.status.message;
-  const textGenerationModelSelection = textGenerationModelState.modelSelection;
-  const textGenInstanceId = textGenerationModelSelection.instanceId;
-  const textGenModel = textGenerationModelSelection.model;
-  const textGenModelOptions = textGenerationModelSelection.options;
-  const modelInstanceEntries = textGenerationModelState.providerInstanceEntries;
-  const textGenInstanceEntry = textGenerationModelState.selectedProviderEntry;
-  const textGenProvider = textGenerationModelState.selectedProvider;
-  const resolveTextGenerationModelSelection = useCallback(
-    (nextSettings: UnifiedSettings) =>
-      resolveAppProviderModelState({
-        settings: nextSettings,
-        providers: serverProviders,
-        requestedSelection: nextSettings.textGenerationModelSelection,
-      }).modelSelection,
-    [serverProviders],
-  );
-  const isGitWritingModelDirty = !Equal.equals(
-    settings.textGenerationModelSelection ?? null,
-    DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
-  );
-
-  const refreshProviders = useCallback(() => {
-    if (refreshingRef.current) return refreshingRef.current;
-    setIsRefreshingProviders(true);
-    const refresh = ensureLocalApi()
-      .server.refreshProviders()
-      .then((payload) => applyProvidersUpdated(payload))
-      .catch((error: unknown) => {
-        showProviderSettingsError("Failed to refresh providers", error);
-      })
-      .finally(() => {
-        refreshingRef.current = null;
-        setIsRefreshingProviders(false);
-      });
-    refreshingRef.current = refresh;
-    return refresh;
-  }, []);
-
-  interface InstanceRow {
-    readonly instanceId: ProviderInstanceId;
-    readonly instance: ProviderInstanceConfig;
-    readonly driver: ProviderDriverKind;
-    readonly isDefault: boolean;
-    readonly isDirty?: boolean;
+function describeCredentialState(status: AgentAuthStatus | null): string {
+  if (status?.message) {
+    return status.message;
   }
-
-  const instancesByDriver = new Map<
-    ProviderDriverKind,
-    Array<[ProviderInstanceId, ProviderInstanceConfig]>
-  >();
-  for (const [rawId, instance] of Object.entries(settings.providerInstances ?? {})) {
-    const driver = instance.driver;
-    const list = instancesByDriver.get(driver) ?? [];
-    list.push([rawId as ProviderInstanceId, instance]);
-    instancesByDriver.set(driver, list);
+  switch (status?.state ?? "missing") {
+    case "available":
+      return "Pi auth storage has a usable credential.";
+    case "expired":
+      return "Pi auth storage has an expired credential.";
+    case "error":
+      return "Pi auth storage reported a credential error.";
+    case "unknown":
+      return "Pi runtime has not reported this credential yet.";
+    case "missing":
+      return "No credential configured in Pi auth storage.";
   }
+}
 
-  const defaultSlotIdsBySource = new Set<string>(
-    visibleProviderSettings.map((providerSettings) =>
-      String(defaultInstanceIdForDriver(providerSettings.provider)),
-    ),
+function describeCredentialDisplayState(
+  status: AgentAuthStatus | null,
+  authFlow: AgentCredentialAuthFlow | null,
+): string {
+  if (authFlow?.state === "pending") {
+    return authFlow.message ?? "Complete the in-progress Pi authentication flow.";
+  }
+  if (authFlow?.state === "error") {
+    return authFlow.message ?? "Pi authentication failed.";
+  }
+  return describeCredentialState(status);
+}
+
+function resolveCredentialStatusLabel(
+  status: AgentAuthStatus | null,
+  authFlow: AgentCredentialAuthFlow | null,
+): string {
+  if (authFlow?.state === "pending") {
+    return "Login pending";
+  }
+  if (authFlow?.state === "error") {
+    return "Login failed";
+  }
+  return AGENT_AUTH_STATE_LABELS[status?.state ?? "missing"];
+}
+
+function resolveCredentialActionLabel(
+  credential: AgentCredentialPreference,
+  status: AgentAuthStatus | null,
+): string {
+  if (isOAuthCredential(credential)) {
+    return status?.state === "available" ? "Reauthorize" : "Login";
+  }
+  return status?.state === "available" ? "Update key" : "Add key";
+}
+
+function isOAuthCredential(credential: AgentCredentialPreference): boolean {
+  return credential.kind === "claude-oauth" || credential.kind === "codex-oauth";
+}
+
+function isApiKeyCredential(credential: AgentCredentialPreference): boolean {
+  return !isOAuthCredential(credential);
+}
+
+function CredentialKindIcon({
+  kind,
+  className,
+}: {
+  kind: AgentCredentialKind;
+  className?: string;
+}) {
+  const Icon = kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
+
+  return <Icon className={className} aria-hidden />;
+}
+
+function AgentModeIcon({ mode, className }: { mode: AgentMode; className?: string }) {
+  const Icon = mode === "smart" ? IconClawd : IconOpenaiCodex;
+
+  return <Icon className={className} aria-hidden />;
+}
+
+function AgentModeSelector({
+  activeMode,
+  availability,
+  disabled,
+  onSelectMode,
+}: {
+  activeMode: AgentMode;
+  availability: AgentModeAvailability;
+  disabled: boolean;
+  onSelectMode: (mode: AgentMode) => void;
+}) {
+  const activeDetails = AGENT_MODE_MODEL_DETAILS[activeMode];
+
+  return (
+    <Menu>
+      <MenuTrigger
+        type="button"
+        className={cn(
+          "inline-flex h-7 min-w-43 max-w-full items-center gap-1.5 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 text-body text-honk-fg-secondary outline-hidden transition-colors",
+          "hover:border-honk-stroke-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused disabled:pointer-events-none disabled:opacity-50",
+        )}
+        aria-label="Agent mode"
+        disabled={disabled}
+      >
+        <AgentModeIcon mode={activeMode} className="size-3.5 shrink-0 text-honk-icon-secondary" />
+        <span className="min-w-0 truncate text-honk-fg-primary">
+          {AGENT_MODE_LABELS[activeMode]}
+        </span>
+        <span className="hidden shrink-0 text-detail text-honk-fg-tertiary sm:inline">
+          {activeDetails.modelName}
+        </span>
+        <IconChevronDownSmall className="ml-auto size-3 shrink-0 text-honk-icon-tertiary" />
+      </MenuTrigger>
+      <MenuPopup
+        align="end"
+        alignOffset={0}
+        side="bottom"
+        sideOffset={4}
+        variant="workbench"
+        className="w-[240px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
+      >
+        {AGENT_MODE_OPTIONS.map((option) => {
+          const details = AGENT_MODE_MODEL_DETAILS[option.value];
+          const selected = option.value === activeMode;
+          const unavailableReason = unavailableAgentModeReason(option.value, availability);
+          const optionDisabled = disabled || unavailableReason !== null;
+          const thinkingLevel = AGENT_MODE_THINKING_LEVELS[option.value];
+          const effortLabel =
+            thinkingLevel === "off"
+              ? "No thinking"
+              : `${AGENT_THINKING_LEVEL_LABELS[thinkingLevel]} effort`;
+
+          const content = (
+            <>
+              <AgentModeIcon
+                mode={option.value}
+                className="mt-0.5 size-3.5 shrink-0 text-honk-icon-secondary"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-honk-fg-primary">{option.label}</span>
+                  <span className="shrink-0 text-detail text-honk-fg-tertiary">
+                    {details.modelName}
+                  </span>
+                </span>
+                <span className="block truncate text-detail text-honk-fg-tertiary">
+                  {unavailableReason ?? effortLabel}
+                </span>
+              </span>
+              {selected ? <IconCheckmark1 className="size-3 shrink-0" aria-hidden /> : null}
+            </>
+          );
+
+          if (optionDisabled) {
+            return (
+              <MenuItem
+                key={option.value}
+                variant="workbench"
+                className="min-h-9 gap-2 opacity-50"
+                disabled
+              >
+                {content}
+              </MenuItem>
+            );
+          }
+
+          return (
+            <MenuSub key={option.value}>
+              <MenuSubTrigger
+                variant="workbench"
+                className="min-h-9 gap-2 pe-1 transition-none [&>svg:last-child]:hidden"
+                onPointerDownCapture={() => onSelectMode(option.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    onSelectMode(option.value);
+                  }
+                }}
+              >
+                {content}
+              </MenuSubTrigger>
+              <MenuSubPopup
+                variant="workbench"
+                side="inline-end"
+                className="w-[220px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
+              >
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center gap-1.5 text-body font-medium text-honk-fg-primary">
+                    <AgentModeIcon
+                      mode={option.value}
+                      className="size-4 shrink-0 text-honk-icon-secondary"
+                    />
+                    <span>{details.modelName}</span>
+                  </div>
+                  <p className="mt-1 text-body text-honk-fg-secondary">{details.description}</p>
+                  <p className="mt-2 text-detail text-honk-fg-tertiary">{effortLabel}</p>
+                </div>
+              </MenuSubPopup>
+            </MenuSub>
+          );
+        })}
+      </MenuPopup>
+    </Menu>
   );
+}
 
-  const rows: InstanceRow[] = [];
-  const visibleDriverKinds = new Set<ProviderDriverKind>(
-    visibleProviderSettings.map((providerSettings) => providerSettings.provider),
+function AgentModeInlineSummary({
+  mode,
+  availability,
+}: {
+  mode: AgentMode;
+  availability: AgentModeAvailability;
+}) {
+  const details = AGENT_MODE_MODEL_DETAILS[mode];
+  const unavailableReason = unavailableAgentModeReason(mode, availability);
+
+  return (
+    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-detail text-honk-fg-tertiary">
+      <AgentModeIcon mode={mode} className="size-3 shrink-0 text-honk-icon-tertiary" />
+      <span className="truncate">
+        {details.modelName}
+        {unavailableReason ? ` unavailable. ${unavailableReason}` : ""}
+      </span>
+    </span>
   );
+}
 
-  for (const providerSettings of visibleProviderSettings) {
-    type DefaultProviderSettings = (typeof settings.providers)[keyof typeof settings.providers];
-    const defaultProviderConfigs = settings.providers as Record<string, DefaultProviderSettings>;
-    const factoryDefaultProviderConfigs = DEFAULT_UNIFIED_SETTINGS.providers as Record<
-      string,
-      DefaultProviderSettings
-    >;
-    const driver = providerSettings.provider;
-    const defaultInstanceId = defaultInstanceIdForDriver(driver);
-    const explicitInstance = settings.providerInstances?.[defaultInstanceId];
-    const defaultConfig = defaultProviderConfigs[providerSettings.provider]!;
-    const factoryDefaultConfig = factoryDefaultProviderConfigs[providerSettings.provider]!;
-    const effectiveInstance: ProviderInstanceConfig =
-      explicitInstance ??
-      ({
-        driver,
-        enabled: defaultConfig.enabled,
-        config: defaultConfig,
-      } satisfies ProviderInstanceConfig);
-    const isDirty =
-      explicitInstance !== undefined || !Equal.equals(defaultConfig, factoryDefaultConfig);
-    rows.push({
-      instanceId: defaultInstanceId,
-      instance: effectiveInstance,
-      driver,
-      isDefault: true,
-      isDirty,
-    });
-    for (const [id, instance] of instancesByDriver.get(providerSettings.provider) ?? []) {
-      if (id === defaultInstanceId) continue;
-      rows.push({ instanceId: id, instance, driver: instance.driver, isDefault: false });
+function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
+  const openVerificationUri = () => {
+    if (!flow.verificationUri) {
+      return;
     }
-  }
-
-  for (const [driver, list] of instancesByDriver) {
-    if (visibleDriverKinds.has(driver)) continue;
-    for (const [id, instance] of list) {
-      const isDefaultSlot = defaultSlotIdsBySource.has(String(id));
-      rows.push({
-        instanceId: id,
-        instance,
-        driver: instance.driver,
-        isDefault: isDefaultSlot,
-      });
+    const localApi = readLocalApi();
+    if (localApi) {
+      void localApi.shell.openExternal(flow.verificationUri);
+      return;
     }
-  }
-
-  const updateProviderInstance = (
-    row: InstanceRow,
-    next: ProviderInstanceConfig,
-    options?: {
-      readonly textGenerationModelSelection?: Parameters<
-        typeof buildProviderInstanceUpdatePatch
-      >[0]["textGenerationModelSelection"];
-    },
-  ) => {
-    return updateSettings(
-      buildProviderInstanceUpdatePatch({
-        settings,
-        instanceId: row.instanceId,
-        instance: next,
-        textGenerationModelSelection: options?.textGenerationModelSelection,
-      }),
+    if (typeof window !== "undefined") {
+      window.open(flow.verificationUri, "_blank", "noopener,noreferrer");
+    }
+  };
+  const copyUserCode = () => {
+    if (!flow.userCode) {
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      toastManager.add({
+        type: "error",
+        title: "Clipboard unavailable",
+        description: "Copy the login code manually.",
+      });
+      return;
+    }
+    void navigator.clipboard.writeText(flow.userCode).then(
+      () => {
+        toastManager.add({
+          type: "success",
+          title: "Copied login code",
+          description: flow.userCode ?? "",
+        });
+      },
+      (error: unknown) => {
+        toastManager.add({
+          type: "error",
+          title: "Failed to copy login code",
+          description: error instanceof Error ? error.message : "Copy the login code manually.",
+        });
+      },
     );
   };
 
-  const deleteProviderInstance = (id: ProviderInstanceId) => {
-    void updateSettings({
-      providerInstances: withoutProviderInstanceKey(settings.providerInstances, id),
-      providerModelPreferences: withoutProviderInstanceKey(settings.providerModelPreferences, id),
-      favorites: withoutProviderInstanceFavorites(settings.favorites ?? [], id),
-    }).catch((error: unknown) => {
-      showProviderSettingsError("Failed to delete provider instance", error);
-    });
+  return (
+    <div className="mt-3 border-t border-honk-stroke-quaternary pt-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <Text render={<div />} size="sm" tone="primary" weight="medium">
+            {flow.state === "error" ? "Login failed" : "Waiting for login"}
+          </Text>
+          <Text render={<p />} size="base" tone="tertiary" className="mt-0.5">
+            {flow.message ?? "Complete authentication to continue."}
+          </Text>
+        </div>
+        {flow.verificationUri ? (
+          <Button size="xs" variant="outline" onClick={openVerificationUri}>
+            Open login page
+          </Button>
+        ) : null}
+      </div>
+      {flow.userCode ? (
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <code className="min-w-0 truncate font-honk-mono text-body tracking-wide text-honk-fg-primary">
+            {flow.userCode}
+          </code>
+          <Button size="xs" variant="ghost" onClick={copyUserCode}>
+            Copy code
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CredentialApiKeyForm({
+  credential,
+  disabled,
+  draftValue,
+  onCancel,
+  onDraftChange,
+  onSubmit,
+}: {
+  credential: AgentCredentialPreference;
+  disabled: boolean;
+  draftValue: string;
+  onCancel: () => void;
+  onDraftChange: (value: string) => void;
+  onSubmit: (apiKey: string) => void;
+}) {
+  const trimmedDraft = draftValue.trim();
+
+  return (
+    <form
+      className="mt-3 border-t border-honk-stroke-quaternary pt-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (trimmedDraft.length > 0) {
+          onSubmit(trimmedDraft);
+        }
+      }}
+    >
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+        <Input
+          type="password"
+          size="sm"
+          value={draftValue}
+          placeholder={`Paste ${credential.label}`}
+          aria-label={`${credential.label} value`}
+          autoComplete="off"
+          disabled={disabled}
+          onChange={(event) => onDraftChange(event.currentTarget.value)}
+        />
+        <Button
+          type="submit"
+          size="xs"
+          variant="outline"
+          disabled={disabled || trimmedDraft.length === 0}
+          className="shrink-0"
+        >
+          {disabled ? "Saving..." : "Save key"}
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={disabled}
+          className="shrink-0"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+      <Text render={<p />} size="sm" tone="tertiary" className="mt-2">
+        Stored in Pi auth storage. Saved keys are never displayed here.
+      </Text>
+    </form>
+  );
+}
+
+export function AgentRuntimeSettingsSections() {
+  const snapshot = useAgentRuntimeStore((state) => state.snapshot);
+  const setSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
+
+  return <AgentRuntimeSettingsSectionsView snapshot={snapshot} setSnapshot={setSnapshot} />;
+}
+
+export function AgentRuntimeSettingsSectionsView({
+  snapshot,
+  setSnapshot,
+}: {
+  snapshot: HonkRuntimeHostSnapshot;
+  setSnapshot: (snapshot: HonkRuntimeHostSnapshot) => void;
+}) {
+  const preferences = snapshot.preferences;
+  const authStatuses = snapshot.authStatuses;
+  const authFlows = snapshot.credentialAuthFlows;
+  const modelAvailability = deriveAgentModeAvailability(authStatuses);
+  const [isSaving, setIsSaving] = useState(false);
+  const [pendingCredentialKind, setPendingCredentialKind] = useState<AgentCredentialKind | null>(
+    null,
+  );
+  const [editingApiKeyCredentialKind, setEditingApiKeyCredentialKind] =
+    useState<AgentCredentialKind | null>(null);
+  const [apiKeyDraftByKind, setApiKeyDraftByKind] = useState<
+    Partial<Record<AgentCredentialKind, string>>
+  >({});
+
+  const updateAgentPreferences = (patch: AgentPreferencesPatch) => {
+    setIsSaving(true);
+    const runtimeApi = readHonkRuntimeApi();
+    void runtimeApi
+      .updatePreferences(patch)
+      .then(async () => {
+        const snapshot = await runtimeApi.getHostSnapshot();
+        setSnapshot(snapshot);
+      })
+      .catch((error: unknown) => {
+        toastManager.add({
+          type: "error",
+          title: "Failed to update agent preferences",
+          description: error instanceof Error ? error.message : "Agent preference update failed.",
+        });
+      })
+      .finally(() => setIsSaving(false));
   };
 
-  const updateProviderModelPreferences = (
-    instanceId: ProviderInstanceId,
-    next: {
-      readonly hiddenModels: ReadonlyArray<string>;
-      readonly modelOrder: ReadonlyArray<string>;
-    },
+  const configureOAuthCredential = async (credential: AgentCredentialPreference) => {
+    const runtimeApi = readHonkRuntimeApi();
+    setPendingCredentialKind(credential.kind);
+    try {
+      const snapshot = await runtimeApi.configureCredential({
+        authProviderId: credential.authProviderId,
+        method: "oauth",
+        credentialKind: credential.kind,
+      });
+      setSnapshot(snapshot);
+    } catch (error: unknown) {
+      toastManager.add({
+        type: "error",
+        title: "Failed to configure credential",
+        description: error instanceof Error ? error.message : "Credential update failed.",
+      });
+    } finally {
+      setPendingCredentialKind(null);
+    }
+  };
+
+  const configureApiKeyCredential = async (
+    credential: AgentCredentialPreference,
+    apiKey: string,
   ) => {
-    const hiddenModels = [...new Set(next.hiddenModels.filter((slug) => slug.trim().length > 0))];
-    const modelOrder = [...new Set(next.modelOrder.filter((slug) => slug.trim().length > 0))];
-    const rest = withoutProviderInstanceKey(settings.providerModelPreferences, instanceId);
-    void updateSettings({
-      providerModelPreferences:
-        hiddenModels.length === 0 && modelOrder.length === 0
-          ? rest
-          : {
-              ...rest,
-              [instanceId]: {
-                hiddenModels,
-                modelOrder,
-              },
-            },
-    }).catch((error: unknown) => {
-      showProviderSettingsError("Failed to update provider settings", error);
-    });
+    const trimmedApiKey = apiKey.trim();
+    if (trimmedApiKey.length === 0) {
+      return;
+    }
+
+    const runtimeApi = readHonkRuntimeApi();
+    setPendingCredentialKind(credential.kind);
+    try {
+      const snapshot = await runtimeApi.configureCredential({
+        authProviderId: credential.authProviderId,
+        method: "api-key",
+        apiKey: trimmedApiKey,
+      });
+      setSnapshot(snapshot);
+      setApiKeyDraftByKind((previous) => {
+        const next = { ...previous };
+        delete next[credential.kind];
+        return next;
+      });
+      setEditingApiKeyCredentialKind((current) => (current === credential.kind ? null : current));
+    } catch (error: unknown) {
+      toastManager.add({
+        type: "error",
+        title: "Failed to save credential",
+        description: error instanceof Error ? error.message : "Credential update failed.",
+      });
+    } finally {
+      setPendingCredentialKind(null);
+    }
   };
 
-  const updateProviderFavoriteModels = (
-    instanceId: ProviderInstanceId,
-    nextFavoriteModels: ReadonlyArray<string>,
-  ) => {
-    const favoriteModels = [
-      ...new Set(nextFavoriteModels.map((slug) => slug.trim()).filter((slug) => slug.length > 0)),
-    ];
-    void updateSettings({
-      favorites: [
-        ...withoutProviderInstanceFavorites(settings.favorites ?? [], instanceId),
-        ...favoriteModels.map((model) => ({ provider: instanceId, model })),
-      ],
-    }).catch((error: unknown) => {
-      showProviderSettingsError("Failed to update provider favorites", error);
-    });
+  const removeCredential = async (credential: AgentCredentialPreference) => {
+    const runtimeApi = readHonkRuntimeApi();
+    setPendingCredentialKind(credential.kind);
+    try {
+      const snapshot = await runtimeApi.configureCredential({
+        authProviderId: credential.authProviderId,
+        method: "logout",
+      });
+      setSnapshot(snapshot);
+      setApiKeyDraftByKind((previous) => {
+        const next = { ...previous };
+        delete next[credential.kind];
+        return next;
+      });
+      setEditingApiKeyCredentialKind((current) => (current === credential.kind ? null : current));
+    } catch (error: unknown) {
+      toastManager.add({
+        type: "error",
+        title: "Failed to remove credential",
+        description: error instanceof Error ? error.message : "Credential removal failed.",
+      });
+    } finally {
+      setPendingCredentialKind(null);
+    }
   };
 
-  const resetDefaultInstance = (driverKind: ProviderDriverKind) => {
-    type DefaultProviderSettings = (typeof settings.providers)[keyof typeof settings.providers];
-    const factoryDefaultProviderConfigs = DEFAULT_UNIFIED_SETTINGS.providers as Record<
-      string,
-      DefaultProviderSettings | undefined
-    >;
-    const defaultInstanceId = defaultInstanceIdForDriver(driverKind);
-    const factoryDefaultProviderConfig = factoryDefaultProviderConfigs[driverKind];
-    if (factoryDefaultProviderConfig === undefined) return;
-    void updateSettings({
-      providers: {
-        ...settings.providers,
-        [driverKind]: factoryDefaultProviderConfig,
-      } as typeof settings.providers,
-      providerInstances: withoutProviderInstanceKey(settings.providerInstances, defaultInstanceId),
-      providerModelPreferences: withoutProviderInstanceKey(
-        settings.providerModelPreferences,
-        defaultInstanceId,
-      ),
-      favorites: withoutProviderInstanceFavorites(settings.favorites ?? [], defaultInstanceId),
-    }).catch((error: unknown) => {
-      showProviderSettingsError("Failed to reset provider settings", error);
-    });
+  const isCredentialConfigured = (credential: AgentCredentialPreference) => {
+    const status = findCredentialAuthStatus(credential, authStatuses);
+    return status !== null && status.state !== "missing" && status.state !== "unknown";
+  };
+  const visibleCredentials = preferences.credentials.filter(
+    (credential) =>
+      isCredentialConfigured(credential) ||
+      findCredentialAuthFlow(credential, authFlows) !== null ||
+      editingApiKeyCredentialKind === credential.kind ||
+      pendingCredentialKind === credential.kind,
+  );
+  const addableCredentials = preferences.credentials.filter(
+    (credential) => !visibleCredentials.includes(credential),
+  );
+
+  const startAddingCredential = (credential: AgentCredentialPreference) => {
+    if (isOAuthCredential(credential)) {
+      void configureOAuthCredential(credential);
+      return;
+    }
+    setEditingApiKeyCredentialKind(credential.kind);
   };
 
   return (
-    <SettingsPageContainer>
-      <SettingsSection title="Models">
+    <>
+      <SettingsSection title="Pi runtime">
         <SettingsRow
-          title="Text generation model"
-          description="Configure the model used for generated commit messages, PR titles, and similar Git text."
-          status={textGenerationModelStatus}
-          resetAction={
-            isGitWritingModelDirty ? (
-              <SettingResetButton
-                label="text generation model"
-                onClick={() =>
-                  void updateSettings({
-                    textGenerationModelSelection:
-                      DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
-                  }).catch((error: unknown) => {
-                    showProviderSettingsError("Failed to update provider settings", error);
-                  })
-                }
-              />
-            ) : null
+          title="Agent mode"
+          description="Default model for new sessions."
+          status={
+            <AgentModeInlineSummary mode={preferences.agentMode} availability={modelAvailability} />
           }
           control={
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              <ProviderModelPicker
-                activeInstanceId={textGenInstanceId}
-                model={textGenModel}
-                instanceEntries={modelInstanceEntries}
-                modelCatalogItems={textGenerationModelState.modelCatalogItems}
-                selectedCatalogItem={textGenerationModelState.selectedCatalogItem}
-                availabilityStatus={textGenerationModelState.status}
-                triggerVariant="outline"
-                triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
-                onSelectionChange={(selection) => {
-                  const nextSettings = {
-                    ...settings,
-                    textGenerationModelSelection: selection,
-                  };
-                  void updateSettings({
-                    textGenerationModelSelection: resolveTextGenerationModelSelection(nextSettings),
-                  }).catch((error: unknown) => {
-                    showProviderSettingsError("Failed to update provider settings", error);
-                  });
+            <AgentModeSelector
+              activeMode={preferences.agentMode}
+              availability={modelAvailability}
+              disabled={isSaving}
+              onSelectMode={(agentMode) => {
+                if (agentMode === preferences.agentMode) {
+                  return;
+                }
+                updateAgentPreferences({
+                  agentMode,
+                  thinkingLevel: AGENT_MODE_THINKING_LEVELS[agentMode],
+                });
+              }}
+            />
+          }
+        />
+        {agentModeSupportsThinkingLevelSelection(preferences.agentMode) ? (
+          <SettingsRow
+            title="Thinking level"
+            description="Default reasoning depth for new Pi sessions in this agent mode."
+            control={
+              <Select
+                value={normalizedConfigurableThinkingLevel(preferences.thinkingLevel)}
+                onValueChange={(value) => {
+                  const option = AGENT_THINKING_LEVEL_OPTIONS.find(
+                    (entry) => entry.value === value,
+                  );
+                  if (option) {
+                    updateAgentPreferences({
+                      thinkingLevel: option.value,
+                    });
+                  }
                 }}
-              />
-              <TraitsPicker
-                provider={textGenProvider}
-                models={textGenInstanceEntry?.models ?? []}
-                model={textGenModel}
-                prompt=""
-                onPromptChange={() => {}}
-                modelOptions={textGenModelOptions}
-                allowPromptInjectedEffort={false}
-                triggerVariant="outline"
-                triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
-                onModelOptionsChange={(nextOptions) => {
-                  const nextSettings = {
-                    ...settings,
-                    textGenerationModelSelection: createModelSelection(
-                      textGenInstanceId,
-                      textGenModel,
-                      nextOptions,
-                    ),
-                  };
-                  void updateSettings({
-                    textGenerationModelSelection: resolveTextGenerationModelSelection(nextSettings),
-                  }).catch((error: unknown) => {
-                    showProviderSettingsError("Failed to update provider settings", error);
-                  });
-                }}
-              />
-            </div>
+              >
+                <SelectTrigger
+                  size="xs"
+                  variant="outline"
+                  className="w-full sm:w-34"
+                  aria-label="Thinking level"
+                  disabled={isSaving}
+                >
+                  <SelectValue>
+                    {
+                      AGENT_THINKING_LEVEL_LABELS[
+                        normalizedConfigurableThinkingLevel(preferences.thinkingLevel)
+                      ]
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} hideIndicator value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+            }
+          />
+        ) : null}
+        <SettingsRow
+          title="Interaction mode"
+          description="Default behavior for new agent turns."
+          control={
+            <Select
+              value={preferences.interactionMode}
+              onValueChange={(value) => {
+                const option = AGENT_INTERACTION_MODE_OPTIONS.find(
+                  (entry) => entry.value === value,
+                );
+                if (option) {
+                  updateAgentPreferences({ interactionMode: option.value });
+                }
+              }}
+            >
+              <SelectTrigger
+                size="xs"
+                variant="outline"
+                className="w-full sm:w-34"
+                aria-label="Interaction mode"
+                disabled={isSaving}
+              >
+                <SelectValue>
+                  {AGENT_INTERACTION_MODE_LABELS[preferences.interactionMode] ??
+                    preferences.interactionMode}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {AGENT_INTERACTION_MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} hideIndicator value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           }
         />
       </SettingsSection>
 
       <SettingsSection
-        title="Providers"
+        title="Accounts"
         headerAction={
-          <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger
+          addableCredentials.length > 0 ? (
+            <Menu>
+              <MenuTrigger
                 render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => setIsAddInstanceDialogOpen(true)}
-                    aria-label="Add provider instance"
-                  >
-                    <IconPlusLarge className="size-3" />
+                  <Button size="xs" variant="ghost" disabled={pendingCredentialKind !== null}>
+                    Add
                   </Button>
                 }
               />
-              <TooltipPopup side="top">Add provider instance</TooltipPopup>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground"
-                    disabled={isRefreshingProviders}
-                    onClick={() => void refreshProviders()}
-                    aria-label="Refresh provider status"
+              <MenuPopup align="end">
+                {addableCredentials.map((credential) => (
+                  <MenuItem
+                    key={credential.kind}
+                    className="gap-2"
+                    onClick={() => startAddingCredential(credential)}
                   >
-                    {isRefreshingProviders ? (
-                      <IconLoader className="size-3 animate-spin" />
-                    ) : (
-                      <IconChevronRightMedium className="size-3" />
-                    )}
-                  </Button>
-                }
-              />
-              <TooltipPopup side="top">Refresh provider status</TooltipPopup>
-            </Tooltip>
-          </div>
+                    <CredentialKindIcon
+                      kind={credential.kind}
+                      className="size-3.5 shrink-0 text-honk-icon-secondary"
+                    />
+                    {credential.label}
+                  </MenuItem>
+                ))}
+              </MenuPopup>
+            </Menu>
+          ) : null
         }
       >
-        {rows.map((row) => {
-          const driverOption = getDriverOption(row.driver);
-          const liveProvider = serverProviders.find(
-            (candidate) => candidate.instanceId === row.instanceId,
-          );
-          const modelPreferences = settings.providerModelPreferences?.[row.instanceId] ?? {
-            hiddenModels: [],
-            modelOrder: [],
-          };
-          const favoriteModels = (settings.favorites ?? [])
-            .filter((favorite) => favorite.provider === row.instanceId)
-            .map((favorite) => favorite.model);
-          const resetLabel = driverOption?.label ?? String(row.driver);
-          const headerAction =
-            row.isDefault && row.isDirty ? (
-              <SettingResetButton
-                label={`${resetLabel} provider settings`}
-                onClick={() => resetDefaultInstance(row.driver)}
-              />
-            ) : null;
+        {visibleCredentials.length === 0 ? (
+          <SettingsRow
+            title="No accounts connected"
+            description="Add a Claude or Codex credential to run agents."
+          />
+        ) : null}
+        {visibleCredentials.map((credential) => {
+          const status = findCredentialAuthStatus(credential, authStatuses);
+          const authFlow = findCredentialAuthFlow(credential, authFlows);
+          const isCredentialPending = pendingCredentialKind === credential.kind;
+          const canStartCredentialAction = pendingCredentialKind === null || isCredentialPending;
+          const isAvailable = status?.state === "available";
+          const showApiKeyEditor =
+            isApiKeyCredential(credential) && editingApiKeyCredentialKind === credential.kind;
+          const draftValue = apiKeyDraftByKind[credential.kind] ?? "";
           return (
-            <ProviderInstanceCard
-              key={row.instanceId}
-              instanceId={row.instanceId}
-              instance={row.instance}
-              driverOption={driverOption}
-              liveProvider={liveProvider}
-              isExpanded={openInstanceDetails[row.instanceId] ?? false}
-              onExpandedChange={(open) =>
-                setOpenInstanceDetails((existing) => ({
-                  ...existing,
-                  [row.instanceId]: open,
-                }))
+            <SettingsRow
+              key={credential.kind}
+              title={
+                <span className="inline-flex items-center gap-1.5">
+                  <CredentialKindIcon
+                    kind={credential.kind}
+                    className="size-3.5 shrink-0 text-honk-icon-secondary"
+                  />
+                  {credential.label}
+                </span>
               }
-              onUpdate={(next) => {
-                const wasEnabled = row.instance.enabled ?? true;
-                const isDisabling = next.enabled === false && wasEnabled;
-                const shouldClearTextGen = isDisabling && textGenInstanceId === row.instanceId;
-                if (shouldClearTextGen) {
-                  const patch = buildProviderInstanceUpdatePatch({
-                    settings,
-                    instanceId: row.instanceId,
-                    instance: next,
-                  });
-                  const nextSettings = {
-                    ...settings,
-                    ...patch,
-                    textGenerationModelSelection:
-                      settings.textGenerationModelSelection ?? textGenerationModelSelection,
-                  };
-                  void updateSettings({
-                    ...patch,
-                    textGenerationModelSelection: resolveTextGenerationModelSelection(nextSettings),
-                  }).catch((error: unknown) => {
-                    showProviderSettingsError("Failed to update provider settings", error);
-                  });
-                } else {
-                  void updateProviderInstance(row, next).catch((error: unknown) => {
-                    showProviderSettingsError("Failed to update provider settings", error);
-                  });
-                }
-              }}
-              onDelete={row.isDefault ? undefined : () => deleteProviderInstance(row.instanceId)}
-              headerAction={headerAction}
-              hiddenModels={modelPreferences.hiddenModels}
-              favoriteModels={favoriteModels}
-              modelOrder={modelPreferences.modelOrder}
-              onHiddenModelsChange={(hiddenModels) =>
-                updateProviderModelPreferences(row.instanceId, {
-                  ...modelPreferences,
-                  hiddenModels,
-                })
+              description={describeCredentialDisplayState(status, authFlow)}
+              status={resolveCredentialStatusLabel(status, authFlow)}
+              control={
+                isOAuthCredential(credential) ? (
+                  <>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      disabled={!canStartCredentialAction}
+                      onClick={() => void configureOAuthCredential(credential)}
+                    >
+                      {isCredentialPending
+                        ? "Working..."
+                        : resolveCredentialActionLabel(credential, status)}
+                    </Button>
+                    {isAvailable ? (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={!canStartCredentialAction}
+                        onClick={() => void removeCredential(credential)}
+                      >
+                        Sign out
+                      </Button>
+                    ) : null}
+                  </>
+                ) : showApiKeyEditor ? null : (
+                  <>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      disabled={!canStartCredentialAction}
+                      onClick={() => setEditingApiKeyCredentialKind(credential.kind)}
+                    >
+                      {resolveCredentialActionLabel(credential, status)}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      disabled={!canStartCredentialAction}
+                      onClick={() => void removeCredential(credential)}
+                    >
+                      Remove
+                    </Button>
+                  </>
+                )
               }
-              onFavoriteModelsChange={(favoriteModels) =>
-                updateProviderFavoriteModels(row.instanceId, favoriteModels)
-              }
-              onModelOrderChange={(modelOrder) =>
-                updateProviderModelPreferences(row.instanceId, {
-                  ...modelPreferences,
-                  modelOrder,
-                })
-              }
-            />
+            >
+              {showApiKeyEditor ? (
+                <CredentialApiKeyForm
+                  credential={credential}
+                  disabled={!canStartCredentialAction || isCredentialPending}
+                  draftValue={draftValue}
+                  onCancel={() => {
+                    setEditingApiKeyCredentialKind((current) =>
+                      current === credential.kind ? null : current,
+                    );
+                    setApiKeyDraftByKind((previous) => {
+                      const next = { ...previous };
+                      delete next[credential.kind];
+                      return next;
+                    });
+                  }}
+                  onDraftChange={(value) =>
+                    setApiKeyDraftByKind((previous) => ({
+                      ...previous,
+                      [credential.kind]: value,
+                    }))
+                  }
+                  onSubmit={(apiKey) => void configureApiKeyCredential(credential, apiKey)}
+                />
+              ) : null}
+              {authFlow ? <CredentialAuthFlowPanel flow={authFlow} /> : null}
+            </SettingsRow>
           );
         })}
       </SettingsSection>
-
-      <AddProviderInstanceDialog
-        open={isAddInstanceDialogOpen}
-        onOpenChange={setIsAddInstanceDialogOpen}
-      />
-    </SettingsPageContainer>
+    </>
   );
 }
 
@@ -1378,52 +1661,50 @@ export function ArchivedThreadsPanel() {
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const threads = useStore(useShallow(selectThreadShellsAcrossEnvironments));
   const { unarchiveThread, confirmAndDeleteThread } = useThreadActions();
-  const archivedGroups = useMemo(() => {
-    return projects
-      .map((project) => ({
-        project,
-        threads: threads
-          .filter((thread) => thread.projectId === project.id && thread.archivedAt !== null)
-          .toSorted((left, right) => {
-            const leftKey = left.archivedAt ?? left.createdAt;
-            const rightKey = right.archivedAt ?? right.createdAt;
-            return rightKey.localeCompare(leftKey) || right.id.localeCompare(left.id);
-          }),
-      }))
-      .filter((group) => group.threads.length > 0);
-  }, [projects, threads]);
+  const archivedGroups = projects
+    .map((project) => ({
+      project,
+      threads: threads
+        .filter((thread) => thread.projectId === project.id && thread.archivedAt !== null)
+        .toSorted((left, right) => {
+          const leftKey = left.archivedAt ?? left.createdAt;
+          const rightKey = right.archivedAt ?? right.createdAt;
+          return rightKey.localeCompare(leftKey) || right.id.localeCompare(left.id);
+        }),
+    }))
+    .filter((group) => group.threads.length > 0);
 
-  const handleArchivedThreadContextMenu = useCallback(
-    async (threadRef: ScopedThreadRef, position: { x: number; y: number }) => {
-      const api = readLocalApi();
-      if (!api) return;
-      const clicked = await api.contextMenu.show(
-        [
-          { id: "unarchive", label: "Unarchive" },
-          { id: "delete", label: "Delete", destructive: true },
-        ],
-        position,
-      );
+  const handleArchivedThreadContextMenu = async (
+    threadRef: ScopedThreadRef,
+    position: { x: number; y: number },
+  ) => {
+    const api = readLocalApi();
+    if (!api) return;
+    const clicked = await api.contextMenu.show(
+      [
+        { id: "unarchive", label: "Unarchive" },
+        { id: "delete", label: "Delete", destructive: true },
+      ],
+      position,
+    );
 
-      if (clicked === "unarchive") {
-        try {
-          await unarchiveThread(threadRef);
-        } catch (error) {
-          toastManager.add({
-            type: "error",
-            title: "Failed to unarchive thread",
-            description: error instanceof Error ? error.message : "An error occurred.",
-          });
-        }
-        return;
+    if (clicked === "unarchive") {
+      try {
+        await unarchiveThread(threadRef);
+      } catch (error) {
+        toastManager.add({
+          type: "error",
+          title: "Failed to unarchive thread",
+          description: error instanceof Error ? error.message : "An error occurred.",
+        });
       }
+      return;
+    }
 
-      if (clicked === "delete") {
-        await confirmAndDeleteThread(threadRef);
-      }
-    },
-    [confirmAndDeleteThread, unarchiveThread],
-  );
+    if (clicked === "delete") {
+      await confirmAndDeleteThread(threadRef);
+    }
+  };
 
   return (
     <SettingsPageContainer>
@@ -1449,7 +1730,7 @@ export function ArchivedThreadsPanel() {
             {projectThreads.map((thread) => (
               <div
                 key={thread.id}
-                className="flex items-center justify-between gap-3 border-t border-(--multi-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
+                className="flex items-center justify-between gap-3 border-t border-(--honk-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
                 onContextMenu={(event) => {
                   event.preventDefault();
                   void handleArchivedThreadContextMenu(

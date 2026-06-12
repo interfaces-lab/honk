@@ -2,20 +2,20 @@ import type {
   ApprovalRequestId,
   EnvironmentId,
   MessageId,
+  RuntimeApprovalDecision,
+  AgentInteractionMode,
   ModelSelection,
-  ProviderApprovalDecision,
-  ProviderInteractionMode,
   ResolvedKeybindingsConfig,
   ScopedThreadRef,
   ThreadId,
-  ServerProvider,
-} from "@multi/contracts";
-import type { UnifiedSettings } from "@multi/contracts/settings";
+} from "@honk/contracts";
+import type { UnifiedSettings } from "@honk/contracts/settings";
 import type { RefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import type { PendingUserInputDraftAnswer } from "./pending/user-input";
+import type { ContextWindowSnapshot } from "../../../lib/context-window";
 import type { PendingApproval, PendingUserInput } from "../../../session-logic";
 import type { SessionPhase, Thread } from "../../../types";
 import type { ExpandedImagePreview } from "../message/expanded-image-preview";
@@ -32,9 +32,6 @@ export type ComposerMenuPlacement =
 export interface ComposerInputHandle {
   focusAtEnd: () => void;
   focusAt: (cursor: number) => void;
-  openModelPicker: () => void;
-  toggleModelPicker: () => void;
-  isModelPickerOpen: () => boolean;
   readSnapshot: () => {
     value: string;
     cursor: number;
@@ -46,7 +43,11 @@ export interface ComposerInputHandle {
     prompt?: string;
     detectTrigger?: boolean;
   }) => void;
-  /** Read prompt, attachments, effort, model, and provider state for dispatch. */
+  /** Clear composer text, store draft, and Lexical editor (Cursor-style imperative clear). */
+  clearComposer: (options?: { focus?: boolean }) => void;
+  /** Restore composer after failed send or queue edit load. */
+  restoreComposer: (snapshot: ComposerSubmitContext) => void;
+  /** Read prompt and attachments for dispatch. */
   getSendContext: () => ComposerSubmitContext;
 }
 
@@ -57,20 +58,14 @@ export type ComposerInputLayout = "new-agent" | "thread" | "inline-edit";
 export interface ComposerInputProps {
   variant?: ComposerInputVariant;
   layout?: ComposerInputLayout;
-  modelPickerPlacement?: ComposerMenuPlacement;
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
-  routeKind: "server" | "draft";
-  routeThreadRef: ScopedThreadRef;
   draftId: DraftId | null;
 
   activeThreadId: ThreadId | null;
-  activeThreadEnvironmentId: EnvironmentId | undefined;
-  activeThread: Thread | undefined;
-  isServerThread: boolean;
-  isLocalDraftThread: boolean;
 
   phase: SessionPhase;
+  isTurnRunning: boolean;
   isConnecting: boolean;
   isSendBusy: boolean;
   isPreparingWorktree: boolean;
@@ -102,21 +97,20 @@ export interface ComposerInputProps {
   activeProposedPlan?: Thread["proposedPlans"][number] | null | undefined;
   planSurfaceOpen?: boolean | undefined;
 
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
+  modelSelection: ModelSelection;
 
-  providerStatuses: ReadonlyArray<ServerProvider>;
-  activeProjectDefaultModelSelection: ModelSelection | null | undefined;
-  activeThreadModelSelection: ModelSelection | null | undefined;
-
-  activeThreadActivities: Thread["activities"] | undefined;
+  activeContextWindow: ContextWindowSnapshot | null | undefined;
 
   resolvedTheme: "light" | "dark";
   settings: UnifiedSettings;
   keybindings: ResolvedKeybindingsConfig;
   terminalOpen: boolean;
   gitCwd: string | null;
+  branchName?: string | null | undefined;
+  executionModeLabel?: string | null | undefined;
 
-  promptRef: RefObject<string>;
+  promptRef?: RefObject<string> | undefined;
   composerImagesRef: RefObject<ComposerImageAttachment[]>;
 
   onSend: (e?: { preventDefault: () => void }) => void;
@@ -126,7 +120,7 @@ export interface ComposerInputProps {
   footerSecondaryAction?: ReactNode | undefined;
 
   onRespondToApproval?:
-    | ((requestId: ApprovalRequestId, decision: ProviderApprovalDecision) => Promise<void>)
+    | ((requestId: ApprovalRequestId, decision: RuntimeApprovalDecision) => Promise<void>)
     | undefined;
   onSelectActivePendingUserInputOption?:
     | ((questionId: string, optionLabel: string, advanceAfterSelect?: boolean) => void)
@@ -145,7 +139,6 @@ export interface ComposerInputProps {
       ) => void)
     | undefined;
 
-  onProviderModelSelect: (selection: ModelSelection) => void;
   onBeginEditQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
   onCancelEditingQueuedComposerItem?: (() => void) | undefined;
   onRemoveQueuedComposerItem?: ((itemId: MessageId) => void) | undefined;
@@ -155,7 +148,7 @@ export interface ComposerInputProps {
     | undefined;
   onQueuedComposerItemsExpandedChange?: ((expanded: boolean) => void) | undefined;
   toggleInteractionMode: () => void;
-  handleInteractionModeChange: (mode: ProviderInteractionMode) => void;
+  handleInteractionModeChange: (mode: AgentInteractionMode) => void;
 
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   onExpandImage: (preview: ExpandedImagePreview) => void;

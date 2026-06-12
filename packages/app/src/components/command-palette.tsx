@@ -1,56 +1,58 @@
 "use client";
 
-import { scopeProjectRef, scopeThreadRef } from "@multi/client-runtime";
-import { type ProjectId, type ResolvedKeybindingsConfig } from "@multi/contracts";
-import { toSafeThreadSegment } from "@multi/shared/thread-segments";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
+import { type ResolvedKeybindingsConfig } from "@honk/contracts";
+import { normalizePathSeparators } from "@honk/shared/paths";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
+  IconCode,
   IconChevronLeftMedium,
   IconChevronRightMedium,
-  IconBubbleText,
+  IconAgent,
+  IconBug,
   IconClipboard,
-  IconCode,
   IconFolder1,
   IconFolderAddRight,
-  IconPencil,
+  IconFolderOpen,
+  IconKeyboard,
+  IconProjects,
   IconSettingsGear2,
+  IconSettingsSliderHor,
+  IconThread,
 } from "central-icons";
-import {
-  useCallback,
-  useDeferredValue,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useCommandPaletteStore } from "../stores/ui/command-palette-store";
-import { readEnvironmentApi } from "../environment-api";
 import { usePrimaryEnvironmentId } from "../environments/primary";
-import { useHandleNewThread } from "../hooks/use-handle-new-thread";
+import { useNewThreadHandler } from "../hooks/use-handle-new-thread";
+import { useSelectedWorkspaceProject } from "../lib/selected-workspace-project";
 import { useMountEffect } from "../hooks/use-mount-effect";
 import { useSettings } from "../hooks/use-settings";
 import { readLocalApi } from "../local-api";
 import {
+  readThreadActionContext,
   startNewThreadInProjectFromContext,
   startNewThreadFromContext,
 } from "../lib/chat-thread-actions";
-import { findProjectByPath, inferProjectTitleFromPath } from "../lib/project-paths";
 import { isTerminalFocused } from "../lib/terminal-focus";
-import { getLatestThreadForProject } from "../lib/thread-sort";
-import { writeStoredProjectCwd } from "../lib/project-state";
-import { cn, newCommandId, newProjectId } from "../lib/utils";
+import { openWorkspaceFolder, persistProjectSelection } from "../lib/project-selection";
+import {
+  findWorkspaceProjectByRef,
+  findWorkspaceProjectForSource,
+  getLatestWorkspaceThreadForProject,
+  resolveWorkspaceTarget,
+} from "../lib/workspace-target";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
   useStore,
 } from "../stores/thread-store";
+import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
+import { useComposerDraftStore } from "../stores/chat-drafts";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
-import {
-  buildThreadRouteParams,
-  resolveThreadRouteTarget,
-} from "~/app/routes/thread-route-targets";
+import { shellPanelsActions } from "../stores/shell-panels-store";
+import { openThread } from "~/app/chat-navigation";
+import { useChatRouteTarget } from "~/app/chat-route-state";
 import {
   buildProjectActionItems,
   buildRootGroups,
@@ -64,20 +66,26 @@ import {
   getCommandPaletteMode,
   RECENT_THREAD_LIMIT,
 } from "./command-palette-model";
+import { type Project } from "../types";
 import { ProjectFavicon } from "./project-favicon";
 import { formatSchemaBackedTransportErrorDescription } from "~/rpc/transport-error";
 import {
   useServerAvailableEditors,
+  useServerConfig,
   useServerKeybindings,
+  useServerKeybindingsConfigPath,
   useServerObservability,
 } from "../rpc/server-state";
-import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
+import {
+  COMMAND_PALETTE_FALLBACK_KEYBINDINGS,
+  resolveShortcutCommand,
+  shortcutLabelForCommand,
+} from "../keybindings";
 import {
   Command,
   CommandCollection,
   CommandDialog,
   CommandDialogPopup,
-  CommandFooter,
   CommandGroup,
   CommandGroupLabel,
   CommandInput,
@@ -85,26 +93,30 @@ import {
   CommandList,
   CommandPanel,
   CommandShortcut,
-} from "@multi/ui/command";
-import { Kbd, KbdGroup } from "@multi/ui/kbd";
+  CommandShortcutKey,
+} from "@honk/honkkit/command";
+import { Button } from "@honk/honkkit/button";
 import { toastManager } from "~/app/toast";
 import {
   ComposerHandleContext,
   useComposerHandleContext,
 } from "./chat/composer/context/handle-context";
-import { resolveAndPersistPreferredEditor } from "../editor/preferences";
+import { resolveAndPersistPreferredEditor } from "../editor-preferences";
 import type { ComposerInputHandle } from "./chat/composer/input";
+import { resolveProjectlessCwd } from "~/lib/project-state";
+import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 
 function joinFileSystemPath(basePath: string, ...segments: string[]): string {
   const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";
-  const normalizedBase = basePath.replace(/[\\/]+$/g, "");
-  const normalizedSegments = segments.map((segment) => segment.replace(/^[\\/]+|[\\/]+$/g, ""));
+  const normalizedBase = normalizePathSeparators(basePath, separator).replace(/[\\/]+$/g, "");
+  const normalizedSegments = segments.map((segment) =>
+    normalizePathSeparators(segment, separator).replace(/^[\\/]+|[\\/]+$/g, ""),
+  );
   return [normalizedBase, ...normalizedSegments].join(separator);
 }
 
 interface CommandPaletteResultsProps {
   readonly groups: ReadonlyArray<CommandPaletteGroup>;
-  readonly highlightedItemValue?: string | null;
   readonly isActionsOnly: boolean;
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
@@ -114,13 +126,57 @@ interface CommandPaletteSessionState {
   readonly sessionId: number;
   readonly viewStack: CommandPaletteView[];
   readonly query: string;
-  readonly highlightedItemValue: string | null;
+}
+
+const MAC_SHORTCUT_MODIFIER_SYMBOLS = new Set(["⌃", "⌥", "⇧", "⌘"]);
+
+interface ShortcutLabelPart {
+  readonly id: string;
+  readonly label: string;
+}
+
+function shortcutLabelParts(label: string): ShortcutLabelPart[] {
+  if (label.includes("+")) {
+    let offset = 0;
+    return label
+      .split("+")
+      .filter((part) => part.length > 0)
+      .map((part) => {
+        offset = label.indexOf(part, offset);
+        const id = `${offset}:${part}`;
+        offset += part.length;
+        return { id, label: part };
+      });
+  }
+
+  const parts: ShortcutLabelPart[] = [];
+  let consumedLabel = "";
+  let keyPart = "";
+  for (const character of Array.from(label)) {
+    if (MAC_SHORTCUT_MODIFIER_SYMBOLS.has(character)) {
+      if (keyPart.length > 0) {
+        consumedLabel += keyPart;
+        parts.push({ id: consumedLabel, label: keyPart });
+        keyPart = "";
+      }
+      consumedLabel += character;
+      parts.push({ id: consumedLabel, label: character });
+    } else {
+      keyPart += character;
+    }
+  }
+  if (keyPart.length > 0) {
+    consumedLabel += keyPart;
+    parts.push({ id: consumedLabel, label: keyPart });
+  }
+
+  return parts.length > 0 ? parts : [{ id: label, label }];
 }
 
 function CommandPaletteResults(props: CommandPaletteResultsProps) {
   if (props.groups.length === 0) {
     return (
-      <div className="py-8 text-center font-multi text-body text-muted-foreground">
+      <div className="py-8 text-center font-honk text-body text-muted-foreground">
         {props.isActionsOnly
           ? "No matching actions."
           : "No matching commands, projects, or threads."}
@@ -139,7 +195,6 @@ function CommandPaletteResults(props: CommandPaletteResultsProps) {
                 item={item}
                 key={item.value}
                 keybindings={props.keybindings}
-                isActive={props.highlightedItemValue === item.value}
                 onExecuteItem={props.onExecuteItem}
               />
             )}
@@ -152,7 +207,6 @@ function CommandPaletteResults(props: CommandPaletteResultsProps) {
 
 function CommandPaletteResultRow(props: {
   readonly item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
-  readonly isActive: boolean;
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
 }) {
@@ -163,10 +217,7 @@ function CommandPaletteResultRow(props: {
   return (
     <CommandItem
       value={props.item.value}
-      className={cn(
-        "cursor-pointer gap-2 hover:bg-transparent hover:text-inherit data-highlighted:bg-transparent data-highlighted:text-inherit data-selected:bg-transparent data-selected:text-inherit [&[data-highlighted][data-selected]]:bg-transparent [&[data-highlighted][data-selected]]:text-inherit",
-        props.isActive && "bg-multi-hover! text-foreground!",
-      )}
+      className="cursor-pointer"
       onMouseDown={(event) => {
         event.preventDefault();
       }}
@@ -177,59 +228,69 @@ function CommandPaletteResultRow(props: {
       {props.item.icon}
       {props.item.description ? (
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body text-foreground">{props.item.title}</span>
-          <span className="truncate text-detail text-muted-foreground/64">
+          <span className="truncate text-body text-honk-fg-primary">{props.item.title}</span>
+          <span className="truncate text-detail text-honk-fg-tertiary">
             {props.item.description}
           </span>
         </span>
       ) : (
-        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-honk-fg-primary">
           <span className="truncate">{props.item.title}</span>
         </span>
       )}
       {props.item.timestamp ? (
-        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-muted-foreground/62">
+        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-honk-fg-tertiary">
           {props.item.timestamp}
         </span>
       ) : null}
-      {shortcutLabel ? <CommandShortcut>{shortcutLabel}</CommandShortcut> : null}
+      {shortcutLabel ? (
+        <CommandShortcut aria-label={shortcutLabel}>
+          {shortcutLabelParts(shortcutLabel).map((part) => (
+            <CommandShortcutKey key={part.id}>{part.label}</CommandShortcutKey>
+          ))}
+        </CommandShortcut>
+      ) : null}
       {props.item.kind === "submenu" ? (
-        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-muted-foreground/50" />
+        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-honk-icon-tertiary" />
       ) : null}
     </CommandItem>
   );
 }
 
 export function CommandPalette({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const routeTarget = useChatRouteTarget();
   const open = useCommandPaletteStore((store) => store.open);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
   const toggleOpen = useCommandPaletteStore((store) => store.toggleOpen);
   const keybindings = useServerKeybindings();
   const composerHandleRef = useRef<ComposerInputHandle | null>(null);
   const keybindingsRef = useRef(keybindings);
-  const terminalOpenRef = useRef(false);
+  const routerRef = useRef(router);
+  const routeTargetRef = useRef(routeTarget);
   const toggleOpenRef = useRef(toggleOpen);
-  const routeTarget = useParams({
-    strict: false,
-    select: (params) => resolveThreadRouteTarget(params),
-  });
-  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
-  const terminalOpen = useTerminalStateStore((state) =>
-    routeThreadRef
-      ? selectThreadTerminalState(state.terminalStateByThreadKey, routeThreadRef).terminalOpen
-      : false,
-  );
-  keybindingsRef.current = keybindings;
-  terminalOpenRef.current = terminalOpen;
+  const activeKeybindings =
+    keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
+  keybindingsRef.current = activeKeybindings;
+  routerRef.current = router;
+  routeTargetRef.current = routeTarget;
   toggleOpenRef.current = toggleOpen;
 
   useMountEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
+      const routeTarget = routeTargetRef.current;
+      const terminalOpen =
+        routeTarget?.kind === "server"
+          ? selectThreadTerminalState(
+              useTerminalStateStore.getState().terminalStateByThreadKey,
+              routeTarget.threadRef,
+            ).terminalOpen
+          : false;
       const command = resolveShortcutCommand(event, keybindingsRef.current, {
         context: {
           terminalFocus: isTerminalFocused(),
-          terminalOpen: terminalOpenRef.current,
+          terminalOpen,
         },
       });
       if (command !== "commandPalette.toggle") {
@@ -254,311 +315,258 @@ export function CommandPalette({ children }: { children: ReactNode }) {
 }
 
 function CommandPaletteDialog() {
+  const open = useCommandPaletteStore((store) => store.open);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
 
   useMountEffect(() => () => setOpen(false));
 
-  return <OpenCommandPaletteDialog />;
+  return open ? <OpenCommandPaletteDialog /> : null;
+}
+
+async function copyPathToClipboard(path: string, successTitle: string) {
+  if (!navigator.clipboard?.writeText) {
+    toastManager.add({
+      type: "error",
+      title: "Clipboard unavailable",
+      description: "This browser cannot write to the clipboard.",
+    });
+    return;
+  }
+  await navigator.clipboard.writeText(path);
+  toastManager.add({
+    type: "success",
+    title: successTitle,
+    description: path,
+  });
+}
+
+function projectCommandPaletteIcon(project: Project): ReactNode {
+  return (
+    <ProjectFavicon
+      environmentId={project.environmentId}
+      cwd={project.cwd}
+      className="size-4 text-honk-icon-tertiary"
+    />
+  );
 }
 
 function OpenCommandPaletteDialog() {
   const navigate = useNavigate();
-  const routeTarget = useParams({
-    strict: false,
-    select: (params) => resolveThreadRouteTarget(params),
-  });
-  const open = useCommandPaletteStore((store) => store.open);
+  const router = useRouter();
   const openSessionId = useCommandPaletteStore((store) => store.openSessionId);
   const setOpen = useCommandPaletteStore((store) => store.setOpen);
   const openIntent = useCommandPaletteStore((store) => store.openIntent);
   const composerHandleRef = useComposerHandleContext();
   const openAddProjectFlowRef = useRef<() => void>(() => undefined);
   const settings = useSettings();
-  const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread } =
-    useHandleNewThread();
+  const routeTarget = useChatRouteTarget();
+  const {
+    logicalProjectKey: selectedLogicalProjectKey,
+    projectCwd: selectedProjectCwd,
+    projectEnvironmentId: selectedProjectEnvironmentId,
+    projectRef: selectedProjectRef,
+  } = useSelectedWorkspaceProject();
+  const { handleNewThread } = useNewThreadHandler();
+  const activeThread = useStore(
+    useShallow((store) =>
+      routeTarget?.kind === "server"
+        ? selectThreadWorkspaceSurfaceByRef(store, routeTarget.threadRef)
+        : undefined,
+    ),
+  );
+  const activeDraftThread = useComposerDraftStore((store) => {
+    if (!routeTarget) {
+      return null;
+    }
+    return routeTarget.kind === "server"
+      ? store.getDraftThread(routeTarget.threadRef)
+      : store.getDraftSession(routeTarget.draftId);
+  });
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const threads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const keybindings = useServerKeybindings();
+  const keybindingsConfigPath = useServerKeybindingsConfigPath();
   const availableEditors = useServerAvailableEditors();
+  const serverConfig = useServerConfig();
   const observability = useServerObservability();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-
-  const projectCwdById = useMemo(
-    () => new Map<ProjectId, string>(projects.map((project) => [project.id, project.cwd])),
-    [projects],
-  );
-  const projectTitleById = useMemo(
-    () => new Map<ProjectId, string>(projects.map((project) => [project.id, project.name])),
-    [projects],
-  );
+  const storeActiveEnvironmentId = useStore((state) => state.activeEnvironmentId);
 
   const activeThreadId = activeThread?.id;
-  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
-  const providerLogPath = useMemo(() => {
-    if (!import.meta.env.DEV || !routeThreadRef || !observability?.logsDirectoryPath) {
-      return null;
-    }
-    const safeThreadSegment = toSafeThreadSegment(routeThreadRef.threadId);
-    if (!safeThreadSegment) {
-      return null;
-    }
-    return joinFileSystemPath(
-      observability.logsDirectoryPath,
-      "provider",
-      `${safeThreadSegment}.log`,
-    );
-  }, [observability?.logsDirectoryPath, routeThreadRef]);
-  const serverTracePath = useMemo(() => {
+  const serverTracePath = (() => {
     if (!import.meta.env.DEV || !observability?.logsDirectoryPath) {
       return null;
     }
     return joinFileSystemPath(observability.logsDirectoryPath, "server.trace.ndjson");
-  }, [observability?.logsDirectoryPath]);
-  const currentProjectId = activeThread?.projectId ?? activeDraftThread?.projectId ?? null;
-  const currentProjectCwd = currentProjectId
-    ? (projectCwdById.get(currentProjectId) ?? null)
+  })();
+  const currentWorkspaceProject = activeThread
+    ? findWorkspaceProjectForSource(projects, activeThread)
+    : activeDraftThread
+      ? findWorkspaceProjectForSource(projects, activeDraftThread)
+      : null;
+  const currentProjectCwd = currentWorkspaceProject?.cwd ?? null;
+  const selectedProject = selectedProjectRef
+    ? findWorkspaceProjectByRef(projects, selectedProjectRef)
     : null;
+  const workspaceTarget = resolveWorkspaceTarget({
+    source: activeThread ?? activeDraftThread ?? null,
+    defaultProject: selectedProject,
+    defaultProjectCwd: selectedProjectCwd,
+    defaultProjectEnvironmentId: selectedProjectEnvironmentId,
+    defaultProjectRef: selectedProjectRef,
+    projects,
+    projectlessCwd: resolveProjectlessCwd(serverConfig?.cwd),
+    fallbackEnvironmentId: storeActiveEnvironmentId ?? primaryEnvironmentId,
+  });
 
-  const openProjectFromSearch = useMemo(
-    () => async (project: (typeof projects)[number]) => {
-      const latestThread = getLatestThreadForProject(
-        threads.filter((thread) => thread.environmentId === project.environmentId),
-        project.id,
-        settings.sidebarThreadSortOrder,
-      );
-      if (latestThread) {
-        await navigate({
-          to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(
-            scopeThreadRef(latestThread.environmentId, latestThread.id),
-          ),
-        });
-        return;
-      }
-
-      await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
-        envMode: settings.defaultThreadEnvMode,
-      });
-    },
-    [
-      handleNewThread,
-      navigate,
-      settings.defaultThreadEnvMode,
-      settings.sidebarThreadSortOrder,
-      threads,
-    ],
-  );
-
-  const projectSearchItems = useMemo(
-    () =>
-      buildProjectActionItems({
-        projects,
-        valuePrefix: "project",
-        icon: (project) => (
-          <ProjectFavicon
-            environmentId={project.environmentId}
-            cwd={project.cwd}
-            className="size-4 text-muted-foreground/80"
-          />
-        ),
-        runProject: openProjectFromSearch,
-      }),
-    [openProjectFromSearch, projects],
-  );
-  const projectProjectItems = useMemo<CommandPaletteActionItem[]>(
-    () =>
-      [...projects]
-        .toSorted((left, right) => {
-          const leftCurrent = left.cwd === currentProjectCwd;
-          const rightCurrent = right.cwd === currentProjectCwd;
-          if (leftCurrent !== rightCurrent) {
-            return leftCurrent ? -1 : 1;
-          }
-          return left.name.localeCompare(right.name);
-        })
-        .map((project) => ({
-          kind: "action",
-          value: `project:${project.environmentId}:${project.id}`,
-          searchTerms: [project.name, project.cwd],
-          title: project.name,
-          description: project.cwd === currentProjectCwd ? `Current • ${project.cwd}` : project.cwd,
-          icon: (
-            <ProjectFavicon
-              environmentId={project.environmentId}
-              cwd={project.cwd}
-              className="size-4 text-muted-foreground/80"
-            />
-          ),
-          run: async () => {
-            await openProjectFromSearch(project);
-          },
-        })),
-    [currentProjectCwd, openProjectFromSearch, projects],
-  );
-
-  const projectThreadItems = useMemo(
-    () =>
-      buildProjectActionItems({
-        projects,
-        valuePrefix: "new-thread-in",
-        icon: (project) => (
-          <ProjectFavicon
-            environmentId={project.environmentId}
-            cwd={project.cwd}
-            className="size-4 text-muted-foreground/80"
-          />
-        ),
-        runProject: async (project) => {
-          await startNewThreadInProjectFromContext(
-            {
-              activeDraftThread,
-              activeThread,
-              defaultProjectRef,
-              defaultThreadEnvMode: settings.defaultThreadEnvMode,
-              handleNewThread,
-            },
-            scopeProjectRef(project.environmentId, project.id),
-          );
-        },
-      }),
-    [
-      activeDraftThread,
-      activeThread,
-      defaultProjectRef,
-      handleNewThread,
+  async function openProjectFromSearch(project: (typeof projects)[number]) {
+    persistProjectSelection(project);
+    const latestThread = getLatestWorkspaceThreadForProject({
+      project,
       projects,
-      settings.defaultThreadEnvMode,
-    ],
-  );
+      threads,
+      sortOrder: settings.sidebarThreadSortOrder,
+    });
+    if (latestThread) {
+      await openThread(router, scopeThreadRef(latestThread.environmentId, latestThread.id));
+      return;
+    }
 
-  const allThreadItems = useMemo(
-    () =>
-      buildThreadActionItems({
-        threads,
-        ...(activeThreadId ? { activeThreadId } : {}),
-        projectTitleById,
-        sortOrder: settings.sidebarThreadSortOrder,
-        icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
-        runThread: async (thread) => {
-          await navigate({
-            to: "/$environmentId/$threadId",
-            params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
-          });
-        },
-      }),
-    [activeThreadId, navigate, projectTitleById, settings.sidebarThreadSortOrder, threads],
-  );
+    await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
+      envMode: settings.defaultThreadEnvMode,
+    });
+  }
+
+  const projectSearchItems = buildProjectActionItems({
+    projects,
+    valuePrefix: "project",
+    icon: projectCommandPaletteIcon,
+    runProject: openProjectFromSearch,
+  });
+  const projectProjectItems: CommandPaletteActionItem[] = [...projects]
+    .toSorted((left, right) => {
+      const leftCurrent = left.cwd === currentProjectCwd;
+      const rightCurrent = right.cwd === currentProjectCwd;
+      if (leftCurrent !== rightCurrent) {
+        return leftCurrent ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name);
+    })
+    .map((project) => ({
+      kind: "action",
+      value: `project:${project.environmentId}:${project.id}`,
+      searchTerms: [project.name, project.cwd],
+      title: project.name,
+      description: project.cwd === currentProjectCwd ? `Current • ${project.cwd}` : project.cwd,
+      icon: projectCommandPaletteIcon(project),
+      run: async () => {
+        await openProjectFromSearch(project);
+      },
+    }));
+
+  const projectThreadItems = buildProjectActionItems({
+    projects,
+    valuePrefix: "new-thread-in",
+    icon: projectCommandPaletteIcon,
+    runProject: async (project) => {
+      await startNewThreadInProjectFromContext(
+        readThreadActionContext({
+          selectedLogicalProjectKey,
+          selectedProjectRef,
+          threadEnvMode: settings.defaultThreadEnvMode,
+          handleNewThread,
+          projects,
+          routeTarget,
+        }),
+        scopeProjectRef(project.environmentId, project.id),
+      );
+    },
+  });
+
+  const allThreadItems = buildThreadActionItems({
+    threads,
+    ...(activeThreadId ? { activeThreadId } : {}),
+    projectTitleForThread: (thread) => findWorkspaceProjectForSource(projects, thread)?.name,
+    sortOrder: settings.sidebarThreadSortOrder,
+    icon: <IconThread className="size-4 text-honk-icon-tertiary" />,
+    runThread: async (thread) => {
+      const selectedThread =
+        threads.find(
+          (candidate) =>
+            candidate.environmentId === thread.environmentId && candidate.id === thread.id,
+        ) ?? null;
+      const selectedProject = selectedThread?.projectId
+        ? findWorkspaceProjectForSource(projects, selectedThread)
+        : null;
+      if (selectedProject) {
+        persistProjectSelection(selectedProject);
+      }
+      await openThread(router, scopeThreadRef(thread.environmentId, thread.id));
+    },
+  });
   const recentThreadItems = allThreadItems.slice(0, RECENT_THREAD_LIMIT);
 
-  const copyPathToClipboard = useCallback(async (path: string, successTitle: string) => {
-    if (!navigator.clipboard?.writeText) {
+  async function openPathInPreferredEditor(path: string, failureTitle: string) {
+    const api = readLocalApi();
+    if (!api) {
       toastManager.add({
         type: "error",
-        title: "Clipboard unavailable",
-        description: "This browser cannot write to the clipboard.",
+        title: failureTitle,
+        description: "Local editor integration is unavailable.",
       });
       return;
     }
-    await navigator.clipboard.writeText(path);
-    toastManager.add({
-      type: "success",
-      title: successTitle,
-      description: path,
-    });
-  }, []);
 
-  const openPathInPreferredEditor = useCallback(
-    async (path: string, failureTitle: string) => {
-      const api = readLocalApi();
-      if (!api) {
-        toastManager.add({
-          type: "error",
-          title: failureTitle,
-          description: "Local editor integration is unavailable.",
-        });
-        return;
-      }
-
-      const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
-      if (!editor) {
-        toastManager.add({
-          type: "error",
-          title: failureTitle,
-          description: "No available editors found.",
-        });
-        return;
-      }
-
-      await api.shell.openInEditor(path, editor);
-    },
-    [availableEditors],
-  );
-
-  const handleAddProject = useCallback(
-    async (rawCwd: string) => {
-      const environmentId = primaryEnvironmentId;
-      if (!environmentId) return;
-      const api = readEnvironmentApi(environmentId);
-      if (!api) return;
-
-      const cwd = rawCwd.trim();
-      if (cwd.length === 0) return;
-
-      const existing = findProjectByPath(
-        projects.filter((project) => project.environmentId === environmentId),
-        cwd,
-      );
-      if (existing) {
-        writeStoredProjectCwd(cwd);
-        const latestThread = getLatestThreadForProject(
-          threads.filter((thread) => thread.environmentId === existing.environmentId),
-          existing.id,
-          settings.sidebarThreadSortOrder,
-        );
-        if (latestThread) {
-          await navigate({
-            to: "/$environmentId/$threadId",
-            params: buildThreadRouteParams(
-              scopeThreadRef(latestThread.environmentId, latestThread.id),
-            ),
-          });
-        } else {
-          await handleNewThread(scopeProjectRef(existing.environmentId, existing.id), {
-            envMode: settings.defaultThreadEnvMode,
-          }).catch(() => undefined);
-        }
-        return;
-      }
-
-      const projectId = newProjectId();
-      await api.orchestration.dispatchCommand({
-        type: "project.create",
-        commandId: newCommandId(),
-        projectId,
-        title: inferProjectTitleFromPath(cwd),
-        projectRoot: cwd,
-        createProjectRootIfMissing: true,
-        defaultModelSelection: settings.textGenerationModelSelection,
-        createdAt: new Date().toISOString(),
+    const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
+    if (!editor) {
+      toastManager.add({
+        type: "error",
+        title: failureTitle,
+        description: "No available editors found.",
       });
-      writeStoredProjectCwd(cwd);
-      await handleNewThread(scopeProjectRef(environmentId, projectId), {
-        envMode: settings.defaultThreadEnvMode,
-      }).catch(() => undefined);
-    },
-    [
-      handleNewThread,
-      navigate,
-      primaryEnvironmentId,
-      projects,
-      settings.defaultThreadEnvMode,
-      settings.sidebarThreadSortOrder,
-      settings.textGenerationModelSelection,
-      threads,
-    ],
-  );
+      return;
+    }
 
-  const openAddProjectFlow = useCallback(() => {
+    await api.shell.openInEditor(path, editor);
+  }
+
+  async function handleAddProject(rawCwd: string) {
+    const environmentId = primaryEnvironmentId;
+    if (!environmentId) return;
+
+    const selection = await openWorkspaceFolder({
+      environmentId,
+      projects,
+      rawCwd,
+      defaultModelSelection: settings.textGenerationModelSelection,
+    });
+    if (!selection) return;
+
+    if (!selection.created && selection.project) {
+      const latestThread = getLatestWorkspaceThreadForProject({
+        project: selection.project,
+        projects,
+        threads,
+        sortOrder: settings.sidebarThreadSortOrder,
+      });
+      if (latestThread) {
+        await openThread(router, scopeThreadRef(latestThread.environmentId, latestThread.id));
+      } else {
+        await handleNewThread(selection.projectRef, {
+          envMode: settings.defaultThreadEnvMode,
+          logicalProjectKey: selection.logicalProjectKey,
+        }).catch(() => undefined);
+      }
+      return;
+    }
+
+    await handleNewThread(selection.projectRef, {
+      envMode: settings.defaultThreadEnvMode,
+      logicalProjectKey: selection.logicalProjectKey,
+    }).catch(() => undefined);
+  }
+
+  function openAddProjectFlow() {
     if (!primaryEnvironmentId) {
       toastManager.add({
         type: "error",
@@ -602,9 +610,9 @@ function OpenCommandPaletteDialog() {
           description: formatSchemaBackedTransportErrorDescription(error, "An error occurred."),
         });
       });
-  }, [handleAddProject, primaryEnvironmentId, setOpen, settings.addProjectBaseDirectory]);
+  }
 
-  const projectGroups = useMemo<CommandPaletteView["groups"]>(() => {
+  const projectGroups: CommandPaletteView["groups"] = (() => {
     const groups: CommandPaletteGroup[] = [];
     if (projectProjectItems.length > 0) {
       groups.push({
@@ -623,7 +631,7 @@ function OpenCommandPaletteDialog() {
           searchTerms: ["add project", "add project", "folder", "directory"],
           title: "Add Project",
           description: "Choose a folder",
-          icon: <IconFolderAddRight className="size-4 text-muted-foreground/80" />,
+          icon: <IconFolderAddRight className="size-4 text-honk-icon-tertiary" />,
           keepOpen: true,
           run: async () => {
             openAddProjectFlow();
@@ -632,7 +640,7 @@ function OpenCommandPaletteDialog() {
       ],
     });
     return groups;
-  }, [openAddProjectFlow, projectProjectItems]);
+  })();
 
   function createInitialSessionState(): CommandPaletteSessionState {
     const viewStack =
@@ -650,7 +658,6 @@ function OpenCommandPaletteDialog() {
       sessionId: openSessionId,
       viewStack,
       query: "",
-      highlightedItemValue: null,
     };
   }
 
@@ -661,7 +668,7 @@ function OpenCommandPaletteDialog() {
   if (activeSessionState !== sessionState) {
     setSessionState(activeSessionState);
   }
-  const { query, highlightedItemValue, viewStack } = activeSessionState;
+  const { query, viewStack } = activeSessionState;
   const deferredQuery = useDeferredValue(query);
   const isActionsOnly = deferredQuery.startsWith(">");
   const currentView = viewStack.at(-1) ?? null;
@@ -688,7 +695,6 @@ function OpenCommandPaletteDialog() {
           ...(view.placeholder ? { placeholder: view.placeholder } : {}),
         },
       ],
-      highlightedItemValue: null,
       query: view.initialQuery ?? "",
     }));
   }
@@ -706,7 +712,6 @@ function OpenCommandPaletteDialog() {
     setSessionState((previousState) => ({
       ...previousState,
       viewStack: previousState.viewStack.slice(0, -1),
-      highlightedItemValue: null,
       query: "",
     }));
   }
@@ -718,28 +723,20 @@ function OpenCommandPaletteDialog() {
         return {
           ...previousState,
           viewStack: previousState.viewStack.slice(0, -1),
-          highlightedItemValue: null,
           query: "",
         };
       }
       return {
         ...previousState,
-        highlightedItemValue: null,
         query: nextQuery,
       };
     });
   }
 
-  if (!open) {
-    return null;
-  }
-
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
   if (projects.length > 0) {
-    const activeProjectTitle = currentProjectId
-      ? (projectTitleById.get(currentProjectId) ?? null)
-      : null;
+    const activeProjectTitle = currentWorkspaceProject?.name ?? null;
 
     if (activeProjectTitle) {
       actionItems.push({
@@ -751,16 +748,19 @@ function OpenCommandPaletteDialog() {
             New thread in <span className="font-semibold">{activeProjectTitle}</span>
           </>
         ),
-        icon: <IconPencil className="size-4 text-muted-foreground/80" />,
+        icon: <IconAgent className="size-4 text-honk-icon-tertiary" />,
         shortcutCommand: "chat.new",
         run: async () => {
-          await startNewThreadFromContext({
-            activeDraftThread,
-            activeThread,
-            defaultProjectRef,
-            defaultThreadEnvMode: settings.defaultThreadEnvMode,
-            handleNewThread,
-          });
+          await startNewThreadFromContext(
+            readThreadActionContext({
+              selectedLogicalProjectKey,
+              selectedProjectRef,
+              threadEnvMode: settings.defaultThreadEnvMode,
+              handleNewThread,
+              projects,
+              routeTarget,
+            }),
+          );
         },
       });
     }
@@ -770,8 +770,8 @@ function OpenCommandPaletteDialog() {
       value: "action:new-thread-in",
       searchTerms: ["new thread", "project", "pick", "choose", "select"],
       title: "New thread in...",
-      icon: <IconPencil className="size-4 text-muted-foreground/80" />,
-      addonIcon: <IconPencil className="size-4" />,
+      icon: <IconProjects className="size-4 text-honk-icon-tertiary" />,
+      addonIcon: <IconProjects className="size-4" />,
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
   }
@@ -781,68 +781,90 @@ function OpenCommandPaletteDialog() {
     value: "action:add-project",
     searchTerms: ["add project", "folder", "directory"],
     title: "Add project",
-    icon: <IconFolderAddRight className="size-4 text-muted-foreground/80" />,
+    icon: <IconFolderAddRight className="size-4 text-honk-icon-tertiary" />,
     keepOpen: true,
     run: async () => {
       openAddProjectFlow();
     },
   });
 
+  if (currentProjectCwd) {
+    actionItems.push({
+      kind: "action",
+      value: "action:open-workspace-in-editor",
+      searchTerms: ["open workspace in editor", "open project in editor", "editor", "code"],
+      title: "Open workspace in editor",
+      description: currentProjectCwd,
+      icon: <IconFolderOpen className="size-4 text-honk-icon-tertiary" />,
+      run: async () => {
+        await openPathInPreferredEditor(currentProjectCwd, "Unable to open workspace");
+      },
+    });
+
+    actionItems.push({
+      kind: "action",
+      value: "action:copy-workspace-path",
+      searchTerms: ["copy workspace path", "copy project path", "path", "clipboard"],
+      title: "Copy workspace path",
+      description: currentProjectCwd,
+      icon: <IconClipboard className="size-4 text-honk-icon-tertiary" />,
+      run: async () => {
+        await copyPathToClipboard(currentProjectCwd, "Copied workspace path");
+      },
+    });
+  }
+
   actionItems.push({
     kind: "action",
     value: "action:settings",
     searchTerms: ["settings", "preferences", "configuration", "keybindings"],
     title: "Open settings",
-    icon: <IconSettingsGear2 className="size-4 text-muted-foreground/80" />,
+    icon: <IconSettingsGear2 className="size-4 text-honk-icon-tertiary" />,
     run: async () => {
-      await navigate({ to: "/settings" });
+      await navigate({ to: DEFAULT_SETTINGS_ROUTE });
     },
   });
 
-  if (providerLogPath) {
-    actionItems.push({
-      kind: "action",
-      value: `action:debug:copy-provider-log:${routeThreadRef?.threadId ?? "current"}`,
-      searchTerms: [
-        "copy provider log path",
-        "copy thread log path",
-        "debug",
-        "logs",
-        routeThreadRef?.threadId ?? "",
-      ],
-      title: "Copy provider log path",
-      description: "Current thread provider event log",
-      icon: <IconClipboard className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        await copyPathToClipboard(providerLogPath, "Copied provider log path");
-      },
-    });
-    actionItems.push({
-      kind: "action",
-      value: `action:debug:open-provider-log:${routeThreadRef?.threadId ?? "current"}`,
-      searchTerms: [
-        "open provider log",
-        "open thread log",
-        "debug",
-        "logs",
-        routeThreadRef?.threadId ?? "",
-      ],
-      title: "Open provider log",
-      description: "Open current thread provider event log in your editor",
-      icon: <IconCode className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        try {
-          await openPathInPreferredEditor(providerLogPath, "Unable to open provider log");
-        } catch (error) {
-          toastManager.add({
-            type: "error",
-            title: "Unable to open provider log",
-            description: formatSchemaBackedTransportErrorDescription(error, "An error occurred."),
-          });
-        }
-      },
-    });
-  }
+  actionItems.push({
+    kind: "action",
+    value: "action:open-dev-panel",
+    searchTerms: [
+      "open dev panel",
+      "developer panel",
+      "debug panel",
+      "runtime panel",
+      "context usage",
+      "pi runtime",
+      "session tree",
+      "timeline",
+    ],
+    title: "Open Dev Panel",
+    description: "Inspect the active thread runtime, context, timeline, and tree",
+    icon: <IconCode className="size-4 text-honk-icon-tertiary" />,
+    run: async () => {
+      shellPanelsActions.activateDevTab(workspaceTarget.workspaceKey);
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:keybindings",
+    searchTerms: ["keyboard shortcuts", "keybindings", "shortcuts", "hotkeys"],
+    title: "Open keyboard shortcuts",
+    description: keybindingsConfigPath ?? "Keybindings file path unavailable",
+    icon: <IconKeyboard className="size-4 text-honk-icon-tertiary" />,
+    run: async () => {
+      if (!keybindingsConfigPath) {
+        toastManager.add({
+          type: "error",
+          title: "Unable to open keyboard shortcuts",
+          description: "The keybindings file path is unavailable.",
+        });
+        return;
+      }
+      await openPathInPreferredEditor(keybindingsConfigPath, "Unable to open keybindings file");
+    },
+  });
 
   if (serverTracePath) {
     actionItems.push({
@@ -851,7 +873,7 @@ function OpenCommandPaletteDialog() {
       searchTerms: ["copy server trace path", "copy trace path", "debug", "trace", "logs"],
       title: "Copy server trace path",
       description: "Local server trace NDJSON file",
-      icon: <IconClipboard className="size-4 text-muted-foreground/80" />,
+      icon: <IconBug className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
         await copyPathToClipboard(serverTracePath, "Copied server trace path");
       },
@@ -861,64 +883,33 @@ function OpenCommandPaletteDialog() {
   if (import.meta.env.DEV) {
     actionItems.push({
       kind: "action",
-      value: "action:dev:branching-ui-prototypes",
+      value: "action:dev:honkkit",
       searchTerms: [
-        "branching",
-        "branching ui",
-        "branching prototypes",
-        "ui prototypes",
-        "design",
+        "honkkit",
+        "design system",
+        "components",
+        "component gallery",
+        "ui",
+        "primitives",
+        "@honk/honkkit",
+        "dialkit",
         "dev",
       ],
-      title: "Open branching UI prototypes",
-      description: "Compare branching UI prototypes (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
+      title: "Open HonkKit",
+      description: "Browse the HonkKit design system with DialKit (dev)",
+      icon: <IconSettingsSliderHor className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
-        await navigate({ to: "/dev/branching-ui-prototypes" });
+        await navigate({ to: "/dev/honkkit" });
       },
     });
 
-    actionItems.push({
-      kind: "action",
-      value: "action:dev:archive-ui-example",
-      searchTerms: [
-        "archive",
-        "archived",
-        "archive ui",
-        "ui examples",
-        "design",
-        "sidebar archive",
-      ],
-      title: "Open archive UI examples",
-      description: "Compare archived-thread layouts (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        await navigate({ to: "/dev/archive-ui-example" });
-      },
-    });
-
-    actionItems.push({
-      kind: "action",
-      value: "action:dev:queued-message-demo",
-      searchTerms: [
-        "queue",
-        "queued message",
-        "queued follow up",
-        "follow up",
-        "composer",
-        "chat",
-        "dev",
-      ],
-      title: "Open queued message demo",
-      description: "Exercise queued follow-up panel states (dev)",
-      icon: <IconBubbleText className="size-4 text-muted-foreground/80" />,
-      run: async () => {
-        await navigate({ to: "/dev/queued-message-demo" });
-      },
-    });
   }
 
-  const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
+  const rootGroups = buildRootGroups({
+    projectItems: projectProjectItems,
+    actionItems,
+    recentThreadItems,
+  });
   const activeGroups = currentView ? currentView.groups : rootGroups;
 
   const filteredGroups = filterCommandPaletteGroups({
@@ -966,7 +957,7 @@ function OpenCommandPaletteDialog() {
   return (
     <CommandDialogPopup
       aria-label="Command palette"
-      className="overflow-hidden p-0"
+      className="overflow-hidden p-0 transition-none! duration-0!"
       data-testid="command-palette"
       finalFocus={() => {
         composerHandleRef?.current?.focusAtEnd();
@@ -978,12 +969,6 @@ function OpenCommandPaletteDialog() {
         aria-label="Command palette"
         autoHighlight="always"
         mode="none"
-        onItemHighlighted={(value) => {
-          setSessionState((previousState) => ({
-            ...previousState,
-            highlightedItemValue: typeof value === "string" ? value : null,
-          }));
-        }}
         onValueChange={handleQueryChange}
         value={query}
       >
@@ -996,14 +981,16 @@ function OpenCommandPaletteDialog() {
             {...(isSubmenu
               ? {
                   startAddon: (
-                    <button
+                    <Button
                       type="button"
-                      className="flex cursor-pointer items-center"
+                      size="icon-xs"
+                      variant="ghost"
+                      className="shrink-0"
                       aria-label="Back"
                       onClick={popView}
                     >
                       <IconChevronLeftMedium />
-                    </button>
+                    </Button>
                   ),
                 }
               : {})}
@@ -1013,39 +1000,11 @@ function OpenCommandPaletteDialog() {
         <CommandPanel className="max-h-[min(28rem,70vh)]">
           <CommandPaletteResults
             groups={displayedGroups}
-            highlightedItemValue={highlightedItemValue}
             isActionsOnly={isActionsOnly}
             keybindings={keybindings}
             onExecuteItem={executeItem}
           />
         </CommandPanel>
-        <CommandFooter className="gap-3 max-sm:flex-col max-sm:items-start">
-          <div className="flex items-center gap-3">
-            <KbdGroup className="items-center gap-1.5">
-              <Kbd>
-                <IconChevronRightMedium className="-rotate-90" />
-              </Kbd>
-              <Kbd>
-                <IconChevronRightMedium className="rotate-90" />
-              </Kbd>
-              <span className={cn("text-muted-foreground/80")}>Navigate</span>
-            </KbdGroup>
-            <KbdGroup className="items-center gap-1.5">
-              <Kbd>Enter</Kbd>
-              <span className={cn("text-muted-foreground/80")}>Select</span>
-            </KbdGroup>
-            {isSubmenu ? (
-              <KbdGroup className="items-center gap-1.5">
-                <Kbd>Backspace</Kbd>
-                <span className={cn("text-muted-foreground/80")}>Back</span>
-              </KbdGroup>
-            ) : null}
-            <KbdGroup className="items-center gap-1.5">
-              <Kbd>Esc</Kbd>
-              <span className={cn("text-muted-foreground/80")}>Close</span>
-            </KbdGroup>
-          </div>
-        </CommandFooter>
       </Command>
     </CommandDialogPopup>
   );

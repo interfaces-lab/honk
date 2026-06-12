@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 
 import { useSettingsRestore } from "./settings-panels";
 
@@ -15,12 +15,10 @@ export function SettingsRestoreProvider(props: { children: ReactNode }) {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(() =>
     setRestoreSignal((value) => value + 1),
   );
-  const value = useMemo(
-    () => ({ changedSettingLabels, restoreDefaults, restoreSignal }),
-    [changedSettingLabels, restoreDefaults, restoreSignal],
-  );
+  const value = { changedSettingLabels, restoreDefaults, restoreSignal };
 
   return (
+    // oxlint-disable-next-line react/jsx-no-constructed-context-values -- React Compiler memoizes context values
     <SettingsRestoreContext.Provider value={value}>
       {props.children}
     </SettingsRestoreContext.Provider>

@@ -1,4 +1,4 @@
-import { useParams } from "@tanstack/react-router";
+import { useChatRouteTarget } from "~/app/chat-route-state";
 
 export function resolveRouteThreadId(params: { threadId?: string | null } | null | undefined) {
   if (!params?.threadId) {
@@ -14,8 +14,6 @@ export function resolveRouteThreadId(params: { threadId?: string | null } | null
 }
 
 export function useRouteThreadId() {
-  return useParams({
-    strict: false,
-    select: (params) => resolveRouteThreadId(params),
-  });
+  const routeTarget = useChatRouteTarget();
+  return routeTarget?.kind === "server" ? routeTarget.threadRef.threadId : null;
 }

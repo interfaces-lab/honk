@@ -1,4 +1,4 @@
-import type { AuthClientMetadata, AuthClientSession, AuthPairingLink } from "@multi/contracts";
+import type { AuthClientMetadata, AuthClientSession, AuthPairingLink } from "@honk/contracts";
 import { DateTime } from "effect";
 
 import type { IssuedBearerSession, IssuedPairingLink } from "./auth/AuthControlPlane.service.ts";
@@ -61,6 +61,7 @@ export function formatIssuedPairingCredential(
       `Issued client pairing token ${credential.id}.`,
       `Token: ${credential.credential}`,
       ...(bootstrapUrl ? [`Bootstrap URL: ${bootstrapUrl}`] : []),
+      // oxlint-disable-next-line typescript/restrict-template-expressions
       `Expires at: ${credential.expiresAt}`,
     ].join(newline) + newline
   );

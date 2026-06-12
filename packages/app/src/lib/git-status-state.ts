@@ -1,19 +1,18 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
   type EnvironmentId,
+  GitManagerError,
   type GitManagerServiceError,
   type GitStatusResult,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Cause } from "effect";
 import { Atom } from "effect/unstable/reactivity";
 import { useCallback, useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atom-registry";
-import {
-  readEnvironmentConnection,
-  subscribeEnvironmentConnections,
-} from "../environments/runtime";
-import type { WsRpcClient } from "~/rpc/ws-rpc-client";
+import { subscribeEnvironmentConnections } from "../environments/runtime";
+import { readResolvedEnvironmentGitApi, type EnvironmentGitApi } from "./environment-git-api";
+import { isTransportConnectionErrorMessage } from "../rpc/transport-error";
 
 interface GitStatusState {
   readonly data: GitStatusResult | null;
@@ -22,8 +21,8 @@ interface GitStatusState {
   readonly isPending: boolean;
 }
 
-type GitStatusRefreshClient = Pick<WsRpcClient["git"], "refreshStatus">;
-type GitStatusClient = Pick<WsRpcClient["git"], "onStatus" | "refreshStatus">;
+type GitStatusRefreshClient = Pick<EnvironmentGitApi, "refreshStatus">;
+type GitStatusClient = Pick<EnvironmentGitApi, "onStatus" | "refreshStatus">;
 interface ResolvedGitStatusClient {
   readonly clientIdentity: string;
   readonly client: GitStatusClient;
@@ -61,10 +60,12 @@ const EMPTY_GIT_STATUS_ATOM = Atom.make(EMPTY_GIT_STATUS_STATE).pipe(
 const NOOP: () => void = () => undefined;
 const watchedGitStatuses = new Map<string, WatchedGitStatus>();
 const knownGitStatusKeys = new Set<string>();
-const gitStatusRefreshInFlight = new Map<string, Promise<GitStatusResult>>();
+const gitStatusRefreshInFlight = new Map<string, Promise<GitStatusResult | null>>();
+const gitStatusQueuedForceRefresh = new Map<string, Promise<GitStatusResult | null>>();
 const gitStatusLastRefreshAtByKey = new Map<string, number>();
 
 const GIT_STATUS_REFRESH_DEBOUNCE_MS = 1_000;
+const GIT_STATUS_REFRESH_TIMEOUT_MS = 8_000;
 
 const gitStatusStateAtom = Atom.family((key: string) => {
   knownGitStatusKeys.add(key);
@@ -86,10 +87,8 @@ function readResolvedGitStatusClient(target: GitStatusTarget): ResolvedGitStatus
   if (target.environmentId === null) {
     return null;
   }
-  const connection = readEnvironmentConnection(target.environmentId);
-  return connection
-    ? { clientIdentity: connection.environmentId, client: connection.client.git }
-    : null;
+  const resolved = readResolvedEnvironmentGitApi(target.environmentId);
+  return resolved ? { clientIdentity: resolved.clientIdentity, client: resolved.git } : null;
 }
 
 export function getGitStatusSnapshot(target: GitStatusTarget): GitStatusState {
@@ -101,7 +100,7 @@ export function getGitStatusSnapshot(target: GitStatusTarget): GitStatusState {
   return appAtomRegistry.get(gitStatusStateAtom(targetKey));
 }
 
-export function watchGitStatus(target: GitStatusTarget, client?: GitStatusClient): () => void {
+export function watchGitStatus(target: GitStatusTarget): () => void {
   const targetKey = getGitStatusTargetKey(target);
   if (targetKey === null) {
     return NOOP;
@@ -115,7 +114,7 @@ export function watchGitStatus(target: GitStatusTarget, client?: GitStatusClient
 
   watchedGitStatuses.set(targetKey, {
     refCount: 1,
-    unsubscribe: subscribeToGitStatusTarget(targetKey, target, client),
+    unsubscribe: subscribeToGitStatusTarget(targetKey, target),
   });
 
   return () => unwatchGitStatus(targetKey);
@@ -138,6 +137,22 @@ export function refreshGitStatus(
 
   const currentInFlight = gitStatusRefreshInFlight.get(targetKey);
   if (currentInFlight) {
+    if (options?.force) {
+      const queuedForceRefresh = gitStatusQueuedForceRefresh.get(targetKey);
+      if (queuedForceRefresh) {
+        return queuedForceRefresh;
+      }
+
+      const nextForceRefresh = currentInFlight
+        .catch(() => null)
+        .then(() => refreshGitStatus(target, resolvedClient, { force: true }))
+        .finally(() => {
+          gitStatusQueuedForceRefresh.delete(targetKey);
+        });
+      gitStatusQueuedForceRefresh.set(targetKey, nextForceRefresh);
+      return nextForceRefresh;
+    }
+
     return currentInFlight;
   }
 
@@ -147,9 +162,55 @@ export function refreshGitStatus(
   }
 
   gitStatusLastRefreshAtByKey.set(targetKey, Date.now());
-  const refreshPromise = resolvedClient.refreshStatus({ cwd: target.cwd }).finally(() => {
-    gitStatusRefreshInFlight.delete(targetKey);
+  const refreshError = (detail: string) =>
+    new GitManagerError({
+      operation: "refreshStatus",
+      detail,
+    });
+  const updateSuccess = (data: GitStatusResult) => {
+    appAtomRegistry.set(gitStatusStateAtom(targetKey), {
+      data,
+      error: null,
+      cause: null,
+      isPending: false,
+    });
+    return data;
+  };
+  const updateError = (error: GitManagerServiceError) => {
+    appAtomRegistry.set(gitStatusStateAtom(targetKey), {
+      data: getGitStatusSnapshot(target).data,
+      error,
+      cause: null,
+      isPending: false,
+    });
+    return error;
+  };
+  const sourcePromise = resolvedClient.refreshStatus({ cwd: target.cwd }).then(updateSuccess);
+  const timeoutPromise = new Promise<GitStatusResult>((_, reject) => {
+    window.setTimeout(() => {
+      reject(refreshError(`Timed out after ${GIT_STATUS_REFRESH_TIMEOUT_MS}ms for ${target.cwd}.`));
+    }, GIT_STATUS_REFRESH_TIMEOUT_MS);
   });
+  const refreshPromise = Promise.race([sourcePromise, timeoutPromise])
+    .catch((error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (isTransportConnectionErrorMessage(detail)) {
+        const data = getGitStatusSnapshot(target).data;
+        appAtomRegistry.set(gitStatusStateAtom(targetKey), {
+          data,
+          error: null,
+          cause: null,
+          isPending: false,
+        });
+        return data;
+      }
+      const gitError = error instanceof GitManagerError ? error : refreshError(detail);
+      updateError(gitError);
+      throw gitError;
+    })
+    .finally(() => {
+      gitStatusRefreshInFlight.delete(targetKey);
+    });
   gitStatusRefreshInFlight.set(targetKey, refreshPromise);
   return refreshPromise;
 }
@@ -160,6 +221,7 @@ export function resetGitStatusStateForTests(): void {
   }
   watchedGitStatuses.clear();
   gitStatusRefreshInFlight.clear();
+  gitStatusQueuedForceRefresh.clear();
   gitStatusLastRefreshAtByKey.clear();
 
   for (const key of knownGitStatusKeys) {
@@ -174,6 +236,7 @@ export function useGitStatus(target: GitStatusTarget): GitStatusState {
     () => watchGitStatus({ environmentId: target.environmentId, cwd: target.cwd }),
     [target.environmentId, target.cwd],
   );
+
   useSyncExternalStore(
     subscribe,
     () => targetKey,
@@ -201,11 +264,7 @@ function unwatchGitStatus(targetKey: string): void {
   watchedGitStatuses.delete(targetKey);
 }
 
-function subscribeToGitStatusTarget(
-  targetKey: string,
-  target: GitStatusTarget,
-  providedClient?: GitStatusClient,
-): () => void {
+function subscribeToGitStatusTarget(targetKey: string, target: GitStatusTarget): () => void {
   if (target.cwd === null) {
     return NOOP;
   }
@@ -215,12 +274,7 @@ function subscribeToGitStatusTarget(
   let currentUnsubscribe = NOOP;
 
   const syncClientSubscription = () => {
-    const resolved = providedClient
-      ? {
-          clientIdentity: `provided:${targetKey}`,
-          client: providedClient,
-        }
-      : readResolvedGitStatusClient(target);
+    const resolved = readResolvedGitStatusClient(target);
 
     if (!resolved) {
       if (currentClientIdentity !== null) {
@@ -241,9 +295,7 @@ function subscribeToGitStatusTarget(
     currentUnsubscribe = subscribeToGitStatus(targetKey, cwd, resolved.client);
   };
 
-  const unsubscribeRegistry = providedClient
-    ? NOOP
-    : subscribeEnvironmentConnections(syncClientSubscription);
+  const unsubscribeRegistry = subscribeEnvironmentConnections(syncClientSubscription);
   syncClientSubscription();
 
   return () => {

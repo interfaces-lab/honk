@@ -3,13 +3,13 @@ import type {
   OrchestrationLatestTurn,
   OrchestrationReadModel,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   OrchestrationMessage,
   OrchestrationSession,
   OrchestrationThread,
   resolveLeafIdAfterThreadMessage,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect, Schema } from "effect";
 
 import { toProjectorDecodeError, type OrchestrationProjectorDecodeError } from "./Errors.ts";
@@ -51,6 +51,52 @@ function settledLatestTurnForRunningSession(
   }
   return null;
 }
+
+function latestTurnAfterAssistantMessage(
+  thread: OrchestrationThread,
+  payload: {
+    readonly role: OrchestrationMessage["role"];
+    readonly turnId: OrchestrationMessage["turnId"];
+    readonly messageId: OrchestrationMessage["id"];
+    readonly streaming: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+  },
+): OrchestrationLatestTurn | null {
+  if (payload.role !== "assistant" || payload.turnId === null) {
+    return thread.latestTurn;
+  }
+
+  const previous = thread.latestTurn?.turnId === payload.turnId ? thread.latestTurn : null;
+  if (
+    thread.latestTurn !== null &&
+    thread.latestTurn.turnId !== payload.turnId &&
+    (payload.createdAt < thread.latestTurn.requestedAt ||
+      (payload.createdAt === thread.latestTurn.requestedAt &&
+        payload.turnId < thread.latestTurn.turnId))
+  ) {
+    return thread.latestTurn;
+  }
+
+  return {
+    turnId: payload.turnId,
+    state: payload.streaming
+      ? (previous?.state ?? "running")
+      : previous?.state === "interrupted"
+        ? "interrupted"
+        : previous?.state === "error"
+          ? "error"
+          : "completed",
+    requestedAt: previous?.requestedAt ?? payload.createdAt,
+    startedAt: previous?.startedAt ?? payload.createdAt,
+    completedAt: payload.streaming
+      ? (previous?.completedAt ?? null)
+      : (previous?.completedAt ?? payload.updatedAt),
+    assistantMessageId: payload.messageId,
+    ...(previous?.sourceProposedPlan ? { sourceProposedPlan: previous.sourceProposedPlan } : {}),
+  };
+}
+
 function updateThread(
   threads: ReadonlyArray<OrchestrationThread>,
   threadId: ThreadId,
@@ -359,6 +405,7 @@ export function projectEvent(
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             messages,
+            latestTurn: latestTurnAfterAssistantMessage(thread, payload),
             leafId: resolveLeafIdAfterThreadMessage({
               leafId: thread.leafId,
               entryId,
@@ -486,13 +533,13 @@ export function projectEvent(
           ]
             .toSorted(compareThreadActivities)
             .slice(-500);
+          const threadPatch: ThreadPatch = payload.activity.kind.startsWith("subagent.")
+            ? { activities }
+            : { activities, updatedAt: event.occurredAt };
 
           return {
             ...nextBase,
-            threads: updateThread(nextBase.threads, payload.threadId, {
-              activities,
-              updatedAt: event.occurredAt,
-            }),
+            threads: updateThread(nextBase.threads, payload.threadId, threadPatch),
           };
         }),
       );

@@ -1,13 +1,26 @@
 "use client";
 
-import { TabsList, TabsTab } from "@multi/ui/tabs";
+import { TabsList, TabsTab } from "@honk/honkkit/tabs";
+import { Button } from "@honk/honkkit/button";
 import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
 import type { ComponentType, ReactNode } from "react";
 
-import type { TerminalSessionEntry, WorkbenchTab } from "~/stores/shell-panels-store";
+import type { TerminalSessionEntry } from "~/stores/shell-panels-store";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/ui/workbench-button";
+import {
+  WorkbenchIconButton,
+  WorkbenchTabIconContent,
+  workbenchIconButtonVariants,
+} from "@honk/honkkit/workbench-button";
+import {
+  WorkbenchChromeActionGroup,
+  WorkbenchChromeDivider,
+  WorkbenchChromeSpacer,
+  workbenchChromeActionGroupVariants,
+  workbenchChromeTextControlVariants,
+} from "@honk/honkkit/workbench-chrome-row";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 export interface WorkbenchTabMeta {
@@ -15,13 +28,13 @@ export interface WorkbenchTabMeta {
   label: string;
   icon: ComponentType<{ className?: string }>;
   badge?: string | null;
+  closable?: boolean;
 }
 
 function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
   const Icon = props.tab.icon;
   const badge = props.tab.badge && props.tab.badge !== "0" ? props.tab.badge : null;
   const badgeText = badge ? `, ${badge}` : "";
-  const showBadgeCount = badge ? /^\d+$/.test(badge) : false;
   return (
     <TabsTab
       value={props.tab.id}
@@ -33,28 +46,15 @@ function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
             chrome: "tool",
             tabSystem: true,
           }),
-          "size-(--multi-workbench-action-size) p-0",
+          "size-(--honk-workbench-action-size) p-0",
         )
       }
       aria-label={`${props.tab.label}${badgeText}`}
       title={`${props.tab.label}${badgeText}`}
     >
-      <span className="ui-tab-system-tab__content relative flex size-full min-w-0 flex-none items-center justify-center">
-        <Icon className="ui-tab-system-tab__icon size-4 shrink-0" aria-hidden />
-        {badge ? (
-          <span
-            aria-hidden
-            className={cn(
-              "absolute rounded-full bg-warning text-warning-foreground shadow-[0_0_0_1px_var(--multi-bg-primary)]",
-              showBadgeCount
-                ? "-top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center px-0.5 text-[9px] leading-none font-semibold tabular-nums"
-                : "top-0.5 right-0.5 size-2",
-            )}
-          >
-            {showBadgeCount ? badge : null}
-          </span>
-        ) : null}
-      </span>
+      <WorkbenchTabIconContent badge={badge}>
+        <Icon aria-hidden />
+      </WorkbenchTabIconContent>
     </TabsTab>
   );
 }
@@ -62,7 +62,7 @@ function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
 function WorkbenchTabList(props: { activeTab: WorkbenchTab; tabs: readonly WorkbenchTabMeta[] }) {
   const activeMeta = props.tabs.find((tab) => tab.id === props.activeTab) ?? props.tabs[0] ?? null;
   return (
-    <TabsList className="no-drag flex h-(--multi-workbench-action-size) shrink-0 select-none items-center gap-(--multi-workbench-chrome-action-gap) self-center">
+    <TabsList className={workbenchChromeActionGroupVariants()}>
       {props.tabs.map((tab) => (
         <ToolIconButton key={tab.id} tab={tab} />
       ))}
@@ -94,35 +94,36 @@ function TerminalSessionTab(props: {
     <div
       role="presentation"
       className={cn(
-        "no-drag group relative flex h-(--multi-workbench-action-size) max-w-(--multi-workbench-tab-label-max-width) select-none items-center overflow-hidden rounded-multi-control text-body transition-colors",
-        props.active
-          ? "bg-multi-bg-tertiary text-multi-fg-primary"
-          : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
+        workbenchChromeTextControlVariants({ tone: props.active ? "primary" : "default" }),
+        "group relative max-w-(--honk-workbench-tab-label-max-width) px-0",
+        props.active ? "bg-honk-bg-tertiary text-honk-fg-primary" : "",
       )}
     >
-      <button
+      <Button
         type="button"
+        variant="ghost"
         role="tab"
         aria-selected={props.active}
         onClick={props.onActivate}
-        className="flex min-w-0 flex-1 select-none items-center gap-1 px-1.5 text-left outline-hidden focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className="h-full min-w-0 flex-1 justify-start gap-(--honk-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-left text-inherit shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
         aria-current={props.active ? "page" : undefined}
       >
         <IconConsole className="size-3 shrink-0 opacity-60" aria-hidden />
         <span className="min-w-0 truncate">{props.session.label}</span>
-      </button>
+      </Button>
       {props.closable ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           aria-label={`Close ${props.session.label}`}
           onClick={(e) => {
             e.stopPropagation();
             props.onClose();
           }}
-          className="no-drag mr-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm text-multi-fg-tertiary opacity-0 outline-hidden transition-opacity group-hover:opacity-100 hover:text-multi-fg-primary focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+          className="no-drag mr-0.5 size-4 shrink-0 rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none before:hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary group-hover:opacity-100 data-pressed:bg-transparent focus-visible:opacity-100"
         >
           <IconCrossMediumDefault className="size-3" />
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -136,6 +137,7 @@ interface RightWorkbenchHeaderProps {
   onTerminalTab?: (id: string) => void;
   onNewTerminal?: () => void;
   onCloseTerminal?: (id: string) => void;
+  onCloseTab?: (tab: WorkbenchTab) => void;
   trailing?: ReactNode;
 }
 
@@ -143,26 +145,20 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
   const isTerminal = props.activeTab === "terminal";
   const sessions = props.terminalSessions ?? [];
   const showTerminalSessionTabs = isTerminal && sessions.length > 0;
+  const activeMeta = props.tabs.find((tab) => tab.id === props.activeTab) ?? null;
 
   return (
     <RightWorkbenchToolIsland
       trailing={props.trailing}
-      end={<div className="multi-workbench-titlebar-end-space shrink-0" aria-hidden />}
+      end={<div className="honk-workbench-titlebar-end-space shrink-0" aria-hidden />}
     >
       <>
         <WorkbenchTabList activeTab={props.activeTab} tabs={props.tabs} />
 
         {showTerminalSessionTabs ? (
           <>
-            <div
-              className="h-(--multi-workbench-action-size) w-px shrink-0 self-center bg-multi-stroke-tertiary"
-              aria-hidden
-            />
-            <div
-              className="no-drag flex min-w-0 items-center gap-(--multi-workbench-chrome-action-gap)"
-              role="tablist"
-              aria-label="Terminal sessions"
-            >
+            <WorkbenchChromeDivider />
+            <WorkbenchChromeActionGroup role="tablist" aria-label="Terminal sessions" overflow>
               {sessions.map((session) => (
                 <TerminalSessionTab
                   key={session.id}
@@ -173,27 +169,28 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
                   closable={sessions.length > 1}
                 />
               ))}
-            </div>
+            </WorkbenchChromeActionGroup>
           </>
         ) : null}
         {isTerminal && props.onNewTerminal ? (
           <>
-            {!showTerminalSessionTabs ? (
-              <div
-                className="h-(--multi-workbench-action-size) w-px shrink-0 self-center bg-multi-stroke-tertiary"
-                aria-hidden
-              />
-            ) : null}
+            {!showTerminalSessionTabs ? <WorkbenchChromeDivider /> : null}
             <WorkbenchChromeButton label="New terminal" onClick={props.onNewTerminal}>
               <IconPlusLarge className="size-4 shrink-0" aria-hidden />
             </WorkbenchChromeButton>
           </>
         ) : null}
 
-        <div
-          className="editor-panel-tab-bar-spacer drag-region pointer-events-auto min-h-(--multi-workbench-action-size) min-w-0 flex-1 self-center"
-          aria-hidden
-        />
+        <WorkbenchChromeSpacer />
+
+        {activeMeta?.closable && props.onCloseTab ? (
+          <WorkbenchChromeButton
+            label={`Close ${activeMeta.label}`}
+            onClick={() => props.onCloseTab?.(activeMeta.id)}
+          >
+            <IconCrossMediumDefault className="size-4 shrink-0" aria-hidden />
+          </WorkbenchChromeButton>
+        ) : null}
       </>
     </RightWorkbenchToolIsland>
   );

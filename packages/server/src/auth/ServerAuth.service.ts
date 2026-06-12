@@ -1,5 +1,4 @@
 import type {
-  AuthBearerBootstrapResult,
   AuthBootstrapResult,
   AuthClientMetadata,
   AuthClientSession,
@@ -10,8 +9,7 @@ import type {
   AuthSessionState,
   ServerAuthDescriptor,
   ServerAuthSessionMethod,
-  AuthWebSocketTokenResult,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Data, DateTime, Context } from "effect";
 import type { Effect } from "effect";
 import type * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
@@ -39,17 +37,7 @@ export interface ServerAuthShape {
   readonly exchangeBootstrapCredential: (
     credential: string,
     requestMetadata: AuthClientMetadata,
-  ) => Effect.Effect<
-    {
-      readonly response: AuthBootstrapResult;
-      readonly sessionToken: string;
-    },
-    AuthError
-  >;
-  readonly exchangeBootstrapCredentialForBearerSession: (
-    credential: string,
-    requestMetadata: AuthClientMetadata,
-  ) => Effect.Effect<AuthBearerBootstrapResult, AuthError>;
+  ) => Effect.Effect<AuthBootstrapResult, AuthError>;
   readonly issuePairingCredential: (
     input?: AuthCreatePairingCredentialInput & {
       readonly role?: SessionRole;
@@ -73,12 +61,9 @@ export interface ServerAuthShape {
   readonly authenticateWebSocketUpgrade: (
     request: HttpServerRequest.HttpServerRequest,
   ) => Effect.Effect<AuthenticatedSession, AuthError>;
-  readonly issueWebSocketToken: (
-    session: AuthenticatedSession,
-  ) => Effect.Effect<AuthWebSocketTokenResult, AuthError>;
   readonly issueStartupPairingUrl: (baseUrl: string) => Effect.Effect<string, AuthError>;
 }
 
 export class ServerAuth extends Context.Service<ServerAuth, ServerAuthShape>()(
-  "multi/auth/ServerAuth.service",
+  "honk/auth/ServerAuth.service",
 ) {}

@@ -2,8 +2,8 @@
  * Appearance hue / intensity sliders (Cursor ui-color-picker parity).
  */
 
-.multi-appearance-hue-slider,
-.multi-appearance-intensity-slider {
+.honk-appearance-hue-slider,
+.honk-appearance-intensity-slider {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
@@ -12,19 +12,19 @@
   width: 100%;
 }
 
-.multi-appearance-hue-slider::-webkit-slider-runnable-track,
-.multi-appearance-intensity-slider::-webkit-slider-runnable-track {
-  background: var(--multi-stroke-tertiary, hsl(0 0% 50% / 0.25));
-  border-radius: var(--multi-radius-control, 6px);
+.honk-appearance-hue-slider::-webkit-slider-runnable-track,
+.honk-appearance-intensity-slider::-webkit-slider-runnable-track {
+  background: var(--honk-stroke-tertiary, hsl(0 0% 50% / 0.25));
+  border-radius: var(--honk-radius-control, 6px);
   height: 6px;
 }
 
-.multi-appearance-hue-slider::-webkit-slider-thumb,
-.multi-appearance-intensity-slider::-webkit-slider-thumb {
+.honk-appearance-hue-slider::-webkit-slider-thumb,
+.honk-appearance-intensity-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   background: hsl(
-    var(--multi-appearance-slider-hue, 261) var(--multi-appearance-slider-sat, 20%)
-      var(--multi-appearance-slider-light, 50%)
+    var(--honk-appearance-slider-hue, 261) var(--honk-appearance-slider-sat, 20%)
+      var(--honk-appearance-slider-light, 50%)
   );
   border: 2px solid var(--card, hsl(0 0% 100%));
   border-radius: 50%;
@@ -34,21 +34,63 @@
   width: 14px;
 }
 
-.multi-appearance-hue-slider::-moz-range-track,
-.multi-appearance-intensity-slider::-moz-range-track {
-  background: var(--multi-stroke-tertiary, hsl(0 0% 50% / 0.25));
-  border-radius: var(--multi-radius-control, 6px);
+.honk-appearance-hue-slider::-moz-range-track,
+.honk-appearance-intensity-slider::-moz-range-track {
+  background: var(--honk-stroke-tertiary, hsl(0 0% 50% / 0.25));
+  border-radius: var(--honk-radius-control, 6px);
   height: 6px;
 }
 
-.multi-appearance-hue-slider::-moz-range-thumb,
-.multi-appearance-intensity-slider::-moz-range-thumb {
+.honk-appearance-hue-slider::-moz-range-thumb,
+.honk-appearance-intensity-slider::-moz-range-thumb {
   appearance: none;
   background: hsl(
-    var(--multi-appearance-slider-hue, 261) var(--multi-appearance-slider-sat, 20%)
-      var(--multi-appearance-slider-light, 50%)
+    var(--honk-appearance-slider-hue, 261) var(--honk-appearance-slider-sat, 20%)
+      var(--honk-appearance-slider-light, 50%)
   );
   border: 2px solid var(--card, hsl(0 0% 100%));
+  border-radius: 50%;
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.3);
+  height: 14px;
+  width: 14px;
+}
+
+.honk-settings-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 1rem;
+  width: 100%;
+}
+
+.honk-settings-range-slider::-webkit-slider-runnable-track {
+  background: var(--honk-stroke-tertiary, hsl(0 0% 50% / 0.25));
+  border-radius: var(--honk-radius-control, 6px);
+  height: 6px;
+}
+
+.honk-settings-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  background: var(--card, hsl(0 0% 100%));
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.3);
+  height: 14px;
+  margin-top: -4px;
+  width: 14px;
+}
+
+.honk-settings-range-slider::-moz-range-track {
+  background: var(--honk-stroke-tertiary, hsl(0 0% 50% / 0.25));
+  border-radius: var(--honk-radius-control, 6px);
+  height: 6px;
+}
+
+.honk-settings-range-slider::-moz-range-thumb {
+  appearance: none;
+  background: var(--card, hsl(0 0% 100%));
+  border: none;
   border-radius: 50%;
   box-shadow: 0 0 2px rgb(0 0 0 / 0.3);
   height: 14px;

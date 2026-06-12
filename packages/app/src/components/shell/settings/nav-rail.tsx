@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { IconChevronLeftMedium } from "central-icons";
 
-import { SidebarItem } from "@multi/ui/sidebar";
+import { SidebarItem } from "@honk/honkkit/sidebar";
 import { SETTINGS_SECTIONS } from "~/components/settings/settings-sections";
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
@@ -14,7 +14,7 @@ export function SettingsNavRail(props: { onBack: () => void }) {
           <SidebarItem
             type="button"
             onClick={props.onBack}
-            className="text-multi-fg-secondary hover:text-multi-fg-primary"
+            className="text-honk-fg-secondary hover:text-honk-fg-primary"
             aria-label="Back to chat"
           >
             <IconChevronLeftMedium className="size-4 shrink-0 opacity-60" />
@@ -32,12 +32,12 @@ export function SettingsNavRail(props: { onBack: () => void }) {
                 <Link
                   to={item.to}
                   activeProps={{
-                    className: "bg-multi-bg-quaternary text-foreground",
+                    className: "text-foreground",
+                    "data-selected": "true",
                     "aria-current": "page",
                   }}
                   inactiveProps={{
-                    className:
-                      "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",
+                    className: "text-muted-foreground hover:text-foreground",
                   }}
                 />
               }

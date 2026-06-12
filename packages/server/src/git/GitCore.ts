@@ -18,9 +18,15 @@ import {
 } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { GitCommandError, type GitBranch, type GitWorkingTreeFileStatus } from "@multi/contracts";
-import { dedupeRemoteBranchesWithLocalMatches } from "@multi/shared/git";
-import { compactTraceAttributes } from "@multi/shared/observability";
+import {
+  GitCommandError,
+  type GitBranch,
+  type GitFilePatchResult,
+  type GitNonTextFileType,
+  type GitWorkingTreeFileStatus,
+} from "@honk/contracts";
+import { dedupeRemoteBranchesWithLocalMatches } from "@honk/shared/git";
+import { compactTraceAttributes } from "@honk/shared/observability";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import {
   GitCore,
@@ -37,7 +43,7 @@ import {
   parseRemoteRefWithRemoteNames,
 } from "./remote-refs.ts";
 import { ServerConfig } from "../config.ts";
-import { decodeJsonResult } from "@multi/shared/schema-json";
+import { decodeJsonResult } from "@honk/shared/schema-json";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
@@ -79,6 +85,50 @@ const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitStatusDetails>({
 });
 const isGitCommandError = Schema.is(GitCommandError);
 
+const IMAGE_MEDIA_TYPES_BY_EXTENSION: Record<string, string> = {
+  avif: "image/avif",
+  bmp: "image/bmp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+  ico: "image/x-icon",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+  webp: "image/webp",
+};
+const IMAGE_FILE_EXTENSIONS = new Set(Object.keys(IMAGE_MEDIA_TYPES_BY_EXTENSION));
+const GIT_FILE_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+const VIDEO_FILE_EXTENSIONS = new Set(["avi", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm"]);
+const AUDIO_FILE_EXTENSIONS = new Set(["aac", "aiff", "flac", "m4a", "mp3", "ogg", "wav"]);
+const ARCHIVE_FILE_EXTENSIONS = new Set([
+  "7z",
+  "br",
+  "bz2",
+  "dmg",
+  "gz",
+  "rar",
+  "tar",
+  "tgz",
+  "xz",
+  "zip",
+]);
+const DOCUMENT_FILE_EXTENSIONS = new Set([
+  "doc",
+  "docx",
+  "key",
+  "numbers",
+  "pages",
+  "pdf",
+  "ppt",
+  "pptx",
+  "xls",
+  "xlsx",
+]);
+const FONT_FILE_EXTENSIONS = new Set(["eot", "otf", "ttc", "ttf", "woff", "woff2"]);
+
 type TraceTailState = {
   processedChars: number;
   remainder: string;
@@ -117,6 +167,71 @@ function parseNumstatCounts(
   return {
     insertions: Number.isFinite(added) ? added : 0,
     deletions: Number.isFinite(deleted) ? deleted : 0,
+  };
+}
+
+function fileExtension(filePath: string): string {
+  const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+  const extensionStart = fileName.lastIndexOf(".");
+  if (extensionStart <= 0 || extensionStart === fileName.length - 1) {
+    return "";
+  }
+  return fileName.slice(extensionStart + 1).toLowerCase();
+}
+
+function resolveGitNonTextFileType(filePath: string): GitNonTextFileType {
+  const extension = fileExtension(filePath);
+  if (IMAGE_FILE_EXTENSIONS.has(extension)) return "image";
+  if (VIDEO_FILE_EXTENSIONS.has(extension)) return "video";
+  if (AUDIO_FILE_EXTENSIONS.has(extension)) return "audio";
+  if (ARCHIVE_FILE_EXTENSIONS.has(extension)) return "archive";
+  if (DOCUMENT_FILE_EXTENSIONS.has(extension)) return "document";
+  if (FONT_FILE_EXTENSIONS.has(extension)) return "font";
+  return "binary";
+}
+
+function gitNonTextFileTypeLabel(fileType: GitNonTextFileType): string {
+  switch (fileType) {
+    case "image":
+      return "Image";
+    case "video":
+      return "Video";
+    case "audio":
+      return "Audio";
+    case "archive":
+      return "Archive";
+    case "document":
+      return "Document";
+    case "font":
+      return "Font";
+    case "binary":
+    default:
+      return "Binary";
+  }
+}
+
+function isGitBinaryPatch(patch: string): boolean {
+  return patch.includes("\nBinary files ") || patch.includes("\nGIT binary patch\n");
+}
+
+function isTruncatedGitOutput(output: string): boolean {
+  return output.endsWith(OUTPUT_TRUNCATED_MARKER);
+}
+
+function gitNonTextPatchResult(filePath: string, patch: string): GitFilePatchResult | null {
+  if (!isGitBinaryPatch(patch)) return null;
+  const fileType = resolveGitNonTextFileType(filePath);
+  return {
+    kind: "non_text",
+    fileType,
+    message: `${gitNonTextFileTypeLabel(fileType)} changes are not rendered as text diffs.`,
+  };
+}
+
+function gitLargePatchResult(): GitFilePatchResult {
+  return {
+    kind: "large",
+    message: "Large diffs are hidden by default.",
   };
 }
 
@@ -605,7 +720,7 @@ const createTrace2Monitor = Effect.fn("createTrace2Monitor")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const traceFilePath = yield* fs.makeTempFileScoped({
-    prefix: `multi-git-trace2-${process.pid}-`,
+    prefix: `honk-git-trace2-${process.pid}-`,
     suffix: ".json",
   });
   const hookStartByChildKey = new Map<string, { hookName: string; startedAtMs: number }>();
@@ -1948,6 +2063,13 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       },
     );
     if (unifiedDiff.trim().length > 0) {
+      if (isTruncatedGitOutput(unifiedDiff)) {
+        return gitLargePatchResult();
+      }
+      const nonTextPatch = gitNonTextPatchResult(input.path, unifiedDiff);
+      if (nonTextPatch) {
+        return nonTextPatch;
+      }
       return { kind: "patch", patch: unifiedDiff };
     }
 
@@ -2002,7 +2124,65 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
         message: "Git reported this file as untracked, but did not return a patch for it.",
       };
     }
+    if (isTruncatedGitOutput(untrackedDiff)) {
+      return gitLargePatchResult();
+    }
+    const nonTextPatch = gitNonTextPatchResult(input.path, untrackedDiff);
+    if (nonTextPatch) {
+      return nonTextPatch;
+    }
     return { kind: "untracked", patch: untrackedDiff };
+  });
+
+  const getFileImage: GitCoreShape["getFileImage"] = Effect.fn("getFileImage")(function* (input) {
+    const mediaType = IMAGE_MEDIA_TYPES_BY_EXTENSION[fileExtension(input.path)];
+    if (!mediaType) {
+      return { kind: "unsupported" as const };
+    }
+
+    const repoRoot = path.resolve(input.cwd);
+    const absolutePath = path.resolve(repoRoot, input.path);
+    if (!absolutePath.startsWith(`${repoRoot}${path.sep}`)) {
+      return yield* createGitCommandError(
+        "GitCore.getFileImage",
+        input.cwd,
+        [],
+        "Image path must stay within the repository root.",
+      );
+    }
+
+    const fileInfo = yield* fileSystem
+      .stat(absolutePath)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (!fileInfo || fileInfo.type !== "File") {
+      return { kind: "missing" as const };
+    }
+
+    const sizeBytes = Number(fileInfo.size);
+    if (sizeBytes > GIT_FILE_IMAGE_MAX_BYTES) {
+      return { kind: "too_large" as const, sizeBytes };
+    }
+
+    const bytes = yield* fileSystem
+      .readFile(absolutePath)
+      .pipe(
+        Effect.mapError((cause) =>
+          createGitCommandError(
+            "GitCore.getFileImage",
+            input.cwd,
+            [],
+            `Failed to read image file: ${cause.message}`,
+            cause,
+          ),
+        ),
+      );
+
+    return {
+      kind: "image" as const,
+      mediaType,
+      dataBase64: Buffer.from(bytes).toString("base64"),
+      sizeBytes: bytes.byteLength,
+    };
   });
 
   const readRangeContext: GitCoreShape["readRangeContext"] = Effect.fn("readRangeContext")(
@@ -2606,6 +2786,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     pullCurrentBranch,
     discardPaths,
     getFilePatch,
+    getFileImage,
     readRangeContext,
     readConfigValue,
     isInsideWorkTree,

@@ -1,7 +1,8 @@
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
-import { memo, type ComponentType } from "react";
+import { type ComponentType } from "react";
 
 import { cn } from "~/lib/utils";
 import {
@@ -23,30 +24,25 @@ function resolvedThemeFromDocument(): "light" | "dark" {
 
 const composerPromptChipVariants = cva(
   cn(
-    "inline-flex min-w-0 max-w-(--multi-composer-chip-max-width) select-none items-center gap-0.5",
-    "bg-transparent px-0 py-0 font-multi font-normal align-middle",
-    "-mt-[3px] -ml-px text-(length:--multi-composer-chip-font-size) leading-(--multi-composer-chip-line-height)",
+    "inline-flex min-w-0 max-w-(--honk-composer-chip-max-width) select-none items-center gap-0.5",
+    "bg-transparent px-0 py-0 font-honk font-normal align-middle",
+    "-mt-[3px] -ml-px text-(length:--honk-composer-chip-font-size) leading-(--honk-composer-chip-line-height)",
   ),
   {
     variants: {
       kind: {
-        mention: "text-(--multi-composer-mention-text)",
-        command: "rounded-[2px] text-(--multi-composer-command-text)",
-        skill: "rounded-[2px] text-(--multi-composer-command-text)",
-        "inline-token": "text-(--multi-composer-mention-text)",
+        mention: "text-(--honk-composer-mention-text)",
+        command: "rounded-[2px] text-(--honk-composer-command-text)",
+        skill: "rounded-[2px] text-(--honk-composer-command-text)",
+        "inline-token": "text-(--honk-composer-mention-text)",
       },
     },
   },
 );
 
-const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
+const composerPromptChipIconClass = "size-(--honk-composer-chip-icon-size) shrink-0";
 
-export const ComposerMentionChip = memo(function ComposerMentionChip({
-  label,
-  lineEnd,
-  lineStart,
-  path,
-}: ComposerMentionPayload) {
+export function ComposerMentionChip({ label, lineEnd, lineStart, path }: ComposerMentionPayload) {
   const theme = resolvedThemeFromDocument();
   const displayedLabel = label ?? basenameOfPath(path);
   const chip = (
@@ -66,7 +62,7 @@ export const ComposerMentionChip = memo(function ComposerMentionChip({
       />
       <span className="min-w-0 truncate">{displayedLabel}</span>
       {lineStart !== null && lineEnd !== null ? (
-        <span className="shrink-0 text-(length:--multi-composer-chip-line-range-font-size) text-(--multi-composer-mention-line-range-text)">
+        <span className="shrink-0 text-(length:--honk-composer-chip-line-range-font-size) text-(--honk-composer-mention-line-range-text)">
           {lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`}
         </span>
       ) : null}
@@ -81,12 +77,9 @@ export const ComposerMentionChip = memo(function ComposerMentionChip({
       </TooltipPopup>
     </Tooltip>
   );
-});
+}
 
-export const ComposerCommandChip = memo(function ComposerCommandChip({
-  content,
-  name,
-}: ComposerCommandPayload) {
+export function ComposerCommandChip({ content, name }: ComposerCommandPayload) {
   const label = commandText({ name });
   const chip = (
     <span
@@ -95,9 +88,14 @@ export const ComposerCommandChip = memo(function ComposerCommandChip({
       data-type="commandNode"
       spellCheck={false}
     >
-      <button type="button" tabIndex={-1} className="truncate text-left hover:underline">
+      <Button
+        type="button"
+        variant="ghost"
+        tabIndex={-1}
+        className="h-auto min-w-0 justify-start truncate border-0 bg-transparent p-0 text-left text-inherit shadow-none transition-none before:hidden hover:bg-transparent hover:underline data-pressed:bg-transparent"
+      >
         {label}
-      </button>
+      </Button>
     </span>
   );
 
@@ -111,14 +109,11 @@ export const ComposerCommandChip = memo(function ComposerCommandChip({
   ) : (
     chip
   );
-});
+}
 
 const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
 
-export const ComposerSkillChip = memo(function ComposerSkillChip({
-  description,
-  label,
-}: ComposerSkillPayload) {
+export function ComposerSkillChip({ description, label }: ComposerSkillPayload) {
   const chip = (
     <span
       className={composerPromptChipVariants({ kind: "skill" })}
@@ -128,9 +123,9 @@ export const ComposerSkillChip = memo(function ComposerSkillChip({
     >
       <span
         aria-hidden="true"
-        className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}
+        className={cn(composerPromptChipIconClass, "text-(--honk-composer-command-text)")}
       >
-        <SkillIcon className="size-(--multi-composer-chip-icon-size)" />
+        <SkillIcon className="size-(--honk-composer-chip-icon-size)" />
       </span>
       <span className="min-w-0 truncate">{label}</span>
     </span>
@@ -146,12 +141,9 @@ export const ComposerSkillChip = memo(function ComposerSkillChip({
   ) : (
     chip
   );
-});
+}
 
-export const ComposerInlineTokenChip = memo(function ComposerInlineTokenChip({
-  label,
-  sourceUri,
-}: ComposerInlineTokenPayload) {
+export function ComposerInlineTokenChip({ label, sourceUri }: ComposerInlineTokenPayload) {
   const chip = (
     <span
       className={composerPromptChipVariants({ kind: "inline-token" })}
@@ -173,4 +165,4 @@ export const ComposerInlineTokenChip = memo(function ComposerInlineTokenChip({
   ) : (
     chip
   );
-});
+}

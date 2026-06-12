@@ -98,7 +98,7 @@ export const buildBootstrapUrl = (connectionString: string, token: string): stri
 
 export const formatHeadlessServeOutput = (accessInfo: HeadlessServeAccessInfo): string =>
   [
-    "Multi server is ready.",
+    "Honk server is ready.",
     `Connection string: ${accessInfo.connectionString}`,
     `Token: ${accessInfo.token}`,
     `Bootstrap URL: ${accessInfo.bootstrapUrl}`,

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 
-import type { ChatAttachment } from "@multi/contracts";
-import { toSafeThreadSegment } from "@multi/shared/thread-segments";
+import type { ChatAttachment } from "@honk/contracts";
+import { toSafeThreadSegment } from "@honk/shared/thread-segments";
 
 import {
   normalizeAttachmentRelativePath,

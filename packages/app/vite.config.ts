@@ -9,7 +9,13 @@ const port = Number(process.env.PORT ?? 5733);
 const host = process.env.HOST?.trim() || "localhost";
 const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
 const configuredWsUrl = process.env.VITE_WS_URL?.trim();
-const sourcemapEnv = process.env.MULTI_WEB_SOURCEMAP?.trim().toLowerCase();
+const inferredBackendPort = process.env.HONK_PORT?.trim();
+const resolvedHttpUrl =
+  configuredHttpUrl ??
+  (inferredBackendPort ? `http://127.0.0.1:${inferredBackendPort}` : undefined);
+const resolvedWsUrl =
+  configuredWsUrl ?? (inferredBackendPort ? `ws://127.0.0.1:${inferredBackendPort}` : undefined);
+const sourcemapEnv = process.env.HONK_WEB_SOURCEMAP?.trim().toLowerCase();
 // oxlint-disable-next-line eslint/no-control-regex
 const rolldownRuntimeModulePattern = new RegExp("^\\u0000rolldown/runtime\\.js$");
 
@@ -41,7 +47,7 @@ function resolveDevProxyTarget(wsUrl: string | undefined): string | undefined {
   }
 }
 
-const devProxyTarget = resolveDevProxyTarget(configuredWsUrl);
+const devProxyTarget = resolveDevProxyTarget(resolvedWsUrl);
 
 export default defineConfig({
   plugins: [
@@ -62,9 +68,9 @@ export default defineConfig({
     include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
   },
   define: {
-    "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl ?? ""),
+    "import.meta.env.VITE_HTTP_URL": JSON.stringify(resolvedHttpUrl ?? ""),
     // In dev mode, tell the web app where the WebSocket server lives
-    "import.meta.env.VITE_WS_URL": JSON.stringify(configuredWsUrl ?? ""),
+    "import.meta.env.VITE_WS_URL": JSON.stringify(resolvedWsUrl ?? ""),
     "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
   },
   resolve: {

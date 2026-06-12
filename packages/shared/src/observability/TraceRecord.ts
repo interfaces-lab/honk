@@ -79,7 +79,10 @@ function formatTraceExit(exit: Exit.Exit<unknown, unknown>): EffectTraceRecord["
 }
 
 export function spanToTraceRecord(span: SerializableSpan): EffectTraceRecord {
-  const status = span.status as Extract<Tracer.SpanStatus, { _tag: "Ended" }>;
+  const status = span.status;
+  if (status._tag !== "Ended") {
+    throw new Error("Expected ended span status.");
+  }
   const parentSpanId = Option.getOrUndefined(span.parent)?.spanId;
 
   return {

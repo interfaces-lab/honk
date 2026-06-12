@@ -5,12 +5,12 @@ import type {
   GitStatusRemoteResult,
   GitStatusResult,
   GitStatusStreamEvent,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import * as Effect from "effect/Effect";
 import * as Random from "effect/Random";
 import * as Result from "effect/Result";
 
-export const WORKTREE_BRANCH_PREFIX = "multi";
+export const WORKTREE_BRANCH_PREFIX = "honk";
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}\\/[0-9a-f]{8}$`);
 
 /**
@@ -317,5 +317,9 @@ export function applyGitStatusStreamEvent(
         );
       }
       return mergeGitStatusParts(toLocalStatusPart(current), event.remote);
+    default: {
+      const unhandled: never = event;
+      throw new Error(`Unhandled git status stream event: ${String(unhandled)}`);
+    }
   }
 }

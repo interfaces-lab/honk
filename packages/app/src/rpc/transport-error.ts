@@ -1,6 +1,7 @@
 const TRANSPORT_ERROR_PATTERNS = [
   /\bSocketCloseError\b/i,
   /\bSocketOpenError\b/i,
+  /\bUnknown socket error\b/i,
   /Unable to connect to the T3 server WebSocket\./i,
   /\bping timeout\b/i,
 ] as const;
@@ -43,7 +44,7 @@ function readRecordField(value: unknown, key: string): unknown {
   if (typeof value !== "object" || value === null) {
     return undefined;
   }
-  return (value as Record<string, unknown>)[key];
+  return Reflect.get(value, key);
 }
 
 function readNonEmptyStringField(value: unknown, key: string): string | null {

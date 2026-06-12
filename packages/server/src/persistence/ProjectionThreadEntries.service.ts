@@ -12,7 +12,7 @@ import {
   ThreadEntryId,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Context, Option, Schema } from "effect";
 import type { Effect } from "effect";
 
@@ -63,4 +63,4 @@ export interface ProjectionThreadEntryRepositoryShape {
 export class ProjectionThreadEntryRepository extends Context.Service<
   ProjectionThreadEntryRepository,
   ProjectionThreadEntryRepositoryShape
->()("multi/persistence/ProjectionThreadEntries.service/ProjectionThreadEntryRepository") {}
+>()("honk/persistence/ProjectionThreadEntries.service/ProjectionThreadEntryRepository") {}

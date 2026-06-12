@@ -1,14 +1,8 @@
-import { Button } from "@multi/ui/button";
-import { Input } from "@multi/ui/input";
-import { Text } from "@multi/ui/text";
+import { Button } from "@honk/honkkit/button";
+import { Input } from "@honk/honkkit/input";
+import { Text } from "@honk/honkkit/text";
 import { useThrottler } from "@tanstack/react-pacer";
-import {
-  type CSSProperties,
-  type KeyboardEvent,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, type KeyboardEvent, useRef, useState } from "react";
 
 import { DEFAULT_APPEARANCE_TINT_HUE } from "../../../lib/appearance-colors";
 import { appearanceSettingsActions } from "../../../stores/appearance-store";
@@ -32,17 +26,17 @@ function SettingsSlider(props: {
   const swatchColor = `hsl(${thumbHue} ${thumbSaturation}% 50%)`;
   const sliderClassName =
     props.variant === "hue"
-      ? "multi-appearance-hue-slider"
+      ? "honk-appearance-hue-slider"
       : props.variant === "intensity"
-        ? "multi-appearance-intensity-slider"
+        ? "honk-appearance-intensity-slider"
         : undefined;
   const sliderStyle = props.variant
     ? ({
-        "--multi-appearance-slider-hue": String(thumbHue),
-        "--multi-appearance-slider-sat": `${thumbSaturation}%`,
-        "--multi-appearance-slider-light": "50%",
+        "--honk-appearance-slider-hue": String(thumbHue),
+        "--honk-appearance-slider-sat": `${thumbSaturation}%`,
+        "--honk-appearance-slider-light": "50%",
       } as CSSProperties)
-    : { accentColor: "var(--multi-action)" };
+    : { accentColor: "var(--honk-action)" };
 
   return (
     <div className="grid w-full grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2 sm:w-34">
@@ -60,7 +54,7 @@ function SettingsSlider(props: {
         {props.showSwatch ? (
           <span
             aria-hidden
-            className="size-5 rounded-full shadow-multi-swatch-inset"
+            className="size-5 rounded-full shadow-honk-swatch-inset"
             style={{ backgroundColor: swatchColor }}
           />
         ) : (
@@ -75,7 +69,7 @@ function SettingsSlider(props: {
 }
 
 const NUMBER_STEPPER_BUTTON_CLASS =
-  "h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-multi-fg-tertiary shadow-none outline-none ring-offset-0 before:hidden hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-0 data-pressed:bg-multi-bg-quaternary active:bg-multi-bg-quaternary";
+  "h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-honk-fg-tertiary shadow-none outline-none ring-offset-0 before:hidden hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-0 data-pressed:bg-honk-bg-quaternary active:bg-honk-bg-quaternary";
 
 export function NumberStepper(props: {
   label: string;
@@ -91,7 +85,7 @@ export function NumberStepper(props: {
   };
 
   return (
-    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-body shadow-none">
+    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-body shadow-none">
       <Button
         type="button"
         variant="ghost"
@@ -103,7 +97,7 @@ export function NumberStepper(props: {
       </Button>
       <input
         aria-label={props.label}
-        className="-mx-px h-full min-h-7 w-14 shrink-0 border-x border-multi-stroke-tertiary bg-transparent px-0 py-0 text-center leading-7 tabular-nums outline-none [appearance:textfield] focus-visible:relative focus-visible:z-[1] focus-visible:border-multi-stroke-focused [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
+        className="-mx-px h-full min-h-7 w-14 shrink-0 border-x border-honk-stroke-tertiary bg-transparent px-0 py-0 text-center leading-7 tabular-nums outline-none [appearance:textfield] focus-visible:relative focus-visible:z-[1] focus-visible:border-honk-stroke-focused [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
         max={props.max}
         min={props.min}
         inputMode="numeric"
@@ -166,10 +160,10 @@ export function FontFamilyInput(props: {
   onChange: (value: string) => void;
   onDraftValueChange?: (value: string) => void;
 }) {
-  const [draftValue, setDraftValue] = useState(props.value);
-  const draftValueRef = useRef(props.value);
-  const focusedRef = useRef(false);
-  const displayedValue = focusedRef.current ? draftValue : props.value;
+  const [draftValue, setDraftValue] = useState("");
+  const [focused, setFocused] = useState(false);
+  const draftValueRef = useRef("");
+  const displayedValue = focused ? draftValue : props.value;
 
   const updateDraftValue = (nextValue: string) => {
     draftValueRef.current = nextValue;
@@ -188,16 +182,16 @@ export function FontFamilyInput(props: {
     <Input
       nativeInput
       size="sm"
-      className="w-full border-multi-stroke-tertiary bg-multi-bg-quinary shadow-none has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused sm:w-36"
+      className="w-full border-honk-stroke-tertiary bg-honk-bg-quinary shadow-none has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused sm:w-36"
       value={displayedValue}
       placeholder={props.placeholder}
       aria-label={props.label}
       onFocus={() => {
-        focusedRef.current = true;
+        setFocused(true);
         updateDraftValue(props.value);
       }}
       onBlur={() => {
-        focusedRef.current = false;
+        setFocused(false);
         commitDraftValue();
       }}
       onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
@@ -213,16 +207,83 @@ export function FontFamilyInput(props: {
   );
 }
 
+type CodePreviewTokenColor = "keyword" | "variable" | "punctuation";
+
+interface CodePreviewToken {
+  text: string;
+  color?: CodePreviewTokenColor;
+}
+
+interface CodePreviewLine {
+  kind: "deletion" | "addition";
+  number: number;
+  tokens: CodePreviewToken[];
+}
+
+/* Pre-tokenized stand-in for the real diff renderer, so the settings page
+   stays free of the shiki/web-component machinery. */
+const CODE_FONT_PREVIEW_LINES: CodePreviewLine[] = [
+  {
+    kind: "deletion",
+    number: 1,
+    tokens: [
+      { text: "return", color: "keyword" },
+      { text: " " },
+      { text: "a", color: "variable" },
+      { text: " + ", color: "punctuation" },
+      { text: "b", color: "variable" },
+      { text: ";", color: "punctuation" },
+    ],
+  },
+  {
+    kind: "addition",
+    number: 1,
+    tokens: [
+      { text: "const", color: "keyword" },
+      { text: " " },
+      { text: "result", color: "variable" },
+      { text: " = ", color: "punctuation" },
+      { text: "a", color: "variable" },
+      { text: " + ", color: "punctuation" },
+      { text: "b", color: "variable" },
+      { text: ";", color: "punctuation" },
+    ],
+  },
+  {
+    kind: "addition",
+    number: 2,
+    tokens: [
+      { text: "return", color: "keyword" },
+      { text: " " },
+      { text: "result", color: "variable" },
+      { text: ";", color: "punctuation" },
+    ],
+  },
+];
+
+const CODE_PREVIEW_TOKEN_CLASS: Record<CodePreviewTokenColor, string> = {
+  keyword: "text-[var(--honk-git-diff-syntax-keyword)]",
+  variable: "text-[var(--honk-git-diff-syntax-variable)]",
+  punctuation: "text-[var(--honk-git-diff-syntax-punctuation)]",
+};
+
+const CODE_PREVIEW_LINE_CLASS = {
+  deletion: "bg-[var(--honk-git-diff-deletion-line-background)]",
+  addition: "bg-[var(--honk-git-diff-addition-line-background)]",
+} as const;
+
+const CODE_PREVIEW_LINE_NUMBER_CLASS = {
+  deletion: "text-[var(--honk-git-diff-deletion-line-number)]",
+  addition: "text-[var(--honk-git-diff-addition-line-number)]",
+} as const;
+
 export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
-  const [codeFontDraft, setCodeFontDraft] = useState(props.codeFont);
-  const codePreviewStyle = useMemo<CSSProperties>(
-    () => ({
-      fontFamily: codeFontDraft.trim() || "var(--multi-font-mono)",
-      fontSize: "var(--multi-code-font-size-user, 12px)",
-      lineHeight: "calc(var(--multi-code-font-size-user, 12px) * 1.45)",
-    }),
-    [codeFontDraft],
-  );
+  const [codeFontDraft, setCodeFontDraft] = useState(() => props.codeFont);
+  const codePreviewStyle: CSSProperties = {
+    fontFamily: codeFontDraft.trim() || "var(--honk-font-mono)",
+    fontSize: "var(--honk-code-font-size-user, 12px)",
+    lineHeight: "calc(var(--honk-code-font-size-user, 12px) * 1.45)",
+  };
 
   return (
     <SettingsRow
@@ -239,18 +300,29 @@ export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
       }
     >
       <div className="mt-2 overflow-hidden rounded-sm" style={codePreviewStyle}>
-        <div className="flex bg-rose-500/10 text-foreground/72">
-          <span className="w-8 shrink-0 text-center text-rose-500/80">1</span>
-          <span>return a + b;</span>
-        </div>
-        <div className="flex bg-emerald-500/10 text-foreground/72">
-          <span className="w-8 shrink-0 text-center text-emerald-600/80">1</span>
-          <span>const result = a + b;</span>
-        </div>
-        <div className="flex bg-emerald-500/10 text-foreground/72">
-          <span className="w-8 shrink-0 text-center text-emerald-600/80">2</span>
-          <span>return result;</span>
-        </div>
+        {CODE_FONT_PREVIEW_LINES.map((line, index) => (
+          <div
+            key={index}
+            className={`flex text-foreground/72 ${CODE_PREVIEW_LINE_CLASS[line.kind]}`}
+          >
+            <span
+              className={`w-8 shrink-0 text-center ${CODE_PREVIEW_LINE_NUMBER_CLASS[line.kind]}`}
+            >
+              {line.number}
+            </span>
+            <span>
+              {line.tokens.map((token, tokenIndex) =>
+                token.color ? (
+                  <span key={tokenIndex} className={CODE_PREVIEW_TOKEN_CLASS[token.color]}>
+                    {token.text}
+                  </span>
+                ) : (
+                  token.text
+                ),
+              )}
+            </span>
+          </div>
+        ))}
       </div>
     </SettingsRow>
   );

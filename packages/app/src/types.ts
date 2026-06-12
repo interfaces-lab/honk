@@ -1,7 +1,6 @@
 import type {
   EnvironmentId,
   ModelSelection,
-  OrchestrationChatTimelineRow,
   OrchestrationLatestTurn,
   OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
@@ -15,16 +14,14 @@ import type {
   ProjectId,
   TurnId,
   MessageId,
-  ProviderDriverKind,
-  ProviderInstanceId,
-  ProviderInteractionMode,
+  AgentInteractionMode,
   RuntimeMode,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 
-export const DEFAULT_INTERACTION_MODE: ProviderInteractionMode = "default";
+export const DEFAULT_INTERACTION_MODE: AgentInteractionMode = "agent";
 export const DEFAULT_THREAD_TERMINAL_HEIGHT = 280;
 export const DEFAULT_THREAD_TERMINAL_ID = "default";
 export const MAX_TERMINALS_PER_GROUP = 4;
@@ -66,11 +63,13 @@ export interface LiveAssistantTurn {
   updatedAt: string;
 }
 
-export interface PendingTimelineRow {
-  id: string;
-  clientSendKey: MessageId;
+export interface ThreadSendIntent {
+  clientMessageId: MessageId;
   parentEntryId: ThreadEntryId | null;
-  message: ChatMessage & { role: "user"; streaming: false };
+  text: string;
+  richText?: OrchestrationMessageRichText | undefined;
+  attachments?: ChatAttachment[] | undefined;
+  createdAt: string;
 }
 
 export type ThreadTreeEntry = OrchestrationThreadEntry;
@@ -120,7 +119,7 @@ export interface Thread {
   title: string;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
   leafId: OrchestrationThreadEntry["id"] | null;
@@ -136,7 +135,6 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
-  chatTimelineRows?: OrchestrationChatTimelineRow[];
 }
 
 export interface ThreadShell {
@@ -147,7 +145,7 @@ export interface ThreadShell {
   title: string;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   error: string | null;
   createdAt: string;
   archivedAt: string | null;
@@ -166,7 +164,7 @@ export interface SidebarThreadSummary {
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
   title: string;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   session: ThreadSession | null;
   createdAt: string;
   archivedAt: string | null;
@@ -181,8 +179,6 @@ export interface SidebarThreadSummary {
 }
 
 export interface ThreadSession {
-  provider: ProviderDriverKind;
-  providerInstanceId?: ProviderInstanceId | undefined;
   status: SessionPhase | "error" | "closed";
   activeTurnId?: TurnId | undefined;
   createdAt: string;

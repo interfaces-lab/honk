@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { DesktopBridge, LocalApi } from "@multi/contracts";
+import type { DesktopBridge, LocalApi, HonkRuntimeApi } from "@honk/contracts";
 
 interface ImportMetaEnv {
   readonly APP_VERSION: string;
@@ -11,8 +11,19 @@ interface ImportMeta {
 }
 
 declare global {
+  interface HTMLWebViewElement extends HTMLElement {
+    canGoBack: () => boolean;
+    canGoForward: () => boolean;
+    getURL: () => string;
+    goBack: () => void;
+    goForward: () => void;
+    loadURL: (url: string) => Promise<void>;
+    reload: () => void;
+  }
+
   interface Window {
     nativeApi?: LocalApi;
     desktopBridge?: DesktopBridge;
+    honkRuntime?: HonkRuntimeApi;
   }
 }

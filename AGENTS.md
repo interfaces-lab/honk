@@ -15,6 +15,7 @@
 ## Code
 
 - Read the relevant files before editing. Do not rely on search snippets for broad changes.
+- When writing Effect code, read `docs/effect-llms.md` first (idiomatic guide: `Effect.gen`/`Effect.fn`, `Context.Service`, errors, `Scope`, `Stream`).
 - No `any` types unless there is no better option.
 - Check installed dependency types instead of guessing external APIs.
 - Use top-level imports. Do not use inline imports such as `await import("./x")`, `import("pkg").Type`, or dynamic type imports.
@@ -29,6 +30,14 @@
 - Use `central-icons`; do not add Lucide.
 - Browse available icons in `node_modules/central-icons/icons-index.json`.
 - Import icons from `central-icons`.
+
+## HonkKit (design system)
+
+- **HonkKit** is Honk's design system. Primitives live in `@honk/honkkit/*`; tokens in `@honk/honkkit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
+- Browse and tweak components in dev at `/dev/honkkit` (Cmd+K → "Open HonkKit"). DialKit panel adjusts the active preview.
+- Prefer existing HonkKit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@honk/honkkit/text` is for settings and structured copy.
+- Stack: Base UI headless + CVA variants + Tailwind v4. Icons: `central-icons` only.
+- `cn()` / `tailwind-merge` must treat `text-honk-*` size utilities separately from `text-honk-fg-*` color utilities (see `packages/honkkit/src/utils.ts`).
 
 ## Commands
 
@@ -50,7 +59,7 @@
 
 ## Releases
 
-- Published versions for `usemulti`, `@multi/app`, `@multi/desktop`, and `@multi/contracts` stay in sync via `scripts/update-release-package-versions.ts`.
+- Published versions for `usehonk`, `@honk/app`, `@honk/desktop`, and `@honk/contracts` stay in sync via `scripts/update-release-package-versions.ts`.
 - Release automation lives in `.github/workflows/release.yml`.
 
 ## Composer command menu (`/` and `@`)
@@ -67,3 +76,14 @@ Both menus share `ComposerCommandMenuPositioned` in `packages/app/src/components
 
 - Use `side="top"`, `align="start"`, `positionMethod="fixed"`, `instant`, and `COMPOSER_MENU_COLLISION_AVOIDANCE` (`shift` + `fallbackAxisSide: "none"`). Do not use default Base UI popover collision (`fallbackAxisSide: "end"`) — tall menus flip to a side axis and land off-screen.
 - Do not remount the popover on anchor updates (`key={anchorRevision}` causes jitter). Parent re-renders from `anchorRevision` are enough.
+
+## Browser Automation
+
+Use agent-browser for web automation. Run agent-browser --help for all commands.
+
+Core workflow:
+
+agent-browser open <url> - Navigate to page
+agent-browser snapshot -i - Get interactive elements with refs (@e1, @e2)
+agent-browser click @e1 / fill @e2 "text" - Interact using refs
+Re-snapshot after page changes

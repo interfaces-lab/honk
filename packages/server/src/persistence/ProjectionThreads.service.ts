@@ -11,12 +11,12 @@ import {
   ModelSelection,
   NonNegativeInt,
   ProjectId,
-  ProviderInteractionMode,
+  AgentInteractionMode,
   RuntimeMode,
   ThreadEntryId,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -28,7 +28,7 @@ export const ProjectionThread = Schema.Struct({
   title: Schema.String,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode,
+  interactionMode: AgentInteractionMode,
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
   latestTurnId: Schema.NullOr(TurnId),
@@ -100,4 +100,4 @@ export interface ProjectionThreadRepositoryShape {
 export class ProjectionThreadRepository extends Context.Service<
   ProjectionThreadRepository,
   ProjectionThreadRepositoryShape
->()("multi/persistence/ProjectionThreads.service/ProjectionThreadRepository") {}
+>()("honk/persistence/ProjectionThreads.service/ProjectionThreadRepository") {}

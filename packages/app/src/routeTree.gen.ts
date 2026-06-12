@@ -12,15 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
-import { Route as SettingsModelsRouteImport } from './routes/settings.models'
 import { Route as SettingsGeneralRouteImport } from './routes/settings.general'
 import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
-import { Route as DevQueuedMessageDemoRouteImport } from './routes/dev.queued-message-demo'
+import { Route as DevHonkkitRouteImport } from './routes/dev.honkkit'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
-import { Route as ChatDevBranchingUiPrototypesRouteImport } from './routes/_chat.dev.branching-ui-prototypes'
-import { Route as ChatDevArchiveUiExampleRouteImport } from './routes/_chat.dev.archive-ui-example'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -36,11 +33,6 @@ const ChatIndexRoute = ChatIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ChatRoute,
-} as any)
-const SettingsModelsRoute = SettingsModelsRouteImport.update({
-  id: '/models',
-  path: '/models',
-  getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
@@ -62,25 +54,14 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => SettingsRoute,
 } as any)
-const DevQueuedMessageDemoRoute = DevQueuedMessageDemoRouteImport.update({
-  id: '/dev/queued-message-demo',
-  path: '/dev/queued-message-demo',
+const DevHonkkitRoute = DevHonkkitRouteImport.update({
+  id: '/dev/honkkit',
+  path: '/dev/honkkit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
   id: '/draft/$draftId',
   path: '/draft/$draftId',
-  getParentRoute: () => ChatRoute,
-} as any)
-const ChatDevBranchingUiPrototypesRoute =
-  ChatDevBranchingUiPrototypesRouteImport.update({
-    id: '/dev/branching-ui-prototypes',
-    path: '/dev/branching-ui-prototypes',
-    getParentRoute: () => ChatRoute,
-  } as any)
-const ChatDevArchiveUiExampleRoute = ChatDevArchiveUiExampleRouteImport.update({
-  id: '/dev/archive-ui-example',
-  path: '/dev/archive-ui-example',
   getParentRoute: () => ChatRoute,
 } as any)
 const ChatEnvironmentIdThreadIdRoute =
@@ -93,45 +74,36 @@ const ChatEnvironmentIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
+  '/dev/honkkit': typeof DevHonkkitRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/models': typeof SettingsModelsRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
-  '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
-  '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
+  '/dev/honkkit': typeof DevHonkkitRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/models': typeof SettingsModelsRoute
   '/': typeof ChatIndexRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
-  '/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
-  '/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/queued-message-demo': typeof DevQueuedMessageDemoRoute
+  '/dev/honkkit': typeof DevHonkkitRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/models': typeof SettingsModelsRoute
   '/_chat/': typeof ChatIndexRoute
   '/_chat/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
-  '/_chat/dev/archive-ui-example': typeof ChatDevArchiveUiExampleRoute
-  '/_chat/dev/branching-ui-prototypes': typeof ChatDevBranchingUiPrototypesRoute
   '/_chat/draft/$draftId': typeof ChatDraftDraftIdRoute
 }
 export interface FileRouteTypes {
@@ -139,51 +111,42 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
-    | '/dev/queued-message-demo'
+    | '/dev/honkkit'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
     | '/settings/general'
-    | '/settings/models'
     | '/$environmentId/$threadId'
-    | '/dev/archive-ui-example'
-    | '/dev/branching-ui-prototypes'
     | '/draft/$draftId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/settings'
-    | '/dev/queued-message-demo'
+    | '/dev/honkkit'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
     | '/settings/general'
-    | '/settings/models'
     | '/'
     | '/$environmentId/$threadId'
-    | '/dev/archive-ui-example'
-    | '/dev/branching-ui-prototypes'
     | '/draft/$draftId'
   id:
     | '__root__'
     | '/_chat'
     | '/settings'
-    | '/dev/queued-message-demo'
+    | '/dev/honkkit'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
     | '/settings/general'
-    | '/settings/models'
     | '/_chat/'
     | '/_chat/$environmentId/$threadId'
-    | '/_chat/dev/archive-ui-example'
-    | '/_chat/dev/branching-ui-prototypes'
     | '/_chat/draft/$draftId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
-  DevQueuedMessageDemoRoute: typeof DevQueuedMessageDemoRoute
+  DevHonkkitRoute: typeof DevHonkkitRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -208,13 +171,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof ChatIndexRouteImport
       parentRoute: typeof ChatRoute
-    }
-    '/settings/models': {
-      id: '/settings/models'
-      path: '/models'
-      fullPath: '/settings/models'
-      preLoaderRoute: typeof SettingsModelsRouteImport
-      parentRoute: typeof SettingsRoute
     }
     '/settings/general': {
       id: '/settings/general'
@@ -244,11 +200,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAgentsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/dev/queued-message-demo': {
-      id: '/dev/queued-message-demo'
-      path: '/dev/queued-message-demo'
-      fullPath: '/dev/queued-message-demo'
-      preLoaderRoute: typeof DevQueuedMessageDemoRouteImport
+    '/dev/honkkit': {
+      id: '/dev/honkkit'
+      path: '/dev/honkkit'
+      fullPath: '/dev/honkkit'
+      preLoaderRoute: typeof DevHonkkitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_chat/draft/$draftId': {
@@ -256,20 +212,6 @@ declare module '@tanstack/react-router' {
       path: '/draft/$draftId'
       fullPath: '/draft/$draftId'
       preLoaderRoute: typeof ChatDraftDraftIdRouteImport
-      parentRoute: typeof ChatRoute
-    }
-    '/_chat/dev/branching-ui-prototypes': {
-      id: '/_chat/dev/branching-ui-prototypes'
-      path: '/dev/branching-ui-prototypes'
-      fullPath: '/dev/branching-ui-prototypes'
-      preLoaderRoute: typeof ChatDevBranchingUiPrototypesRouteImport
-      parentRoute: typeof ChatRoute
-    }
-    '/_chat/dev/archive-ui-example': {
-      id: '/_chat/dev/archive-ui-example'
-      path: '/dev/archive-ui-example'
-      fullPath: '/dev/archive-ui-example'
-      preLoaderRoute: typeof ChatDevArchiveUiExampleRouteImport
       parentRoute: typeof ChatRoute
     }
     '/_chat/$environmentId/$threadId': {
@@ -285,16 +227,12 @@ declare module '@tanstack/react-router' {
 interface ChatRouteChildren {
   ChatIndexRoute: typeof ChatIndexRoute
   ChatEnvironmentIdThreadIdRoute: typeof ChatEnvironmentIdThreadIdRoute
-  ChatDevArchiveUiExampleRoute: typeof ChatDevArchiveUiExampleRoute
-  ChatDevBranchingUiPrototypesRoute: typeof ChatDevBranchingUiPrototypesRoute
   ChatDraftDraftIdRoute: typeof ChatDraftDraftIdRoute
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
   ChatIndexRoute: ChatIndexRoute,
   ChatEnvironmentIdThreadIdRoute: ChatEnvironmentIdThreadIdRoute,
-  ChatDevArchiveUiExampleRoute: ChatDevArchiveUiExampleRoute,
-  ChatDevBranchingUiPrototypesRoute: ChatDevBranchingUiPrototypesRoute,
   ChatDraftDraftIdRoute: ChatDraftDraftIdRoute,
 }
 
@@ -305,7 +243,6 @@ interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsArchivedRoute: typeof SettingsArchivedRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
-  SettingsModelsRoute: typeof SettingsModelsRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
@@ -313,7 +250,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsArchivedRoute: SettingsArchivedRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
-  SettingsModelsRoute: SettingsModelsRoute,
 }
 
 const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
@@ -323,7 +259,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
-  DevQueuedMessageDemoRoute: DevQueuedMessageDemoRoute,
+  DevHonkkitRoute: DevHonkkitRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -2,36 +2,66 @@
 
 import type { GitFileState } from "~/lib/ui-session-types";
 
-import { Badge } from "@multi/ui/badge";
+import { cn } from "~/lib/utils";
 
-const kindVariant: Partial<
-  Record<GitFileState, "warning" | "success" | "destructive" | "secondary" | "outline">
+const kindBadge: Partial<
+  Record<GitFileState, { className: string; label: string; title: string }>
 > = {
-  untracked: "warning",
-  added: "success",
-  deleted: "destructive",
-  renamed: "secondary",
-  copied: "secondary",
-  ignored: "outline",
-  conflict: "destructive",
-};
-
-const kindLabel: Partial<Record<GitFileState, string>> = {
-  untracked: "untracked",
-  added: "new",
-  deleted: "deleted",
-  renamed: "renamed",
-  copied: "copied",
-  ignored: "ignored",
-  conflict: "conflict",
+  untracked: {
+    className: "text-(--honk-git-status-added)",
+    label: "U",
+    title: "Untracked",
+  },
+  added: {
+    className: "text-(--honk-git-status-added)",
+    label: "A",
+    title: "Added",
+  },
+  deleted: {
+    className: "text-(--honk-git-status-deleted)",
+    label: "D",
+    title: "Deleted",
+  },
+  modified: {
+    className: "text-(--honk-git-status-modified)",
+    label: "M",
+    title: "Modified",
+  },
+  renamed: {
+    className: "text-(--honk-git-status-renamed)",
+    label: "R",
+    title: "Renamed",
+  },
+  copied: {
+    className: "text-(--honk-git-status-renamed)",
+    label: "C",
+    title: "Copied",
+  },
+  ignored: {
+    className: "text-muted-foreground/78",
+    label: "I",
+    title: "Ignored",
+  },
+  conflict: {
+    className: "text-(--honk-git-status-deleted)",
+    label: "!",
+    title: "Conflict",
+  },
 };
 
 export function GitKindBadge(props: { state: GitFileState }) {
-  const variant = kindVariant[props.state];
-  if (!variant) return null;
+  const badge = kindBadge[props.state];
+  if (!badge) return null;
   return (
-    <Badge variant={variant} className="px-1 py-0 text-detail font-medium">
-      {kindLabel[props.state] ?? props.state}
-    </Badge>
+    <span
+      aria-label={badge.title}
+      className={cn(
+        "inline-flex min-w-3.5 shrink-0 justify-center text-detail font-medium tabular-nums",
+        badge.className,
+      )}
+      title={badge.title}
+    >
+      {badge.label}
+    </span>
   );
 }

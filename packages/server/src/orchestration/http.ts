@@ -4,7 +4,8 @@ import {
   type OrchestrationHttpErrorResponse,
   OrchestrationGetSnapshotError,
   type OrchestrationReadModel,
-} from "@multi/contracts";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
@@ -13,12 +14,14 @@ import { normalizeDispatchCommand } from "./Normalizer.ts";
 import { OrchestrationEngineService } from "./OrchestrationEngine.service.ts";
 import { ThreadProjection } from "./ThreadProjection.service.ts";
 
+const elog = EffectLogger.create({ service: "orchestration.http" });
+
 const respondToOrchestrationHttpError = (
   error: OrchestrationDispatchCommandError | OrchestrationGetSnapshotError,
 ) =>
   Effect.gen(function* () {
     if (error._tag === "OrchestrationGetSnapshotError") {
-      yield* Effect.logError("orchestration http route failed", {
+      yield* elog.error("orchestration http route failed", {
         message: error.message,
         cause: error.cause,
       });

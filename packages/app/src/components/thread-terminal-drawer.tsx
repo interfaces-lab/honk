@@ -11,7 +11,7 @@ import {
   type TerminalEvent,
   type TerminalSessionSnapshot,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Terminal } from "@xterm/xterm";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -19,14 +19,12 @@ import {
   type Dispatch,
   type RefObject,
   type SetStateAction,
-  useCallback,
-  useEffectEvent,
-  useMemo,
+  useEffect,
   useRef,
   useState,
 } from "react";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
-import { openInPreferredEditor } from "../editor/preferences";
+import { Popover, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
+import { openInPreferredEditor } from "../editor-preferences";
 import {
   collectWrappedTerminalLinkLine,
   extractTerminalLinks,
@@ -236,9 +234,11 @@ function TerminalViewportInner({
   const hasHandledExitRef = useRef(false);
   const lastAppliedTerminalEventIdRef = useRef(0);
   const terminalHydratedRef = useRef(false);
-  const handleSessionExited = useEffectEvent(() => {
-    onSessionExited();
-  });
+  const onSessionExitedRef = useRef(onSessionExited);
+
+  useEffect(() => {
+    onSessionExitedRef.current = onSessionExited;
+  }, [onSessionExited]);
 
   useMountEffect(() => {
     const mount = containerRef.current;
@@ -497,7 +497,7 @@ function TerminalViewportInner({
         if (!hasHandledExitRef.current) {
           return;
         }
-        handleSessionExited();
+        onSessionExitedRef.current();
       }, 0);
     };
     const applyPendingTerminalEvents = (
@@ -854,89 +854,85 @@ export default function ThreadTerminalDrawer({
   } | null>(null);
   const didResizeDuringDragRef = useRef(false);
 
-  const normalizedTerminalIds = useMemo(() => {
-    const cleaned = [...new Set(terminalIds.map((id) => id.trim()).filter((id) => id.length > 0))];
-    return cleaned.length > 0 ? cleaned : [DEFAULT_THREAD_TERMINAL_ID];
-  }, [terminalIds]);
+  const cleanedTerminalIds = [
+    ...new Set(terminalIds.map((id) => id.trim()).filter((id) => id.length > 0)),
+  ];
+  const normalizedTerminalIds =
+    cleanedTerminalIds.length > 0 ? cleanedTerminalIds : [DEFAULT_THREAD_TERMINAL_ID];
 
   const resolvedActiveTerminalId = normalizedTerminalIds.includes(activeTerminalId)
     ? activeTerminalId
     : (normalizedTerminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID);
 
-  const resolvedTerminalGroups = useMemo(() => {
-    const validTerminalIdSet = new Set(normalizedTerminalIds);
-    const assignedTerminalIds = new Set<string>();
-    const usedGroupIds = new Set<string>();
-    const nextGroups: ThreadTerminalGroup[] = [];
+  const validTerminalIdSet = new Set(normalizedTerminalIds);
+  const assignedTerminalIds = new Set<string>();
+  const usedGroupIds = new Set<string>();
+  const nextTerminalGroups: ThreadTerminalGroup[] = [];
 
-    const assignUniqueGroupId = (groupId: string): string => {
-      if (!usedGroupIds.has(groupId)) {
-        usedGroupIds.add(groupId);
-        return groupId;
-      }
-      let suffix = 2;
-      while (usedGroupIds.has(`${groupId}-${suffix}`)) {
-        suffix += 1;
-      }
-      const uniqueGroupId = `${groupId}-${suffix}`;
-      usedGroupIds.add(uniqueGroupId);
-      return uniqueGroupId;
-    };
+  const assignUniqueGroupId = (groupId: string): string => {
+    if (!usedGroupIds.has(groupId)) {
+      usedGroupIds.add(groupId);
+      return groupId;
+    }
+    let suffix = 2;
+    while (usedGroupIds.has(`${groupId}-${suffix}`)) {
+      suffix += 1;
+    }
+    const uniqueGroupId = `${groupId}-${suffix}`;
+    usedGroupIds.add(uniqueGroupId);
+    return uniqueGroupId;
+  };
 
-    for (const terminalGroup of terminalGroups) {
-      const nextTerminalIds = [
-        ...new Set(terminalGroup.terminalIds.map((id) => id.trim()).filter((id) => id.length > 0)),
-      ].filter((terminalId) => {
-        if (!validTerminalIdSet.has(terminalId)) return false;
-        if (assignedTerminalIds.has(terminalId)) return false;
-        return true;
-      });
-      if (nextTerminalIds.length === 0) continue;
+  for (const terminalGroup of terminalGroups) {
+    const nextTerminalIds = [
+      ...new Set(terminalGroup.terminalIds.map((id) => id.trim()).filter((id) => id.length > 0)),
+    ].filter((terminalId) => {
+      if (!validTerminalIdSet.has(terminalId)) return false;
+      if (assignedTerminalIds.has(terminalId)) return false;
+      return true;
+    });
+    if (nextTerminalIds.length === 0) continue;
 
-      for (const terminalId of nextTerminalIds) {
-        assignedTerminalIds.add(terminalId);
-      }
-
-      const baseGroupId =
-        terminalGroup.id.trim().length > 0
-          ? terminalGroup.id.trim()
-          : `group-${nextTerminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID}`;
-      nextGroups.push({
-        id: assignUniqueGroupId(baseGroupId),
-        terminalIds: nextTerminalIds,
-      });
+    for (const terminalId of nextTerminalIds) {
+      assignedTerminalIds.add(terminalId);
     }
 
-    for (const terminalId of normalizedTerminalIds) {
-      if (assignedTerminalIds.has(terminalId)) continue;
-      nextGroups.push({
-        id: assignUniqueGroupId(`group-${terminalId}`),
-        terminalIds: [terminalId],
-      });
-    }
+    const baseGroupId =
+      terminalGroup.id.trim().length > 0
+        ? terminalGroup.id.trim()
+        : `group-${nextTerminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID}`;
+    nextTerminalGroups.push({
+      id: assignUniqueGroupId(baseGroupId),
+      terminalIds: nextTerminalIds,
+    });
+  }
 
-    if (nextGroups.length > 0) {
-      return nextGroups;
-    }
+  for (const terminalId of normalizedTerminalIds) {
+    if (assignedTerminalIds.has(terminalId)) continue;
+    nextTerminalGroups.push({
+      id: assignUniqueGroupId(`group-${terminalId}`),
+      terminalIds: [terminalId],
+    });
+  }
 
-    return [
-      {
-        id: `group-${resolvedActiveTerminalId}`,
-        terminalIds: [resolvedActiveTerminalId],
-      },
-    ];
-  }, [normalizedTerminalIds, resolvedActiveTerminalId, terminalGroups]);
+  const resolvedTerminalGroups =
+    nextTerminalGroups.length > 0
+      ? nextTerminalGroups
+      : [
+          {
+            id: `group-${resolvedActiveTerminalId}`,
+            terminalIds: [resolvedActiveTerminalId],
+          },
+        ];
 
-  const resolvedActiveGroupIndex = useMemo(() => {
-    const indexById = resolvedTerminalGroups.findIndex(
-      (terminalGroup) => terminalGroup.id === activeTerminalGroupId,
-    );
-    if (indexById >= 0) return indexById;
-    const indexByTerminal = resolvedTerminalGroups.findIndex((terminalGroup) =>
-      terminalGroup.terminalIds.includes(resolvedActiveTerminalId),
-    );
-    return indexByTerminal >= 0 ? indexByTerminal : 0;
-  }, [activeTerminalGroupId, resolvedActiveTerminalId, resolvedTerminalGroups]);
+  const indexById = resolvedTerminalGroups.findIndex(
+    (terminalGroup) => terminalGroup.id === activeTerminalGroupId,
+  );
+  const indexByTerminal = resolvedTerminalGroups.findIndex((terminalGroup) =>
+    terminalGroup.terminalIds.includes(resolvedActiveTerminalId),
+  );
+  const resolvedActiveGroupIndex =
+    indexById >= 0 ? indexById : indexByTerminal >= 0 ? indexByTerminal : 0;
 
   const visibleTerminalIds = resolvedTerminalGroups[resolvedActiveGroupIndex]?.terminalIds ?? [
     resolvedActiveTerminalId,
@@ -947,12 +943,8 @@ export default function ThreadTerminalDrawer({
     resolvedTerminalGroups.length > 1 ||
     resolvedTerminalGroups.some((terminalGroup) => terminalGroup.terminalIds.length > 1);
   const hasReachedSplitLimit = visibleTerminalIds.length >= MAX_TERMINALS_PER_GROUP;
-  const terminalLabelById = useMemo(
-    () =>
-      new Map(
-        normalizedTerminalIds.map((terminalId, index) => [terminalId, `Terminal ${index + 1}`]),
-      ),
-    [normalizedTerminalIds],
+  const terminalLabelById = new Map(
+    normalizedTerminalIds.map((terminalId, index) => [terminalId, `Terminal ${index + 1}`]),
   );
   const splitTerminalActionLabel = hasReachedSplitLimit
     ? `Split Terminal (max ${MAX_TERMINALS_PER_GROUP} per group)`
@@ -965,13 +957,13 @@ export default function ThreadTerminalDrawer({
   const closeTerminalActionLabel = closeShortcutLabel
     ? `Close Terminal (${closeShortcutLabel})`
     : "Close Terminal";
-  const onSplitTerminalAction = useCallback(() => {
+  const onSplitTerminalAction = () => {
     if (hasReachedSplitLimit) return;
     onSplitTerminal();
-  }, [hasReachedSplitLimit, onSplitTerminal]);
-  const onNewTerminalAction = useCallback(() => {
+  };
+  const onNewTerminalAction = () => {
     onNewTerminal();
-  }, [onNewTerminal]);
+  };
 
   onHeightChangeRef.current = onHeightChange;
   drawerHeightRef.current = drawerHeight;
@@ -984,14 +976,14 @@ export default function ThreadTerminalDrawer({
     runtimeEnvVersion,
   ].join("\0");
 
-  const syncHeight = useCallback((nextHeight: number) => {
+  const syncHeight = (nextHeight: number) => {
     const clampedHeight = clampDrawerHeight(nextHeight);
     if (lastSyncedHeightRef.current === clampedHeight) return;
     lastSyncedHeightRef.current = clampedHeight;
     onHeightChangeRef.current(clampedHeight);
-  }, []);
+  };
 
-  const handleResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1001,9 +993,9 @@ export default function ThreadTerminalDrawer({
       startY: event.clientY,
       startHeight: drawerHeightRef.current,
     };
-  }, []);
+  };
 
-  const handleResizePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+  const handleResizePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const resizeState = resizeStateRef.current;
     if (!resizeState || resizeState.pointerId !== event.pointerId) return;
     event.preventDefault();
@@ -1016,26 +1008,23 @@ export default function ThreadTerminalDrawer({
     didResizeDuringDragRef.current = true;
     drawerHeightRef.current = clampedHeight;
     setDrawerHeight(clampedHeight);
-  }, []);
+  };
 
-  const handleResizePointerEnd = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const resizeState = resizeStateRef.current;
-      if (!resizeState || resizeState.pointerId !== event.pointerId) return;
-      resizeStateRef.current = null;
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-      if (!didResizeDuringDragRef.current) {
-        return;
-      }
-      syncHeight(drawerHeightRef.current);
-      setResizeEpoch((value) => value + 1);
-    },
-    [syncHeight],
-  );
+  const handleResizePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const resizeState = resizeStateRef.current;
+    if (!resizeState || resizeState.pointerId !== event.pointerId) return;
+    resizeStateRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (!didResizeDuringDragRef.current) {
+      return;
+    }
+    syncHeight(drawerHeightRef.current);
+    setResizeEpoch((value) => value + 1);
+  };
 
-  const handleWindowResize = useEffectEvent(() => {
+  const handleWindowResize = () => {
     const clampedHeight = clampDrawerHeight(drawerHeightRef.current);
     const changed = clampedHeight !== drawerHeightRef.current;
     if (changed) {
@@ -1046,7 +1035,7 @@ export default function ThreadTerminalDrawer({
       syncHeight(clampedHeight);
     }
     setResizeEpoch((value) => value + 1);
-  });
+  };
 
   return (
     <aside
@@ -1080,9 +1069,9 @@ export default function ThreadTerminalDrawer({
 
       {!hasTerminalSidebar && (
         <div className="pointer-events-none absolute right-2 top-2 z-20">
-          <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-md border border-multi-terminal-border bg-multi-terminal-toolbar-background shadow-multi-toolbar">
+          <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-md border border-honk-terminal-border bg-honk-terminal-toolbar-background shadow-honk-toolbar">
             <TerminalActionButton
-              className={`p-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground ${
+              className={`p-1 text-honk-terminal-muted-foreground transition-colors hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground ${
                 hasReachedSplitLimit
                   ? "cursor-not-allowed opacity-45 hover:bg-transparent"
                   : "hover:bg-accent"
@@ -1092,17 +1081,17 @@ export default function ThreadTerminalDrawer({
             >
               <IconSplit className="size-3.25" />
             </TerminalActionButton>
-            <div className="h-4 w-px bg-multi-terminal-border-subtle" />
+            <div className="h-4 w-px bg-honk-terminal-border-subtle" />
             <TerminalActionButton
-              className="p-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground"
+              className="p-1 text-honk-terminal-muted-foreground transition-colors hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground"
               onClick={onNewTerminalAction}
               label={newTerminalActionLabel}
             >
               <IconPlusLarge className="size-3.25" />
             </TerminalActionButton>
-            <div className="h-4 w-px bg-multi-terminal-border-subtle" />
+            <div className="h-4 w-px bg-honk-terminal-border-subtle" />
             <TerminalActionButton
-              className="p-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground"
+              className="p-1 text-honk-terminal-muted-foreground transition-colors hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground"
               onClick={() => onCloseTerminal(resolvedActiveTerminalId)}
               label={closeTerminalActionLabel}
             >
@@ -1127,7 +1116,7 @@ export default function ThreadTerminalDrawer({
                     key={terminalId}
                     data-active={terminalId === resolvedActiveTerminalId ? "true" : "false"}
                     role="presentation"
-                    className="min-h-0 min-w-0 border-l border-multi-terminal-border-subtle first:border-l-0 data-[active=true]:border-multi-terminal-border"
+                    className="min-h-0 min-w-0 border-l border-honk-terminal-border-subtle first:border-l-0 data-[active=true]:border-honk-terminal-border"
                     onMouseDown={() => {
                       if (terminalId !== resolvedActiveTerminalId) {
                         onActiveTerminalChange(terminalId);
@@ -1176,11 +1165,11 @@ export default function ThreadTerminalDrawer({
           </div>
 
           {hasTerminalSidebar && (
-            <aside className="flex w-36 min-w-36 flex-col border border-multi-terminal-border bg-transparent">
-              <div className="flex h-[22px] items-stretch justify-end border-b border-multi-terminal-border-subtle bg-transparent">
+            <aside className="flex w-36 min-w-36 flex-col border border-honk-terminal-border bg-transparent">
+              <div className="flex h-[22px] items-stretch justify-end border-b border-honk-terminal-border-subtle bg-transparent">
                 <div className="inline-flex h-full items-stretch">
                   <TerminalActionButton
-                    className={`inline-flex h-full items-center px-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground ${
+                    className={`inline-flex h-full items-center px-1 text-honk-terminal-muted-foreground transition-colors hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground ${
                       hasReachedSplitLimit
                         ? "cursor-not-allowed opacity-45 hover:bg-transparent"
                         : "hover:bg-accent/70"
@@ -1191,14 +1180,14 @@ export default function ThreadTerminalDrawer({
                     <IconSplit className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
-                    className="inline-flex h-full items-center border-l border-multi-terminal-border-subtle px-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground"
+                    className="inline-flex h-full items-center border-l border-honk-terminal-border-subtle px-1 text-honk-terminal-muted-foreground transition-colors hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground"
                     onClick={onNewTerminalAction}
                     label={newTerminalActionLabel}
                   >
                     <IconPlusLarge className="size-3.25" />
                   </TerminalActionButton>
                   <TerminalActionButton
-                    className="inline-flex h-full items-center border-l border-multi-terminal-border-subtle px-1 text-multi-terminal-muted-foreground transition-colors hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground"
+                    className="inline-flex h-full items-center border-l border-honk-terminal-border-subtle px-1 text-honk-terminal-muted-foreground transition-colors hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground"
                     onClick={() => onCloseTerminal(resolvedActiveTerminalId)}
                     label={closeTerminalActionLabel}
                   >
@@ -1221,7 +1210,7 @@ export default function ThreadTerminalDrawer({
                         <button
                           type="button"
                           data-active={isGroupActive ? "true" : "false"}
-                          className="flex w-full items-center rounded px-1 py-0.5 text-caption text-multi-terminal-muted-foreground uppercase tracking-[0.08em] hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground data-[active=true]:bg-multi-terminal-active-background data-[active=true]:text-multi-terminal-foreground"
+                          className="flex w-full items-center rounded px-1 py-0.5 text-caption text-honk-terminal-muted-foreground uppercase tracking-[0.08em] hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground data-[active=true]:bg-honk-terminal-active-background data-[active=true]:text-honk-terminal-foreground"
                           onClick={() => onActiveTerminalChange(groupActiveTerminalId)}
                         >
                           {terminalGroup.terminalIds.length > 1
@@ -1242,7 +1231,7 @@ export default function ThreadTerminalDrawer({
                             <div
                               key={terminalId}
                               data-active={isActive ? "true" : "false"}
-                              className="group flex items-center gap-1 rounded px-1 py-0.5 text-detail text-multi-terminal-muted-foreground hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground data-[active=true]:bg-multi-terminal-active-background data-[active=true]:text-multi-terminal-foreground"
+                              className="group flex items-center gap-1 rounded px-1 py-0.5 text-detail text-honk-terminal-muted-foreground hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground data-[active=true]:bg-honk-terminal-active-background data-[active=true]:text-honk-terminal-foreground"
                             >
                               {showGroupHeaders && (
                                 <span className="text-caption text-muted-foreground/80">└</span>
@@ -1264,7 +1253,7 @@ export default function ThreadTerminalDrawer({
                                     render={
                                       <button
                                         type="button"
-                                        className="inline-flex size-3.5 items-center justify-center rounded text-xs font-medium leading-none text-multi-terminal-muted-foreground opacity-0 transition hover:bg-multi-terminal-hover-background hover:text-multi-terminal-foreground group-hover:opacity-100"
+                                        className="inline-flex size-3.5 items-center justify-center rounded text-xs font-medium leading-none text-honk-terminal-muted-foreground opacity-0 transition hover:bg-honk-terminal-hover-background hover:text-honk-terminal-foreground group-hover:opacity-100"
                                         onClick={() => onCloseTerminal(terminalId)}
                                         aria-label={closeTerminalLabel}
                                       />

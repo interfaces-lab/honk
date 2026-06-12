@@ -1,0 +1,30 @@
+{
+  "name": "@honk/runtime",
+  "version": "0.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "^0.79.1",
+    "@earendil-works/pi-ai": "^0.79.1",
+    "@earendil-works/pi-coding-agent": "^0.79.1",
+    "@honk/contracts": "workspace:*",
+    "@honk/shared": "workspace:*",
+    "effect": "catalog:",
+    "typebox": "^1.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

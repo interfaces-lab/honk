@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off
 /**
  * Standalone probe: documents that bare `agent acp` + session/set_config_option
- * may not change the billed model. Multi binds models via `agent --model <slug> acp`.
+ * may not change the billed model. Honk binds models via `agent --model <slug> acp`.
  *
  * Usage:
  *   pnpm exec tsx packages/server/scripts/cursor-acp-model-mismatch-probe.ts [cwd] [model] [prompt]

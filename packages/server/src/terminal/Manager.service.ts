@@ -22,7 +22,7 @@ import {
   TerminalSessionLookupError,
   TerminalSessionStatus,
   TerminalWriteInput,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { PtyProcess } from "./PTY.service.ts";
 import { Effect, Context } from "effect";
 
@@ -125,5 +125,5 @@ export interface TerminalManagerShape {
  * TerminalManager - Service tag for terminal session orchestration.
  */
 export class TerminalManager extends Context.Service<TerminalManager, TerminalManagerShape>()(
-  "multi/terminal/Manager.service/TerminalManager",
+  "honk/terminal/Manager.service/TerminalManager",
 ) {}

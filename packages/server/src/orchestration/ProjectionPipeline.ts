@@ -5,7 +5,9 @@ import {
   type OrchestrationEvent,
   resolveLeafIdAfterThreadMessage,
   ThreadId,
-} from "@multi/contracts";
+  type TurnId,
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
@@ -16,14 +18,8 @@ import { ProjectionProjectRepository } from "../persistence/ProjectionProjects.s
 import { ProjectionStateRepository } from "../persistence/ProjectionState.service.ts";
 import { ProjectionThreadActivityRepository } from "../persistence/ProjectionThreadActivities.service.ts";
 import { type ProjectionThreadActivity } from "../persistence/ProjectionThreadActivities.service.ts";
-import {
-  type ProjectionThreadEntry,
-  ProjectionThreadEntryRepository,
-} from "../persistence/ProjectionThreadEntries.service.ts";
-import {
-  type ProjectionThreadMessage,
-  ProjectionThreadMessageRepository,
-} from "../persistence/ProjectionThreadMessages.service.ts";
+import { ProjectionThreadEntryRepository } from "../persistence/ProjectionThreadEntries.service.ts";
+import { ProjectionThreadMessageRepository } from "../persistence/ProjectionThreadMessages.service.ts";
 import {
   type ProjectionThreadProposedPlan,
   ProjectionThreadProposedPlanRepository,
@@ -41,13 +37,14 @@ import { ProjectionThreadProposedPlanRepositoryLive } from "../persistence/Proje
 import { ProjectionThreadSessionRepositoryLive } from "../persistence/ProjectionThreadSessions.ts";
 import { ProjectionTurnRepositoryLive } from "../persistence/ProjectionTurns.ts";
 import { ProjectionThreadRepositoryLive } from "../persistence/ProjectionThreads.ts";
+
+const elog = EffectLogger.create({ service: "orchestration.projection" });
 import { ServerConfig } from "../config.ts";
 import {
   OrchestrationProjectionPipeline,
   type OrchestrationProjectionPipelineShape,
 } from "./ProjectionPipeline.service.ts";
 import {
-  attachmentRelativePath,
   parseAttachmentIdFromRelativePath,
   parseThreadSegmentFromAttachmentId,
   toSafeThreadAttachmentSegment,
@@ -113,6 +110,10 @@ function isStalePendingApprovalFailureDetail(detail: string | null): boolean {
   );
 }
 
+function isSubagentActivityKind(kind: string): boolean {
+  return kind.startsWith("subagent.");
+}
+
 function derivePendingUserInputCountFromActivities(
   activities: ReadonlyArray<ProjectionThreadActivity>,
 ): number {
@@ -145,7 +146,7 @@ function derivePendingUserInputCountFromActivities(
     }
 
     if (
-      activity.kind === "provider.user-input.respond.failed" &&
+      activity.kind === "runtime.user-input.respond.failed" &&
       detail !== null &&
       (detail.includes("stale pending user-input request") ||
         detail.includes("unknown pending user-input request"))
@@ -182,30 +183,6 @@ function deriveHasActionableProposedPlan(input: {
 
   const latestPlan = sorted.at(-1) ?? null;
   return latestPlan !== null && latestPlan.implementedAt === null;
-}
-
-function collectThreadAttachmentRelativePaths(
-  threadId: string,
-  messages: ReadonlyArray<ProjectionThreadMessage>,
-): Set<string> {
-  const threadSegment = toSafeThreadAttachmentSegment(threadId);
-  if (!threadSegment) {
-    return new Set();
-  }
-  const relativePaths = new Set<string>();
-  for (const message of messages) {
-    for (const attachment of message.attachments ?? []) {
-      if (attachment.type !== "image") {
-        continue;
-      }
-      const attachmentThreadSegment = parseThreadSegmentFromAttachmentId(attachment.id);
-      if (!attachmentThreadSegment || attachmentThreadSegment !== threadSegment) {
-        continue;
-      }
-      relativePaths.add(attachmentRelativePath(attachment));
-    }
-  }
-  return relativePaths;
 }
 
 const runAttachmentSideEffects = Effect.fn("runAttachmentSideEffects")(function* (
@@ -245,7 +222,7 @@ const runAttachmentSideEffects = Effect.fn("runAttachmentSideEffects")(function*
   ) {
     const threadSegment = toSafeThreadAttachmentSegment(threadId);
     if (!threadSegment) {
-      yield* Effect.logWarning("skipping attachment cleanup for unsafe thread id", {
+      yield* elog.warn("skipping attachment cleanup for unsafe thread id", {
         threadId,
       });
       return;
@@ -302,7 +279,7 @@ const runAttachmentSideEffects = Effect.fn("runAttachmentSideEffects")(function*
 
     const threadSegment = toSafeThreadAttachmentSegment(threadId);
     if (!threadSegment) {
-      yield* Effect.logWarning("skipping attachment prune for unsafe thread id", { threadId });
+      yield* elog.warn("skipping attachment prune for unsafe thread id", { threadId });
       return;
     }
 
@@ -446,6 +423,45 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       });
     });
 
+    const latestTurnIdAfterAssistantMessage = Effect.fn("latestTurnIdAfterAssistantMessage")(
+      function* (input: {
+        readonly threadId: ThreadId;
+        readonly currentLatestTurnId: TurnId | null;
+        readonly messageTurnId: TurnId;
+      }) {
+        if (
+          input.currentLatestTurnId === null ||
+          input.currentLatestTurnId === input.messageTurnId
+        ) {
+          return input.messageTurnId;
+        }
+
+        const [currentTurn, messageTurn] = yield* Effect.all([
+          projectionTurnRepository.getByTurnId({
+            threadId: input.threadId,
+            turnId: input.currentLatestTurnId,
+          }),
+          projectionTurnRepository.getByTurnId({
+            threadId: input.threadId,
+            turnId: input.messageTurnId,
+          }),
+        ]);
+        if (Option.isNone(currentTurn) || Option.isNone(messageTurn)) {
+          return input.messageTurnId;
+        }
+        if (messageTurn.value.requestedAt < currentTurn.value.requestedAt) {
+          return input.currentLatestTurnId;
+        }
+        if (
+          messageTurn.value.requestedAt === currentTurn.value.requestedAt &&
+          messageTurn.value.turnId < currentTurn.value.turnId
+        ) {
+          return input.currentLatestTurnId;
+        }
+        return input.messageTurnId;
+      },
+    );
+
     const applyThreadsProjection: ProjectorDefinition["apply"] = Effect.fn(
       "applyThreadsProjection",
     )(function* (event, attachmentSideEffects) {
@@ -573,6 +589,12 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         case "thread.activity-appended":
         case "thread.approval-response-requested":
         case "thread.user-input-response-requested": {
+          if (
+            event.type === "thread.activity-appended" &&
+            isSubagentActivityKind(event.payload.activity.kind)
+          ) {
+            return;
+          }
           const existingRow = yield* projectionThreadRepository.getById({
             threadId: event.payload.threadId,
           });
@@ -594,8 +616,17 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           if (Option.isNone(existingRow)) {
             return;
           }
+          const latestTurnId =
+            event.payload.role === "assistant" && event.payload.turnId !== null
+              ? yield* latestTurnIdAfterAssistantMessage({
+                  threadId: event.payload.threadId,
+                  currentLatestTurnId: existingRow.value.latestTurnId,
+                  messageTurnId: event.payload.turnId,
+                })
+              : existingRow.value.latestTurnId;
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
+            latestTurnId,
             leafId: resolveLeafIdAfterThreadMessage({
               leafId: existingRow.value.leafId,
               entryId: event.payload.entryId,
@@ -646,7 +677,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
 
     const applyThreadMessagesProjection: ProjectorDefinition["apply"] = Effect.fn(
       "applyThreadMessagesProjection",
-    )(function* (event, attachmentSideEffects) {
+    )(function* (event, _attachmentSideEffects) {
       switch (event.type) {
         case "thread.message-sent": {
           const existingMessage = yield* projectionThreadMessageRepository.getByMessageId({
@@ -773,9 +804,6 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       yield* projectionThreadSessionRepository.upsert({
         threadId: event.payload.threadId,
         status: event.payload.session.status,
-        providerName: event.payload.session.providerName,
-        providerInstanceId:
-          event.payload.session.providerInstanceId ?? event.payload.session.providerName,
         runtimeMode: event.payload.session.runtimeMode,
         activeTurnId: event.payload.session.activeTurnId,
         lastError: event.payload.session.lastError,
@@ -800,7 +828,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         }
 
         case "thread.activity-appended": {
-          if (event.payload.activity.kind !== "provider.turn.start.failed") {
+          if (event.payload.activity.kind !== "runtime.turn.start.failed") {
             return;
           }
           const pendingTurnStart =
@@ -1050,7 +1078,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             });
             return;
           }
-          if (event.payload.activity.kind === "provider.approval.respond.failed") {
+          if (event.payload.activity.kind === "runtime.approval.respond.failed") {
             const payload =
               typeof event.payload.activity.payload === "object" &&
               event.payload.activity.payload !== null
@@ -1174,21 +1202,39 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         prunedThreadRelativePaths: new Map<string, Set<string>>(),
       };
 
-      yield* sql.withTransaction(
-        projector.apply(event, attachmentSideEffects).pipe(
-          Effect.flatMap(() =>
-            projectionStateRepository.upsert({
+      yield* sql
+        .withTransaction(
+          projector.apply(event, attachmentSideEffects).pipe(
+            Effect.flatMap(() =>
+              projectionStateRepository.upsert({
+                projector: projector.name,
+                lastAppliedSequence: event.sequence,
+                updatedAt: event.occurredAt,
+              }),
+            ),
+          ),
+        )
+        .pipe(
+          Effect.withSpan("orchestration.projection.apply", {
+            attributes: {
               projector: projector.name,
-              lastAppliedSequence: event.sequence,
-              updatedAt: event.occurredAt,
+              sequence: event.sequence,
+              eventType: event.type,
+            },
+          }),
+          Effect.tapError((cause) =>
+            elog.error("orchestration projection apply failed", {
+              projector: projector.name,
+              sequence: event.sequence,
+              eventType: event.type,
+              cause,
             }),
           ),
-        ),
-      );
+        );
 
       yield* runAttachmentSideEffects(attachmentSideEffects).pipe(
         Effect.catch((cause) =>
-          Effect.logWarning("failed to apply projected attachment side-effects", {
+          elog.warn("failed to apply projected attachment side-effects", {
             projector: projector.name,
             sequence: event.sequence,
             eventType: event.type,
@@ -1237,9 +1283,9 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       Effect.provideService(ServerConfig, serverConfig),
       Effect.asVoid,
       Effect.tap(() =>
-        Effect.logDebug("orchestration projection pipeline bootstrapped").pipe(
-          Effect.annotateLogs({ projectors: projectors.length }),
-        ),
+        elog.debug("orchestration projection pipeline bootstrapped", {
+          projectors: projectors.length,
+        }),
       ),
       Effect.catchTag("SqlError", (sqlError) =>
         Effect.fail(toPersistenceSqlError("ProjectionPipeline.bootstrap:query")(sqlError)),

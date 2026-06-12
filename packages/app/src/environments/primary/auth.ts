@@ -8,15 +8,22 @@ import type {
   AuthRevokePairingLinkInput,
   AuthSessionId,
   AuthSessionState,
-} from "@multi/contracts";
+} from "@honk/contracts";
+import {
+  AuthBootstrapResult as AuthBootstrapResultSchema,
+  AuthClientSession,
+  AuthPairingCredentialResult as AuthPairingCredentialResultSchema,
+  AuthPairingLink,
+  AuthSessionState as AuthSessionStateSchema,
+} from "@honk/contracts";
 
 import {
   getPairingTokenFromUrl,
   stripPairingTokenFromUrl as stripPairingTokenUrl,
 } from "./pairing-url";
 
-import { resolvePrimaryEnvironmentHttpUrl } from "./target";
-import { Data, Predicate } from "effect";
+import { readPrimaryEnvironmentTarget, resolvePrimaryEnvironmentHttpUrl } from "./target";
+import { Data, DateTime, Predicate, Schema } from "effect";
 
 export class BootstrapHttpError extends Data.TaggedError("BootstrapHttpError")<{
   readonly message: string;
@@ -24,6 +31,15 @@ export class BootstrapHttpError extends Data.TaggedError("BootstrapHttpError")<{
 }> {}
 const isBootstrapHttpError = (u: unknown): u is BootstrapHttpError =>
   Predicate.isTagged(u, "BootstrapHttpError");
+
+function decodeJsonBody<A>(body: unknown, schema: Schema.Schema<A>): A {
+  return Schema.decodeUnknownSync(schema as never)(body) as A;
+}
+
+async function readJsonResponse<A>(response: Response, schema: Schema.Schema<A>): Promise<A> {
+  const body: unknown = await response.json();
+  return decodeJsonBody(body, schema);
+}
 
 export interface ServerPairingLinkRecord {
   readonly id: string;
@@ -39,7 +55,7 @@ export interface ServerClientSessionRecord {
   readonly sessionId: AuthSessionId;
   readonly subject: string;
   readonly role: "owner" | "client";
-  readonly method: "browser-session-cookie" | "bearer-session-token";
+  readonly method: "bearer-session-token";
   readonly client: AuthClientMetadata;
   readonly issuedAt: string;
   readonly expiresAt: string;
@@ -58,8 +74,15 @@ type ServerAuthGateState =
 
 let bootstrapPromise: Promise<ServerAuthGateState> | null = null;
 let resolvedAuthenticatedGateState: ServerAuthGateState | null = null;
-const AUTH_SESSION_ESTABLISH_TIMEOUT_MS = 2_000;
-const AUTH_SESSION_ESTABLISH_STEP_MS = 100;
+let serverBearerSessionRecord: ServerBearerSessionRecord | null = null;
+let resolveAuthenticatedServerBearerTokenPromise: Promise<string | null> | null = null;
+const SERVER_BEARER_SESSION_STORAGE_KEY = "honk.server.bearerSession.v1";
+
+interface ServerBearerSessionRecord {
+  readonly httpBaseUrl: string;
+  readonly sessionToken: string;
+  readonly expiresAt: string;
+}
 
 export function peekPairingTokenFromUrl(): string | null {
   return getPairingTokenFromUrl(new URL(window.location.href));
@@ -83,31 +106,196 @@ export function takePairingTokenFromUrl(): string | null {
   return token;
 }
 
-function getDesktopBootstrapCredential(): string | null {
-  const bootstrap = window.desktopBridge?.getLocalEnvironmentBootstrap();
-  return typeof bootstrap?.bootstrapToken === "string" && bootstrap.bootstrapToken.length > 0
-    ? bootstrap.bootstrapToken
-    : null;
+function readCurrentHttpBaseUrl(): string | null {
+  return readPrimaryEnvironmentTarget()?.target.httpBaseUrl ?? null;
+}
+
+function readBootstrapCredential(): string | null {
+  return (
+    takePairingTokenFromUrl() ??
+    window.desktopBridge?.getLocalEnvironmentBootstrap()?.bootstrapToken ??
+    null
+  );
+}
+
+function parseServerBearerSessionRecord(raw: string | null): ServerBearerSessionRecord | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) {
+      return null;
+    }
+    const httpBaseUrl = Reflect.get(parsed, "httpBaseUrl");
+    const sessionToken = Reflect.get(parsed, "sessionToken");
+    const expiresAt = Reflect.get(parsed, "expiresAt");
+    if (
+      typeof httpBaseUrl !== "string" ||
+      typeof sessionToken !== "string" ||
+      typeof expiresAt !== "string"
+    ) {
+      return null;
+    }
+    return {
+      httpBaseUrl,
+      sessionToken,
+      expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isExpired(isoTime: string): boolean {
+  const timestamp = Date.parse(isoTime);
+  return !Number.isFinite(timestamp) || timestamp <= Date.now();
+}
+
+function clearServerBearerSession(): void {
+  serverBearerSessionRecord = null;
+  window.sessionStorage?.removeItem(SERVER_BEARER_SESSION_STORAGE_KEY);
+}
+
+function readServerBearerSession(): ServerBearerSessionRecord | null {
+  const httpBaseUrl = readCurrentHttpBaseUrl();
+  if (!httpBaseUrl) {
+    return null;
+  }
+
+  const record =
+    serverBearerSessionRecord ??
+    parseServerBearerSessionRecord(
+      window.sessionStorage?.getItem(SERVER_BEARER_SESSION_STORAGE_KEY) ?? null,
+    );
+  if (!record) {
+    return null;
+  }
+
+  if (record.httpBaseUrl !== httpBaseUrl || isExpired(record.expiresAt)) {
+    clearServerBearerSession();
+    return null;
+  }
+
+  serverBearerSessionRecord = record;
+  return record;
+}
+
+function writeServerBearerSession(result: AuthBootstrapResult): void {
+  const httpBaseUrl = readCurrentHttpBaseUrl();
+  if (!httpBaseUrl) {
+    return;
+  }
+
+  const record: ServerBearerSessionRecord = {
+    httpBaseUrl,
+    sessionToken: result.sessionToken,
+    expiresAt: DateTime.formatIso(result.expiresAt),
+  };
+  serverBearerSessionRecord = record;
+  window.sessionStorage?.setItem(SERVER_BEARER_SESSION_STORAGE_KEY, JSON.stringify(record));
+}
+
+export function getServerBearerSessionToken(): string | null {
+  return readServerBearerSession()?.sessionToken ?? null;
+}
+
+async function resolveAuthenticatedServerBearerTokenOnce(): Promise<string | null> {
+  const existingToken = getServerBearerSessionToken();
+  if (existingToken) {
+    const currentSession = await fetchSessionState();
+    if (currentSession.authenticated) {
+      return existingToken;
+    }
+    clearServerBearerSession();
+    resolvedAuthenticatedGateState = null;
+  }
+
+  await resolveInitialServerAuthGateState();
+
+  const refreshedExistingToken = getServerBearerSessionToken();
+  if (refreshedExistingToken) {
+    return refreshedExistingToken;
+  }
+
+  const credential = readBootstrapCredential();
+  if (!credential) {
+    return null;
+  }
+
+  const bearerSession = await exchangeBootstrapCredential(credential);
+  writeServerBearerSession(bearerSession);
+  resolvedAuthenticatedGateState = { status: "authenticated" };
+  return bearerSession.sessionToken;
+}
+
+export async function resolveAuthenticatedServerBearerToken(): Promise<string | null> {
+  if (resolveAuthenticatedServerBearerTokenPromise) {
+    return resolveAuthenticatedServerBearerTokenPromise;
+  }
+
+  const nextPromise = resolveAuthenticatedServerBearerTokenOnce();
+  resolveAuthenticatedServerBearerTokenPromise = nextPromise;
+  return nextPromise.finally(() => {
+    if (resolveAuthenticatedServerBearerTokenPromise === nextPromise) {
+      resolveAuthenticatedServerBearerTokenPromise = null;
+    }
+  });
+}
+
+export function createAuthenticatedRequestInit(init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  const bearerToken = getServerBearerSessionToken();
+  if (bearerToken) {
+    headers.set("authorization", `Bearer ${bearerToken}`);
+  }
+
+  return {
+    ...init,
+    headers,
+  };
 }
 
 export async function fetchSessionState(): Promise<AuthSessionState> {
   return retryTransientBootstrap(async () => {
-    const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/session"), {
-      credentials: "include",
-    });
+    const response = await fetch(
+      resolvePrimaryEnvironmentHttpUrl("/api/auth/session"),
+      createAuthenticatedRequestInit(),
+    );
     if (!response.ok) {
       throw new BootstrapHttpError({
         message: `Failed to load server auth session state (${response.status}).`,
         status: response.status,
       });
     }
-    return (await response.json()) as AuthSessionState;
+    return readJsonResponse(response, AuthSessionStateSchema);
   });
 }
 
 async function readErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
   const text = await response.text();
-  return text || fallbackMessage;
+  if (!text) {
+    return fallbackMessage;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === "object" && parsed !== null) {
+      const error = Reflect.get(parsed, "error");
+      if (typeof error === "string" && error.trim().length > 0) {
+        return error;
+      }
+      const message = Reflect.get(parsed, "message");
+      if (typeof message === "string" && message.trim().length > 0) {
+        return message;
+      }
+    }
+  } catch {
+    return text;
+  }
+
+  return text;
 }
 
 async function exchangeBootstrapCredential(credential: string): Promise<AuthBootstrapResult> {
@@ -115,7 +303,6 @@ async function exchangeBootstrapCredential(credential: string): Promise<AuthBoot
     const payload: AuthBootstrapInput = { credential };
     const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/bootstrap"), {
       body: JSON.stringify(payload),
-      credentials: "include",
       headers: {
         "content-type": "application/json",
       },
@@ -123,32 +310,18 @@ async function exchangeBootstrapCredential(credential: string): Promise<AuthBoot
     });
 
     if (!response.ok) {
-      const message = await response.text();
+      const message = await readErrorMessage(
+        response,
+        `Failed to bootstrap auth session (${response.status}).`,
+      );
       throw new BootstrapHttpError({
-        message: message || `Failed to bootstrap auth session (${response.status}).`,
+        message,
         status: response.status,
       });
     }
 
-    return (await response.json()) as AuthBootstrapResult;
+    return readJsonResponse(response, AuthBootstrapResultSchema);
   });
-}
-
-async function waitForAuthenticatedSessionAfterBootstrap(): Promise<AuthSessionState> {
-  const startedAt = Date.now();
-
-  while (true) {
-    const session = await fetchSessionState();
-    if (session.authenticated) {
-      return session;
-    }
-
-    if (Date.now() - startedAt >= AUTH_SESSION_ESTABLISH_TIMEOUT_MS) {
-      throw new Error("Timed out waiting for authenticated session after bootstrap.");
-    }
-
-    await waitForBootstrapRetry(AUTH_SESSION_ESTABLISH_STEP_MS);
-  }
 }
 
 const TRANSIENT_BOOTSTRAP_STATUS_CODES = new Set([502, 503, 504]);
@@ -193,22 +366,23 @@ function isTransientBootstrapError(error: unknown): boolean {
 }
 
 async function bootstrapServerAuth(): Promise<ServerAuthGateState> {
-  const bootstrapCredential = getDesktopBootstrapCredential();
   const currentSession = await fetchSessionState();
   if (currentSession.authenticated) {
     return { status: "authenticated" };
   }
 
-  if (!bootstrapCredential) {
-    return {
-      status: "requires-auth",
-      auth: currentSession.auth,
-    };
-  }
+  clearServerBearerSession();
 
   try {
-    await exchangeBootstrapCredential(bootstrapCredential);
-    await waitForAuthenticatedSessionAfterBootstrap();
+    const credential = readBootstrapCredential();
+    if (!credential) {
+      return {
+        status: "requires-auth",
+        auth: currentSession.auth,
+      };
+    }
+    const bearerSession = await exchangeBootstrapCredential(credential);
+    writeServerBearerSession(bearerSession);
     return { status: "authenticated" };
   } catch (error) {
     return {
@@ -226,7 +400,8 @@ export async function submitServerAuthCredential(credential: string): Promise<vo
   }
 
   resolvedAuthenticatedGateState = null;
-  await exchangeBootstrapCredential(trimmedCredential);
+  const bearerSession = await exchangeBootstrapCredential(trimmedCredential);
+  writeServerBearerSession(bearerSession);
   bootstrapPromise = null;
   stripPairingTokenFromUrl();
 }
@@ -236,14 +411,16 @@ export async function createServerPairingCredential(
 ): Promise<AuthPairingCredentialResult> {
   const trimmedLabel = label?.trim();
   const payload: AuthCreatePairingCredentialInput = trimmedLabel ? { label: trimmedLabel } : {};
-  const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/pairing-token"), {
-    body: JSON.stringify(payload),
-    credentials: "include",
-    headers: {
-      "content-type": "application/json",
-    },
-    method: "POST",
-  });
+  const response = await fetch(
+    resolvePrimaryEnvironmentHttpUrl("/api/auth/pairing-token"),
+    createAuthenticatedRequestInit({
+      body: JSON.stringify(payload),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -251,13 +428,14 @@ export async function createServerPairingCredential(
     );
   }
 
-  return (await response.json()) as AuthPairingCredentialResult;
+  return readJsonResponse(response, AuthPairingCredentialResultSchema);
 }
 
 export async function listServerPairingLinks(): Promise<ReadonlyArray<ServerPairingLinkRecord>> {
-  const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/pairing-links"), {
-    credentials: "include",
-  });
+  const response = await fetch(
+    resolvePrimaryEnvironmentHttpUrl("/api/auth/pairing-links"),
+    createAuthenticatedRequestInit(),
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -265,19 +443,32 @@ export async function listServerPairingLinks(): Promise<ReadonlyArray<ServerPair
     );
   }
 
-  return (await response.json()) as ReadonlyArray<ServerPairingLinkRecord>;
+  const links = await readJsonResponse(response, Schema.Array(AuthPairingLink));
+  return links.map(
+    (link): ServerPairingLinkRecord => ({
+      id: link.id,
+      credential: link.credential,
+      role: link.role,
+      subject: link.subject,
+      ...(link.label ? { label: link.label } : {}),
+      createdAt: DateTime.formatIso(link.createdAt),
+      expiresAt: DateTime.formatIso(link.expiresAt),
+    }),
+  );
 }
 
 export async function revokeServerPairingLink(id: string): Promise<void> {
   const payload: AuthRevokePairingLinkInput = { id };
-  const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/pairing-links/revoke"), {
-    body: JSON.stringify(payload),
-    credentials: "include",
-    headers: {
-      "content-type": "application/json",
-    },
-    method: "POST",
-  });
+  const response = await fetch(
+    resolvePrimaryEnvironmentHttpUrl("/api/auth/pairing-links/revoke"),
+    createAuthenticatedRequestInit({
+      body: JSON.stringify(payload),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -289,9 +480,10 @@ export async function revokeServerPairingLink(id: string): Promise<void> {
 export async function listServerClientSessions(): Promise<
   ReadonlyArray<ServerClientSessionRecord>
 > {
-  const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/clients"), {
-    credentials: "include",
-  });
+  const response = await fetch(
+    resolvePrimaryEnvironmentHttpUrl("/api/auth/clients"),
+    createAuthenticatedRequestInit(),
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -299,19 +491,36 @@ export async function listServerClientSessions(): Promise<
     );
   }
 
-  return (await response.json()) as ReadonlyArray<ServerClientSessionRecord>;
+  const sessions = await readJsonResponse(response, Schema.Array(AuthClientSession));
+  return sessions.map(
+    (session): ServerClientSessionRecord => ({
+      sessionId: session.sessionId,
+      subject: session.subject,
+      role: session.role,
+      method: "bearer-session-token",
+      client: session.client,
+      issuedAt: DateTime.formatIso(session.issuedAt),
+      expiresAt: DateTime.formatIso(session.expiresAt),
+      lastConnectedAt:
+        session.lastConnectedAt === null ? null : DateTime.formatIso(session.lastConnectedAt),
+      connected: session.connected,
+      current: session.current,
+    }),
+  );
 }
 
 export async function revokeServerClientSession(sessionId: AuthSessionId): Promise<void> {
   const payload: AuthRevokeClientSessionInput = { sessionId };
-  const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/api/auth/clients/revoke"), {
-    body: JSON.stringify(payload),
-    credentials: "include",
-    headers: {
-      "content-type": "application/json",
-    },
-    method: "POST",
-  });
+  const response = await fetch(
+    resolvePrimaryEnvironmentHttpUrl("/api/auth/clients/revoke"),
+    createAuthenticatedRequestInit({
+      body: JSON.stringify(payload),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -323,10 +532,7 @@ export async function revokeServerClientSession(sessionId: AuthSessionId): Promi
 export async function revokeOtherServerClientSessions(): Promise<number> {
   const response = await fetch(
     resolvePrimaryEnvironmentHttpUrl("/api/auth/clients/revoke-others"),
-    {
-      credentials: "include",
-      method: "POST",
-    },
+    createAuthenticatedRequestInit({ method: "POST" }),
   );
 
   if (!response.ok) {
@@ -338,7 +544,12 @@ export async function revokeOtherServerClientSessions(): Promise<number> {
     );
   }
 
-  const result = (await response.json()) as { revokedCount?: number };
+  const result = await readJsonResponse(
+    response,
+    Schema.Struct({
+      revokedCount: Schema.optionalKey(Schema.Number),
+    }),
+  );
   return result.revokedCount ?? 0;
 }
 
@@ -370,4 +581,5 @@ export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGat
 export function __resetServerAuthBootstrapForTests() {
   bootstrapPromise = null;
   resolvedAuthenticatedGateState = null;
+  resolveAuthenticatedServerBearerTokenPromise = null;
 }

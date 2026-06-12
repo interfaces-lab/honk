@@ -1,5 +1,6 @@
-import { type KeybindingCommand } from "@multi/contracts";
-import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
+import { type KeybindingCommand } from "@honk/contracts";
+import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { type ReactNode } from "react";
 import { sortThreads } from "../lib/thread-sort";
 import { formatRelativeTimeLabel } from "../lib/timestamp-format";
@@ -47,10 +48,6 @@ export interface CommandPaletteView {
 
 export type CommandPaletteMode = "root" | "submenu";
 
-export function normalizeSearchText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 export function buildProjectActionItems(input: {
   projects: ReadonlyArray<Project>;
   valuePrefix: string;
@@ -81,7 +78,9 @@ export function buildThreadActionItems(input: {
     }
   >;
   activeThreadId?: Thread["id"];
-  projectTitleById: ReadonlyMap<Project["id"], string>;
+  projectTitleForThread: (
+    thread: Pick<SidebarThreadSummary, "environmentId" | "projectId">,
+  ) => string | undefined;
   sortOrder: SidebarThreadSortOrder;
   icon: ReactNode;
   runThread: (thread: Pick<SidebarThreadSummary, "environmentId" | "id">) => Promise<void>;
@@ -96,7 +95,7 @@ export function buildThreadActionItems(input: {
 
   return visibleThreads.map((thread) => {
     const projectTitle =
-      thread.projectId === null ? "General" : input.projectTitleById.get(thread.projectId);
+      thread.projectId === null ? "General" : input.projectTitleForThread(thread);
     const descriptionParts: string[] = [];
 
     if (projectTitle) {
@@ -127,7 +126,7 @@ export function buildThreadActionItems(input: {
 }
 
 function rankSearchFieldMatch(field: string, normalizedQuery: string): number {
-  const normalizedField = normalizeSearchText(field);
+  const normalizedField = normalizeSearchQuery(field);
   if (normalizedField.length === 0 || !normalizedField.includes(normalizedQuery)) {
     return Number.NEGATIVE_INFINITY;
   }
@@ -168,7 +167,7 @@ export function filterCommandPaletteGroups(input: {
 }): CommandPaletteGroup[] {
   const isActionsFilter = input.query.startsWith(">");
   const searchQuery = isActionsFilter ? input.query.slice(1) : input.query;
-  const normalizedQuery = normalizeSearchText(searchQuery);
+  const normalizedQuery = normalizeSearchQuery(searchQuery);
 
   if (normalizedQuery.length === 0) {
     if (isActionsFilter) {
@@ -186,7 +185,8 @@ export function filterCommandPaletteGroups(input: {
 
   const searchableGroups = [...baseGroups];
   if (!input.isInSubmenu && !isActionsFilter) {
-    if (input.projectSearchItems.length > 0) {
+    const hasProjectGroup = baseGroups.some((group) => group.value === "projects");
+    if (!hasProjectGroup && input.projectSearchItems.length > 0) {
       searchableGroups.push({
         value: "projects-search",
         label: "Projects",
@@ -205,7 +205,7 @@ export function filterCommandPaletteGroups(input: {
   return searchableGroups.flatMap((group) => {
     const items = group.items
       .map((item, index) => {
-        const haystack = normalizeSearchText(item.searchTerms.join(" "));
+        const haystack = normalizeSearchQuery(item.searchTerms.join(" "));
         if (!haystack.includes(normalizedQuery)) {
           return null;
         }
@@ -238,12 +238,13 @@ export function getCommandPaletteMode(input: {
 }
 
 export function buildRootGroups(input: {
+  projectItems: ReadonlyArray<CommandPaletteActionItem>;
   actionItems: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
   recentThreadItems: ReadonlyArray<CommandPaletteActionItem>;
 }): CommandPaletteGroup[] {
   const groups: CommandPaletteGroup[] = [];
-  if (input.actionItems.length > 0) {
-    groups.push({ value: "actions", label: "Actions", items: input.actionItems });
+  if (input.projectItems.length > 0) {
+    groups.push({ value: "projects", label: "Workspaces", items: input.projectItems });
   }
   if (input.recentThreadItems.length > 0) {
     groups.push({
@@ -251,6 +252,9 @@ export function buildRootGroups(input: {
       label: "Recent Threads",
       items: input.recentThreadItems,
     });
+  }
+  if (input.actionItems.length > 0) {
+    groups.push({ value: "actions", label: "Commands", items: input.actionItems });
   }
   return groups;
 }

@@ -1,4 +1,4 @@
-import type { AuthPairingLink } from "@multi/contracts";
+import type { AuthPairingLink } from "@honk/contracts";
 import { DateTime, Duration, Effect, Layer, PubSub, Ref, Stream } from "effect";
 import { Option } from "effect";
 
@@ -30,6 +30,7 @@ type ConsumeResult =
     };
 
 const DEFAULT_ONE_TIME_TOKEN_TTL_MINUTES = Duration.minutes(5);
+const DEFAULT_DESKTOP_BOOTSTRAP_TOKEN_TTL = Duration.days(30);
 const PAIRING_TOKEN_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const PAIRING_TOKEN_LENGTH = 12;
 
@@ -84,9 +85,9 @@ export const makeBootstrapCredentialService = Effect.gen(function* () {
       role: "owner",
       subject: "desktop-bootstrap",
       expiresAt: DateTime.add(now, {
-        milliseconds: Duration.toMillis(DEFAULT_ONE_TIME_TOKEN_TTL_MINUTES),
+        milliseconds: Duration.toMillis(DEFAULT_DESKTOP_BOOTSTRAP_TOKEN_TTL),
       }),
-      remainingUses: 1,
+      remainingUses: "unbounded",
     });
   }
 

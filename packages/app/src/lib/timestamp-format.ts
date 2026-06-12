@@ -1,4 +1,4 @@
-import { type TimestampFormat } from "@multi/contracts/settings";
+import { type TimestampFormat } from "@honk/contracts/settings";
 
 export function getTimestampFormatOptions(
   timestampFormat: TimestampFormat,

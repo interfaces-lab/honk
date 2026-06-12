@@ -6,13 +6,13 @@ import type {
   OrchestrationThreadEntry,
   ThreadEntryId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   formatThreadEntryPathIssue,
   resolveLeafIdAfterThreadNavigate,
   resolveThreadEntryPath,
   threadEntryIdForMessageId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect } from "effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
@@ -20,9 +20,7 @@ import {
   requireProject,
   requireProjectAbsent,
   requireThread,
-  requireThreadArchived,
   requireThreadAbsent,
-  requireThreadNotArchived,
 } from "./command-invariants.ts";
 
 const nowIso = () => new Date().toISOString();
@@ -151,14 +149,14 @@ function hasPendingApprovalOrUserInput(
         pendingApprovalRequestIds.add(requestId);
         break;
       case "approval.resolved":
-      case "provider.approval.respond.failed":
+      case "runtime.approval.respond.failed":
         pendingApprovalRequestIds.delete(requestId);
         break;
       case "user-input.requested":
         pendingUserInputRequestIds.add(requestId);
         break;
       case "user-input.resolved":
-      case "provider.user-input.respond.failed":
+      case "runtime.user-input.respond.failed":
         pendingUserInputRequestIds.delete(requestId);
         break;
     }
@@ -378,7 +376,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.archive": {
-      const thread = yield* requireThreadNotArchived({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
@@ -394,14 +392,14 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         type: "thread.archived",
         payload: {
           threadId: command.threadId,
-          archivedAt: occurredAt,
+          archivedAt: thread.archivedAt ?? occurredAt,
           updatedAt: thread.updatedAt,
         },
       };
     }
 
     case "thread.unarchive": {
-      const thread = yield* requireThreadArchived({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
@@ -686,6 +684,38 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           threadId: command.threadId,
           ...(command.turnId !== undefined ? { turnId: command.turnId } : {}),
           createdAt: command.createdAt,
+        },
+      };
+    }
+
+    case "thread.turn.start.failed": {
+      yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.activity-appended",
+        payload: {
+          threadId: command.threadId,
+          activity: {
+            id: crypto.randomUUID() as OrchestrationThread["activities"][number]["id"],
+            tone: "error",
+            kind: "runtime.turn.start.failed",
+            summary: "Runtime failed to start",
+            payload: {
+              detail: command.detail,
+              messageId: command.messageId,
+            },
+            turnId: null,
+            createdAt: command.createdAt,
+          },
         },
       };
     }

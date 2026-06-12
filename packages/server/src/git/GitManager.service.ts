@@ -18,10 +18,13 @@ import {
   GitStatusRemoteResult,
   GitStatusInput,
   GitStatusResult,
-} from "@multi/contracts";
+  DispatchResult,
+  OrchestrationCommand,
+  OrchestrationDispatchCommandError,
+} from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect } from "effect";
-import type { GitManagerServiceError } from "@multi/contracts";
+import type { GitManagerServiceError } from "@honk/contracts";
 
 export interface GitActionProgressReporter {
   readonly publish: (event: GitActionProgressEvent) => Effect.Effect<void, never>;
@@ -36,6 +39,13 @@ export interface GitRunStackedActionOptions {
  * GitManagerShape - Service API for high-level Git workflow actions.
  */
 export interface GitManagerShape {
+  /**
+   * Dispatch a bootstrapped thread turn start with thread/worktree/setup orchestration.
+   */
+  readonly dispatchBootstrapTurnStart: (
+    command: Extract<OrchestrationCommand, { type: "thread.turn.start" }>,
+  ) => Effect.Effect<DispatchResult, OrchestrationDispatchCommandError>;
+
   /**
    * Read current repository Git status plus open PR metadata when available.
    */
@@ -100,5 +110,5 @@ export interface GitManagerShape {
  * GitManager - Service tag for stacked Git workflow orchestration.
  */
 export class GitManager extends Context.Service<GitManager, GitManagerShape>()(
-  "multi/git/GitManager.service",
+  "honk/git/GitManager.service",
 ) {}

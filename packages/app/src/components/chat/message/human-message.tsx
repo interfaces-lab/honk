@@ -1,4 +1,5 @@
-import { type MessageId } from "@multi/contracts";
+import { type MessageId } from "@honk/contracts";
+import { Button } from "@honk/honkkit/button";
 import {
   IconBranch,
   IconCloudUpload,
@@ -7,7 +8,7 @@ import {
   IconPush,
   type CentralIconBaseProps,
 } from "central-icons";
-import { memo, type ComponentType, type ReactNode } from "react";
+import { type ComponentType, type ReactNode } from "react";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./expanded-image-preview";
 import { TerminalContextInlineChip } from "./terminal-context-chip";
 import {
@@ -16,6 +17,7 @@ import {
   type ParsedTerminalContextEntry,
 } from "~/lib/terminal-context";
 import { type ChatMessage } from "../../../types";
+import { useAuthenticatedImagePreviewSrc } from "./authenticated-image-preview";
 import {
   ChatMessageBubble,
   EditableChatMessageBubble,
@@ -42,7 +44,7 @@ interface HumanMessageProps {
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
 }
 
-export const HumanMessage = memo(function HumanMessage({
+export function HumanMessage({
   message,
   editAvailable,
   isEditing,
@@ -65,35 +67,14 @@ export const HumanMessage = memo(function HumanMessage({
 
   const media =
     userImages.length > 0 ? (
-      <div className="mb-2 grid max-w-md grid-cols-2 gap-2">
+      <div className="mb-2 flex max-w-full flex-wrap gap-2">
         {userImages.map((image) => (
-          <div
+          <HumanMessageImageAttachment
             key={image.id}
-            className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-message-bubble-background)"
-          >
-            {image.previewUrl ? (
-              <button
-                type="button"
-                className="block size-full cursor-zoom-in border-0 bg-transparent p-0"
-                aria-label={`Preview ${image.name}`}
-                onClick={() => {
-                  const preview = buildExpandedImagePreview(userImages, image.id);
-                  if (!preview) return;
-                  onImageExpand(preview);
-                }}
-              >
-                <img
-                  src={image.previewUrl}
-                  alt={image.name}
-                  className="block h-8 w-full object-cover"
-                />
-              </button>
-            ) : (
-              <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-multi-fg-tertiary">
-                {image.name}
-              </div>
-            )}
-          </div>
+            image={image}
+            images={userImages}
+            onImageExpand={onImageExpand}
+          />
         ))}
       </div>
     ) : null;
@@ -144,8 +125,40 @@ export const HumanMessage = memo(function HumanMessage({
     );
   }
 
-  return <ChatMessageBubble role="user" body={body} media={media} />;
-});
+  return <ChatMessageBubble messageRole="user" body={body} media={media} />;
+}
+
+function HumanMessageImageAttachment(props: {
+  image: NonNullable<ChatMessage["attachments"]>[number];
+  images: NonNullable<ChatMessage["attachments"]>;
+  onImageExpand: (preview: ExpandedImagePreview) => void;
+}) {
+  const previewSrc = useAuthenticatedImagePreviewSrc(props.image.previewUrl);
+
+  return (
+    <div className="size-14 shrink-0 overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-(--honk-message-bubble-background)">
+      {previewSrc ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="block size-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
+          aria-label={`Preview ${props.image.name}`}
+          onClick={() => {
+            const preview = buildExpandedImagePreview(props.images, props.image.id);
+            if (!preview) return;
+            props.onImageExpand(preview);
+          }}
+        >
+          <img src={previewSrc} alt={props.image.name} className="block size-full object-cover" />
+        </Button>
+      ) : (
+        <div className="flex size-full items-center justify-center px-1 text-center text-caption text-honk-fg-tertiary">
+          <span className="min-w-0 max-w-full truncate">{props.image.name}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type GitAgentActionIconComponent = ComponentType<CentralIconBaseProps>;
 
@@ -164,30 +177,25 @@ function getGitAgentActionIcon(action: GitAgentAction): GitAgentActionIconCompon
   }
 }
 
-const GitAgentActionMessage = memo(function GitAgentActionMessage(props: {
-  action: GitAgentAction;
-  label: string;
-}) {
+function GitAgentActionMessage(props: { action: GitAgentAction; label: string }) {
   const ActionIcon = getGitAgentActionIcon(props.action);
 
   return (
-    <div className="flex max-w-full min-w-0 items-center gap-1.5 font-medium text-multi-fg-primary">
-      <ActionIcon className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden="true" />
+    <div className="flex max-w-full min-w-0 items-center gap-1.5 font-medium text-honk-fg-primary">
+      <ActionIcon className="size-3.5 shrink-0 text-honk-icon-tertiary" aria-hidden="true" />
       <span className="min-w-0 truncate">{props.label}</span>
     </div>
   );
-});
+}
 
-const UserMessageTerminalContextInlineLabel = memo(
-  function UserMessageTerminalContextInlineLabel(props: { context: ParsedTerminalContextEntry }) {
-    const tooltipText =
-      props.context.body.length > 0
-        ? `${props.context.header}\n${props.context.body}`
-        : props.context.header;
+function UserMessageTerminalContextInlineLabel(props: { context: ParsedTerminalContextEntry }) {
+  const tooltipText =
+    props.context.body.length > 0
+      ? `${props.context.header}\n${props.context.body}`
+      : props.context.header;
 
-    return <TerminalContextInlineChip label={props.context.header} tooltipText={tooltipText} />;
-  },
-);
+  return <TerminalContextInlineChip label={props.context.header} tooltipText={tooltipText} />;
+}
 
 function buildInlineTerminalContextText(
   contexts: ReadonlyArray<{
@@ -221,6 +229,10 @@ function formatInlineTerminalContextLabel(header: string): string {
   });
 }
 
+function findTextFrom(text: string, search: string, fromIndex: number): number {
+  return text.indexOf(search, fromIndex);
+}
+
 function textContainsInlineTerminalContextLabels(
   text: string,
   contexts: ReadonlyArray<{
@@ -231,7 +243,7 @@ function textContainsInlineTerminalContextLabels(
 
   for (const context of contexts) {
     const label = formatInlineTerminalContextLabel(context.header);
-    const matchIndex = text.indexOf(label, searchStartIndex);
+    const matchIndex = findTextFrom(text, label, searchStartIndex);
     if (matchIndex === -1) {
       return false;
     }
@@ -241,10 +253,7 @@ function textContainsInlineTerminalContextLabels(
   return true;
 }
 
-const UserMessageBody = memo(function UserMessageBody(props: {
-  text: string;
-  terminalContexts: ParsedTerminalContextEntry[];
-}) {
+function UserMessageBody(props: { text: string; terminalContexts: ParsedTerminalContextEntry[] }) {
   if (props.terminalContexts.length > 0) {
     const hasEmbeddedInlineLabels = textContainsInlineTerminalContextLabels(
       props.text,
@@ -258,7 +267,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
 
       for (const context of props.terminalContexts) {
         const label = formatInlineTerminalContextLabel(context.header);
-        const matchIndex = props.text.indexOf(label, cursor);
+        const matchIndex = findTextFrom(props.text, label, cursor);
         if (matchIndex === -1) {
           inlineNodes.length = 0;
           break;
@@ -320,4 +329,4 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   }
 
   return <div className="max-w-full min-w-0 break-words wrap-anywhere">{props.text}</div>;
-});
+}

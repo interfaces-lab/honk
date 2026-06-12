@@ -1,13 +1,15 @@
 import {
+  type AgentInteractionMode,
   type EnvironmentId,
   type MessageId,
+  type ModelSelection,
   type ProjectScript,
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,
   type ThreadId,
-} from "@multi/contracts";
-import { scopedThreadKey, scopeThreadRef } from "@multi/client-runtime";
-import { projectScriptCwd } from "@multi/shared/project-scripts";
+} from "@honk/contracts";
+import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
+import { projectScriptCwd } from "@honk/shared/project-scripts";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
@@ -16,7 +18,7 @@ import { isTerminalFocused } from "../../../lib/terminal-focus";
 import { projectScriptIdFromCommand } from "~/lib/project-scripts";
 import { resolveShortcutCommand } from "../../../keybindings";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
-import type { ChatMessage, PendingTimelineRow } from "../../../types";
+import type { ChatMessage, ThreadSendIntent } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
   collectUserMessageBlobPreviewUrls,
@@ -27,14 +29,16 @@ import {
   reconcileMountedTerminalThreadIds,
   type PullRequestDialogState,
 } from "./thread-lifecycle";
-import {
-  type ThreadTerminalLaunchContext,
-} from "../../../terminal-state-store";
+import { type ThreadTerminalLaunchContext } from "../../../terminal-state-store";
 import { type TerminalLaunchContext } from "./persistent-thread-terminal-drawer";
 import {
-  acknowledgedPendingTimelineRows,
-  pendingTimelineRowMessages,
-} from "./pending-timeline-rows";
+  acknowledgedThreadSendIntents,
+  threadSendIntentMessages,
+} from "./thread-timeline-projector";
+import { readHonkRuntimeApi } from "../../../lib/honk-runtime-api";
+import { hydrateRuntimeThread } from "../../../lib/runtime-turn-dispatch";
+
+const RUNTIME_HYDRATION_IDLE_TIMEOUT_MS = 1200;
 
 /**
  * Lifecycle effect components used by `ChatView`. Each component runs a single
@@ -90,6 +94,86 @@ export function RetainServerThreadDetailSync({
   });
 
   return null;
+}
+
+export function RuntimeThreadHydrationSync({
+  cwd,
+  interactionMode,
+  modelSelection,
+  routeKind,
+  threadId,
+  isDraftBoundThread = false,
+}: {
+  cwd: string | null | undefined;
+  interactionMode: AgentInteractionMode;
+  modelSelection: ModelSelection;
+  routeKind: "server" | "draft";
+  threadId: ThreadId;
+  isDraftBoundThread?: boolean;
+}) {
+  useMountEffect(() => {
+    setRuntimeThreadFocus(threadId, true);
+
+    if (routeKind !== "server" || !cwd || isDraftBoundThread) {
+      return () => {
+        setRuntimeThreadFocus(threadId, false);
+      };
+    }
+    const cancelHydration = scheduleRuntimeHydrationAfterFirstPaint(() => {
+      void hydrateRuntimeThread({
+        threadId,
+        cwd,
+        interactionMode,
+        modelSelection,
+      }).catch(() => undefined);
+    });
+    return () => {
+      cancelHydration();
+      setRuntimeThreadFocus(threadId, false);
+    };
+  });
+
+  return null;
+}
+
+function setRuntimeThreadFocus(threadId: ThreadId, focused: boolean): void {
+  try {
+    void readHonkRuntimeApi().setThreadFocus({ threadId, focused }).catch(() => undefined);
+  } catch {
+    return;
+  }
+}
+
+function scheduleRuntimeHydrationAfterFirstPaint(hydrate: () => void): () => void {
+  let secondFrameId: number | null = null;
+  let timeoutId: number | null = null;
+  let idleCallbackId: number | null = null;
+
+  const firstFrameId = window.requestAnimationFrame(() => {
+    secondFrameId = window.requestAnimationFrame(() => {
+      if (typeof window.requestIdleCallback === "function") {
+        idleCallbackId = window.requestIdleCallback(hydrate, {
+          timeout: RUNTIME_HYDRATION_IDLE_TIMEOUT_MS,
+        });
+        return;
+      }
+
+      timeoutId = window.setTimeout(hydrate, 32);
+    });
+  });
+
+  return () => {
+    window.cancelAnimationFrame(firstFrameId);
+    if (secondFrameId !== null) {
+      window.cancelAnimationFrame(secondFrameId);
+    }
+    if (idleCallbackId !== null && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(idleCallbackId);
+    }
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  };
 }
 
 export function MarkSettledServerThreadVisitedSync({
@@ -165,36 +249,40 @@ export function ActiveThreadComposerFocusSync({
   return null;
 }
 
-export function PendingTimelineRowsServerAckSync({
+export function ThreadSendIntentsServerAckSync({
+  acknowledgedMessageIds,
   handoffAttachmentPreviews,
-  pendingTimelineRows,
-  removePendingTimelineRows,
+  removeThreadSendIntents,
   serverMessages,
+  threadSendIntents,
   threadKey,
 }: {
+  acknowledgedMessageIds?: ReadonlySet<MessageId> | undefined;
   handoffAttachmentPreviews: (messageId: MessageId, previewUrls: string[]) => void;
-  pendingTimelineRows: ReadonlyArray<PendingTimelineRow>;
-  removePendingTimelineRows: (
+  removeThreadSendIntents: (
     threadKey: string,
     clientSendKeys: ReadonlySet<MessageId>,
-  ) => PendingTimelineRow[];
+  ) => ThreadSendIntent[];
   serverMessages: readonly ChatMessage[] | undefined;
+  threadSendIntents: ReadonlyArray<ThreadSendIntent>;
   threadKey: string;
 }) {
   useMountEffect(() => {
-    if (!serverMessages || serverMessages.length === 0) {
+    const committedMessages = serverMessages ?? [];
+    if (committedMessages.length === 0 && (acknowledgedMessageIds?.size ?? 0) === 0) {
       return;
     }
-    const removedRows = acknowledgedPendingTimelineRows({
-      pendingRows: pendingTimelineRows,
-      committedMessages: serverMessages,
+    const removedIntents = acknowledgedThreadSendIntents({
+      sendIntents: threadSendIntents,
+      committedMessages,
+      acknowledgedMessageIds,
     });
-    if (removedRows.length === 0) {
+    if (removedIntents.length === 0) {
       return;
     }
-    const removedClientSendKeys = new Set(removedRows.map((row) => row.clientSendKey));
-    const storedRemovedRows = removePendingTimelineRows(threadKey, removedClientSendKeys);
-    for (const removedMessage of pendingTimelineRowMessages(storedRemovedRows)) {
+    const removedClientSendKeys = new Set(removedIntents.map((intent) => intent.clientMessageId));
+    const storedRemovedIntents = removeThreadSendIntents(threadKey, removedClientSendKeys);
+    for (const removedMessage of threadSendIntentMessages(storedRemovedIntents)) {
       const previewUrls = collectUserMessageBlobPreviewUrls(removedMessage);
       if (previewUrls.length > 0) {
         handoffAttachmentPreviews(removedMessage.id, previewUrls);

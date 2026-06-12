@@ -9,23 +9,18 @@
  * write. The hook transparently routes reads/writes to the correct backing
  * store.
  */
-import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { ServerSettings, ServerSettingsPatch } from "@multi/contracts";
+import { useSyncExternalStore } from "react";
+import { ServerSettings, ServerSettingsPatch } from "@honk/contracts";
 import {
   type ClientSettings,
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_UNIFIED_SETTINGS,
   UnifiedSettings,
-} from "@multi/contracts/settings";
+} from "@honk/contracts/settings";
 import { ensureLocalApi } from "~/local-api";
 import { Struct } from "effect";
-import { deepMerge } from "@multi/shared/Struct";
-import {
-  applyProvidersUpdated,
-  applySettingsUpdated,
-  getServerConfig,
-  useServerSettings,
-} from "~/rpc/server-state";
+import { deepMerge } from "@honk/shared/Struct";
+import { applySettingsUpdated, getServerConfig, useServerSettings } from "~/rpc/server-state";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";
 
@@ -135,15 +130,20 @@ export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings)
     () => DEFAULT_CLIENT_SETTINGS,
   );
 
-  const merged = useMemo<UnifiedSettings>(
-    () => ({
-      ...serverSettings,
-      ...clientSettings,
-    }),
-    [clientSettings, serverSettings],
-  );
+  const merged: UnifiedSettings = {
+    ...serverSettings,
+    ...clientSettings,
+  };
 
-  return useMemo(() => (selector ? selector(merged) : (merged as T)), [merged, selector]);
+  return selector ? selector(merged) : (merged as T);
+}
+
+export function readSettings(): UnifiedSettings {
+  return {
+    ...DEFAULT_UNIFIED_SETTINGS,
+    ...(getServerConfig()?.settings ?? {}),
+    ...getClientSettingsSnapshot(),
+  };
 }
 
 /**
@@ -153,12 +153,9 @@ export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings)
  * persisted via RPC. Client keys go through client persistence.
  */
 export function useUpdateSettings() {
-  const updateSettings = useCallback(async (patch: Partial<UnifiedSettings>) => {
+  const updateSettings = async (patch: Partial<UnifiedSettings>) => {
     const { serverPatch, clientPatch } = splitPatch(patch);
     const writes: Promise<unknown>[] = [];
-    const refreshProvidersAfterWrite =
-      serverPatch.providers !== undefined || serverPatch.providerInstances !== undefined;
-
     if (Object.keys(serverPatch).length > 0) {
       const currentServerConfig = getServerConfig();
       if (currentServerConfig) {
@@ -179,17 +176,9 @@ export function useUpdateSettings() {
     }
 
     await Promise.all(writes);
-    if (refreshProvidersAfterWrite) {
-      await ensureLocalApi()
-        .server.refreshProviders()
-        .then((payload) => applyProvidersUpdated(payload));
-    }
-  }, []);
+  };
 
-  const resetSettings = useCallback(
-    () => updateSettings(DEFAULT_UNIFIED_SETTINGS),
-    [updateSettings],
-  );
+  const resetSettings = () => updateSettings(DEFAULT_UNIFIED_SETTINGS);
 
   return {
     updateSettings,

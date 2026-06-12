@@ -1,5 +1,5 @@
-import type { DesktopEnvironmentBootstrap } from "@multi/contracts";
-import type { KnownEnvironment } from "@multi/client-runtime";
+import type { DesktopEnvironmentBootstrap } from "@honk/contracts";
+import type { KnownEnvironment } from "~/lib/environment-scope";
 
 export interface PrimaryEnvironmentTarget {
   readonly source: KnownEnvironment["source"];
@@ -74,12 +74,12 @@ function resolveConfiguredPrimaryTarget(): PrimaryEnvironmentTarget | null {
     configuredHttpBaseUrl ??
     (configuredWsBaseUrl?.startsWith("wss:")
       ? swapBaseUrlProtocol(configuredWsBaseUrl, "https:")
-      : swapBaseUrlProtocol(configuredWsBaseUrl!, "http:"));
+      : swapBaseUrlProtocol(configuredWsBaseUrl, "http:"));
   const resolvedWsBaseUrl =
     configuredWsBaseUrl ??
     (configuredHttpBaseUrl?.startsWith("https:")
       ? swapBaseUrlProtocol(configuredHttpBaseUrl, "wss:")
-      : swapBaseUrlProtocol(configuredHttpBaseUrl!, "ws:"));
+      : swapBaseUrlProtocol(configuredHttpBaseUrl, "ws:"));
 
   return {
     source: "configured",
@@ -114,20 +114,14 @@ function resolveDesktopPrimaryTarget(): PrimaryEnvironmentTarget | null {
   if (!desktopBootstrap) {
     return null;
   }
-  if (!desktopBootstrap.httpBaseUrl && !desktopBootstrap.wsBaseUrl) {
-    return null;
-  }
-  if (!desktopBootstrap.httpBaseUrl || !desktopBootstrap.wsBaseUrl) {
-    throw new Error(
-      "Desktop bootstrap must provide both httpBaseUrl and wsBaseUrl for the local environment.",
-    );
-  }
 
   return {
     source: "desktop-managed",
     target: {
       httpBaseUrl: normalizeBaseUrl(desktopBootstrap.httpBaseUrl),
-      wsBaseUrl: normalizeBaseUrl(desktopBootstrap.wsBaseUrl),
+      wsBaseUrl: desktopBootstrap.httpBaseUrl.startsWith("https:")
+        ? swapBaseUrlProtocol(desktopBootstrap.httpBaseUrl, "wss:")
+        : swapBaseUrlProtocol(desktopBootstrap.httpBaseUrl, "ws:"),
     },
   };
 }
@@ -141,7 +135,11 @@ export function resolvePrimaryEnvironmentHttpUrl(
     throw new Error("Unable to resolve the primary environment HTTP base URL.");
   }
 
-  const url = new URL(resolveHttpRequestBaseUrl(primaryTarget.target.httpBaseUrl));
+  const requestBaseUrl =
+    primaryTarget.source === "window-origin"
+      ? resolveHttpRequestBaseUrl(primaryTarget.target.httpBaseUrl)
+      : primaryTarget.target.httpBaseUrl;
+  const url = new URL(requestBaseUrl);
   url.pathname = pathname;
   if (searchParams) {
     url.search = new URLSearchParams(searchParams).toString();

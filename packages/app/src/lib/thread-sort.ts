@@ -1,5 +1,4 @@
-import type { ProjectId } from "@multi/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@multi/contracts/settings";
+import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
 import type { Thread } from "../types";
 
 export type ThreadSortInput = Pick<Thread, "createdAt" | "updatedAt"> & {
@@ -39,7 +38,7 @@ function getLatestUserMessageTimestamp(thread: ThreadSortInput): number {
 
 function getThreadSortTimestamp(
   thread: ThreadSortInput,
-  sortOrder: SidebarThreadSortOrder | Exclude<SidebarProjectSortOrder, "manual">,
+  sortOrder: SidebarThreadSortOrder,
 ): number {
   if (sortOrder === "created_at") {
     return toSortableTimestamp(thread.createdAt) ?? Number.NEGATIVE_INFINITY;
@@ -59,15 +58,4 @@ export function sortThreads<T extends Pick<Thread, "id"> & ThreadSortInput>(
     if (byTimestamp !== 0) return byTimestamp;
     return right.id.localeCompare(left.id);
   });
-}
-
-export function getLatestThreadForProject<
-  T extends Pick<Thread, "id" | "projectId" | "archivedAt"> & ThreadSortInput,
->(threads: readonly T[], projectId: ProjectId, sortOrder: SidebarThreadSortOrder): T | null {
-  return (
-    sortThreads(
-      threads.filter((thread) => thread.projectId === projectId && thread.archivedAt === null),
-      sortOrder,
-    )[0] ?? null
-  );
 }

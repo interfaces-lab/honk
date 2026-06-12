@@ -5,8 +5,8 @@
  * API constrained to store actions/selectors.
  */
 
-import { scopedThreadKey } from "@multi/client-runtime";
-import { type ScopedThreadRef, type TerminalEvent } from "@multi/contracts";
+import { scopedThreadKey } from "~/lib/environment-scope";
+import { type ScopedThreadRef, type TerminalEvent } from "@honk/contracts";
 import { Option, Schema } from "effect";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -61,7 +61,7 @@ export interface TerminalEventEntry {
   event: TerminalEvent;
 }
 
-const TERMINAL_STATE_STORAGE_KEY = "multi:terminal-state:v1";
+const TERMINAL_STATE_STORAGE_KEY = "honk:terminal-state:v1";
 const EMPTY_TERMINAL_EVENT_ENTRIES: ReadonlyArray<TerminalEventEntry> = [];
 const MAX_TERMINAL_EVENT_BUFFER = 200;
 

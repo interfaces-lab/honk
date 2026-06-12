@@ -1,15 +1,13 @@
-import { Button } from "@multi/ui/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
-import { memo } from "react";
-
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {
   buildExpandedImagePreview,
   type ExpandedImagePreview,
 } from "../../message/expanded-image-preview";
 
-export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmentStrip(props: {
+export function ComposerImageAttachmentStrip(props: {
   images: readonly ComposerImageAttachment[];
   nonPersistedImageIds: ReadonlySet<string>;
   onExpandImage: (preview: ExpandedImagePreview) => void;
@@ -24,12 +22,13 @@ export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmen
       {props.images.map((image) => (
         <div
           key={image.id}
-          className="relative h-14 w-14 overflow-hidden rounded-[var(--multi-radius-control,6px)] border border-border/80 bg-background"
+          className="relative h-14 w-14 overflow-hidden rounded-[var(--honk-radius-control,6px)] border border-border/80 bg-background"
         >
           {image.previewUrl ? (
-            <button
+            <Button
               type="button"
-              className="h-full w-full cursor-zoom-in"
+              variant="ghost"
+              className="h-full w-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
               aria-label={`Preview ${image.name}`}
               onClick={() => {
                 const preview = buildExpandedImagePreview(props.images, image.id);
@@ -38,7 +37,7 @@ export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmen
               }}
             >
               <img src={image.previewUrl} alt={image.name} className="h-full w-full object-cover" />
-            </button>
+            </Button>
           ) : (
             <div className="flex h-full w-full items-center justify-center px-1 text-center text-caption text-muted-foreground/70">
               {image.name}
@@ -75,4 +74,4 @@ export const ComposerImageAttachmentStrip = memo(function ComposerImageAttachmen
       ))}
     </div>
   );
-});
+}

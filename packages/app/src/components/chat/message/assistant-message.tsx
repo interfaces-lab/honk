@@ -1,4 +1,3 @@
-import { memo } from "react";
 import { type ChatMessage } from "../../../types";
 import ChatMarkdown from "../markdown/chat-markdown";
 import { ChatMessageBubble } from "./message-surface";
@@ -8,10 +7,7 @@ interface AssistantMessageProps {
   markdownCwd: string | undefined;
 }
 
-export const AssistantMessage = memo(function AssistantMessage({
-  message,
-  markdownCwd,
-}: AssistantMessageProps) {
+export function AssistantMessage({ message, markdownCwd }: AssistantMessageProps) {
   const messageText = message.text || (message.streaming ? "" : "(empty response)");
 
   const body = (
@@ -27,8 +23,10 @@ export const AssistantMessage = memo(function AssistantMessage({
   );
 
   return (
-    <div className="min-w-0 pt-(--chat-timeline-assistant-top-inset)">
-      <ChatMessageBubble role="assistant" body={body} />
+    // Full width inside the flex transcript row: a flex child sizes to max-content,
+    // which shrinks short messages and their code blocks with them.
+    <div className="w-full min-w-0">
+      <ChatMessageBubble messageRole="assistant" body={body} />
     </div>
   );
-});
+}

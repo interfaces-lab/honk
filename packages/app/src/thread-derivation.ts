@@ -1,5 +1,4 @@
-import type { EnvironmentId, MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
-import type { OrchestrationChatTimelineRow } from "@multi/contracts";
+import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@honk/contracts";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,
@@ -17,7 +16,6 @@ const EMPTY_MESSAGES: ChatMessage[] = [];
 const EMPTY_LIVE_ASSISTANT_TURNS: LiveAssistantTurn[] = [];
 const EMPTY_ACTIVITIES: Thread["activities"] = [];
 const EMPTY_PROPOSED_PLANS: ProposedPlan[] = [];
-const EMPTY_CHAT_TIMELINE_ROWS: NonNullable<Thread["chatTimelineRows"]> = [];
 const EMPTY_TURN_DIFF_SUMMARIES: TurnDiffSummary[] = [];
 const EMPTY_THREAD_ENTRIES: ThreadTreeEntry[] = [];
 const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
@@ -26,7 +24,8 @@ const EMPTY_ACTIVITY_MAP: Record<string, Thread["activities"][number]> = {};
 const EMPTY_PROPOSED_PLAN_MAP: Record<string, ProposedPlan> = {};
 const EMPTY_TURN_DIFF_MAP: Record<TurnId, TurnDiffSummary> = {};
 
-const collectedByIdsCache = new WeakMap<readonly string[], WeakMap<object, readonly unknown[]>>();
+const collectByIdsCache = new WeakMap<readonly string[], WeakMap<object, unknown[]>>();
+
 const threadCache = new WeakMap<
   ThreadShell,
   {
@@ -39,7 +38,6 @@ const threadCache = new WeakMap<
     activities: Thread["activities"];
     proposedPlans: Thread["proposedPlans"];
     turnDiffSummaries: Thread["turnDiffSummaries"];
-    chatTimelineRows: NonNullable<Thread["chatTimelineRows"]>;
     thread: Thread;
   }
 >();
@@ -53,22 +51,22 @@ function collectByIds<TKey extends string, TValue>(
     return emptyValue;
   }
 
-  const cachedByRecord = collectedByIdsCache.get(ids);
-  const cached = cachedByRecord?.get(byId);
+  let byIdCache = collectByIdsCache.get(ids);
+  if (!byIdCache) {
+    byIdCache = new WeakMap<object, unknown[]>();
+    collectByIdsCache.set(ids, byIdCache);
+  }
+  const cached = byIdCache.get(byId);
   if (cached) {
     return cached as TValue[];
   }
 
-  const nextValues = ids.flatMap((id) => {
+  const result = ids.flatMap((id) => {
     const value = byId[id];
     return value ? [value] : [];
   });
-  const nextCachedByRecord = cachedByRecord ?? new WeakMap<object, readonly unknown[]>();
-  nextCachedByRecord.set(byId, nextValues);
-  if (!cachedByRecord) {
-    collectedByIdsCache.set(ids, nextCachedByRecord);
-  }
-  return nextValues;
+  byIdCache.set(byId, result);
+  return result;
 }
 
 function selectThreadMessages(state: EnvironmentState, threadId: ThreadId): Thread["messages"] {
@@ -172,7 +170,6 @@ export function getThreadFromEnvironmentState(
   const activities = selectThreadActivities(state, threadId);
   const proposedPlans = selectThreadProposedPlans(state, threadId);
   const turnDiffSummaries = selectThreadTurnDiffSummaries(state, threadId);
-  const chatTimelineRows = state.chatTimelineRowsByThreadId?.[threadId] ?? EMPTY_CHAT_TIMELINE_ROWS;
   const cached = threadCache.get(shell);
 
   if (
@@ -185,8 +182,7 @@ export function getThreadFromEnvironmentState(
     cached.entries === entries &&
     cached.activities === activities &&
     cached.proposedPlans === proposedPlans &&
-    cached.turnDiffSummaries === turnDiffSummaries &&
-    cached.chatTimelineRows === chatTimelineRows
+    cached.turnDiffSummaries === turnDiffSummaries
   ) {
     return cached.thread;
   }
@@ -202,7 +198,6 @@ export function getThreadFromEnvironmentState(
     activities,
     proposedPlans,
     turnDiffSummaries,
-    chatTimelineRows,
   };
 
   threadCache.set(shell, {
@@ -215,7 +210,6 @@ export function getThreadFromEnvironmentState(
     activities,
     proposedPlans,
     turnDiffSummaries,
-    chatTimelineRows,
     thread,
   });
 

@@ -20,10 +20,10 @@ export function TerminalRail(props: {
             <div
               key={session.id}
               className={cn(
-                "group flex min-h-6 items-center gap-2 rounded-multi-control px-1.5 py-1 text-body transition-colors",
+                "group flex min-h-6 items-center gap-2 rounded-honk-control px-1.5 py-1 text-body transition-colors",
                 active
-                  ? "bg-multi-bg-tertiary text-foreground"
-                  : "text-muted-foreground hover:bg-multi-bg-quaternary hover:text-foreground",
+                  ? "bg-honk-bg-tertiary text-foreground"
+                  : "text-muted-foreground hover:bg-honk-bg-quaternary hover:text-foreground",
               )}
             >
               <button
@@ -39,7 +39,7 @@ export function TerminalRail(props: {
                   type="button"
                   aria-label={`Close ${session.label}`}
                   onClick={() => props.onClose(session.id)}
-                  className="flex size-4 shrink-0 items-center justify-center rounded-sm text-multi-fg-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-multi-fg-primary"
+                  className="flex size-4 shrink-0 items-center justify-center rounded-sm text-honk-fg-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-honk-fg-primary"
                 >
                   <IconCrossMediumDefault className="size-3" />
                 </button>

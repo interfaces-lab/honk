@@ -1,4 +1,5 @@
-import { memo, useCallback, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Button } from "@honk/honkkit/button";
 import { cn } from "~/lib/utils";
 
 const COLLAPSED_MAX_PX = 72;
@@ -7,15 +8,11 @@ function measureOverflow(el: HTMLElement): boolean {
   return el.scrollHeight > COLLAPSED_MAX_PX + 1;
 }
 
-export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
   const [overflows, setOverflows] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const measureElement = useCallback((el: HTMLDivElement | null) => {
+  const measureElement = (el: HTMLDivElement | null) => {
     if (!el) {
       return;
     }
@@ -32,7 +29,7 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  };
 
   const collapsed = overflows && !expanded;
 
@@ -41,17 +38,18 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
       <div
         className={cn(
           collapsed &&
-            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--multi-message-bubble-background)_72%,var(--multi-message-bubble-background)_100%)] after:content-['']",
+            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--honk-message-bubble-background)_72%,var(--honk-message-bubble-background)_100%)] after:content-['']",
         )}
       >
         <div ref={measureElement}>{children}</div>
       </div>
       {overflows ? (
-        <button
-          type="button"
+        <Button
           data-human-message-collapse-toggle=""
+          size="xs"
+          variant="link"
           className={cn(
-            "mt-1 text-left text-detail font-medium text-muted-foreground/80",
+            "mt-1 h-auto justify-start p-0 text-left text-detail font-medium text-muted-foreground/80",
             "hover:text-muted-foreground hover:underline",
           )}
           onClick={(event) => {
@@ -60,8 +58,8 @@ export const HumanMessageCollapsible = memo(function HumanMessageCollapsible({
           }}
         >
           {expanded ? "Show less" : "Show more"}
-        </button>
+        </Button>
       ) : null}
     </div>
   );
-});
+}

@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Schema } from "effect";
 import { ExecutionEnvironmentDescriptor } from "./environment";
 import { ServerAuthDescriptor } from "./auth";
 import {
@@ -10,8 +10,6 @@ import {
 } from "./base-schemas";
 import { KeybindingRule, ResolvedKeybindingsConfig } from "./keybindings";
 import { EditorId } from "./editor";
-import { ModelCapabilities } from "./model";
-import { ProviderDriverKind, ProviderInstanceId } from "./provider-instance";
 import { ServerSettings } from "./settings";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
@@ -33,87 +31,6 @@ export type ServerConfigIssue = typeof ServerConfigIssue.Type;
 
 const ServerConfigIssues = Schema.Array(ServerConfigIssue);
 
-export const ServerProviderState = Schema.Literals(["ready", "warning", "error", "disabled"]);
-export type ServerProviderState = typeof ServerProviderState.Type;
-
-export const ServerProviderAuthStatus = Schema.Literals([
-  "authenticated",
-  "unauthenticated",
-  "unknown",
-]);
-export type ServerProviderAuthStatus = typeof ServerProviderAuthStatus.Type;
-
-export const ServerProviderAuth = Schema.Struct({
-  status: ServerProviderAuthStatus,
-  type: Schema.optional(TrimmedNonEmptyString),
-  label: Schema.optional(TrimmedNonEmptyString),
-});
-export type ServerProviderAuth = typeof ServerProviderAuth.Type;
-
-export const ServerProviderModel = Schema.Struct({
-  slug: TrimmedNonEmptyString,
-  name: TrimmedNonEmptyString,
-  shortName: Schema.optional(TrimmedNonEmptyString),
-  subProvider: Schema.optional(TrimmedNonEmptyString),
-  selectable: Schema.optional(Schema.Boolean),
-  isCustom: Schema.Boolean,
-  capabilities: Schema.NullOr(ModelCapabilities),
-});
-export type ServerProviderModel = typeof ServerProviderModel.Type;
-
-export const ServerProviderSlashCommandInput = Schema.Struct({
-  hint: TrimmedNonEmptyString,
-});
-export type ServerProviderSlashCommandInput = typeof ServerProviderSlashCommandInput.Type;
-
-export const ServerProviderSlashCommand = Schema.Struct({
-  name: TrimmedNonEmptyString,
-  description: Schema.optional(TrimmedNonEmptyString),
-  input: Schema.optional(ServerProviderSlashCommandInput),
-});
-export type ServerProviderSlashCommand = typeof ServerProviderSlashCommand.Type;
-
-export const ServerProviderSkill = Schema.Struct({
-  name: TrimmedNonEmptyString,
-  description: Schema.optional(TrimmedNonEmptyString),
-  path: TrimmedNonEmptyString,
-  scope: Schema.optional(TrimmedNonEmptyString),
-  enabled: Schema.Boolean,
-  displayName: Schema.optional(TrimmedNonEmptyString),
-  shortDescription: Schema.optional(TrimmedNonEmptyString),
-});
-export type ServerProviderSkill = typeof ServerProviderSkill.Type;
-
-export const ServerProvider = Schema.Struct({
-  instanceId: ProviderInstanceId,
-  driver: ProviderDriverKind,
-  displayName: Schema.optional(TrimmedNonEmptyString),
-  accentColor: Schema.optional(TrimmedNonEmptyString),
-  continuation: Schema.optional(
-    Schema.Struct({
-      groupKey: TrimmedNonEmptyString,
-    }),
-  ),
-  badgeLabel: Schema.optional(TrimmedNonEmptyString),
-  showInteractionModeToggle: Schema.optional(Schema.Boolean),
-  enabled: Schema.Boolean,
-  installed: Schema.Boolean,
-  version: Schema.NullOr(TrimmedNonEmptyString),
-  status: ServerProviderState,
-  auth: ServerProviderAuth,
-  checkedAt: IsoDateTime,
-  message: Schema.optional(TrimmedNonEmptyString),
-  models: Schema.Array(ServerProviderModel),
-  slashCommands: Schema.Array(ServerProviderSlashCommand).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
-  skills: Schema.Array(ServerProviderSkill).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-});
-export type ServerProvider = typeof ServerProvider.Type;
-
-export const ServerProviders = Schema.Array(ServerProvider);
-export type ServerProviders = typeof ServerProviders.Type;
-
 export const ServerObservability = Schema.Struct({
   logsDirectoryPath: TrimmedNonEmptyString,
   localTracingEnabled: Schema.Boolean,
@@ -131,7 +48,6 @@ export const ServerConfig = Schema.Struct({
   keybindingsConfigPath: TrimmedNonEmptyString,
   keybindings: ResolvedKeybindingsConfig,
   issues: ServerConfigIssues,
-  providers: ServerProviders,
   availableEditors: Schema.Array(EditorId),
   observability: ServerObservability,
   settings: ServerSettings,
@@ -149,7 +65,6 @@ export type ServerUpsertKeybindingResult = typeof ServerUpsertKeybindingResult.T
 
 export const ServerConfigUpdatedPayload = Schema.Struct({
   issues: ServerConfigIssues,
-  providers: ServerProviders,
   settings: Schema.optional(ServerSettings),
 });
 export type ServerConfigUpdatedPayload = typeof ServerConfigUpdatedPayload.Type;
@@ -159,11 +74,6 @@ export const ServerConfigKeybindingsUpdatedPayload = Schema.Struct({
 });
 export type ServerConfigKeybindingsUpdatedPayload =
   typeof ServerConfigKeybindingsUpdatedPayload.Type;
-
-export const ServerConfigProviderStatusesPayload = Schema.Struct({
-  providers: ServerProviders,
-});
-export type ServerConfigProviderStatusesPayload = typeof ServerConfigProviderStatusesPayload.Type;
 
 export const ServerConfigSettingsUpdatedPayload = Schema.Struct({
   settings: ServerSettings,
@@ -185,14 +95,6 @@ export const ServerConfigStreamKeybindingsUpdatedEvent = Schema.Struct({
 export type ServerConfigStreamKeybindingsUpdatedEvent =
   typeof ServerConfigStreamKeybindingsUpdatedEvent.Type;
 
-export const ServerConfigStreamProviderStatusesEvent = Schema.Struct({
-  version: Schema.Literal(1),
-  type: Schema.Literal("providerStatuses"),
-  payload: ServerConfigProviderStatusesPayload,
-});
-export type ServerConfigStreamProviderStatusesEvent =
-  typeof ServerConfigStreamProviderStatusesEvent.Type;
-
 export const ServerConfigStreamSettingsUpdatedEvent = Schema.Struct({
   version: Schema.Literal(1),
   type: Schema.Literal("settingsUpdated"),
@@ -204,7 +106,6 @@ export type ServerConfigStreamSettingsUpdatedEvent =
 export const ServerConfigStreamEvent = Schema.Union([
   ServerConfigStreamSnapshotEvent,
   ServerConfigStreamKeybindingsUpdatedEvent,
-  ServerConfigStreamProviderStatusesEvent,
   ServerConfigStreamSettingsUpdatedEvent,
 ]);
 export type ServerConfigStreamEvent = typeof ServerConfigStreamEvent.Type;
@@ -245,8 +146,3 @@ export const ServerLifecycleStreamEvent = Schema.Union([
   ServerLifecycleStreamReadyEvent,
 ]);
 export type ServerLifecycleStreamEvent = typeof ServerLifecycleStreamEvent.Type;
-
-export const ServerProviderUpdatedPayload = Schema.Struct({
-  providers: ServerProviders,
-});
-export type ServerProviderUpdatedPayload = typeof ServerProviderUpdatedPayload.Type;

@@ -5,7 +5,7 @@ import type {
   OrchestrationThread,
   ProjectId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect } from "effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
@@ -84,44 +84,6 @@ export function requireThread(input: {
     invariantError(
       input.command.type,
       `Thread '${input.threadId}' does not exist for command '${input.command.type}'.`,
-    ),
-  );
-}
-
-export function requireThreadArchived(input: {
-  readonly readModel: OrchestrationReadModel;
-  readonly command: OrchestrationCommand;
-  readonly threadId: ThreadId;
-}): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
-  return requireThread(input).pipe(
-    Effect.flatMap((thread) =>
-      thread.archivedAt !== null
-        ? Effect.succeed(thread)
-        : Effect.fail(
-            invariantError(
-              input.command.type,
-              `Thread '${input.threadId}' is not archived for command '${input.command.type}'.`,
-            ),
-          ),
-    ),
-  );
-}
-
-export function requireThreadNotArchived(input: {
-  readonly readModel: OrchestrationReadModel;
-  readonly command: OrchestrationCommand;
-  readonly threadId: ThreadId;
-}): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
-  return requireThread(input).pipe(
-    Effect.flatMap((thread) =>
-      thread.archivedAt === null
-        ? Effect.succeed(thread)
-        : Effect.fail(
-            invariantError(
-              input.command.type,
-              `Thread '${input.threadId}' is already archived and cannot handle command '${input.command.type}'.`,
-            ),
-          ),
     ),
   );
 }

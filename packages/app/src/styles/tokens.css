@@ -4,30 +4,32 @@
  */
 
 :root {
-  --multi-font-ui:
+  --honk-font-ui:
     -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
-  --multi-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
-  --multi-font-smoothing-webkit: antialiased;
-  --multi-font-smoothing-moz: grayscale;
+  --honk-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  --honk-font-smoothing-webkit: antialiased;
+  --honk-font-smoothing-moz: grayscale;
   /* Defaults copied from local Cursor glass.theme tint preferences. */
-  --multi-user-hue: 261;
-  --multi-intensity: 20;
+  --honk-user-hue: 261;
+  --honk-intensity: 20;
   /* Typography scale relative to user preference. */
-  --multi-text-caption: calc(var(--multi-ui-font-size-user, 13px) - 3px);
-  --multi-text-detail: calc(var(--multi-ui-font-size-user, 13px) - 2px);
-  --multi-text-body: calc(var(--multi-ui-font-size-user, 13px) - 1px);
-  --multi-text-title: var(--multi-ui-font-size-user, 13px);
-  --multi-text-heading: calc(var(--multi-ui-font-size-user, 13px) + 3px);
-  --multi-leading-caption: calc(var(--multi-ui-font-size-user, 13px) - 1px);
-  --multi-leading-detail: calc(var(--multi-ui-font-size-user, 13px) + 1px);
-  --multi-leading-body: calc(var(--multi-ui-font-size-user, 13px) + 3px);
-  --multi-leading-title: calc(var(--multi-ui-font-size-user, 13px) + 5px);
-  --multi-leading-heading: calc(var(--multi-ui-font-size-user, 13px) + 8px);
+  --honk-text-caption: calc(var(--honk-ui-font-size-user, 13px) - 3px);
+  --honk-text-detail: calc(var(--honk-ui-font-size-user, 13px) - 2px);
+  --honk-text-body: calc(var(--honk-ui-font-size-user, 13px) - 1px);
+  --honk-text-title: var(--honk-ui-font-size-user, 13px);
+  --honk-text-heading: calc(var(--honk-ui-font-size-user, 13px) + 3px);
+  --honk-leading-caption: calc(var(--honk-ui-font-size-user, 13px) - 1px);
+  --honk-leading-detail: calc(var(--honk-ui-font-size-user, 13px) + 1px);
+  --honk-leading-body: calc(var(--honk-ui-font-size-user, 13px) + 3px);
+  --honk-leading-title: calc(var(--honk-ui-font-size-user, 13px) + 5px);
+  --honk-leading-heading: calc(var(--honk-ui-font-size-user, 13px) + 8px);
+  /* Cursor `.markdown-root.markdown-normalized` heading line height (unitless ratio). */
+  --honk-leading-conversation-normalized: 1.42;
   /* Border radius */
-  --multi-radius-control: 6px;
-  --multi-radius-card: var(--multi-radius-card-user, 10px);
-  --multi-radius-chip: var(--multi-radius-chip-user, 20px);
-  --multi-radius-pill: var(--multi-radius-chip-user, 20px);
+  --honk-radius-control: 6px;
+  --honk-radius-card: var(--honk-radius-card-user, 10px);
+  --honk-radius-chip: var(--honk-radius-chip-user, 20px);
+  --honk-radius-pill: var(--honk-radius-chip-user, 20px);
 }
 
 /*
@@ -38,20 +40,20 @@
 :root:not(.dark) {
   color-scheme: light;
   --app-background: var(--background);
-  --multi-vibrancy-sidebar-mix: 42%;
-  --multi-vibrancy-chat-mix: 84%;
-  --multi-vibrancy-editor-mix: var(--multi-vibrancy-chat-mix);
-  --multi-glass-surface-background: hsl(0 0% 100% / 0.16);
+  --honk-vibrancy-sidebar-mix: 42%;
+  --honk-vibrancy-chat-mix: 84%;
+  --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
+  --honk-glass-surface-background: hsl(0 0% 100% / 0.16);
 
-  --background: var(--multi-base-editor);
-  --multi-base-foreground: #141414;
-  --multi-cursor-base: var(--multi-base-foreground);
-  --foreground: var(--multi-base-foreground);
-  --multi-swatch-inset-shadow: inset 0 0 0 1px
+  --background: var(--cursor-bg-editor);
+  --honk-base-foreground: #141414;
+  --honk-cursor-base: var(--honk-base-foreground);
+  --foreground: var(--honk-base-foreground);
+  --honk-swatch-inset-shadow: inset 0 0 0 1px
     color-mix(in srgb, var(--foreground) 16%, transparent);
-  --card: var(--multi-base-editor);
+  --card: var(--cursor-bg-editor);
   --card-foreground: var(--foreground);
-  --popover: var(--multi-base-editor);
+  --popover: var(--cursor-bg-editor);
   --popover-foreground: var(--foreground);
 
   --secondary: color-mix(in srgb, var(--foreground) 4%, transparent);
@@ -59,15 +61,23 @@
   --muted: color-mix(in srgb, var(--foreground) 4%, transparent);
   --muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);
 
-  /* Tint bases (Cursor surface split): TS owns user hue / intensity math. */
-  --multi-base-sidebar: #f3f3f3;
-  --multi-base-chrome: #f8f8f8;
-  --multi-base-editor: #fcfcfc;
-  --multi-base-accent: #3685bf;
-  --multi-base-focus: #3685bf;
-  --multi-shadow-primary: color-mix(in srgb, #000000 6%, transparent);
+  /* Cursor core glass tokens. TS only emits scoped overrides when intensity is active. */
+  --cursor-sidebar: #f3f3f3;
+  --cursor-chrome: #f8f8f8;
+  --cursor-editor: #fcfcfc;
+  --cursor-accent: #3685bf;
+  --cursor-focus: #3685bf;
+  --cursor-bg-sidebar: var(--cursor-sidebar);
+  --cursor-bg-chrome: var(--cursor-chrome);
+  --cursor-bg-editor: var(--cursor-editor);
+  --honk-base-sidebar: var(--cursor-sidebar);
+  --honk-base-chrome: var(--cursor-chrome);
+  --honk-base-editor: var(--cursor-editor);
+  --honk-base-accent: var(--cursor-accent);
+  --honk-base-focus: var(--cursor-focus);
+  --honk-shadow-primary: color-mix(in srgb, #000000 6%, transparent);
 
-  --accent: var(--multi-bg-secondary);
+  --accent: var(--honk-bg-secondary);
   --accent-foreground: var(--foreground);
 
   --destructive: oklch(0.647 0.239 23.794);
@@ -77,63 +87,63 @@
   --warning: oklch(0.82 0.16 88);
   --warning-foreground: oklch(0.28 0.06 88);
 
-  --border: var(--multi-stroke-tertiary);
-  --input: var(--multi-base-editor);
+  --border: var(--honk-stroke-tertiary);
+  --input: var(--cursor-bg-editor);
 
-  --primary: var(--multi-base-accent);
+  --primary: var(--honk-base-accent);
   --primary-foreground: #fcfcfc;
-  --ring: color-mix(in srgb, var(--multi-base-focus) 15%, transparent);
+  --ring: color-mix(in srgb, var(--honk-base-focus) 15%, transparent);
 
   --info: var(--primary);
   --info-foreground: oklch(0.992 0 0);
 
-  --multi-action: var(--primary);
+  --honk-action: var(--primary);
 
-  --multi-diff-addition: oklch(0.752 0.137 179.603);
-  --multi-diff-deletion: oklch(0.647 0.239 23.794);
-  --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 15%, transparent);
-  --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 15%, transparent);
+  --honk-diff-addition: oklch(0.752 0.137 179.603);
+  --honk-diff-deletion: oklch(0.647 0.239 23.794);
+  --honk-diff-addition-bg: color-mix(in oklch, var(--honk-diff-addition) 15%, transparent);
+  --honk-diff-deletion-bg: color-mix(in oklch, var(--honk-diff-deletion) 15%, transparent);
 
-  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
-  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
-  --multi-color-chat-opaque: var(--multi-base-chrome);
-  --multi-color-chat: var(--multi-color-chat-opaque);
-  --multi-color-editor-opaque: var(--multi-base-editor);
-  --multi-color-editor: var(--multi-color-editor-opaque);
-  --multi-color-surface-opaque: var(--multi-base-editor);
-  --multi-color-surface: var(--multi-color-surface-opaque);
-  --multi-color-elevated-opaque: var(--multi-base-editor);
-  --multi-color-elevated: var(--multi-color-elevated-opaque);
-  --multi-color-menubar-opaque: var(--multi-base-editor);
-  --multi-color-menubar: var(--multi-color-menubar-opaque);
+  --honk-color-sidebar-opaque: var(--cursor-bg-sidebar);
+  --honk-color-sidebar: var(--honk-color-sidebar-opaque);
+  --honk-color-chat-opaque: var(--cursor-bg-chrome);
+  --honk-color-chat: var(--honk-color-chat-opaque);
+  --honk-color-editor-opaque: var(--cursor-bg-editor);
+  --honk-color-editor: var(--honk-color-editor-opaque);
+  --honk-color-surface-opaque: var(--cursor-bg-editor);
+  --honk-color-surface: var(--honk-color-surface-opaque);
+  --honk-color-elevated-opaque: var(--cursor-bg-editor);
+  --honk-color-elevated: var(--honk-color-elevated-opaque);
+  --honk-color-menubar-opaque: var(--cursor-bg-editor);
+  --honk-color-menubar: var(--honk-color-menubar-opaque);
 
-  --multi-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
-  --multi-color-stroke: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-color-stroke-strong: color-mix(in srgb, var(--foreground) 20%, transparent);
-  --multi-color-hover: var(--multi-bg-secondary);
-  --multi-color-active: var(--multi-bg-active);
+  --honk-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --honk-color-stroke: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-color-stroke-strong: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --honk-color-hover: var(--honk-bg-secondary);
+  --honk-color-active: var(--honk-bg-active);
 
-  --multi-hue-green: var(--multi-diff-addition);
-  --multi-hue-red: var(--multi-diff-deletion);
-  --multi-hue-blue: var(--primary);
+  --honk-hue-green: var(--honk-diff-addition);
+  --honk-hue-red: var(--honk-diff-deletion);
+  --honk-hue-blue: var(--primary);
 }
 
 /* ---- Dark ---- */
 :root.dark {
   color-scheme: dark;
   --app-background: var(--background);
-  --multi-glass-surface-background: rgb(0 0 0 / 0.42);
+  --honk-glass-surface-background: rgb(0 0 0 / 0.42);
 
-  --background: var(--multi-base-editor);
-  --multi-base-foreground: #e4e4e4;
-  --multi-cursor-base: var(--multi-base-foreground);
-  --foreground: var(--multi-base-foreground);
-  --multi-swatch-inset-shadow: inset 0 0 0 1px
+  --background: var(--cursor-bg-editor);
+  --honk-base-foreground: #e4e4e4;
+  --honk-cursor-base: var(--honk-base-foreground);
+  --foreground: var(--honk-base-foreground);
+  --honk-swatch-inset-shadow: inset 0 0 0 1px
     color-mix(in srgb, var(--foreground) 16%, transparent);
-  --card: var(--multi-base-editor);
+  --card: var(--cursor-bg-editor);
   --card-foreground: var(--foreground);
-  --popover: var(--multi-base-editor);
+  --popover: var(--cursor-bg-editor);
   --popover-foreground: var(--foreground);
 
   --secondary: color-mix(in srgb, var(--foreground) 8%, transparent);
@@ -141,14 +151,22 @@
   --muted: color-mix(in srgb, var(--foreground) 6%, transparent);
   --muted-foreground: color-mix(in srgb, var(--foreground) 74%, transparent);
 
-  --multi-base-sidebar: #181818;
-  --multi-base-chrome: #141414;
-  --multi-base-editor: #181818;
-  --multi-base-accent: #599ce7;
-  --multi-base-focus: #e4e4e4;
-  --multi-shadow-primary: color-mix(in srgb, #000000 20%, transparent);
+  --cursor-sidebar: #181818;
+  --cursor-chrome: #141414;
+  --cursor-editor: #181818;
+  --cursor-accent: #599ce7;
+  --cursor-focus: #e4e4e4;
+  --cursor-bg-sidebar: var(--cursor-sidebar);
+  --cursor-bg-chrome: var(--cursor-chrome);
+  --cursor-bg-editor: var(--cursor-editor);
+  --honk-base-sidebar: var(--cursor-sidebar);
+  --honk-base-chrome: var(--cursor-chrome);
+  --honk-base-editor: var(--cursor-editor);
+  --honk-base-accent: var(--cursor-accent);
+  --honk-base-focus: var(--cursor-focus);
+  --honk-shadow-primary: color-mix(in srgb, #000000 20%, transparent);
 
-  --accent: var(--multi-bg-secondary);
+  --accent: var(--honk-bg-secondary);
   --accent-foreground: var(--foreground);
 
   --destructive: oklch(0.647 0.239 23.794);
@@ -158,46 +176,46 @@
   --warning: oklch(0.86 0.14 88);
   --warning-foreground: oklch(0.2 0.04 88);
 
-  --border: var(--multi-stroke-tertiary);
-  --input: var(--multi-base-editor);
+  --border: var(--honk-stroke-tertiary);
+  --input: var(--cursor-bg-editor);
 
-  --primary: var(--multi-base-accent);
+  --primary: var(--honk-base-accent);
   --primary-foreground: #191c22;
-  --ring: color-mix(in srgb, var(--multi-base-focus) 15%, transparent);
+  --ring: color-mix(in srgb, var(--honk-base-focus) 15%, transparent);
 
   --info: var(--primary);
   --info-foreground: var(--primary-foreground);
 
-  --multi-action: var(--primary);
+  --honk-action: var(--primary);
 
-  --multi-diff-addition: oklch(0.752 0.137 179.603);
-  --multi-diff-deletion: oklch(0.647 0.239 23.794);
-  --multi-diff-addition-bg: color-mix(in oklch, var(--multi-diff-addition) 18%, transparent);
-  --multi-diff-deletion-bg: color-mix(in oklch, var(--multi-diff-deletion) 18%, transparent);
+  --honk-diff-addition: oklch(0.752 0.137 179.603);
+  --honk-diff-deletion: oklch(0.647 0.239 23.794);
+  --honk-diff-addition-bg: color-mix(in oklch, var(--honk-diff-addition) 18%, transparent);
+  --honk-diff-deletion-bg: color-mix(in oklch, var(--honk-diff-deletion) 18%, transparent);
 
-  --multi-color-sidebar-opaque: var(--multi-base-sidebar);
-  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
-  --multi-color-chat-opaque: var(--multi-base-chrome);
-  --multi-color-chat: var(--multi-color-chat-opaque);
-  --multi-color-editor-opaque: var(--multi-base-editor);
-  --multi-color-editor: var(--multi-color-editor-opaque);
-  --multi-color-surface-opaque: var(--multi-base-editor);
-  --multi-color-surface: var(--multi-color-surface-opaque);
-  --multi-color-elevated-opaque: var(--multi-base-editor);
-  --multi-color-elevated: var(--multi-color-elevated-opaque);
-  --multi-color-menubar-opaque: var(--multi-base-editor);
-  --multi-color-menubar: var(--multi-color-menubar-opaque);
+  --honk-color-sidebar-opaque: var(--cursor-bg-sidebar);
+  --honk-color-sidebar: var(--honk-color-sidebar-opaque);
+  --honk-color-chat-opaque: var(--cursor-bg-chrome);
+  --honk-color-chat: var(--honk-color-chat-opaque);
+  --honk-color-editor-opaque: var(--cursor-bg-editor);
+  --honk-color-editor: var(--honk-color-editor-opaque);
+  --honk-color-surface-opaque: var(--cursor-bg-editor);
+  --honk-color-surface: var(--honk-color-surface-opaque);
+  --honk-color-elevated-opaque: var(--cursor-bg-editor);
+  --honk-color-elevated: var(--honk-color-elevated-opaque);
+  --honk-color-menubar-opaque: var(--cursor-bg-editor);
+  --honk-color-menubar: var(--honk-color-menubar-opaque);
 
-  --multi-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
-  --multi-color-stroke: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-color-stroke-strong: color-mix(in srgb, var(--foreground) 20%, transparent);
-  --multi-color-hover: var(--multi-bg-secondary);
-  --multi-color-active: var(--multi-bg-active);
+  --honk-color-border: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --honk-color-stroke: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-color-stroke-strong: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --honk-color-hover: var(--honk-bg-secondary);
+  --honk-color-active: var(--honk-bg-active);
 
-  --multi-hue-green: var(--multi-diff-addition);
-  --multi-hue-red: var(--multi-diff-deletion);
-  --multi-hue-blue: var(--primary);
+  --honk-hue-green: var(--honk-diff-addition);
+  --honk-hue-red: var(--honk-diff-deletion);
+  --honk-hue-blue: var(--primary);
 }
 
 /* ---- Display-P3 diffs + destructive only; Cursor tint bases are applied in TS. ---- */
@@ -205,22 +223,22 @@
   @supports (color: color(display-p3 1 1 1)) {
     :root:not(.dark) {
       --destructive: color(display-p3 1 0.2502 0.2623);
-      --multi-diff-addition: color(display-p3 0.31 0.8276 0.7251);
-      --multi-diff-deletion: color(display-p3 1 0.2502 0.2623);
-      --multi-diff-addition-bg: color(display-p3 0.31 0.8276 0.7251 / 0.2);
-      --multi-diff-deletion-bg: color(display-p3 1 0.2502 0.2623 / 0.2);
-      --multi-hue-green: color(display-p3 0.31 0.8276 0.7251);
-      --multi-hue-red: color(display-p3 1 0.2502 0.2623);
+      --honk-diff-addition: color(display-p3 0.31 0.8276 0.7251);
+      --honk-diff-deletion: color(display-p3 1 0.2502 0.2623);
+      --honk-diff-addition-bg: color(display-p3 0.31 0.8276 0.7251 / 0.2);
+      --honk-diff-deletion-bg: color(display-p3 1 0.2502 0.2623 / 0.2);
+      --honk-hue-green: color(display-p3 0.31 0.8276 0.7251);
+      --honk-hue-red: color(display-p3 1 0.2502 0.2623);
     }
 
     :root.dark {
       --destructive: color(display-p3 1 0.2502 0.2623);
-      --multi-diff-addition: color(display-p3 0.31 0.8276 0.7251);
-      --multi-diff-deletion: color(display-p3 1 0.2502 0.2623);
-      --multi-diff-addition-bg: color(display-p3 0.31 0.8276 0.7251 / 0.1);
-      --multi-diff-deletion-bg: color(display-p3 1 0.2502 0.2623 / 0.1);
-      --multi-hue-green: color(display-p3 0.31 0.8276 0.7251);
-      --multi-hue-red: color(display-p3 1 0.2502 0.2623);
+      --honk-diff-addition: color(display-p3 0.31 0.8276 0.7251);
+      --honk-diff-deletion: color(display-p3 1 0.2502 0.2623);
+      --honk-diff-addition-bg: color(display-p3 0.31 0.8276 0.7251 / 0.1);
+      --honk-diff-deletion-bg: color(display-p3 1 0.2502 0.2623 / 0.1);
+      --honk-hue-green: color(display-p3 0.31 0.8276 0.7251);
+      --honk-hue-red: color(display-p3 1 0.2502 0.2623);
     }
   }
 }
@@ -231,146 +249,159 @@
  * app-wide. .agent-window only sets font smoothing and sash hit targets.
  */
 html {
-  --multi-interactive-surface: var(--multi-base-chrome);
-  --multi-chat-surface-background: var(--multi-color-chat);
-  --multi-pane-surface-background: color-mix(
-    in srgb,
-    var(--multi-color-editor-opaque) 96%,
-    #fff
-  );
+  --honk-interactive-surface: var(--honk-base-chrome);
+  --honk-chat-surface-background: var(--honk-color-chat);
+  --honk-pane-surface-background: color-mix(in srgb, var(--honk-color-editor-opaque) 96%, #fff);
   /* Cursor keeps composer chrome and human bubbles on separate neutral lanes. */
-  --multi-input-surface-opaque: var(--input);
-  --multi-input-surface: var(--multi-input-surface-opaque);
-  --multi-composer-surface-background: var(--multi-pane-surface-background);
-  --multi-composer-surface-opaque-background: color-mix(
+  --honk-input-surface-opaque: var(--input);
+  --honk-input-surface: var(--honk-input-surface-opaque);
+  --honk-composer-surface-background: var(--honk-pane-surface-background);
+  --honk-composer-surface-opaque-background: color-mix(
     in srgb,
-    var(--multi-color-editor-opaque) 96%,
+    var(--honk-color-editor-opaque) 96%,
     #fff
   );
-  --multi-message-bubble-background: var(--multi-input-surface);
-  --multi-shadow-secondary: color-mix(in srgb, var(--multi-shadow-primary) 60%, transparent);
-  --multi-shadow-tertiary: color-mix(in srgb, var(--multi-shadow-primary) 30%, transparent);
-  --multi-shadow-workbench: 0 0 8px 2px
-    color-mix(in srgb, var(--multi-shadow-primary) 40%, transparent);
-  --multi-shadow-toolbar: 0 1px 2px color-mix(in srgb, var(--multi-shadow-primary) 12%, transparent);
-  --multi-workbench-panel-background: color-mix(
+  --honk-message-bubble-background: var(--honk-input-surface);
+  --honk-shadow-secondary: color-mix(in srgb, var(--honk-shadow-primary) 60%, transparent);
+  --honk-shadow-tertiary: color-mix(in srgb, var(--honk-shadow-primary) 30%, transparent);
+  --honk-shadow-workbench: 0 0 8px 2px
+    color-mix(in srgb, var(--honk-shadow-primary) 40%, transparent);
+  --honk-shadow-toolbar: 0 1px 2px color-mix(in srgb, var(--honk-shadow-primary) 12%, transparent);
+  --honk-workbench-panel-background: color-mix(
     in srgb,
-    var(--multi-color-editor) 92%,
+    var(--honk-color-editor) 92%,
     var(--background)
   );
-  --multi-workbench-panel-border: color-mix(in srgb, var(--multi-color-border) 55%, transparent);
-  --multi-workbench-panel-border-faint: color-mix(
+  --honk-workbench-panel-border: color-mix(in srgb, var(--honk-color-border) 55%, transparent);
+  --honk-workbench-panel-border-faint: color-mix(
     in srgb,
-    var(--multi-workbench-panel-border) 94%,
+    var(--honk-workbench-panel-border) 94%,
     transparent
   );
-  --multi-workbench-panel-border-muted: color-mix(
+  --honk-workbench-panel-border-muted: color-mix(
     in srgb,
-    var(--multi-workbench-panel-border) 78%,
+    var(--honk-workbench-panel-border) 78%,
     transparent
   );
-  --multi-workbench-panel-border-soft: color-mix(
+  --honk-workbench-panel-border-soft: color-mix(
     in srgb,
-    var(--multi-workbench-panel-border) 90%,
+    var(--honk-workbench-panel-border) 90%,
     transparent
   );
-  --multi-workbench-panel-border-dim: color-mix(
+  --honk-workbench-panel-border-dim: color-mix(
     in srgb,
-    var(--multi-workbench-panel-border) 72%,
+    var(--honk-workbench-panel-border) 72%,
     transparent
   );
-  --multi-workbench-surface-background: color-mix(
+  --honk-workbench-surface-background: color-mix(
     in srgb,
-    var(--multi-workbench-panel-background) 74%,
+    var(--honk-workbench-panel-background) 74%,
     transparent
   );
-  --multi-workbench-editor-surface-background: color-mix(
+  --honk-workbench-editor-surface-background: color-mix(
     in srgb,
-    var(--multi-color-editor) 92%,
+    var(--honk-color-editor) 92%,
     transparent
   );
-  --multi-workbench-panel-title-background: var(--multi-workbench-editor-surface-background);
-  --multi-workbench-tool-island-background: var(--multi-workbench-editor-surface-background);
-  --multi-workbench-card-background: color-mix(
+  --honk-workbench-panel-title-background: var(--honk-workbench-editor-surface-background);
+  --honk-workbench-tool-island-background: var(--honk-workbench-editor-surface-background);
+  --honk-workbench-card-background: color-mix(
     in srgb,
-    var(--multi-color-sidebar) 14%,
-    var(--multi-color-editor) 86%
+    var(--honk-color-sidebar) 14%,
+    var(--honk-color-editor) 86%
   );
-  --multi-workbench-card-selected-background: color-mix(
+  --honk-workbench-card-selected-background: color-mix(
     in srgb,
-    var(--multi-color-active) 22%,
-    var(--multi-workbench-card-background)
+    var(--honk-color-active) 22%,
+    var(--honk-workbench-card-background)
   );
-  --multi-workbench-toolbar-hover-background: var(--multi-color-hover);
-  --multi-workbench-toolbar-hover-wash: color-mix(
+  --honk-workbench-toolbar-hover-background: var(--honk-color-hover);
+  --honk-workbench-toolbar-hover-wash: color-mix(
     in srgb,
-    var(--multi-workbench-toolbar-hover-background) 88%,
+    var(--honk-workbench-toolbar-hover-background) 88%,
     transparent
   );
-  --multi-fg-primary: var(--foreground);
-  --multi-fg-secondary: color-mix(in srgb, var(--foreground) 74%, transparent);
-  --multi-fg-tertiary: color-mix(in srgb, var(--foreground) 54%, transparent);
-  --multi-fg-quaternary: color-mix(in srgb, var(--foreground) 36%, transparent);
-  --multi-fg-active: var(--foreground);
-  --multi-fg-focused: var(--foreground);
-  --multi-fg-red-primary: var(--destructive);
-  --multi-fg-green-primary: var(--success);
-  --multi-bg-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
-  --multi-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
-  --multi-bg-secondary-wash: color-mix(in srgb, var(--multi-bg-secondary) 72%, transparent);
-  --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
-  --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
-  --multi-bg-elevated: var(--multi-color-elevated-opaque);
-  --multi-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
-  --multi-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
-  --multi-bg-green-primary: var(--success);
+  --honk-fg-primary: var(--foreground);
+  --honk-fg-secondary: color-mix(in srgb, var(--foreground) 74%, transparent);
+  --honk-fg-tertiary: color-mix(in srgb, var(--foreground) 54%, transparent);
+  --honk-fg-quaternary: color-mix(in srgb, var(--foreground) 36%, transparent);
+  --honk-fg-active: var(--foreground);
+  --honk-fg-focused: var(--foreground);
+  --honk-fg-red-primary: var(--destructive);
+  --honk-fg-green-primary: var(--success);
+  --honk-bg-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --honk-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --honk-bg-secondary-wash: color-mix(in srgb, var(--honk-bg-secondary) 72%, transparent);
+  --honk-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --honk-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --honk-bg-elevated: var(--honk-color-elevated-opaque);
+  --honk-command-palette-surface-background: var(--honk-bg-elevated);
+  --honk-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
+  --honk-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --honk-bg-green-primary: var(--success);
   --vscode-editor-background: var(--background);
   --vscode-foreground: var(--foreground);
-  --vscode-widget-border: var(--multi-stroke-tertiary);
-  --vscode-list-hoverBackground: var(--multi-bg-quaternary);
+  --vscode-sideBar-background: var(--honk-color-sidebar-opaque);
+  --vscode-widget-border: var(--honk-stroke-tertiary);
+  --vscode-list-hoverBackground: var(--honk-bg-quaternary);
   --cursor-yellow: var(--warning);
   --cursor-green: var(--success);
+  --cursor-red: var(--destructive);
   --cursor-bg-yellow-primary: var(--cursor-yellow);
   --cursor-bg-yellow-secondary: color-mix(in srgb, var(--cursor-yellow) 24%, transparent);
   --cursor-bg-green-secondary: color-mix(in srgb, var(--cursor-green) 24%, transparent);
-  --cursor-text-primary: var(--multi-fg-primary);
-  --cursor-text-secondary: var(--multi-fg-secondary);
-  --cursor-text-tertiary: var(--multi-fg-tertiary);
+  --cursor-bg-red-secondary: color-mix(in srgb, var(--cursor-red) 20%, transparent);
+  --cursor-text-primary: var(--honk-fg-primary);
+  --cursor-text-secondary: var(--honk-fg-secondary);
+  --cursor-text-tertiary: var(--honk-fg-tertiary);
   --cursor-text-yellow-primary: var(--cursor-yellow);
   --cursor-text-green-primary: var(--cursor-green);
+  --cursor-text-red-primary: var(--cursor-red);
+  --cursor-text-orange-primary: color-mix(in oklch, var(--warning) 74%, var(--destructive));
+  --cursor-text-cyan-primary: var(--primary);
+  --honk-git-status-added: color-mix(
+    in srgb,
+    var(--cursor-text-green-primary) 86%,
+    var(--foreground)
+  );
+  --honk-git-status-deleted: var(--cursor-text-red-primary);
+  --honk-git-status-modified: var(--cursor-text-orange-primary);
+  --honk-git-status-renamed: var(--cursor-text-cyan-primary);
   --cursor-icon-yellow-primary: color-mix(in srgb, var(--cursor-yellow) 92%, transparent);
   --cursor-icon-green-primary: color-mix(in srgb, var(--cursor-green) 92%, transparent);
-  --cursor-stroke-primary: var(--multi-stroke-primary);
-  --cursor-stroke-secondary: var(--multi-stroke-secondary);
+  --cursor-stroke-primary: var(--honk-stroke-primary);
+  --cursor-stroke-secondary: var(--honk-stroke-secondary);
   --cursor-stroke-yellow-primary: color-mix(in srgb, var(--cursor-yellow) 56%, transparent);
   --cursor-stroke-green-primary: color-mix(in srgb, var(--cursor-green) 56%, transparent);
-  --cursor-stroke-tertiary: var(--multi-stroke-tertiary);
-  --cursor-stroke-focused: var(--multi-stroke-focused);
+  --cursor-stroke-tertiary: var(--honk-stroke-tertiary);
+  --cursor-stroke-focused: var(--honk-stroke-focused);
   --composer-mode-chat-background: var(--cursor-bg-green-secondary);
   --composer-mode-chat-text: var(--cursor-text-green-primary);
   --composer-mode-plan-background: var(--cursor-bg-yellow-secondary);
   --composer-mode-plan-text: var(--cursor-text-yellow-primary);
+  --composer-mode-debug-background: var(--cursor-bg-red-secondary);
+  --composer-mode-debug-text: var(--cursor-text-red-primary);
   --composer-mode-plan-border: var(--cursor-stroke-yellow-primary);
   --composer-mode-plan-icon: var(--cursor-icon-yellow-primary);
-  --multi-stroke-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
-  --multi-stroke-secondary: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --multi-stroke-quaternary: color-mix(in srgb, var(--foreground) 4%, transparent);
-  --multi-stroke-focused: var(--ring);
-  --multi-stroke-red-primary: color-mix(in oklch, var(--destructive) 56%, transparent);
-  --multi-icon-primary: color-mix(in srgb, var(--foreground) 86%, transparent);
-  --multi-icon-secondary: color-mix(in srgb, var(--foreground) 66%, transparent);
-  --multi-icon-tertiary: color-mix(in srgb, var(--foreground) 46%, transparent);
-  --multi-icon-quaternary: color-mix(in srgb, var(--foreground) 28%, transparent);
-  --multi-icon-accent-primary: var(--primary);
-  --multi-icon-warning: var(--warning);
-  --multi-shadow-card: 0 1px 2px 0 var(--multi-shadow-primary);
-  --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.18);
-  --multi-shell-blur: 28px;
-  --multi-shell-saturate: 160%;
-  --multi-shell-sidebar-bg: var(--multi-color-sidebar);
-  --multi-shell-surface-bg: var(--multi-color-surface);
-  --multi-radius-full: 9999px;
+  --honk-stroke-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --honk-stroke-secondary: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --honk-stroke-quaternary: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --honk-stroke-focused: var(--ring);
+  --honk-stroke-red-primary: color-mix(in oklch, var(--destructive) 56%, transparent);
+  --honk-icon-primary: color-mix(in srgb, var(--foreground) 86%, transparent);
+  --honk-icon-secondary: color-mix(in srgb, var(--foreground) 66%, transparent);
+  --honk-icon-tertiary: color-mix(in srgb, var(--foreground) 46%, transparent);
+  --honk-icon-quaternary: color-mix(in srgb, var(--foreground) 28%, transparent);
+  --honk-icon-accent-primary: var(--primary);
+  --honk-icon-warning: var(--warning);
+  --honk-shadow-card: 0 1px 2px 0 var(--honk-shadow-primary);
+  --honk-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.18);
+  --honk-shell-blur: 28px;
+  --honk-shell-saturate: 160%;
+  --honk-shell-sidebar-bg: var(--honk-color-sidebar);
+  --honk-shell-surface-bg: var(--honk-color-surface);
+  --honk-radius-full: 9999px;
 
   --motion-duration-hover: 100ms;
   --motion-duration-collapsible: 100ms;
@@ -387,106 +418,130 @@ html {
 }
 
 [data-component="root"] {
-  --multi-message-bubble-background: var(--multi-input-surface);
-  --multi-composer-queue-edit-banner-background: color-mix(
+  --honk-message-bubble-background: var(--honk-input-surface);
+  --honk-composer-queue-edit-banner-background: color-mix(
     in srgb,
-    var(--multi-composer-surface-background) 88%,
-    var(--multi-stroke-tertiary) 12%
+    var(--honk-composer-surface-background) 88%,
+    var(--honk-stroke-tertiary) 12%
   );
-  --multi-composer-queue-row-editing-background: color-mix(
+  --honk-composer-queue-row-editing-background: color-mix(
     in srgb,
-    var(--multi-stroke-tertiary) 15%,
+    var(--honk-stroke-tertiary) 15%,
     transparent
   );
-  --multi-composer-popup-surface-background: color-mix(
+  --honk-composer-popup-surface-background: color-mix(
     in srgb,
-    var(--multi-composer-surface-opaque-background) 96%,
+    var(--honk-composer-surface-opaque-background) 96%,
     transparent
   );
 }
 
 html.dark {
-  --multi-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
-  --multi-vibrancy-sidebar-mix: 36%;
-  --multi-vibrancy-chat-mix: 72%;
-  --multi-vibrancy-editor-mix: var(--multi-vibrancy-chat-mix);
+  --honk-shadow-popup: 0 16px 48px oklch(0 0 0 / 0.32);
+  --honk-vibrancy-sidebar-mix: 36%;
+  --honk-vibrancy-chat-mix: 72%;
+  --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
 }
 
 /*
  * Vibrancy colors live on the shell root. Vibrancy-on mixes use fixed bands.
  * Reduce Transparency remaps semantic tokens to opaque colors.
  */
-body[data-multi-glass-mode="true"] [data-component="root"] {
-  --multi-vibrancy-off-sidebar-surface-background: var(--multi-color-sidebar-opaque);
-  --multi-vibrancy-off-chat-surface-background: var(--multi-color-chat-opaque);
-  --multi-vibrancy-off-editor-surface-background: var(--multi-color-chat-opaque);
-  --multi-vibrancy-on-sidebar-surface-background: color-mix(
+body[data-honk-glass-mode="true"] [data-component="root"] {
+  --honk-glass-sidebar-surface-background: var(--cursor-bg-sidebar);
+  --honk-glass-chat-surface-background: var(--cursor-bg-chrome);
+  --honk-glass-editor-surface-background: var(--cursor-bg-chrome);
+  --honk-vibrancy-off-sidebar-surface-background: var(--honk-glass-sidebar-surface-background);
+  --honk-vibrancy-off-chat-surface-background: var(--honk-glass-chat-surface-background);
+  --honk-vibrancy-off-editor-surface-background: var(--honk-glass-editor-surface-background);
+  --honk-vibrancy-on-sidebar-surface-background: color-mix(
     in srgb,
-    var(--multi-color-sidebar-opaque) var(--multi-vibrancy-sidebar-mix),
+    var(--honk-color-sidebar-opaque) var(--honk-vibrancy-sidebar-mix),
     transparent
   );
-  --multi-vibrancy-on-chat-surface-background: color-mix(
+  --honk-vibrancy-on-chat-surface-background: color-mix(
     in srgb,
-    var(--multi-color-chat-opaque) var(--multi-vibrancy-chat-mix),
+    var(--honk-color-chat-opaque) var(--honk-vibrancy-chat-mix),
     transparent
   );
-  --multi-vibrancy-on-editor-surface-background: color-mix(
+  --honk-vibrancy-on-editor-surface-background: color-mix(
     in srgb,
-    var(--multi-color-chat-opaque) var(--multi-vibrancy-editor-mix),
+    var(--honk-color-chat-opaque) var(--honk-vibrancy-editor-mix),
     transparent
   );
-  --multi-sidebar-surface-background: var(--multi-vibrancy-off-sidebar-surface-background);
-  --multi-chat-surface-background: var(--multi-vibrancy-off-chat-surface-background);
-  --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
-  --multi-color-sidebar: var(--multi-sidebar-surface-background);
-  --multi-color-chat: var(--multi-chat-surface-background);
-  --multi-workbench-editor-surface-background: var(--multi-vibrancy-off-editor-surface-background);
-  --multi-message-bubble-background: var(--multi-input-surface);
+  --honk-sidebar-surface-background: var(--honk-vibrancy-off-sidebar-surface-background);
+  --honk-chat-surface-background: var(--honk-vibrancy-off-chat-surface-background);
+  --honk-color-editor: var(--honk-vibrancy-off-editor-surface-background);
+  --honk-shell-sidebar-bg: var(--honk-sidebar-surface-background);
+  --honk-shell-surface-bg: var(--honk-chat-surface-background);
+  --honk-color-sidebar: var(--honk-sidebar-surface-background);
+  --honk-color-chat: var(--honk-chat-surface-background);
+  --honk-workbench-editor-surface-background: var(--honk-vibrancy-off-editor-surface-background);
+  --honk-message-bubble-background: var(--honk-input-surface);
+  background: var(--honk-glass-surface-background);
 }
 
-body.multi-os-vibrancy-on[data-multi-glass-mode="true"] [data-component="root"] {
-  --multi-sidebar-surface-background: var(--multi-vibrancy-on-sidebar-surface-background);
-  --multi-chat-surface-background: var(--multi-vibrancy-on-chat-surface-background);
-  --multi-shell-sidebar-bg: var(--multi-sidebar-surface-background);
-  --multi-color-sidebar: var(--multi-sidebar-surface-background);
-  --multi-color-chat: var(--multi-chat-surface-background);
-  --multi-workbench-editor-surface-background: var(--multi-vibrancy-on-editor-surface-background);
-  --multi-message-bubble-background: var(--multi-input-surface);
+body[data-honk-glass-mode="true"] {
+  --honk-command-palette-surface-background: var(--cursor-bg-chrome);
+}
+
+body.honk-os-vibrancy-on[data-honk-glass-mode="true"] [data-component="root"] {
+  --honk-sidebar-surface-background: var(--honk-vibrancy-on-sidebar-surface-background);
+  --honk-chat-surface-background: var(--honk-vibrancy-on-chat-surface-background);
+  --honk-color-editor: var(--honk-vibrancy-on-editor-surface-background);
+  --honk-shell-sidebar-bg: var(--honk-sidebar-surface-background);
+  --honk-shell-surface-bg: var(--honk-chat-surface-background);
+  --honk-color-sidebar: var(--honk-sidebar-surface-background);
+  --honk-color-chat: var(--honk-chat-surface-background);
+  --honk-workbench-editor-surface-background: var(--honk-vibrancy-on-editor-surface-background);
+  --honk-message-bubble-background: var(--honk-input-surface);
+}
+
+body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
+  --honk-command-palette-surface-background: color-mix(
+    in srgb,
+    var(--cursor-bg-chrome) var(--honk-vibrancy-chat-mix),
+    transparent
+  );
 }
 
 @supports (color: color-mix(in lab, red, red)) {
   html.dark [data-component="root"] {
-    --multi-message-bubble-background: color-mix(
+    --honk-message-bubble-background: color-mix(
       in srgb,
-      var(--multi-input-surface-opaque) 96%,
+      var(--honk-input-surface-opaque) 96%,
       #fff
     );
   }
 }
 
-body.multi-reduce-transparency[data-multi-glass-mode="true"] [data-component="root"] {
-  --multi-glass-surface-background: var(--multi-color-editor-opaque);
-  --multi-color-sidebar: var(--multi-color-sidebar-opaque);
-  --multi-color-chat: var(--multi-color-chat-opaque);
-  --multi-color-editor: var(--multi-color-editor-opaque);
-  --multi-color-surface: var(--multi-color-surface-opaque);
-  --multi-color-elevated: var(--multi-color-elevated-opaque);
-  --multi-color-menubar: var(--multi-color-menubar-opaque);
-  --multi-composer-surface-background: var(--multi-composer-surface-opaque-background);
-  --multi-message-bubble-background: var(--multi-input-surface-opaque);
-  --multi-workbench-editor-surface-background: var(--multi-color-editor-opaque);
-  --multi-workbench-surface-background: var(--multi-color-surface-opaque);
-  --multi-bg-elevated: var(--multi-color-elevated-opaque);
-  --multi-shell-blur: 0px;
-  --multi-shell-saturate: 100%;
-  --multi-shell-sidebar-bg: var(--multi-color-sidebar-opaque);
-  --multi-shell-surface-bg: var(--multi-color-surface-opaque);
-  --multi-sidebar-surface-background: var(--multi-color-sidebar-opaque);
-  --multi-chat-surface-background: var(--multi-color-chat-opaque);
-  --multi-composer-blur: 0px;
-  --multi-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
-  --multi-bg-secondary-wash: var(--multi-bg-secondary);
-  --multi-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
-  --multi-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root"] {
+  --honk-glass-surface-background: var(--honk-color-editor-opaque);
+  --honk-color-sidebar: var(--honk-color-sidebar-opaque);
+  --honk-color-chat: var(--honk-color-chat-opaque);
+  --honk-color-editor: var(--honk-color-editor-opaque);
+  --honk-color-surface: var(--honk-color-surface-opaque);
+  --honk-color-elevated: var(--honk-color-elevated-opaque);
+  --honk-color-menubar: var(--honk-color-menubar-opaque);
+  --honk-composer-surface-background: var(--honk-composer-surface-opaque-background);
+  --honk-message-bubble-background: var(--honk-input-surface-opaque);
+  --honk-workbench-editor-surface-background: var(--honk-color-chat-opaque);
+  --honk-workbench-surface-background: var(--honk-color-surface-opaque);
+  --honk-bg-elevated: var(--honk-color-elevated-opaque);
+  --honk-shell-blur: 0px;
+  --honk-shell-saturate: 100%;
+  --honk-shell-sidebar-bg: var(--honk-color-sidebar-opaque);
+  --honk-shell-surface-bg: var(--honk-color-chat-opaque);
+  --honk-sidebar-surface-background: var(--honk-color-sidebar-opaque);
+  --honk-chat-surface-background: var(--honk-color-chat-opaque);
+  --honk-composer-blur: 0px;
+  --honk-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --honk-bg-secondary-wash: var(--honk-bg-secondary);
+  --honk-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --honk-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+body.honk-reduce-transparency[data-honk-glass-mode="true"] {
+  --honk-command-palette-surface-background: var(--honk-color-chat-opaque);
 }

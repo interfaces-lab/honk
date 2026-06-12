@@ -1,14 +1,14 @@
 {
-  "name": "@multi/scripts",
+  "name": "@honk/scripts",
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@multi/shared": "workspace:*",
+    "@honk/shared": "workspace:*",
     "effect": "catalog:",
     "yaml": "^2.9.0"
   },

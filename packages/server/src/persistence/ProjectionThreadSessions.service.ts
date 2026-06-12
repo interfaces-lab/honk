@@ -1,8 +1,7 @@
 /**
  * ProjectionThreadSessionRepository - Repository interface for thread sessions.
  *
- * Owns persistence operations for projected provider-session linkage and
- * runtime status for each thread.
+ * Owns persistence operations for projected runtime status for each thread.
  *
  * @module ProjectionThreadSessionRepository
  */
@@ -12,18 +11,14 @@ import {
   OrchestrationSessionStatus,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
-import { Option, Schema, Context, Effect } from "effect";
+} from "@honk/contracts";
+import { Option, Schema, Context, type Effect } from "effect";
 
 import type { ProjectionRepositoryError } from "./Errors.ts";
 
 export const ProjectionThreadSession = Schema.Struct({
   threadId: ThreadId,
   status: OrchestrationSessionStatus,
-  providerName: Schema.NullOr(Schema.String),
-  providerInstanceId: Schema.optionalKey(
-    Schema.NullOr(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
-  ),
   runtimeMode: RuntimeMode,
   activeTurnId: Schema.NullOr(TurnId),
   lastError: Schema.NullOr(Schema.String),
@@ -73,4 +68,4 @@ export interface ProjectionThreadSessionRepositoryShape {
 export class ProjectionThreadSessionRepository extends Context.Service<
   ProjectionThreadSessionRepository,
   ProjectionThreadSessionRepositoryShape
->()("multi/persistence/ProjectionThreadSessions.service/ProjectionThreadSessionRepository") {}
+>()("honk/persistence/ProjectionThreadSessions.service/ProjectionThreadSessionRepository") {}

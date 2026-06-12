@@ -1,6 +1,6 @@
 import { IconCollaborationPointerRight, IconFolderAddRight } from "central-icons";
 
-import { SidebarButton } from "@multi/ui/sidebar";
+import { SidebarButton } from "@honk/honkkit/sidebar";
 
 export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?: () => void }) {
   return (
@@ -9,12 +9,12 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
         <SidebarButton
           variant="chrome"
           onClick={props.onNewChat}
-          className="flex-1 bg-multi-bg-quinary pl-2 pr-1.5 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+          className="flex-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
           data-testid="new-thread-button"
         >
           <IconCollaborationPointerRight className="size-4 shrink-0 opacity-65" />
           <span className="min-w-0 flex-1 truncate">New Agent</span>
-          <span className="shrink-0 text-caption text-multi-fg-quaternary">⌘N</span>
+          <span className="shrink-0 text-right text-caption text-honk-fg-quaternary">⌘N</span>
         </SidebarButton>
       </div>
       {props.onAddProject ? (
@@ -22,7 +22,7 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
           <SidebarButton
             variant="chrome"
             onClick={props.onAddProject}
-            className="w-full flex-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+            className="w-full flex-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
             aria-label="Open workspace"
             data-testid="sidebar-add-project-trigger"
           >

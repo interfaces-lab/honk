@@ -1,7 +1,7 @@
-import type { EnvironmentId, GitResolvePullRequestResult, ThreadId } from "@multi/contracts";
+import type { EnvironmentId, GitResolvePullRequestResult, ThreadId } from "@honk/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import {
   gitPreparePullRequestThreadMutationOptions,
@@ -10,7 +10,7 @@ import {
 } from "~/lib/git-react-query";
 import { cn } from "~/lib/utils";
 import { parsePullRequestReference } from "~/git/pull-request-reference";
-import { Button } from "@multi/ui/button";
+import { Button } from "@honk/honkkit/button";
 import {
   Dialog,
   DialogDescription,
@@ -19,9 +19,9 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
-import { Input } from "@multi/ui/input";
-import { Spinner } from "@multi/ui/spinner";
+} from "@honk/honkkit/dialog";
+import { Input } from "@honk/honkkit/input";
+import { Spinner } from "@honk/honkkit/spinner";
 
 interface PullRequestThreadDialogProps {
   open: boolean;
@@ -59,26 +59,23 @@ function PullRequestThreadDialogSession({
     (debouncerState) => ({ isPending: debouncerState.isPending }),
   );
 
-  const focusReferenceInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      if (referenceFocusFrameRef.current !== null) {
-        window.cancelAnimationFrame(referenceFocusFrameRef.current);
-        referenceFocusFrameRef.current = null;
-      }
-      if (!node || !open) {
+  function focusReferenceInput(node: HTMLInputElement | null) {
+    if (referenceFocusFrameRef.current !== null) {
+      window.cancelAnimationFrame(referenceFocusFrameRef.current);
+      referenceFocusFrameRef.current = null;
+    }
+    if (!node || !open) {
+      return;
+    }
+    referenceFocusFrameRef.current = window.requestAnimationFrame(() => {
+      referenceFocusFrameRef.current = null;
+      if (!node.isConnected) {
         return;
       }
-      referenceFocusFrameRef.current = window.requestAnimationFrame(() => {
-        referenceFocusFrameRef.current = null;
-        if (!node.isConnected) {
-          return;
-        }
-        node.focus();
-        node.select();
-      });
-    },
-    [open],
-  );
+      node.focus();
+      node.select();
+    });
+  }
 
   const parsedReference = parsePullRequestReference(reference);
   const parsedDebouncedReference = parsePullRequestReference(debouncedReference);
@@ -89,7 +86,7 @@ function PullRequestThreadDialogSession({
       reference: open ? parsedDebouncedReference : null,
     }),
   );
-  const cachedPullRequest = useMemo(() => {
+  const cachedPullRequest = (() => {
     if (!cwd || !parsedReference) {
       return null;
     }
@@ -97,7 +94,7 @@ function PullRequestThreadDialogSession({
       gitQueryKeys.pullRequest(environmentId, cwd, parsedReference),
     );
     return cached?.pullRequest ?? null;
-  }, [cwd, environmentId, parsedReference, queryClient]);
+  })();
   const preparePullRequestThreadMutation = useMutation(
     gitPreparePullRequestThreadMutationOptions({ environmentId, cwd, queryClient }),
   );
@@ -115,7 +112,7 @@ function PullRequestThreadDialogSession({
       parsedReference !== parsedDebouncedReference ||
       resolvePullRequestQuery.isPending ||
       resolvePullRequestQuery.isFetching);
-  const statusTone = useMemo(() => {
+  const statusTone = (() => {
     switch (resolvedPullRequest?.state) {
       case "merged":
         return "text-violet-600 dark:text-violet-300/90";
@@ -126,43 +123,32 @@ function PullRequestThreadDialogSession({
       default:
         return "text-muted-foreground";
     }
-  }, [resolvedPullRequest?.state]);
+  })();
 
-  const handleConfirm = useCallback(
-    async (mode: "local" | "worktree") => {
-      if (!parsedReference) {
-        setReferenceDirty(true);
-        return;
-      }
-      if (!parsedReference || !resolvedPullRequest || !cwd) {
-        return;
-      }
-      setPreparingMode(mode);
-      try {
-        const result = await preparePullRequestThreadMutation.mutateAsync({
-          reference: parsedReference,
-          mode,
-          ...(mode === "worktree" ? { threadId } : {}),
-        });
-        await onPrepared({
-          branch: result.branch,
-          worktreePath: result.worktreePath,
-        });
-        onOpenChange(false);
-      } finally {
-        setPreparingMode(null);
-      }
-    },
-    [
-      cwd,
-      onOpenChange,
-      onPrepared,
-      parsedReference,
-      preparePullRequestThreadMutation,
-      resolvedPullRequest,
-      threadId,
-    ],
-  );
+  async function handleConfirm(mode: "local" | "worktree") {
+    if (!parsedReference) {
+      setReferenceDirty(true);
+      return;
+    }
+    if (!parsedReference || !resolvedPullRequest || !cwd) {
+      return;
+    }
+    setPreparingMode(mode);
+    try {
+      const result = await preparePullRequestThreadMutation.mutateAsync({
+        reference: parsedReference,
+        mode,
+        ...(mode === "worktree" ? { threadId } : {}),
+      });
+      await onPrepared({
+        branch: result.branch,
+        worktreePath: result.worktreePath,
+      });
+      onOpenChange(false);
+    } finally {
+      setPreparingMode(null);
+    }
+  }
 
   const validationMessage = !referenceDirty
     ? null

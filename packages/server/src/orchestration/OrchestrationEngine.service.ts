@@ -2,7 +2,7 @@
  * OrchestrationEngineService - Service interface for orchestration command handling.
  *
  * Owns command validation/dispatch and in-memory read-model updates backed by
- * `OrchestrationEventStore` persistence. It does not own provider process
+ * `OrchestrationEventStore` persistence. It does not own runtime process
  * management or transport concerns (e.g. websocket request parsing).
  *
  * Uses Effect `Context.Service` for dependency injection. Command dispatch,
@@ -14,7 +14,7 @@ import type {
   OrchestrationCommand,
   OrchestrationEvent,
   OrchestrationReadModel,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect, Stream } from "effect";
 
@@ -77,4 +77,4 @@ export interface OrchestrationEngineShape {
 export class OrchestrationEngineService extends Context.Service<
   OrchestrationEngineService,
   OrchestrationEngineShape
->()("multi/orchestration/OrchestrationEngine.service/OrchestrationEngineService") {}
+>()("honk/orchestration/OrchestrationEngine.service/OrchestrationEngineService") {}

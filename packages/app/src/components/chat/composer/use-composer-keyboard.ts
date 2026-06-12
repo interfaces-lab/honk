@@ -1,6 +1,6 @@
-import type { KeybindingShortcut, ResolvedKeybindingsConfig } from "@multi/contracts";
+import type { KeybindingShortcut, ResolvedKeybindingsConfig } from "@honk/contracts";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { useMemo, type RefObject } from "react";
+import type { RefObject } from "react";
 
 import { shortcutForCommand } from "../../../keybindings";
 
@@ -37,12 +37,10 @@ export function useComposerKeyboard(input: {
   targetRef: RefObject<HTMLDivElement | null>;
   onToggleInteractionMode: () => void;
 }): void {
-  const cycleInteractionModeHotkey = useMemo(() => {
-    const shortcut = shortcutForCommand(input.keybindings, "composer.cycleInteractionMode", {
-      context: { terminalOpen: input.terminalOpen },
-    });
-    return shortcut ? keybindingShortcutToHotkey(shortcut) : null;
-  }, [input.keybindings, input.terminalOpen]);
+  const shortcut = shortcutForCommand(input.keybindings, "composer.cycleInteractionMode", {
+    context: { terminalOpen: input.terminalOpen },
+  });
+  const cycleInteractionModeHotkey = shortcut ? keybindingShortcutToHotkey(shortcut) : null;
 
   useHotkey(
     cycleInteractionModeHotkey ?? DISABLED_HOTKEY,

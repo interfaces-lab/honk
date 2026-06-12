@@ -1,6 +1,6 @@
 import { IconConsole } from "central-icons";
 
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { cn } from "~/lib/utils";
 
 interface TerminalContextInlineChipProps {
@@ -18,10 +18,10 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
         render={
           <span
             className={cn(
-              "inline-flex max-w-full select-none items-center gap-1 rounded-sm border px-1.5 py-px font-multi text-body font-medium align-middle",
+              "inline-flex max-w-full select-none items-center gap-1 rounded-sm border px-1.5 py-px font-honk text-body font-medium align-middle",
               expired
                 ? "border-destructive/35 bg-destructive/8 text-destructive"
-                : "border-multi-stroke-tertiary bg-multi-bg-quaternary text-multi-fg-primary",
+                : "border-honk-stroke-tertiary bg-honk-bg-quaternary text-honk-fg-primary",
             )}
             data-terminal-context-expired={expired ? "true" : undefined}
           >

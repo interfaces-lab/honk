@@ -7,7 +7,7 @@ import {
   type OrchestrationSession,
   type OrchestrationShellStreamEvent,
   type OrchestrationThreadShell,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema } from "effect";
 
 const CACHE_SCHEMA_VERSION = 1;
@@ -27,7 +27,7 @@ const decodeCachedShellSnapshotRecordOption = Schema.decodeUnknownOption(
 const liveShellSnapshotByEnvironment = new Map<EnvironmentId, OrchestrationShellSnapshot>();
 
 function getCacheKey(environmentId: EnvironmentId): string {
-  return `multi:environment-shell-snapshot:v1:${environmentId}`;
+  return `honk:environment-shell-snapshot:v1:${environmentId}`;
 }
 
 function sanitizeSessionForCache(
@@ -128,6 +128,8 @@ function getEventUpdatedAt(event: OrchestrationShellStreamEvent): string {
     case "project-removed":
     case "thread-removed":
       return new Date().toISOString();
+    default:
+      return new Date().toISOString();
   }
 }
 
@@ -162,6 +164,10 @@ function applyShellStreamEventToSnapshot(
         ...baseSnapshot,
         threads: snapshot.threads.filter((thread) => thread.id !== event.threadId),
       };
+    default: {
+      const _exhaustive: never = event;
+      return _exhaustive;
+    }
   }
 }
 

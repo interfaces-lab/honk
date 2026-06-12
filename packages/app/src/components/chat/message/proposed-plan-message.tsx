@@ -1,12 +1,13 @@
-import { Button } from "@multi/ui/button";
+import { Button } from "@honk/honkkit/button";
+import { Textarea } from "@honk/honkkit/textarea";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
-import { memo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import type { ProposedPlan } from "../../../types";
 import ChatMarkdown from "../markdown/chat-markdown";
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
-export const ProposedPlanMessage = memo(function ProposedPlanMessage({
+export function ProposedPlanMessage({
   canEdit,
   markdownCwd,
   onSave,
@@ -19,7 +20,7 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState(proposedPlan.planMarkdown);
+  const [draft, setDraft] = useState("");
   const title = proposedPlanTitle(proposedPlan.planMarkdown) ?? "Plan";
   const displayedMarkdown = stripDisplayedPlanMarkdown(proposedPlan.planMarkdown);
   const canSave = canEdit && onSave !== undefined && draft.trim().length > 0 && !saving;
@@ -44,9 +45,9 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
     <div className="box-border flex w-full min-w-0 justify-start">
       <div
         data-proposed-plan-message=""
-        className="flex w-full min-w-0 flex-col overflow-hidden rounded-multi-card border border-multi-stroke-secondary bg-multi-bg-secondary text-conversation text-multi-fg-primary shadow-multi-card"
+        className="flex w-full min-w-0 flex-col overflow-hidden rounded-honk-card border border-honk-stroke-secondary bg-honk-bg-secondary text-conversation text-honk-fg-primary shadow-honk-card"
       >
-        <div className="flex min-w-0 items-center gap-2 border-b border-multi-stroke-tertiary px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2 border-b border-honk-stroke-tertiary px-3 py-2">
           <div className="min-w-0 flex-1 truncate text-title font-medium">{title}</div>
           {canEdit && !editing ? (
             <Button
@@ -66,11 +67,13 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
         </div>
         {editing ? (
           <form onSubmit={submit} className="flex min-w-0 flex-col gap-2 p-3">
-            <textarea
+            <Textarea
               value={draft}
               onChange={(event) => setDraft(event.currentTarget.value)}
-              className="min-h-48 w-full resize-y rounded-multi-control border border-multi-stroke-secondary bg-multi-bg-primary px-2 py-2 font-mono text-detail leading-relaxed text-multi-fg-primary outline-none focus:border-multi-stroke-focused"
+              className="bg-honk-bg-primary"
+              controlClassName="min-h-48 resize-y px-2 py-2 font-honk-mono text-detail leading-relaxed"
               data-proposed-plan-editor=""
+              aria-label="Edit plan"
               spellCheck={false}
             />
             <div className="flex justify-end gap-2">
@@ -112,4 +115,4 @@ export const ProposedPlanMessage = memo(function ProposedPlanMessage({
       </div>
     </div>
   );
-});
+}

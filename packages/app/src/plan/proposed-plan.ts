@@ -34,12 +34,20 @@ export function buildProposedPlanMarkdownFilename(planMarkdown: string): string 
 }
 
 export function buildPlanImplementationPrompt(planMarkdown: string): string {
-  return `PLEASE IMPLEMENT THIS PLAN:\n${planMarkdown.trim()}`;
+  return [
+    "Implement the accepted plan below.",
+    "",
+    "Treat the plan as the source of truth for this implementation turn. Keep the work scoped to the plan, preserve intentional behavior, and verify the result. If the plan is blocked by missing information or a contradictory current state, report that clearly instead of inventing a different direction.",
+    "",
+    "Accepted plan:",
+    "",
+    planMarkdown.trim(),
+  ].join("\n");
 }
 
 export function resolvePlanFollowUpSubmission(input: { draftText: string; planMarkdown: string }): {
   text: string;
-  interactionMode: "default" | "plan";
+  interactionMode: "agent" | "plan";
 } {
   const trimmedDraftText = input.draftText.trim();
   if (trimmedDraftText.length > 0) {
@@ -51,6 +59,6 @@ export function resolvePlanFollowUpSubmission(input: { draftText: string; planMa
 
   return {
     text: buildPlanImplementationPrompt(input.planMarkdown),
-    interactionMode: "default",
+    interactionMode: "agent",
   };
 }

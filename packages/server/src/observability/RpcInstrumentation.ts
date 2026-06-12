@@ -1,5 +1,6 @@
 import { Cause, Duration, Effect, Exit, Metric, Stream } from "effect";
-import { outcomeFromExit } from "@multi/shared/observability";
+import * as EffectLogger from "@honk/shared/effect-logger";
+import { outcomeFromExit } from "@honk/shared/observability";
 
 import { metricAttributes, rpcRequestDuration, rpcRequestsTotal, withMetrics } from "./Metrics.ts";
 
@@ -34,16 +35,20 @@ const recordRpcStreamMetrics = <E>(
     );
   });
 
+const rpcLog = EffectLogger.create({ service: "server.rpc" });
+
 const logRpcFailure = <A, E>(
   method: string,
   exit: Exit.Exit<A, E>,
+  traceAttributes?: Readonly<Record<string, unknown>>,
 ): Effect.Effect<void, never, never> => {
   if (!Exit.isFailure(exit) || Cause.hasInterruptsOnly(exit.cause)) {
     return Effect.void;
   }
 
-  return Effect.logError("rpc request failed", {
+  return rpcLog.error("rpc request failed", {
     method,
+    ...traceAttributes,
     cause: Cause.pretty(exit.cause),
   });
 };
@@ -64,7 +69,7 @@ export const observeRpcEffect = <A, E, R>(
           method,
         },
       }),
-      Effect.onExit((exit) => logRpcFailure(method, exit)),
+      Effect.onExit((exit) => logRpcFailure(method, exit, traceAttributes)),
     );
   });
 
@@ -80,7 +85,7 @@ export const observeRpcStream = <A, E, R>(
       return stream.pipe(
         Stream.onExit((exit) =>
           recordRpcStreamMetrics(method, startedAt, exit).pipe(
-            Effect.andThen(logRpcFailure(method, exit)),
+            Effect.andThen(logRpcFailure(method, exit, traceAttributes)),
           ),
         ),
       );
@@ -100,14 +105,14 @@ export const observeRpcStreamEffect = <A, StreamError, StreamContext, EffectErro
 
       if (Exit.isFailure(exit)) {
         yield* recordRpcStreamMetrics(method, startedAt, exit);
-        yield* logRpcFailure(method, exit);
+        yield* logRpcFailure(method, exit, traceAttributes);
         return yield* Effect.failCause(exit.cause);
       }
 
       return exit.value.pipe(
         Stream.onExit((streamExit) =>
           recordRpcStreamMetrics(method, startedAt, streamExit).pipe(
-            Effect.andThen(logRpcFailure(method, streamExit)),
+            Effect.andThen(logRpcFailure(method, streamExit, traceAttributes)),
           ),
         ),
       );

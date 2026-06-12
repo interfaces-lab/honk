@@ -173,7 +173,7 @@ export function readTerminalHostFontFamily(el: HTMLElement): string {
   node.style.position = "absolute";
   node.style.opacity = "0";
   node.style.pointerEvents = "none";
-  node.style.fontFamily = "var(--multi-font-mono), ui-monospace, monospace";
+  node.style.fontFamily = "var(--honk-font-mono), ui-monospace, monospace";
   el.append(node);
   const value = getComputedStyle(node).fontFamily || "ui-monospace, monospace";
   node.remove();
@@ -185,7 +185,7 @@ export function readTerminalHostFontSize(el: HTMLElement): number {
   node.style.position = "absolute";
   node.style.opacity = "0";
   node.style.pointerEvents = "none";
-  node.style.fontSize = "var(--multi-code-font-size-user, 12px)";
+  node.style.fontSize = "var(--honk-code-font-size-user, 12px)";
   el.append(node);
   const value = Number.parseFloat(getComputedStyle(node).fontSize);
   node.remove();
@@ -203,86 +203,86 @@ function readWorkbenchFallbackThemeWithResolver(
   const fallbackBackground = mode === "dark" ? "#1e1e1e" : "#ffffff";
   const fg =
     readNearestComputedPaint(host, "color") ??
-    resolver.readOptional("fg", "var(--multi-terminal-foreground)") ??
-    resolver.readOptional("fg", "var(--multi-workbench-terminal-foreground)") ??
+    resolver.readOptional("fg", "var(--honk-terminal-foreground)") ??
+    resolver.readOptional("fg", "var(--honk-workbench-terminal-foreground)") ??
     resolver.read("fg", "var(--foreground)", fallbackForeground);
   const bg =
     readNearestComputedPaint(host, "backgroundColor") ??
-    resolver.readOptional("bg", "var(--multi-terminal-background)") ??
-    resolver.readOptional("bg", "var(--multi-workbench-terminal-background)") ??
+    resolver.readOptional("bg", "var(--honk-terminal-background)") ??
+    resolver.readOptional("bg", "var(--honk-workbench-terminal-background)") ??
     resolver.read("bg", "var(--background)", fallbackBackground);
 
   return {
-    black: readThemeVar(resolver, "fg", "--multi-terminal-ansi-black", base.black ?? "#000000"),
-    red: readThemeVar(resolver, "fg", "--multi-terminal-ansi-red", base.red ?? "#cd3131"),
-    green: readThemeVar(resolver, "fg", "--multi-terminal-ansi-green", base.green ?? "#0dbc79"),
-    yellow: readThemeVar(resolver, "fg", "--multi-terminal-ansi-yellow", base.yellow ?? "#e5e510"),
-    blue: readThemeVar(resolver, "fg", "--multi-terminal-ansi-blue", base.blue ?? "#2472c8"),
+    black: readThemeVar(resolver, "fg", "--honk-terminal-ansi-black", base.black ?? "#000000"),
+    red: readThemeVar(resolver, "fg", "--honk-terminal-ansi-red", base.red ?? "#cd3131"),
+    green: readThemeVar(resolver, "fg", "--honk-terminal-ansi-green", base.green ?? "#0dbc79"),
+    yellow: readThemeVar(resolver, "fg", "--honk-terminal-ansi-yellow", base.yellow ?? "#e5e510"),
+    blue: readThemeVar(resolver, "fg", "--honk-terminal-ansi-blue", base.blue ?? "#2472c8"),
     magenta: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-magenta",
+      "--honk-terminal-ansi-magenta",
       base.magenta ?? "#bc3fbc",
     ),
-    cyan: readThemeVar(resolver, "fg", "--multi-terminal-ansi-cyan", base.cyan ?? "#11a8cd"),
-    white: readThemeVar(resolver, "fg", "--multi-terminal-ansi-white", base.white ?? "#e5e5e5"),
+    cyan: readThemeVar(resolver, "fg", "--honk-terminal-ansi-cyan", base.cyan ?? "#11a8cd"),
+    white: readThemeVar(resolver, "fg", "--honk-terminal-ansi-white", base.white ?? "#e5e5e5"),
     brightBlack: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-black",
+      "--honk-terminal-ansi-bright-black",
       base.brightBlack ?? "#666666",
     ),
     brightRed: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-red",
+      "--honk-terminal-ansi-bright-red",
       base.brightRed ?? "#f14c4c",
     ),
     brightGreen: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-green",
+      "--honk-terminal-ansi-bright-green",
       base.brightGreen ?? "#23d18b",
     ),
     brightYellow: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-yellow",
+      "--honk-terminal-ansi-bright-yellow",
       base.brightYellow ?? "#f5f543",
     ),
     brightBlue: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-blue",
+      "--honk-terminal-ansi-bright-blue",
       base.brightBlue ?? "#3b8eea",
     ),
     brightMagenta: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-magenta",
+      "--honk-terminal-ansi-bright-magenta",
       base.brightMagenta ?? "#d670d6",
     ),
     brightCyan: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-cyan",
+      "--honk-terminal-ansi-bright-cyan",
       base.brightCyan ?? "#29b8db",
     ),
     brightWhite: readThemeVar(
       resolver,
       "fg",
-      "--multi-terminal-ansi-bright-white",
+      "--honk-terminal-ansi-bright-white",
       base.brightWhite ?? "#e5e5e5",
     ),
     background: bg,
     foreground: fg,
-    cursor: resolver.readOptional("fg", "var(--multi-terminal-cursor)") ?? fg,
-    cursorAccent: resolver.readOptional("bg", "var(--multi-terminal-cursor-accent)") ?? bg,
+    cursor: resolver.readOptional("fg", "var(--honk-terminal-cursor)") ?? fg,
+    cursorAccent: resolver.readOptional("bg", "var(--honk-terminal-cursor-accent)") ?? bg,
     selectionBackground:
-      resolver.readOptional("bg", "var(--multi-terminal-selection-background)") ??
+      resolver.readOptional("bg", "var(--honk-terminal-selection-background)") ??
       (mode === "dark" ? "rgba(96, 165, 250, 0.35)" : "rgba(59, 130, 246, 0.35)"),
     selectionForeground:
-      resolver.readOptional("fg", "var(--multi-terminal-selection-foreground)") ??
+      resolver.readOptional("fg", "var(--honk-terminal-selection-foreground)") ??
       (mode === "dark" ? "rgb(249, 250, 251)" : "rgb(15, 23, 42)"),
   } satisfies ITheme;
 }

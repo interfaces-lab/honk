@@ -1,13 +1,13 @@
-import { Button } from "@multi/ui/button";
+import { Button } from "@honk/honkkit/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
-import { memo, useMemo, useState } from "react";
+import { useState } from "react";
 
 import ChatMarkdown from "../../markdown/chat-markdown";
 import type { ComposerInputProps } from "../input-contract";
 import { cn } from "~/lib/utils";
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
-export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
+export function PlanFollowUpTray(props: {
   plan: NonNullable<ComposerInputProps["activeProposedPlan"]>;
   compact: boolean;
   gitCwd: string | undefined;
@@ -18,11 +18,8 @@ export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
 }) {
   const planKey = String(props.plan.id);
   const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
-  const title = useMemo(() => proposedPlanTitle(props.plan.planMarkdown) ?? "Plan", [props.plan]);
-  const previewMarkdown = useMemo(
-    () => stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim(),
-    [props.plan],
-  );
+  const title = proposedPlanTitle(props.plan.planMarkdown) ?? "Plan";
+  const previewMarkdown = stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim();
   const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
 
   if (dismissedPlanId === planKey) {
@@ -32,7 +29,7 @@ export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--multi-composer-plan-tray-radius) bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--honk-composer-plan-tray-radius) bg-honk-bg-elevated font-honk text-detail text-honk-fg-primary shadow-honk-card",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
@@ -41,20 +38,21 @@ export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
     >
       <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="text-caption font-medium text-multi-fg-tertiary">Review Plan</div>
-          <div className="truncate text-detail font-medium text-multi-fg-primary" title={title}>
+          <div className="text-caption font-medium text-honk-fg-tertiary">Review Plan</div>
+          <div className="truncate text-detail font-medium text-honk-fg-primary" title={title}>
             {title}
           </div>
         </div>
-        <button
-          type="button"
-          className="flex size-6 shrink-0 items-center justify-center rounded-multi-control bg-multi-bg-quinary text-multi-icon-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+        <Button
+          className="shrink-0 bg-honk-bg-quinary text-honk-icon-secondary hover:text-honk-icon-primary"
+          size="icon-sm"
+          variant="ghost"
           aria-label="Dismiss plan"
           title="Dismiss plan"
           onClick={() => setDismissedPlanId(planKey)}
         >
           <IconCrossSmall className="size-3" aria-hidden />
-        </button>
+        </Button>
       </div>
 
       {previewMarkdown ? (
@@ -96,4 +94,4 @@ export const PlanFollowUpTray = memo(function PlanFollowUpTray(props: {
       </div>
     </div>
   );
-});
+}

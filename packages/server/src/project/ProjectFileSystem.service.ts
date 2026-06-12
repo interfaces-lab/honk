@@ -14,8 +14,11 @@ import type {
   ProjectReadFileResult,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
-} from "@multi/contracts";
-import { ProjectPathOutsideRootError } from "./ProjectPaths.service.ts";
+} from "@honk/contracts";
+import {
+  ProjectPathOutsideRootError,
+  type ProjectRootNormalizeError,
+} from "./ProjectPaths.service.ts";
 
 export class ProjectFileSystemError extends Schema.TaggedErrorClass<ProjectFileSystemError>()(
   "ProjectFileSystemError",
@@ -40,7 +43,10 @@ export interface ProjectFileSystemShape {
    */
   readonly readFile: (
     input: ProjectReadFileInput,
-  ) => Effect.Effect<ProjectReadFileResult, ProjectFileSystemError | ProjectPathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectReadFileResult,
+    ProjectFileSystemError | ProjectPathOutsideRootError | ProjectRootNormalizeError
+  >;
 
   /**
    * Write a file relative to the project root.
@@ -50,12 +56,15 @@ export interface ProjectFileSystemShape {
    */
   readonly writeFile: (
     input: ProjectWriteFileInput,
-  ) => Effect.Effect<ProjectWriteFileResult, ProjectFileSystemError | ProjectPathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectWriteFileResult,
+    ProjectFileSystemError | ProjectPathOutsideRootError | ProjectRootNormalizeError
+  >;
 }
 
 /**
  * ProjectFileSystem - Service tag for project file operations.
  */
 export class ProjectFileSystem extends Context.Service<ProjectFileSystem, ProjectFileSystemShape>()(
-  "multi/project/ProjectFileSystem.service",
+  "honk/project/ProjectFileSystem.service",
 ) {}

@@ -2,13 +2,24 @@ import { Debouncer } from "@tanstack/react-pacer";
 import { Option, Schema } from "effect";
 import { create } from "zustand";
 
-const PERSISTED_STATE_KEY = "multi:ui-state:v1";
+const PERSISTED_STATE_KEY = "honk:ui-state:v1";
+
+export const SIDEBAR_THREAD_FILTERS = [
+  "running",
+  "needs_attention",
+  "idle",
+  "stopped",
+  "error",
+  "archived",
+] as const;
+export type SidebarThreadFilter = (typeof SIDEBAR_THREAD_FILTERS)[number];
 
 const PersistedUiState = Schema.Struct({
   collapsedProjectCwds: Schema.optionalKey(Schema.Array(Schema.String)),
   expandedProjectCwds: Schema.optionalKey(Schema.Array(Schema.String)),
   pinnedThreadKeys: Schema.optionalKey(Schema.Array(Schema.String)),
   projectOrderCwds: Schema.optionalKey(Schema.Array(Schema.String)),
+  sidebarThreadFilters: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 type PersistedUiState = typeof PersistedUiState.Type;
 const decodePersistedUiStateOption = Schema.decodeUnknownOption(PersistedUiState);
@@ -21,6 +32,7 @@ export interface UiProjectState {
 export interface UiThreadState {
   threadLastVisitedAtById: Record<string, string>;
   pinnedThreadKeys: string[];
+  sidebarThreadFilters: SidebarThreadFilter[];
 }
 
 export interface UiState extends UiProjectState, UiThreadState {}
@@ -43,6 +55,7 @@ const initialState: UiState = {
   projectOrder: [],
   threadLastVisitedAtById: {},
   pinnedThreadKeys: [],
+  sidebarThreadFilters: [],
 };
 
 const persistedCollapsedProjectCwds = new Set<string>();
@@ -69,10 +82,17 @@ function readPersistedState(): UiState {
     return {
       ...initialState,
       pinnedThreadKeys: uniqueNonEmptyStrings(parsed.pinnedThreadKeys ?? []),
+      sidebarThreadFilters: sanitizeSidebarThreadFilters(parsed.sidebarThreadFilters ?? []),
     };
   } catch {
     return initialState;
   }
+}
+
+function sanitizeSidebarThreadFilters(values: readonly string[]): SidebarThreadFilter[] {
+  return uniqueNonEmptyStrings(values).filter((value): value is SidebarThreadFilter =>
+    (SIDEBAR_THREAD_FILTERS as readonly string[]).includes(value),
+  );
 }
 
 function uniqueNonEmptyStrings(values: readonly string[]): string[] {
@@ -102,9 +122,11 @@ function hydratePersistedProjectState(parsed: PersistedUiState): void {
       persistedExpandedProjectCwds.add(cwd);
     }
   }
+  const persistedProjectOrderCwdSet = new Set(persistedProjectOrderCwds);
   for (const cwd of parsed.projectOrderCwds ?? []) {
-    if (typeof cwd === "string" && cwd.length > 0 && !persistedProjectOrderCwds.includes(cwd)) {
+    if (typeof cwd === "string" && cwd.length > 0 && !persistedProjectOrderCwdSet.has(cwd)) {
       persistedProjectOrderCwds.push(cwd);
+      persistedProjectOrderCwdSet.add(cwd);
     }
   }
 }
@@ -131,6 +153,7 @@ function persistState(state: UiState): void {
         expandedProjectCwds,
         pinnedThreadKeys: state.pinnedThreadKeys,
         projectOrderCwds,
+        sidebarThreadFilters: state.sidebarThreadFilters,
       } satisfies PersistedUiState),
     );
   } catch {
@@ -177,14 +200,19 @@ export function syncProjects(state: UiState, projects: readonly SyncProjectInput
     currentLogicalKeyByPhysicalKey.set(project.key, project.logicalKey);
   }
   currentProjectCwdsByLogicalKey.clear();
+  const currentProjectCwdSetsByLogicalKey = new Map<string, Set<string>>();
   for (const project of projects) {
     const cwds = currentProjectCwdsByLogicalKey.get(project.logicalKey);
     if (cwds) {
-      if (!cwds.includes(project.cwd)) {
+      const cwdSet = currentProjectCwdSetsByLogicalKey.get(project.logicalKey) ?? new Set(cwds);
+      if (!cwdSet.has(project.cwd)) {
         cwds.push(project.cwd);
+        cwdSet.add(project.cwd);
       }
+      currentProjectCwdSetsByLogicalKey.set(project.logicalKey, cwdSet);
     } else {
       currentProjectCwdsByLogicalKey.set(project.logicalKey, [project.cwd]);
+      currentProjectCwdSetsByLogicalKey.set(project.logicalKey, new Set([project.cwd]));
     }
   }
 
@@ -405,6 +433,16 @@ export function markThreadUnread(
   };
 }
 
+export function toggleSidebarThreadFilter(state: UiState, filter: SidebarThreadFilter): UiState {
+  const active = state.sidebarThreadFilters.includes(filter);
+  return {
+    ...state,
+    sidebarThreadFilters: active
+      ? state.sidebarThreadFilters.filter((current) => current !== filter)
+      : [...state.sidebarThreadFilters, filter],
+  };
+}
+
 export function clearThreadUi(state: UiState, threadId: string): UiState {
   const hasVisitedState = threadId in state.threadLastVisitedAtById;
   const hasPinnedState = state.pinnedThreadKeys.includes(threadId);
@@ -527,6 +565,7 @@ interface UiStateStore extends UiState {
   markThreadVisited: (threadId: string, visitedAt?: string) => void;
   markThreadUnread: (threadId: string, latestReadableAt: string | null | undefined) => void;
   setThreadPinned: (threadId: string, pinned: boolean) => void;
+  toggleSidebarThreadFilter: (filter: SidebarThreadFilter) => void;
   clearThreadUi: (threadId: string) => void;
   toggleProject: (projectId: string) => void;
   setProjectExpanded: (projectId: string, expanded: boolean) => void;
@@ -546,6 +585,7 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
   markThreadUnread: (threadId, latestReadableAt) =>
     set((state) => markThreadUnread(state, threadId, latestReadableAt)),
   setThreadPinned: (threadId, pinned) => set((state) => setThreadPinned(state, threadId, pinned)),
+  toggleSidebarThreadFilter: (filter) => set((state) => toggleSidebarThreadFilter(state, filter)),
   clearThreadUi: (threadId) => set((state) => clearThreadUi(state, threadId)),
   toggleProject: (projectId) => set((state) => toggleProject(state, projectId)),
   setProjectExpanded: (projectId, expanded) =>

@@ -10,9 +10,7 @@ import {
   SchemaTransformation,
 } from "effect";
 
-export const decodeJsonResult = <S extends Schema.Codec<unknown, unknown, never, never>>(
-  schema: S,
-) => {
+export const decodeJsonResult = <S extends Schema.Codec<unknown, unknown>>(schema: S) => {
   const decode = Schema.decodeExit(Schema.fromJsonString(schema));
   return (input: string) => {
     const result = decode(input);
@@ -23,9 +21,7 @@ export const decodeJsonResult = <S extends Schema.Codec<unknown, unknown, never,
   };
 };
 
-export const decodeUnknownJsonResult = <S extends Schema.Codec<unknown, unknown, never, never>>(
-  schema: S,
-) => {
+export const decodeUnknownJsonResult = <S extends Schema.Codec<unknown, unknown>>(schema: S) => {
   const decode = Schema.decodeUnknownExit(Schema.fromJsonString(schema));
   return (input: unknown) => {
     const result = decode(input);
@@ -43,6 +39,89 @@ export const formatSchemaError = (cause: Cause.Cause<Schema.SchemaError>) => {
     : Cause.pretty(cause);
 };
 
+export type FormattedSchemaIssue = {
+  readonly message: string;
+  readonly path: readonly string[];
+};
+
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+export const formatSchemaIssues = (
+  cause: Cause.Cause<Schema.SchemaError>,
+): readonly FormattedSchemaIssue[] => {
+  const squashed = Cause.squash(cause);
+  if (!Schema.isSchemaError(squashed)) {
+    return [{ message: Cause.pretty(cause), path: [] }];
+  }
+  return SchemaIssue.makeFormatterStandardSchemaV1()(squashed.issue).issues.map((issue) => ({
+    message: issue.message,
+    path: issue.path?.map((part) => String(part)) ?? [],
+  }));
+};
+
+export function toJsonValue(
+  value: unknown,
+  seen: WeakSet<object> = new WeakSet(),
+): JsonValue | undefined {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (value === undefined || typeof value === "function" || typeof value === "symbol") {
+    return undefined;
+  }
+  if (typeof value !== "object") {
+    return undefined;
+  }
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  seen.add(value);
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "Invalid Date" : value.toISOString();
+  }
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      ...(value.stack ? { stack: value.stack } : {}),
+    };
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => toJsonValue(entry, seen) ?? null);
+  }
+  if (value instanceof Map) {
+    return Object.fromEntries(
+      Array.from(value.entries(), ([key, entryValue]) => [
+        String(key),
+        toJsonValue(entryValue, seen) ?? null,
+      ]),
+    );
+  }
+  if (value instanceof Set) {
+    return Array.from(value.values(), (entry) => toJsonValue(entry, seen) ?? null);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entryValue]) => {
+      const jsonValue = toJsonValue(entryValue, seen);
+      return jsonValue === undefined ? [] : [[key, jsonValue]];
+    }),
+  );
+}
+
 /**
  * A `Getter` that parses a lenient JSON string (tolerating trailing commas
  * and JS-style comments) into an unknown value.
@@ -59,7 +138,7 @@ const parseLenientJsonGetter = SchemaGetter.onSome((input: string) =>
         (match, stringLiteral: string | undefined) => (stringLiteral ? match : ""),
       );
 
-      // Strip multi-line comments.
+      // Strip honk-line comments.
       stripped = stripped.replace(
         /("(?:[^"\\]|\\.)*")|\/\*[\s\S]*?\*\//g,
         (match, stringLiteral: string | undefined) => (stringLiteral ? match : ""),

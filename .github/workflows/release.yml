@@ -78,7 +78,7 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "name=Multi v$version" >> "$GITHUB_OUTPUT"
+          echo "name=Honk v$version" >> "$GITHUB_OUTPUT"
           if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
             echo "make_latest=true" >> "$GITHUB_OUTPUT"
@@ -102,7 +102,7 @@ jobs:
       - id: previous_tag
         name: Resolve previous release tag
         run: |
-          node scripts/resolve-previous-release-tag.ts \
+          node packages/release-scripts/src/resolve-previous-release-tag.ts \
             --current-tag "${{ steps.release_meta.outputs.tag }}" \
             --github-output
 
@@ -149,7 +149,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Align package versions to release version
-        run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
+        run: node packages/release-scripts/src/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
+
+      - name: Build desktop bundle
+        run: pnpm run build:desktop
 
       - name: Build desktop artifact
         shell: bash
@@ -160,14 +163,6 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
-          args=(
-            --platform "${{ matrix.platform }}"
-            --target "${{ matrix.target }}"
-            --arch "${{ matrix.arch }}"
-            --build-version "${{ needs.preflight.outputs.version }}"
-            --verbose
-          )
-
           has_all() {
             for value in "$@"; do
               if [[ -z "$value" ]]; then
@@ -183,15 +178,20 @@ jobs:
               printf '%s' "$APPLE_API_KEY" > "$key_path"
               export APPLE_API_KEY="$key_path"
               echo "macOS signing enabled."
-              args+=(--signed)
             else
               echo "macOS signing disabled (missing one or more Apple signing secrets)."
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+              export HONK_DESKTOP_SKIP_MAC_SIGNING=true
             fi
           else
             echo "Signing disabled for ${{ matrix.platform }}."
           fi
 
-          pnpm run dist:desktop:artifact -- "${args[@]}"
+          if [[ "${{ matrix.platform }}" == "mac" ]]; then
+            pnpm --dir packages/desktop exec electron-builder --mac --publish never --config electron-builder.config.ts
+          else
+            pnpm --dir packages/desktop exec electron-builder --linux --publish never --config electron-builder.config.ts
+          fi
 
       - name: Collect release assets
         shell: bash
@@ -201,11 +201,11 @@ jobs:
 
           shopt -s nullglob
           for pattern in \
-            "release/*.dmg" \
-            "release/*.zip" \
-            "release/*.AppImage" \
-            "release/*.blockmap" \
-            "release/*.yml"; do
+            "packages/desktop/dist/*.dmg" \
+            "packages/desktop/dist/*.zip" \
+            "packages/desktop/dist/*.AppImage" \
+            "packages/desktop/dist/*.blockmap" \
+            "packages/desktop/dist/*.yml"; do
             for file in $pattern; do
               cp "$file" release-publish/
             done
@@ -252,10 +252,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Align package versions to release version
-        run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
+        run: node packages/release-scripts/src/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
 
       - name: Build CLI package
-        run: pnpm run build -- --filter=@multi/app --filter=usemulti
+        run: pnpm run build -- --filter=@honk/app --filter=usehonk
 
       - name: Publish CLI package
         run: node packages/server/scripts/cli.ts publish --tag latest --app-version "${{ needs.preflight.outputs.version }}" --verbose
@@ -289,7 +289,7 @@ jobs:
           for x64_manifest in release-assets/*-mac-x64.yml; do
             arm64_manifest="${x64_manifest%-x64.yml}.yml"
             if [[ -f "$arm64_manifest" ]]; then
-              node scripts/merge-mac-update-manifests.ts "$arm64_manifest" "$x64_manifest"
+              node packages/release-scripts/src/merge-mac-update-manifests.ts "$arm64_manifest" "$x64_manifest"
               rm -f "$x64_manifest"
             fi
           done
@@ -375,7 +375,7 @@ jobs:
         name: Update version strings
         env:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-        run: node scripts/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
+        run: node packages/release-scripts/src/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
 
       - name: Format package.json files
         if: steps.update_versions.outputs.changed == 'true'

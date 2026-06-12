@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import { isElectron } from "../env";
 import { applyAppearanceBoot } from "../lib/appearance-settings";
@@ -9,7 +9,7 @@ type ThemeSnapshot = {
   systemDark: boolean;
 };
 
-const STORAGE_KEY = "multi:theme";
+const STORAGE_KEY = "honk:theme";
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
   theme: "system",
@@ -82,8 +82,8 @@ function resolveBrowserChromeSurface(): HTMLElement {
 function wantsElectronGlassBackground() {
   return (
     isElectron &&
-    document.body.getAttribute("data-multi-glass-mode") === "true" &&
-    !document.body.classList.contains("multi-reduce-transparency")
+    document.body.getAttribute("data-honk-glass-mode") === "true" &&
+    !document.body.classList.contains("honk-reduce-transparency")
   );
 }
 
@@ -103,15 +103,17 @@ export function syncBrowserChromeTheme() {
   const backgroundColor = surfaceColor ?? fallbackColor;
   if (!backgroundColor && !wantsGlassBackground) return;
 
-  const rendererBackgroundColor = wantsGlassBackground
-    ? "transparent"
-    : (backgroundColor ?? "");
-  if (!rendererBackgroundColor) return;
   const desktopBackgroundColor = wantsGlassBackground
     ? getElectronGlassBackgroundColor()
-    : rendererBackgroundColor;
-  document.documentElement.style.backgroundColor = rendererBackgroundColor;
-  document.body.style.backgroundColor = rendererBackgroundColor;
+    : (backgroundColor ?? "");
+  if (!desktopBackgroundColor) return;
+  if (wantsGlassBackground) {
+    document.documentElement.style.removeProperty("background-color");
+    document.body.style.removeProperty("background-color");
+  } else {
+    document.documentElement.style.backgroundColor = desktopBackgroundColor;
+    document.body.style.backgroundColor = desktopBackgroundColor;
+  }
   if (backgroundColor) {
     ensureThemeColorMetaTag().setAttribute("content", backgroundColor);
   }
@@ -228,12 +230,12 @@ export function useTheme() {
   const resolvedTheme: "light" | "dark" =
     theme === "system" ? (snapshot.systemDark ? "dark" : "light") : theme;
 
-  const setTheme = useCallback((next: Theme) => {
+  const setTheme = (next: Theme) => {
     if (!hasThemeStorage()) return;
     localStorage.setItem(STORAGE_KEY, next);
     applyTheme(next, true);
     emitChange();
-  }, []);
+  };
 
   return { theme, setTheme, resolvedTheme } as const;
 }

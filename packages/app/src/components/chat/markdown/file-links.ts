@@ -1,7 +1,11 @@
+import {
+  isWindowsDrivePath,
+  stripWindowsDriveLeadingSlash,
+} from "@honk/shared/paths";
+
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { resolvePathLinkTarget, splitPathAndPosition } from "../../../lib/terminal-links";
 
-const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
 const WINDOWS_UNC_PATH_PATTERN = /^\\\\/;
 const EXTERNAL_SCHEME_PATTERN = /^([A-Za-z][A-Za-z0-9+.-]*):(.*)$/;
 const RELATIVE_PATH_PREFIX_PATTERN = /^(~\/|\.{1,2}\/)/;
@@ -59,8 +63,7 @@ function parseFileUrlHref(
     const rawPath = parsed.pathname;
     if (rawPath.length === 0) return null;
 
-    // Browser URL parser encodes "C:/foo" as "/C:/foo" for file URLs.
-    const normalizedPath = /^\/[A-Za-z]:[\\/]/.test(rawPath) ? rawPath.slice(1) : rawPath;
+    const normalizedPath = stripWindowsDriveLeadingSlash(rawPath);
 
     return {
       path: options?.decodePath === false ? normalizedPath : safeDecode(normalizedPath),
@@ -96,7 +99,7 @@ function appendLineColumnFromHash(path: string, hash: string): string {
 }
 
 function isLikelyPathCandidate(path: string): boolean {
-  if (WINDOWS_DRIVE_PATH_PATTERN.test(path) || WINDOWS_UNC_PATH_PATTERN.test(path)) return true;
+  if (isWindowsDrivePath(path) || WINDOWS_UNC_PATH_PATTERN.test(path)) return true;
   if (RELATIVE_PATH_PREFIX_PATTERN.test(path)) return true;
   if (path.startsWith("/")) return looksLikePosixFilesystemPath(path);
   return RELATIVE_FILE_PATH_PATTERN.test(path) || RELATIVE_FILE_NAME_PATTERN.test(path);
@@ -106,7 +109,7 @@ function isRelativePath(path: string): boolean {
   return (
     RELATIVE_PATH_PREFIX_PATTERN.test(path) ||
     (!path.startsWith("/") &&
-      !WINDOWS_DRIVE_PATH_PATTERN.test(path) &&
+      !isWindowsDrivePath(path) &&
       !WINDOWS_UNC_PATH_PATTERN.test(path))
   );
 }
@@ -136,7 +139,7 @@ export function resolveMarkdownFileLinkTarget(
 
   if (decodedPath.length === 0) return null;
   if (
-    !WINDOWS_DRIVE_PATH_PATTERN.test(decodedPath) &&
+    !isWindowsDrivePath(decodedPath) &&
     !WINDOWS_UNC_PATH_PATTERN.test(decodedPath) &&
     hasExternalScheme(decodedPath)
   ) {

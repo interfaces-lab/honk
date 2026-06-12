@@ -1,17 +1,19 @@
-import type { EnvironmentId, EnvironmentApi } from "@multi/contracts";
+import type { EnvironmentId, EnvironmentApi } from "@honk/contracts";
+import { createEnvironmentClient, isDesktopRuntimeApiAvailable } from "@honk/client-runtime";
 
-import type { WsRpcClient } from "./rpc/ws-rpc-client";
+import { getPrimaryKnownEnvironment } from "./environments/primary";
 import { readEnvironmentConnection } from "./environments/runtime";
+import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "./lib/environment-scope";
+import type { WsRpcClient } from "./rpc/ws-rpc-client";
+
+export interface ReadEnvironmentApiOptions {
+  readonly allowPrimaryEnvironmentFallback?: boolean;
+}
 
 const environmentApiOverridesForTests = new Map<EnvironmentId, EnvironmentApi>();
 
-const environmentApiByClient = new WeakMap<WsRpcClient, EnvironmentApi>();
-
 export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
-  const cached = environmentApiByClient.get(rpcClient);
-  if (cached) return cached;
-
-  const api: EnvironmentApi = {
+  return createEnvironmentClient({
     terminal: {
       open: (input) => rpcClient.terminal.open(input as never),
       write: (input) => rpcClient.terminal.write(input as never),
@@ -44,19 +46,16 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       preparePullRequestThread: rpcClient.git.preparePullRequestThread,
       discardPaths: rpcClient.git.discardPaths,
       getFilePatch: rpcClient.git.getFilePatch,
+      getFileImage: rpcClient.git.getFileImage,
     },
     orchestration: {
       dispatchCommand: rpcClient.orchestration.dispatchCommand,
-      getProviderThreadSnapshot: rpcClient.orchestration.getProviderThreadSnapshot,
       subscribeShell: (callback, options) =>
         rpcClient.orchestration.subscribeShell(callback, options),
       subscribeThread: (input, callback, options) =>
         rpcClient.orchestration.subscribeThread(input, callback, options),
     },
-  };
-
-  environmentApiByClient.set(rpcClient, api);
-  return api;
+  });
 }
 
 export function readEnvironmentApi(environmentId: EnvironmentId): EnvironmentApi | undefined {
@@ -75,6 +74,40 @@ export function readEnvironmentApi(environmentId: EnvironmentId): EnvironmentApi
 
   const connection = readEnvironmentConnection(environmentId);
   return connection ? createEnvironmentApi(connection.client) : undefined;
+}
+
+export function readEnvironmentApiWithFallback(
+  environmentId: EnvironmentId | null | undefined,
+  options?: ReadEnvironmentApiOptions,
+): EnvironmentApi | undefined {
+  if (environmentId === DESKTOP_RUNTIME_ENVIRONMENT_ID) {
+    return undefined;
+  }
+
+  if (environmentId) {
+    return readEnvironmentApi(environmentId);
+  }
+
+  if (!options?.allowPrimaryEnvironmentFallback) {
+    return undefined;
+  }
+
+  if (isDesktopRuntimeApiAvailable()) {
+    return undefined;
+  }
+
+  const primaryEnvironment = getPrimaryKnownEnvironment();
+  const primaryEnvironmentId = primaryEnvironment?.environmentId;
+  if (!primaryEnvironmentId) {
+    return undefined;
+  }
+
+  const connection = readEnvironmentConnection(primaryEnvironmentId);
+  if (!connection) {
+    return undefined;
+  }
+
+  return createEnvironmentApi(connection.client);
 }
 
 export function ensureEnvironmentApi(environmentId: EnvironmentId): EnvironmentApi {

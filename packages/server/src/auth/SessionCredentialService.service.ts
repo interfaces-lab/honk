@@ -3,7 +3,7 @@ import type {
   AuthClientSession,
   AuthSessionId,
   ServerAuthSessionMethod,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Data, DateTime, Duration, Context } from "effect";
 import type { Effect, Stream } from "effect";
 
@@ -44,30 +44,13 @@ export class SessionCredentialError extends Data.TaggedError("SessionCredentialE
 }> {}
 
 export interface SessionCredentialServiceShape {
-  readonly cookieName: string;
   readonly issue: (input?: {
     readonly ttl?: Duration.Duration;
     readonly subject?: string;
-    readonly method?: ServerAuthSessionMethod;
     readonly role?: SessionRole;
     readonly client?: AuthClientMetadata;
   }) => Effect.Effect<IssuedSession, SessionCredentialError>;
   readonly verify: (token: string) => Effect.Effect<VerifiedSession, SessionCredentialError>;
-  readonly issueWebSocketToken: (
-    sessionId: AuthSessionId,
-    input?: {
-      readonly ttl?: Duration.Duration;
-    },
-  ) => Effect.Effect<
-    {
-      readonly token: string;
-      readonly expiresAt: DateTime.DateTime;
-    },
-    SessionCredentialError
-  >;
-  readonly verifyWebSocketToken: (
-    token: string,
-  ) => Effect.Effect<VerifiedSession, SessionCredentialError>;
   readonly listActive: () => Effect.Effect<
     ReadonlyArray<AuthClientSession>,
     SessionCredentialError
@@ -84,4 +67,4 @@ export interface SessionCredentialServiceShape {
 export class SessionCredentialService extends Context.Service<
   SessionCredentialService,
   SessionCredentialServiceShape
->()("multi/auth/SessionCredentialService.service") {}
+>()("honk/auth/SessionCredentialService.service") {}

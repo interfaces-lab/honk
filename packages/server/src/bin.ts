@@ -4,14 +4,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Command } from "effect/unstable/cli";
 
-import { NetService } from "@multi/shared/Net";
+import { NetService } from "@honk/shared/Net";
 import { cli } from "./cli";
 import { version } from "../package.json" with { type: "json" };
 
 const CliRuntimeLayer = Layer.mergeAll(NodeServices.layer, NetService.layer);
 
-Command.run(cli, { version }).pipe(
-  Effect.scoped,
-  Effect.provide(CliRuntimeLayer),
-  NodeRuntime.runMain,
+NodeRuntime.runMain(
+  Command.run(cli, { version }).pipe(Effect.scoped, Effect.provide(CliRuntimeLayer)),
 );

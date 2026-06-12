@@ -17,13 +17,10 @@ if (!Number.isInteger(port) || port <= 0) {
   throw new Error(`VITE_DEV_SERVER_URL must include an explicit port: ${devServerUrl}`);
 }
 
-const requiredFiles = [
-  "dist-electron/main.cjs",
-  "dist-electron/preload.cjs",
-  "../server/dist/bin.mjs",
-];
+const requiredFiles = ["out/main/index.js", "out/preload/index.js", "../server/dist/bin.mjs"];
 const watchedDirectories = [
-  { directory: "dist-electron", files: new Set(["main.cjs", "preload.cjs"]) },
+  { directory: "out/main", files: new Set(["index.js"]), extensions: [".js", ".cjs"] },
+  { directory: "out/preload", files: new Set(["index.js"]), extensions: [".js", ".cjs"] },
   { directory: "../server/dist", files: new Set(["bin.mjs"]) },
 ];
 const forcedShutdownTimeoutMs = 1_500;
@@ -44,14 +41,14 @@ delete childEnv.ELECTRON_RUN_AS_NODE;
 
 function resolveDevUserDataDir() {
   if (process.platform === "win32") {
-    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "multi-dev");
+    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "honk-dev");
   }
 
   if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "multi-dev");
+    return join(homedir(), "Library", "Application Support", "honk-dev");
   }
 
-  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "multi-dev");
+  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "honk-dev");
 }
 
 const devUserDataDir = resolveDevUserDataDir();
@@ -65,12 +62,54 @@ let restartQueue = Promise.resolve();
 const expectedExits = new WeakSet();
 const watchers = [];
 
-function killChildTreeByPid(pid, signal) {
+function findDescendantPids(pid) {
   if (process.platform === "win32" || typeof pid !== "number") {
-    return;
+    return [];
   }
 
-  spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
+  const result = spawnSync("ps", ["-axo", "pid=,ppid="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return [];
+  }
+
+  const childrenByParent = new Map();
+  for (const line of result.stdout.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (!match) {
+      continue;
+    }
+
+    const childPid = Number.parseInt(match[1], 10);
+    const parentPid = Number.parseInt(match[2], 10);
+    const children = childrenByParent.get(parentPid) ?? [];
+    children.push(childPid);
+    childrenByParent.set(parentPid, children);
+  }
+
+  const descendants = [];
+  const stack = [...(childrenByParent.get(pid) ?? [])];
+  while (stack.length > 0) {
+    const nextPid = stack.pop();
+    if (nextPid === undefined) {
+      continue;
+    }
+    descendants.push(nextPid);
+    stack.push(...(childrenByParent.get(nextPid) ?? []));
+  }
+  return descendants;
+}
+
+function killChildTreeByPid(pid, signal) {
+  for (const childPid of findDescendantPids(pid).reverse()) {
+    try {
+      process.kill(childPid, signal);
+    } catch {
+      // Process already exited.
+    }
+  }
 }
 
 function parsePid(value) {
@@ -157,7 +196,7 @@ function findStaleDevProcessPids() {
     return { appPids: [], ownerPids: [] };
   }
 
-  const marker = `--multi-dev-root=${desktopDir}`;
+  const marker = `--honk-dev-root=${desktopDir}`;
   const appPids = new Set();
   const ownerPids = new Set();
 
@@ -223,9 +262,10 @@ function startApp() {
   const app = spawn(
     resolveElectronPath(),
     [
+      "--trace-warnings",
       `--user-data-dir=${devUserDataDir}`,
-      `--multi-dev-root=${desktopDir}`,
-      "dist-electron/main.cjs",
+      `--honk-dev-root=${desktopDir}`,
+      "out/main/index.js",
     ],
     {
       cwd: desktopDir,
@@ -281,7 +321,7 @@ async function stopApp() {
 
     app.once("exit", finish);
     app.kill("SIGTERM");
-    killChildTreeByPid(app.pid, "TERM");
+    killChildTreeByPid(app.pid, "SIGTERM");
 
     setTimeout(() => {
       if (settled) {
@@ -289,7 +329,7 @@ async function stopApp() {
       }
 
       app.kill("SIGKILL");
-      killChildTreeByPid(app.pid, "KILL");
+      killChildTreeByPid(app.pid, "SIGKILL");
       finish();
     }, forcedShutdownTimeoutMs).unref();
   });
@@ -318,12 +358,15 @@ function scheduleRestart() {
 }
 
 function startWatchers() {
-  for (const { directory, files } of watchedDirectories) {
+  for (const { directory, files, extensions = [] } of watchedDirectories) {
     const watcher = watch(
       join(desktopDir, directory),
       { persistent: true },
       (_eventType, filename) => {
-        if (typeof filename !== "string" || !files.has(filename)) {
+        if (
+          typeof filename !== "string" ||
+          (!files.has(filename) && !extensions.some((extension) => filename.endsWith(extension)))
+        ) {
           return;
         }
 
@@ -336,12 +379,7 @@ function startWatchers() {
 }
 
 function killChildTree(signal) {
-  if (process.platform === "win32") {
-    return;
-  }
-
-  // Kill direct children as a final fallback in case normal shutdown leaves stragglers.
-  spawnSync("pkill", [`-${signal}`, "-P", String(process.pid)], { stdio: "ignore" });
+  killChildTreeByPid(process.pid, signal);
 }
 
 async function shutdown(exitCode) {
@@ -358,11 +396,11 @@ async function shutdown(exitCode) {
   }
 
   await stopApp();
-  killChildTree("TERM");
+  killChildTree("SIGTERM");
   await new Promise((resolve) => {
     setTimeout(resolve, childTreeGracePeriodMs);
   });
-  killChildTree("KILL");
+  killChildTree("SIGKILL");
 
   process.exit(exitCode);
 }

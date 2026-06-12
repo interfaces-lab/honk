@@ -1,9 +1,9 @@
 "use client";
 
-import { type EnvironmentId, DEFAULT_TERMINAL_ID, type TerminalEvent } from "@multi/contracts";
+import { type EnvironmentId, DEFAULT_TERMINAL_ID, type TerminalEvent } from "@honk/contracts";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   readTerminalHostFontFamily,
@@ -17,19 +17,37 @@ import {
   workbenchTerminalThreadId,
 } from "~/components/shell/terminal/workbench-terminal";
 import { clampTerminalDimensions, waitForTerminalLayoutFrame } from "~/lib/terminal-dimensions";
+import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 export function TerminalPanel(props: {
   cwd: string | null;
+  workspaceKey: string | null;
   environmentId?: EnvironmentId | null;
   terminalId?: string;
 }) {
   const activeTerminalId = props.terminalId ?? DEFAULT_TERMINAL_ID;
+  const environmentApiReady = useEnvironmentApiReady(props.environmentId);
+  const terminalApiReady = props.environmentId ? environmentApiReady : true;
+
+  useEffect(() => {
+    if (props.cwd) {
+      return;
+    }
+  }, [activeTerminalId, props.cwd, props.environmentId, props.workspaceKey]);
 
   if (!props.cwd) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
         <p className="text-body text-muted-foreground/60">No project open</p>
+      </div>
+    );
+  }
+
+  if (!terminalApiReady) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
+        <p className="text-body text-muted-foreground/60">Preparing terminal...</p>
       </div>
     );
   }
@@ -40,8 +58,10 @@ export function TerminalPanel(props: {
         cwd: props.cwd,
         environmentId: props.environmentId,
         terminalId: activeTerminalId,
+        workspaceKey: props.workspaceKey,
       })}
       cwd={props.cwd}
+      workspaceKey={props.workspaceKey}
       environmentId={props.environmentId}
       terminalId={activeTerminalId}
     />
@@ -52,16 +72,24 @@ function createTerminalPanelSessionKey(input: {
   cwd: string;
   environmentId: EnvironmentId | null | undefined;
   terminalId: string;
+  workspaceKey: string | null;
 }): string {
-  return JSON.stringify([input.cwd, input.environmentId ?? null, input.terminalId]);
+  return JSON.stringify([
+    input.workspaceKey,
+    input.cwd,
+    input.environmentId ?? null,
+    input.terminalId,
+  ]);
 }
 
 function TerminalPanelSession({
   cwd,
+  workspaceKey,
   environmentId,
   terminalId,
 }: {
   cwd: string;
+  workspaceKey: string | null;
   environmentId: EnvironmentId | null | undefined;
   terminalId: string;
 }) {
@@ -77,11 +105,15 @@ function TerminalPanelSession({
   useMountEffect(() => {
     const el = ref.current;
     const api = readWorkbenchTerminalApi(environmentId);
-    if (!el || !api) {
+    if (!el) {
+      return;
+    }
+    if (!api) {
+      setBootErr("Terminal API unavailable for this workspace.");
       return;
     }
 
-    const thread = workbenchTerminalThreadId(cwd);
+    const thread = workbenchTerminalThreadId(workspaceKey ?? cwd);
     const termId = terminalId;
     const cfg = readTerminalHostThemeForMount(el);
     const family = readTerminalHostFontFamily(el);
@@ -326,7 +358,7 @@ function TerminalPanelSession({
       const api = readWorkbenchTerminalApi(environmentId);
       if (!addon || !next || !api) return;
       addon.fit();
-      const thread = workbenchTerminalThreadId(cwd);
+      const thread = workbenchTerminalThreadId(workspaceKey ?? cwd);
       if (openSession.current?.thread !== thread || openSession.current.terminalId !== termId) {
         return;
       }

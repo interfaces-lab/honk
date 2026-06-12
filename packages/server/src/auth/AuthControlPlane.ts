@@ -1,4 +1,4 @@
-import type { AuthClientSession, AuthPairingLink } from "@multi/contracts";
+import type { AuthClientSession, AuthPairingLink } from "@honk/contracts";
 import { DateTime, Effect, Layer } from "effect";
 
 import { BootstrapCredentialServiceLive } from "./BootstrapCredentialService.ts";
@@ -100,7 +100,6 @@ export const makeAuthControlPlane = Effect.gen(function* () {
     sessions
       .issue({
         subject: input?.subject ?? DEFAULT_SESSION_SUBJECT,
-        method: "bearer-session-token",
         role: input?.role ?? "owner",
         client: {
           ...(input?.label ? { label: input.label } : {}),
@@ -110,14 +109,6 @@ export const makeAuthControlPlane = Effect.gen(function* () {
       })
       .pipe(
         Effect.flatMap((issued) => {
-          if (issued.method !== "bearer-session-token") {
-            return Effect.fail(
-              new AuthControlPlaneError({
-                message: "CLI session issuance produced an unexpected session method.",
-              }),
-            );
-          }
-
           return Effect.succeed({
             sessionId: issued.sessionId,
             token: issued.token,

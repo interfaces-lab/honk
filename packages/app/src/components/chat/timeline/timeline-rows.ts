@@ -1,16 +1,24 @@
-import { type MessageId } from "@multi/contracts";
+import { type MessageId } from "@honk/contracts";
+import type { ConversationDensity } from "@honk/contracts/settings";
 
 import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
+import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
 import {
   computeMessageDurationStart,
   deriveTimelineRenderItems,
   isCommandWorkEntry,
   summarizeWorkGroup,
   type GroupedSteps,
+  type PendingApprovalRequestKind,
   type TimelineDurationMessage,
+  type TimelineGroupedStep,
   type TimelineMessageStep,
   type TimelineProposedPlanStep,
   type TimelineRenderItem,
+  type TimelineRuntimeExtensionUiRequestStep,
+  type TimelineRuntimeTaskStep,
+  type TimelineRuntimeThinkingStep,
+  type TimelineRuntimeToolStep,
   type TimelineStep,
   type TimelineWaitingStep,
   type TimelineWorkStep,
@@ -36,11 +44,15 @@ export interface WorkTimelineRow {
   kind: "work";
   id: string;
   createdAt: string;
-  durationStart: string;
-  durationMs: number;
+  completedDurationLabel: string | null;
   isRunning: boolean;
+  isTailGroup: boolean;
+  isThinkingGroup: boolean;
+  isCommandGroup: boolean;
+  isWaitingGroup: boolean;
+  isBrowserGroup: boolean;
   summary: WorkGroupSummary;
-  steps: TimelineWorkStep[];
+  steps: TimelineGroupedStep[];
   groupedEntries: WorkLogEntry[];
   renderItem: Extract<TimelineRenderItem, { kind: "group" }>;
 }
@@ -48,6 +60,14 @@ export interface WorkTimelineRow {
 export type MessageTimelineRow = TimelineMessageStep;
 
 export type ProposedPlanTimelineRow = TimelineProposedPlanStep;
+
+export type RuntimeThinkingTimelineRow = TimelineRuntimeThinkingStep;
+
+export type RuntimeTaskTimelineRow = TimelineRuntimeTaskStep;
+
+export type RuntimeToolTimelineRow = TimelineRuntimeToolStep;
+
+export type RuntimeExtensionUiRequestTimelineRow = TimelineRuntimeExtensionUiRequestStep;
 
 export interface WorkingTimelineRow {
   kind: "working";
@@ -59,8 +79,13 @@ export interface WorkingTimelineRow {
 
 export type BaseMessagesTimelineRow =
   | WorkTimelineRow
+  | TimelineWorkStep
   | MessageTimelineRow
   | ProposedPlanTimelineRow
+  | RuntimeThinkingTimelineRow
+  | RuntimeTaskTimelineRow
+  | RuntimeToolTimelineRow
+  | RuntimeExtensionUiRequestTimelineRow
   | WorkingTimelineRow;
 
 export type MessagesTimelineRow = BaseMessagesTimelineRow;
@@ -72,10 +97,11 @@ export interface StableMessagesTimelineRowsState {
 
 export function deriveMessagesTimelineRows(input: {
   timelineEntries: ReadonlyArray<TimelineEntry>;
-  isWorking: boolean;
-  activeTurnStartedAt: string | null;
+  isTurnActive: boolean;
   editableUserMessageIds: ReadonlySet<MessageId>;
   projectRoot?: string | undefined;
+  conversationDensity?: ConversationDensity | undefined;
+  pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
 }): MessagesTimelineRow[] {
   return deriveTimelineRenderItems(input).map(timelineRenderItemToRow);
 }
@@ -110,12 +136,16 @@ function timelineRenderItemToRow(item: TimelineRenderItem): MessagesTimelineRow 
         kind: "work",
         id: item.id,
         createdAt: item.createdAt,
-        durationStart: item.group.durationStart,
-        durationMs: item.group.durationMs,
+        completedDurationLabel: item.group.completedDurationLabel,
         isRunning: item.group.isRunning,
+        isTailGroup: item.group.isTailGroup,
+        isThinkingGroup: item.group.isThinkingGroup,
+        isCommandGroup: item.group.isCommandGroup,
+        isWaitingGroup: item.group.isWaitingGroup,
+        isBrowserGroup: item.group.isBrowserGroup,
         summary: item.group.summary,
         steps: item.group.steps,
-        groupedEntries: item.group.steps.map((step) => step.entry),
+        groupedEntries: item.group.entries,
         renderItem: item,
       };
 
@@ -137,18 +167,44 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
   switch (a.kind) {
     case "working":
-      return a.createdAt === (b as typeof a).createdAt;
+      return (
+        a.createdAt === (b as typeof a).createdAt &&
+        a.step.phase === (b as typeof a).step.phase &&
+        a.step.elapsedStartedAt === (b as typeof a).step.elapsedStartedAt
+      );
 
     case "proposed-plan":
       return a.proposedPlan === (b as typeof a).proposedPlan;
 
-    case "work":
-      return isWorkRowUnchanged(a, b as typeof a);
+    case "runtime-tool":
+      return isRuntimeToolRowUnchanged(a, b as typeof a);
+
+    case "runtime-task":
+      return isRuntimeTaskRowUnchanged(a, b as typeof a);
+
+    case "runtime-thinking":
+      return isRuntimeThinkingRowUnchanged(a, b as typeof a);
+
+    case "runtime-extension-ui-request":
+      return isRuntimeExtensionUiRequestRowUnchanged(a, b as typeof a);
+
+    case "work": {
+      const workB = b as WorkTimelineRow | TimelineWorkStep;
+      if ("entry" in a || "entry" in workB) {
+        return (
+          "entry" in a &&
+          "entry" in workB &&
+          a.createdAt === workB.createdAt &&
+          a.entry === workB.entry
+        );
+      }
+      return isWorkRowUnchanged(a, workB);
+    }
 
     case "message": {
       const bm = b as typeof a;
       return (
-        a.message === bm.message &&
+        isMessageRowMessageUnchanged(a.message, bm.message) &&
         a.durationStart === bm.durationStart &&
         a.editAvailable === bm.editAvailable &&
         a.pairId === bm.pairId &&
@@ -158,18 +214,200 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
   }
 }
 
-function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {
+function isRuntimeThinkingRowUnchanged(
+  a: RuntimeThinkingTimelineRow,
+  b: RuntimeThinkingTimelineRow,
+): boolean {
   return (
     a.createdAt === b.createdAt &&
-    a.durationStart === b.durationStart &&
-    a.durationMs === b.durationMs &&
-    a.isRunning === b.isRunning &&
-    a.summary.action === b.summary.action &&
-    a.summary.details === b.summary.details &&
-    a.summary.additions === b.summary.additions &&
-    a.summary.deletions === b.summary.deletions &&
-    areSameWorkEntries(a.groupedEntries, b.groupedEntries)
+    a.message.turnId === b.message.turnId &&
+    a.message.role === b.message.role &&
+    a.message.thinking === b.message.thinking &&
+    a.message.streaming === b.message.streaming
   );
+}
+
+function isMessageRowMessageUnchanged(
+  a: MessageTimelineRow["message"],
+  b: MessageTimelineRow["message"],
+): boolean {
+  if (a.role === "user" && b.role === "user") {
+    return (
+      a.id === b.id &&
+      a.text === b.text &&
+      a.richText === b.richText &&
+      a.createdAt === b.createdAt &&
+      areSameAttachments(a.attachments ?? [], b.attachments ?? [])
+    );
+  }
+
+  return (
+    a.id === b.id &&
+    a.role === b.role &&
+    a.text === b.text &&
+    a.richText === b.richText &&
+    a.turnId === b.turnId &&
+    a.createdAt === b.createdAt &&
+    a.completedAt === b.completedAt &&
+    a.streaming === b.streaming &&
+    areSameAttachments(a.attachments ?? [], b.attachments ?? [])
+  );
+}
+
+function isRuntimeToolRowUnchanged(a: RuntimeToolTimelineRow, b: RuntimeToolTimelineRow): boolean {
+  return isRuntimeToolPayloadUnchanged(a, b);
+}
+
+function isRuntimeTaskRowUnchanged(a: RuntimeTaskTimelineRow, b: RuntimeTaskTimelineRow): boolean {
+  return isRuntimeToolPayloadUnchanged(a, b);
+}
+
+function isRuntimeToolPayloadUnchanged(
+  a: Pick<RuntimeToolTimelineRow, "createdAt" | "tool">,
+  b: Pick<RuntimeToolTimelineRow, "createdAt" | "tool">,
+): boolean {
+  return (
+    a.createdAt === b.createdAt &&
+    a.tool.toolCallId === b.tool.toolCallId &&
+    a.tool.toolName === b.tool.toolName &&
+    a.tool.turnId === b.tool.turnId &&
+    a.tool.status === b.tool.status &&
+    a.tool.argsComplete === b.tool.argsComplete &&
+    a.tool.executionStarted === b.tool.executionStarted &&
+    a.tool.isPartial === b.tool.isPartial &&
+    a.tool.isError === b.tool.isError &&
+    a.tool.summary === b.tool.summary &&
+    areRuntimeToolVisibleDetailsUnchanged(a, b)
+  );
+}
+
+function areRuntimeToolVisibleDetailsUnchanged(
+  a: Pick<RuntimeToolTimelineRow, "tool">,
+  b: Pick<RuntimeToolTimelineRow, "tool">,
+): boolean {
+  if (a.tool.display || b.tool.display) {
+    return (
+      runtimeParentToolDisplaySignature(a.tool.display) ===
+      runtimeParentToolDisplaySignature(b.tool.display)
+    );
+  }
+  return a.tool.command === b.tool.command && a.tool.output === b.tool.output;
+}
+
+function isRuntimeExtensionUiRequestRowUnchanged(
+  a: RuntimeExtensionUiRequestTimelineRow,
+  b: RuntimeExtensionUiRequestTimelineRow,
+): boolean {
+  return (
+    a.createdAt === b.createdAt &&
+    a.request.requestId === b.request.requestId &&
+    a.request.requestKind === b.request.requestKind &&
+    a.request.status === b.request.status &&
+    a.request.threadId === b.request.threadId &&
+    a.request.runtimeSessionId === b.request.runtimeSessionId &&
+    a.request.title === b.request.title &&
+    a.request.message === b.request.message &&
+    a.request.placeholder === b.request.placeholder &&
+    a.request.turnId === b.request.turnId
+  );
+}
+
+function areSameAttachments(
+  left: NonNullable<MessageTimelineRow["message"]["attachments"]>,
+  right: NonNullable<MessageTimelineRow["message"]["attachments"]>,
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    const leftAttachment = left[index];
+    const rightAttachment = right[index];
+    if (!leftAttachment || !rightAttachment) {
+      return false;
+    }
+    if (
+      leftAttachment.type !== rightAttachment.type ||
+      leftAttachment.id !== rightAttachment.id ||
+      leftAttachment.name !== rightAttachment.name ||
+      leftAttachment.mimeType !== rightAttachment.mimeType ||
+      leftAttachment.sizeBytes !== rightAttachment.sizeBytes ||
+      leftAttachment.previewUrl !== rightAttachment.previewUrl
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isWorkRowUnchanged(a: WorkTimelineRow, b: WorkTimelineRow): boolean {
+  const preserveTailRunningRow =
+    a.id === b.id && a.isTailGroup && a.isRunning && b.isTailGroup && b.isRunning;
+  const summaryUnchanged =
+    preserveTailRunningRow ||
+    (a.summary.action === b.summary.action &&
+      a.summary.details === b.summary.details &&
+      a.summary.additions === b.summary.additions &&
+      a.summary.deletions === b.summary.deletions);
+
+  return (
+    a.createdAt === b.createdAt &&
+    a.completedDurationLabel === b.completedDurationLabel &&
+    a.isRunning === b.isRunning &&
+    a.isTailGroup === b.isTailGroup &&
+    a.isThinkingGroup === b.isThinkingGroup &&
+    a.isCommandGroup === b.isCommandGroup &&
+    a.isWaitingGroup === b.isWaitingGroup &&
+    a.isBrowserGroup === b.isBrowserGroup &&
+    summaryUnchanged &&
+    areSameWorkEntries(a.groupedEntries, b.groupedEntries) &&
+    areSameGroupedSteps(a.steps, b.steps)
+  );
+}
+
+function areSameGroupedSteps(
+  left: ReadonlyArray<TimelineGroupedStep>,
+  right: ReadonlyArray<TimelineGroupedStep>,
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    const leftStep = left[index];
+    const rightStep = right[index];
+    if (
+      !leftStep ||
+      !rightStep ||
+      leftStep.kind !== rightStep.kind ||
+      leftStep.id !== rightStep.id
+    ) {
+      return false;
+    }
+    switch (leftStep.kind) {
+      case "work":
+        if ((rightStep as typeof leftStep).entry !== leftStep.entry) {
+          return false;
+        }
+        break;
+      case "runtime-thinking":
+        if (!isRuntimeThinkingRowUnchanged(leftStep, rightStep as typeof leftStep)) {
+          return false;
+        }
+        break;
+      case "runtime-tool":
+        if (!isRuntimeToolRowUnchanged(leftStep, rightStep as typeof leftStep)) {
+          return false;
+        }
+        break;
+      case "message":
+        if (
+          !isMessageRowMessageUnchanged(leftStep.message, (rightStep as typeof leftStep).message)
+        ) {
+          return false;
+        }
+        break;
+    }
+  }
+  return true;
 }
 
 function areSameWorkEntries(

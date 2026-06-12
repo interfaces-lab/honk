@@ -1,34 +1,28 @@
-import { memo, useCallback, type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import {
   IconChevronLeftMedium,
   IconChevronRightMedium,
   IconCrossMediumDefault,
 } from "central-icons";
-import { Button } from "@multi/ui/button";
-import type { ExpandedImagePreview } from "./expanded-image-preview";
+import { Button } from "@honk/honkkit/button";
+import type { ExpandedImageItem, ExpandedImagePreview } from "./expanded-image-preview";
+import { useAuthenticatedImagePreviewSrc } from "./authenticated-image-preview";
 
 interface ExpandedImageDialogProps {
   preview: ExpandedImagePreview;
   onClose: () => void;
 }
 
-export const ExpandedImageDialog = memo(function ExpandedImageDialog({
-  preview,
-  onClose,
-}: ExpandedImageDialogProps) {
-  const [index, setIndex] = useState(preview.index);
+export function ExpandedImageDialog({ preview, onClose }: ExpandedImageDialogProps) {
+  const [index, setIndex] = useState(() => preview.index);
 
-  const navigateImage = useCallback(
-    (direction: -1 | 1) => {
-      setIndex((existingIndex) => {
-        if (preview.images.length <= 1) return existingIndex;
-        const nextIndex =
-          (existingIndex + direction + preview.images.length) % preview.images.length;
-        return nextIndex === existingIndex ? existingIndex : nextIndex;
-      });
-    },
-    [preview.images.length],
-  );
+  const navigateImage = (direction: -1 | 1) => {
+    setIndex((existingIndex) => {
+      if (preview.images.length <= 1) return existingIndex;
+      const nextIndex = (existingIndex + direction + preview.images.length) % preview.images.length;
+      return nextIndex === existingIndex ? existingIndex : nextIndex;
+    });
+  };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -55,15 +49,16 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
+      className="fixed inset-0 z-(--z-index-expanded-image-dialog) flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
       role="dialog"
       aria-modal="true"
       aria-label="Expanded image preview"
       onKeyDown={handleKeyDown}
     >
-      <button
+      <Button
         type="button"
-        className="absolute inset-0 z-0 cursor-zoom-out"
+        variant="ghost"
+        className="absolute inset-0 z-0 cursor-zoom-out rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
         aria-label="Close image preview"
         onClick={onClose}
       />
@@ -90,12 +85,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
         >
           <IconCrossMediumDefault />
         </Button>
-        <img
-          src={item.src}
-          alt={item.name}
-          className="max-h-[86vh] max-w-full select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
-          draggable={false}
-        />
+        <ExpandedPreviewImage item={item} />
         <p className="mt-2 max-w-full truncate text-center text-xs text-muted-foreground/80">
           {item.name}
           {preview.images.length > 1 ? ` (${index + 1}/${preview.images.length})` : ""}
@@ -115,4 +105,25 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
       )}
     </div>
   );
-});
+}
+
+function ExpandedPreviewImage(props: { item: ExpandedImageItem }) {
+  const previewSrc = useAuthenticatedImagePreviewSrc(props.item.src);
+
+  if (!previewSrc) {
+    return (
+      <div className="flex min-h-40 min-w-64 max-w-full items-center justify-center rounded-lg border border-border/70 bg-background px-4 py-8 text-center text-sm text-muted-foreground/80 shadow-2xl">
+        {props.item.name}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={previewSrc}
+      alt={props.item.name}
+      className="max-h-[86vh] max-w-full select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
+      draggable={false}
+    />
+  );
+}

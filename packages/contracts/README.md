@@ -1,6 +1,6 @@
-# @multi/contracts
+# @honk/contracts
 
-Shared wire contracts for Multi.
+Shared wire contracts for Honk.
 
 - Keep this package schema-only: protocol schemas, settings schemas, event types, model/session types, and API contracts.
 - Do not add runtime behavior, filesystem access, process management, or UI helpers here.

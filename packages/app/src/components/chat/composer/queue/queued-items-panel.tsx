@@ -1,9 +1,18 @@
 import { IconArrowUp, IconChevronDownMedium, IconPencilLine, IconTrashCan } from "central-icons";
-import type { MessageId } from "@multi/contracts";
-import { memo, useState, type DragEvent, type KeyboardEvent } from "react";
+import type { MessageId } from "@honk/contracts";
+import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";
-import { SidebarButton, SidebarItem } from "@multi/ui/sidebar";
+import { Button } from "@honk/honkkit/button";
+import {
+  SidebarTray,
+  SidebarTrayHeader,
+  SidebarTrayHeaderButton,
+  SidebarTrayRow,
+  SidebarTrayRowContent,
+  SidebarTrayRowLabel,
+  SidebarTrayRowStatus,
+} from "@honk/honkkit/sidebar";
 import { cn } from "~/lib/utils";
 
 function handleQueuedItemDragEnter(event: DragEvent<HTMLElement>) {
@@ -53,16 +62,13 @@ type QueuedComposerItemActionsProps = {
   onReorder: (itemId: MessageId, targetItemId: MessageId | null, insertAfter: boolean) => void;
 };
 
-const QueuedComposerItemRowActions = memo(function QueuedComposerItemRowActions(props: {
+function QueuedComposerItemRowActions(props: {
   itemId: MessageId;
   isBusy: boolean;
   onBeginEdit: (itemId: MessageId) => void;
   onRemove: (itemId: MessageId) => void;
   onSendNow: (itemId: MessageId) => void;
 }) {
-  const actionButtonClass =
-    "flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-fg-tertiary outline-none hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-35";
-
   return (
     <div
       className="hidden shrink-0 items-center group-focus-within/sidebar-item:flex [@media(hover:hover)]:group-hover/sidebar-item:flex"
@@ -74,19 +80,21 @@ const QueuedComposerItemRowActions = memo(function QueuedComposerItemRowActions(
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className={actionButtonClass}
+      <Button
+        className="shrink-0 text-honk-fg-tertiary disabled:opacity-35"
+        size="icon-xs"
+        variant="ghost"
         onClick={() => props.onBeginEdit(props.itemId)}
         aria-label={QUEUE_EDIT_ACTION_LABEL}
         title={QUEUE_EDIT_ACTION_LABEL}
         data-queue-action="edit"
       >
         <IconPencilLine className="size-4 shrink-0" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className={actionButtonClass}
+      </Button>
+      <Button
+        className="shrink-0 text-honk-fg-tertiary disabled:opacity-35"
+        size="icon-xs"
+        variant="ghost"
         onClick={() => props.onSendNow(props.itemId)}
         disabled={props.isBusy}
         aria-label={QUEUE_SEND_NOW_ACTION_LABEL}
@@ -94,24 +102,23 @@ const QueuedComposerItemRowActions = memo(function QueuedComposerItemRowActions(
         data-queue-action="send"
       >
         <IconArrowUp className="size-4 shrink-0" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className={actionButtonClass}
+      </Button>
+      <Button
+        className="shrink-0 text-honk-fg-tertiary disabled:opacity-35"
+        size="icon-xs"
+        variant="ghost"
         onClick={() => props.onRemove(props.itemId)}
         aria-label={QUEUE_REMOVE_ACTION_LABEL}
         title={QUEUE_REMOVE_ACTION_LABEL}
         data-queue-action="remove"
       >
         <IconTrashCan className="size-4 shrink-0" aria-hidden="true" />
-      </button>
+      </Button>
     </div>
   );
-});
+}
 
-const QueuedComposerItemThumbnails = memo(function QueuedComposerItemThumbnails(props: {
-  item: QueuedComposerItem;
-}) {
+function QueuedComposerItemThumbnails(props: { item: QueuedComposerItem }) {
   const visibleImages = props.item.sendContext.images.slice(0, QUEUE_ROW_THUMBNAIL_LIMIT);
   if (visibleImages.length === 0) {
     return null;
@@ -126,7 +133,7 @@ const QueuedComposerItemThumbnails = memo(function QueuedComposerItemThumbnails(
           key={image.id}
           src={image.previewUrl}
           alt=""
-          className="queue-row-thumbnail rounded-sm"
+          className="queue-row-thumbnail rounded-xs"
           draggable={false}
         />
       ))}
@@ -135,9 +142,9 @@ const QueuedComposerItemThumbnails = memo(function QueuedComposerItemThumbnails(
       ) : null}
     </span>
   );
-});
+}
 
-const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
+function QueuedComposerItemRow(props: {
   item: QueuedComposerItem;
   index: number;
   itemCount: number;
@@ -184,9 +191,9 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
   return (
     <div className="relative" role="listitem" data-queued-composer-item-wrapper="">
       {showDropBefore ? (
-        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
+        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-xs bg-honk-stroke-focused" />
       ) : null}
-      <SidebarItem
+      <SidebarTrayRow
         render={<div />}
         draggable={isDraggable}
         selected={isEditing}
@@ -197,7 +204,7 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
         data-editing={isEditing ? "" : undefined}
         data-dragging={isDragging ? "" : undefined}
         data-queue-position={index === 0 ? "next" : undefined}
-        className="ui-tray-row queue-sortable-row group/sidebar-item h-auto data-[selected=true]:focus-within:bg-multi-bg-tertiary"
+        className="queue-sortable-row"
         onDoubleClick={() => {
           if (!isEditing) {
             onBeginEdit(item.id);
@@ -210,9 +217,7 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
         onDrop={onDrop}
         onDragEnd={onDragEnd}
       >
-        <SidebarButton
-          variant="inset"
-          className="ui-tray-row__content disabled:opacity-100"
+        <SidebarTrayRowContent
           disabled={isEditing}
           onClick={() => onBeginEdit(item.id)}
           onKeyDown={(event) => {
@@ -226,19 +231,12 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
           data-queued-composer-item-preview=""
         >
           <QueuedComposerItemThumbnails item={item} />
-          <span
-            className={cn(
-              "ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary",
-              isEditing && "text-multi-fg-primary",
-            )}
-          >
+          <SidebarTrayRowLabel className={cn(isEditing && "text-honk-fg-primary")}>
             {preview}
-          </span>
-        </SidebarButton>
+          </SidebarTrayRowLabel>
+        </SidebarTrayRowContent>
         {isEditing ? (
-          <span className="ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-(length:--multi-text-detail) leading-(--multi-leading-detail) text-multi-fg-secondary">
-            Editing
-          </span>
+          <SidebarTrayRowStatus>Editing</SidebarTrayRowStatus>
         ) : (
           <QueuedComposerItemRowActions
             itemId={item.id}
@@ -248,17 +246,15 @@ const QueuedComposerItemRow = memo(function QueuedComposerItemRow(props: {
             onSendNow={onSendNow}
           />
         )}
-      </SidebarItem>
+      </SidebarTrayRow>
       {showDropAfter ? (
-        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-sm bg-multi-stroke-focused" />
+        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-xs bg-honk-stroke-focused" />
       ) : null}
     </div>
   );
-});
+}
 
-const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
-  props: QueuedComposerItemActionsProps,
-) {
+function QueuedComposerItemsList(props: QueuedComposerItemActionsProps) {
   const [draggingItemId, setDraggingItemId] = useState<MessageId | null>(null);
   const [dropTargetItemId, setDropTargetItemId] = useState<MessageId | null>(null);
   const [dropInsertAfter, setDropInsertAfter] = useState(false);
@@ -306,7 +302,7 @@ const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
 
   return (
     <div
-      className="agent-panel-queue-items flex max-h-[200px] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-none"
+      className="agent-panel-queue-items flex max-h-[200px] flex-col gap-px overflow-y-auto px-2 pb-2 focus-visible:outline-hidden"
       role="list"
       aria-label={QUEUE_PANEL_ARIA_LABEL}
       data-queued-composer-items-list=""
@@ -336,9 +332,9 @@ const QueuedComposerItemsList = memo(function QueuedComposerItemsList(
       ))}
     </div>
   );
-});
+}
 
-export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
+export function QueuedComposerItemsPanel(
   props: QueuedComposerItemActionsProps & {
     compact: boolean;
     expanded: boolean;
@@ -358,20 +354,14 @@ export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
       className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
       data-queued-composer-panel-stack=""
     >
-      <div
-        className="ui-tray--queued font-multi text-detail text-multi-fg-primary"
+      <SidebarTray
         data-queued-composer-panel=""
         data-queue-count={props.items.length}
         data-queue-expanded={props.expanded ? "" : undefined}
         data-queue-editing={editingActive ? "" : undefined}
       >
-        <div
-          className="ui-tray-header--queued flex min-h-9 min-w-0 items-center justify-between gap-2 px-2.5 py-1.5"
-          data-queued-composer-panel-header=""
-        >
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-multi-control px-1.5 py-1 text-left text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
+        <SidebarTrayHeader data-queued-composer-panel-header="">
+          <SidebarTrayHeaderButton
             aria-label={expandLabel}
             title={expandLabel}
             onClick={() => props.onExpandedChange(!props.expanded)}
@@ -389,8 +379,8 @@ export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
                 {countLabel}
               </span>
             </span>
-          </button>
-        </div>
+          </SidebarTrayHeaderButton>
+        </SidebarTrayHeader>
         {props.expanded ? (
           <QueuedComposerItemsList
             items={props.items}
@@ -402,27 +392,21 @@ export const QueuedComposerItemsPanel = memo(function QueuedComposerItemsPanel(
             onReorder={props.onReorder}
           />
         ) : null}
-      </div>
+      </SidebarTray>
     </div>
   );
-});
+}
 
-export const QueuedComposerEditBanner = memo(function QueuedComposerEditBanner(props: {
-  onCancelEdit: () => void;
-}) {
+export function QueuedComposerEditBanner(props: { onCancelEdit: () => void }) {
   return (
     <div
-      className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-(--multi-composer-queue-edit-banner-background) px-3 py-1.5 text-detail text-foreground"
+      className="flex items-center justify-between gap-2 border border-b-0 border-honk-stroke-tertiary bg-(--honk-composer-queue-edit-banner-background) px-3 py-1.5 text-detail text-foreground"
       data-queued-composer-edit-banner=""
     >
       <span className="opacity-90">{QUEUE_EDIT_BANNER_LABEL}</span>
-      <button
-        type="button"
-        className="rounded-multi-control px-1.5 py-0.5 text-detail text-primary transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none"
-        onClick={props.onCancelEdit}
-      >
+      <Button className="text-primary" size="xs" variant="ghost" onClick={props.onCancelEdit}>
         Cancel
-      </button>
+      </Button>
     </div>
   );
-});
+}

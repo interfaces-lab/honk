@@ -4,7 +4,7 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -50,5 +50,5 @@ export class ProjectionThreadProposedPlanRepository extends Context.Service<
   ProjectionThreadProposedPlanRepository,
   ProjectionThreadProposedPlanRepositoryShape
 >()(
-  "multi/persistence/ProjectionThreadProposedPlans.service/ProjectionThreadProposedPlanRepository",
+  "honk/persistence/ProjectionThreadProposedPlans.service/ProjectionThreadProposedPlanRepository",
 ) {}

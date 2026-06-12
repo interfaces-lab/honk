@@ -1,6 +1,8 @@
 import type {
+  DesktopExtensionUiRequest,
   EnvironmentId,
-  OrchestrationChatTimelineRow,
+  AgentRuntimeEvent,
+  ModelSelection,
   OrchestrationEvent,
   OrchestrationLatestTurn,
   OrchestrationMessage,
@@ -12,22 +14,34 @@ import type {
   OrchestrationSessionStatus,
   OrchestrationThread,
   OrchestrationThreadShell,
-  ProviderRuntimeEvent,
+  SourceProposedPlanReference,
+  SessionTreeProjection,
   OrchestrationThreadActivity,
   ScopedThreadRef,
   ProjectId,
   ThreadEntryId,
-  ThreadId,
-} from "@multi/contracts";
+  CanonicalItemType,
+  ToolLifecycleItemType,
+} from "@honk/contracts";
 import {
-  isProviderDriverKind,
+  DEFAULT_AGENT_INTERACTION_MODE,
+  DEFAULT_RUNTIME_MODE,
+  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+  EventId,
+  ThreadId,
   MessageId,
-  ProviderDriverKind,
+  RuntimeItemId,
+  RuntimeTaskId,
   resolveLeafIdAfterThreadMessage,
+  runtimeSessionEntryMessageId,
+  threadEntryIdForMessageId,
+  ThreadTokenUsageSnapshot,
   TurnId,
-} from "@multi/contracts";
-import { deriveChatTimelineRows } from "@multi/shared/chat-timeline-derivation";
-import { normalizeModelSlug } from "@multi/shared/model";
+} from "@honk/contracts";
+import { Schema } from "effect";
+import { normalizeModelSlug } from "@honk/shared/model";
+import { toJsonValue } from "@honk/shared/schema-json";
+import { resolveGitAgentActionFromPrompt } from "~/lib/git-agent-actions";
 import type {
   ChatMessage,
   LiveAssistantTurn,
@@ -53,14 +67,52 @@ import {
 
 const MAX_THREAD_PROPOSED_PLANS = 200;
 const MAX_THREAD_ACTIVITIES = 500;
+type ThreadActivity = Thread["activities"][number];
+type RuntimeSessionTreeEntry = SessionTreeProjection["entries"][number];
+type ProjectedRuntimeMessageEntry = RuntimeSessionTreeEntry & {
+  readonly role: "user" | "assistant" | "system";
+};
+type ToolActivityPhase = "started" | "updated" | "completed";
+type ToolActivityKind = Extract<
+  OrchestrationThreadActivity["kind"],
+  "tool.started" | "tool.updated" | "tool.completed"
+>;
+
 function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function modelSelectionsEqual(
+  left: ModelSelection | undefined,
+  right: ModelSelection | undefined,
+): boolean {
+  if (left === right) return true;
+  if (left === undefined || right === undefined) return false;
+  return (
+    left.instanceId === right.instanceId &&
+    left.model === right.model &&
+    modelOptionSelectionsEqual(left.options, right.options)
+  );
+}
+
+function modelOptionSelectionsEqual(
+  left: ModelSelection["options"] | undefined,
+  right: ModelSelection["options"] | undefined,
+): boolean {
+  if (left === right) return true;
+  if (left === undefined || right === undefined) return false;
+  if (left.length !== right.length) return false;
+  return left.every((leftOption, index) => {
+    const rightOption = right[index];
+    return (
+      rightOption !== undefined &&
+      leftOption.id === rightOption.id &&
+      leftOption.value === rightOption.value
+    );
+  });
+}
+
 function normalizeModelSelection<T extends { instanceId: string; model: string }>(selection: T): T {
-  if (!isProviderDriverKind(selection.instanceId)) {
-    return selection;
-  }
   return {
     ...selection,
     model: normalizeModelSlug(selection.model) ?? selection.model,
@@ -71,10 +123,44 @@ function mapProjectScripts(scripts: ReadonlyArray<Project["scripts"][number]>): 
   return scripts.map((script) => ({ ...script }));
 }
 
+function agentRuntimeProposedPlanData(
+  data: unknown,
+): { readonly planId: string; readonly planMarkdown: string } | null {
+  if (!isIndexableRecord(data)) {
+    return null;
+  }
+  return typeof data.planId === "string" &&
+    data.planId.trim().length > 0 &&
+    typeof data.planMarkdown === "string" &&
+    data.planMarkdown.trim().length > 0
+    ? { planId: data.planId, planMarkdown: data.planMarkdown }
+    : null;
+}
+
+function agentRuntimeSourceProposedPlanData(
+  data: unknown,
+): SourceProposedPlanReference | undefined {
+  if (!isIndexableRecord(data)) {
+    return undefined;
+  }
+  const sourceProposedPlan = data.sourceProposedPlan;
+  if (!isIndexableRecord(sourceProposedPlan)) {
+    return undefined;
+  }
+  const source = sourceProposedPlan;
+  return typeof source.threadId === "string" &&
+    source.threadId.trim().length > 0 &&
+    typeof source.planId === "string" &&
+    source.planId.trim().length > 0
+    ? {
+        threadId: ThreadId.make(source.threadId),
+        planId: source.planId,
+      }
+    : undefined;
+}
+
 function mapSession(session: OrchestrationSession): ThreadSession {
   return {
-    provider: resolveProviderDriverForThreadState(session.providerName),
-    providerInstanceId: session.providerInstanceId ?? undefined,
     status: mapSessionStatusForThreadState(session.status),
     orchestrationStatus: session.status,
     activeTurnId: session.activeTurnId ?? undefined,
@@ -126,12 +212,6 @@ function mapProposedPlan(proposedPlan: OrchestrationProposedPlan): ProposedPlan 
   };
 }
 
-function mapChatTimelineRow(
-  row: OrchestrationChatTimelineRow,
-): OrchestrationChatTimelineRow {
-  return { ...row };
-}
-
 function mapProject(
   project:
     | OrchestrationReadModel["projects"][number]
@@ -178,7 +258,6 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     worktreePath: thread.worktreePath,
     turnDiffSummaries: [],
     activities: thread.activities.map((activity) => ({ ...activity })),
-    chatTimelineRows: thread.chatTimelineRows?.map(mapChatTimelineRow) ?? [],
   };
 }
 
@@ -266,26 +345,446 @@ function toThreadTurnState(thread: Thread): ThreadTurnState {
   };
 }
 
-function deriveClientChatTimelineRows(thread: Thread): OrchestrationChatTimelineRow[] {
-  return deriveChatTimelineRows({
-    messages: thread.messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      text: message.text,
-      ...(message.richText !== undefined ? { richText: message.richText } : {}),
-      turnId: message.turnId ?? null,
-      streaming: message.streaming,
-      createdAt: message.createdAt,
-      updatedAt: message.completedAt ?? message.createdAt,
-    })),
-    entries: thread.entries,
-    activities: thread.activities,
-    proposedPlans: thread.proposedPlans,
-    activeRunningTurnId:
-      thread.session?.orchestrationStatus === "running"
-        ? (thread.session.activeTurnId ?? thread.latestTurn?.turnId ?? null)
-        : null,
-  });
+function createRuntimeSession(input: {
+  readonly threadId: ThreadId;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}): ThreadSession {
+  return {
+    status: "ready",
+    orchestrationStatus: "ready",
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+  };
+}
+
+function completedThinkingActivityForSessionEntry(
+  entry: SessionTreeProjection["entries"][number],
+): OrchestrationThreadActivity | null {
+  const thinking = entry.thinking?.trim();
+  if (!thinking || entry.role !== "assistant" || entry.turnId === undefined) {
+    return null;
+  }
+  const turnId = TurnId.make(entry.turnId);
+  // Entry-scoped identity: a turn holds one reasoning block per assistant message; a
+  // turn-scoped id would collapse them into a single entry whose content and timestamp
+  // jump to the latest block.
+  return {
+    id: EventId.make(`runtime-thinking:${turnId}:${entry.id}`),
+    kind: "task.completed",
+    tone: "info",
+    summary: "Task completed",
+    turnId,
+    sequence: 2,
+    createdAt: entry.createdAt,
+    payload: {
+      taskId: RuntimeTaskId.make(`pi-thinking:${turnId}:${entry.id}`),
+      taskType: "thinking",
+      status: "completed",
+      detail: thinking,
+    },
+  };
+}
+
+function isDisplayableRuntimeMessageEntry(
+  entry: RuntimeSessionTreeEntry,
+): entry is ProjectedRuntimeMessageEntry {
+  if (entry.role !== "user" && entry.role !== "assistant" && entry.role !== "system") {
+    return false;
+  }
+  return entry.role !== "assistant" || (entry.text?.trim().length ?? 0) > 0;
+}
+
+function resolveNearestProjectedRuntimeThreadEntryId(input: {
+  readonly runtimeEntryId: RuntimeSessionTreeEntry["id"] | null;
+  readonly entryByRuntimeId: ReadonlyMap<RuntimeSessionTreeEntry["id"], RuntimeSessionTreeEntry>;
+  readonly projectedThreadEntryIdByRuntimeId: ReadonlyMap<
+    RuntimeSessionTreeEntry["id"],
+    ThreadEntryId
+  >;
+}): ThreadEntryId | null {
+  const seen = new Set<RuntimeSessionTreeEntry["id"]>();
+  let cursor = input.runtimeEntryId;
+
+  while (cursor !== null) {
+    if (seen.has(cursor)) {
+      return null;
+    }
+    seen.add(cursor);
+
+    const projectedThreadEntryId = input.projectedThreadEntryIdByRuntimeId.get(cursor);
+    if (projectedThreadEntryId !== undefined) {
+      return projectedThreadEntryId;
+    }
+
+    const entry = input.entryByRuntimeId.get(cursor);
+    if (!entry) {
+      return null;
+    }
+    cursor = entry.parentId;
+  }
+
+  return null;
+}
+
+function resolveRuntimeThreadEntryParentEntryId(input: {
+  readonly projectedParentEntryId: ThreadEntryId | null;
+  readonly existingEntry: ThreadTreeEntry | undefined;
+  readonly previousLeafParentId: ThreadEntryId | null;
+}): ThreadEntryId | null {
+  if (input.existingEntry?.parentEntryId != null) {
+    return input.existingEntry.parentEntryId;
+  }
+  return input.projectedParentEntryId ?? input.previousLeafParentId;
+}
+
+function threadFromRuntimeSessionTree(
+  tree: SessionTreeProjection,
+  environmentId: EnvironmentId,
+  previousThread: Thread | undefined,
+): Thread {
+  const projectedMessages: ChatMessage[] = [];
+  const projectedEntries: ThreadTreeEntry[] = [];
+  const sessionTreeActivities: OrchestrationThreadActivity[] = [];
+  const entryByRuntimeId = new Map(tree.entries.map((entry) => [entry.id, entry] as const));
+  const previousEntryById = new Map(
+    previousThread?.entries.map((entry) => [entry.id, entry] as const) ?? [],
+  );
+  const projectedThreadEntryIdByRuntimeId = new Map(
+    tree.entries
+      .filter(isDisplayableRuntimeMessageEntry)
+      .map(
+        (entry) =>
+          [entry.id, threadEntryIdForMessageId(runtimeSessionTreeMessageId(tree, entry))] as const,
+      ),
+  );
+
+  for (const entry of tree.entries) {
+    const thinkingActivity = completedThinkingActivityForSessionEntry(entry);
+    if (thinkingActivity) {
+      sessionTreeActivities.push(thinkingActivity);
+    }
+    sessionTreeActivities.push(...startedToolActivitiesForSessionEntry(entry));
+    const completedToolActivity = completedToolActivityForSessionEntry(entry);
+    if (completedToolActivity) {
+      sessionTreeActivities.push(completedToolActivity);
+    }
+
+    if (isDisplayableRuntimeMessageEntry(entry)) {
+      const messageId = runtimeSessionTreeMessageId(tree, entry);
+      const threadEntryId = threadEntryIdForMessageId(messageId);
+      projectedMessages.push({
+        id: messageId,
+        role: entry.role,
+        text: entry.text ?? "",
+        turnId: entry.turnId ?? null,
+        createdAt: entry.createdAt,
+        completedAt: entry.createdAt,
+        streaming: false,
+      });
+      const projectedParentEntryId = resolveNearestProjectedRuntimeThreadEntryId({
+        runtimeEntryId: entry.parentId,
+        entryByRuntimeId,
+        projectedThreadEntryIdByRuntimeId,
+      });
+      const existingEntry = previousThread?.entries.find(
+        (threadEntry) => threadEntry.id === threadEntryId,
+      );
+      const previousLeafParentId =
+        previousThread?.leafId &&
+        previousThread.leafId !== threadEntryId &&
+        previousEntryById.has(previousThread.leafId)
+          ? previousThread.leafId
+          : null;
+      projectedEntries.push({
+        id: threadEntryId,
+        threadId: tree.threadId,
+        parentEntryId: resolveRuntimeThreadEntryParentEntryId({
+          projectedParentEntryId,
+          existingEntry,
+          previousLeafParentId,
+        }),
+        kind: "message",
+        messageId,
+        turnId: entry.turnId ?? null,
+        createdAt: entry.createdAt,
+      });
+    }
+  }
+
+  const projectedMessageIdAliases = runtimeSessionMessageIdAliases(
+    previousThread,
+    projectedMessages,
+  );
+  const projectedThreadEntryIdAliases = new Map(
+    [...projectedMessageIdAliases.entries()].map(
+      ([projectedMessageId, resolvedMessageId]) =>
+        [
+          threadEntryIdForMessageId(projectedMessageId),
+          threadEntryIdForMessageId(resolvedMessageId),
+        ] as const,
+    ),
+  );
+  const messages = mergeRuntimeSessionMessages(
+    previousThread,
+    projectedMessages,
+    projectedMessageIdAliases,
+  );
+  const entries = mergeRuntimeSessionEntries(
+    previousThread,
+    projectedEntries.map((entry) => {
+      if (entry.messageId === null) {
+        return entry;
+      }
+      const aliasedMessageId = projectedMessageIdAliases.get(entry.messageId);
+      const messageId = aliasedMessageId ?? entry.messageId;
+      const entryId = threadEntryIdForMessageId(messageId);
+      const existingAliasedEntry =
+        aliasedMessageId === undefined
+          ? undefined
+          : previousThread?.entries.find((threadEntry) => threadEntry.id === entryId);
+      const aliasedParentEntryId =
+        entry.parentEntryId === null
+          ? null
+          : (projectedThreadEntryIdAliases.get(entry.parentEntryId) ?? entry.parentEntryId);
+      if (!aliasedMessageId && aliasedParentEntryId === entry.parentEntryId) {
+        return entry;
+      }
+      return {
+        ...entry,
+        id: entryId,
+        messageId,
+        parentEntryId:
+          existingAliasedEntry?.parentEntryId ??
+          (aliasedParentEntryId === entryId ? null : aliasedParentEntryId),
+      };
+    }),
+  );
+  const createdAt = messages[0]?.createdAt ?? new Date().toISOString();
+  const updatedAt = messages.at(-1)?.createdAt ?? createdAt;
+  const session =
+    previousThread?.session ??
+    createRuntimeSession({ threadId: tree.threadId, createdAt, updatedAt });
+  const rawProjectedLeafId = tree.leafEntryId
+    ? resolveNearestProjectedRuntimeThreadEntryId({
+        runtimeEntryId: tree.leafEntryId,
+        entryByRuntimeId,
+        projectedThreadEntryIdByRuntimeId,
+      })
+    : null;
+  const projectedLeafId = rawProjectedLeafId
+    ? (projectedThreadEntryIdAliases.get(rawProjectedLeafId) ?? rawProjectedLeafId)
+    : null;
+  const projectedLeafAliasesExistingEntry =
+    rawProjectedLeafId !== null && projectedThreadEntryIdAliases.has(rawProjectedLeafId);
+  const leafId =
+    projectedLeafAliasesExistingEntry &&
+    previousThread?.leafId &&
+    previousThread.leafId !== projectedLeafId
+      ? previousThread.leafId
+      : (projectedLeafId ?? previousThread?.leafId ?? null);
+  const piSessionTitle =
+    tree.entries.findLast((entry) => entry.kind === "session-info")?.text?.trim() || null;
+
+  return {
+    id: tree.threadId,
+    environmentId,
+    codexThreadId: null,
+    projectId: previousThread?.projectId ?? null,
+    title: piSessionTitle ?? previousThread?.title ?? "Agent thread",
+    modelSelection: previousThread?.modelSelection ?? DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+    runtimeMode: previousThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE,
+    interactionMode: previousThread?.interactionMode ?? DEFAULT_AGENT_INTERACTION_MODE,
+    session,
+    messages,
+    leafId,
+    entries,
+    proposedPlans: previousThread?.proposedPlans ?? [],
+    error: null,
+    createdAt: previousThread?.createdAt ?? createdAt,
+    archivedAt: previousThread?.archivedAt ?? null,
+    updatedAt,
+    latestTurn: previousThread?.latestTurn ?? null,
+    pendingSourceProposedPlan: previousThread?.pendingSourceProposedPlan,
+    branch: previousThread?.branch ?? null,
+    worktreePath: previousThread?.worktreePath ?? null,
+    turnDiffSummaries: previousThread?.turnDiffSummaries ?? [],
+    activities: upsertThreadActivities(previousThread?.activities ?? [], sessionTreeActivities),
+  };
+}
+
+function runtimeSessionTreeMessageId(
+  tree: SessionTreeProjection,
+  entry: ProjectedRuntimeMessageEntry,
+): MessageId {
+  return (
+    entry.clientMessageId ?? runtimeSessionEntryMessageId(tree.runtimeSessionId, entry.id)
+  );
+}
+
+function mergeRuntimeSessionMessages(
+  previousThread: Thread | undefined,
+  projectedMessages: ReadonlyArray<ChatMessage>,
+  projectedMessageIdAliases: ReadonlyMap<MessageId, MessageId>,
+): ChatMessage[] {
+  if (!previousThread) {
+    return [...projectedMessages];
+  }
+  const messageById = new Map(previousThread.messages.map((message) => [message.id, message]));
+  for (const projectedMessage of projectedMessages) {
+    const messageId = projectedMessageIdAliases.get(projectedMessage.id) ?? projectedMessage.id;
+    const existingMessage = messageById.get(messageId);
+    if (existingMessage?.role === "user" && projectedMessage.role === "user") {
+      messageById.set(messageId, existingMessage);
+      continue;
+    }
+    const shouldPreserveAttachments =
+      existingMessage?.attachments !== undefined && projectedMessage.attachments === undefined;
+    messageById.set(
+      messageId,
+      existingMessage
+        ? {
+            ...existingMessage,
+            ...projectedMessage,
+            id: messageId,
+            ...(existingMessage.richText !== undefined && projectedMessage.richText === undefined
+              ? { richText: existingMessage.richText }
+              : {}),
+            ...(shouldPreserveAttachments ? { attachments: existingMessage.attachments } : {}),
+          }
+        : projectedMessage,
+    );
+  }
+  return [...messageById.values()].toSorted(compareCreatedThreadItem);
+}
+
+function runtimeSessionMessageIdAliases(
+  previousThread: Thread | undefined,
+  projectedMessages: ReadonlyArray<ChatMessage>,
+): Map<MessageId, MessageId> {
+  const aliases = new Map<MessageId, MessageId>();
+  if (!previousThread) {
+    return aliases;
+  }
+  const existingMessageById = new Map(
+    previousThread.messages.map((message) => [message.id, message]),
+  );
+  const existingGitActionUserMessageByAction = new Map<
+    NonNullable<ReturnType<typeof resolveGitAgentActionFromPrompt>>,
+    ChatMessage
+  >();
+  const existingUserMessagesByText = new Map<string, ChatMessage[]>();
+  for (const message of previousThread.messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    const messagesWithText = existingUserMessagesByText.get(message.text) ?? [];
+    messagesWithText.push(message);
+    existingUserMessagesByText.set(message.text, messagesWithText);
+
+    const gitAction = resolveGitAgentActionFromPrompt(message.text);
+    if (gitAction !== null) {
+      existingGitActionUserMessageByAction.set(gitAction, message);
+    }
+  }
+  const projectedUserTextCounts = new Map<string, number>();
+  for (const projectedMessage of projectedMessages) {
+    if (projectedMessage.role === "user") {
+      projectedUserTextCounts.set(
+        projectedMessage.text,
+        (projectedUserTextCounts.get(projectedMessage.text) ?? 0) + 1,
+      );
+    }
+  }
+
+  for (const projectedMessage of projectedMessages) {
+    if (existingMessageById.has(projectedMessage.id)) {
+      continue;
+    }
+    if (projectedMessage.role !== "user") {
+      continue;
+    }
+    const gitAction = resolveGitAgentActionFromPrompt(projectedMessage.text);
+    const existingGitActionUserMessage =
+      gitAction === null ? undefined : existingGitActionUserMessageByAction.get(gitAction);
+    if (existingGitActionUserMessage) {
+      aliases.set(projectedMessage.id, existingGitActionUserMessage.id);
+      continue;
+    }
+
+    const existingUserMessagesWithText = existingUserMessagesByText.get(projectedMessage.text);
+    if (
+      existingUserMessagesWithText?.length === 1 &&
+      projectedUserTextCounts.get(projectedMessage.text) === 1
+    ) {
+      aliases.set(projectedMessage.id, existingUserMessagesWithText[0]!.id);
+    }
+  }
+  return aliases;
+}
+
+function mergeRuntimeSessionEntries(
+  previousThread: Thread | undefined,
+  projectedEntries: ReadonlyArray<ThreadTreeEntry>,
+): ThreadTreeEntry[] {
+  if (!previousThread) {
+    return [...projectedEntries];
+  }
+  const entryById = new Map(previousThread.entries.map((entry) => [entry.id, entry]));
+  for (const projectedEntry of projectedEntries) {
+    const existingEntry = entryById.get(projectedEntry.id);
+    entryById.set(
+      projectedEntry.id,
+      existingEntry
+        ? {
+            ...existingEntry,
+            ...projectedEntry,
+            parentEntryId: existingEntry.parentEntryId,
+            turnId:
+              projectedEntry.turnId === null && existingEntry.turnId !== null
+                ? existingEntry.turnId
+                : projectedEntry.turnId,
+            createdAt: existingEntry.createdAt,
+          }
+        : projectedEntry,
+    );
+  }
+  return [...entryById.values()].toSorted(compareCreatedThreadItem);
+}
+
+function compareCreatedThreadItem(
+  left: Pick<ChatMessage | ThreadTreeEntry, "id" | "createdAt">,
+  right: Pick<ChatMessage | ThreadTreeEntry, "id" | "createdAt">,
+): number {
+  const createdAtComparison = left.createdAt.localeCompare(right.createdAt);
+  return createdAtComparison === 0 ? left.id.localeCompare(right.id) : createdAtComparison;
+}
+
+function sidebarThreadSummaryFromThread(
+  thread: Thread,
+  previousSummary?: SidebarThreadSummary,
+): SidebarThreadSummary {
+  return {
+    id: thread.id,
+    environmentId: thread.environmentId,
+    projectId: thread.projectId,
+    title: thread.title,
+    interactionMode: thread.interactionMode,
+    session: thread.session,
+    createdAt: thread.createdAt,
+    archivedAt: thread.archivedAt,
+    updatedAt: thread.updatedAt,
+    latestTurn: thread.latestTurn,
+    branch: thread.branch,
+    worktreePath: thread.worktreePath,
+    latestUserMessageAt:
+      thread.messages.findLast((message) => message.role === "user")?.createdAt ??
+      previousSummary?.latestUserMessageAt ??
+      null,
+    hasPendingApprovals: previousSummary?.hasPendingApprovals ?? false,
+    hasPendingUserInput: previousSummary?.hasPendingUserInput ?? false,
+    hasActionableProposedPlan: previousSummary?.hasActionableProposedPlan ?? false,
+  };
 }
 
 function sourceProposedPlansEqual(
@@ -321,7 +820,6 @@ function threadSessionsEqual(
   if (left === right) return true;
   if (left == null || right == null) return false;
   return (
-    left.provider === right.provider &&
     left.status === right.status &&
     left.orchestrationStatus === right.orchestrationStatus &&
     left.activeTurnId === right.activeTurnId &&
@@ -362,7 +860,7 @@ function threadShellsEqual(left: ThreadShell | undefined, right: ThreadShell): b
     left.codexThreadId === right.codexThreadId &&
     left.projectId === right.projectId &&
     left.title === right.title &&
-    left.modelSelection === right.modelSelection &&
+    modelSelectionsEqual(left.modelSelection, right.modelSelection) &&
     left.runtimeMode === right.runtimeMode &&
     left.interactionMode === right.interactionMode &&
     left.error === right.error &&
@@ -390,6 +888,44 @@ function removeId<T extends string>(ids: readonly T[], id: T): T[] {
   return ids.filter((value) => value !== id);
 }
 
+function mergePreservingOrder<T extends string>(
+  previousOrder: readonly T[],
+  nextOrder: readonly T[],
+): T[] {
+  const remaining = new Set(nextOrder);
+  const merged: T[] = [];
+  for (const value of previousOrder) {
+    if (remaining.has(value)) {
+      merged.push(value);
+      remaining.delete(value);
+    }
+  }
+  for (const value of nextOrder) {
+    if (remaining.has(value)) {
+      merged.push(value);
+    }
+  }
+  return merged;
+}
+
+function mergeThreadIdsByProjectId(
+  previous: Record<ProjectId, ThreadId[]>,
+  next: Record<ProjectId, ThreadId[]>,
+): Record<ProjectId, ThreadId[]> {
+  const projectIds = new Set<ProjectId>([
+    ...(Object.keys(previous) as ProjectId[]),
+    ...(Object.keys(next) as ProjectId[]),
+  ]);
+  const merged: Record<ProjectId, ThreadId[]> = {};
+  for (const projectId of projectIds) {
+    merged[projectId] = mergePreservingOrder(
+      previous[projectId] ?? EMPTY_THREAD_IDS,
+      next[projectId] ?? EMPTY_THREAD_IDS,
+    );
+  }
+  return merged;
+}
+
 function buildMessageSlice(thread: Thread): {
   ids: MessageId[];
   byId: Record<MessageId, ChatMessage>;
@@ -402,8 +938,662 @@ function buildMessageSlice(thread: Thread): {
   };
 }
 
-function assistantMessageIdForRuntimeEvent(event: ProviderRuntimeEvent): MessageId {
-  return MessageId.make(`assistant:${event.itemId ?? event.turnId ?? event.eventId}`);
+function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
+  switch (toolName) {
+    case "bash":
+      return "command_execution";
+    case "read":
+      return "file_read";
+    case "grep":
+    case "find":
+    case "ls":
+      return "file_search";
+    case "edit":
+    case "write":
+      return "file_change";
+    default:
+      return "dynamic_tool_call";
+  }
+}
+
+function toolActivityId(toolCallId: string, phase: ToolActivityPhase): EventId {
+  return EventId.make(`runtime-tool:${toolCallId}:${phase}`);
+}
+
+function toolActivityKindForPhase(phase: ToolActivityPhase): ToolActivityKind {
+  switch (phase) {
+    case "started":
+      return "tool.started";
+    case "updated":
+      return "tool.updated";
+    case "completed":
+      return "tool.completed";
+  }
+}
+
+function defaultToolActivitySummary(input: {
+  readonly phase: ToolActivityPhase;
+  readonly toolName: string;
+  readonly isError: boolean;
+}): string {
+  switch (input.phase) {
+    case "started":
+      return `Started ${input.toolName}`;
+    case "updated":
+      return `Running ${input.toolName}`;
+    case "completed":
+      return input.isError ? `${input.toolName} failed` : `Completed ${input.toolName}`;
+  }
+}
+
+function buildToolLifecycleActivity(input: {
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly phase: ToolActivityPhase;
+  readonly turnId: TurnId | null;
+  readonly createdAt: string;
+  readonly args?: unknown;
+  readonly result?: unknown;
+  readonly isError?: boolean;
+  readonly summary?: string;
+  readonly runtimeEvent: unknown;
+}): OrchestrationThreadActivity {
+  const itemType = toolItemTypeForName(input.toolName);
+  const detail = toolResultText(input.result);
+  const command = asTrimmedString(asRecord(input.args)?.command);
+  const isError = input.isError === true;
+  return {
+    id: toolActivityId(input.toolCallId, input.phase),
+    kind: toolActivityKindForPhase(input.phase),
+    tone: isError ? "error" : "tool",
+    summary:
+      asTrimmedString(input.summary) ??
+      defaultToolActivitySummary({ phase: input.phase, toolName: input.toolName, isError }),
+    turnId: input.turnId,
+    createdAt: input.createdAt,
+    payload: {
+      itemType,
+      itemId: input.toolCallId,
+      status: input.phase === "completed" ? (isError ? "failed" : "completed") : "running",
+      title: input.toolName,
+      ...(detail ? { detail } : {}),
+      data: {
+        ...(input.args !== undefined ? { args: input.args } : {}),
+        ...(command ? { command } : {}),
+        ...(input.result !== undefined ? { result: input.result, rawOutput: input.result } : {}),
+        runtimeEvent: input.runtimeEvent,
+      },
+    },
+  };
+}
+
+function startedToolActivitiesForSessionEntry(
+  entry: RuntimeSessionTreeEntry,
+): OrchestrationThreadActivity[] {
+  if (entry.role !== "assistant") {
+    return [];
+  }
+  const rawEntry = asRecord(entry.rawEntry);
+  const message = asRecord(rawEntry?.message);
+  const content = Array.isArray(message?.content) ? message.content : [];
+  return content.flatMap((part) => {
+    const toolCall = asRecord(part);
+    if (toolCall?.type !== "toolCall") {
+      return [];
+    }
+    const toolCallId = asTrimmedString(toolCall.id ?? toolCall.toolCallId);
+    const toolName = asTrimmedString(toolCall.name ?? toolCall.toolName);
+    if (!toolCallId || !toolName) {
+      return [];
+    }
+    return [
+      buildToolLifecycleActivity({
+        toolCallId,
+        toolName,
+        phase: "started",
+        turnId: entry.turnId ?? null,
+        createdAt: entry.createdAt,
+        ...(toolCall.arguments !== undefined ? { args: toolCall.arguments } : {}),
+        runtimeEvent: toolCall,
+      }),
+    ];
+  });
+}
+
+function completedToolActivityForSessionEntry(
+  entry: RuntimeSessionTreeEntry,
+): OrchestrationThreadActivity | null {
+  if (entry.role !== "toolResult") {
+    return null;
+  }
+  const rawEntry = asRecord(entry.rawEntry);
+  const message = asRecord(rawEntry?.message);
+  const toolCallId = asTrimmedString(message?.toolCallId);
+  const toolName = asTrimmedString(message?.toolName);
+  if (!toolCallId || !toolName) {
+    return null;
+  }
+  return buildToolLifecycleActivity({
+    toolCallId,
+    toolName,
+    phase: "completed",
+    turnId: entry.turnId ?? null,
+    createdAt: entry.createdAt,
+    ...(message?.content !== undefined ? { result: message.content } : {}),
+    isError: message?.isError === true,
+    runtimeEvent: message,
+  });
+}
+
+function extensionUiActivityId(requestId: string): EventId {
+  return EventId.make(`runtime-extension-ui:${requestId}`);
+}
+
+function isExtensionUiRequestKind(value: unknown): value is DesktopExtensionUiRequest["kind"] {
+  switch (value) {
+    case "select":
+    case "confirm":
+    case "input":
+    case "editor":
+    case "custom":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function extensionUiRequestTurnId(thread: Thread): TurnId | null {
+  return thread.session?.activeTurnId ?? thread.latestTurn?.turnId ?? null;
+}
+
+function buildExtensionUiRequestedActivity(
+  request: DesktopExtensionUiRequest,
+  turnId: TurnId | null,
+): OrchestrationThreadActivity {
+  const detail = asTrimmedString(request.message);
+  return {
+    id: extensionUiActivityId(request.id),
+    kind: "extension-ui.requested",
+    tone: "info",
+    summary: `Waiting for ${request.title}`,
+    turnId,
+    createdAt: request.createdAt,
+    payload: {
+      requestId: request.id,
+      requestKind: request.kind,
+      title: request.title,
+      detail,
+      placeholder: request.placeholder ?? null,
+      options: request.options ? [...request.options] : null,
+    },
+  };
+}
+
+function buildExtensionUiResolvedActivity(
+  activity: OrchestrationThreadActivity,
+  requestId: string,
+  resolvedAt: string,
+): OrchestrationThreadActivity {
+  const payload = asRecord(activity.payload);
+  const title = asTrimmedString(payload?.title) ?? "Extension prompt";
+  const requestKind = isExtensionUiRequestKind(payload?.requestKind)
+    ? payload.requestKind
+    : "custom";
+  return {
+    id: extensionUiActivityId(requestId),
+    kind: "extension-ui.resolved",
+    tone: "info",
+    summary: `Answered ${title}`,
+    turnId: activity.turnId,
+    createdAt: resolvedAt,
+    payload: {
+      requestId,
+      requestKind,
+      title,
+      detail: typeof payload?.detail === "string" ? payload.detail : null,
+      value: null,
+    },
+  };
+}
+
+function isIndexableRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return isIndexableRecord(value) ? value : null;
+}
+
+function asTrimmedString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function asInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function asNonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function asPositiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function toolResultText(value: unknown): string | null {
+  const direct = asTrimmedString(value);
+  if (direct) {
+    return direct;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => toolResultText(entry))
+      .filter((entry): entry is string => entry !== null);
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const keys = ["stdout", "stderr", "output", "content", "text", "message", "result"];
+  for (const key of keys) {
+    const text = toolResultText(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+  return null;
+}
+
+type RuntimeSubagentActivityKind = Extract<
+  OrchestrationThreadActivity["kind"],
+  | "subagent.thread.started"
+  | "subagent.thread.state.changed"
+  | "subagent.item.started"
+  | "subagent.item.updated"
+  | "subagent.item.completed"
+  | "subagent.content.delta"
+  | "subagent.usage.updated"
+>;
+type RuntimeSubagentContentStreamKind = Extract<
+  OrchestrationThreadActivity,
+  { kind: "subagent.content.delta" }
+>["payload"]["streamKind"];
+
+function isRuntimeSubagentActivityKind(value: unknown): value is RuntimeSubagentActivityKind {
+  switch (value) {
+    case "subagent.thread.started":
+    case "subagent.thread.state.changed":
+    case "subagent.item.started":
+    case "subagent.item.updated":
+    case "subagent.item.completed":
+    case "subagent.content.delta":
+    case "subagent.usage.updated":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isRuntimeSubagentContentStreamKind(
+  value: unknown,
+): value is RuntimeSubagentContentStreamKind {
+  switch (value) {
+    case "assistant_text":
+    case "reasoning_text":
+    case "reasoning_summary_text":
+    case "plan_text":
+    case "command_output":
+    case "file_change_output":
+    case "unknown":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function compactRuntimeSubagentIdentityPayload(
+  payload: Record<string, unknown> | null,
+  parentTurnId: TurnId | undefined,
+) {
+  const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
+  if (!subagentThreadId) {
+    return null;
+  }
+  const parentThreadId = asTrimmedString(payload?.parentThreadId);
+  const parentItemId = asTrimmedString(payload?.parentItemId);
+  const agentId = asTrimmedString(payload?.agentId);
+  const nickname = asTrimmedString(payload?.nickname);
+  const role = asTrimmedString(payload?.role);
+  const model = asTrimmedString(payload?.model);
+  const prompt = asTrimmedString(payload?.prompt);
+  return {
+    subagentThreadId,
+    ...(parentThreadId ? { parentThreadId } : {}),
+    ...(parentTurnId ? { parentTurnId } : {}),
+    ...(parentItemId ? { parentItemId: RuntimeItemId.make(parentItemId) } : {}),
+    ...(agentId ? { agentId } : {}),
+    ...(nickname ? { nickname } : {}),
+    ...(role ? { role } : {}),
+    ...(model ? { model } : {}),
+    ...(prompt ? { prompt } : {}),
+  };
+}
+
+function compactRuntimeSubagentItemPayload(
+  payload: Record<string, unknown> | null,
+  parentTurnId: TurnId | undefined,
+) {
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  if (!identity) {
+    return null;
+  }
+  const itemType = asTrimmedString(payload?.itemType);
+  const itemId = asTrimmedString(payload?.itemId);
+  const status = asTrimmedString(payload?.status);
+  const title = asTrimmedString(payload?.title);
+  const detail = asTrimmedString(payload?.detail);
+  const data = toJsonValue(payload?.data);
+  return {
+    ...identity,
+    ...(itemType && isCanonicalItemType(itemType) ? { itemType } : {}),
+    ...(itemId ? { itemId } : {}),
+    ...(status ? { status } : {}),
+    ...(title ? { title } : {}),
+    ...(detail ? { detail } : {}),
+    ...(data !== undefined && data !== null ? { data } : {}),
+  };
+}
+
+function compactRuntimeSubagentContentDeltaPayload(
+  payload: Record<string, unknown> | null,
+  parentTurnId: TurnId | undefined,
+) {
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  if (!identity) {
+    return null;
+  }
+  const streamKind = payload?.streamKind;
+  const delta = typeof payload?.delta === "string" ? payload.delta : null;
+  const itemId = asTrimmedString(payload?.itemId);
+  const contentIndex = asInteger(payload?.contentIndex);
+  const summaryIndex = asInteger(payload?.summaryIndex);
+  if (!isRuntimeSubagentContentStreamKind(streamKind) || delta === null) {
+    return null;
+  }
+  return {
+    ...identity,
+    streamKind,
+    delta,
+    ...(itemId ? { itemId } : {}),
+    ...(contentIndex !== null ? { contentIndex } : {}),
+    ...(summaryIndex !== null ? { summaryIndex } : {}),
+  };
+}
+
+function compactRuntimeSubagentUsagePayload(
+  payload: Record<string, unknown> | null,
+  parentTurnId: TurnId | undefined,
+) {
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  if (!identity) {
+    return null;
+  }
+  const usedTokens = asNonNegativeInteger(payload?.usedTokens);
+  if (usedTokens === null) {
+    return null;
+  }
+  const maxTokens = asPositiveInteger(payload?.maxTokens);
+  return {
+    ...identity,
+    usedTokens,
+    ...(maxTokens !== null ? { maxTokens } : {}),
+  };
+}
+
+function isCanonicalItemType(value: string): value is CanonicalItemType {
+  switch (value) {
+    case "user_message":
+    case "assistant_message":
+    case "reasoning":
+    case "plan":
+    case "command_execution":
+    case "file_read":
+    case "file_search":
+    case "file_change":
+    case "mcp_tool_call":
+    case "dynamic_tool_call":
+    case "collab_agent_tool_call":
+    case "web_search":
+    case "web_fetch":
+    case "image_view":
+    case "review_entered":
+    case "review_exited":
+    case "context_compaction":
+    case "error":
+    case "unknown":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function normalizeRuntimeSubagentThreadState(
+  value: unknown,
+): "active" | "idle" | "archived" | "closed" | "compacted" | "error" | null {
+  switch (value) {
+    case "running":
+    case "active":
+      return "active";
+    case "completed":
+    case "idle":
+      return "idle";
+    case "failed":
+    case "aborted":
+    case "error":
+      return "error";
+    case "archived":
+    case "closed":
+    case "compacted":
+      return value;
+    default:
+      return null;
+  }
+}
+
+export function runtimeSubagentActivitiesForToolEvent(
+  event: AgentRuntimeEvent,
+): OrchestrationThreadActivity[] {
+  const data = asRecord(event.data);
+  if (data?.toolName !== "subagent") {
+    return [];
+  }
+  const result = asRecord(event.type === "tool.completed" ? data.result : data?.partialResult);
+  const details = asRecord(result?.details);
+  const rawActivities = Array.isArray(details?.activities) ? details.activities : [];
+  const turnId = event.turnId ? TurnId.make(event.turnId) : undefined;
+  const activities: OrchestrationThreadActivity[] = [];
+
+  for (const rawActivity of rawActivities) {
+    const activity = asRecord(rawActivity);
+    if (!activity) {
+      continue;
+    }
+    const kind = activity?.kind;
+    if (!isRuntimeSubagentActivityKind(kind)) {
+      continue;
+    }
+
+    const id = EventId.make(asTrimmedString(activity.id) ?? `runtime-subagent:${event.id}`);
+    const summary = asTrimmedString(activity.summary) ?? "Subagent update";
+    const createdAt = asTrimmedString(activity.createdAt) ?? event.createdAt;
+    const payload = asRecord(activity.payload);
+    const sequence = asNonNegativeInteger(activity.sequence) ?? undefined;
+
+    switch (kind) {
+      case "subagent.thread.started": {
+        const identity = compactRuntimeSubagentIdentityPayload(payload, turnId);
+        if (!identity) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: identity,
+        });
+        break;
+      }
+      case "subagent.thread.state.changed": {
+        const identity = compactRuntimeSubagentIdentityPayload(payload, turnId);
+        const state = normalizeRuntimeSubagentThreadState(payload?.state);
+        if (!identity || !state) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: state === "error" ? "error" : "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: {
+            ...identity,
+            state,
+            ...(payload?.detail !== undefined
+              ? { detail: toJsonValue(payload.detail) ?? null }
+              : {}),
+          },
+        });
+        break;
+      }
+      case "subagent.item.started":
+      case "subagent.item.updated":
+      case "subagent.item.completed": {
+        const itemPayload = compactRuntimeSubagentItemPayload(payload, turnId);
+        if (!itemPayload) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: itemPayload,
+        });
+        break;
+      }
+      case "subagent.content.delta": {
+        const deltaPayload = compactRuntimeSubagentContentDeltaPayload(payload, turnId);
+        if (!deltaPayload) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: deltaPayload,
+        });
+        break;
+      }
+      case "subagent.usage.updated": {
+        const usagePayload = compactRuntimeSubagentUsagePayload(payload, turnId);
+        if (!usagePayload) {
+          break;
+        }
+        activities.push({
+          id,
+          kind,
+          tone: "info",
+          summary,
+          turnId: turnId ?? null,
+          ...(sequence !== undefined ? { sequence } : {}),
+          createdAt,
+          payload: usagePayload,
+        });
+        break;
+      }
+    }
+  }
+
+  return activities;
+}
+
+function upsertThreadActivities(
+  current: ReadonlyArray<ThreadActivity>,
+  replacements: ReadonlyArray<ThreadActivity>,
+): ThreadActivity[] {
+  if (replacements.length === 0) {
+    return [...current];
+  }
+  let next = current;
+  for (const replacement of replacements) {
+    next = upsertThreadActivity(next, replacement);
+  }
+  return next.length > MAX_THREAD_ACTIVITIES ? next.slice(-MAX_THREAD_ACTIVITIES) : [...next];
+}
+
+function upsertThreadActivity(
+  current: ReadonlyArray<ThreadActivity>,
+  replacement: ThreadActivity,
+): ReadonlyArray<ThreadActivity> {
+  const existingIndex = current.findIndex((activity) => activity.id === replacement.id);
+  if (existingIndex >= 0 && isActivityOrderedAt(current, existingIndex, replacement)) {
+    const next = [...current];
+    next[existingIndex] = replacement;
+    return next;
+  }
+
+  const withoutExisting =
+    existingIndex >= 0
+      ? [...current.slice(0, existingIndex), ...current.slice(existingIndex + 1)]
+      : [...current];
+  const insertIndex = activityInsertIndex(withoutExisting, replacement);
+  withoutExisting.splice(insertIndex, 0, replacement);
+  return withoutExisting;
+}
+
+function isActivityOrderedAt(
+  activities: ReadonlyArray<ThreadActivity>,
+  index: number,
+  activity: ThreadActivity,
+): boolean {
+  const previous = activities[index - 1];
+  const next = activities[index + 1];
+  return (
+    (previous === undefined || compareActivities(previous, activity) <= 0) &&
+    (next === undefined || compareActivities(activity, next) <= 0)
+  );
+}
+
+function activityInsertIndex(
+  activities: ReadonlyArray<ThreadActivity>,
+  activity: ThreadActivity,
+): number {
+  let low = 0;
+  let high = activities.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = activities[mid];
+    if (candidate && compareActivities(candidate, activity) <= 0) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
 }
 
 function clearLiveAssistantTurn(
@@ -448,45 +1638,48 @@ function clearLiveAssistantTurnsForThread(
   };
 }
 
-function upsertLiveAssistantTurn(
+function syncPendingExtensionUiRequestsForThread(
   state: EnvironmentState,
-  event: Extract<ProviderRuntimeEvent, { type: "content.delta" }>,
+  threadId: ThreadId,
+  requests: ReadonlyArray<DesktopExtensionUiRequest>,
 ): EnvironmentState {
-  if (
-    event.turnId === undefined ||
-    event.payload.streamKind !== "assistant_text" ||
-    event.payload.delta.length === 0
-  ) {
-    return state;
-  }
-  const threadId = event.threadId;
-  if (!state.threadShellById[threadId]) {
-    return state;
-  }
-  const turnId = TurnId.make(event.turnId);
-  const currentByTurnId = state.liveAssistantTurnByThreadId[threadId] ?? {};
-  const previousTurn = currentByTurnId[turnId];
-  const nextTurn: LiveAssistantTurn = {
-    turnId,
-    messageId: previousTurn?.messageId ?? assistantMessageIdForRuntimeEvent(event),
-    text: `${previousTurn?.text ?? ""}${event.payload.delta}`,
-    createdAt: previousTurn?.createdAt ?? event.createdAt,
-    updatedAt: event.createdAt,
-  };
-  return {
-    ...state,
-    liveAssistantTurnIdsByThreadId: {
-      ...state.liveAssistantTurnIdsByThreadId,
-      [threadId]: appendId(state.liveAssistantTurnIdsByThreadId[threadId] ?? [], turnId),
-    },
-    liveAssistantTurnByThreadId: {
-      ...state.liveAssistantTurnByThreadId,
-      [threadId]: {
-        ...currentByTurnId,
-        [turnId]: nextTurn,
-      },
-    },
-  };
+  const requestIds = new Set(requests.map((request) => request.id));
+  const resolvedAt = new Date().toISOString();
+  return updateThreadState(state, threadId, (thread) => {
+    const requestedActivities = requests.map((request) =>
+      buildExtensionUiRequestedActivity(request, extensionUiRequestTurnId(thread)),
+    );
+    const resolvedActivities = thread.activities.flatMap((activity) => {
+      if (activity.kind !== "extension-ui.requested") {
+        return [];
+      }
+      const requestId = asTrimmedString(asRecord(activity.payload)?.requestId);
+      if (!requestId || requestIds.has(requestId)) {
+        return [];
+      }
+      return [buildExtensionUiResolvedActivity(activity, requestId, resolvedAt)];
+    });
+    const replacements = [...requestedActivities, ...resolvedActivities];
+    if (replacements.length === 0) {
+      return thread;
+    }
+    return {
+      ...thread,
+      activities: upsertThreadActivities(thread.activities, replacements),
+      updatedAt: latestTimestamp(
+        [thread.updatedAt, ...replacements.map((activity) => activity.createdAt)],
+        thread.updatedAt,
+      ),
+    };
+  });
+}
+
+function latestTimestamp(
+  candidates: readonly (string | undefined)[],
+  fallback: string | undefined,
+): string {
+  const timestamps = candidates.filter((value): value is string => typeof value === "string");
+  return timestamps.toSorted((left, right) => left.localeCompare(right)).at(-1) ?? fallback ?? "";
 }
 
 function buildEntrySlice(thread: Thread): {
@@ -513,6 +1706,319 @@ function buildActivitySlice(thread: Thread): {
       thread.activities.map((activity) => [activity.id, activity] as const),
     ) as Record<string, OrchestrationThreadActivity>,
   };
+}
+
+function splitSubagentActivities(activities: ReadonlyArray<OrchestrationThreadActivity>): {
+  parentActivities: ReadonlyArray<OrchestrationThreadActivity>;
+  subagentActivities: OrchestrationThreadActivity[];
+} {
+  let parentActivities: OrchestrationThreadActivity[] | null = null;
+  const subagentActivities: OrchestrationThreadActivity[] = [];
+
+  for (let index = 0; index < activities.length; index += 1) {
+    const activity = activities[index];
+    if (!activity) {
+      continue;
+    }
+    if (isSubagentActivity(activity)) {
+      subagentActivities.push(activity);
+      if (parentActivities === null) {
+        parentActivities = activities.slice(0, index);
+      }
+      continue;
+    }
+    parentActivities?.push(activity);
+  }
+
+  return {
+    parentActivities: parentActivities ?? activities,
+    subagentActivities,
+  };
+}
+
+function isSubagentActivity(activity: OrchestrationThreadActivity): boolean {
+  return activity.kind.startsWith("subagent.");
+}
+
+export interface SubagentActivityBatch {
+  readonly threadId: ThreadId;
+  readonly activities: ReadonlyArray<OrchestrationThreadActivity>;
+}
+
+export function subagentActivitiesForThreadDetail(
+  thread: OrchestrationThread,
+): ReadonlyArray<OrchestrationThreadActivity> {
+  return thread.activities.flatMap((activity) =>
+    isSubagentActivity(activity) ? [{ ...activity }] : [],
+  );
+}
+
+export function subagentActivityBatchesForOrchestrationEvent(
+  event: OrchestrationEvent,
+): ReadonlyArray<SubagentActivityBatch> {
+  if (event.type !== "thread.activity-appended" || !isSubagentActivity(event.payload.activity)) {
+    return [];
+  }
+  return [
+    {
+      threadId: event.payload.threadId,
+      activities: [{ ...event.payload.activity }],
+    },
+  ];
+}
+
+export function subagentActivityBatchesForOrchestrationEvents(
+  events: ReadonlyArray<OrchestrationEvent>,
+): ReadonlyArray<SubagentActivityBatch> {
+  return events.flatMap(subagentActivityBatchesForOrchestrationEvent);
+}
+
+function reuseParentVisibleThreadSlices(
+  previousThread: Thread | undefined,
+  nextThread: Thread,
+): Thread {
+  if (!previousThread) {
+    return nextThread;
+  }
+
+  const messages = areSameChatMessages(previousThread.messages, nextThread.messages)
+    ? previousThread.messages
+    : nextThread.messages;
+  const entries = areSameThreadEntries(previousThread.entries, nextThread.entries)
+    ? previousThread.entries
+    : nextThread.entries;
+  const activities = areSameParentActivities(previousThread.activities, nextThread.activities)
+    ? previousThread.activities
+    : nextThread.activities;
+  const proposedPlans = areSameProposedPlans(previousThread.proposedPlans, nextThread.proposedPlans)
+    ? previousThread.proposedPlans
+    : nextThread.proposedPlans;
+  const turnDiffSummaries = areSameTurnDiffSummaries(
+    previousThread.turnDiffSummaries,
+    nextThread.turnDiffSummaries,
+  )
+    ? previousThread.turnDiffSummaries
+    : nextThread.turnDiffSummaries;
+
+  if (
+    messages === nextThread.messages &&
+    entries === nextThread.entries &&
+    activities === nextThread.activities &&
+    proposedPlans === nextThread.proposedPlans &&
+    turnDiffSummaries === nextThread.turnDiffSummaries
+  ) {
+    return nextThread;
+  }
+
+  return {
+    ...nextThread,
+    messages,
+    entries,
+    activities,
+    proposedPlans,
+    turnDiffSummaries,
+  };
+}
+
+function preserveParentUpdatedAtWhenOnlyHiddenDataChanged(
+  previousThread: Thread | undefined,
+  nextThread: Thread,
+): Thread {
+  if (
+    !previousThread ||
+    previousThread.updatedAt === nextThread.updatedAt ||
+    !isSameParentVisibleThread(previousThread, nextThread)
+  ) {
+    return nextThread;
+  }
+
+  return {
+    ...nextThread,
+    updatedAt: previousThread.updatedAt,
+  };
+}
+
+function isSameParentVisibleThread(previousThread: Thread, nextThread: Thread): boolean {
+  return (
+    previousThread.id === nextThread.id &&
+    previousThread.environmentId === nextThread.environmentId &&
+    previousThread.codexThreadId === nextThread.codexThreadId &&
+    previousThread.projectId === nextThread.projectId &&
+    previousThread.title === nextThread.title &&
+    modelSelectionsEqual(previousThread.modelSelection, nextThread.modelSelection) &&
+    previousThread.runtimeMode === nextThread.runtimeMode &&
+    previousThread.interactionMode === nextThread.interactionMode &&
+    threadSessionsEqual(previousThread.session, nextThread.session) &&
+    previousThread.error === nextThread.error &&
+    previousThread.createdAt === nextThread.createdAt &&
+    previousThread.archivedAt === nextThread.archivedAt &&
+    latestTurnsEqual(previousThread.latestTurn, nextThread.latestTurn) &&
+    sourceProposedPlansEqual(
+      previousThread.pendingSourceProposedPlan,
+      nextThread.pendingSourceProposedPlan,
+    ) &&
+    previousThread.branch === nextThread.branch &&
+    previousThread.worktreePath === nextThread.worktreePath &&
+    previousThread.leafId === nextThread.leafId &&
+    previousThread.messages === nextThread.messages &&
+    previousThread.entries === nextThread.entries &&
+    previousThread.activities === nextThread.activities &&
+    previousThread.proposedPlans === nextThread.proposedPlans &&
+    previousThread.turnDiffSummaries === nextThread.turnDiffSummaries
+  );
+}
+
+function areSameChatMessages(
+  previous: ReadonlyArray<ChatMessage>,
+  next: ReadonlyArray<ChatMessage>,
+): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  return previous.every((previousMessage, index) => {
+    const nextMessage = next[index];
+    return (
+      nextMessage !== undefined &&
+      previousMessage.id === nextMessage.id &&
+      previousMessage.role === nextMessage.role &&
+      previousMessage.text === nextMessage.text &&
+      valuesEqual(previousMessage.richText, nextMessage.richText) &&
+      areSameAttachments(previousMessage.attachments, nextMessage.attachments) &&
+      previousMessage.turnId === nextMessage.turnId &&
+      previousMessage.createdAt === nextMessage.createdAt &&
+      previousMessage.completedAt === nextMessage.completedAt &&
+      previousMessage.streaming === nextMessage.streaming
+    );
+  });
+}
+
+function areSameAttachments(
+  previous: ChatMessage["attachments"] | undefined,
+  next: ChatMessage["attachments"] | undefined,
+): boolean {
+  if (previous === next) return true;
+  if (previous === undefined || next === undefined || previous.length !== next.length) return false;
+  return previous.every((previousAttachment, index) => {
+    const nextAttachment = next[index];
+    return (
+      nextAttachment !== undefined &&
+      previousAttachment.type === nextAttachment.type &&
+      previousAttachment.id === nextAttachment.id &&
+      previousAttachment.name === nextAttachment.name &&
+      previousAttachment.mimeType === nextAttachment.mimeType &&
+      previousAttachment.sizeBytes === nextAttachment.sizeBytes &&
+      previousAttachment.previewUrl === nextAttachment.previewUrl
+    );
+  });
+}
+
+function areSameThreadEntries(
+  previous: ReadonlyArray<ThreadTreeEntry>,
+  next: ReadonlyArray<ThreadTreeEntry>,
+): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  return previous.every((previousEntry, index) => {
+    const nextEntry = next[index];
+    return (
+      nextEntry !== undefined &&
+      previousEntry.id === nextEntry.id &&
+      previousEntry.threadId === nextEntry.threadId &&
+      previousEntry.parentEntryId === nextEntry.parentEntryId &&
+      previousEntry.kind === nextEntry.kind &&
+      previousEntry.messageId === nextEntry.messageId &&
+      previousEntry.turnId === nextEntry.turnId &&
+      previousEntry.createdAt === nextEntry.createdAt
+    );
+  });
+}
+
+function areSameParentActivities(
+  previous: ReadonlyArray<OrchestrationThreadActivity>,
+  next: ReadonlyArray<OrchestrationThreadActivity>,
+): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  return previous.every((previousActivity, index) => {
+    const nextActivity = next[index];
+    return (
+      nextActivity !== undefined &&
+      previousActivity.id === nextActivity.id &&
+      previousActivity.kind === nextActivity.kind &&
+      previousActivity.tone === nextActivity.tone &&
+      previousActivity.summary === nextActivity.summary &&
+      previousActivity.turnId === nextActivity.turnId &&
+      previousActivity.sequence === nextActivity.sequence &&
+      previousActivity.createdAt === nextActivity.createdAt &&
+      valuesEqual(previousActivity.payload, nextActivity.payload)
+    );
+  });
+}
+
+function areSameProposedPlans(
+  previous: ReadonlyArray<ProposedPlan>,
+  next: ReadonlyArray<ProposedPlan>,
+): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  return previous.every((previousPlan, index) => {
+    const nextPlan = next[index];
+    return (
+      nextPlan !== undefined &&
+      previousPlan.id === nextPlan.id &&
+      previousPlan.turnId === nextPlan.turnId &&
+      previousPlan.planMarkdown === nextPlan.planMarkdown &&
+      previousPlan.implementedAt === nextPlan.implementedAt &&
+      previousPlan.implementationThreadId === nextPlan.implementationThreadId &&
+      previousPlan.createdAt === nextPlan.createdAt &&
+      previousPlan.updatedAt === nextPlan.updatedAt
+    );
+  });
+}
+
+function areSameTurnDiffSummaries(
+  previous: ReadonlyArray<TurnDiffSummary>,
+  next: ReadonlyArray<TurnDiffSummary>,
+): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  return previous.every((previousSummary, index) => {
+    const nextSummary = next[index];
+    return (
+      nextSummary !== undefined &&
+      previousSummary.turnId === nextSummary.turnId &&
+      previousSummary.completedAt === nextSummary.completedAt &&
+      previousSummary.status === nextSummary.status &&
+      previousSummary.assistantMessageId === nextSummary.assistantMessageId &&
+      areSameTurnDiffFiles(previousSummary.files, nextSummary.files)
+    );
+  });
+}
+
+function areSameTurnDiffFiles(
+  previous: ReadonlyArray<TurnDiffSummary["files"][number]>,
+  next: ReadonlyArray<TurnDiffSummary["files"][number]>,
+): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  return previous.every((previousFile, index) => {
+    const nextFile = next[index];
+    return (
+      nextFile !== undefined &&
+      previousFile.path === nextFile.path &&
+      previousFile.kind === nextFile.kind &&
+      previousFile.additions === nextFile.additions &&
+      previousFile.deletions === nextFile.deletions
+    );
+  });
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
 }
 
 function buildProposedPlanSlice(thread: Thread): {
@@ -618,18 +2124,24 @@ function ensureThreadRegistered(
  * Also writes threadShellById / threadSessionById / threadTurnStateById so
  * the active thread has up-to-date state even if the shell stream event
  * hasn't arrived yet (both streams use structural equality checks to avoid
- * unnecessary re-renders when delivering equivalent data).
- * Does NOT write sidebarThreadSummaryById — that is shell-stream-only.
+ * unnecessary re-renders when delivering equivalent data). Also writes the
+ * denormalized sidebar summary from the same canonical thread state so running
+ * status is stored on the sidebar row itself.
  */
 function writeThreadState(
   state: EnvironmentState,
   nextThread: Thread,
   previousThread?: Thread,
 ): EnvironmentState {
-  nextThread = {
-    ...nextThread,
-    chatTimelineRows: deriveClientChatTimelineRows(nextThread),
-  };
+  const { parentActivities } = splitSubagentActivities(nextThread.activities);
+  if (parentActivities !== nextThread.activities) {
+    nextThread = {
+      ...nextThread,
+      activities: [...parentActivities],
+    };
+  }
+  nextThread = reuseParentVisibleThreadSlices(previousThread, nextThread);
+  nextThread = preserveParentUpdatedAtWhenOnlyHiddenDataChanged(previousThread, nextThread);
   const nextShell = toThreadShell(nextThread);
   const nextTurnState = toThreadTurnState(nextThread);
   const previousShell = state.threadShellById[nextThread.id];
@@ -758,12 +2270,14 @@ function writeThreadState(
     };
   }
 
-  if (previousThread?.chatTimelineRows !== nextThread.chatTimelineRows) {
+  const previousSummary = state.sidebarThreadSummaryById[nextThread.id];
+  const nextSummary = sidebarThreadSummaryFromThread(nextThread, previousSummary);
+  if (!sidebarThreadSummariesEqual(previousSummary, nextSummary)) {
     nextState = {
       ...nextState,
-      chatTimelineRowsByThreadId: {
-        ...nextState.chatTimelineRowsByThreadId,
-        [nextThread.id]: nextThread.chatTimelineRows ?? [],
+      sidebarThreadSummaryById: {
+        ...nextState.sidebarThreadSummaryById,
+        [nextThread.id]: nextSummary,
       },
     };
   }
@@ -912,8 +2426,6 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
   const { [threadId]: _removedTurnDiffIds, ...turnDiffIdsByThreadId } = state.turnDiffIdsByThreadId;
   const { [threadId]: _removedTurnDiffs, ...turnDiffSummaryByThreadId } =
     state.turnDiffSummaryByThreadId;
-  const { [threadId]: _removedChatTimelineRows, ...chatTimelineRowsByThreadId } =
-    state.chatTimelineRowsByThreadId ?? {};
   const { [threadId]: _removedSidebarSummary, ...sidebarThreadSummaryById } =
     state.sidebarThreadSummaryById;
 
@@ -938,7 +2450,6 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
     proposedPlanByThreadId,
     turnDiffIdsByThreadId,
     turnDiffSummaryByThreadId,
-    chatTimelineRowsByThreadId,
     sidebarThreadSummaryById,
   };
 }
@@ -982,6 +2493,42 @@ function buildLatestTurn(params: {
     completedAt: params.completedAt,
     assistantMessageId: params.assistantMessageId,
     ...(resolvedPlan ? { sourceProposedPlan: resolvedPlan } : {}),
+  };
+}
+
+function bindNextPendingUserTurnStart(
+  thread: Thread,
+  turnId: TurnId,
+): {
+  readonly messages: Thread["messages"];
+  readonly entries: Thread["entries"];
+  readonly requestedAt: string | null;
+} {
+  const messagesById = new Map(thread.messages.map((message) => [message.id, message] as const));
+  const pendingEntry = thread.entries.find((entry) => {
+    if (entry.kind !== "message" || entry.turnId !== null || entry.messageId === null) {
+      return false;
+    }
+    const message = messagesById.get(entry.messageId);
+    return message?.role === "user" && (message.turnId === null || message.turnId === undefined);
+  });
+
+  if (!pendingEntry?.messageId) {
+    return {
+      messages: thread.messages,
+      entries: thread.entries,
+      requestedAt: null,
+    };
+  }
+
+  return {
+    messages: thread.messages.map((message) =>
+      message.id === pendingEntry.messageId ? { ...message, turnId } : message,
+    ),
+    entries: thread.entries.map((entry) =>
+      entry.id === pendingEntry.id ? { ...entry, turnId } : entry,
+    ),
+    requestedAt: messagesById.get(pendingEntry.messageId)?.createdAt ?? pendingEntry.createdAt,
   };
 }
 
@@ -1039,14 +2586,9 @@ function mapSessionStatusForThreadState(
     case "idle":
     case "stopped":
       return "closed";
+    default:
+      return "closed";
   }
-}
-
-function resolveProviderDriverForThreadState(providerName: string | null): ProviderDriverKind {
-  if (isProviderDriverKind(providerName)) {
-    return providerName;
-  }
-  return ProviderDriverKind.make("codex");
 }
 
 function attachmentPreviewRoutePath(attachmentId: string): string {
@@ -1067,6 +2609,74 @@ function updateThreadState(
     return state;
   }
   return writeThreadState(state, nextThread, currentThread);
+}
+
+function clearUnconfirmedLocalTurnStartInEnvironment(
+  state: EnvironmentState,
+  input: {
+    readonly threadId: ThreadId;
+    readonly messageId: MessageId;
+  },
+): EnvironmentState {
+  return updateThreadState(state, input.threadId, (thread) => {
+    const message = thread.messages.find((candidate) => candidate.id === input.messageId);
+    if (
+      !message ||
+      message.role !== "user" ||
+      (message.turnId !== null && message.turnId !== undefined)
+    ) {
+      return thread;
+    }
+
+    const removedEntries = thread.entries.filter(
+      (entry) =>
+        entry.kind === "message" &&
+        entry.messageId === input.messageId &&
+        (entry.turnId === null || entry.turnId === undefined),
+    );
+    const removedEntryIds = new Set(removedEntries.map((entry) => entry.id));
+    const removedLeafEntry = removedEntries.find((entry) => entry.id === thread.leafId);
+
+    return {
+      ...thread,
+      messages: thread.messages.filter((candidate) => candidate.id !== input.messageId),
+      entries: thread.entries.filter((entry) => !removedEntryIds.has(entry.id)),
+      leafId: removedLeafEntry ? removedLeafEntry.parentEntryId : thread.leafId,
+      pendingSourceProposedPlan: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
+
+function isUnconfirmedLocalThreadEmpty(state: EnvironmentState, threadId: ThreadId): boolean {
+  if (!state.threadShellById[threadId]) {
+    return false;
+  }
+  if (state.threadSessionById[threadId] != null) {
+    return false;
+  }
+  const turnState = state.threadTurnStateById[threadId];
+  if (turnState?.latestTurn != null || turnState?.pendingSourceProposedPlan != null) {
+    return false;
+  }
+  return (
+    (state.messageIdsByThreadId[threadId]?.length ?? 0) === 0 &&
+    (state.liveAssistantTurnIdsByThreadId[threadId]?.length ?? 0) === 0 &&
+    (state.entryIdsByThreadId?.[threadId]?.length ?? 0) === 0 &&
+    (state.activityIdsByThreadId[threadId]?.length ?? 0) === 0 &&
+    (state.proposedPlanIdsByThreadId[threadId]?.length ?? 0) === 0 &&
+    (state.turnDiffIdsByThreadId[threadId]?.length ?? 0) === 0
+  );
+}
+
+function clearUnconfirmedLocalThreadInEnvironment(
+  state: EnvironmentState,
+  threadId: ThreadId,
+): EnvironmentState {
+  if (!isUnconfirmedLocalThreadEmpty(state, threadId)) {
+    return state;
+  }
+  return removeThreadState(state, threadId);
 }
 
 function buildProjectState(
@@ -1117,6 +2727,10 @@ function applyShellSnapshotWithSource(
   environmentId: EnvironmentId,
   source: "cache" | "server",
 ): EnvironmentState {
+  const previousThreadIds = state.threadIds;
+  const previousThreadIdsByProjectId = state.threadIdsByProjectId;
+  const previousProjectlessThreadIds = state.projectlessThreadIds;
+  const previousSnapshotSource = state.snapshotSource;
   const nextProjects = snapshot.projects.map((project) => mapProject(project, environmentId));
   const nextThreadIds = new Set(snapshot.threads.map((thread) => thread.id));
   let nextState: EnvironmentState = {
@@ -1131,10 +2745,7 @@ function applyShellSnapshotWithSource(
     sidebarThreadSummaryById: {},
     messageIdsByThreadId: retainThreadScopedRecord(state.messageIdsByThreadId, nextThreadIds),
     messageByThreadId: retainThreadScopedRecord(state.messageByThreadId, nextThreadIds),
-    leafIdByThreadId: retainThreadScopedRecord(
-      state.leafIdByThreadId ?? {},
-      nextThreadIds,
-    ),
+    leafIdByThreadId: retainThreadScopedRecord(state.leafIdByThreadId ?? {}, nextThreadIds),
     entryIdsByThreadId: retainThreadScopedRecord(state.entryIdsByThreadId ?? {}, nextThreadIds),
     entryByThreadId: retainThreadScopedRecord(state.entryByThreadId ?? {}, nextThreadIds),
     activityIdsByThreadId: retainThreadScopedRecord(state.activityIdsByThreadId, nextThreadIds),
@@ -1149,16 +2760,27 @@ function applyShellSnapshotWithSource(
       state.turnDiffSummaryByThreadId,
       nextThreadIds,
     ),
-    chatTimelineRowsByThreadId: retainThreadScopedRecord(
-      state.chatTimelineRowsByThreadId ?? {},
-      nextThreadIds,
-    ),
     snapshotSource: source,
     bootstrapComplete: source === "server",
   };
 
   for (const thread of snapshot.threads) {
     nextState = writeThreadShellState(nextState, mapThreadShell(thread, environmentId));
+  }
+
+  if (source === "server" && previousSnapshotSource === "cache" && previousThreadIds.length > 0) {
+    nextState = {
+      ...nextState,
+      threadIds: mergePreservingOrder(previousThreadIds, nextState.threadIds),
+      threadIdsByProjectId: mergeThreadIdsByProjectId(
+        previousThreadIdsByProjectId,
+        nextState.threadIdsByProjectId,
+      ),
+      projectlessThreadIds: mergePreservingOrder(
+        previousProjectlessThreadIds,
+        nextState.projectlessThreadIds,
+      ),
+    };
   }
 
   return nextState;
@@ -1213,11 +2835,7 @@ export function syncServerThreadDetail(
     mapThread(thread, environmentId),
     previousThread,
   );
-  return commitEnvironmentState(
-    state,
-    environmentId,
-    nextEnvironmentState,
-  );
+  return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
 export function applyThreadDetailEvent(
@@ -1344,7 +2962,6 @@ export function applyThreadDetailEvent(
           entries: [],
           proposedPlans: [],
           activities: [],
-          chatTimelineRows: [],
           session: null,
         },
         environmentId,
@@ -1497,7 +3114,16 @@ export function applyThreadDetailEvent(
                       ...entry,
                       text: message.text.length > 0 ? message.text : entry.text,
                       streaming: message.streaming,
-                      ...(message.turnId !== undefined ? { turnId: message.turnId } : {}),
+                      ...(message.turnId !== undefined
+                        ? {
+                            turnId:
+                              message.turnId === null &&
+                              entry.turnId !== null &&
+                              entry.turnId !== undefined
+                                ? entry.turnId
+                                : message.turnId,
+                          }
+                        : {}),
                       ...(message.richText !== undefined ? { richText: message.richText } : {}),
                       ...(message.streaming
                         ? entry.completedAt !== undefined
@@ -1523,13 +3149,21 @@ export function applyThreadDetailEvent(
           const entryId = event.payload.entryId;
           const threadEntries = thread.entries;
           const existingEntry = threadEntries.find((entry) => entry.id === entryId);
+          const nextEntryTurnId =
+            event.payload.turnId === null &&
+            existingEntry?.turnId !== null &&
+            existingEntry?.turnId !== undefined
+              ? existingEntry.turnId
+              : event.payload.turnId;
+          // The event's parent is authoritative: a server echo corrects any
+          // locally projected guess (optimistic tip or runtime session tree).
           const nextEntry: ThreadTreeEntry = {
             id: entryId,
             threadId: event.payload.threadId,
-            parentEntryId: existingEntry?.parentEntryId ?? event.payload.parentEntryId,
+            parentEntryId: event.payload.parentEntryId,
             kind: "message",
             messageId: event.payload.messageId,
-            turnId: event.payload.turnId,
+            turnId: nextEntryTurnId,
             createdAt: existingEntry?.createdAt ?? event.payload.createdAt,
           };
           const entries = existingEntry
@@ -1660,13 +3294,13 @@ export function applyThreadDetailEvent(
       });
 
     case "thread.activity-appended":
+      if (isSubagentActivity(event.payload.activity)) {
+        return state;
+      }
       return updateThreadState(state, event.payload.threadId, (thread) => {
-        const activities = [
-          ...thread.activities.filter((activity) => activity.id !== event.payload.activity.id),
+        const activities = upsertThreadActivities(thread.activities, [
           { ...event.payload.activity },
-        ]
-          .toSorted(compareActivities)
-          .slice(-MAX_THREAD_ACTIVITIES);
+        ]);
         return {
           ...thread,
           activities,
@@ -1740,35 +3374,311 @@ export function applyShellEventToEnvironment(
       return writeThreadShellState(state, mapThreadShell(event.thread, environmentId));
     case "thread-removed":
       return removeThreadState(state, event.threadId);
+    default: {
+      const _exhaustive: never = event;
+      return _exhaustive;
+    }
   }
 }
 
-export function applyProviderRuntimeEventToEnvironment(
+const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
+
+function contextWindowActivityForRuntimeEvent(
+  event: AgentRuntimeEvent,
+): OrchestrationThreadActivity | null {
+  if (event.type !== "context-window.updated" || !isThreadTokenUsageSnapshot(event.data)) {
+    return null;
+  }
+  // Mirror runtimeContextWindowActivities in @honk/runtime so the persisted copy
+  // replaces this live one instead of duplicating it.
+  return {
+    id: EventId.make(`runtime-activity:${event.id}`),
+    tone: "info",
+    kind: "context-window.updated",
+    summary: event.summary ?? "Context usage updated",
+    payload: event.data,
+    turnId: event.turnId ?? null,
+    createdAt: event.createdAt,
+  };
+}
+
+function applyAgentRuntimeEventToEnvironment(
   state: EnvironmentState,
-  event: ProviderRuntimeEvent,
+  event: AgentRuntimeEvent,
 ): EnvironmentState {
   switch (event.type) {
-    case "content.delta":
-      return upsertLiveAssistantTurn(state, event);
+    case "message.started":
+    case "message.updated":
+    case "message.completed":
+      return state;
 
-    case "turn.aborted":
-      return event.turnId === undefined
-        ? state
-        : clearLiveAssistantTurn(state, event.threadId, TurnId.make(event.turnId));
+    case "tool.started":
+    case "tool.updated":
+    case "tool.completed":
+      return state;
 
-    case "turn.completed":
-      if (event.turnId === undefined || event.payload.state === "completed") {
+    case "context-window.updated":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const activity = contextWindowActivityForRuntimeEvent(event);
+        if (!activity) {
+          return thread;
+        }
+        return {
+          ...thread,
+          activities: upsertThreadActivities(thread.activities, [activity]),
+        };
+      });
+
+    case "session.started":
+    case "session.ready":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const session: ThreadSession = {
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          error: null,
+          updatedAt: now,
+        };
+      });
+
+    case "agent.started":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const session: ThreadSession = {
+          status: "running",
+          orchestrationStatus: "running",
+          activeTurnId: thread.session?.activeTurnId,
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          error: null,
+          updatedAt: now,
+        };
+      });
+
+    case "agent.completed":
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const session: ThreadSession = {
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          error: null,
+          updatedAt: now,
+        };
+      });
+
+    case "turn.started": {
+      const startedTurnId = event.turnId;
+      if (!startedTurnId) {
         return state;
       }
-      return clearLiveAssistantTurn(state, event.threadId, TurnId.make(event.turnId));
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const latestTurn = thread.latestTurn;
+        const pendingUserTurnStart = bindNextPendingUserTurnStart(thread, startedTurnId);
+        const session: ThreadSession = {
+          status: "running",
+          orchestrationStatus: "running",
+          activeTurnId: startedTurnId,
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          messages: pendingUserTurnStart.messages,
+          entries: pendingUserTurnStart.entries,
+          session,
+          latestTurn: buildLatestTurn({
+            previous: latestTurn,
+            turnId: startedTurnId,
+            state: "running",
+            requestedAt:
+              latestTurn?.turnId === startedTurnId
+                ? latestTurn.requestedAt
+                : (pendingUserTurnStart.requestedAt ?? now),
+            startedAt: now,
+            completedAt: null,
+            assistantMessageId:
+              latestTurn?.turnId === startedTurnId ? latestTurn.assistantMessageId : null,
+            sourceProposedPlan:
+              agentRuntimeSourceProposedPlanData(event.data) ?? thread.pendingSourceProposedPlan,
+          }),
+          pendingSourceProposedPlan: undefined,
+          error: null,
+          updatedAt: now,
+        };
+      });
+    }
+
+    case "turn.interrupted": {
+      const interruptedTurnId = event.turnId;
+      if (!interruptedTurnId) {
+        return state;
+      }
+      const clearedState = clearLiveAssistantTurn(state, event.threadId, interruptedTurnId);
+      return updateThreadState(clearedState, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const latestTurn = thread.latestTurn;
+        const session: ThreadSession = {
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          latestTurn: buildLatestTurn({
+            previous: latestTurn,
+            turnId: interruptedTurnId,
+            state: "interrupted",
+            requestedAt: latestTurn?.turnId === interruptedTurnId ? latestTurn.requestedAt : now,
+            startedAt:
+              latestTurn?.turnId === interruptedTurnId ? (latestTurn.startedAt ?? now) : now,
+            completedAt: now,
+            assistantMessageId:
+              latestTurn?.turnId === interruptedTurnId ? latestTurn.assistantMessageId : null,
+            sourceProposedPlan: thread.pendingSourceProposedPlan,
+          }),
+          error: null,
+          updatedAt: now,
+        };
+      });
+    }
+
+    case "turn.completed": {
+      const completedTurnId = event.turnId;
+      if (!completedTurnId) {
+        return state;
+      }
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const latestTurn = thread.latestTurn;
+        const preservesTerminalState =
+          latestTurn?.turnId === completedTurnId &&
+          (latestTurn.state === "interrupted" || latestTurn.state === "error");
+        const piTurnEnded =
+          event.agentRuntime === "pi" &&
+          isIndexableRecord(event.data) &&
+          event.data.type === "turn_end";
+        const agentStillRunning = piTurnEnded && thread.session?.orchestrationStatus === "running";
+        const activeTurnId =
+          agentStillRunning && thread.session?.activeTurnId !== completedTurnId
+            ? thread.session?.activeTurnId
+            : undefined;
+        const session: ThreadSession = {
+          status: agentStillRunning ? "running" : "ready",
+          orchestrationStatus: agentStillRunning ? "running" : "ready",
+          ...(activeTurnId ? { activeTurnId } : {}),
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+        };
+        return {
+          ...thread,
+          session,
+          latestTurn: buildLatestTurn({
+            previous: latestTurn,
+            turnId: completedTurnId,
+            state: preservesTerminalState ? latestTurn.state : "completed",
+            requestedAt: latestTurn?.turnId === completedTurnId ? latestTurn.requestedAt : now,
+            startedAt: latestTurn?.turnId === completedTurnId ? (latestTurn.startedAt ?? now) : now,
+            completedAt: preservesTerminalState ? (latestTurn.completedAt ?? now) : now,
+            assistantMessageId:
+              latestTurn?.turnId === completedTurnId ? latestTurn.assistantMessageId : null,
+            sourceProposedPlan: thread.pendingSourceProposedPlan,
+          }),
+          updatedAt: now,
+        };
+      });
+    }
+
+    case "turn.proposed.completed": {
+      const planData = agentRuntimeProposedPlanData(event.data);
+      if (!planData) {
+        return state;
+      }
+      return updateThreadState(state, event.threadId, (thread) => {
+        const existingPlan = thread.proposedPlans.find((entry) => entry.id === planData.planId);
+        const proposedPlan: ProposedPlan = {
+          id: planData.planId,
+          turnId: event.turnId ?? null,
+          planMarkdown: `${planData.planMarkdown.trim()}\n`,
+          implementedAt: existingPlan?.implementedAt ?? null,
+          implementationThreadId: existingPlan?.implementationThreadId ?? null,
+          createdAt: existingPlan?.createdAt ?? event.createdAt,
+          updatedAt: event.createdAt,
+        };
+        const proposedPlans = [
+          ...thread.proposedPlans.filter((entry) => entry.id !== proposedPlan.id),
+          proposedPlan,
+        ]
+          .toSorted(
+            (left, right) =>
+              left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+          )
+          .slice(-MAX_THREAD_PROPOSED_PLANS);
+        return {
+          ...thread,
+          proposedPlans,
+          updatedAt: event.createdAt,
+        };
+      });
+    }
 
     case "runtime.error":
-      return event.turnId === undefined
-        ? state
-        : clearLiveAssistantTurn(state, event.threadId, TurnId.make(event.turnId));
-
-    case "session.exited":
-      return clearLiveAssistantTurnsForThread(state, event.threadId);
+      return updateThreadState(state, event.threadId, (thread) => {
+        const now = event.createdAt;
+        const turnId = event.turnId ?? thread.session?.activeTurnId ?? thread.latestTurn?.turnId;
+        const session: ThreadSession = {
+          status: "error",
+          orchestrationStatus: "error",
+          createdAt: thread.session?.createdAt ?? now,
+          updatedAt: now,
+          lastError: event.summary ?? event.text ?? "Runtime error",
+        };
+        return {
+          ...thread,
+          session,
+          ...(turnId
+            ? {
+                latestTurn: buildLatestTurn({
+                  previous: thread.latestTurn,
+                  turnId,
+                  state: "error",
+                  requestedAt:
+                    thread.latestTurn?.turnId === turnId ? thread.latestTurn.requestedAt : now,
+                  startedAt:
+                    thread.latestTurn?.turnId === turnId
+                      ? (thread.latestTurn.startedAt ?? now)
+                      : now,
+                  completedAt: now,
+                  assistantMessageId:
+                    thread.latestTurn?.turnId === turnId
+                      ? thread.latestTurn.assistantMessageId
+                      : null,
+                  sourceProposedPlan: thread.pendingSourceProposedPlan,
+                }),
+              }
+            : {}),
+          error: sanitizeThreadErrorMessage(session.lastError),
+          updatedAt: now,
+        };
+      });
 
     default:
       return state;
@@ -1791,15 +3701,157 @@ export function applyOrchestrationEvents(
   return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
-export function applyProviderRuntimeEvent(
+export function applyAgentRuntimeEvent(
   state: AppState,
-  event: ProviderRuntimeEvent,
+  event: AgentRuntimeEvent,
   environmentId: EnvironmentId,
 ): AppState {
   return commitEnvironmentState(
     state,
     environmentId,
-    applyProviderRuntimeEventToEnvironment(getStoredEnvironmentState(state, environmentId), event),
+    applyAgentRuntimeEventToEnvironment(getStoredEnvironmentState(state, environmentId), event),
+  );
+}
+
+export function syncPendingExtensionUiRequests(
+  state: AppState,
+  requests: ReadonlyArray<DesktopExtensionUiRequest>,
+  environmentId: EnvironmentId,
+): AppState {
+  const currentEnvironmentState = getStoredEnvironmentState(state, environmentId);
+  const threadIds = new Set<ThreadId>();
+  for (const request of requests) {
+    threadIds.add(request.threadId);
+  }
+  for (const [threadId, activitiesById] of Object.entries(
+    currentEnvironmentState.activityByThreadId,
+  )) {
+    const hasPendingExtensionUi = Object.values(activitiesById).some(
+      (activity) => activity.kind === "extension-ui.requested",
+    );
+    if (hasPendingExtensionUi) {
+      threadIds.add(threadId as ThreadId);
+    }
+  }
+  if (threadIds.size === 0) {
+    return state;
+  }
+  let nextEnvironmentState = currentEnvironmentState;
+  for (const threadId of threadIds) {
+    nextEnvironmentState = syncPendingExtensionUiRequestsForThread(
+      nextEnvironmentState,
+      threadId,
+      requests.filter((request) => request.threadId === threadId),
+    );
+  }
+  return commitEnvironmentState(state, environmentId, nextEnvironmentState);
+}
+
+export function applyRuntimeSessionTreeProjection(
+  state: AppState,
+  tree: SessionTreeProjection,
+  environmentId: EnvironmentId,
+): AppState {
+  const currentEnvironmentState = getStoredEnvironmentState(state, environmentId);
+  const previousThread = getThreadFromEnvironmentState(currentEnvironmentState, tree.threadId);
+  const nextThread = threadFromRuntimeSessionTree(tree, environmentId, previousThread);
+  const nextEnvironmentState = writeThreadShellState(
+    writeThreadState(currentEnvironmentState, nextThread, previousThread),
+    {
+      shell: toThreadShell(nextThread),
+      session: nextThread.session,
+      turnState: toThreadTurnState(nextThread),
+      summary: sidebarThreadSummaryFromThread(
+        nextThread,
+        currentEnvironmentState.sidebarThreadSummaryById[nextThread.id],
+      ),
+    },
+  );
+  return commitEnvironmentState(state, environmentId, {
+    ...nextEnvironmentState,
+    snapshotSource: "server",
+    bootstrapComplete: true,
+  });
+}
+
+export function clearAgentRuntimeThreadSession(
+  state: AppState,
+  threadId: ThreadId,
+  environmentId: EnvironmentId,
+): AppState {
+  const currentEnvironmentState = getStoredEnvironmentState(state, environmentId);
+  const currentThread = getThreadFromEnvironmentState(currentEnvironmentState, threadId);
+  if (!currentThread?.session) {
+    return state;
+  }
+
+  const now = new Date().toISOString();
+  const latestTurn =
+    currentThread.latestTurn && currentThread.latestTurn.completedAt === null
+      ? buildLatestTurn({
+          previous: currentThread.latestTurn,
+          turnId: currentThread.latestTurn.turnId,
+          state: "interrupted",
+          requestedAt: currentThread.latestTurn.requestedAt,
+          startedAt: currentThread.latestTurn.startedAt ?? now,
+          completedAt: now,
+          assistantMessageId: currentThread.latestTurn.assistantMessageId,
+          sourceProposedPlan: currentThread.pendingSourceProposedPlan,
+        })
+      : currentThread.latestTurn;
+  const nextThread: Thread = {
+    ...currentThread,
+    session: {
+      ...currentThread.session,
+      status: "closed",
+      orchestrationStatus: "stopped",
+      activeTurnId: undefined,
+      updatedAt: now,
+    },
+    latestTurn,
+    error: null,
+    updatedAt: now,
+  };
+  const nextEnvironmentState = writeThreadState(
+    clearLiveAssistantTurnsForThread(currentEnvironmentState, threadId),
+    nextThread,
+    currentThread,
+  );
+  return commitEnvironmentState(state, environmentId, nextEnvironmentState);
+}
+
+export function clearUnconfirmedLocalTurnStart(
+  state: AppState,
+  input: {
+    readonly environmentId: EnvironmentId;
+    readonly threadId: ThreadId;
+    readonly messageId: MessageId;
+  },
+): AppState {
+  return commitEnvironmentState(
+    state,
+    input.environmentId,
+    clearUnconfirmedLocalTurnStartInEnvironment(
+      getStoredEnvironmentState(state, input.environmentId),
+      input,
+    ),
+  );
+}
+
+export function clearUnconfirmedLocalThread(
+  state: AppState,
+  input: {
+    readonly environmentId: EnvironmentId;
+    readonly threadId: ThreadId;
+  },
+): AppState {
+  return commitEnvironmentState(
+    state,
+    input.environmentId,
+    clearUnconfirmedLocalThreadInEnvironment(
+      getStoredEnvironmentState(state, input.environmentId),
+      input.threadId,
+    ),
   );
 }
 

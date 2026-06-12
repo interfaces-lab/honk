@@ -14,7 +14,7 @@ import type { Effect, Scope } from "effect";
  */
 export interface OrchestrationReactorShape {
   /**
-   * Start orchestration-side reactors for provider/runtime flows.
+   * Start orchestration-side reactors.
    *
    * The returned effect must be run in a scope so all worker fibers can be
    * finalized on shutdown.
@@ -28,4 +28,4 @@ export interface OrchestrationReactorShape {
 export class OrchestrationReactor extends Context.Service<
   OrchestrationReactor,
   OrchestrationReactorShape
->()("multi/orchestration/OrchestrationReactor.service") {}
+>()("honk/orchestration/OrchestrationReactor.service") {}

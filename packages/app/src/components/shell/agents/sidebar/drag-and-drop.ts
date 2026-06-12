@@ -8,4 +8,3 @@ export type SidebarDragPayload = {
 export type SidebarDropTarget = SidebarDragPayload & {
   position: SidebarDropPosition;
 };
-

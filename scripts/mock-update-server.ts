@@ -1,9 +1,9 @@
 import { resolve, relative } from "node:path";
 import { realpathSync } from "node:fs";
 
-const port = Number(process.env.MULTI_DESKTOP_MOCK_UPDATE_SERVER_PORT ?? 3000);
+const port = Number(process.env.HONK_DESKTOP_MOCK_UPDATE_SERVER_PORT ?? 3000);
 const root =
-  process.env.MULTI_DESKTOP_MOCK_UPDATE_SERVER_ROOT ??
+  process.env.HONK_DESKTOP_MOCK_UPDATE_SERVER_ROOT ??
   resolve(import.meta.dirname, "..", "release-mock");
 
 const mockServerLog = (level: "info" | "warn" | "error" = "info", message: string) => {

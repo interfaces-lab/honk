@@ -2,9 +2,9 @@ import { IconStepBack } from "central-icons";
 import { type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
-import { Button } from "@multi/ui/button";
-import { Text, textVariants } from "@multi/ui/text";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/ui/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Text, textVariants } from "@honk/honkkit/text";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 
 export function SettingsSection({
   title,
@@ -31,7 +31,7 @@ export function SettingsSection({
         </h2>
         {headerAction}
       </div>
-      <div className="relative overflow-hidden rounded-lg bg-multi-bg-quinary text-card-foreground">
+      <div className="relative overflow-hidden rounded-lg bg-honk-bg-quinary text-card-foreground">
         {children}
       </div>
     </section>
@@ -56,7 +56,7 @@ export function SettingsRow({
   return (
     <div
       className={cn(
-        "border-t border-multi-stroke-quaternary px-2.5 first:border-t-0 sm:px-3",
+        "border-t border-honk-stroke-quaternary px-2.5 first:border-t-0 sm:px-3",
         children ? "py-3" : "py-2.5",
       )}
     >
@@ -99,7 +99,7 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
             size="icon-xs"
             variant="ghost"
             aria-label={`Reset ${label} to default`}
-            className="size-5 rounded-sm p-0 text-multi-fg-tertiary hover:text-multi-fg-primary"
+            className="size-5 rounded-sm p-0 text-honk-fg-tertiary hover:text-honk-fg-primary"
             onClick={(event) => {
               event.stopPropagation();
               onClick();

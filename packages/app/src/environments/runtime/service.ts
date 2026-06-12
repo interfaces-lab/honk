@@ -5,15 +5,13 @@ import {
   type OrchestrationShellStreamEvent,
   type TerminalEvent,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { type QueryClient } from "@tanstack/react-query";
-import { Throttler } from "@tanstack/react-pacer";
 import {
   getKnownEnvironmentWsBaseUrl,
-  scopeProjectRef,
   scopedThreadKey,
   scopeThreadRef,
-} from "@multi/client-runtime";
+} from "~/lib/environment-scope";
 
 import {
   markPromotedDraftThreadByRef,
@@ -23,10 +21,9 @@ import {
 import { coalesceOrchestrationUiEvents } from "./coalesce-orchestration-events";
 import { deriveOrchestrationBatchEffects } from "./orchestration-event-effects";
 import { refreshGitStatus } from "~/lib/git-status-state";
-import { invalidateGitPatchQueries } from "~/lib/native-git-react-query";
-import { projectQueryKeys } from "~/lib/project-react-query";
-import { providerQueryKeys } from "~/lib/provider-react-query";
+import { invalidateGitPatchQueries } from "~/lib/environment-git-react-query";
 import { getPrimaryKnownEnvironment } from "../primary";
+import { resolveAuthenticatedServerBearerToken } from "../primary/auth";
 import { createEnvironmentConnection, type EnvironmentConnection } from "./connection";
 import {
   forgetLiveShellSnapshot,
@@ -37,7 +34,6 @@ import {
 import { createFrameBatcher, type FrameBatcher } from "./frame-batcher";
 import {
   useStore,
-  selectProjectByRef,
   selectProjectsAcrossEnvironments,
   selectSidebarThreadSummaryByRef,
   selectThreadByRef,
@@ -47,12 +43,13 @@ import { useTerminalStateStore } from "~/terminal-state-store";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { WsTransport } from "../../rpc/ws-transport";
 import { createWsRpcClient, type WsRpcClient } from "../../rpc/ws-rpc-client";
+import { emitWelcome, setServerConfigSnapshot } from "../../rpc/server-state";
 import { deriveSidebarProjectStateKey, getProjectOrderKey } from "~/stores/project-identity";
 import { dispatchNextQueuedComposerItemForThread } from "~/stores/chat-send-queue-dispatch";
+import { findWorkspaceProjectForSource } from "~/lib/workspace-target";
 
 type EnvironmentServiceState = {
   readonly queryClient: QueryClient;
-  readonly queryInvalidationThrottler: Throttler<() => void>;
   refCount: number;
   stop: () => void;
 };
@@ -80,7 +77,6 @@ const lastAppliedProjectionVersionByEnvironment = new Map<
 >();
 
 let activeService: EnvironmentServiceState | null = null;
-let needsProviderInvalidation = false;
 
 interface TerminalRetentionThread {
   key: string;
@@ -194,7 +190,9 @@ function getThreadDetailSubscriptionKey(environmentId: EnvironmentId, threadId: 
   return scopedThreadKey(scopeThreadRef(environmentId, threadId));
 }
 
-function getThreadDetailEventBatcher(environmentId: EnvironmentId): FrameBatcher<OrchestrationEvent> {
+function getThreadDetailEventBatcher(
+  environmentId: EnvironmentId,
+): FrameBatcher<OrchestrationEvent> {
   let batch = pendingThreadDetailEventBatches.get(environmentId);
   if (!batch) {
     batch = createFrameBatcher({
@@ -314,10 +312,6 @@ function attachThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry): b
       if (item.kind === "snapshot") {
         flushThreadDetailEventBatch(entry.environmentId);
         useStore.getState().syncServerThreadDetail(item.snapshot.thread, entry.environmentId);
-        return;
-      }
-      if (item.kind === "runtime-event") {
-        useStore.getState().applyProviderRuntimeEvent(item.event, entry.environmentId);
         return;
       }
       enqueueThreadDetailEvent(item.event, entry.environmentId);
@@ -603,24 +597,27 @@ function refreshGitStatusForThreadActivityEffects(
       continue;
     }
 
-    const project = selectProjectByRef(state, scopeProjectRef(environmentId, thread.projectId));
+    const project = findWorkspaceProjectForSource(selectProjectsAcrossEnvironments(state), thread);
     const cwd = thread.worktreePath ?? project?.cwd ?? null;
     if (cwd === null || refreshedCwds.has(cwd)) {
       continue;
     }
 
     refreshedCwds.add(cwd);
+    const rpcEnvironmentId = project?.environmentId ?? environmentId;
     const queryClient = activeService?.queryClient ?? null;
     void (async () => {
       try {
-        await refreshGitStatus({ environmentId, cwd }, undefined, { force: true });
+        await refreshGitStatus({ environmentId: rpcEnvironmentId, cwd }, undefined, {
+          force: true,
+        });
       } finally {
         // The service can restart while the git refresh is in flight, so use
         // the QueryClient from the event that scheduled the refresh. Status
         // rows and patch queries must move together; stale patch data can ask
         // Git for a path that no longer has a diff.
         if (queryClient) {
-          await invalidateGitPatchQueries(queryClient, { environmentId, cwd });
+          await invalidateGitPatchQueries(queryClient, { environmentId: rpcEnvironmentId, cwd });
         }
       }
     })().catch(() => undefined);
@@ -662,11 +659,6 @@ function applyRecoveredEventBatch(
       event.type === "project.meta-updated" ||
       event.type === "project.deleted",
   );
-
-  if (batchEffects.needsProviderInvalidation) {
-    needsProviderInvalidation = true;
-    void activeService?.queryInvalidationThrottler.maybeExecute();
-  }
 
   useStore.getState().applyOrchestrationEvents(uiEvents, environmentId);
   for (const threadId of queueDrainThreadIds) {
@@ -821,7 +813,17 @@ function createPrimaryEnvironmentClient(
     );
   }
 
-  return createWsRpcClient(new WsTransport(wsBaseUrl));
+  const resolveAuthenticatedWsBaseUrl = async () => {
+    const url = new URL(wsBaseUrl);
+    const bearerToken = await resolveAuthenticatedServerBearerToken();
+    if (!bearerToken) {
+      throw new Error("Unable to resolve an authenticated server bearer token.");
+    }
+    url.searchParams.set("access_token", bearerToken);
+    return url.toString();
+  };
+
+  return createWsRpcClient(new WsTransport(resolveAuthenticatedWsBaseUrl));
 }
 
 function registerConnection(connection: EnvironmentConnection): EnvironmentConnection {
@@ -865,6 +867,8 @@ function createPrimaryEnvironmentConnection(): EnvironmentConnection {
     createEnvironmentConnection({
       knownEnvironment,
       client: createPrimaryEnvironmentClient(knownEnvironment),
+      onConfigSnapshot: setServerConfigSnapshot,
+      onWelcome: emitWelcome,
       ...createEnvironmentConnectionHandlers(),
     }),
   );
@@ -944,33 +948,14 @@ export function startEnvironmentConnectionService(queryClient: QueryClient): () 
   }
 
   stopActiveService();
-  needsProviderInvalidation = false;
-  const queryInvalidationThrottler = new Throttler(
-    () => {
-      if (!needsProviderInvalidation) {
-        return;
-      }
-      needsProviderInvalidation = false;
-      void queryClient.invalidateQueries({ queryKey: providerQueryKeys.all });
-      void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
-    },
-    {
-      wait: 100,
-      leading: false,
-      trailing: true,
-    },
-  );
 
   const connection = createPrimaryEnvironmentConnection();
   hydrateCachedShellSnapshot(connection.environmentId);
 
   activeService = {
     queryClient,
-    queryInvalidationThrottler,
     refCount: 1,
-    stop: () => {
-      queryInvalidationThrottler.cancel();
-    },
+    stop: NOOP,
   };
 
   return () => {

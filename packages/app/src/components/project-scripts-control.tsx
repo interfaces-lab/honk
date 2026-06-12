@@ -3,7 +3,7 @@ import type {
   ProjectScript,
   ProjectScriptIcon,
   ResolvedKeybindingsConfig,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   IconBug,
   IconChecklist,
@@ -15,7 +15,7 @@ import {
   IconTestTube,
   IconToolbox,
 } from "central-icons";
-import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
+import React, { type FormEvent, type KeyboardEvent, useState } from "react";
 
 import {
   commandForProjectScript,
@@ -32,8 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogPopup,
   AlertDialogTitle,
-} from "@multi/ui/alert-dialog";
-import { Button } from "@multi/ui/button";
+} from "@honk/honkkit/alert-dialog";
+import { Button } from "@honk/honkkit/button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
+import { WorkbenchChromeActionGroup } from "@honk/honkkit/workbench-chrome-row";
 import {
   Dialog,
   DialogDescription,
@@ -42,10 +44,10 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/ui/dialog";
-import { Input } from "@multi/ui/input";
-import { Kbd } from "@multi/ui/kbd";
-import { Label } from "@multi/ui/label";
+} from "@honk/honkkit/dialog";
+import { Input } from "@honk/honkkit/input";
+import { Kbd } from "@honk/honkkit/kbd";
+import { Label } from "@honk/honkkit/label";
 import {
   Menu,
   MenuItem,
@@ -53,10 +55,10 @@ import {
   MenuShortcut,
   MenuTrigger,
   workbenchMenuMetaTextClassName,
-} from "@multi/ui/menu";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/ui/popover";
-import { Switch } from "@multi/ui/switch";
-import { Textarea } from "@multi/ui/textarea";
+} from "@honk/honkkit/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
+import { Switch } from "@honk/honkkit/switch";
+import { Textarea } from "@honk/honkkit/textarea";
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "play", label: "Play" },
@@ -182,12 +184,6 @@ function keybindingValueForCommand(
   return null;
 }
 
-const headerActionButtonClassName =
-  "h-(--multi-titlebar-control-height) min-h-(--multi-titlebar-control-height) shrink-0 rounded-multi-control px-1.5 shadow-none before:hidden";
-
-const headerActionIconButtonClassName =
-  "size-(--multi-titlebar-control-height) min-w-(--multi-titlebar-control-height) shrink-0 rounded-multi-control p-0 shadow-none before:hidden";
-
 export default function ProjectScriptsControl({
   scripts,
   keybindings,
@@ -210,13 +206,13 @@ export default function ProjectScriptsControl({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const primaryScript = useMemo(() => {
+  const primaryScript = (() => {
     if (preferredScriptId) {
       const preferred = scripts.find((script) => script.id === preferredScriptId);
       if (preferred) return preferred;
     }
     return primaryProjectScript(scripts);
-  }, [preferredScriptId, scripts]);
+  })();
   const isEditing = editingScriptId !== null;
 
   const captureKeybinding = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -299,43 +295,34 @@ export default function ProjectScriptsControl({
     setDialogOpen(true);
   };
 
-  const confirmDeleteScript = useCallback(() => {
+  function confirmDeleteScript() {
     if (!editingScriptId) return;
     setDeleteConfirmOpen(false);
     setDialogOpen(false);
     void onDeleteScript(editingScriptId);
-  }, [editingScriptId, onDeleteScript]);
+  }
 
   return (
     <>
       {primaryScript ? (
-        <div
-          className="flex shrink-0 items-center gap-0.5"
-          role="group"
-          aria-label="Project scripts"
-        >
-          <Button
-            size="xs"
-            variant="ghost"
-            className={headerActionButtonClassName}
+        <WorkbenchChromeActionGroup gap="sub" role="group" aria-label="Project actions">
+          <WorkbenchIconButton
+            aria-label={`Run ${primaryScript.name}`}
             onClick={() => onRunScript(primaryScript)}
             title={`Run ${primaryScript.name}`}
           >
             <ScriptIcon icon={primaryScript.icon} />
-            <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
-              {primaryScript.name}
-            </span>
-          </Button>
+          </WorkbenchIconButton>
           <Menu highlightItemOnHover={false}>
             <MenuTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  className={headerActionIconButtonClassName}
-                  aria-label="Script actions"
-                />
-              }
+              type="button"
+              className={workbenchIconButtonVariants()}
+              aria-label="Project action menu"
+              title="Project action menu"
+              data-active={false}
+              data-chrome="tool"
+              data-slot="workbench-icon-button"
+              data-tab-system={false}
             >
               <IconChevronRightMedium className="size-4 shrink-0 rotate-90" />
             </MenuTrigger>
@@ -354,7 +341,7 @@ export default function ProjectScriptsControl({
                   >
                     <ScriptIcon icon={script.icon} className="size-3" />
                     <span className="min-w-0 truncate">
-                      {script.runOnWorktreeCreate ? `${script.name} (setup)` : script.name}
+                      {script.runOnWorktreeCreate ? `${script.name} (setup action)` : script.name}
                     </span>
                     <span className="relative ms-auto flex h-4 min-w-4 items-center justify-end">
                       {shortcutLabel ? (
@@ -388,24 +375,19 @@ export default function ProjectScriptsControl({
               })}
               <MenuItem variant="workbench" onClick={openAddDialog}>
                 <IconPlusLarge className="size-3" />
-                Add action
+                Add project action
               </MenuItem>
             </MenuPopup>
           </Menu>
-        </div>
+        </WorkbenchChromeActionGroup>
       ) : (
-        <Button
-          size="xs"
-          variant="ghost"
-          className={headerActionButtonClassName}
+        <WorkbenchIconButton
+          aria-label="Add project action"
           onClick={openAddDialog}
           title="Add action"
         >
           <IconPlusLarge className="size-4 shrink-0" />
-          <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
-            Add action
-          </span>
-        </Button>
+        </WorkbenchIconButton>
       )}
 
       <Dialog
@@ -429,9 +411,9 @@ export default function ProjectScriptsControl({
       >
         <DialogPopup className="max-w-md">
           <DialogHeader className="gap-0.5 px-5 pt-4 pb-0">
-            <DialogTitle>{isEditing ? "Edit Action" : "Add Action"}</DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Project Action" : "Add Project Action"}</DialogTitle>
             <DialogDescription className="leading-snug">
-              Actions are project-scoped commands you can run from the top bar or keybindings.
+              Project actions are workspace commands you can run from the top bar or keybindings.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel className="px-5 pt-1.5 pb-4">
@@ -460,10 +442,10 @@ export default function ProjectScriptsControl({
                             <button
                               key={entry.id}
                               type="button"
-                              className={`relative flex flex-col items-center gap-2 rounded-multi-control border px-2 py-2 text-detail transition-colors ${
+                              className={`relative flex flex-col items-center gap-2 rounded-honk-control border px-2 py-2 text-detail transition-colors ${
                                 isSelected
-                                  ? "border-multi-stroke-focused bg-multi-bg-quaternary text-multi-fg-primary"
-                                  : "border-multi-stroke-tertiary text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+                                  ? "border-honk-stroke-focused bg-honk-bg-quaternary text-honk-fg-primary"
+                                  : "border-honk-stroke-tertiary text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
                               }`}
                               onClick={() => {
                                 setIcon(entry.id);
@@ -496,7 +478,7 @@ export default function ProjectScriptsControl({
                   readOnly
                   onKeyDown={captureKeybinding}
                 />
-                <p className="text-detail text-multi-fg-tertiary">
+                <p className="text-detail text-honk-fg-tertiary">
                   Press a shortcut. Use <Kbd>Backspace</Kbd> to clear.
                 </p>
               </div>
@@ -510,10 +492,10 @@ export default function ProjectScriptsControl({
                 />
               </div>
               <label
-                className="flex items-center justify-between gap-3 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-1.5 text-body text-multi-fg-primary"
+                className="flex items-center justify-between gap-3 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-3 py-1.5 text-body text-honk-fg-primary"
                 htmlFor={runOnWorktreeCreateId}
               >
-                <span>Run automatically on worktree creation</span>
+                <span>Run as a setup action on worktree creation</span>
                 <Switch
                   id={runOnWorktreeCreateId}
                   checked={runOnWorktreeCreate}
@@ -521,7 +503,7 @@ export default function ProjectScriptsControl({
                 />
               </label>
               {validationError && (
-                <p className="text-body text-multi-fg-red-primary">{validationError}</p>
+                <p className="text-body text-honk-fg-red-primary">{validationError}</p>
               )}
             </form>
           </DialogPanel>
@@ -546,7 +528,7 @@ export default function ProjectScriptsControl({
               Cancel
             </Button>
             <Button form={addScriptFormId} type="submit">
-              {isEditing ? "Save changes" : "Save action"}
+              {isEditing ? "Save changes" : "Save project action"}
             </Button>
           </DialogFooter>
         </DialogPopup>
@@ -555,13 +537,13 @@ export default function ProjectScriptsControl({
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogPopup>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete action "{name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete project action "{name}"?</AlertDialogTitle>
             <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
             <Button variant="destructive" onClick={confirmDeleteScript}>
-              Delete action
+              Delete project action
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>

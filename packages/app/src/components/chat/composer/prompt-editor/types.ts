@@ -1,4 +1,4 @@
-import type { OrchestrationMessageRichText, ServerProviderSkill } from "@multi/contracts";
+import type { OrchestrationMessageRichText } from "@honk/contracts";
 import type { ClipboardEventHandler, RefObject } from "react";
 import type { LexicalEditor, NodeKey, SerializedLexicalNode } from "lexical";
 
@@ -9,13 +9,6 @@ export interface ComposerCommandData {
   name: string;
   content: string | null;
   type: string | null;
-}
-
-export interface ComposerSkillData {
-  name: string;
-  label: string;
-  description: string | null;
-  path: string | null;
 }
 
 export interface ComposerMentionData {
@@ -45,16 +38,6 @@ export interface ComposerPromptEditorHandle {
   focusAt: (cursor: number) => void;
   focusAtEnd: () => void;
   insertText: (text: string) => void;
-  replaceRangeWithCommand: (
-    rangeStart: number,
-    rangeEnd: number,
-    command: ComposerCommandData,
-  ) => boolean;
-  replaceRangeWithSkill: (
-    rangeStart: number,
-    rangeEnd: number,
-    skill: ComposerSkillData,
-  ) => boolean;
   getText: () => string;
   getCommands: () => ComposerCommandData[];
   getMentions: () => ComposerMentionData[];
@@ -67,7 +50,7 @@ export interface ComposerPromptEditorProps {
   value: string;
   cursor: number;
   syncRevision: number;
-  skills: ReadonlyArray<ServerProviderSkill>;
+  forceSyncGeneration?: number;
   disabled: boolean;
   placeholder: string;
   className?: string | undefined;
@@ -87,11 +70,6 @@ export interface ComposerPromptEditorProps {
   ) => boolean;
   onPaste: ClipboardEventHandler<HTMLElement>;
 }
-
-export type ComposerSkillMetadata = {
-  label: string;
-  description: string | null;
-};
 
 export type ComposerMentionPayload = {
   path: string;

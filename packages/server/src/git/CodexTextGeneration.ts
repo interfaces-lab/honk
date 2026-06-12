@@ -3,13 +3,12 @@ import { randomUUID } from "node:crypto";
 import { Effect, FileSystem, Layer, Option, Path, Schema, Scope, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { type ModelSelection } from "@multi/contracts";
-import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@multi/shared/git";
+import { type ModelSelection } from "@honk/contracts";
+import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@honk/shared/git";
 
 import { resolveAttachmentPath } from "../attachment-store.ts";
 import { ServerConfig } from "../config.ts";
-import { expandHomePath } from "../path-expansion.ts";
-import { TextGenerationError } from "@multi/contracts";
+import { TextGenerationError } from "@honk/contracts";
 import {
   type BranchNameGenerationInput,
   type ThreadTitleGenerationResult,
@@ -29,12 +28,10 @@ import {
   sanitizeThreadTitle,
   toJsonSchemaObject,
 } from "./Utils.ts";
-import { ServerSettingsService } from "../server-settings.ts";
 import {
   getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
-} from "@multi/shared/model";
-import { resolveCodexSettings } from "../provider/provider-settings.ts";
+} from "@honk/shared/model";
 
 const CODEX_GIT_TEXT_GENERATION_REASONING_EFFORT = "low";
 const CODEX_TIMEOUT_MS = 180_000;
@@ -59,7 +56,6 @@ const makeCodexTextGeneration = Effect.gen(function* () {
   const path = yield* Path.Path;
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const serverConfig = yield* Effect.service(ServerConfig);
-  const serverSettingsService = yield* Effect.service(ServerSettingsService);
 
   type MaterializedImageAttachments = {
     readonly imagePaths: ReadonlyArray<string>;
@@ -72,7 +68,7 @@ const makeCodexTextGeneration = Effect.gen(function* () {
   ): Effect.Effect<string, TextGenerationError, Scope.Scope> => {
     return fileSystem
       .makeTempFileScoped({
-        prefix: `multi-${prefix}-${process.pid}-${randomUUID()}.tmp`,
+        prefix: `honk-${prefix}-${process.pid}-${randomUUID()}.tmp`,
       })
       .pipe(
         Effect.tap((filePath) => fileSystem.writeFileString(filePath, content)),
@@ -154,16 +150,12 @@ const makeCodexTextGeneration = Effect.gen(function* () {
     );
     const outputPath = yield* writeTempFile(operation, "codex-output", "");
 
-    const codexSettings = yield* Effect.map(serverSettingsService.getSettings, (settings) =>
-      resolveCodexSettings(settings, modelSelection.instanceId),
-    ).pipe(Effect.catch(() => Effect.undefined));
-
     const runCodexCommand = Effect.fn("runCodexJson.runCodexCommand")(function* () {
       const reasoningEffort =
         getModelSelectionStringOptionValue(modelSelection, "reasoningEffort") ??
         CODEX_GIT_TEXT_GENERATION_REASONING_EFFORT;
       const command = ChildProcess.make(
-        codexSettings?.binaryPath || "codex",
+        "codex",
         [
           "exec",
           "--ephemeral",
@@ -185,12 +177,7 @@ const makeCodexTextGeneration = Effect.gen(function* () {
           "-",
         ],
         {
-          env: {
-            ...process.env,
-            ...(codexSettings?.homePath
-              ? { CODEX_HOME: expandHomePath(codexSettings.homePath) }
-              : {}),
-          },
+          env: process.env,
           cwd,
           shell: process.platform === "win32",
           stdin: {

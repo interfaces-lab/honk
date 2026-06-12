@@ -6,7 +6,7 @@
  *
  * @module OrchestrationProjectionPipeline
  */
-import type { OrchestrationEvent } from "@multi/contracts";
+import type { OrchestrationEvent } from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect } from "effect";
 
@@ -39,4 +39,4 @@ export interface OrchestrationProjectionPipelineShape {
 export class OrchestrationProjectionPipeline extends Context.Service<
   OrchestrationProjectionPipeline,
   OrchestrationProjectionPipelineShape
->()("multi/orchestration/ProjectionPipeline.service/OrchestrationProjectionPipeline") {}
+>()("honk/orchestration/ProjectionPipeline.service/OrchestrationProjectionPipeline") {}

@@ -1,0 +1,191 @@
+import { defineTool, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { Type } from "@earendil-works/pi-ai";
+
+export const CREATE_PLAN_TOOL_NAME = "create_plan";
+
+type CreatePlanTodoStatus = "pending" | "in_progress" | "completed";
+
+export interface CreatePlanTodoDetails {
+  readonly id: string | null;
+  readonly content: string;
+  readonly status: CreatePlanTodoStatus;
+}
+
+export interface CreatePlanPhaseDetails {
+  readonly name: string;
+  readonly todos: readonly CreatePlanTodoDetails[];
+}
+
+export interface CreatePlanToolDetails {
+  readonly name: string | null;
+  readonly overview: string | null;
+  readonly todos: readonly CreatePlanTodoDetails[];
+  readonly plan: string;
+  readonly isProject: boolean;
+  readonly phases: readonly CreatePlanPhaseDetails[];
+  readonly planMarkdown: string;
+}
+
+const CreatePlanTodoStatus = Type.Union(
+  [Type.Literal("pending"), Type.Literal("in_progress"), Type.Literal("completed")],
+  {
+    description: "Current status for this plan todo.",
+  },
+);
+
+const CreatePlanTodo = Type.Object({
+  id: Type.Optional(Type.String({ description: "Stable todo id when one is available." })),
+  content: Type.Optional(Type.String({ description: "Concrete todo text." })),
+  title: Type.Optional(Type.String({ description: "Todo title, used when content is absent." })),
+  status: Type.Optional(CreatePlanTodoStatus),
+});
+
+const CreatePlanPhase = Type.Object({
+  name: Type.String({ description: "Short phase title." }),
+  todos: Type.Array(CreatePlanTodo, { description: "Todos in this phase." }),
+});
+
+const CreatePlanParams = Type.Object({
+  name: Type.Optional(Type.String({ description: "Short human-readable plan name." })),
+  overview: Type.Optional(Type.String({ description: "Brief summary of the plan." })),
+  plan: Type.String({
+    description:
+      "Complete Markdown plan body. Include diagnosis, implementation steps, verification, risks, and non-goals where relevant.",
+  }),
+  todos: Type.Array(CreatePlanTodo, { description: "Actionable todo list for the plan." }),
+  isProject: Type.Optional(
+    Type.Boolean({ description: "True when this is a honk-phase project plan." }),
+  ),
+  is_project: Type.Optional(
+    Type.Boolean({ description: "Alias for isProject when using snake_case payloads." }),
+  ),
+  phases: Type.Optional(Type.Array(CreatePlanPhase, { description: "Optional plan phases." })),
+});
+
+function trimmedString(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function requiredTrimmedString(value: string, fieldName: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`create_plan requires non-empty ${fieldName}.`);
+  }
+  return trimmed;
+}
+
+function normalizeTodoStatus(status: string | undefined): CreatePlanTodoStatus {
+  switch (status) {
+    case "completed":
+      return "completed";
+    case "in_progress":
+      return "in_progress";
+    default:
+      return "pending";
+  }
+}
+
+function normalizeTodos(
+  todos: ReadonlyArray<{
+    readonly id?: string | undefined;
+    readonly content?: string | undefined;
+    readonly title?: string | undefined;
+    readonly status?: string | undefined;
+  }>,
+): CreatePlanTodoDetails[] {
+  return todos.flatMap((todo) => {
+    const content = trimmedString(todo.content) ?? trimmedString(todo.title);
+    if (!content) {
+      return [];
+    }
+    return [
+      {
+        id: trimmedString(todo.id),
+        content,
+        status: normalizeTodoStatus(todo.status),
+      },
+    ];
+  });
+}
+
+function normalizePhases(
+  phases:
+    | ReadonlyArray<{
+        readonly name: string;
+        readonly todos: ReadonlyArray<{
+          readonly id?: string | undefined;
+          readonly content?: string | undefined;
+          readonly title?: string | undefined;
+          readonly status?: string | undefined;
+        }>;
+      }>
+    | undefined,
+): CreatePlanPhaseDetails[] {
+  return (phases ?? []).flatMap((phase) => {
+    const name = trimmedString(phase.name);
+    if (!name) {
+      return [];
+    }
+    return [
+      {
+        name,
+        todos: normalizeTodos(phase.todos),
+      },
+    ];
+  });
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function extractCreatePlanToolResultMarkdown(result: unknown): string | null {
+  const resultRecord = readRecord(result);
+  const details = readRecord(resultRecord?.details);
+  return readNonEmptyString(details?.planMarkdown) ?? readNonEmptyString(details?.plan);
+}
+
+export const createPlanExtension: ExtensionFactory = (pi) => {
+  pi.registerTool(
+    defineTool({
+      name: CREATE_PLAN_TOOL_NAME,
+      label: "Create Plan",
+      description:
+        "Create a proposed implementation plan for Honk's plan review UI. This is the final action for plan mode.",
+      promptSnippet: "Create a proposed implementation plan for review.",
+      promptGuidelines: [
+        "Use create_plan as the final action in plan mode once the plan is ready for review.",
+        "Before calling create_plan, inspect the relevant code and ask clarifying questions if requirements are ambiguous.",
+        "Do not modify files, run mutating commands, create commits, or implement the plan before calling create_plan.",
+        "Put the complete Markdown plan in the plan field; include concrete files, implementation steps, verification, risks, and non-goals.",
+      ],
+      parameters: CreatePlanParams,
+      async execute(_toolCallId, params) {
+        const planMarkdown = requiredTrimmedString(params.plan, "plan");
+        const details: CreatePlanToolDetails = {
+          name: trimmedString(params.name),
+          overview: trimmedString(params.overview),
+          todos: normalizeTodos(params.todos),
+          plan: planMarkdown,
+          isProject: params.isProject ?? params.is_project ?? false,
+          phases: normalizePhases(params.phases),
+          planMarkdown,
+        };
+        const label = details.name ? `: ${details.name}` : "";
+        const todoSummary = details.todos.length === 1 ? "1 todo" : `${details.todos.length} todos`;
+        return {
+          content: [{ type: "text", text: `Created plan${label} (${todoSummary}).` }],
+          details,
+          terminate: true,
+        };
+      },
+    }),
+  );
+};

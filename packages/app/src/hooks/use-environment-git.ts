@@ -1,50 +1,36 @@
 import {
   type EnvironmentId,
+  type GitFileImageResult,
   type GitFilePatchResult,
   type GitManagerServiceError,
   type GitStatusResult,
   type GitWorkingTreeFileStatus,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
 import * as Schema from "effect/Schema";
-import {
-  createElement,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type RefObject,
-  type ReactNode,
-} from "react";
+import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { readNativeGitApi, type NativeGitApi } from "../lib/native-git-api";
+import { readEnvironmentGitApi, type EnvironmentGitApi } from "../lib/environment-git-api";
 import { refreshGitStatus, useGitStatus } from "../lib/git-status-state";
 import {
+  gitImageQueryOptions,
   gitPatchQueryOptions,
   gitQueryKeys,
+  invalidateGitImageQueries,
   invalidateGitPatchQueries,
-} from "../lib/native-git-react-query";
+} from "../lib/environment-git-react-query";
 import { useLocalStorage } from "./use-local-storage";
-import { useShellState } from "./use-shell-cwd";
 
 const DiffStyle = Schema.Literals(["unified", "split"]);
 const MAX_ACTIVE_GIT_PATCH_QUERIES = 80;
-
-function useValueIdentityVersion<TValue>(value: TValue): number {
-  const valueRef = useRef(value);
-  const versionRef = useRef(0);
-  if (valueRef.current !== value) {
-    valueRef.current = value;
-    versionRef.current += 1;
-  }
-  return versionRef.current;
-}
+type GitImagePatchResult = Extract<GitFilePatchResult, { kind: "non_text" }> & {
+  readonly fileType: "image";
+};
 
 export function useDiffStylePreference() {
   return useLocalStorage<"unified" | "split", "unified" | "split">(
-    "multi:git-diff-style",
+    "honk:git-diff-style",
     "unified",
     DiffStyle,
   );
@@ -79,9 +65,13 @@ export interface GitPanelModel {
   totalDel: number;
   focusId: string | null;
   patchesByPath: Map<string, GitFilePatchResult>;
+  imagesByPath: Map<string, GitFileImageResult>;
   diffLoadingByPath: Set<string>;
   diffErrorByPath: Map<string, string>;
+  imageLoadingByPath: Set<string>;
+  imageErrorByPath: Map<string, string>;
   expandedIds: Set<string>;
+  activeDiffIds: Set<string>;
   lifecycleSync: ReactNode;
   requestDiff: (id: string) => void;
   toggleExpand: (id: string, open?: boolean) => void;
@@ -148,7 +138,10 @@ function areDiffRowsEqual(left: DiffRow, right: DiffRow): boolean {
   );
 }
 
-function toRowsWithReuse(status: GitStatusResult | null, previousRows: readonly DiffRow[]): DiffRow[] {
+function toRowsWithReuse(
+  status: GitStatusResult | null,
+  previousRows: readonly DiffRow[],
+): DiffRow[] {
   const nextRows = toRows(status);
   if (nextRows.length === 0 || previousRows.length === 0) {
     return nextRows;
@@ -187,6 +180,12 @@ function getGitErrorMessage(error: GitManagerServiceError | null): string {
   return "Unable to load Git status.";
 }
 
+function isGitImagePatch(
+  patch: GitFilePatchResult | null | undefined,
+): patch is GitImagePatchResult {
+  return patch?.kind === "non_text" && patch.fileType === "image";
+}
+
 export function syncRows(prev: DiffRow[], next: DiffRow[]) {
   const rows = new Map(prev.map((row) => [row.id, row]));
   const ids = new Set<string>();
@@ -205,19 +204,32 @@ export function syncRows(prev: DiffRow[], next: DiffRow[]) {
   return { ids, drop };
 }
 
+function pruneSetToIds(current: Set<string>, validIds: ReadonlySet<string>): Set<string> {
+  let changed = false;
+  const next = new Set<string>();
+  for (const id of current) {
+    if (validIds.has(id)) {
+      next.add(id);
+    } else {
+      changed = true;
+    }
+  }
+  return changed ? next : current;
+}
+
 function EnvironmentGitPanelRowsSync({
   cwd,
   environmentId,
-  prevRows,
   queryClient,
   rows,
 }: {
   cwd: string | null;
   environmentId: EnvironmentId | null;
-  prevRows: RefObject<DiffRow[]>;
   queryClient: QueryClient;
   rows: DiffRow[];
 }) {
+  const prevRows = useRef<DiffRow[]>([]);
+
   useEffect(() => {
     const previousRows = prevRows.current;
     const next = syncRows(previousRows, rows);
@@ -236,14 +248,20 @@ function EnvironmentGitPanelRowsSync({
       queryClient.removeQueries({
         queryKey: gitQueryKeys.patch(environmentId, cwd, id),
       });
+      queryClient.removeQueries({
+        queryKey: gitQueryKeys.image(environmentId, cwd, id),
+      });
     }
 
     for (const id of next.drop) {
       void queryClient.invalidateQueries({
         queryKey: gitQueryKeys.patch(environmentId, cwd, id),
       });
+      void queryClient.invalidateQueries({
+        queryKey: gitQueryKeys.image(environmentId, cwd, id),
+      });
     }
-  }, [cwd, environmentId, prevRows, queryClient, rows]);
+  }, [cwd, environmentId, queryClient, rows]);
 
   return null;
 }
@@ -251,12 +269,15 @@ function EnvironmentGitPanelRowsSync({
 export async function revalidateGitPanelPatches(input: {
   environmentId: EnvironmentId | null;
   cwd: string;
-  api: Pick<NativeGitApi, "refreshStatus">;
+  api: Pick<EnvironmentGitApi, "refreshStatus">;
   queryClient: QueryClient;
 }): Promise<void> {
   const target = { environmentId: input.environmentId, cwd: input.cwd };
   await refreshGitStatus(target, input.api, { force: true });
-  await invalidateGitPatchQueries(input.queryClient, target);
+  await Promise.all([
+    invalidateGitPatchQueries(input.queryClient, target),
+    invalidateGitImageQueries(input.queryClient, target),
+  ]);
 }
 
 export function deriveGitPanelViewState(input: {
@@ -290,33 +311,43 @@ export function deriveGitPanelViewState(input: {
 }
 
 export function useEnvironmentGitPanel(
-  environmentId?: EnvironmentId | null,
-  cwdOverride?: string | null,
+  environmentId: EnvironmentId | null,
+  cwd: string | null,
   options?: { enabled?: boolean },
 ): GitPanelModel {
-  const shell = useShellState(cwdOverride == null);
-  const cwd = cwdOverride ?? shell.cwd;
   const enabled = options?.enabled ?? true;
   const queryClient = useQueryClient();
-  const status = useGitStatus({ environmentId: environmentId ?? null, cwd: enabled ? cwd : null });
-  const view = deriveGitPanelViewState({ cwd: enabled ? cwd : null, status });
+  const gitApi = cwd ? readEnvironmentGitApi(environmentId) : null;
+  const status = useGitStatus({
+    environmentId: environmentId ?? null,
+    cwd,
+  });
+  const view = deriveGitPanelViewState({
+    cwd: enabled ? cwd : null,
+    status,
+  });
+  const hasStatusData = status.data !== null;
+  useEffect(() => {
+    if (!cwd || !gitApi || !environmentId) {
+      return;
+    }
+    void refreshGitStatus({ environmentId, cwd }, gitApi, { force: !hasStatusData }).catch(
+      () => undefined,
+    );
+  }, [cwd, environmentId, gitApi, hasStatusData]);
   const rowReuseRef = useRef<DiffRow[]>([]);
 
-  const rows = useMemo(() => {
-    const nextRows = view.kind === "changed" ? toRowsWithReuse(status.data, rowReuseRef.current) : [];
-    rowReuseRef.current = nextRows;
-    return nextRows;
-  }, [status.data, view.kind]);
+  const nextRows = view.kind === "changed" ? toRowsWithReuse(status.data, rowReuseRef.current) : [];
+  rowReuseRef.current = nextRows;
+  const rows = nextRows;
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
   const [requestedDiffIds, setRequestedDiffIds] = useState<Set<string>>(() => new Set());
-  const prevRows = useRef<DiffRow[]>([]);
-  const queryClientVersion = useValueIdentityVersion(queryClient);
+  const [activeDiffIds, setActiveDiffIds] = useState<Set<string>>(() => new Set());
   const gitPanelRowsSync = createElement(EnvironmentGitPanelRowsSync, {
-    key: [cwd ?? "", environmentId ?? "", queryClientVersion].join("\0"),
+    key: [cwd ?? "", environmentId ?? ""].join("\0"),
     cwd: enabled ? cwd : null,
     environmentId: environmentId ?? null,
-    prevRows,
     queryClient,
     rows,
   });
@@ -324,186 +355,226 @@ export function useEnvironmentGitPanel(
   const rowIds = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
 
   useEffect(() => {
-    setCollapsedIds((current) => {
-      const next = new Set<string>();
-      for (const row of rows) {
-        if (current.has(row.id) || !requestedDiffIds.has(row.id)) {
-          next.add(row.id);
-        }
-      }
-      if (next.size !== current.size) {
-        return next;
-      }
-      for (const id of next) {
-        if (!current.has(id)) {
-          return next;
-        }
-      }
-      return current;
-    });
-  }, [requestedDiffIds, rows]);
+    setCollapsedIds((current) => pruneSetToIds(current, rowIds));
+    setRequestedDiffIds((current) => pruneSetToIds(current, rowIds));
+    setActiveDiffIds((current) => pruneSetToIds(current, rowIds));
+  }, [rowIds]);
 
-  const expandedIds = useMemo(
-    () => new Set(rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id)),
-    [collapsedIds, rows],
-  );
+  const expandedIds = new Set(rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id));
 
-  const requestedDiffRows = useMemo(
-    () => rows.filter((row) => requestedDiffIds.has(row.id)),
-    [requestedDiffIds, rows],
-  );
+  const activeDiffRows = rows.filter((row) => activeDiffIds.has(row.id));
 
   const patchQueries = useQueries({
-    queries: requestedDiffRows.map((row) =>
+    queries: activeDiffRows.map((row) =>
       gitPatchQueryOptions({
         environmentId: environmentId ?? null,
         cwd,
         path: row.path,
         prevPath: row.prevPath,
         state: row.state,
-        enabled: Boolean(cwd),
+        enabled: Boolean(cwd && environmentId),
       }),
     ),
   });
 
-  const { patchesByPath, diffLoadingByPath, diffErrorByPath } = useMemo(() => {
-    const patchesByPath = new Map<string, GitFilePatchResult>();
-    const diffLoadingByPath = new Set<string>();
-    const diffErrorByPath = new Map<string, string>();
+  const patchesByPath = new Map<string, GitFilePatchResult>();
+  const diffLoadingByPath = new Set<string>();
+  const diffErrorByPath = new Map<string, string>();
 
-    for (const [index, row] of requestedDiffRows.entries()) {
-      const query = patchQueries[index];
-      if (!query) continue;
-
-      const isFetching = query.isPending || query.fetchStatus === "fetching";
-      const isRetryingEmptyPatch = query.data?.kind === "empty" && isFetching;
-
-      if (query.data && !isRetryingEmptyPatch) {
-        patchesByPath.set(row.path, query.data);
+  if (cwd) {
+    for (const row of rows) {
+      if (!requestedDiffIds.has(row.id)) {
+        continue;
       }
-
-      if ((!query.data || isRetryingEmptyPatch) && isFetching) {
-        diffLoadingByPath.add(row.path);
-      }
-
-      if (!query.data && query.error) {
-        diffErrorByPath.set(
-          row.path,
-          query.error instanceof Error ? query.error.message : String(query.error),
-        );
+      const cachedPatch = queryClient.getQueryData<GitFilePatchResult>(
+        gitQueryKeys.patch(environmentId ?? null, cwd, row.path, row.state, row.prevPath),
+      );
+      if (cachedPatch) {
+        patchesByPath.set(row.path, cachedPatch);
       }
     }
+  }
 
-    return { patchesByPath, diffLoadingByPath, diffErrorByPath };
-  }, [patchQueries, requestedDiffRows]);
+  for (const [index, row] of activeDiffRows.entries()) {
+    const query = patchQueries[index];
+    if (!query) continue;
+
+    const isFetching = query.isPending || query.fetchStatus === "fetching";
+    const isRetryingEmptyPatch = query.data?.kind === "empty" && isFetching;
+
+    if (query.data && !isRetryingEmptyPatch) {
+      patchesByPath.set(row.path, query.data);
+    }
+
+    if ((!query.data || isRetryingEmptyPatch) && isFetching) {
+      diffLoadingByPath.add(row.path);
+    }
+
+    if (!query.data && query.error) {
+      diffErrorByPath.set(
+        row.path,
+        query.error instanceof Error ? query.error.message : String(query.error),
+      );
+    }
+  }
+
+  const activeImageRows = activeDiffRows.filter((row) => isGitImagePatch(patchesByPath.get(row.path)));
+  const imageQueries = useQueries({
+    queries: activeImageRows.map((row) =>
+      gitImageQueryOptions({
+        environmentId: environmentId ?? null,
+        cwd,
+        path: row.path,
+        state: row.state,
+        enabled: Boolean(cwd && environmentId),
+      }),
+    ),
+  });
+
+  const imagesByPath = new Map<string, GitFileImageResult>();
+  const imageLoadingByPath = new Set<string>();
+  const imageErrorByPath = new Map<string, string>();
+
+  if (cwd) {
+    for (const row of rows) {
+      if (!requestedDiffIds.has(row.id) || !isGitImagePatch(patchesByPath.get(row.path))) {
+        continue;
+      }
+      const cachedImage = queryClient.getQueryData<GitFileImageResult>(
+        gitQueryKeys.image(environmentId ?? null, cwd, row.path, row.state),
+      );
+      if (cachedImage) {
+        imagesByPath.set(row.path, cachedImage);
+      }
+    }
+  }
+
+  for (const [index, row] of activeImageRows.entries()) {
+    const query = imageQueries[index];
+    if (!query) continue;
+
+    const isFetching = query.isPending || query.fetchStatus === "fetching";
+
+    if (query.data) {
+      imagesByPath.set(row.path, query.data);
+    }
+
+    if (!query.data && isFetching) {
+      imageLoadingByPath.add(row.path);
+    }
+
+    if (!query.data && query.error) {
+      imageErrorByPath.set(
+        row.path,
+        query.error instanceof Error ? query.error.message : String(query.error),
+      );
+    }
+  }
 
   const focusId = null;
 
-  const revalidate = useCallback(async () => {
+  const revalidate = async () => {
     if (!enabled || !cwd) {
       return;
     }
 
-    const api = readNativeGitApi(environmentId);
-    if (!api) {
+    if (!gitApi) {
       return;
     }
 
     await revalidateGitPanelPatches({
       environmentId: environmentId ?? null,
       cwd,
-      api,
+      api: gitApi,
       queryClient,
     });
-  }, [cwd, enabled, environmentId, queryClient]);
+  };
 
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     await revalidate();
-  }, [revalidate]);
+  };
 
-  const init = useCallback(async () => {
+  const init = async () => {
     if (!cwd) {
       throw new Error("No project");
     }
 
-    const api = readNativeGitApi(environmentId);
-    if (!api) {
+    if (!gitApi) {
       throw new Error("Git API not available");
     }
 
-    await api.init({ cwd });
+    await gitApi.init({ cwd });
     await revalidate();
-  }, [cwd, environmentId, revalidate]);
+  };
 
-  const discard = useCallback(
-    async (pathsToDiscard: string[]) => {
-      if (!cwd) {
-        throw new Error("No project");
+  const discard = async (pathsToDiscard: string[]) => {
+    if (!cwd) {
+      throw new Error("No project");
+    }
+
+    if (pathsToDiscard.length === 0) {
+      return;
+    }
+
+    if (!gitApi) {
+      throw new Error("Git API not available");
+    }
+
+    await gitApi.discardPaths({ cwd, paths: pathsToDiscard });
+    await revalidate();
+  };
+
+  const requestDiff = (id: string) => {
+    if (!rowIds.has(id)) return;
+
+    setRequestedDiffIds((current) => {
+      if (current.has(id)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+
+    setActiveDiffIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      next.add(id);
+
+      for (const activeId of next) {
+        if (next.size <= MAX_ACTIVE_GIT_PATCH_QUERIES) break;
+        if (activeId === id) continue;
+        next.delete(activeId);
       }
 
-      if (pathsToDiscard.length === 0) {
-        return;
-      }
+      return next;
+    });
+  };
 
-      const api = readNativeGitApi(environmentId);
-      if (!api) {
-        throw new Error("Git API not available");
-      }
+  const toggleExpand = (id: string, open?: boolean) => {
+    const shouldRequest = open ?? collapsedIds.has(id);
+    if (shouldRequest) {
+      requestDiff(id);
+    }
 
-      await api.discardPaths({ cwd, paths: pathsToDiscard });
-      await revalidate();
-    },
-    [cwd, environmentId, revalidate],
-  );
-
-  const requestDiff = useCallback(
-    (id: string) => {
-      if (!rowIds.has(id)) return;
-
-      setRequestedDiffIds((current) => {
-        const next = new Set(current);
+    setCollapsedIds((current) => {
+      const next = new Set(current);
+      const shouldOpen = open ?? next.has(id);
+      if (shouldOpen) {
         next.delete(id);
+      } else {
         next.add(id);
-
-        for (const activeId of next) {
-          if (next.size <= MAX_ACTIVE_GIT_PATCH_QUERIES) break;
-          if (activeId === id) continue;
-          next.delete(activeId);
-        }
-
-        return next;
-      });
-    },
-    [rowIds],
-  );
-
-  const toggleExpand = useCallback(
-    (id: string, open?: boolean) => {
-      const shouldRequest = open ?? collapsedIds.has(id);
-      if (shouldRequest) {
-        requestDiff(id);
       }
+      return next;
+    });
+  };
 
-      setCollapsedIds((current) => {
-        const next = new Set(current);
-        const shouldOpen = open ?? next.has(id);
-        if (shouldOpen) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
-    },
-    [collapsedIds, requestDiff],
-  );
-
-  const expandAll = useCallback(() => setCollapsedIds(new Set()), []);
-  const collapseAll = useCallback(() => {
+  const expandAll = () => setCollapsedIds(new Set());
+  const collapseAll = () => {
     setCollapsedIds(new Set(rows.map((row) => row.id)));
-  }, [rows]);
-  const totalAdd = useMemo(() => rows.reduce((sum, row) => sum + row.add, 0), [rows]);
-  const totalDel = useMemo(() => rows.reduce((sum, row) => sum + row.del, 0), [rows]);
+  };
+  const totalAdd = rows.reduce((sum, row) => sum + row.add, 0);
+  const totalDel = rows.reduce((sum, row) => sum + row.del, 0);
 
   return {
     cwd,
@@ -515,9 +586,13 @@ export function useEnvironmentGitPanel(
     totalDel,
     focusId,
     patchesByPath,
+    imagesByPath,
     diffLoadingByPath,
     diffErrorByPath,
+    imageLoadingByPath,
+    imageErrorByPath,
     expandedIds,
+    activeDiffIds,
     lifecycleSync: gitPanelRowsSync,
     requestDiff,
     toggleExpand,

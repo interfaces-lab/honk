@@ -2,17 +2,28 @@
 
 import pierreDark from "@pierre/theme/pierre-dark";
 import pierreLight from "@pierre/theme/pierre-light";
-import type { FileTreeOptions, TreeThemeInput, TreeThemeStyles } from "@pierre/trees";
-import { themeToTreeStyles } from "@pierre/trees";
+import type {
+  FileTreeOptions,
+  TreeThemeInput,
+  TreeThemeStyles,
+} from "@pierre/trees";
+import {
+  createFileTreeIconResolver,
+  getBuiltInSpriteSheet,
+  themeToTreeStyles,
+} from "@pierre/trees";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type { FileTreeProps as PierreFileTreeProps } from "@pierre/trees/react";
+import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
 import type { CSSProperties } from "react";
-import { useMemo } from "react";
 
 import { cn } from "~/lib/utils";
 
 export type TreeHostStyle = CSSProperties & Record<`--${string}`, string | number>;
 type PierreTheme = typeof pierreDark;
+const FILE_TREE_ICON_SET = "complete";
+const fileTreeIconResolver = createFileTreeIconResolver(FILE_TREE_ICON_SET);
+const fileTreeIconSpriteSheet = getBuiltInSpriteSheet(FILE_TREE_ICON_SET);
 
 export type TreeProps = Omit<PierreFileTreeProps, "className" | "style"> & {
   className?: string;
@@ -42,52 +53,54 @@ function toTreeThemeInput(theme: PierreTheme): TreeThemeInput {
   };
 }
 
-function getThemeColor(theme: PierreTheme, ...keys: string[]): string | undefined {
-  const colors = theme.colors as Record<string, string>;
-  for (const key of keys) {
-    const value = colors[key];
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function getExtendedGitTreeStyles(theme: PierreTheme): TreeThemeStyles {
+function getExtendedGitTreeStyles(): TreeThemeStyles {
   const styles: TreeThemeStyles = {};
-  const untracked = getThemeColor(
-    theme,
-    "gitDecoration.untrackedResourceForeground",
-    "gitDecoration.addedResourceForeground",
-    "terminal.ansiGreen",
-  );
-  const ignored = getThemeColor(
-    theme,
-    "gitDecoration.ignoredResourceForeground",
-    "terminal.ansiBrightBlack",
-  );
-  const renamed = getThemeColor(
-    theme,
-    "gitDecoration.renamedResourceForeground",
-    "terminal.ansiYellow",
-  );
 
-  if (untracked) styles["--trees-theme-git-untracked-fg"] = untracked;
-  if (ignored) styles["--trees-theme-git-ignored-fg"] = ignored;
-  if (renamed) styles["--trees-theme-git-renamed-fg"] = renamed;
+  styles["--trees-git-added-color-override"] = "var(--honk-git-status-added)";
+  styles["--trees-git-deleted-color-override"] = "var(--honk-git-status-deleted)";
+  styles["--trees-git-ignored-color-override"] = "var(--honk-fg-quaternary)";
+  styles["--trees-git-modified-color-override"] = "var(--honk-git-status-modified)";
+  styles["--trees-git-renamed-color-override"] = "var(--honk-git-status-renamed)";
+  styles["--trees-git-untracked-color-override"] = "var(--honk-git-status-added)";
 
   return styles;
+}
+
+// themeToTreeStyles() returns the --trees-theme-* fallback variables *plus*
+// literal layout properties (backgroundColor, color, borderColor, colorScheme)
+// taken straight from the Pierre theme. The literal backgroundColor is the
+// theme's sidebar/editor background (white in light mode), and as an inline
+// style it beats the `:host { background-color: var(--trees-bg) }` rule —
+// painting an extra white background over our panel background. We drive the
+// host entirely through --trees-*-override variables (treeHostLayout), so keep
+// only the custom properties and drop the literal layout properties.
+function pickTreeThemeVariables(styles: TreeThemeStyles): TreeThemeStyles {
+  const variables: TreeThemeStyles = {};
+  for (const [key, value] of Object.entries(styles)) {
+    if (key.startsWith("--")) {
+      variables[key] = value;
+    }
+  }
+  return variables;
 }
 
 function getPierreTreeThemeStyles(resolvedTheme: "light" | "dark"): TreeThemeStyles {
   const theme = resolvedTheme === "dark" ? pierreDark : pierreLight;
   return {
-    ...themeToTreeStyles(toTreeThemeInput(theme)),
-    ...getExtendedGitTreeStyles(theme),
+    ...pickTreeThemeVariables(themeToTreeStyles(toTreeThemeInput(theme))),
+    ...getExtendedGitTreeStyles(),
   };
 }
 
 function treeHostLayout(): TreeHostStyle {
   return {
-    "--trees-font-family-override": "var(--multi-font-ui)",
+    "--trees-bg-override": "var(--honk-workbench-panel-background)",
+    "--trees-input-bg-override": "var(--honk-workbench-panel-background)",
+    "--trees-bg-muted-override": "var(--honk-workbench-toolbar-hover-wash)",
+    "--trees-selected-bg-override": "var(--honk-workbench-card-selected-background)",
+    "--trees-fg-override": "var(--honk-fg-primary)",
+    "--trees-fg-muted-override": "var(--honk-fg-secondary)",
+    "--trees-font-family-override": "var(--honk-font-ui)",
     "--trees-font-size-override": "12px",
     "--trees-font-weight-regular-override": 400,
     "--trees-font-weight-semibold-override": 500,
@@ -122,23 +135,58 @@ export function useTreeModel(options: FileTreeOptions): ReturnType<typeof useFil
     density: "compact",
     itemHeight: 22,
     flattenEmptyDirectories: true,
-    icons: "complete",
+    icons: FILE_TREE_ICON_SET,
     ...options,
     unsafeCSS: treeUnsafeCss(options.unsafeCSS),
   });
 }
 
 export function Tree({ className, resolvedTheme, style, ...props }: TreeProps) {
-  const hostStyle = useMemo(
-    () => treeHostStyle(getPierreTreeThemeStyles(resolvedTheme), resolvedTheme, style),
-    [resolvedTheme, style],
-  );
+  const hostStyle = treeHostStyle(getPierreTreeThemeStyles(resolvedTheme), resolvedTheme, style);
 
   return (
-    <PierreFileTree {...props} className={cn("block h-full w-full", className)} style={hostStyle} />
+    <PierreFileTree
+      {...props}
+      className={cn("block h-full min-h-0 w-full overflow-auto overscroll-contain", className)}
+      style={hostStyle}
+    />
   );
 }
 
-export function normalizeTreePath(path: string): string {
-  return path.replace(/\\/g, "/");
+export function FileTreeIconSprite() {
+  return (
+    <span
+      aria-hidden
+      className="hidden"
+      dangerouslySetInnerHTML={{ __html: fileTreeIconSpriteSheet }}
+    />
+  );
+}
+
+export function FileTreeFileIcon(props: {
+  path: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const icon = fileTreeIconResolver.resolveIcon("file-tree-icon-file", normalizeTreePath(props.path));
+  const href = `#${icon.name.replace(/^#/, "")}`;
+  const width = icon.width ?? 16;
+  const height = icon.height ?? 16;
+  const viewBox = icon.viewBox ?? `0 0 ${width} ${height}`;
+
+  return (
+    <svg
+      aria-hidden
+      className={props.className}
+      data-align-capitals="false"
+      data-icon-name={icon.remappedFrom ?? icon.name}
+        data-icon-token={icon.token}
+        height={height}
+        style={props.style}
+      viewBox={viewBox}
+      width={width}
+    >
+      <use href={href} />
+    </svg>
+  );
 }

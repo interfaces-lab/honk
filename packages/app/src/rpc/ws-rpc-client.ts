@@ -8,8 +8,8 @@ import {
   ORCHESTRATION_WS_METHODS,
   type ServerSettingsPatch,
   WS_METHODS,
-} from "@multi/contracts";
-import { applyGitStatusStreamEvent } from "@multi/shared/git";
+} from "@honk/contracts";
+import { applyGitStatusStreamEvent } from "@honk/shared/git";
 import { Effect, Stream } from "effect";
 
 import { type WsRpcProtocolClient } from "./protocol";
@@ -83,6 +83,7 @@ export interface WsRpcClient {
     readonly pull: RpcUnaryMethod<typeof WS_METHODS.gitPull>;
     readonly discardPaths: RpcUnaryMethod<typeof WS_METHODS.gitDiscardPaths>;
     readonly getFilePatch: RpcUnaryMethod<typeof WS_METHODS.gitGetFilePatch>;
+    readonly getFileImage: RpcUnaryMethod<typeof WS_METHODS.gitGetFileImage>;
     readonly refreshStatus: RpcUnaryMethod<typeof WS_METHODS.gitRefreshStatus>;
     readonly onStatus: (
       input: RpcInput<typeof WS_METHODS.subscribeGitStatus>,
@@ -106,7 +107,6 @@ export interface WsRpcClient {
   };
   readonly server: {
     readonly getConfig: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetConfig>;
-    readonly refreshProviders: RpcUnaryNoArgMethod<typeof WS_METHODS.serverRefreshProviders>;
     readonly upsertKeybinding: RpcUnaryMethod<typeof WS_METHODS.serverUpsertKeybinding>;
     readonly getSettings: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetSettings>;
     readonly updateSettings: (
@@ -118,9 +118,6 @@ export interface WsRpcClient {
   };
   readonly orchestration: {
     readonly dispatchCommand: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.dispatchCommand>;
-    readonly getProviderThreadSnapshot: RpcUnaryMethod<
-      typeof ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot
-    >;
     readonly subscribeShell: RpcStreamMethod<typeof ORCHESTRATION_WS_METHODS.subscribeShell>;
     readonly subscribeThread: RpcInputStreamMethod<typeof ORCHESTRATION_WS_METHODS.subscribeThread>;
   };
@@ -170,6 +167,8 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
         transport.request((client) => client[WS_METHODS.gitDiscardPaths](input)),
       getFilePatch: (input) =>
         transport.request((client) => client[WS_METHODS.gitGetFilePatch](input)),
+      getFileImage: (input) =>
+        transport.request((client) => client[WS_METHODS.gitGetFileImage](input)),
       refreshStatus: (input) =>
         transport.request((client) => client[WS_METHODS.gitRefreshStatus](input)),
       onStatus: (input, listener, options) => {
@@ -219,8 +218,6 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
     },
     server: {
       getConfig: () => transport.request((client) => client[WS_METHODS.serverGetConfig]({})),
-      refreshProviders: () =>
-        transport.request((client) => client[WS_METHODS.serverRefreshProviders]({})),
       upsertKeybinding: (input) =>
         transport.request((client) => client[WS_METHODS.serverUpsertKeybinding](input)),
       getSettings: () => transport.request((client) => client[WS_METHODS.serverGetSettings]({})),
@@ -248,10 +245,6 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
     orchestration: {
       dispatchCommand: (input) =>
         transport.request((client) => client[ORCHESTRATION_WS_METHODS.dispatchCommand](input)),
-      getProviderThreadSnapshot: (input) =>
-        transport.request((client) =>
-          client[ORCHESTRATION_WS_METHODS.getProviderThreadSnapshot](input),
-        ),
       subscribeShell: (listener, options) =>
         transport.subscribe(
           (client) => client[ORCHESTRATION_WS_METHODS.subscribeShell]({}),

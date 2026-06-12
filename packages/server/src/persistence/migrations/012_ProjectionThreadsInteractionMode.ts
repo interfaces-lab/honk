@@ -6,6 +6,6 @@ export default Effect.gen(function* () {
 
   yield* sql`
     ALTER TABLE projection_threads
-    ADD COLUMN interaction_mode TEXT NOT NULL DEFAULT 'default'
+    ADD COLUMN interaction_mode TEXT NOT NULL DEFAULT 'agent'
   `;
 });

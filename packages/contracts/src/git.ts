@@ -128,6 +128,12 @@ export const GitFilePatchInput = Schema.Struct({
 });
 export type GitFilePatchInput = typeof GitFilePatchInput.Type;
 
+export const GitFileImageInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  path: TrimmedNonEmptyStringSchema,
+});
+export type GitFileImageInput = typeof GitFileImageInput.Type;
+
 export const GitRunStackedActionInput = Schema.Struct({
   actionId: TrimmedNonEmptyStringSchema,
   cwd: TrimmedNonEmptyStringSchema,
@@ -362,11 +368,41 @@ export const GitFilePatchResult = Schema.Union([
     message: Schema.String,
   }),
   Schema.Struct({
+    kind: Schema.Literal("non_text"),
+    fileType: Schema.Literals(["image", "video", "audio", "archive", "document", "font", "binary"]),
+    message: Schema.String,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("large"),
+    message: Schema.String,
+  }),
+  Schema.Struct({
     kind: Schema.Literal("empty"),
     message: Schema.String,
   }),
 ]);
 export type GitFilePatchResult = typeof GitFilePatchResult.Type;
+export type GitNonTextFileType = Extract<GitFilePatchResult, { kind: "non_text" }>["fileType"];
+
+export const GitFileImageResult = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("image"),
+    mediaType: TrimmedNonEmptyStringSchema,
+    dataBase64: Schema.String,
+    sizeBytes: NonNegativeInt,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("missing"),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("too_large"),
+    sizeBytes: NonNegativeInt,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("unsupported"),
+  }),
+]);
+export type GitFileImageResult = typeof GitFileImageResult.Type;
 
 // RPC / domain errors
 export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()("GitCommandError", {

@@ -1,9 +1,46 @@
-import { CommandId, MessageId, ProjectId, ThreadId } from "@multi/contracts";
+import { CommandId, MessageId, ProjectId, ThreadId } from "@honk/contracts";
 import { type CxOptions, cx } from "class-variance-authority";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
 import * as Random from "effect/Random";
 import * as Effect from "effect/Effect";
 import { DraftId } from "../stores/chat-drafts";
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [
+        {
+          text: [
+            "honk-xs",
+            "honk-sm",
+            "honk-base",
+            "honk-lg",
+            "honk-xl",
+            "caption",
+            "detail",
+            "body",
+            "title",
+            "heading",
+            "conversation",
+            "conversation-normalized",
+            "sidebar-label",
+            "sidebar-subtitle",
+          ],
+        },
+      ],
+      "text-color": [
+        {
+          text: [
+            "honk-fg-primary",
+            "honk-fg-secondary",
+            "honk-fg-tertiary",
+            "honk-fg-quaternary",
+          ],
+        },
+      ],
+    },
+  },
+});
 
 export function cn(...inputs: CxOptions) {
   return twMerge(cx(inputs));

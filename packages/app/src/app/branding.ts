@@ -1,4 +1,4 @@
-import type { DesktopAppBranding } from "@multi/contracts";
+import type { DesktopAppBranding } from "@honk/contracts";
 
 function readInjectedDesktopAppBranding(): DesktopAppBranding | null {
   return globalThis.window?.desktopBridge?.getAppBranding?.() ?? null;
@@ -7,7 +7,7 @@ function readInjectedDesktopAppBranding(): DesktopAppBranding | null {
 const injectedDesktopAppBranding = readInjectedDesktopAppBranding();
 const fallbackStageLabel = import.meta.env.DEV ? "Dev" : null;
 
-export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "Multi";
+export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "Honk";
 export const APP_STAGE_LABEL = injectedDesktopAppBranding
   ? injectedDesktopAppBranding.stageLabel
   : fallbackStageLabel;

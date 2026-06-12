@@ -14,7 +14,7 @@ import {
   OrchestrationCommandReceiptStatus,
   ProjectId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -67,5 +67,5 @@ export class OrchestrationCommandReceiptRepository extends Context.Service<
   OrchestrationCommandReceiptRepository,
   OrchestrationCommandReceiptRepositoryShape
 >()(
-  "multi/persistence/OrchestrationCommandReceipts.service/OrchestrationCommandReceiptRepository",
+  "honk/persistence/OrchestrationCommandReceipts.service/OrchestrationCommandReceiptRepository",
 ) {}

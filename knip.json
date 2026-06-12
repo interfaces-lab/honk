@@ -37,36 +37,8 @@
     "unresolved": "error"
   },
   "ignoreDependencies": ["bun"],
-  "ignoreFiles": [
-    "packages/app/public/mockServiceWorker.js",
-    "packages/effect-acp/src/_generated/**",
-    "packages/effect-codex-app-server/src/_generated/**"
-  ],
-  "ignoreIssues": {
-    "packages/effect-acp/src/_generated/**": [
-      "duplicates",
-      "enumMembers",
-      "exports",
-      "namespaceMembers",
-      "nsExports",
-      "nsTypes",
-      "types"
-    ],
-    "packages/effect-codex-app-server/src/_generated/**": [
-      "duplicates",
-      "enumMembers",
-      "exports",
-      "namespaceMembers",
-      "nsExports",
-      "nsTypes",
-      "types"
-    ]
-  },
+  "ignoreIssues": {},
   "workspaces": {
-    "packages/client-runtime": {
-      "entry": ["src/index.ts", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
     "packages/contracts": {
       "entry": ["src/index.ts", "src/settings.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
@@ -81,42 +53,20 @@
       ],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs", "test/**/*.{ts,tsx}", "*.config.ts"]
     },
-    "packages/effect-acp": {
-      "entry": [
-        "src/agent.ts",
-        "src/client.ts",
-        "src/errors.ts",
-        "src/protocol.ts",
-        "src/rpc.ts",
-        "src/schema.ts",
-        "src/terminal.ts",
-        "scripts/**/*.ts",
-        "test/**/*.{ts,tsx}"
-      ],
-      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}"]
-    },
-    "packages/effect-codex-app-server": {
-      "entry": [
-        "src/client.ts",
-        "src/errors.ts",
-        "src/protocol.ts",
-        "src/rpc.ts",
-        "src/schema.ts",
-        "scripts/**/*.ts",
-        "test/**/*.{ts,tsx}"
-      ],
-      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}"]
-    },
     "packages/server": {
       "entry": ["src/bin.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "vitest.config.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "*.config.ts"],
-      "ignoreDependencies": ["@multi/app"]
+      "ignoreDependencies": ["@honk/app"]
+    },
+    "packages/runtime": {
+      "entry": ["src/index.ts", "test/**/*.{ts,tsx}"],
+      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
     },
     "packages/shared": {
       "entry": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
       "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
     },
-    "packages/ui": {
+    "packages/honkkit": {
       "entry": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"]
     },

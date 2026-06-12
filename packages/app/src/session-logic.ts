@@ -8,45 +8,26 @@ import { Data, Effect, Option, Predicate } from "effect";
 import {
   ApprovalRequestId,
   isToolLifecycleItemType,
-  ProviderDriverKind,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
-  type ProviderRequestKind,
+  type RuntimeDisplayTimelineExtensionUiRequestItem,
+  type RuntimeDisplayTimelineMessageItem,
+  type RuntimeDisplayTimelineToolItem,
+  type DesktopExtensionUiRequestKind,
+  type RuntimeRequestKind,
   type ToolLifecycleItemType,
   type UserInputQuestion,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
-import type {
-  ChatMessage,
-  ProposedPlan,
-  SessionPhase,
-  Thread,
-  ThreadSession,
-} from "./types";
-import {
-  decodeSubagentAgentStates,
-  decodeSubagentReceiverAgents,
-  decodeSubagentReceiverThreadIds,
-} from "./session/subagents";
-
-export type ProviderPickerKind = ProviderDriverKind;
-
-export const PROVIDER_OPTIONS: Array<{
-  value: ProviderPickerKind;
-  label: string;
-  available: boolean;
-}> = [
-  { value: ProviderDriverKind.make("codex"), label: "Codex", available: true },
-  { value: ProviderDriverKind.make("claudeAgent"), label: "Claude", available: true },
-  { value: ProviderDriverKind.make("cursor"), label: "Cursor", available: true },
-];
+import type { ChatMessage, ProposedPlan, SessionPhase, Thread, ThreadSession } from "./types";
+import { decodeSubagentAgentStates, decodeSubagentReceiverAgents } from "./session/subagents";
 
 export interface WorkLogSubagent {
   threadId: string;
-  providerThreadId?: string | undefined;
+  subagentThreadId?: string | undefined;
   parentItemId?: string | undefined;
   resolvedThreadId?: string | undefined;
   agentId?: string | undefined;
@@ -98,6 +79,7 @@ export interface SubagentTranscriptItem {
   readonly command?: string | undefined;
   readonly rawCommand?: string | undefined;
   readonly output?: string | undefined;
+  readonly changedFiles?: ReadonlyArray<string> | undefined;
   readonly itemType?: string | undefined;
   readonly status?: string | undefined;
   readonly streamKind?: string | undefined;
@@ -160,9 +142,13 @@ export interface ToolReadArtifact {
 
 export interface ToolSearchArtifact {
   type: "search";
+  flavor?: "grep" | "find" | undefined;
   query?: string | undefined;
   output?: string | undefined;
   matchedFiles?: ReadonlyArray<string> | undefined;
+  totalMatched?: number | undefined;
+  totalIndexedFiles?: number | undefined;
+  hasMore?: boolean | undefined;
   truncated?: boolean | undefined;
   isPartial?: boolean | undefined;
 }
@@ -194,6 +180,8 @@ export interface WorkLogEntry {
   toolTitle?: string;
   itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
+  extensionUiRequestId?: string;
+  extensionUiRequestKind?: DesktopExtensionUiRequestKind;
   taskId?: string;
   precedingToolUseIds?: ReadonlyArray<string>;
   artifacts?: ReadonlyArray<ToolDisplayArtifact>;
@@ -213,7 +201,7 @@ export interface WorkLogDerivationOptions {
 
 export interface PendingApproval {
   requestId: ApprovalRequestId;
-  requestKind: ProviderRequestKind;
+  requestKind: RuntimeRequestKind;
   createdAt: string;
   detail?: string;
 }
@@ -248,6 +236,8 @@ export interface LatestProposedPlanState {
   implementationThreadId: ThreadId | null;
 }
 
+export type WaitingPhase = "thinking";
+
 export type TimelineEntry =
   | {
       id: string;
@@ -266,6 +256,31 @@ export type TimelineEntry =
       kind: "work";
       createdAt: string;
       entry: WorkLogEntry;
+    }
+  | {
+      id: string;
+      kind: "runtime-thinking";
+      createdAt: string;
+      message: RuntimeDisplayTimelineMessageItem;
+    }
+  | {
+      id: string;
+      kind: "runtime-tool";
+      createdAt: string;
+      tool: RuntimeDisplayTimelineToolItem;
+    }
+  | {
+      id: string;
+      kind: "runtime-extension-ui-request";
+      createdAt: string;
+      request: RuntimeDisplayTimelineExtensionUiRequestItem;
+    }
+  | {
+      id: string;
+      kind: "waiting";
+      createdAt: string | null;
+      phase: WaitingPhase;
+      elapsedStartedAt: string | null;
     };
 
 export interface FormatDurationOptions {
@@ -438,7 +453,7 @@ export function derivePendingApprovals(
         ? ApprovalRequestId.make(payload.requestId)
         : null;
     const requestKind =
-      payload && isProviderRequestKind(payload.requestKind)
+      payload && isRuntimeRequestKind(payload.requestKind)
         ? payload.requestKind
         : payload
           ? requestKindFromRequestType(payload.requestType)
@@ -464,7 +479,7 @@ export function derivePendingApprovals(
     }
 
     if (
-      activity.kind === "provider.approval.respond.failed" &&
+      activity.kind === "runtime.approval.respond.failed" &&
       requestId &&
       isStalePendingRequestFailureDetail(detail)
     ) {
@@ -568,7 +583,7 @@ export function derivePendingUserInputs(
     }
 
     if (
-      activity.kind === "provider.user-input.respond.failed" &&
+      activity.kind === "runtime.user-input.respond.failed" &&
       requestId &&
       isStalePendingRequestFailureDetail(detail)
     ) {
@@ -758,10 +773,12 @@ export function deriveWorkLogEntries(
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   const completedAtByTaskKey = deriveTaskCompletionByKey(ordered);
-  const subagentUsageByProviderThreadId = deriveSubagentUsageByProviderThreadId(ordered);
-  const subagentDetailsByProviderThreadId = deriveSubagentDetailsByProviderThreadId(ordered);
+  const subagentUsageBySubagentThreadId = deriveSubagentUsageBySubagentThreadId(ordered);
+  const subagentDetailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered, {
+    includeTranscript: false,
+  });
   const subagentDetailsByParentItemId = deriveSubagentDetailsByParentItemId(
-    subagentDetailsByProviderThreadId,
+    subagentDetailsBySubagentThreadId,
   );
   const entries = ordered
     .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
@@ -829,12 +846,89 @@ export function deriveWorkLogEntries(
     workLogEntries.push({
       ...workEntry,
       subagents: applySubagentDetails(
-        applySubagentUsage(subagents, subagentUsageByProviderThreadId),
-        subagentDetailsByProviderThreadId,
+        applySubagentUsage(subagents, subagentUsageBySubagentThreadId),
+        subagentDetailsBySubagentThreadId,
       ),
     });
   }
   return workLogEntries;
+}
+
+export interface WorkLogSubagentLookup {
+  readonly key?: string | undefined;
+  readonly subagentThreadId?: string | undefined;
+  readonly threadId?: string | undefined;
+  readonly agentId?: string | undefined;
+}
+
+export function deriveWorkLogSubagent(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+  lookup: WorkLogSubagentLookup,
+): WorkLogSubagent | null {
+  return findWorkLogSubagent(deriveWorkLogSubagents(activities), lookup);
+}
+
+export function deriveWorkLogSubagents(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): Map<string, WorkLogSubagent> {
+  return deriveWorkLogSubagentsFromOrderedActivities(
+    [...activities].toSorted(compareActivitiesByOrder),
+  );
+}
+
+export function deriveWorkLogSubagentFromOrderedActivities(
+  ordered: ReadonlyArray<OrchestrationThreadActivity>,
+  lookup: WorkLogSubagentLookup,
+): WorkLogSubagent | null {
+  return findWorkLogSubagent(deriveWorkLogSubagentsFromOrderedActivities(ordered), lookup);
+}
+
+function findWorkLogSubagent(
+  subagentsBySubagentThreadId: ReadonlyMap<string, WorkLogSubagent>,
+  lookup: WorkLogSubagentLookup,
+): WorkLogSubagent | null {
+  const ids = new Set(
+    [lookup.key, lookup.subagentThreadId, lookup.threadId, lookup.agentId]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (ids.size === 0) {
+    return null;
+  }
+
+  for (const subagent of subagentsBySubagentThreadId.values()) {
+    if (
+      subagent &&
+      [subagent.subagentThreadId, subagent.threadId, subagent.agentId].some((id) =>
+        id ? ids.has(id) : false,
+      )
+    ) {
+      return subagent;
+    }
+  }
+
+  return null;
+}
+
+export function deriveWorkLogSubagentsFromOrderedActivities(
+  ordered: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentDetailProjectionOptions = { includeTranscript: true },
+): Map<string, WorkLogSubagent> {
+  const usageBySubagentThreadId = deriveSubagentUsageBySubagentThreadId(ordered);
+  const detailsBySubagentThreadId = deriveSubagentDetailsBySubagentThreadId(ordered, options);
+  const subagentsBySubagentThreadId = new Map<string, WorkLogSubagent>();
+
+  for (const details of detailsBySubagentThreadId.values()) {
+    const subagent = applySubagentUsage(
+      [subagentFromDerivedDetails(details)],
+      usageBySubagentThreadId,
+    )[0];
+    if (subagent) {
+      subagentsBySubagentThreadId.set(details.subagentThreadId, subagent);
+    }
+  }
+
+  return subagentsBySubagentThreadId;
 }
 
 function shouldOmitWorkLogEntry(
@@ -857,7 +951,10 @@ function shouldOmitToolSummaryEntry(
 }
 
 function isGenericDuplicateToolSummary(label: string): boolean {
-  const normalized = label.trim().toLowerCase().replace(/[.:]+$/, "");
+  const normalized = label
+    .trim()
+    .toLowerCase()
+    .replace(/[.:]+$/, "");
   return (
     normalized === "ran" ||
     normalized === "ran command" ||
@@ -868,7 +965,7 @@ function isGenericDuplicateToolSummary(label: string): boolean {
 }
 
 interface DerivedSubagentDetails {
-  readonly providerThreadId: string;
+  readonly subagentThreadId: string;
   readonly parentItemId?: string | undefined;
   readonly agentId?: string | undefined;
   readonly nickname?: string | undefined;
@@ -882,6 +979,10 @@ interface DerivedSubagentDetails {
   readonly isActive?: boolean | undefined;
   readonly logs: ReadonlyArray<WorkLogSubagentLog>;
   readonly transcriptItems: ReadonlyArray<SubagentTranscriptItem>;
+}
+
+interface SubagentDetailProjectionOptions {
+  readonly includeTranscript: boolean;
 }
 
 interface MutableTranscriptContext {
@@ -898,11 +999,25 @@ function isSubagentRuntimeActivity(activity: OrchestrationThreadActivity): boole
   return activity.kind.startsWith("subagent.");
 }
 
-function deriveSubagentDetailsByProviderThreadId(
+export function isSubagentTranscriptStreamingActivity(
+  activity: OrchestrationThreadActivity,
+): boolean {
+  switch (activity.kind) {
+    case "subagent.content.delta":
+    case "subagent.item.started":
+    case "subagent.item.updated":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function deriveSubagentDetailsBySubagentThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
+  options: SubagentDetailProjectionOptions,
 ): Map<string, DerivedSubagentDetails> {
-  const detailsByProviderThreadId = new Map<string, DerivedSubagentDetails>();
-  const transcriptByProviderThreadId = new Map<string, MutableTranscriptContext>();
+  const detailsBySubagentThreadId = new Map<string, DerivedSubagentDetails>();
+  const transcriptBySubagentThreadId = new Map<string, MutableTranscriptContext>();
 
   for (const activity of activities) {
     if (!isSubagentRuntimeActivity(activity) || activity.kind === "subagent.usage.updated") {
@@ -910,17 +1025,19 @@ function deriveSubagentDetailsByProviderThreadId(
     }
 
     const payload = asRecord(activity.payload);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
-    if (!providerThreadId) {
+    const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
+    if (!subagentThreadId) {
       continue;
     }
 
-    const previous = detailsByProviderThreadId.get(providerThreadId);
-    const identity = deriveSubagentIdentityDetails(providerThreadId, payload, previous);
+    const previous = detailsBySubagentThreadId.get(subagentThreadId);
+    const identity = deriveSubagentIdentityDetails(subagentThreadId, payload, previous);
 
     if (activity.kind === "subagent.content.delta") {
-      reduceTranscriptDelta(transcriptByProviderThreadId, providerThreadId, activity, payload);
-      detailsByProviderThreadId.set(providerThreadId, {
+      if (options.includeTranscript) {
+        reduceTranscriptDelta(transcriptBySubagentThreadId, subagentThreadId, activity, payload);
+      }
+      detailsBySubagentThreadId.set(subagentThreadId, {
         ...identity,
         rawStatus: previous?.rawStatus,
         statusLabel: previous?.statusLabel,
@@ -932,31 +1049,38 @@ function deriveSubagentDetailsByProviderThreadId(
       continue;
     }
 
+    if (!options.includeTranscript && isSubagentTranscriptStreamingActivity(activity)) {
+      continue;
+    }
+
     const log = toSubagentLog(activity, payload);
     const rawStatus = resolveSubagentRawStatus(activity, payload) ?? previous?.rawStatus;
     const statusLabel = resolveSubagentStatusLabel(rawStatus) ?? previous?.statusLabel;
     const latestUpdate = resolveSubagentLatestUpdate(activity, log, previous?.latestUpdate);
     const logs = [...(previous?.logs ?? []), log].slice(-200);
 
-    if (activity.kind === "subagent.item.started" || activity.kind === "subagent.item.updated") {
+    if (
+      options.includeTranscript &&
+      (activity.kind === "subagent.item.started" || activity.kind === "subagent.item.updated")
+    ) {
       reduceTranscriptItemLifecycle(
-        transcriptByProviderThreadId,
-        providerThreadId,
+        transcriptBySubagentThreadId,
+        subagentThreadId,
         activity,
         payload,
         false,
       );
-    } else if (activity.kind === "subagent.item.completed") {
+    } else if (options.includeTranscript && activity.kind === "subagent.item.completed") {
       reduceTranscriptItemLifecycle(
-        transcriptByProviderThreadId,
-        providerThreadId,
+        transcriptBySubagentThreadId,
+        subagentThreadId,
         activity,
         payload,
         true,
       );
     }
 
-    detailsByProviderThreadId.set(providerThreadId, {
+    detailsBySubagentThreadId.set(subagentThreadId, {
       ...identity,
       rawStatus,
       statusLabel,
@@ -970,30 +1094,30 @@ function deriveSubagentDetailsByProviderThreadId(
     });
   }
 
-  for (const [providerThreadId, ctx] of transcriptByProviderThreadId) {
-    const existing = detailsByProviderThreadId.get(providerThreadId);
+  for (const [subagentThreadId, ctx] of transcriptBySubagentThreadId) {
+    const existing = detailsBySubagentThreadId.get(subagentThreadId);
     const items = ctx.itemsOrdered.slice(-TRANSCRIPT_ITEMS_CAP);
     if (existing) {
-      detailsByProviderThreadId.set(providerThreadId, { ...existing, transcriptItems: items });
+      detailsBySubagentThreadId.set(subagentThreadId, { ...existing, transcriptItems: items });
     } else {
-      detailsByProviderThreadId.set(providerThreadId, {
-        providerThreadId,
+      detailsBySubagentThreadId.set(subagentThreadId, {
+        subagentThreadId,
         logs: [],
         transcriptItems: items,
       });
     }
   }
 
-  return detailsByProviderThreadId;
+  return detailsBySubagentThreadId;
 }
 
 function deriveSubagentIdentityDetails(
-  providerThreadId: string,
+  subagentThreadId: string,
   payload: Record<string, unknown> | null,
   previous: DerivedSubagentDetails | undefined,
 ): Pick<
   DerivedSubagentDetails,
-  | "providerThreadId"
+  | "subagentThreadId"
   | "parentItemId"
   | "agentId"
   | "nickname"
@@ -1010,7 +1134,7 @@ function deriveSubagentIdentityDetails(
   const prompt = asTrimmedString(payload?.prompt) ?? previous?.prompt;
   const title = resolveSubagentTitle(nickname, role) ?? previous?.title;
   return {
-    providerThreadId,
+    subagentThreadId,
     ...(parentItemId ? { parentItemId } : {}),
     ...(agentId ? { agentId } : {}),
     ...(nickname ? { nickname } : {}),
@@ -1022,10 +1146,10 @@ function deriveSubagentIdentityDetails(
 }
 
 function deriveSubagentDetailsByParentItemId(
-  detailsByProviderThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
+  detailsBySubagentThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
 ): Map<string, DerivedSubagentDetails[]> {
   const detailsByParentItemId = new Map<string, DerivedSubagentDetails[]>();
-  for (const details of detailsByProviderThreadId.values()) {
+  for (const details of detailsBySubagentThreadId.values()) {
     if (!details.parentItemId) {
       continue;
     }
@@ -1039,8 +1163,8 @@ function deriveSubagentDetailsByParentItemId(
 function subagentFromDerivedDetails(details: DerivedSubagentDetails): WorkLogSubagent {
   const hasTranscript = details.transcriptItems.length > 0;
   return {
-    threadId: details.providerThreadId,
-    providerThreadId: details.providerThreadId,
+    threadId: details.subagentThreadId,
+    subagentThreadId: details.subagentThreadId,
     ...(details.parentItemId ? { parentItemId: details.parentItemId } : {}),
     ...(details.agentId ? { agentId: details.agentId } : {}),
     ...(details.nickname ? { nickname: details.nickname } : {}),
@@ -1059,10 +1183,10 @@ function subagentFromDerivedDetails(details: DerivedSubagentDetails): WorkLogSub
 }
 
 function getOrInitTranscriptContext(
-  byProviderThread: Map<string, MutableTranscriptContext>,
-  providerThreadId: string,
+  bySubagentThread: Map<string, MutableTranscriptContext>,
+  subagentThreadId: string,
 ): MutableTranscriptContext {
-  let ctx = byProviderThread.get(providerThreadId);
+  let ctx = bySubagentThread.get(subagentThreadId);
   if (!ctx) {
     ctx = {
       itemsById: new Map(),
@@ -1070,14 +1194,122 @@ function getOrInitTranscriptContext(
       streamBuffers: new Map(),
       nextSequence: 0,
     };
-    byProviderThread.set(providerThreadId, ctx);
+    bySubagentThread.set(subagentThreadId, ctx);
   }
   return ctx;
 }
 
+interface SubagentTranscriptToolFields {
+  readonly command?: string | undefined;
+  readonly rawCommand?: string | undefined;
+  readonly output?: string | undefined;
+  readonly text?: string | undefined;
+  readonly changedFiles?: ReadonlyArray<string> | undefined;
+}
+
+function firstTrimmedRecordString(
+  record: Record<string, unknown> | null | undefined,
+  keys: readonly string[],
+): string | undefined {
+  if (!record) {
+    return undefined;
+  }
+  for (const key of keys) {
+    const value = asTrimmedString(record[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function normalizeSubagentToolExtractionPayload(
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!payload) {
+    return null;
+  }
+  const runtimeData = asRecord(payload.data);
+  if (!runtimeData) {
+    return payload;
+  }
+  const args = asRecord(runtimeData.args);
+  const result = runtimeData.partialResult ?? runtimeData.result;
+  const resultRecord = asRecord(result);
+  const command =
+    firstTrimmedRecordString(args, ["command", "cmd", "rawCommand", "raw_command", "input"]) ??
+    firstTrimmedRecordString(runtimeData, ["command", "cmd", "rawCommand", "raw_command"]);
+  return {
+    ...payload,
+    data: {
+      ...runtimeData,
+      item: {
+        input: args ?? undefined,
+        result: resultRecord ?? result,
+        ...(command ? { command } : {}),
+      },
+      ...(args ? { args } : {}),
+      ...(result !== undefined ? { result: resultRecord ?? result } : {}),
+      ...(command ? { command } : {}),
+    },
+  };
+}
+
+function extractSubagentTranscriptToolFields(
+  payload: Record<string, unknown> | null,
+  itemType: string | undefined,
+): SubagentTranscriptToolFields {
+  if (!itemType || (!isToolLifecycleItemType(itemType) && itemType !== "command_execution")) {
+    return {};
+  }
+
+  const normalized = normalizeSubagentToolExtractionPayload(payload);
+  if (!normalized) {
+    return {};
+  }
+
+  const commandPreview = extractToolCommand(normalized);
+  const output =
+    extractToolResultText(normalized, commandPreview ?? undefined) ??
+    asTrimmedString(normalized.detail) ??
+    undefined;
+  const changedFiles = extractChangedFiles(normalized);
+  const args = asRecord(asRecord(normalized.data)?.args);
+  const explicitPath =
+    asTrimmedString(args?.file_path) ??
+    asTrimmedString(args?.path) ??
+    asTrimmedString(args?.filePath);
+  const allChangedFiles =
+    explicitPath && !changedFiles.includes(explicitPath)
+      ? [explicitPath, ...changedFiles]
+      : changedFiles;
+
+  return {
+    ...(commandPreview?.command ? { command: commandPreview.command } : {}),
+    ...(commandPreview?.rawCommand ? { rawCommand: commandPreview.rawCommand } : {}),
+    ...(output ? { output } : {}),
+    ...(allChangedFiles.length > 0 ? { changedFiles: allChangedFiles } : {}),
+  };
+}
+
+function transcriptTextFromSubagentPayload(
+  payload: Record<string, unknown> | null,
+  itemType: string | undefined,
+  toolFields: SubagentTranscriptToolFields,
+): string | undefined {
+  const detail = extractSubagentTranscriptDetail(payload);
+  if (detail) {
+    return capTranscriptText(detail);
+  }
+  if (itemType && isToolLifecycleItemType(itemType) && toolFields.output) {
+    return capTranscriptText(toolFields.output);
+  }
+  return undefined;
+}
+
 function reduceTranscriptItemLifecycle(
-  byProviderThread: Map<string, MutableTranscriptContext>,
-  providerThreadId: string,
+  bySubagentThread: Map<string, MutableTranscriptContext>,
+  subagentThreadId: string,
   activity: OrchestrationThreadActivity,
   payload: Record<string, unknown> | null,
   completed: boolean,
@@ -1088,16 +1320,14 @@ function reduceTranscriptItemLifecycle(
   const itemType = asTrimmedString(payload?.itemType) ?? undefined;
   const status = asTrimmedString(payload?.status) ?? undefined;
   const title = asTrimmedString(payload?.title) ?? undefined;
-  const detail = extractSubagentTranscriptDetail(payload);
-  const isCommand = itemType === "command_execution";
-  const commandPreview = isCommand ? extractToolCommand(payload) : null;
-  const command = commandPreview?.command ?? undefined;
-  const rawCommand = commandPreview?.rawCommand ?? undefined;
-  const output = isCommand
-    ? (extractToolResultText(payload, commandPreview ?? undefined) ?? undefined)
-    : undefined;
+  const toolFields = extractSubagentTranscriptToolFields(payload, itemType);
+  const text = transcriptTextFromSubagentPayload(payload, itemType, toolFields);
+  const command = toolFields.command ? capTranscriptText(toolFields.command) : undefined;
+  const rawCommand = toolFields.rawCommand ? capTranscriptText(toolFields.rawCommand) : undefined;
+  const output = toolFields.output ? capTranscriptText(toolFields.output) : undefined;
+  const changedFiles = toolFields.changedFiles;
 
-  const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
+  const ctx = getOrInitTranscriptContext(bySubagentThread, subagentThreadId);
   const existing = ctx.itemsById.get(itemId);
 
   const isCompletedStatus =
@@ -1110,15 +1340,11 @@ function reduceTranscriptItemLifecycle(
       ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
       ...(title ? { title } : {}),
       ...(status ? { status } : {}),
-      ...(isCommand
-        ? {
-            ...(command ? { command: capTranscriptText(command) } : {}),
-            ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
-            ...(output ? { output: capTranscriptText(output) } : {}),
-          }
-        : detail
-          ? { text: capTranscriptText(mergeSubagentTranscriptText(existing.text, detail)) }
-          : {}),
+      ...(command ? { command } : {}),
+      ...(rawCommand ? { rawCommand } : {}),
+      ...(output ? { output } : {}),
+      ...(changedFiles ? { changedFiles } : {}),
+      ...(text ? { text } : {}),
       loading: !isCompletedStatus,
     };
     ctx.itemsById.set(itemId, merged);
@@ -1137,15 +1363,11 @@ function reduceTranscriptItemLifecycle(
     kind: itemTypeToTranscriptKind(itemType),
     ...(itemTypeToRole(itemType) ? { role: itemTypeToRole(itemType) } : {}),
     ...(title ? { title } : {}),
-    ...(isCommand
-      ? {
-          ...(command ? { command: capTranscriptText(command) } : {}),
-          ...(rawCommand ? { rawCommand: capTranscriptText(rawCommand) } : {}),
-          ...(output ? { output: capTranscriptText(output) } : {}),
-        }
-      : detail
-        ? { text: capTranscriptText(detail) }
-        : {}),
+    ...(command ? { command } : {}),
+    ...(rawCommand ? { rawCommand } : {}),
+    ...(output ? { output } : {}),
+    ...(changedFiles ? { changedFiles } : {}),
+    ...(text ? { text } : {}),
     ...(itemType ? { itemType } : {}),
     ...(status ? { status } : {}),
     loading: !isCompletedStatus,
@@ -1223,8 +1445,8 @@ function extractSubagentContentText(content: unknown): string | undefined {
 }
 
 function reduceTranscriptDelta(
-  byProviderThread: Map<string, MutableTranscriptContext>,
-  providerThreadId: string,
+  bySubagentThread: Map<string, MutableTranscriptContext>,
+  subagentThreadId: string,
   activity: OrchestrationThreadActivity,
   payload: Record<string, unknown> | null,
 ): void {
@@ -1239,7 +1461,7 @@ function reduceTranscriptDelta(
   const summaryIndex = asFiniteNumber(payload?.summaryIndex);
   const bucketKey = `${itemId}\u001f${streamKind}\u001f${contentIndex ?? ""}\u001f${summaryIndex ?? ""}`;
 
-  const ctx = getOrInitTranscriptContext(byProviderThread, providerThreadId);
+  const ctx = getOrInitTranscriptContext(bySubagentThread, subagentThreadId);
   const previousBuffer = ctx.streamBuffers.get(bucketKey);
   const merged = mergeStreamText(previousBuffer, delta) ?? delta;
   ctx.streamBuffers.set(bucketKey, merged);
@@ -1376,14 +1598,14 @@ function resolveSubagentLatestUpdate(
     return previous;
   }
 
-  if (isSubagentProviderSnapshotItemType(log.itemType)) {
+  if (isSubagentSnapshotItemType(log.itemType)) {
     return previous;
   }
 
   return log.detail ?? previous;
 }
 
-export function isSubagentProviderSnapshotItemType(itemType: string | undefined): boolean {
+export function isSubagentSnapshotItemType(itemType: string | undefined): boolean {
   if (!itemType) {
     return false;
   }
@@ -1491,10 +1713,10 @@ function resolveSubagentRawStatus(
   return asTrimmedString(payload?.status) ?? undefined;
 }
 
-function deriveSubagentUsageByProviderThreadId(
+function deriveSubagentUsageBySubagentThreadId(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): Map<string, Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">> {
-  const usageByProviderThreadId = new Map<
+  const usageBySubagentThreadId = new Map<
     string,
     Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">
   >();
@@ -1505,9 +1727,9 @@ function deriveSubagentUsageByProviderThreadId(
     }
 
     const payload = asRecord(activity.payload);
-    const providerThreadId = asTrimmedString(payload?.providerThreadId);
+    const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
     const usedTokens = asFiniteNumber(payload?.usedTokens);
-    if (!providerThreadId || usedTokens === null || usedTokens <= 0) {
+    if (!subagentThreadId || usedTokens === null || usedTokens <= 0) {
       continue;
     }
 
@@ -1515,37 +1737,37 @@ function deriveSubagentUsageByProviderThreadId(
     const usedPercentage =
       maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null;
 
-    usageByProviderThreadId.set(providerThreadId, {
+    usageBySubagentThreadId.set(subagentThreadId, {
       usedTokens,
       ...(maxTokens !== null ? { maxTokens } : {}),
       ...(usedPercentage !== null ? { usedPercentage } : {}),
     });
   }
 
-  return usageByProviderThreadId;
+  return usageBySubagentThreadId;
 }
 
 function applySubagentUsage(
   subagents: ReadonlyArray<WorkLogSubagent>,
-  usageByProviderThreadId: Map<
+  usageBySubagentThreadId: Map<
     string,
     Pick<WorkLogSubagent, "usedTokens" | "maxTokens" | "usedPercentage">
   >,
 ): WorkLogSubagent[] {
   return subagents.map((subagent) => {
-    const key = subagent.providerThreadId ?? subagent.threadId;
-    const usage = key ? usageByProviderThreadId.get(key) : undefined;
+    const key = subagent.subagentThreadId ?? subagent.threadId;
+    const usage = key ? usageBySubagentThreadId.get(key) : undefined;
     return usage ? { ...subagent, ...usage } : subagent;
   });
 }
 
 function applySubagentDetails(
   subagents: ReadonlyArray<WorkLogSubagent>,
-  detailsByProviderThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
+  detailsBySubagentThreadId: ReadonlyMap<string, DerivedSubagentDetails>,
 ): WorkLogSubagent[] {
   return subagents.map((subagent) => {
-    const key = subagent.providerThreadId ?? subagent.threadId;
-    const details = key ? detailsByProviderThreadId.get(key) : undefined;
+    const key = subagent.subagentThreadId ?? subagent.threadId;
+    const details = key ? detailsBySubagentThreadId.get(key) : undefined;
     if (!details) {
       return subagent;
     }
@@ -1638,6 +1860,7 @@ function toDerivedWorkLogEntry(
     isTaskActivity && typeof payload?.summary === "string" && payload.summary.length > 0
       ? payload.summary
       : null;
+  const taskType = isTaskActivity ? asTrimmedString(payload?.taskType) : null;
   const taskDetailAsLabel =
     isTaskActivity &&
     !taskSummary &&
@@ -1648,6 +1871,12 @@ function toDerivedWorkLogEntry(
   const taskLabel = taskSummary || taskDetailAsLabel;
   const itemType = extractWorkLogItemType(payload);
   const requestKind = extractWorkLogRequestKind(payload);
+  const extensionUiRequestId = isExtensionUiLifecycleActivityKind(activity.kind)
+    ? asTrimmedString(payload?.requestId)
+    : null;
+  const extensionUiRequestKind = isExtensionUiLifecycleActivityKind(activity.kind)
+    ? extractWorkLogExtensionUiRequestKind(payload)
+    : undefined;
   const toolCallId = asTrimmedString(payload?.itemId);
   const entryId =
     toolCallId && isToolLifecycleActivityKind(activity.kind)
@@ -1658,14 +1887,18 @@ function toDerivedWorkLogEntry(
         ? activity.turnId
           ? `task:${activity.turnId}:${taskId}`
           : `task:${taskId}`
-        : activity.id;
+        : extensionUiRequestId && isExtensionUiLifecycleActivityKind(activity.kind)
+          ? `extension-ui:${extensionUiRequestId}`
+          : activity.id;
   const isToolSummary = activity.kind === "tool.summary";
   const precedingToolUseIds = isToolSummary
     ? asTrimmedStringArray(payload?.precedingToolUseIds)
     : [];
   const tone: WorkLogEntry["tone"] = isToolSummary
     ? "info"
-    : activity.kind === "task.started" || activity.kind === "task.progress"
+    : activity.kind === "task.started" ||
+        activity.kind === "task.progress" ||
+        (activity.kind === "task.completed" && taskType === "thinking")
       ? "thinking"
       : activity.tone === "approval"
         ? "info"
@@ -1740,6 +1973,12 @@ function toDerivedWorkLogEntry(
   }
   if (requestKind) {
     entry.requestKind = requestKind;
+  }
+  if (extensionUiRequestId) {
+    entry.extensionUiRequestId = extensionUiRequestId;
+  }
+  if (extensionUiRequestKind) {
+    entry.extensionUiRequestKind = extensionUiRequestKind;
   }
   if (status) {
     entry.status = status;
@@ -1837,6 +2076,12 @@ function activeLifecycleWorkEntryId(entry: DerivedWorkLogEntry): string | undefi
     }
     return entry.id;
   }
+  if (isExtensionUiLifecycleActivityKind(entry.activityKind)) {
+    if (!entry.extensionUiRequestId) {
+      return undefined;
+    }
+    return entry.id;
+  }
   return undefined;
 }
 
@@ -1855,11 +2100,14 @@ function unscopedLifecycleWorkEntryKey(entry: DerivedWorkLogEntry): string | und
     const descriptor = taskLifecycleFallbackDescriptor(entry);
     return descriptor ? `task-fallback:${descriptor}` : undefined;
   }
+  if (isExtensionUiLifecycleActivityKind(entry.activityKind)) {
+    return entry.extensionUiRequestId ? `extension-ui:${entry.extensionUiRequestId}` : undefined;
+  }
   return undefined;
 }
 
 // Composite key used to collapse adjacent tool lifecycle entries when the
-// provider omitted `itemId`. Requires `itemType` plus one stable discriminator
+// runtime omitted `itemId`. Requires `itemType` plus one stable discriminator
 // (command, title, or label) so two unrelated tool calls with the same itemType
 // will not be merged. Detail is appended for additional specificity.
 function toolLifecycleFallbackDescriptor(entry: DerivedWorkLogEntry): string | undefined {
@@ -1890,7 +2138,7 @@ function shouldUseUnscopedLifecycleFallback(
   if (previous.turnId === null || next.turnId === null) {
     return true;
   }
-  // Descriptor-based fallback for entries the provider emitted without an id.
+  // Descriptor-based fallback for entries the runtime emitted without an id.
   // Restrict to the same turn so we never merge across turn boundaries.
   if (
     isToolLifecycleActivityKind(previous.activityKind) &&
@@ -1982,6 +2230,10 @@ function isTaskLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]):
   return kind === "task.started" || kind === "task.progress" || kind === "task.completed";
 }
 
+function isExtensionUiLifecycleActivityKind(kind: OrchestrationThreadActivity["kind"]): boolean {
+  return kind === "extension-ui.requested" || kind === "extension-ui.resolved";
+}
+
 function lifecycleEntriesShareTurnScope(
   previous: DerivedWorkLogEntry,
   next: DerivedWorkLogEntry,
@@ -2062,25 +2314,6 @@ function shouldPreservePreviousTaskLabel(
   );
 }
 
-function mergeSubagentTranscriptText(
-  previous: string | undefined,
-  next: string,
-): string {
-  if (!previous) {
-    return next;
-  }
-  if (next === previous || previous.startsWith(next) || previous.endsWith(next)) {
-    return previous;
-  }
-  if (next.startsWith(previous)) {
-    return next;
-  }
-  if (next.length < previous.length) {
-    return previous;
-  }
-  return mergeStreamText(previous, next) ?? previous;
-}
-
 function mergeStreamText(
   previous: string | undefined,
   next: string | undefined,
@@ -2106,7 +2339,7 @@ function mergeSubagents(
 ): WorkLogSubagent[] {
   const merged = new Map<string, WorkLogSubagent>();
   for (const subagent of [...(previous ?? []), ...(next ?? [])]) {
-    const key = subagent.providerThreadId ?? subagent.threadId ?? subagent.agentId;
+    const key = subagent.subagentThreadId ?? subagent.threadId ?? subagent.agentId;
     const existing = merged.get(key);
     merged.set(key, existing ? { ...existing, ...subagent } : subagent);
   }
@@ -2471,7 +2704,7 @@ function extractToolCommandArtifact(
   }
 
   const command = entry.command?.trim();
-  const output = entry.output?.trim();
+  const output = entry.status === "running" ? undefined : entry.output?.trim();
   const metadata = extractCommandArtifactMetadata(payload);
   if (!command && !output && !hasCommandArtifactMetadata(metadata)) {
     return null;
@@ -2826,11 +3059,15 @@ function resolveWorkLogStatus(
       return "running";
     case "task.started":
       return "running";
+    case "extension-ui.requested":
+      return "running";
     case "tool.completed":
       return "completed";
     case "task.progress":
       return "running";
     case "task.completed":
+      return "completed";
+    case "extension-ui.resolved":
       return "completed";
     default:
       return undefined;
@@ -2865,9 +3102,7 @@ function asTrimmedStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value
-    .map((item) => asTrimmedString(item))
-    .filter((item): item is string => item !== null);
+  return value.map((item) => asTrimmedString(item)).filter((item): item is string => item !== null);
 }
 
 function asSubagentDeltaString(value: unknown): string | null {
@@ -3026,14 +3261,15 @@ function extractToolCommand(payload: Record<string, unknown> | null): {
   const item = asRecord(data?.item);
   const itemResult = asRecord(item?.result);
   const itemInput = asRecord(item?.input);
-  const itemType = asTrimmedString(payload?.itemType);
-  const detail = asTrimmedString(payload?.detail);
+  const args = asRecord(data?.args);
   const candidates: unknown[] = [
     item?.command,
     itemInput?.command,
     itemResult?.command,
     data?.command,
-    itemType === "command_execution" && detail ? stripTrailingExitCode(detail).output : null,
+    args?.command,
+    args?.cmd,
+    args?.input,
   ];
 
   for (const candidate of candidates) {
@@ -3209,15 +3445,14 @@ function extractWorkLogSubagents(
     return [];
   }
 
-  const threadIds = decodeSubagentReceiverThreadIds(item);
-  const agents = decodeSubagentReceiverAgents(item, threadIds);
+  const agents = decodeSubagentReceiverAgents(item);
   const states = decodeSubagentAgentStates(item);
-  const byThreadId = new Map<string, WorkLogSubagent>();
+  const bySubagentThreadId = new Map<string, WorkLogSubagent>();
 
   for (const agent of agents) {
-    byThreadId.set(agent.providerThreadId, {
-      threadId: agent.providerThreadId,
-      providerThreadId: agent.providerThreadId,
+    bySubagentThreadId.set(agent.subagentThreadId, {
+      threadId: agent.subagentThreadId,
+      subagentThreadId: agent.subagentThreadId,
       agentId: agent.agentId,
       nickname: agent.nickname,
       role: agent.role,
@@ -3230,12 +3465,12 @@ function extractWorkLogSubagents(
   }
 
   for (const state of Object.values(states)) {
-    const existing = byThreadId.get(state.threadId);
+    const existing = bySubagentThreadId.get(state.subagentThreadId);
     const statusLabel = resolveSubagentStatusLabel(state.status);
-    byThreadId.set(state.threadId, {
+    bySubagentThreadId.set(state.subagentThreadId, {
       ...existing,
-      threadId: state.threadId,
-      providerThreadId: existing?.providerThreadId ?? state.threadId,
+      threadId: state.subagentThreadId,
+      subagentThreadId: existing?.subagentThreadId ?? state.subagentThreadId,
       agentId: state.agentId ?? existing?.agentId,
       nickname: state.nickname ?? existing?.nickname,
       role: state.role ?? existing?.role,
@@ -3252,7 +3487,7 @@ function extractWorkLogSubagents(
     });
   }
 
-  return [...byThreadId.values()];
+  return [...bySubagentThreadId.values()];
 }
 
 function shouldExtractWorkLogSubagents(item: Record<string, unknown>): boolean {
@@ -3345,13 +3580,22 @@ function isActiveSubagentStatus(
 function extractWorkLogRequestKind(
   payload: Record<string, unknown> | null,
 ): WorkLogEntry["requestKind"] | undefined {
-  if (isProviderRequestKind(payload?.requestKind)) {
+  if (isRuntimeRequestKind(payload?.requestKind)) {
     return payload.requestKind;
   }
   return requestKindFromRequestType(payload?.requestType) ?? undefined;
 }
 
-function isProviderRequestKind(value: unknown): value is ProviderRequestKind {
+function extractWorkLogExtensionUiRequestKind(
+  payload: Record<string, unknown> | null,
+): WorkLogEntry["extensionUiRequestKind"] | undefined {
+  if (isExtensionUiRequestKind(payload?.requestKind)) {
+    return payload.requestKind;
+  }
+  return undefined;
+}
+
+function isRuntimeRequestKind(value: unknown): value is RuntimeRequestKind {
   switch (value) {
     case "command":
     case "file-read":
@@ -3360,6 +3604,19 @@ function isProviderRequestKind(value: unknown): value is ProviderRequestKind {
     case "mcp-elicitation":
     case "dynamic-tool":
     case "auth-refresh":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isExtensionUiRequestKind(value: unknown): value is DesktopExtensionUiRequestKind {
+  switch (value) {
+    case "select":
+    case "confirm":
+    case "input":
+    case "editor":
+    case "custom":
       return true;
     default:
       return false;

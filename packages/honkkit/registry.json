@@ -1,0 +1,39 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "honkkit",
+  "homepage": "https://honk.app",
+  "items": [
+    {
+      "name": "styles",
+      "type": "registry:style",
+      "title": "HonkKit Styles",
+      "description": "Light and dark CSS variables for HonkKit components.",
+      "files": [
+        {
+          "path": "src/styles.css",
+          "type": "registry:style",
+          "target": "styles/honkkit.css"
+        }
+      ]
+    },
+    {
+      "name": "button",
+      "type": "registry:ui",
+      "title": "Button",
+      "description": "Primary action control with variant and size scales.",
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "files": [
+        {
+          "path": "src/button.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/button.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "lib/utils.ts"
+        }
+      ]
+    }
+  ]
+}

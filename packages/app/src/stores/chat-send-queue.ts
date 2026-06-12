@@ -1,10 +1,9 @@
 import type {
   MessageId,
   OrchestrationProposedPlanId,
-  ProviderInteractionMode,
-  RuntimeMode,
+  AgentInteractionMode,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { create } from "zustand";
 
 import type { ComposerSubmitContext } from "../components/chat/composer-submit";
@@ -19,8 +18,7 @@ export interface QueuedComposerItem {
   id: MessageId;
   threadKey: string;
   sendContext: ComposerSubmitContext;
-  runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: AgentInteractionMode;
   planFollowUp: QueuedComposerPlanFollowUp | null;
   createdAt: string;
 }
@@ -82,27 +80,27 @@ function revokeQueuedItemImagePreviews(
 
 function withoutEmptyThreadQueue(
   queueItemsByThreadKey: Record<string, QueuedComposerItem[]>,
-  threadKey: string,
+  normalizedThreadKey: string,
   items: QueuedComposerItem[],
 ): Record<string, QueuedComposerItem[]> {
   const next = { ...queueItemsByThreadKey };
   if (items.length === 0) {
-    delete next[threadKey];
+    delete next[normalizedThreadKey];
   } else {
-    next[threadKey] = items;
+    next[normalizedThreadKey] = items;
   }
   return next;
 }
 
 function withoutThreadEdit(
   editingQueueItemIdByThreadKey: Record<string, MessageId | null>,
-  threadKey: string,
+  normalizedThreadKey: string,
 ): Record<string, MessageId | null> {
-  if (!(threadKey in editingQueueItemIdByThreadKey)) {
+  if (!(normalizedThreadKey in editingQueueItemIdByThreadKey)) {
     return editingQueueItemIdByThreadKey;
   }
   const next = { ...editingQueueItemIdByThreadKey };
-  delete next[threadKey];
+  delete next[normalizedThreadKey];
   return next;
 }
 
@@ -117,11 +115,12 @@ export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get
       : EMPTY_QUEUE_ITEMS;
   },
   getQueueItem: (threadKey, itemId) => {
-    return (
-      get()
-        .getQueueItems(threadKey)
-        .find((item) => item.id === itemId) ?? null
-    );
+    const normalizedThreadKey = normalizeThreadKey(threadKey);
+    return normalizedThreadKey
+      ? (get().queueItemsByThreadKey[normalizedThreadKey] ?? EMPTY_QUEUE_ITEMS).find(
+          (item) => item.id === itemId,
+        ) ?? null
+      : null;
   },
   getEditingQueueItemId: (threadKey) => {
     const normalizedThreadKey = normalizeThreadKey(threadKey);
@@ -234,8 +233,32 @@ export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get
     return takenItem;
   },
   takeNextQueuedComposerItem: (threadKey) => {
-    const firstItem = get().getQueueItems(threadKey)[0] ?? null;
-    return firstItem ? get().takeQueuedComposerItem(threadKey, firstItem.id) : null;
+    const normalizedThreadKey = normalizeThreadKey(threadKey);
+    if (!normalizedThreadKey) {
+      return null;
+    }
+    let takenItem: QueuedComposerItem | null = null;
+    set((state) => {
+      const existingItems = state.queueItemsByThreadKey[normalizedThreadKey] ?? EMPTY_QUEUE_ITEMS;
+      takenItem = existingItems[0] ?? null;
+      if (!takenItem) {
+        return state;
+      }
+      const nextItems = existingItems.slice(1);
+      const editingQueueItemId = state.editingQueueItemIdByThreadKey[normalizedThreadKey];
+      return {
+        queueItemsByThreadKey: withoutEmptyThreadQueue(
+          state.queueItemsByThreadKey,
+          normalizedThreadKey,
+          nextItems,
+        ),
+        editingQueueItemIdByThreadKey:
+          editingQueueItemId === takenItem.id
+            ? withoutThreadEdit(state.editingQueueItemIdByThreadKey, normalizedThreadKey)
+            : state.editingQueueItemIdByThreadKey,
+      };
+    });
+    return takenItem;
   },
   restoreQueuedComposerItem: (threadKey, item, index) => {
     const normalizedThreadKey = normalizeThreadKey(threadKey);
@@ -293,7 +316,12 @@ export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get
   },
   beginEditingQueuedComposerItem: (threadKey, itemId) => {
     const normalizedThreadKey = normalizeThreadKey(threadKey);
-    if (!normalizedThreadKey || !get().getQueueItem(normalizedThreadKey, itemId)) {
+    if (
+      !normalizedThreadKey ||
+      !(get().queueItemsByThreadKey[normalizedThreadKey] ?? EMPTY_QUEUE_ITEMS).some(
+        (item) => item.id === itemId,
+      )
+    ) {
       return;
     }
     set((state) => ({

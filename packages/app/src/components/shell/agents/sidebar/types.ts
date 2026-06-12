@@ -1,22 +1,24 @@
 import type {
   EnvironmentId,
+  OrchestrationLatestTurn,
   OrchestrationSessionStatus,
   ProjectId,
+  ScopedProjectRef,
   ScopedThreadRef,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import type { HarnessKind } from "~/lib/ui-session-types";
 
 export interface SidebarDraftSummary {
   id: string;
-  text: string;
-  attachmentCount: number;
-  firstAttachmentName: string | null;
   cwd: string;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
+  workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
+  title: string | null;
+  state: "draft" | "running";
   updatedAt: string;
 }
 
@@ -31,6 +33,7 @@ export interface SidebarThreadSummary {
   id: ThreadId;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
+  workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
   harness?: HarnessKind;
   path: string;
@@ -39,14 +42,16 @@ export interface SidebarThreadSummary {
   createdAt: string;
   modifiedAt: string;
   latestReadableAt?: string | null;
+  archived: boolean;
   messageCount: number;
   firstMessage: string;
   isStreaming: boolean;
   orchestrationStatus?: OrchestrationSessionStatus | null;
+  latestTurnState?: OrchestrationLatestTurn["state"] | null;
   needsAttention?: boolean;
 }
 
-export type SidebarThreadState = "idle" | "running" | "needs_attention" | "error";
+export type SidebarThreadState = "idle" | "running" | "needs_attention" | "stopped" | "error";
 
 interface SidebarChatItemBase {
   title: string;
@@ -55,6 +60,7 @@ interface SidebarChatItemBase {
   cwd: string;
   environmentId: EnvironmentId;
   projectId: ProjectId | null;
+  workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
 }
 
@@ -65,13 +71,14 @@ export type SidebarChatItem =
       state: SidebarThreadState;
       unread: boolean;
       pinned: boolean;
+      archived: boolean;
       latestReadableAt: string | null;
       threadRef: ScopedThreadRef;
     })
   | (SidebarChatItemBase & {
       id: string;
       kind: "draft";
-      state: "draft";
+      state: "draft" | "running";
       unread: false;
     });
 
@@ -84,6 +91,7 @@ export interface SidebarSectionModel {
   canOpenInEditor?: boolean;
   environmentId?: EnvironmentId;
   projectId?: ProjectId;
+  projectRef?: ScopedProjectRef;
   projectCwd?: string;
   projectOrderKeys?: readonly string[];
   projectStateKey?: string;
@@ -97,8 +105,8 @@ export interface AgentSidebarProps {
   selectedId: string | null;
   onSelectAgent: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
+  onOpenWorkspace?: () => void;
   onPrefetchAgent?: (id: string) => void;
   loading?: boolean;
   error?: boolean;
 }
-

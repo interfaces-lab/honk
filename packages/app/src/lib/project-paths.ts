@@ -3,7 +3,7 @@ import {
   isUncPath,
   isWindowsAbsolutePath,
   isWindowsDrivePath,
-} from "@multi/shared/path";
+} from "@honk/shared/path";
 import { isWindowsPlatform } from "./utils";
 
 function isRootPath(value: string): boolean {

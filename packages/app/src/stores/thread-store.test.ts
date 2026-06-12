@@ -1,791 +1,107 @@
-import { scopeThreadRef } from "@multi/client-runtime";
 import {
   DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   EnvironmentId,
   EventId,
-  MessageId,
-  ProjectId,
-  ThreadEntryId,
   ThreadId,
   TurnId,
   type OrchestrationEvent,
-} from "@multi/contracts";
+  type OrchestrationShellSnapshot,
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
-import {
-  applyOrchestrationEvent,
-  applyOrchestrationEvents,
-  selectEnvironmentState,
-  selectProjectsAcrossEnvironments,
-  selectThreadByRef,
-  selectThreadExistsByRef,
-  setThreadBranch,
-  selectThreadsAcrossEnvironments,
-  type AppState,
-  type EnvironmentState,
-} from "./thread-store";
-import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "../types";
+import { scopeThreadRef } from "~/lib/environment-scope";
+import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
+import { initialState, selectSidebarThreadSummaryByRef, selectSidebarThreadsAcrossEnvironments } from "./thread-store";
+import { applyOrchestrationEvent, syncServerShellSnapshot } from "./thread-sync";
 
-const localEnvironmentId = EnvironmentId.make("environment-local");
-const remoteEnvironmentId = EnvironmentId.make("environment-remote");
+const environmentId = EnvironmentId.make("environment:sidebar-live-state");
+const threadId = ThreadId.make("thread:sidebar-live-state");
+const turnId = TurnId.make("turn:sidebar-live-state");
+const createdAt = "2026-06-01T12:00:00.000Z";
+const startedAt = "2026-06-01T12:00:01.000Z";
 
-function withActiveEnvironmentState(
-  environmentState: EnvironmentState,
-  overrides: Partial<AppState & EnvironmentState> = {},
-): AppState {
-  const {
-    activeEnvironmentId: overrideActiveEnvironmentId,
-    environmentStateById: overrideEnvironmentStateById,
-    ...environmentOverrides
-  } = overrides;
-  const activeEnvironmentId = overrideActiveEnvironmentId ?? localEnvironmentId;
-  const mergedEnvironmentState: EnvironmentState = {
-    ...environmentState,
-    ...environmentOverrides,
-  };
-  const environmentStateById =
-    overrideEnvironmentStateById ??
-    (activeEnvironmentId
-      ? {
-          [activeEnvironmentId]: mergedEnvironmentState,
-        }
-      : {});
-
-  return {
-    activeEnvironmentId,
-    environmentStateById,
-  };
-}
-
-function makeThread(overrides: Partial<Thread> = {}): Thread {
-  return {
-    id: ThreadId.make("thread-1"),
-    environmentId: localEnvironmentId,
-    codexThreadId: null,
-    projectId: ProjectId.make("project-1"),
-    title: "Thread",
-    modelSelection: {
-      instanceId: "codex",
-      model: "gpt-5-codex",
-    },
-    runtimeMode: DEFAULT_RUNTIME_MODE,
-    interactionMode: DEFAULT_INTERACTION_MODE,
-    session: null,
-    messages: [],
-    leafId: null,
-    entries: [],
-    turnDiffSummaries: [],
-    activities: [],
-    proposedPlans: [],
-    error: null,
-    createdAt: "2026-02-13T00:00:00.000Z",
-    archivedAt: null,
-    latestTurn: null,
-    branch: null,
-    worktreePath: null,
-    ...overrides,
-  };
-}
-
-function makeState(thread: Thread): AppState {
-  const projectId = ProjectId.make("project-1");
-  const project = {
-    id: projectId,
-    environmentId: thread.environmentId,
-    name: "Project",
-    cwd: "/tmp/project",
-    defaultModelSelection: {
-      instanceId: "codex",
-      model: "gpt-5-codex",
-    },
-    createdAt: "2026-02-13T00:00:00.000Z",
-    updatedAt: "2026-02-13T00:00:00.000Z",
-    scripts: [],
-  };
-  const threadIdsByProjectId: EnvironmentState["threadIdsByProjectId"] = {
-    [projectId]: [thread.id],
-  };
-  const environmentState: EnvironmentState = {
-    projectIds: [projectId],
-    projectById: {
-      [projectId]: project,
-    },
-    threadIds: [thread.id],
-    threadIdsByProjectId,
-    projectlessThreadIds: [],
-    threadShellById: {
-      [thread.id]: {
-        id: thread.id,
-        environmentId: thread.environmentId,
-        codexThreadId: thread.codexThreadId,
-        projectId: thread.projectId,
-        title: thread.title,
-        modelSelection: thread.modelSelection,
-        runtimeMode: thread.runtimeMode,
-        interactionMode: thread.interactionMode,
-        error: thread.error,
-        createdAt: thread.createdAt,
-        archivedAt: thread.archivedAt,
-        updatedAt: thread.updatedAt,
-        branch: thread.branch,
-        worktreePath: thread.worktreePath,
-      },
-    },
-    threadSessionById: {
-      [thread.id]: thread.session,
-    },
-    threadTurnStateById: {
-      [thread.id]: {
-        latestTurn: thread.latestTurn,
-        ...(thread.pendingSourceProposedPlan
-          ? { pendingSourceProposedPlan: thread.pendingSourceProposedPlan }
-          : {}),
-      },
-    },
-    messageIdsByThreadId: {
-      [thread.id]: thread.messages.map((message) => message.id),
-    },
-    messageByThreadId: {
-      [thread.id]: Object.fromEntries(
-        thread.messages.map((message) => [message.id, message] as const),
-      ) as EnvironmentState["messageByThreadId"][ThreadId],
-    },
-    liveAssistantTurnIdsByThreadId: {},
-    liveAssistantTurnByThreadId: {},
-    activityIdsByThreadId: {
-      [thread.id]: thread.activities.map((activity) => activity.id),
-    },
-    activityByThreadId: {
-      [thread.id]: Object.fromEntries(
-        thread.activities.map((activity) => [activity.id, activity] as const),
-      ) as EnvironmentState["activityByThreadId"][ThreadId],
-    },
-    proposedPlanIdsByThreadId: {
-      [thread.id]: thread.proposedPlans.map((plan) => plan.id),
-    },
-    proposedPlanByThreadId: {
-      [thread.id]: Object.fromEntries(
-        thread.proposedPlans.map((plan) => [plan.id, plan] as const),
-      ) as EnvironmentState["proposedPlanByThreadId"][ThreadId],
-    },
-    turnDiffIdsByThreadId: {
-      [thread.id]: thread.turnDiffSummaries.map((summary) => summary.turnId),
-    },
-    turnDiffSummaryByThreadId: {
-      [thread.id]: Object.fromEntries(
-        thread.turnDiffSummaries.map((summary) => [summary.turnId, summary] as const),
-      ) as EnvironmentState["turnDiffSummaryByThreadId"][ThreadId],
-    },
-    sidebarThreadSummaryById: {},
-    snapshotSource: "server",
-    bootstrapComplete: true,
-  };
-  return withActiveEnvironmentState(environmentState, {
-    activeEnvironmentId: thread.environmentId,
-  });
-}
-
-function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): AppState {
-  const environmentState: EnvironmentState = {
-    projectIds: [],
-    projectById: {},
-    threadIds: [],
-    threadIdsByProjectId: {},
-    projectlessThreadIds: [],
-    threadShellById: {},
-    threadSessionById: {},
-    threadTurnStateById: {},
-    messageIdsByThreadId: {},
-    messageByThreadId: {},
-    liveAssistantTurnIdsByThreadId: {},
-    liveAssistantTurnByThreadId: {},
-    activityIdsByThreadId: {},
-    activityByThreadId: {},
-    proposedPlanIdsByThreadId: {},
-    proposedPlanByThreadId: {},
-    turnDiffIdsByThreadId: {},
-    turnDiffSummaryByThreadId: {},
-    sidebarThreadSummaryById: {},
-    snapshotSource: "server",
-    bootstrapComplete: true,
-  };
-  return withActiveEnvironmentState(environmentState, overrides);
-}
-
-function localEnvironmentStateOf(state: AppState): EnvironmentState {
-  return selectEnvironmentState(state, localEnvironmentId);
-}
-
-function environmentStateOf(state: AppState, environmentId: EnvironmentId): EnvironmentState {
-  return selectEnvironmentState(state, environmentId);
-}
-
-function projectsOf(state: AppState) {
-  return selectProjectsAcrossEnvironments(state);
-}
-
-function threadsOf(state: AppState) {
-  return selectThreadsAcrossEnvironments(state);
-}
-
-function makeEvent<T extends OrchestrationEvent["type"]>(
-  type: T,
-  payload: Extract<OrchestrationEvent, { type: T }>["payload"],
-  overrides: Partial<Extract<OrchestrationEvent, { type: T }>> = {},
-): Extract<OrchestrationEvent, { type: T }> {
-  const sequence = overrides.sequence ?? 1;
-  return {
-    sequence,
-    eventId: EventId.make(`event-${sequence}`),
-    aggregateKind: "thread",
-    aggregateId:
-      "threadId" in payload
-        ? payload.threadId
-        : "projectId" in payload
-          ? payload.projectId
-          : ProjectId.make("project-1"),
-    occurredAt: "2026-02-27T00:00:00.000Z",
-    commandId: null,
-    causationEventId: null,
-    correlationId: null,
-    metadata: {},
-    type,
-    payload,
-    ...overrides,
-  } as Extract<OrchestrationEvent, { type: T }>;
-}
-
-describe("thread selection memoization", () => {
-  it("returns stable thread references for repeated reads of the same state", () => {
-    const thread = makeThread({
-      messages: [
-        {
-          id: MessageId.make("message-1"),
-          role: "user",
-          text: "hello",
-          createdAt: "2026-02-13T00:01:00.000Z",
-          streaming: false,
-        },
-      ],
-      activities: [
-        {
-          id: EventId.make("activity-1"),
-          tone: "info",
-          kind: "tool.started",
-          summary: "working",
-          payload: {},
-          turnId: TurnId.make("turn-1"),
-          createdAt: "2026-02-13T00:01:30.000Z",
-        },
-      ],
-      proposedPlans: [
-        {
-          id: "plan-1",
-          turnId: null,
-          planMarkdown: "plan",
-          implementedAt: null,
-          implementationThreadId: null,
-          createdAt: "2026-02-13T00:02:00.000Z",
-          updatedAt: "2026-02-13T00:02:00.000Z",
-        },
-      ],
-      turnDiffSummaries: [
-        {
-          turnId: TurnId.make("turn-1"),
-          completedAt: "2026-02-13T00:03:00.000Z",
-          files: [],
-        },
-      ],
-    });
-    const state = makeState(thread);
-    const ref = scopeThreadRef(thread.environmentId, thread.id);
-
-    const first = selectThreadByRef(state, ref);
-    const second = selectThreadByRef(state, ref);
-
-    expect(first).toBeDefined();
-    expect(second).toBe(first);
-    expect(second?.messages).toBe(first?.messages);
-    expect(second?.activities).toBe(first?.activities);
-    expect(second?.proposedPlans).toBe(first?.proposedPlans);
-    expect(second?.turnDiffSummaries).toBe(first?.turnDiffSummaries);
-  });
-
-  it("reuses the derived thread when the app state wrapper changes but thread data does not", () => {
-    const thread = makeThread({
-      messages: [
-        {
-          id: MessageId.make("message-1"),
-          role: "assistant",
-          text: "done",
-          createdAt: "2026-02-13T00:01:00.000Z",
-          streaming: false,
-        },
-      ],
-    });
-    const state = makeState(thread);
-    const ref = scopeThreadRef(thread.environmentId, thread.id);
-    const wrappedState: AppState = {
-      ...state,
-      environmentStateById: { ...state.environmentStateById },
-    };
-
-    const first = selectThreadByRef(state, ref);
-    const second = selectThreadByRef(wrappedState, ref);
-
-    expect(second).toBe(first);
-  });
-
-  it("updates the derived thread when the underlying thread data changes", () => {
-    const thread = makeThread();
-    const ref = scopeThreadRef(thread.environmentId, thread.id);
-    const firstState = makeState(thread);
-    const secondState = makeState({
-      ...thread,
-      messages: [
-        {
-          id: MessageId.make("message-2"),
-          role: "user",
-          text: "new",
-          createdAt: "2026-02-13T00:04:00.000Z",
-          streaming: false,
-        },
-      ],
-    });
-
-    const first = selectThreadByRef(firstState, ref);
-    const second = selectThreadByRef(secondState, ref);
-
-    expect(second).not.toBe(first);
-    expect(second?.messages).toHaveLength(1);
-    expect(second?.messages[0]?.text).toBe("new");
-  });
-
-  it("checks thread existence without materializing the full thread", () => {
-    const thread = makeThread();
-    const state = makeState(thread);
-    const ref = scopeThreadRef(thread.environmentId, thread.id);
-
-    expect(selectThreadExistsByRef(state, ref)).toBe(true);
-    expect(
-      selectThreadExistsByRef(
-        state,
-        scopeThreadRef(thread.environmentId, ThreadId.make("missing")),
-      ),
-    ).toBe(false);
-    expect(selectThreadExistsByRef(state, null)).toBe(false);
-  });
-});
-
-describe("setThreadBranch", () => {
-  it("updates only the scoped thread environment", () => {
-    const sharedThreadId = ThreadId.make("thread-shared");
-    const localThread = makeThread({
-      id: sharedThreadId,
-      environmentId: localEnvironmentId,
-      branch: "local-branch",
-    });
-    const remoteThread = makeThread({
-      id: sharedThreadId,
-      environmentId: remoteEnvironmentId,
-      branch: "remote-branch",
-    });
-    const state: AppState = {
-      activeEnvironmentId: localEnvironmentId,
-      environmentStateById: {
-        [localEnvironmentId]: environmentStateOf(makeState(localThread), localEnvironmentId),
-        [remoteEnvironmentId]: environmentStateOf(makeState(remoteThread), remoteEnvironmentId),
-      },
-    };
-
-    const next = setThreadBranch(
-      state,
-      scopeThreadRef(remoteEnvironmentId, sharedThreadId),
-      "remote-next",
-      "/tmp/remote-worktree",
-    );
-
-    expect(
-      environmentStateOf(next, localEnvironmentId).threadShellById[sharedThreadId]?.branch,
-    ).toBe("local-branch");
-    expect(
-      environmentStateOf(next, remoteEnvironmentId).threadShellById[sharedThreadId]?.branch,
-    ).toBe("remote-next");
-    expect(
-      environmentStateOf(next, remoteEnvironmentId).threadShellById[sharedThreadId]?.worktreePath,
-    ).toBe("/tmp/remote-worktree");
-  });
-});
-
-describe("incremental orchestration updates", () => {
-  it("does not mark bootstrap complete for incremental events", () => {
-    const state = withActiveEnvironmentState(localEnvironmentStateOf(makeState(makeThread())), {
-      bootstrapComplete: false,
-    });
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.meta-updated", {
-        threadId: ThreadId.make("thread-1"),
-        title: "Updated title",
-        updatedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
-    );
-
-    expect(localEnvironmentStateOf(next).bootstrapComplete).toBe(false);
-  });
-
-  it("preserves state identity for no-op project and thread deletes", () => {
-    const thread = makeThread();
-    const state = makeState(thread);
-
-    const nextAfterProjectDelete = applyOrchestrationEvent(
-      state,
-      makeEvent("project.deleted", {
-        projectId: ProjectId.make("project-missing"),
-        deletedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
-    );
-    const nextAfterThreadDelete = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.deleted", {
-        threadId: ThreadId.make("thread-missing"),
-        deletedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
-    );
-
-    expect(nextAfterProjectDelete).toBe(state);
-    expect(nextAfterThreadDelete).toBe(state);
-  });
-
-  it("stores rich text metadata from thread message events", () => {
-    const thread = makeThread();
-    const state = makeState(thread);
-    const richText = {
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }],
-    };
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.message-sent", {
-        threadId: thread.id,
-        messageId: MessageId.make("message-rich-text"),
-        entryId: ThreadEntryId.make("entry-message-rich-text"),
-        parentEntryId: null,
-        role: "user",
-        text: "hello",
-        richText,
-        turnId: null,
-        streaming: false,
-        createdAt: "2026-02-27T00:00:01.000Z",
-        updatedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(next)[0]?.messages[0]?.richText).toEqual(richText);
-  });
-
-  it("reuses an existing project row when project.created arrives with a new id for the same cwd", () => {
-    const originalProjectId = ProjectId.make("project-1");
-    const recreatedProjectId = ProjectId.make("project-2");
-    const state: AppState = makeEmptyState({
-      projectIds: [originalProjectId],
-      projectById: {
-        [originalProjectId]: {
-          id: originalProjectId,
-          environmentId: localEnvironmentId,
-          name: "Project",
-          cwd: "/tmp/project",
-          defaultModelSelection: {
-            instanceId: "codex",
-            model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
-          },
-          createdAt: "2026-02-27T00:00:00.000Z",
-          updatedAt: "2026-02-27T00:00:00.000Z",
-          scripts: [],
-        },
-      },
-    });
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("project.created", {
-        projectId: recreatedProjectId,
-        title: "Project Recreated",
-        projectRoot: "/tmp/project",
-        defaultModelSelection: {
-          instanceId: "codex",
-          model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
-        },
-        scripts: [],
-        createdAt: "2026-02-27T00:00:01.000Z",
-        updatedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
-    );
-
-    expect(projectsOf(next)).toHaveLength(1);
-    expect(projectsOf(next)[0]?.id).toBe(recreatedProjectId);
-    expect(projectsOf(next)[0]?.cwd).toBe("/tmp/project");
-    expect(projectsOf(next)[0]?.name).toBe("Project Recreated");
-    expect(localEnvironmentStateOf(next).projectIds).toEqual([recreatedProjectId]);
-    expect(localEnvironmentStateOf(next).projectById[originalProjectId]).toBeUndefined();
-    expect(localEnvironmentStateOf(next).projectById[recreatedProjectId]?.id).toBe(
-      recreatedProjectId,
-    );
-  });
-
-  it("removes stale project index entries when thread.created recreates a thread under a new project", () => {
-    const originalProjectId = ProjectId.make("project-1");
-    const recreatedProjectId = ProjectId.make("project-2");
-    const threadId = ThreadId.make("thread-1");
-    const thread = makeThread({
+const shellSnapshot = {
+  snapshotSequence: 1,
+  projects: [],
+  threads: [
+    {
       id: threadId,
-      projectId: originalProjectId,
-    });
-    const state = withActiveEnvironmentState(localEnvironmentStateOf(makeState(thread)), {
-      projectIds: [originalProjectId, recreatedProjectId],
-      projectById: {
-        [originalProjectId]: {
-          id: originalProjectId,
-          environmentId: localEnvironmentId,
-          name: "Project 1",
-          cwd: "/tmp/project-1",
-          defaultModelSelection: {
-            instanceId: "codex",
-            model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
-          },
-          createdAt: "2026-02-27T00:00:00.000Z",
-          updatedAt: "2026-02-27T00:00:00.000Z",
-          scripts: [],
-        },
-        [recreatedProjectId]: {
-          id: recreatedProjectId,
-          environmentId: localEnvironmentId,
-          name: "Project 2",
-          cwd: "/tmp/project-2",
-          defaultModelSelection: {
-            instanceId: "codex",
-            model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
-          },
-          createdAt: "2026-02-27T00:00:00.000Z",
-          updatedAt: "2026-02-27T00:00:00.000Z",
-          scripts: [],
-        },
-      },
-    });
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.created", {
+      projectId: null,
+      title: "Running thread",
+      modelSelection: DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: DEFAULT_INTERACTION_MODE,
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+      session: {
         threadId,
-        projectId: recreatedProjectId,
-        title: "Recovered thread",
-        modelSelection: {
-          instanceId: "codex",
-          model: DEFAULT_TEXT_GENERATION_MODEL_SELECTION.model,
-        },
+        status: "ready",
         runtimeMode: DEFAULT_RUNTIME_MODE,
-        interactionMode: DEFAULT_INTERACTION_MODE,
-        branch: null,
-        worktreePath: null,
-        createdAt: "2026-02-27T00:00:01.000Z",
-        updatedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
-    );
+        activeTurnId: null,
+        updatedAt: createdAt,
+        lastError: null,
+      },
+      latestUserMessageAt: createdAt,
+      hasPendingApprovals: false,
+      hasPendingUserInput: false,
+      hasActionableProposedPlan: false,
+    },
+  ],
+  updatedAt: createdAt,
+} satisfies OrchestrationShellSnapshot;
 
-    expect(threadsOf(next)).toHaveLength(1);
-    expect(threadsOf(next)[0]?.projectId).toBe(recreatedProjectId);
-    expect(localEnvironmentStateOf(next).threadIdsByProjectId[originalProjectId]).toBeUndefined();
-    expect(localEnvironmentStateOf(next).threadIdsByProjectId[recreatedProjectId]).toEqual([
+const sessionSetEvent = {
+  sequence: 2,
+  eventId: EventId.make("event:sidebar-live-state-session-set"),
+  aggregateKind: "thread",
+  aggregateId: threadId,
+  occurredAt: startedAt,
+  commandId: null,
+  causationEventId: null,
+  correlationId: null,
+  metadata: {},
+  type: "thread.session-set",
+  payload: {
+    threadId,
+    session: {
       threadId,
-    ]);
+      status: "running",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      activeTurnId: turnId,
+      updatedAt: startedAt,
+      lastError: null,
+    },
+  },
+} satisfies OrchestrationEvent;
+
+function stateWithRunningDetailEvent() {
+  return applyOrchestrationEvent(
+    syncServerShellSnapshot(initialState, shellSnapshot, environmentId),
+    sessionSetEvent,
+    environmentId,
+  );
+}
+
+describe("sidebar thread selectors", () => {
+  it("reads running state from the canonical sidebar summary", () => {
+    const summaries = selectSidebarThreadsAcrossEnvironments(stateWithRunningDetailEvent());
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]?.session?.orchestrationStatus).toBe("running");
+    expect(summaries[0]?.latestTurn?.state).toBe("running");
   });
 
-  it("updates only the affected thread for message events", () => {
-    const thread1 = makeThread({
-      id: ThreadId.make("thread-1"),
-      messages: [
-        {
-          id: MessageId.make("message-1"),
-          role: "assistant",
-          text: "hello",
-          turnId: TurnId.make("turn-1"),
-          createdAt: "2026-02-27T00:00:00.000Z",
-          completedAt: "2026-02-27T00:00:00.000Z",
-          streaming: false,
-        },
-      ],
-    });
-    const thread2 = makeThread({ id: ThreadId.make("thread-2") });
-    const baseState = makeState(thread1);
-    const baseEnvironmentState = localEnvironmentStateOf(baseState);
-    const state = withActiveEnvironmentState(baseEnvironmentState, {
-      threadIds: [thread1.id, thread2.id],
-      threadShellById: {
-        ...baseEnvironmentState.threadShellById,
-        [thread2.id]: {
-          id: thread2.id,
-          environmentId: thread2.environmentId,
-          codexThreadId: thread2.codexThreadId,
-          projectId: thread2.projectId,
-          title: thread2.title,
-          modelSelection: thread2.modelSelection,
-          runtimeMode: thread2.runtimeMode,
-          interactionMode: thread2.interactionMode,
-          error: thread2.error,
-          createdAt: thread2.createdAt,
-          archivedAt: thread2.archivedAt,
-          updatedAt: thread2.updatedAt,
-          branch: thread2.branch,
-          worktreePath: thread2.worktreePath,
-        },
-      },
-      threadSessionById: {
-        ...baseEnvironmentState.threadSessionById,
-        [thread2.id]: thread2.session,
-      },
-      threadTurnStateById: {
-        ...baseEnvironmentState.threadTurnStateById,
-        [thread2.id]: {
-          latestTurn: thread2.latestTurn,
-        },
-      },
-      messageIdsByThreadId: {
-        ...baseEnvironmentState.messageIdsByThreadId,
-        [thread2.id]: [],
-      },
-      messageByThreadId: {
-        ...baseEnvironmentState.messageByThreadId,
-        [thread2.id]: {},
-      },
-      activityIdsByThreadId: {
-        ...baseEnvironmentState.activityIdsByThreadId,
-        [thread2.id]: [],
-      },
-      activityByThreadId: {
-        ...baseEnvironmentState.activityByThreadId,
-        [thread2.id]: {},
-      },
-      proposedPlanIdsByThreadId: {
-        ...baseEnvironmentState.proposedPlanIdsByThreadId,
-        [thread2.id]: [],
-      },
-      proposedPlanByThreadId: {
-        ...baseEnvironmentState.proposedPlanByThreadId,
-        [thread2.id]: {},
-      },
-      turnDiffIdsByThreadId: {
-        ...baseEnvironmentState.turnDiffIdsByThreadId,
-        [thread2.id]: [],
-      },
-      turnDiffSummaryByThreadId: {
-        ...baseEnvironmentState.turnDiffSummaryByThreadId,
-        [thread2.id]: {},
-      },
-      sidebarThreadSummaryById: {
-        ...baseEnvironmentState.sidebarThreadSummaryById,
-      },
-      threadIdsByProjectId: {
-        [ProjectId.make("project-1")]: [thread1.id, thread2.id],
-      },
-    });
-
-    const next = applyOrchestrationEvent(
-      state,
-      makeEvent("thread.message-sent", {
-        threadId: thread1.id,
-        messageId: MessageId.make("message-1"),
-        entryId: ThreadEntryId.make("entry-message-1"),
-        parentEntryId: null,
-        role: "assistant",
-        text: "hello final",
-        turnId: TurnId.make("turn-1"),
-        streaming: false,
-        createdAt: "2026-02-27T00:00:01.000Z",
-        updatedAt: "2026-02-27T00:00:01.000Z",
-      }),
-      localEnvironmentId,
+  it("reads the canonical sidebar summary for ref lookups", () => {
+    const summary = selectSidebarThreadSummaryByRef(
+      stateWithRunningDetailEvent(),
+      scopeThreadRef(environmentId, threadId),
     );
 
-    expect(threadsOf(next)[0]?.messages[0]?.text).toBe("hello final");
-    expect(threadsOf(next)[0]?.latestTurn?.state).toBe("completed");
-    const nextEnvironmentState = next.environmentStateById[localEnvironmentId];
-    const previousEnvironmentState = state.environmentStateById[localEnvironmentId];
-    expect(nextEnvironmentState?.threadShellById[thread2.id]).toBe(
-      previousEnvironmentState?.threadShellById[thread2.id],
-    );
-    expect(nextEnvironmentState?.threadSessionById[thread2.id]).toBe(
-      previousEnvironmentState?.threadSessionById[thread2.id],
-    );
-    expect(nextEnvironmentState?.messageIdsByThreadId[thread2.id]).toBe(
-      previousEnvironmentState?.messageIdsByThreadId[thread2.id],
-    );
-    expect(nextEnvironmentState?.messageByThreadId[thread2.id]).toBe(
-      previousEnvironmentState?.messageByThreadId[thread2.id],
-    );
-  });
-
-  it("applies replay batches in sequence and updates session state", () => {
-    const thread = makeThread({
-      latestTurn: {
-        turnId: TurnId.make("turn-1"),
-        state: "running",
-        requestedAt: "2026-02-27T00:00:00.000Z",
-        startedAt: "2026-02-27T00:00:00.000Z",
-        completedAt: null,
-        assistantMessageId: null,
-      },
-    });
-    const state = makeState(thread);
-
-    const next = applyOrchestrationEvents(
-      state,
-      [
-        makeEvent(
-          "thread.session-set",
-          {
-            threadId: thread.id,
-            session: {
-              threadId: thread.id,
-              status: "running",
-              providerName: "codex",
-              runtimeMode: "full-access",
-              activeTurnId: TurnId.make("turn-1"),
-              lastError: null,
-              updatedAt: "2026-02-27T00:00:02.000Z",
-            },
-          },
-          { sequence: 2 },
-        ),
-        makeEvent(
-          "thread.message-sent",
-          {
-            threadId: thread.id,
-            messageId: MessageId.make("assistant-1"),
-            entryId: ThreadEntryId.make("entry-assistant-1"),
-            parentEntryId: null,
-            role: "assistant",
-            text: "done",
-            turnId: TurnId.make("turn-1"),
-            streaming: false,
-            createdAt: "2026-02-27T00:00:03.000Z",
-            updatedAt: "2026-02-27T00:00:03.000Z",
-          },
-          { sequence: 3 },
-        ),
-      ],
-      localEnvironmentId,
-    );
-
-    expect(threadsOf(next)[0]?.session?.status).toBe("running");
-    expect(threadsOf(next)[0]?.latestTurn?.state).toBe("completed");
-    expect(threadsOf(next)[0]?.messages).toHaveLength(1);
+    expect(summary?.session?.orchestrationStatus).toBe("running");
+    expect(summary?.latestTurn?.state).toBe("running");
   });
 });

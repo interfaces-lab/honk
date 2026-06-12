@@ -2,8 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "jsx": "react-jsx",
     "types": ["node", "electron"],
     "lib": ["ES2023", "DOM", "esnext.disposable"]
   },
-  "include": ["src", "test", "tsdown.config.ts"]
+  "include": ["src", "test", "electron.vite.config.ts"]
 }

@@ -1,6 +1,6 @@
 import { Cause, Exit, Result, Schema } from "effect";
-import { PositiveInt, TrimmedNonEmptyString } from "@multi/contracts";
-import { decodeJsonResult, formatSchemaError } from "@multi/shared/schema-json";
+import { PositiveInt, TrimmedNonEmptyString } from "@honk/contracts";
+import { decodeJsonResult, formatSchemaError } from "@honk/shared/schema-json";
 
 export interface NormalizedGitHubPullRequestRecord {
   readonly number: number;
