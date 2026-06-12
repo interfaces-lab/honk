@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Popover, PopoverPopup, PopoverTrigger } from "@honk/multikit/popover";
+import { Popover, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
 import { openInPreferredEditor } from "../editor-preferences";
 import {
   collectWrappedTerminalLinkLine,

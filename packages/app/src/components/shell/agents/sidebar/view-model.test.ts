@@ -1,4 +1,4 @@
-import { EnvironmentId, ProjectId, ThreadId } from "@honk/contracts";
+import { EnvironmentId, ProjectId, ThreadId, TurnId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +16,7 @@ const projectId = ProjectId.make("project:workspace");
 const threadId = ThreadId.make("thread:pi-runtime");
 const olderThreadId = ThreadId.make("thread:older");
 const newerThreadId = ThreadId.make("thread:newer");
+const latestTurnId = TurnId.make("turn:running");
 const projectRef = scopeProjectRef(primaryEnvironmentId, projectId);
 const routeThreadRef = scopeThreadRef(DESKTOP_RUNTIME_ENVIRONMENT_ID, threadId);
 
@@ -170,6 +171,27 @@ describe("buildProjectChatSections", () => {
       state: "stopped",
     });
   });
+
+  it("maps running latest turns to the running sidebar state", () => {
+    const sections = buildProjectChatSections(
+      [
+        threadSummary({
+          orchestrationStatus: "ready",
+          latestTurnState: "running",
+        }),
+      ],
+      [],
+      "/repo",
+      null,
+      undefined,
+      ["/repo"],
+    );
+
+    expect(sections[0]?.items[0]).toMatchObject({
+      kind: "thread",
+      state: "running",
+    });
+  });
 });
 
 describe("getSidebarThreadModifiedAt", () => {
@@ -234,6 +256,28 @@ describe("needsSidebarAttention", () => {
             orchestrationStatus: "running",
             createdAt: "2026-01-01T00:00:00.000Z",
             updatedAt: "2026-01-02T00:00:00.000Z",
+          },
+        }),
+      ),
+    ).toBe(false);
+
+    expect(
+      needsSidebarAttention(
+        storeThreadSummary({
+          hasActionableProposedPlan: true,
+          session: {
+            status: "ready",
+            orchestrationStatus: "ready",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+          },
+          latestTurn: {
+            turnId: latestTurnId,
+            state: "running",
+            requestedAt: "2026-01-01T00:00:00.000Z",
+            startedAt: "2026-01-02T00:00:00.000Z",
+            completedAt: null,
+            assistantMessageId: null,
           },
         }),
       ),

@@ -1,6 +1,6 @@
 import { IconCollaborationPointerRight, IconFolderAddRight } from "central-icons";
 
-import { SidebarButton } from "@honk/multikit/sidebar";
+import { SidebarButton } from "@honk/honkkit/sidebar";
 
 export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?: () => void }) {
   return (

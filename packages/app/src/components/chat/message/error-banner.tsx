@@ -1,5 +1,5 @@
-import { Alert, AlertAction, AlertDescription } from "@honk/multikit/alert";
-import { Button } from "@honk/multikit/button";
+import { Alert, AlertAction, AlertDescription } from "@honk/honkkit/alert";
+import { Button } from "@honk/honkkit/button";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 
 export function ThreadErrorBanner({

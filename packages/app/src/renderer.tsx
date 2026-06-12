@@ -7,7 +7,7 @@ import "./app/appearance-boot";
 import "./local-api";
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
-import "@honk/multikit/styles.css";
+import "@honk/honkkit/styles.css";
 import "./styles/app.css";
 
 import { installDesktopActiveWorkBridge } from "./desktop-active-work-bridge";

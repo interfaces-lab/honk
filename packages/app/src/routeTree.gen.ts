@@ -16,7 +16,7 @@ import { Route as SettingsGeneralRouteImport } from './routes/settings.general'
 import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
-import { Route as DevMultikitRouteImport } from './routes/dev.multikit'
+import { Route as DevHonkkitRouteImport } from './routes/dev.honkkit'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
@@ -54,9 +54,9 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => SettingsRoute,
 } as any)
-const DevMultikitRoute = DevMultikitRouteImport.update({
-  id: '/dev/multikit',
-  path: '/dev/multikit',
+const DevHonkkitRoute = DevHonkkitRouteImport.update({
+  id: '/dev/honkkit',
+  path: '/dev/honkkit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
@@ -74,7 +74,7 @@ const ChatEnvironmentIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/multikit': typeof DevMultikitRoute
+  '/dev/honkkit': typeof DevHonkkitRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -84,7 +84,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/multikit': typeof DevMultikitRoute
+  '/dev/honkkit': typeof DevHonkkitRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -97,7 +97,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
-  '/dev/multikit': typeof DevMultikitRoute
+  '/dev/honkkit': typeof DevHonkkitRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -111,7 +111,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
-    | '/dev/multikit'
+    | '/dev/honkkit'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -121,7 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/settings'
-    | '/dev/multikit'
+    | '/dev/honkkit'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -133,7 +133,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_chat'
     | '/settings'
-    | '/dev/multikit'
+    | '/dev/honkkit'
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
@@ -146,7 +146,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
-  DevMultikitRoute: typeof DevMultikitRoute
+  DevHonkkitRoute: typeof DevHonkkitRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -200,11 +200,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAgentsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/dev/multikit': {
-      id: '/dev/multikit'
-      path: '/dev/multikit'
-      fullPath: '/dev/multikit'
-      preLoaderRoute: typeof DevMultikitRouteImport
+    '/dev/honkkit': {
+      id: '/dev/honkkit'
+      path: '/dev/honkkit'
+      fullPath: '/dev/honkkit'
+      preLoaderRoute: typeof DevHonkkitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_chat/draft/$draftId': {
@@ -259,7 +259,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
-  DevMultikitRoute: DevMultikitRoute,
+  DevHonkkitRoute: DevHonkkitRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

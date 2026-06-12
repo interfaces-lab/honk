@@ -33,6 +33,7 @@ import {
   type DraftThreadState,
   useComposerDraftStore,
 } from "~/stores/chat-drafts";
+import { useThreadSendIntentStore } from "~/stores/thread-send-intent-store";
 import { type SidebarThreadFilter, useUiStateStore } from "~/stores/ui-state-store";
 import type { Project, SidebarThreadSummary as StoreSidebarThreadSummary, Thread } from "~/types";
 import type { SidebarDraftSummary, SidebarProjectSummary, SidebarThreadSummary } from "./types";
@@ -60,6 +61,8 @@ interface VisibleSidebarDraftShell {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly worktreePath: string | null;
+  readonly submitting: boolean;
+  readonly title: string | null;
 }
 
 interface SidebarThreadVisitInput {
@@ -89,7 +92,8 @@ export function needsSidebarAttention(
   }
   if (
     sidebarThread.session?.status === "running" ||
-    sidebarThread.session?.status === "connecting"
+    sidebarThread.session?.status === "connecting" ||
+    sidebarThread.latestTurn?.state === "running"
   ) {
     return false;
   }
@@ -183,16 +187,69 @@ export function useAgentSidebarModel(input: {
   sidebarThreads: readonly StoreSidebarThreadSummary[];
 }) {
   const router = useRouter();
+  const sidebarThreadKeySet = useMemo(
+    () =>
+      new Set(
+        input.sidebarThreads.map((thread) =>
+          scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
+        ),
+      ),
+    [input.sidebarThreads],
+  );
+  const localSendArtifactEntries = useThreadSendIntentStore(
+    useShallow((store) => {
+      const entries: string[] = [];
+      const seenThreadKeys = new Set<string>();
+      for (const [threadKey, intents] of Object.entries(store.sendIntentsByThreadKey)) {
+        const title = intents?.at(-1)?.text.trim() ?? "";
+        entries.push(threadKey, title);
+        seenThreadKeys.add(threadKey);
+      }
+      for (const [threadKey, dispatch] of Object.entries(store.localDispatchByThreadKey)) {
+        if (!dispatch || seenThreadKeys.has(threadKey)) {
+          continue;
+        }
+        entries.push(threadKey, "");
+      }
+      return entries;
+    }),
+  );
+  const localSendTitleByThreadKey = useMemo(() => {
+    const titles = new Map<string, string | null>();
+    for (let index = 0; index < localSendArtifactEntries.length; index += 2) {
+      const threadKey = localSendArtifactEntries[index];
+      const title = localSendArtifactEntries[index + 1];
+      if (!threadKey) {
+        continue;
+      }
+      titles.set(threadKey, title?.trim() || null);
+    }
+    return titles;
+  }, [localSendArtifactEntries]);
   const visibleDraftShellEntries = useComposerDraftStore(
     useShallow((store) => {
       const entries: VisibleSidebarDraftShellEntry[] = [];
       for (const [draftId, draftThread] of Object.entries(store.draftThreadsByThreadKey)) {
-        // Promoted drafts are owned by their thread row; the sidebar drops them
-        // immediately. Unpromoted drafts need composer content.
-        if (draftThread.promotedTo != null) {
+        const promotedThreadKey = draftThread.promotedTo
+          ? scopedThreadKey(draftThread.promotedTo)
+          : null;
+        const draftThreadKey = scopedThreadKey(
+          scopeThreadRef(draftThread.environmentId, draftThread.threadId),
+        );
+        const hasSidebarThread = promotedThreadKey
+          ? sidebarThreadKeySet.has(promotedThreadKey)
+          : sidebarThreadKeySet.has(draftThreadKey);
+        const hasLocalSendArtifact =
+          localSendTitleByThreadKey.has(draftThreadKey) ||
+          (promotedThreadKey !== null && localSendTitleByThreadKey.has(promotedThreadKey));
+        if (hasSidebarThread) {
           continue;
         }
-        if (!composerDraftHasVisibleContent(store.draftsByThreadKey[draftId])) {
+        if (
+          draftThread.promotedTo == null &&
+          !hasLocalSendArtifact &&
+          !composerDraftHasVisibleContent(store.draftsByThreadKey[draftId])
+        ) {
           continue;
         }
         entries.push(...([draftId, draftThread] satisfies VisibleSidebarDraftShellTuple));
@@ -208,6 +265,19 @@ export function useAgentSidebarModel(input: {
       if (typeof draftId !== "string" || typeof draftThread === "string" || !draftThread) {
         continue;
       }
+      const promotedThreadKey = draftThread.promotedTo
+        ? scopedThreadKey(draftThread.promotedTo)
+        : null;
+      const draftThreadKey = scopedThreadKey(
+        scopeThreadRef(draftThread.environmentId, draftThread.threadId),
+      );
+      const localSendTitle =
+        (promotedThreadKey ? localSendTitleByThreadKey.get(promotedThreadKey) : undefined) ??
+        localSendTitleByThreadKey.get(draftThreadKey) ??
+        null;
+      const hasLocalSendArtifact =
+        localSendTitleByThreadKey.has(draftThreadKey) ||
+        (promotedThreadKey !== null && localSendTitleByThreadKey.has(promotedThreadKey));
       shells.push({
         id: draftId,
         environmentId: draftThread.environmentId,
@@ -215,10 +285,12 @@ export function useAgentSidebarModel(input: {
         createdAt: draftThread.createdAt,
         updatedAt: draftThread.updatedAt,
         worktreePath: draftThread.worktreePath,
+        submitting: draftThread.promotedTo != null || hasLocalSendArtifact,
+        title: draftThread.promotedTitle ?? localSendTitle,
       });
     }
     return shells;
-  }, [visibleDraftShellEntries]);
+  }, [localSendTitleByThreadKey, visibleDraftShellEntries]);
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
   const sidebarThreadFilters = useUiStateStore((store) => store.sidebarThreadFilters);
@@ -283,6 +355,8 @@ export function useAgentSidebarModel(input: {
               projectId: null,
               workspaceProjectRef: null,
               projectCwd: projectlessCwd,
+              title: draftShell.title,
+              state: draftShell.submitting ? "running" : "draft",
               updatedAt: draftShell.updatedAt,
             },
           ];
@@ -308,6 +382,8 @@ export function useAgentSidebarModel(input: {
             projectId: draftShell.projectId,
             workspaceProjectRef: projectRef,
             projectCwd,
+            title: draftShell.title,
+            state: draftShell.submitting ? "running" : "draft",
             updatedAt: draftShell.updatedAt,
           },
         ];

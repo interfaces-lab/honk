@@ -1,7 +1,7 @@
 "use client";
 
-import { TabsList, TabsTab } from "@honk/multikit/tabs";
-import { Button } from "@honk/multikit/button";
+import { TabsList, TabsTab } from "@honk/honkkit/tabs";
+import { Button } from "@honk/honkkit/button";
 import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
 import type { ComponentType, ReactNode } from "react";
 
@@ -13,14 +13,14 @@ import {
   WorkbenchIconButton,
   WorkbenchTabIconContent,
   workbenchIconButtonVariants,
-} from "@honk/multikit/workbench-button";
+} from "@honk/honkkit/workbench-button";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeDivider,
   WorkbenchChromeSpacer,
   workbenchChromeActionGroupVariants,
   workbenchChromeTextControlVariants,
-} from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/workbench-chrome-row";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 export interface WorkbenchTabMeta {

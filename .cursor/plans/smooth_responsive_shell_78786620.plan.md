@@ -189,14 +189,14 @@ After pointer-up (and when collapsing), `**elementRef.current.style.removeProper
 
 ### B. Overlay motion — transform, not width
 
-**Edit:** `[shell.css](packages/app/src/styles/shell.css)` + optional Multikit sheet
+**Edit:** `[shell.css](packages/app/src/styles/shell.css)` + optional HonkKit sheet
 
 - Overlay panels: `transform: translateX(±100%) → 0`, `transition: transform 200ms cubic-bezier(0.19,1,0.22,1)` (match existing right inline easing)
-- Backdrop: `opacity` fade 200ms, `bg-black/32 backdrop-blur-sm` (mirror `[dialog.tsx](packages/multikit/src/dialog.tsx)`)
+- Backdrop: `opacity` fade 200ms, `bg-black/32 backdrop-blur-sm` (mirror `[dialog.tsx](packages/honkkit/src/dialog.tsx)`)
 - `**motion-reduce:transition-none`** on all shell motion (already used on asides)
 - Disable `backdrop-filter` on `.honk-shell-sidebar` during `data-resizing` / transition (glass recomposite jank)
 
-**New tokens in** `[packages/multikit/src/styles.css](packages/multikit/src/styles.css)`:
+**New tokens in** `[packages/honkkit/src/styles.css](packages/honkkit/src/styles.css)`:
 
 ```css
 --z-index-shell-overlay-backdrop: 45;
@@ -205,7 +205,7 @@ After pointer-up (and when collapsing), `**elementRef.current.style.removeProper
 --motion-duration-drawer: 200ms;
 ```
 
-Consider thin Multikit `**Sheet**` primitive (Dialog-backed side panel) rather than ad-hoc markup — reuses Base UI enter/exit (`data-starting-style` / `data-ending-style`).
+Consider thin HonkKit `**Sheet**` primitive (Dialog-backed side panel) rather than ad-hoc markup — reuses Base UI enter/exit (`data-starting-style` / `data-ending-style`).
 
 ### C. Right workbench — stop unmounting on close
 

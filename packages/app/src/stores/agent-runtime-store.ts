@@ -1,4 +1,5 @@
 import {
+  type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
   type EnvironmentId,
   EnvironmentId as EnvironmentIdSchema,
@@ -9,6 +10,7 @@ import {
   type RuntimeThreadIdentity,
   type SessionTreeProjection,
   type ThreadId,
+  type TurnId,
 } from "@honk/contracts";
 import { create } from "zustand";
 
@@ -113,7 +115,80 @@ function runtimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
   for (const request of snapshot.pendingExtensionUiRequests) {
     threadIds.add(request.threadId);
   }
+  for (const identity of snapshot.runtimeIdentities) {
+    threadIds.add(identity.threadId);
+  }
   return threadIds;
+}
+
+export function runtimeEventsIndicateActiveAgentRun(
+  events: ReadonlyArray<AgentRuntimeEvent>,
+  threadId: ThreadId | null | undefined,
+): boolean {
+  if (!threadId) {
+    return false;
+  }
+
+  let active = false;
+  for (const event of events) {
+    if (event.threadId !== threadId) {
+      continue;
+    }
+    switch (event.type) {
+      case "agent.started":
+        active = true;
+        break;
+      case "agent.completed":
+      case "turn.interrupted":
+      case "runtime.error":
+        active = false;
+        break;
+    }
+  }
+  return active;
+}
+
+export function runtimeEventsIndicateTerminalAgentRun(
+  events: ReadonlyArray<AgentRuntimeEvent>,
+  threadId: ThreadId | null | undefined,
+): boolean {
+  if (!threadId) {
+    return false;
+  }
+
+  let terminal = false;
+  for (const event of events) {
+    if (event.threadId !== threadId) {
+      continue;
+    }
+    switch (event.type) {
+      case "agent.started":
+        terminal = false;
+        break;
+      case "agent.completed":
+      case "turn.interrupted":
+      case "runtime.error":
+        terminal = true;
+        break;
+    }
+  }
+  return terminal;
+}
+
+export function latestRuntimeEventTurnId(
+  events: ReadonlyArray<AgentRuntimeEvent>,
+  threadId: ThreadId | null | undefined,
+): TurnId | null {
+  if (!threadId) {
+    return null;
+  }
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.threadId === threadId && event.turnId) {
+      return event.turnId;
+    }
+  }
+  return null;
 }
 
 function hostOwnedRuntimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
@@ -126,6 +201,9 @@ function hostOwnedRuntimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<Threa
   }
   for (const request of snapshot.pendingExtensionUiRequests) {
     threadIds.add(request.threadId);
+  }
+  for (const identity of snapshot.runtimeIdentities) {
+    threadIds.add(identity.threadId);
   }
   return threadIds;
 }
@@ -140,6 +218,8 @@ function hostOwnedRuntimeThreadIdsForEvent(event: HonkRuntimeHostEvent): Set<Thr
       return new Set([event.timeline.threadId]);
     case "pending-extension-ui":
       return new Set(event.requests.map((request) => request.threadId));
+    case "runtime-identities":
+      return new Set(event.identities.map((identity) => identity.threadId));
     case "runtime-event":
     case "credential-auth-flows":
       return new Set();
@@ -226,6 +306,12 @@ function reduceHostEvent(
       return normalizeRuntimeHostSnapshot(event.snapshot, snapshot);
     case "runtime-event":
       return snapshot;
+    case "runtime-identities":
+      return {
+        ...snapshot,
+        runtimeIdentities: [...event.identities],
+        authStatuses: [...event.authStatuses],
+      };
     case "session-tree":
       return {
         ...snapshot,
@@ -544,6 +630,7 @@ export function selectIsRuntimeThread(
   }
   return (
     state.localRuntimeThreadIds.has(threadId) ||
+    state.snapshot.runtimeIdentities.some((identity) => identity.threadId === threadId) ||
     state.snapshot.displayTimelines.some((timeline) => timeline.threadId === threadId) ||
     state.snapshot.sessionTrees.some((tree) => tree.threadId === threadId) ||
     state.snapshot.pendingExtensionUiRequests.some((request) => request.threadId === threadId)

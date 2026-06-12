@@ -32,7 +32,7 @@ Line numbers below are from June 2026 (`bigrefactor` branch, pre-rename survey).
 - **Canonical owner**: `normalizeSearchQuery` — `packages/shared/src/search-ranking.ts` (its ranking function already documents "expects pre-normalized inputs").
 - **Duplicates to delete**:
   - `packages/app/src/components/command-palette-model.ts:50` — `normalizeSearchText` (`trim().toLowerCase().replace(/\s+/g, " ")`).
-  - Inline `query.trim().toLowerCase()` in `multikit-gallery.tsx:29`, `project-files-panel.tsx:63`, `workspace-toolbar.tsx:179–181`.
+  - Inline `query.trim().toLowerCase()` in `honkkit-gallery.tsx:29`, `project-files-panel.tsx:63`, `workspace-toolbar.tsx:179–181`.
 - **Why it must not be normalized again**: there is already a single shared home with documented pre-normalization contract; the app-side copies drifted (whitespace-collapse exists only in the app copy). Two near-equal canonicalizers guarantee eventual mismatch between what's ranked and what's displayed.
 - **Change**: reconcile the two behaviors into the `shared` function (decide once whether whitespace-collapse is part of the contract), import it everywhere, delete the app copy and the inline trims. Normalize where the query state is *set*, not where it is consumed.
 

@@ -14,7 +14,7 @@ import {
   CommandItem,
   CommandList,
   CommandPanel,
-} from "@honk/multikit/command";
+} from "@honk/honkkit/command";
 import {
   IconBarsThree,
   IconChevronLeftMedium,

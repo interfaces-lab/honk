@@ -1,6 +1,6 @@
-import { Button } from "@honk/multikit/button";
-import { Input } from "@honk/multikit/input";
-import { Text } from "@honk/multikit/text";
+import { Button } from "@honk/honkkit/button";
+import { Input } from "@honk/honkkit/input";
+import { Text } from "@honk/honkkit/text";
 import { useThrottler } from "@tanstack/react-pacer";
 import { type CSSProperties, type KeyboardEvent, useRef, useState } from "react";
 

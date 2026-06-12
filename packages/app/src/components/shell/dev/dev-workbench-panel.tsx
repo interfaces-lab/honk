@@ -8,8 +8,8 @@ import type {
   SessionTreeProjection,
   ThreadId,
 } from "@honk/contracts";
-import { ScrollArea } from "@honk/multikit/scroll-area";
-import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
+import { ScrollArea } from "@honk/honkkit/scroll-area";
+import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 import {
   IconAiTokens,
   IconBug,

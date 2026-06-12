@@ -1,6 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "multikit",
+  "style": "honkkit",
   "rsc": false,
   "tsx": true,
   "tailwind": {

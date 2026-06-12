@@ -99,7 +99,7 @@ function warnIfMissingIconButtonName({
   warnedIconButtons.add(warningKey);
 
   console.warn(
-    "Multikit Button with an icon-only size needs aria-label, aria-labelledby, or title.",
+    "HonkKit Button with an icon-only size needs aria-label, aria-labelledby, or title.",
   );
 }
 

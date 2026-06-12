@@ -14,8 +14,8 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { Button } from "@honk/multikit/button";
-import { Spinner } from "@honk/multikit/spinner";
+import { Button } from "@honk/honkkit/button";
+import { Spinner } from "@honk/honkkit/spinner";
 import {
   Menu,
   MenuGroupLabel,
@@ -26,8 +26,8 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-} from "@honk/multikit/menu";
-import { workbenchChromeTextControlVariants } from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/menu";
+import { workbenchChromeTextControlVariants } from "@honk/honkkit/workbench-chrome-row";
 import {
   IconArrowUp,
   IconBug,
@@ -319,7 +319,7 @@ function ComposerReadOnlyModelChip(props: { modelSelection: ModelSelection }) {
     <span
       className={cn(
         workbenchChromeTextControlVariants(),
-        "max-w-44 cursor-default rounded-full px-2 transition-none",
+        "max-w-44 cursor-default rounded-full px-2 transition-none hover:bg-transparent hover:text-honk-fg-secondary",
       )}
       aria-label={`Model: ${label}`}
       title={label}

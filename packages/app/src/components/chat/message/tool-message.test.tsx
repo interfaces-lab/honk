@@ -6,6 +6,7 @@ import type { WorkLogEntry } from "../../../session-logic";
 import {
   RuntimeToolCallMessage,
   ToolCallMessage,
+  runtimeToolDisplayToToolCall,
   runtimeToolItemToSubagents,
 } from "./tool-message";
 import { ToolCallRenderer } from "./tool-renderer";
@@ -184,6 +185,37 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).toContain("Ran");
     expect(html).toContain("git status --short");
     expect(html).not.toContain("M AGENTS.md");
+  });
+
+  it("keeps command chrome for runtime shell displays without command text", () => {
+    const tool: RuntimeDisplayTimelineToolItem = {
+      id: "tool:shell-output-only",
+      kind: "tool",
+      orderKey: `${createdAt}:tool:shell-output-only`,
+      createdAt,
+      toolCallId: "toolu-shell-output-only",
+      toolName: "bash",
+      status: "completed",
+      eventIds: [],
+      output: "done",
+      summary: "Completed bash",
+      display: {
+        kind: "shell",
+        output: "done",
+      },
+    };
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={runtimeToolDisplayToToolCall(tool, tool.display)}
+        conversationDensity="detailed"
+        defaultExpanded
+      />,
+    );
+
+    expect(html).toContain("data-shell-tool-call");
+    expect(html).toContain("data-shell-tool-call-output");
+    expect(html).toContain("done");
+    expect(html).not.toContain("raw");
   });
 
   it("renders runtime read display as a typed read row", () => {

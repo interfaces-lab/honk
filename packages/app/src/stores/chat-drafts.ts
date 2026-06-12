@@ -903,7 +903,6 @@ function partializeComposerDraftStoreState(
     }
     if (
       !hasComposerDraftText(draft) &&
-      draft.persistedAttachments.length === 0 &&
       draft.terminalContexts.length === 0 &&
       draft.interactionMode === null
     ) {
@@ -911,7 +910,9 @@ function partializeComposerDraftStoreState(
     }
     const persistedDraft: DeepMutable<PersistedComposerThreadDraftState> = {
       prompt: draft.prompt,
-      attachments: draft.persistedAttachments,
+      // Do not persist image data URLs in localStorage. The live File objects stay
+      // in memory until send; binary payloads are read only when submitting.
+      attachments: [],
       ...(draft.richTextJson && draft.richTextJson.length > 0
         ? { richText: draft.richTextJson }
         : {}),

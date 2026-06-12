@@ -31,13 +31,13 @@
 - Browse available icons in `node_modules/central-icons/icons-index.json`.
 - Import icons from `central-icons`.
 
-## Multikit (design system)
+## HonkKit (design system)
 
-- **Multikit** is Honk's design system. Primitives live in `@honk/multikit/*`; tokens in `@honk/multikit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
-- Browse and tweak components in dev at `/dev/multikit` (Cmd+K → "Open Multikit"). DialKit panel adjusts the active preview.
-- Prefer existing Multikit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@honk/multikit/text` is for settings and structured copy.
+- **HonkKit** is Honk's design system. Primitives live in `@honk/honkkit/*`; tokens in `@honk/honkkit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
+- Browse and tweak components in dev at `/dev/honkkit` (Cmd+K → "Open HonkKit"). DialKit panel adjusts the active preview.
+- Prefer existing HonkKit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@honk/honkkit/text` is for settings and structured copy.
 - Stack: Base UI headless + CVA variants + Tailwind v4. Icons: `central-icons` only.
-- `cn()` / `tailwind-merge` must treat `text-honk-*` size utilities separately from `text-honk-fg-*` color utilities (see `packages/multikit/src/utils.ts`).
+- `cn()` / `tailwind-merge` must treat `text-honk-*` size utilities separately from `text-honk-fg-*` color utilities (see `packages/honkkit/src/utils.ts`).
 
 ## Commands
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { WorkbenchIconButton } from "@honk/multikit/workbench-button";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 
 export function ModeButton(props: {
   active?: boolean;

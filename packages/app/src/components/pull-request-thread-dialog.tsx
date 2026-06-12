@@ -10,7 +10,7 @@ import {
 } from "~/lib/git-react-query";
 import { cn } from "~/lib/utils";
 import { parsePullRequestReference } from "~/git/pull-request-reference";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   Dialog,
   DialogDescription,
@@ -19,9 +19,9 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@honk/multikit/dialog";
-import { Input } from "@honk/multikit/input";
-import { Spinner } from "@honk/multikit/spinner";
+} from "@honk/honkkit/dialog";
+import { Input } from "@honk/honkkit/input";
+import { Spinner } from "@honk/honkkit/spinner";
 
 interface PullRequestThreadDialogProps {
   open: boolean;

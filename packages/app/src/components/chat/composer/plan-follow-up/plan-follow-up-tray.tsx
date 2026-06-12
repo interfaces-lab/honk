@@ -1,4 +1,4 @@
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
 import { useState } from "react";
 

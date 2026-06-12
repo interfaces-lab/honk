@@ -377,6 +377,13 @@ export const ThreadAgentRuntimeHydrateInput = Schema.Struct({
 });
 export type ThreadAgentRuntimeHydrateInput = typeof ThreadAgentRuntimeHydrateInput.Type;
 
+export const ThreadAgentRuntimeSetThreadFocusInput = Schema.Struct({
+  threadId: ThreadId,
+  focused: Schema.Boolean,
+});
+export type ThreadAgentRuntimeSetThreadFocusInput =
+  typeof ThreadAgentRuntimeSetThreadFocusInput.Type;
+
 export const SUBAGENT_MODES = ["single", "parallel", "chain"] as const;
 export const SubagentMode = Schema.Literals(SUBAGENT_MODES);
 export type SubagentMode = typeof SubagentMode.Type;
@@ -708,6 +715,11 @@ export const HonkRuntimeHostEvent = Schema.Union([
     event: AgentRuntimeEvent,
   }),
   Schema.Struct({
+    type: Schema.Literal("runtime-identities"),
+    identities: Schema.Array(RuntimeThreadIdentity),
+    authStatuses: Schema.Array(AgentAuthStatus),
+  }),
+  Schema.Struct({
     type: Schema.Literal("session-tree"),
     tree: SessionTreeProjection,
   }),
@@ -733,6 +745,7 @@ export interface HonkRuntimeApi {
   updatePreferences: (patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
   configureCredential: (input: AgentCredentialConfigureInput) => Promise<HonkRuntimeHostSnapshot>;
   hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
+  setThreadFocus: (input: ThreadAgentRuntimeSetThreadFocusInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;
   respondToExtensionUiRequest: (input: DesktopExtensionUiRespondInput) => Promise<void>;

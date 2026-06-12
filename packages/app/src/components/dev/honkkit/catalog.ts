@@ -1,8 +1,8 @@
 /**
- * Multikit component catalog — `@honk/multikit` primitives (Base UI + CVA + `honk-*` tokens).
+ * HonkKit component catalog — `@honk/honkkit` primitives (Base UI + CVA + `honk-*` tokens).
  */
 
-export type MultikitCategory =
+export type HonkKitCategory =
   | "actions"
   | "typography"
   | "forms"
@@ -11,21 +11,21 @@ export type MultikitCategory =
   | "overlays"
   | "feedback";
 
-export type MultikitComponent = {
+export type HonkKitComponent = {
   id: string;
   name: string;
   importPath: string;
   description: string;
 };
 
-export type MultikitCategoryGroup = {
-  id: MultikitCategory;
+export type HonkKitCategoryGroup = {
+  id: HonkKitCategory;
   label: string;
   description: string;
-  components: MultikitComponent[];
+  components: HonkKitComponent[];
 };
 
-export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
+export const HONKKIT_CATALOG: HonkKitCategoryGroup[] = [
   {
     id: "actions",
     label: "Actions",
@@ -34,49 +34,49 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "button",
         name: "Button",
-        importPath: "@honk/multikit/button",
+        importPath: "@honk/honkkit/button",
         description: "Primary action control with variant and size scales",
       },
       {
         id: "workbench-button",
         name: "Workbench Button",
-        importPath: "@honk/multikit/workbench-button",
+        importPath: "@honk/honkkit/workbench-button",
         description: "Workbench icon and text toolbar controls",
       },
       {
         id: "workbench-chrome-row",
         name: "Workbench Chrome Row",
-        importPath: "@honk/multikit/workbench-chrome-row",
+        importPath: "@honk/honkkit/workbench-chrome-row",
         description: "Workbench tool and panel row chrome",
       },
       {
         id: "sidebar",
         name: "Sidebar Item",
-        importPath: "@honk/multikit/sidebar",
+        importPath: "@honk/honkkit/sidebar",
         description: "Ghost button wrappers for agent sidebar rows",
       },
       {
         id: "group",
         name: "Button Group",
-        importPath: "@honk/multikit/group",
+        importPath: "@honk/honkkit/group",
         description: "Joined horizontal or vertical control groups",
       },
       {
         id: "split-button",
         name: "Split Button",
-        importPath: "@honk/multikit/split-button",
+        importPath: "@honk/honkkit/split-button",
         description: "Primary action joined to a menu trigger",
       },
       {
         id: "toggle",
         name: "Toggle",
-        importPath: "@honk/multikit/toggle",
+        importPath: "@honk/honkkit/toggle",
         description: "Single pressed/unpressed button control",
       },
       {
         id: "toggle-group",
         name: "Toggle Group",
-        importPath: "@honk/multikit/toggle-group",
+        importPath: "@honk/honkkit/toggle-group",
         description: "Grouped one-or-many toggle controls",
       },
     ],
@@ -89,32 +89,32 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "text",
         name: "Text",
-        importPath: "@honk/multikit/text",
+        importPath: "@honk/honkkit/text",
         description:
           "Semantic typography with size, tone, and weight. Used in settings and dev tools; most product UI uses text-body/text-detail utilities directly.",
       },
       {
         id: "link",
         name: "Link",
-        importPath: "@honk/multikit/link",
+        importPath: "@honk/honkkit/link",
         description: "Token-backed anchor styling",
       },
       {
         id: "code",
         name: "Code",
-        importPath: "@honk/multikit/code",
+        importPath: "@honk/honkkit/code",
         description: "Inline and block code display",
       },
       {
         id: "label",
         name: "Label",
-        importPath: "@honk/multikit/label",
+        importPath: "@honk/honkkit/label",
         description: "Accessible form label",
       },
       {
         id: "kbd",
         name: "Kbd",
-        importPath: "@honk/multikit/kbd",
+        importPath: "@honk/honkkit/kbd",
         description: "Keyboard shortcut styling",
       },
     ],
@@ -127,55 +127,55 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "input",
         name: "Input",
-        importPath: "@honk/multikit/input",
+        importPath: "@honk/honkkit/input",
         description: "Single-line text field",
       },
       {
         id: "input-group",
         name: "Input Group",
-        importPath: "@honk/multikit/input-group",
+        importPath: "@honk/honkkit/input-group",
         description: "Text field shell with addons and inline controls",
       },
       {
         id: "autocomplete",
         name: "Autocomplete",
-        importPath: "@honk/multikit/autocomplete",
+        importPath: "@honk/honkkit/autocomplete",
         description: "Text input with filtered suggestion popup",
       },
       {
         id: "combobox",
         name: "Combobox",
-        importPath: "@honk/multikit/combobox",
+        importPath: "@honk/honkkit/combobox",
         description: "Selectable input with listbox popup",
       },
       {
         id: "checkbox",
         name: "Checkbox",
-        importPath: "@honk/multikit/checkbox",
+        importPath: "@honk/honkkit/checkbox",
         description: "Standalone boolean checkbox",
       },
       {
         id: "radio-group",
         name: "Radio Group",
-        importPath: "@honk/multikit/radio-group",
+        importPath: "@honk/honkkit/radio-group",
         description: "Single-choice radio set",
       },
       {
         id: "textarea",
         name: "Textarea",
-        importPath: "@honk/multikit/textarea",
+        importPath: "@honk/honkkit/textarea",
         description: "Honk-line text field",
       },
       {
         id: "switch",
         name: "Switch",
-        importPath: "@honk/multikit/switch",
+        importPath: "@honk/honkkit/switch",
         description: "Boolean on/off toggle",
       },
       {
         id: "select",
         name: "Select",
-        importPath: "@honk/multikit/select",
+        importPath: "@honk/honkkit/select",
         description: "Dropdown select with SimpleSelect convenience API",
       },
     ],
@@ -188,73 +188,73 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "badge",
         name: "Badge",
-        importPath: "@honk/multikit/badge",
+        importPath: "@honk/honkkit/badge",
         description: "Small status or tag chip",
       },
       {
         id: "icon",
         name: "Icon",
-        importPath: "@honk/multikit/icon",
+        importPath: "@honk/honkkit/icon",
         description: "Central-icons sizing and tone wrapper",
       },
       {
         id: "avatar",
         name: "Avatar",
-        importPath: "@honk/multikit/avatar",
+        importPath: "@honk/honkkit/avatar",
         description: "User or agent identity image with fallback",
       },
       {
         id: "card",
         name: "Card",
-        importPath: "@honk/multikit/card",
+        importPath: "@honk/honkkit/card",
         description: "Framed display surface with header/body/footer slots",
       },
       {
         id: "layout",
         name: "Layout",
-        importPath: "@honk/multikit/layout",
+        importPath: "@honk/honkkit/layout",
         description: "Stack, Row, Grid, and Spacer structural primitives",
       },
       {
         id: "chart",
         name: "Charts",
-        importPath: "@honk/multikit/chart",
+        importPath: "@honk/honkkit/chart",
         description: "Simple bar, line, and pie chart primitives",
       },
       {
         id: "stat",
         name: "Stat",
-        importPath: "@honk/multikit/stat",
+        importPath: "@honk/honkkit/stat",
         description: "Compact label/value metric display",
       },
       {
         id: "table",
         name: "Table",
-        importPath: "@honk/multikit/table",
+        importPath: "@honk/honkkit/table",
         description: "Token-backed table elements",
       },
       {
         id: "empty",
         name: "Empty",
-        importPath: "@honk/multikit/empty",
+        importPath: "@honk/honkkit/empty",
         description: "Empty-state layout blocks",
       },
       {
         id: "separator",
         name: "Separator",
-        importPath: "@honk/multikit/separator",
+        importPath: "@honk/honkkit/separator",
         description: "Visual divider",
       },
       {
         id: "skeleton",
         name: "Skeleton",
-        importPath: "@honk/multikit/skeleton",
+        importPath: "@honk/honkkit/skeleton",
         description: "Loading placeholder",
       },
       {
         id: "scroll-area",
         name: "Scroll Area",
-        importPath: "@honk/multikit/scroll-area",
+        importPath: "@honk/honkkit/scroll-area",
         description: "Custom scroll container",
       },
     ],
@@ -267,13 +267,13 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "tabs",
         name: "Tabs",
-        importPath: "@honk/multikit/tabs",
+        importPath: "@honk/honkkit/tabs",
         description: "Segmented or underline tab navigation",
       },
       {
         id: "collapsible",
         name: "Collapsible",
-        importPath: "@honk/multikit/collapsible",
+        importPath: "@honk/honkkit/collapsible",
         description: "Expand/collapse section",
       },
     ],
@@ -286,49 +286,49 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "dialog",
         name: "Dialog",
-        importPath: "@honk/multikit/dialog",
+        importPath: "@honk/honkkit/dialog",
         description: "Modal dialog stack",
       },
       {
         id: "alert-dialog",
         name: "Alert Dialog",
-        importPath: "@honk/multikit/alert-dialog",
+        importPath: "@honk/honkkit/alert-dialog",
         description: "Confirmation-style modal",
       },
       {
         id: "popover",
         name: "Popover",
-        importPath: "@honk/multikit/popover",
+        importPath: "@honk/honkkit/popover",
         description: "Anchored floating panel",
       },
       {
         id: "tooltip",
         name: "Tooltip",
-        importPath: "@honk/multikit/tooltip",
+        importPath: "@honk/honkkit/tooltip",
         description: "Hover/focus tooltips",
       },
       {
         id: "hover-card",
         name: "Hover Card",
-        importPath: "@honk/multikit/hover-card",
+        importPath: "@honk/honkkit/hover-card",
         description: "Preview surface for richer hover/focus context",
       },
       {
         id: "menu",
         name: "Menu",
-        importPath: "@honk/multikit/menu",
+        importPath: "@honk/honkkit/menu",
         description: "Dropdown and submenu",
       },
       {
         id: "context-menu",
         name: "Context Menu",
-        importPath: "@honk/multikit/context-menu",
+        importPath: "@honk/honkkit/context-menu",
         description: "Right-click and long-press menu surface",
       },
       {
         id: "command",
         name: "Command",
-        importPath: "@honk/multikit/command",
+        importPath: "@honk/honkkit/command",
         description: "Command palette and composer command list primitives",
       },
     ],
@@ -341,41 +341,41 @@ export const MULTIKIT_CATALOG: MultikitCategoryGroup[] = [
       {
         id: "alert",
         name: "Alert",
-        importPath: "@honk/multikit/alert",
+        importPath: "@honk/honkkit/alert",
         description: "Inline status banner",
       },
       {
         id: "status-dot",
         name: "Status Dot",
-        importPath: "@honk/multikit/status-dot",
+        importPath: "@honk/honkkit/status-dot",
         description: "Thread or provider state indicator",
       },
       {
         id: "spinner",
         name: "Spinner",
-        importPath: "@honk/multikit/spinner",
+        importPath: "@honk/honkkit/spinner",
         description: "Loading indicator",
       },
       {
         id: "toast",
         name: "Toast",
-        importPath: "@honk/multikit/toast",
+        importPath: "@honk/honkkit/toast",
         description: "Toast chrome and action slots",
       },
       {
         id: "tool-call",
         name: "Tool Call",
-        importPath: "@honk/multikit/tool-call",
+        importPath: "@honk/honkkit/tool-call",
         description: "Chat tool-call line chrome",
       },
     ],
   },
 ];
 
-export const MULTIKIT_COMPONENTS = MULTIKIT_CATALOG.flatMap((group) => group.components);
+export const HONKKIT_COMPONENTS = HONKKIT_CATALOG.flatMap((group) => group.components);
 
-export function findMultikitComponent(id: string): MultikitComponent | undefined {
-  return MULTIKIT_COMPONENTS.find((entry) => entry.id === id);
+export function findHonkKitComponent(id: string): HonkKitComponent | undefined {
+  return HONKKIT_COMPONENTS.find((entry) => entry.id === id);
 }
 
-export const DEFAULT_MULTIKIT_COMPONENT_ID = "button";
+export const DEFAULT_HONKKIT_COMPONENT_ID = "button";

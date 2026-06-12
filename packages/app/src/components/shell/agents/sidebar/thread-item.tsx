@@ -1,6 +1,6 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@honk/contracts";
-import { SidebarButton, SidebarItem } from "@honk/multikit/sidebar";
+import { SidebarButton, SidebarItem } from "@honk/honkkit/sidebar";
 import { IconArchive1, IconPin, IconUnpin } from "central-icons";
 import { type KeyboardEvent, memo, type MouseEvent, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -27,6 +27,13 @@ function useDraftSidebarTitle(item: DraftSidebarChatItem): string {
   return useComposerDraftStore((store) => {
     const draft = store.draftsByThreadKey[item.id];
     if (!draft) return item.title;
+    const hasVisibleDraftContent =
+      draft.prompt.trim().length > 0 ||
+      draft.images.length > 0 ||
+      draft.persistedAttachments.length > 0;
+    if (!hasVisibleDraftContent && item.title.trim().length > 0) {
+      return item.title;
+    }
     const firstAttachment = draft.images[0] ?? draft.persistedAttachments[0];
     return deriveSidebarDraftTitle({
       text: draft.prompt,

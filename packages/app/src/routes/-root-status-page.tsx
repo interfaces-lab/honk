@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 
 export interface RootStatusAction {
   readonly label: ReactNode;

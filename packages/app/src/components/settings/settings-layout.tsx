@@ -2,9 +2,9 @@ import { IconStepBack } from "central-icons";
 import { type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
-import { Button } from "@honk/multikit/button";
-import { Text, textVariants } from "@honk/multikit/text";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Text, textVariants } from "@honk/honkkit/text";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 
 export function SettingsSection({
   title,

@@ -1,5 +1,5 @@
-import { Button } from "@honk/multikit/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {

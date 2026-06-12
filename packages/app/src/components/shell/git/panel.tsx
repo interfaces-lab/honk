@@ -25,7 +25,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   Menu,
   MenuCheckboxItem,
@@ -39,7 +39,7 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-} from "@honk/multikit/menu";
+} from "@honk/honkkit/menu";
 import {
   Dialog,
   DialogDescription,
@@ -47,7 +47,7 @@ import {
   DialogHeader,
   DialogPopup,
   DialogTitle,
-} from "@honk/multikit/dialog";
+} from "@honk/honkkit/dialog";
 
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
 import {
@@ -79,8 +79,8 @@ import { GitImageView } from "./git-image-view";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeRow,
-} from "@honk/multikit/workbench-chrome-row";
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
+} from "@honk/honkkit/workbench-chrome-row";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 type GitChangesFilter = "uncommitted" | "unstaged" | "staged" | "branch";

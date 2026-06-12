@@ -193,6 +193,36 @@ describe("tool renderer conversation density", () => {
     expect(html).toContain("modified in git");
   });
 
+  it("renders expanded read output as a file-extension shiki codeblock", () => {
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "readToolCall",
+            value: {
+              action: "Read",
+              details: "packages/app/src/components/chat/message/tool-renderer.tsx",
+              path: "packages/app/src/components/chat/message/tool-renderer.tsx",
+              output: "export function ToolCallRenderer() {}",
+              artifacts: [
+                {
+                  type: "read",
+                  path: "packages/app/src/components/chat/message/tool-renderer.tsx",
+                  output: "export function ToolCallRenderer() {}",
+                },
+              ],
+            },
+          },
+        }}
+        defaultExpanded
+      />,
+    );
+
+    expect(html).toContain("chat-markdown-codeblock");
+    expect(html).toContain("language-tsx");
+    expect(html).not.toContain("language-code");
+  });
+
   it("renders detailed edits with diff artifacts in a bordered preview", () => {
     const html = renderToStaticMarkup(
       <ToolCallRenderer
@@ -220,6 +250,38 @@ describe("tool renderer conversation density", () => {
       />,
     );
 
+    expect(html).toContain("border-honk-stroke-secondary");
+    expect(html).toContain("-old line");
+  });
+
+  it("renders compact edits with diff artifacts in a bordered preview", () => {
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "editToolCall",
+            value: {
+              action: "Edited",
+              details: "math.ts",
+              path: "math.ts",
+              stats: { additions: 4, deletions: 1 },
+              artifacts: [
+                {
+                  type: "diff",
+                  format: "unified",
+                  source: "result",
+                  files: [{ path: "math.ts", additions: 4, deletions: 1 }],
+                  unifiedDiff: "@@ -1,3 +1,3 @@\n-old line\n+new line\n",
+                },
+              ],
+            },
+          },
+        }}
+        conversationDensity="compact-all-grouped"
+      />,
+    );
+
+    expect(html).toContain("data-tool-call-line-chevron");
     expect(html).toContain("border-honk-stroke-secondary");
     expect(html).toContain("-old line");
   });

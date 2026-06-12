@@ -1,5 +1,5 @@
-import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/multikit/menu";
-import { SidebarItem } from "@honk/multikit/sidebar";
+import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/honkkit/menu";
+import { SidebarItem } from "@honk/honkkit/sidebar";
 import { IconChevronRightMedium, IconFilter2, IconFolderAddRight } from "central-icons";
 import { type DragEvent, useCallback, useId, useMemo, useState } from "react";
 

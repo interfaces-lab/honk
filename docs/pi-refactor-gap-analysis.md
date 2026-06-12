@@ -16,7 +16,7 @@ Verified, leave alone:
 - **`@honk/server → @honk/app`** turned out to be devDependencies-only, zero src imports. Non-issue.
 - **Config is lean** — no dead knobs found in server config.
 - **Hand-rolled small primitives** (`TrailingThrottle`, `mapWithConcurrency`, `boundedPush`) are pi-style ("one small primitive over a dependency"). Keep them plain; do *not* replace with Effect `Schedule` machinery.
-- **multikit / client-runtime**: zero Effect, plain components. Fine.
+- **honkkit / client-runtime**: zero Effect, plain components. Fine.
 
 The gap is not style. It is **four architectural divergences**, three of which are subtraction.
 
@@ -124,6 +124,6 @@ Change: keep an incremental projection state per thread (enabled by 1.3's single
 | 5 | Desktop main → Effect, converging file-by-file with t3code | 33/50 files have a working Effect reference of the same name; do it as files get touched, lifecycle/IPC/backend-manager first |
 | 6 | 2.3 subagent isolation via the effect-acp-style scoped-subprocess bridge | Existing workstream; lands on 2.1's extracted phases and step 5's patterns |
 
-**Anti-goals** (laziness protocol): no Effect removal from server; no Effect in renderer/preload/`app`/`multikit` (t3code keeps these plain too); no TypeBox introduction alongside Schema; no new abstraction layers "to match pi" (pi's lesson is *fewer* layers); no big-bang desktop rewrite — converge per-file with the t3code reference; no touching `thread-sync.ts`/`session-logic.ts` (3.9k/3.7k lines) until a real task requires it — size alone isn't a defect in pi's book, a 1,225-line provider file is fine when it's one self-contained unit.
+**Anti-goals** (laziness protocol): no Effect removal from server; no Effect in renderer/preload/`app`/`honkkit` (t3code keeps these plain too); no TypeBox introduction alongside Schema; no new abstraction layers "to match pi" (pi's lesson is *fewer* layers); no big-bang desktop rewrite — converge per-file with the t3code reference; no touching `thread-sync.ts`/`session-logic.ts` (3.9k/3.7k lines) until a real task requires it — size alone isn't a defect in pi's book, a 1,225-line provider file is fine when it's one self-contained unit.
 
 The 30-second test after Tiers 1–2: "where does a timeline item come from?" → one classify function, one accumulator. "What can change runtime state?" → named phase functions with typed results, not 13 arrays.

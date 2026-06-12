@@ -94,8 +94,8 @@ import {
   CommandPanel,
   CommandShortcut,
   CommandShortcutKey,
-} from "@honk/multikit/command";
-import { Button } from "@honk/multikit/button";
+} from "@honk/honkkit/command";
+import { Button } from "@honk/honkkit/button";
 import { toastManager } from "~/app/toast";
 import {
   ComposerHandleContext,
@@ -883,23 +883,23 @@ function OpenCommandPaletteDialog() {
   if (import.meta.env.DEV) {
     actionItems.push({
       kind: "action",
-      value: "action:dev:multikit",
+      value: "action:dev:honkkit",
       searchTerms: [
-        "multikit",
+        "honkkit",
         "design system",
         "components",
         "component gallery",
         "ui",
         "primitives",
-        "@honk/multikit",
+        "@honk/honkkit",
         "dialkit",
         "dev",
       ],
-      title: "Open Multikit",
-      description: "Browse the Multikit design system with DialKit (dev)",
+      title: "Open HonkKit",
+      description: "Browse the HonkKit design system with DialKit (dev)",
       icon: <IconSettingsSliderHor className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
-        await navigate({ to: "/dev/multikit" });
+        await navigate({ to: "/dev/honkkit" });
       },
     });
 

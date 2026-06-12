@@ -1,5 +1,5 @@
 import { type EnvironmentId, type ThreadId } from "@honk/contracts";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -577,16 +577,22 @@ function WorkGroupPreview({
       }}
       data-work-group-preview=""
       {...(previewScrollable ? { "data-work-group-preview-dimmed": "" } : {})}
-      className="flex w-full min-h-0 max-w-full cursor-pointer flex-col gap-(--chat-timeline-step-gap) overflow-x-hidden overflow-y-auto [overflow-anchor:none] scrollbar-thin"
+      className="relative w-full min-h-0 max-w-full cursor-default overflow-x-hidden overflow-y-auto [overflow-anchor:none] scrollbar-thin"
     >
-      {previewSteps.map((step) => (
-        <WorkGroupPreviewStep
-          key={`work-preview-row:${step.id}`}
-          step={step}
-          ctx={ctx}
-          showOutputStrip={step.id === lastRunningOutputStepId}
-        />
-      ))}
+      <div
+        inert
+        data-work-group-preview-content=""
+        className="pointer-events-none flex min-w-0 max-w-full flex-col gap-(--chat-timeline-step-gap)"
+      >
+        {previewSteps.map((step) => (
+          <WorkGroupPreviewStep
+            key={`work-preview-row:${step.id}`}
+            step={step}
+            ctx={ctx}
+            showOutputStrip={step.id === lastRunningOutputStepId}
+          />
+        ))}
+      </div>
     </div>
   );
 }

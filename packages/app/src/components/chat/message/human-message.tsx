@@ -1,5 +1,5 @@
 import { type MessageId } from "@honk/contracts";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   IconBranch,
   IconCloudUpload,
@@ -67,7 +67,7 @@ export function HumanMessage({
 
   const media =
     userImages.length > 0 ? (
-      <div className="mb-2 grid max-w-md grid-cols-2 gap-2">
+      <div className="mb-2 flex max-w-full flex-wrap gap-2">
         {userImages.map((image) => (
           <HumanMessageImageAttachment
             key={image.id}
@@ -136,7 +136,7 @@ function HumanMessageImageAttachment(props: {
   const previewSrc = useAuthenticatedImagePreviewSrc(props.image.previewUrl);
 
   return (
-    <div className="overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-(--honk-message-bubble-background)">
+    <div className="size-14 shrink-0 overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-(--honk-message-bubble-background)">
       {previewSrc ? (
         <Button
           type="button"
@@ -149,11 +149,11 @@ function HumanMessageImageAttachment(props: {
             props.onImageExpand(preview);
           }}
         >
-          <img src={previewSrc} alt={props.image.name} className="block h-8 w-full object-cover" />
+          <img src={previewSrc} alt={props.image.name} className="block size-full object-cover" />
         </Button>
       ) : (
-        <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-honk-fg-tertiary">
-          {props.image.name}
+        <div className="flex size-full items-center justify-center px-1 text-center text-caption text-honk-fg-tertiary">
+          <span className="min-w-0 max-w-full truncate">{props.image.name}</span>
         </div>
       )}
     </div>

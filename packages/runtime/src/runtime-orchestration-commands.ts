@@ -11,6 +11,7 @@ import {
   type SessionTreeProjection,
   type ThreadEntryId,
   type ThreadId,
+  type ToolLifecycleItemType,
 } from "@honk/contracts";
 import { toJsonValue } from "@honk/shared/schema-json";
 import { Schema } from "effect";
@@ -32,6 +33,10 @@ export function runtimeAssistantEntryIngestionKey(
   entry: SessionTreeEntry,
 ): string {
   return `${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function asTrimmedString(value: unknown): string | null {
@@ -130,47 +135,120 @@ export function runtimeSessionTreeAssistantCompleteCommands(input: {
   return commands;
 }
 
+function runtimeToolItemTypeForName(toolName: string): ToolLifecycleItemType {
+  switch (toolName) {
+    case "bash":
+    case "shell":
+      return "command_execution";
+    case "read":
+      return "file_read";
+    case "grep":
+    case "find":
+    case "ls":
+      return "file_search";
+    case "edit":
+    case "write":
+      return "file_change";
+    case "subagent":
+      return "collab_agent_tool_call";
+    default:
+      return "dynamic_tool_call";
+  }
+}
+
+function compactSubagentParentRun(
+  value: unknown,
+  fallbackState: "completed" | "failed",
+): Record<string, unknown> | null {
+  const run = asRecord(value);
+  if (!run) {
+    return null;
+  }
+  const subagentThreadId = asTrimmedString(run.subagentThreadId);
+  if (!subagentThreadId) {
+    return null;
+  }
+  const agentId = asTrimmedString(run.agentId);
+  const nickname = asTrimmedString(run.nickname);
+  const role = asTrimmedString(run.role);
+  const model = asTrimmedString(run.model);
+  const prompt = asTrimmedString(run.prompt);
+  const state = asTrimmedString(run.state) ?? fallbackState;
+  const errorMessage = asTrimmedString(run.errorMessage);
+  return {
+    subagentThreadId,
+    ...(agentId ? { agentId } : {}),
+    ...(nickname ? { nickname } : {}),
+    ...(role ? { role } : {}),
+    ...(model ? { model } : {}),
+    ...(prompt ? { prompt } : {}),
+    state,
+    finalText: null,
+    errorMessage: errorMessage ?? null,
+  };
+}
+
+function compactSubagentParentItem(
+  record: Record<string, unknown>,
+  fallbackState: "completed" | "failed",
+): Record<string, unknown> | null {
+  const result = asRecord(record.result);
+  const details = asRecord(result?.details);
+  const rawRuns = Array.isArray(details?.runs) ? details.runs : [];
+  const runs = rawRuns
+    .map((run) => compactSubagentParentRun(run, fallbackState))
+    .filter((run): run is Record<string, unknown> => run !== null);
+  if (runs.length === 0) {
+    return null;
+  }
+  return {
+    tool: "subagent",
+    details: { runs },
+  };
+}
+
 export function runtimeToolCompletedActivities(
   event: AgentRuntimeEvent,
 ): OrchestrationThreadActivity[] {
   if (event.type !== "tool.completed") {
     return [];
   }
-  const subagentActivities = runtimeSubagentActivitiesForToolEvent(event);
-  if (subagentActivities.length > 0) {
-    return subagentActivities;
-  }
-  const data = event.data && typeof event.data === "object" ? event.data : {};
-  const record = data as Record<string, unknown>;
+  const record = asRecord(event.data) ?? {};
   const toolName = asTrimmedString(record.toolName) ?? "tool";
   const toolCallId = asTrimmedString(record.toolCallId) ?? event.id;
   const isError = record.isError === true;
   const summary = asTrimmedString(event.summary) ?? (isError ? "Tool failed" : "Tool completed");
   const detail = typeof event.summary === "string" ? event.summary : undefined;
-  return [
-    {
-      id: EventId.make(`runtime-activity:${event.id}`),
-      tone: isError ? ("error" as const) : ("tool" as const),
-      kind: "tool.completed",
-      summary,
-      payload: {
-        itemId: toolCallId,
-        status: isError ? "error" : "completed",
-        title: toolName,
-        ...(detail !== undefined ? { detail } : {}),
-        data:
-          toJsonValue({
-            toolCallId,
-            toolName,
-            isError,
-            ...(record.args !== undefined ? { args: record.args } : {}),
-            ...(record.result !== undefined ? { result: record.result } : {}),
-          }) ?? null,
-      },
-      turnId: event.turnId ?? null,
-      createdAt: event.createdAt,
+  const subagentActivities = runtimeSubagentActivitiesForToolEvent(event);
+  const subagentParentItem =
+    toolName === "subagent"
+      ? compactSubagentParentItem(record, isError ? "failed" : "completed")
+      : null;
+  const activity: OrchestrationThreadActivity = {
+    id: EventId.make(`runtime-activity:${event.id}`),
+    tone: isError ? ("error" as const) : ("tool" as const),
+    kind: "tool.completed",
+    summary,
+    payload: {
+      itemId: toolCallId,
+      itemType: runtimeToolItemTypeForName(toolName),
+      status: isError ? "error" : "completed",
+      title: toolName,
+      ...(detail !== undefined ? { detail } : {}),
+      data:
+        toJsonValue({
+          toolCallId,
+          toolName,
+          isError,
+          ...(record.args !== undefined ? { args: record.args } : {}),
+          ...(subagentParentItem ? { item: subagentParentItem } : {}),
+          ...(!subagentParentItem && record.result !== undefined ? { result: record.result } : {}),
+        }) ?? null,
     },
-  ];
+    turnId: event.turnId ?? null,
+    createdAt: subagentActivities[0]?.createdAt ?? event.createdAt,
+  };
+  return subagentActivities.length > 0 ? [activity, ...subagentActivities] : [activity];
 }
 
 export function runtimeContextWindowActivities(

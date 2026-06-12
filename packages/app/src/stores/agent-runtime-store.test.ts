@@ -7,6 +7,7 @@ import {
   ThreadEntryId,
   ThreadId,
   TurnId,
+  type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
   type SessionTreeProjection,
   type RuntimeDisplayTimelineProjection,
@@ -17,7 +18,13 @@ import { __resetEnvironmentApiOverridesForTests } from "../environment-api";
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
 import { createEmptyRuntimeHostSnapshot } from "../lib/honk-runtime-api";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
-import { selectIsRuntimeThread, useAgentRuntimeStore } from "./agent-runtime-store";
+import {
+  latestRuntimeEventTurnId,
+  runtimeEventsIndicateActiveAgentRun,
+  runtimeEventsIndicateTerminalAgentRun,
+  selectIsRuntimeThread,
+  useAgentRuntimeStore,
+} from "./agent-runtime-store";
 import { initialState, selectEnvironmentState, useStore } from "./thread-store";
 
 const threadId = ThreadId.make("thread:agent-runtime-store");
@@ -666,6 +673,39 @@ describe("agent runtime store", () => {
     expect(selectIsRuntimeThread(useAgentRuntimeStore.getState(), threadId)).toBe(true);
   });
 
+  it("updates runtime identities and clears local ownership from scoped identity events", () => {
+    useAgentRuntimeStore.getState().markLocalRuntimeThread(threadId);
+    const authStatus = {
+      authProviderId: AuthProviderId.make("openai-codex"),
+      credentialKind: "codex-oauth",
+      accountId: null,
+      state: "available",
+      label: "Codex",
+      message: "Signed in.",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    } as const;
+
+    useAgentRuntimeStore.getState().applyHostEvent({
+      type: "runtime-identities",
+      identities: [
+        {
+          threadId,
+          runtimeSessionId,
+          authProviderId: AuthProviderId.make("openai-codex"),
+          modelId: null,
+        },
+      ],
+      authStatuses: [authStatus],
+    });
+
+    expect(useAgentRuntimeStore.getState().snapshot.runtimeIdentities).toEqual([
+      expect.objectContaining({ threadId, runtimeSessionId }),
+    ]);
+    expect(useAgentRuntimeStore.getState().snapshot.authStatuses).toEqual([authStatus]);
+    expect(useAgentRuntimeStore.getState().localRuntimeThreadIds.has(threadId)).toBe(false);
+    expect(selectIsRuntimeThread(useAgentRuntimeStore.getState(), threadId)).toBe(true);
+  });
+
   it("recognizes runtime thread ownership from host session trees", () => {
     useAgentRuntimeStore.getState().applyHostEvent({
       type: "session-tree",
@@ -748,5 +788,68 @@ describe("agent runtime store", () => {
     });
 
     expect(currentThread().session?.status).toBe("ready");
+  });
+
+  it("tracks active agent runs across turn boundaries", () => {
+    const agentStartedEvent = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:agent-store:agent-started"),
+      type: "agent.started",
+    } satisfies AgentRuntimeEvent;
+    const turnCompletedEvent = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:agent-store:turn-completed"),
+      type: "turn.completed",
+    } satisfies AgentRuntimeEvent;
+    const toolCompletedEvent = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:agent-store:tool-completed-active-run"),
+      type: "tool.completed",
+      data: { toolCallId: "tool-1", toolName: "read" },
+    } satisfies AgentRuntimeEvent;
+    const agentCompletedEvent = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:agent-store:agent-completed"),
+      type: "agent.completed",
+    } satisfies AgentRuntimeEvent;
+
+    expect(
+      runtimeEventsIndicateActiveAgentRun(
+        [agentStartedEvent, turnCompletedEvent, toolCompletedEvent],
+        threadId,
+      ),
+    ).toBe(true);
+    expect(
+      runtimeEventsIndicateTerminalAgentRun(
+        [agentStartedEvent, turnCompletedEvent, toolCompletedEvent],
+        threadId,
+      ),
+    ).toBe(false);
+    expect(
+      runtimeEventsIndicateActiveAgentRun(
+        [agentStartedEvent, turnCompletedEvent, agentCompletedEvent],
+        threadId,
+      ),
+    ).toBe(false);
+    expect(
+      runtimeEventsIndicateTerminalAgentRun(
+        [agentStartedEvent, turnCompletedEvent, agentCompletedEvent],
+        threadId,
+      ),
+    ).toBe(true);
+  });
+
+  it("resolves the latest runtime event turn id for interruption fallback", () => {
+    const nextTurnId = TurnId.make("turn:agent-runtime-store:next");
+    const nextTurnEvent = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:agent-store:next-turn"),
+      turnId: nextTurnId,
+    } satisfies AgentRuntimeEvent;
+
+    expect(latestRuntimeEventTurnId([turnStartedEventPrototype, nextTurnEvent], threadId)).toBe(
+      nextTurnId,
+    );
+    expect(latestRuntimeEventTurnId([nextTurnEvent], ThreadId.make("thread:other"))).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import {
   type RuntimeDisplayTimelineToolItem,
   type ThreadId,
 } from "@honk/contracts";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   IconBubbleQuestion,
   IconChevronRightMedium,
@@ -452,26 +452,11 @@ function runtimeShellDisplayToToolCall(
   tool: RuntimeDisplayTimelineToolItem,
   display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "shell" }>,
 ): ToolCallModel {
-  const command = runtimeTrimmedString(display.command);
+  const command = runtimeTrimmedString(display.command) ?? "";
   const output = runtimeTrimmedString(display.output);
-  if (!command) {
-    return {
-      tool: {
-        case: "unknownToolCall",
-        value: {
-          action: runtimeToolAction(tool),
-          details: tool.toolName,
-          output: output ?? null,
-          ...(output
-            ? { artifacts: [{ type: "raw", text: output } satisfies ToolDisplayArtifact] }
-            : {}),
-        },
-      },
-    };
-  }
   const artifact: ToolDisplayArtifact = {
     type: "command",
-    command,
+    ...(command ? { command } : {}),
     ...(output ? { output } : {}),
     ...(display.exitCode !== undefined ? { exitCode: display.exitCode } : {}),
     isPartial: tool.isPartial === true,
@@ -482,7 +467,7 @@ function runtimeShellDisplayToToolCall(
       value: {
         action: runtimeToolAction(tool),
         details: command,
-        command,
+        command: command || null,
         output: output ?? null,
         artifacts: [artifact],
       },
@@ -938,7 +923,7 @@ function toToolCall(workEntry: WorkLogEntry, projectRoot: string | undefined): T
     ) ??
     workEntry.artifacts?.find((artifact): artifact is ToolDiffArtifact => artifact.type === "diff");
   const readArtifact = workEntry.artifacts?.find((artifact) => artifact.type === "read");
-  const command = commandArtifact?.command ?? workEntry.command ?? null;
+  const command = commandArtifact?.command ?? workEntry.command ?? workEntry.rawCommand ?? null;
   const output = resolveOutput(workEntry, toolCase, workEntry.artifacts);
   const firstChangedFile =
     workEntry.changedFiles?.[0] ?? diffArtifact?.files[0]?.path ?? readArtifact?.path ?? null;

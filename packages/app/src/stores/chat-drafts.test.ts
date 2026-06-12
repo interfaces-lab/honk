@@ -5,6 +5,7 @@ import { scopeProjectRef, scopeThreadRef, scopedThreadKey } from "../lib/environ
 import { newThreadId } from "../lib/utils";
 import { DEFAULT_INTERACTION_MODE } from "../types";
 import {
+  type ComposerImageAttachment,
   type DraftId,
   DraftId as DraftIdSchema,
   finalizePromotedDraftThreadByRef,
@@ -154,5 +155,33 @@ describe("chat drafts", () => {
     expect(saved?.prompt).toBe("");
     expect(saved?.richTextJson).toBeNull();
     expect(saved?.interactionMode).toBe(DEFAULT_INTERACTION_MODE);
+  });
+
+  it("keeps image attachment files out of persisted composer drafts", async () => {
+    const projectRef = scopeProjectRef(environmentId, projectId);
+    const draft = openProjectNewThreadDraft(projectRef);
+    const store = useComposerDraftStore.getState();
+    const image: ComposerImageAttachment = {
+      type: "image",
+      id: "image-paste",
+      name: "paste.png",
+      mimeType: "image/png",
+      sizeBytes: 4,
+      previewUrl: "blob:honk-test",
+      file: new File(["data"], "paste.png", { type: "image/png" }),
+    };
+
+    store.setPrompt(draft.draftId, "Describe this image");
+    store.addImage(draft.draftId, image);
+    expect(store.getComposerDraft(draft.draftId)?.images).toEqual([image]);
+
+    flushComposerDraftStorage();
+    resetComposerDraftStore();
+    await useComposerDraftStore.persist.rehydrate();
+
+    const restored = useComposerDraftStore.getState().getComposerDraft(draft.draftId);
+    expect(restored?.prompt).toBe("Describe this image");
+    expect(restored?.images).toEqual([]);
+    expect(restored?.persistedAttachments).toEqual([]);
   });
 });

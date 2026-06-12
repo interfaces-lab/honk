@@ -6,6 +6,7 @@ import {
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineProjection,
   type RuntimeSessionId,
+  type TurnId,
 } from "@honk/contracts";
 
 import { resolveWaitingTimelineStatus } from "../message/waiting-status";
@@ -243,6 +244,53 @@ export function runtimeDisplayTimelineHasResponseItem(
   });
 }
 
+export function runtimeDisplayTimelineHasActiveWork(
+  timeline: RuntimeDisplayTimelineProjection | null | undefined,
+): boolean {
+  if (!timeline) {
+    return false;
+  }
+  return timeline.items.some(runtimeDisplayTimelineItemHasActiveWork);
+}
+
+export function runtimeDisplayTimelineActiveTurnId(
+  timeline: RuntimeDisplayTimelineProjection | null | undefined,
+): TurnId | null {
+  if (!timeline) {
+    return null;
+  }
+  for (let index = timeline.items.length - 1; index >= 0; index -= 1) {
+    const item = timeline.items[index];
+    if (item && runtimeDisplayTimelineItemHasActiveWork(item) && item.turnId) {
+      return item.turnId;
+    }
+  }
+  for (let index = timeline.items.length - 1; index >= 0; index -= 1) {
+    const item = timeline.items[index];
+    if (item?.turnId) {
+      return item.turnId;
+    }
+  }
+  return null;
+}
+
+function runtimeDisplayTimelineItemHasActiveWork(item: RuntimeDisplayTimelineItem): boolean {
+  switch (item.kind) {
+    case "message":
+      return item.streaming === true;
+    case "tool":
+      return (
+        item.status === "running" ||
+        (item.display.kind === "subagent" &&
+          item.display.runs.some((run) => run.state === "running"))
+      );
+    case "extension-ui-request":
+      return item.status === "pending";
+    case "proposed-plan":
+      return false;
+  }
+}
+
 export function runtimeDisplayTimelineRenderableUserMessageIds(
   timeline: RuntimeDisplayTimelineProjection | null | undefined,
 ): ReadonlySet<MessageId> {
@@ -428,6 +476,29 @@ function mergeRunningWorkLogEntriesIntoRuntimeTimeline(input: {
   readonly runtimeEntries: ReadonlyArray<TimelineEntry>;
   readonly committedEntries: ReadonlyArray<TimelineEntry>;
 }): TimelineEntry[] {
+  const committedWorkEntriesByToolCallId = new Map<
+    string,
+    Extract<TimelineEntry, { kind: "work" }>
+  >();
+  for (const entry of input.committedEntries) {
+    if (entry.kind === "work" && entry.entry.toolCallId) {
+      committedWorkEntriesByToolCallId.set(entry.entry.toolCallId, entry);
+    }
+  }
+
+  const replacedCommittedEntryIds = new Set<string>();
+  const runtimeEntries = input.runtimeEntries.map((entry): TimelineEntry => {
+    if (entry.kind !== "runtime-tool") {
+      return entry;
+    }
+    const committedEntry = committedWorkEntriesByToolCallId.get(entry.tool.toolCallId);
+    if (!committedEntry || !shouldPreferCommittedWorkEntryForRuntimeTool(entry, committedEntry)) {
+      return entry;
+    }
+    replacedCommittedEntryIds.add(committedEntry.id);
+    return committedEntry;
+  });
+
   const runtimeToolCallIds = new Set(
     input.runtimeEntries.flatMap((entry) =>
       entry.kind === "runtime-tool" ? [entry.tool.toolCallId] : [],
@@ -441,16 +512,47 @@ function mergeRunningWorkLogEntriesIntoRuntimeTimeline(input: {
   const supplementalWorkEntries = input.committedEntries.filter(
     (entry): entry is Extract<TimelineEntry, { kind: "work" }> =>
       entry.kind === "work" &&
+      !replacedCommittedEntryIds.has(entry.id) &&
       (entry.entry.toolCallId !== undefined
         ? !runtimeToolCallIds.has(entry.entry.toolCallId)
         : entry.entry.status === "running"),
   );
   if (supplementalWorkEntries.length === 0) {
-    return [...input.runtimeEntries];
+    return runtimeEntries;
   }
   return mergeTransientTimelineEntries(
-    input.runtimeEntries,
+    runtimeEntries,
     supplementalWorkEntries.toSorted(compareTransientEntries),
+  );
+}
+
+function shouldPreferCommittedWorkEntryForRuntimeTool(
+  runtimeEntry: Extract<TimelineEntry, { kind: "runtime-tool" }>,
+  committedEntry: Extract<TimelineEntry, { kind: "work" }>,
+): boolean {
+  if (runtimeEntry.tool.status !== "completed" || runtimeEntry.tool.isError === true) {
+    return false;
+  }
+  if (committedEntry.entry.status === "running" || committedEntry.entry.tone === "error") {
+    return false;
+  }
+  if (!workEntryHasDiffArtifact(committedEntry.entry)) {
+    return false;
+  }
+  return (
+    runtimeEntry.tool.display?.kind === "edit" || isFileChangeWorkEntry(committedEntry.entry)
+  );
+}
+
+function workEntryHasDiffArtifact(entry: WorkLogEntry): boolean {
+  return Boolean(entry.artifacts?.some((artifact) => artifact.type === "diff"));
+}
+
+function isFileChangeWorkEntry(entry: WorkLogEntry): boolean {
+  return (
+    entry.requestKind === "file-change" ||
+    entry.itemType === "file_change" ||
+    (entry.changedFiles?.length ?? 0) > 0
   );
 }
 
@@ -633,7 +735,12 @@ function appendWaitingTimelineEntry(input: {
   isTurnActive: boolean;
   activeTurnStartedAt: string | null;
 }): ReadonlyArray<TimelineEntry> {
-  if (!input.isWorking || timelineEntriesEndWithStatusSurface(input.entries)) {
+  const shouldAppendWaiting =
+    input.isWorking || (input.isTurnActive && timelineEntriesEndWithUserMessage(input.entries));
+  if (
+    !shouldAppendWaiting ||
+    timelineEntriesEndWithStatusSurface(input.entries)
+  ) {
     return input.entries;
   }
   const waitingStatus = resolveWaitingTimelineStatus({
@@ -649,6 +756,11 @@ function appendWaitingTimelineEntry(input: {
       elapsedStartedAt: waitingStatus.elapsedStartedAt,
     },
   ];
+}
+
+function timelineEntriesEndWithUserMessage(entries: ReadonlyArray<TimelineEntry>): boolean {
+  const lastEntry = entries.at(-1);
+  return lastEntry?.kind === "message" && lastEntry.message.role === "user";
 }
 
 function timelineEntriesEndWithStatusSurface(entries: ReadonlyArray<TimelineEntry>): boolean {

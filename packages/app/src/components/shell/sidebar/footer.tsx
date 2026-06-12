@@ -2,7 +2,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { IconSettingsGear2 } from "central-icons";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 
 import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 import { UpdatePill } from "~/components/shell/shared/update-pill";

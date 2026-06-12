@@ -17,6 +17,8 @@ export interface SidebarDraftSummary {
   projectId: ProjectId | null;
   workspaceProjectRef: ScopedProjectRef | null;
   projectCwd: string;
+  title: string | null;
+  state: "draft" | "running";
   updatedAt: string;
 }
 
@@ -76,7 +78,7 @@ export type SidebarChatItem =
   | (SidebarChatItemBase & {
       id: string;
       kind: "draft";
-      state: "draft";
+      state: "draft" | "running";
       unread: false;
     });
 

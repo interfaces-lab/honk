@@ -35,6 +35,7 @@ import {
   acknowledgedThreadSendIntents,
   threadSendIntentMessages,
 } from "./thread-timeline-projector";
+import { readHonkRuntimeApi } from "../../../lib/honk-runtime-api";
 import { hydrateRuntimeThread } from "../../../lib/runtime-turn-dispatch";
 
 const RUNTIME_HYDRATION_IDLE_TIMEOUT_MS = 1200;
@@ -111,10 +112,14 @@ export function RuntimeThreadHydrationSync({
   isDraftBoundThread?: boolean;
 }) {
   useMountEffect(() => {
+    setRuntimeThreadFocus(threadId, true);
+
     if (routeKind !== "server" || !cwd || isDraftBoundThread) {
-      return;
+      return () => {
+        setRuntimeThreadFocus(threadId, false);
+      };
     }
-    return scheduleRuntimeHydrationAfterFirstPaint(() => {
+    const cancelHydration = scheduleRuntimeHydrationAfterFirstPaint(() => {
       void hydrateRuntimeThread({
         threadId,
         cwd,
@@ -122,9 +127,21 @@ export function RuntimeThreadHydrationSync({
         modelSelection,
       }).catch(() => undefined);
     });
+    return () => {
+      cancelHydration();
+      setRuntimeThreadFocus(threadId, false);
+    };
   });
 
   return null;
+}
+
+function setRuntimeThreadFocus(threadId: ThreadId, focused: boolean): void {
+  try {
+    void readHonkRuntimeApi().setThreadFocus({ threadId, focused }).catch(() => undefined);
+  } catch {
+    return;
+  }
 }
 
 function scheduleRuntimeHydrationAfterFirstPaint(hydrate: () => void): () => void {

@@ -16,8 +16,8 @@ import {
   type RefObject,
 } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
-import { Button } from "@honk/multikit/button";
-import { ToolCallLine } from "@honk/multikit/tool-call";
+import { Button } from "@honk/honkkit/button";
+import { ToolCallLine } from "@honk/honkkit/tool-call";
 import { ExpandableToolMetadataLine } from "../../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import {

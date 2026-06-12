@@ -25,8 +25,8 @@ import {
 import { projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
 import { Debouncer } from "@tanstack/react-pacer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@honk/multikit/alert";
-import { Button } from "@honk/multikit/button";
+import { Alert, AlertDescription, AlertTitle } from "@honk/honkkit/alert";
+import { Button } from "@honk/honkkit/button";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
@@ -78,6 +78,9 @@ import {
 } from "../../../stores/thread-selectors";
 import { useUiStateStore } from "../../../stores/ui-state-store";
 import {
+  latestRuntimeEventTurnId,
+  runtimeEventsIndicateActiveAgentRun,
+  runtimeEventsIndicateTerminalAgentRun,
   selectIsRuntimeThread,
   selectPendingExtensionUiRequestsForThread,
   useAgentRuntimeStore,
@@ -227,6 +230,8 @@ import {
 } from "./chat-view-lifecycle-sync";
 import {
   filterThreadSendIntentsToBranch,
+  runtimeDisplayTimelineActiveTurnId,
+  runtimeDisplayTimelineHasActiveWork,
   runtimeDisplayTimelineHasResponseItem,
   runtimeDisplayTimelineRenderableUserMessageIds,
   threadSendIntentMessages,
@@ -687,6 +692,15 @@ export default function ChatView(props: ChatViewProps) {
   const activeThreadIsRuntimeOwned = useAgentRuntimeStore((state) =>
     selectIsRuntimeThread(state, runtimeThreadId),
   );
+  const activeRuntimeAgentRunActive = useAgentRuntimeStore((state) =>
+    runtimeEventsIndicateActiveAgentRun(state.snapshot.runtimeEvents, runtimeThreadId),
+  );
+  const activeRuntimeEventTurnId = useAgentRuntimeStore((state) =>
+    latestRuntimeEventTurnId(state.snapshot.runtimeEvents, runtimeThreadId),
+  );
+  const activeRuntimeAgentRunTerminal = useAgentRuntimeStore((state) =>
+    runtimeEventsIndicateTerminalAgentRun(state.snapshot.runtimeEvents, runtimeThreadId),
+  );
   const activeThreadRef = activeThread
     ? scopeThreadRef(activeThread.environmentId, activeThread.id)
     : null;
@@ -904,12 +918,23 @@ export default function ChatView(props: ChatViewProps) {
     () => runtimeDisplayTimelineHasResponseItem(activeRuntimeDisplayTimeline),
     [activeRuntimeDisplayTimeline],
   );
+  const runtimeTimelineHasActiveWork = useMemo(
+    () => runtimeDisplayTimelineHasActiveWork(activeRuntimeDisplayTimeline),
+    [activeRuntimeDisplayTimeline],
+  );
+  const activeRuntimeTimelineTurnId = useMemo(
+    () => runtimeDisplayTimelineActiveTurnId(activeRuntimeDisplayTimeline),
+    [activeRuntimeDisplayTimeline],
+  );
+  const runtimeSurfaceImpliesTurnRunning =
+    activeRuntimeAgentRunActive ||
+    (runtimeTimelineHasActiveWork && !activeRuntimeAgentRunTerminal);
   const waitingForRuntimeFirstResponse =
     activeThreadIsRuntimeOwned &&
     activeRuntimeDisplayTimeline !== null &&
     !latestTurnSettled &&
     !runtimeTimelineHasResponse;
-  const isTurnRunning = activeRunningTurnId !== null;
+  const isTurnRunning = activeRunningTurnId !== null || runtimeSurfaceImpliesTurnRunning;
   const isWorking = isTurnRunning || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const {
     queuedComposerItems,
@@ -960,7 +985,8 @@ export default function ChatView(props: ChatViewProps) {
   // briefly idle between tool bursts even though tools keep appending — keep the tail group
   // running so the collapsed preview does not flash to completed and back.
   const runtimeTimelineImpliesTurnActive =
-    activeRuntimeDisplayTimeline !== null && !latestTurnSettled;
+    runtimeSurfaceImpliesTurnRunning ||
+    (activeRuntimeDisplayTimeline !== null && !latestTurnSettled);
   const timelineTurnActive =
     isTurnRunning || visibleThreadSendIntents.length > 0 || runtimeTimelineImpliesTurnActive;
   const committedTimelineMessages = useMemo(
@@ -2400,15 +2426,33 @@ export default function ChatView(props: ChatViewProps) {
 
   const onInterrupt = async () => {
     const api = readEnvironmentApi(environmentId);
-    if (!api || !activeThread) return;
-    const turnId = activeRunningTurnId ?? undefined;
-    await api.orchestration.dispatchCommand({
-      type: "thread.turn.interrupt",
-      commandId: newCommandId(),
-      threadId: activeThread.id,
-      ...(turnId ? { turnId } : {}),
-      createdAt: new Date().toISOString(),
-    });
+    if (!activeThread) return;
+    const runtimeTurnId = runtimeSurfaceImpliesTurnRunning
+      ? (activeRuntimeTimelineTurnId ?? activeRuntimeEventTurnId)
+      : null;
+    const latestUnsettledTurnId = !latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null;
+    const turnId = activeRunningTurnId ?? runtimeTurnId ?? latestUnsettledTurnId ?? undefined;
+    const runtimeAbort = (async () => {
+      try {
+        await readHonkRuntimeApi().abort({ threadId: activeThread.id });
+      } catch {
+        // The runtime host may be unavailable or the thread may already be idle.
+      }
+    })();
+    if (!api) {
+      await runtimeAbort;
+      return;
+    }
+    await Promise.all([
+      runtimeAbort,
+      api.orchestration.dispatchCommand({
+        type: "thread.turn.interrupt",
+        commandId: newCommandId(),
+        threadId: activeThread.id,
+        ...(turnId ? { turnId } : {}),
+        createdAt: new Date().toISOString(),
+      }),
+    ]);
   };
 
   const loadQueuedComposerItemIntoComposer = (item: QueuedComposerItem) => {

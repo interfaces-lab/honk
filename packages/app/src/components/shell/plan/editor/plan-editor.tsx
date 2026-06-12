@@ -2,7 +2,7 @@
 
 import { IconCheckmark1, IconCrossSmall } from "central-icons";
 
-import { WorkbenchTextButton } from "@honk/multikit/workbench-button";
+import { WorkbenchTextButton } from "@honk/honkkit/workbench-button";
 
 import type { PlanEditorProps } from "./plan-editor-contract";
 import { TipTapPlanEditor } from "./tiptap-editor";

@@ -9,7 +9,7 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconBug, IconBubbleQuestion, IconRobot, IconSquareChecklist } from "central-icons";
 import { useMemo, type ComponentProps } from "react";
 
-import { Popover, PopoverPopup } from "@honk/multikit/popover";
+import { Popover, PopoverPopup } from "@honk/honkkit/popover";
 import { cn } from "~/lib/utils";
 
 import {
@@ -27,7 +27,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@honk/multikit/command";
+} from "@honk/honkkit/command";
 import { VscodeEntryIcon } from "../../shared/vscode-entry-icon";
 
 /**

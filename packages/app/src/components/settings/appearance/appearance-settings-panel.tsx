@@ -1,7 +1,7 @@
 import { type AppIconVariant, DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
-import { Button } from "@honk/multikit/button";
-import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@honk/multikit/select";
-import { Switch } from "@honk/multikit/switch";
+import { Button } from "@honk/honkkit/button";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@honk/honkkit/select";
+import { Switch } from "@honk/honkkit/switch";
 
 import { APP_STAGE_LABEL } from "~/app/branding";
 

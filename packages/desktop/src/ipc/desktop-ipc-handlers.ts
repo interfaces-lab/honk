@@ -10,6 +10,7 @@ import {
   hydrateRuntimeThread,
   respondToRuntimeExtensionUiRequest,
   sendRuntimeTurn,
+  setRuntimeThreadFocus,
   updateRuntimePreferences,
 } from "./methods/runtime";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
@@ -49,6 +50,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(updateRuntimePreferences);
   yield* ipc.handle(configureRuntimeCredential);
   yield* ipc.handle(hydrateRuntimeThread);
+  yield* ipc.handle(setRuntimeThreadFocus);
   yield* ipc.handle(sendRuntimeTurn);
   yield* ipc.handle(abortRuntimeThread);
   yield* ipc.handle(respondToRuntimeExtensionUiRequest);

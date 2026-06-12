@@ -1,5 +1,5 @@
 import { type DesktopExtensionUiRequest } from "@honk/contracts";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import { IconBubbleQuestion } from "central-icons";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import {

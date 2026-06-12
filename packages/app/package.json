@@ -1,6 +1,6 @@
 {
   "name": "@honk/app",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "exports": {
@@ -27,7 +27,7 @@
     "@lexical/utils": "^0.45.0",
     "@honk/client-runtime": "workspace:*",
     "@honk/contracts": "workspace:*",
-    "@honk/multikit": "workspace:*",
+    "@honk/honkkit": "workspace:*",
     "@honk/shared": "workspace:*",
     "@pierre/diffs": "^1.2.9",
     "@pierre/theme": "^1.0.3",

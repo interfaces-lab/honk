@@ -4,7 +4,7 @@ import {
   WorkbenchContextMenuItem,
   WorkbenchContextMenuPopup,
   WorkbenchContextMenuSeparator,
-} from "@honk/multikit/context-menu";
+} from "@honk/honkkit/context-menu";
 import {
   IconArchive1,
   IconBell,

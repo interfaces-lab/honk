@@ -1,5 +1,5 @@
 import { IconSidebar } from "central-icons";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import { shellPanelsActions } from "~/stores/shell-panels-store";
 import type { ReactNode } from "react";
 

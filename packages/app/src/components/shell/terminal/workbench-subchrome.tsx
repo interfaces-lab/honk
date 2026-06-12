@@ -2,7 +2,7 @@
 
 import { IconBarsThree } from "central-icons";
 
-import { WorkbenchIconButton } from "@honk/multikit/workbench-button";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 
 /**
  * Full-width row under the workbench tab strip.

@@ -1,38 +1,38 @@
-import { Input } from "@honk/multikit/input";
-import { Text } from "@honk/multikit/text";
+import { Input } from "@honk/honkkit/input";
+import { Text } from "@honk/honkkit/text";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { DialRoot } from "dialkit";
 import "dialkit/styles.css";
 import { useMemo, useState } from "react";
 
 import {
-  DEFAULT_MULTIKIT_COMPONENT_ID,
-  findMultikitComponent,
-  MULTIKIT_CATALOG,
-  MULTIKIT_COMPONENTS,
-} from "~/components/dev/multikit/catalog";
-import { MultikitPreview } from "~/components/dev/multikit/previews";
+  DEFAULT_HONKKIT_COMPONENT_ID,
+  findHonkKitComponent,
+  HONKKIT_CATALOG,
+  HONKKIT_COMPONENTS,
+} from "~/components/dev/honkkit/catalog";
+import { HonkKitPreview } from "~/components/dev/honkkit/previews";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { cn } from "~/lib/utils";
 
-export function MultikitGalleryPage() {
-  const [selectedId, setSelectedId] = useState(DEFAULT_MULTIKIT_COMPONENT_ID);
+export function HonkKitGalleryPage() {
+  const [selectedId, setSelectedId] = useState(DEFAULT_HONKKIT_COMPONENT_ID);
   const [query, setQuery] = useState("");
 
   useMountEffect(() => {
     syncAppearanceVibrancy();
   });
 
-  const selected = findMultikitComponent(selectedId) ?? MULTIKIT_COMPONENTS[0]!;
+  const selected = findHonkKitComponent(selectedId) ?? HONKKIT_COMPONENTS[0]!;
 
   const filteredCatalog = useMemo(() => {
     const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) {
-      return MULTIKIT_CATALOG;
+      return HONKKIT_CATALOG;
     }
 
-    return MULTIKIT_CATALOG.map((group) => ({
+    return HONKKIT_CATALOG.map((group) => ({
       ...group,
       components: group.components.filter((entry) => {
         const haystack = normalizeSearchQuery([entry.name, entry.id, entry.importPath].join(" "));
@@ -46,7 +46,7 @@ export function MultikitGalleryPage() {
       <aside className="flex w-56 shrink-0 flex-col border-r border-honk-stroke-tertiary/60 bg-background">
         <div className="border-b border-honk-stroke-tertiary/60 px-3 py-3">
           <Text size="sm" weight="semibold">
-            Multikit
+            HonkKit
           </Text>
         </div>
         <div className="p-3">
@@ -102,7 +102,7 @@ export function MultikitGalleryPage() {
           </Text>
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center p-12">
-          <MultikitPreview key={selected.id} componentId={selected.id} />
+          <HonkKitPreview key={selected.id} componentId={selected.id} />
         </div>
       </main>
 

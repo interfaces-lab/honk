@@ -1,5 +1,5 @@
-import { Button } from "@honk/multikit/button";
-import { Textarea } from "@honk/multikit/textarea";
+import { Button } from "@honk/honkkit/button";
+import { Textarea } from "@honk/honkkit/textarea";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
 import { useState, type FormEvent } from "react";
 

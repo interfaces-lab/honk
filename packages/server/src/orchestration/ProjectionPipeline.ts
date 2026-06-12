@@ -5,6 +5,7 @@ import {
   type OrchestrationEvent,
   resolveLeafIdAfterThreadMessage,
   ThreadId,
+  type TurnId,
 } from "@honk/contracts";
 import * as EffectLogger from "@honk/shared/effect-logger";
 import { Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
@@ -422,6 +423,45 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       });
     });
 
+    const latestTurnIdAfterAssistantMessage = Effect.fn("latestTurnIdAfterAssistantMessage")(
+      function* (input: {
+        readonly threadId: ThreadId;
+        readonly currentLatestTurnId: TurnId | null;
+        readonly messageTurnId: TurnId;
+      }) {
+        if (
+          input.currentLatestTurnId === null ||
+          input.currentLatestTurnId === input.messageTurnId
+        ) {
+          return input.messageTurnId;
+        }
+
+        const [currentTurn, messageTurn] = yield* Effect.all([
+          projectionTurnRepository.getByTurnId({
+            threadId: input.threadId,
+            turnId: input.currentLatestTurnId,
+          }),
+          projectionTurnRepository.getByTurnId({
+            threadId: input.threadId,
+            turnId: input.messageTurnId,
+          }),
+        ]);
+        if (Option.isNone(currentTurn) || Option.isNone(messageTurn)) {
+          return input.messageTurnId;
+        }
+        if (messageTurn.value.requestedAt < currentTurn.value.requestedAt) {
+          return input.currentLatestTurnId;
+        }
+        if (
+          messageTurn.value.requestedAt === currentTurn.value.requestedAt &&
+          messageTurn.value.turnId < currentTurn.value.turnId
+        ) {
+          return input.currentLatestTurnId;
+        }
+        return input.messageTurnId;
+      },
+    );
+
     const applyThreadsProjection: ProjectorDefinition["apply"] = Effect.fn(
       "applyThreadsProjection",
     )(function* (event, attachmentSideEffects) {
@@ -576,8 +616,17 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           if (Option.isNone(existingRow)) {
             return;
           }
+          const latestTurnId =
+            event.payload.role === "assistant" && event.payload.turnId !== null
+              ? yield* latestTurnIdAfterAssistantMessage({
+                  threadId: event.payload.threadId,
+                  currentLatestTurnId: existingRow.value.latestTurnId,
+                  messageTurnId: event.payload.turnId,
+                })
+              : existingRow.value.latestTurnId;
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
+            latestTurnId,
             leafId: resolveLeafIdAfterThreadMessage({
               leafId: existingRow.value.leafId,
               entryId: event.payload.entryId,

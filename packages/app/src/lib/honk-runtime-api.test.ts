@@ -25,6 +25,7 @@ function createRuntimeApi(snapshot: HonkRuntimeHostSnapshot): HonkRuntimeApi {
     updatePreferences: async () => snapshot.preferences,
     configureCredential: async () => snapshot,
     hydrateThread: async () => undefined,
+    setThreadFocus: async () => undefined,
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,

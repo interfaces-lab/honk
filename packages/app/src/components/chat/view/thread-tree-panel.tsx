@@ -3,7 +3,7 @@ import { flattenThreadEntryTree, formatThreadEntryPathIssue } from "@honk/contra
 
 import type { Thread, ThreadTreeEntry } from "../../../types";
 import { cn } from "~/lib/utils";
-import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
+import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 
 interface ThreadTreePanelProps {
   thread: Thread;

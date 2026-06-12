@@ -37,7 +37,7 @@ import {
 } from "../../../session-logic";
 import { cn } from "~/lib/utils";
 import { InlineToolDiff } from "./tool-inline-diff";
-import { Badge } from "@honk/multikit/badge";
+import { Badge } from "@honk/honkkit/badge";
 import {
   ToolCallLine,
   ToolCallLineChevron,
@@ -55,8 +55,8 @@ import {
   ToolCallTaskTitleArea,
   toolCallLineActionVariants,
   toolCallLineVariants,
-} from "@honk/multikit/tool-call";
-import { Button } from "@honk/multikit/button";
+} from "@honk/honkkit/tool-call";
+import { Button } from "@honk/honkkit/button";
 import {
   parseFindOutput,
   parseGrepOutput,
@@ -64,6 +64,7 @@ import {
   type ParsedGrepFile,
   type ParsedSearchOutput,
 } from "./search-output";
+import { FileCodeBlock } from "../markdown/chat-markdown";
 
 type CentralIconComponent = ComponentType<{ className?: string | undefined }>;
 
@@ -354,6 +355,33 @@ export function ToolCallRenderer({
         />
       );
     case "readToolCall":
+      return (
+        <ExpandableToolMetadataLine
+          icon={showDetailedIcons ? iconForToolCase(toolCall.tool.case) : undefined}
+          action={displayState.action}
+          details={displayState.details}
+          output={artifactLookup.read?.output ?? output ?? null}
+          outputRenderer={(bodyText) => (
+            <FileCodeBlock
+              code={bodyText}
+              filePath={artifactLookup.read?.path ?? path ?? displayState.details}
+              className="text-honk-fg-primary [&_.chat-markdown-codeblock]:my-0"
+            />
+          )}
+          metadataItems={getMetadataArtifactItems(
+            artifactLookup.read,
+            undefined,
+            undefined,
+            undefined,
+          )}
+          loading={loading}
+          onFileClick={path && onFileClick ? () => onFileClick(path) : undefined}
+          linkable={Boolean(path && onFileClick)}
+          defaultExpanded={defaultExpanded}
+          callId={callId}
+          onNestedToolExpand={onNestedToolExpand}
+        />
+      );
     case "mcpToolCall":
     case "dynamicToolCall":
     case "imageViewToolCall":
@@ -592,6 +620,7 @@ export function ExpandableToolMetadataLine({
   action,
   details,
   output,
+  outputRenderer,
   metadataItems = EMPTY_TOOL_METADATA_ITEMS,
   loading = false,
   onFileClick,
@@ -604,6 +633,7 @@ export function ExpandableToolMetadataLine({
   action: string;
   details: string;
   output: string | null;
+  outputRenderer?: ((bodyText: string) => ReactNode) | undefined;
   metadataItems?: ReadonlyArray<string> | undefined;
   loading?: boolean | undefined;
   onFileClick?: (() => void) | undefined;
@@ -769,9 +799,13 @@ export function ExpandableToolMetadataLine({
                     : undefined
                 }
               >
-                <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
-                  {bodyText}
-                </pre>
+                {outputRenderer ? (
+                  outputRenderer(bodyText)
+                ) : (
+                  <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
+                    {bodyText}
+                  </pre>
+                )}
               </div>
             </>
           ) : null}
@@ -1330,7 +1364,8 @@ function EditToolCall({
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasContent = hasEditExpandableContent(detail, path, diffArtifact);
-  const showCollapsedPreview = !compactLayout && hasContent && !isExpanded;
+  const forceDiffPreview = diffArtifact !== undefined;
+  const showCollapsedPreview = (!compactLayout || forceDiffPreview) && hasContent && !isExpanded;
 
   const toggleExpanded = () => {
     if (!hasContent) return;

@@ -1,5 +1,5 @@
-import { Tooltip, TooltipTrigger } from "@honk/multikit/tooltip";
-import { Button } from "@honk/multikit/button";
+import { Tooltip, TooltipTrigger } from "@honk/honkkit/tooltip";
+import { Button } from "@honk/honkkit/button";
 
 function TestTooltip() {
   return (

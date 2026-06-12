@@ -19,9 +19,11 @@ import {
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
   type RuntimeDisplayTimelineProjection,
+  type RuntimeThreadIdentity,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
   type ThreadAgentRuntimeHydrateInput,
+  type ThreadAgentRuntimeSetThreadFocusInput,
   type ThreadAgentRuntimeSendTurnInput,
 } from "@honk/contracts";
 import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
@@ -39,6 +41,7 @@ import {
   projectRuntimeDisplayTimeline,
   projectRuntimeDisplayTimelineEvent,
 } from "./display-timeline-projection";
+import { toWireRuntimeEvent } from "./runtime-event-wire";
 
 const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   agentMode: "deep",
@@ -85,6 +88,7 @@ const MAX_RUNTIME_EVENTS_PER_THREAD = 1000;
 // entire projection to every window, so emitting one per streaming event is the dominant freeze/energy
 // cost. We keep the projection current per event but flush at most one emit per thread per interval.
 const DISPLAY_TIMELINE_FLUSH_INTERVAL_MS = 16;
+const BACKGROUND_DISPLAY_TIMELINE_FLUSH_INTERVAL_MS = 250;
 
 // Push with amortized O(1) trimming: let the array grow to 2x the cap, then trim back to the cap in a
 // single splice, so steady-state retention is bounded without an O(n) shift on every push.
@@ -168,7 +172,8 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   private readonly credentialAuthFlows = new Map<string, AgentCredentialAuthFlow>();
   private readonly listeners = new Set<(event: HonkRuntimeHostEvent) => void>();
   private readonly startOperations = new Map<string, Promise<void>>();
-  private readonly pendingDisplayTimelineThreadIds = new Set<string>();
+  private readonly pendingDisplayTimelineDeadlines = new Map<string, number>();
+  private readonly focusedThreadIds = new Set<string>();
   private displayTimelineFlushHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: DesktopRuntimeHostOptions) {
@@ -195,15 +200,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   async getHostSnapshot(): Promise<HonkRuntimeHostSnapshot> {
     return {
       preferences: this.preferences,
-      runtimeIdentities: [...this.runtimes.values()].map((entry) => {
-        const identity = entry.runtime.identity;
-        return {
-          threadId: identity.threadId,
-          runtimeSessionId: identity.runtimeSessionId,
-          authProviderId: identity.authProviderId,
-          modelId: identity.modelId,
-        };
-      }),
+      runtimeIdentities: this.getRuntimeIdentities(),
       models: this.getModelDescriptors(),
       authStatuses: this.getAuthStatuses(),
       credentialAuthFlows: [...this.credentialAuthFlows.values()],
@@ -399,7 +396,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       const ui = createDesktopExtensionUi();
       const unsubscribeRuntime = runtime.subscribe((event) => {
         this.recordRuntimeEvent(event);
-        this.emit({ type: "runtime-event", event });
+        this.emit({ type: "runtime-event", event: toWireRuntimeEvent(event) });
         this.applyRuntimeEventToDisplayTimeline(runtime, event);
         this.scheduleDisplayTimelineEmit(runtime.threadId);
         if (event.type === "tree.updated") {
@@ -423,7 +420,11 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
         await runtime.bindExtensions(ui);
       }
       this.publishSessionTree(runtime);
-      this.emit({ type: "snapshot", snapshot: await this.getHostSnapshot() });
+      this.emit({
+        type: "runtime-identities",
+        identities: this.getRuntimeIdentities(),
+        authStatuses: this.getAuthStatuses(),
+      });
       return runtime.identity;
     } catch (error) {
       this.disposeRuntime(input.threadId);
@@ -509,6 +510,18 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.scheduleDisplayTimelineEmit(entry.runtime.threadId);
   }
 
+  async setThreadFocus(input: ThreadAgentRuntimeSetThreadFocusInput): Promise<void> {
+    if (input.focused) {
+      this.focusedThreadIds.add(input.threadId);
+      if (this.pendingDisplayTimelineDeadlines.has(input.threadId)) {
+        this.flushDisplayTimelineEmit(input.threadId);
+        this.rescheduleDisplayTimelineFlush();
+      }
+      return;
+    }
+    this.focusedThreadIds.delete(input.threadId);
+  }
+
   onHostEvent(listener: (event: HonkRuntimeHostEvent) => void): () => void {
     this.listeners.add(listener);
     return () => {
@@ -524,7 +537,8 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       clearTimeout(this.displayTimelineFlushHandle);
       this.displayTimelineFlushHandle = null;
     }
-    this.pendingDisplayTimelineThreadIds.clear();
+    this.pendingDisplayTimelineDeadlines.clear();
+    this.focusedThreadIds.clear();
     this.listeners.clear();
   }
 
@@ -538,28 +552,61 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   }
 
   private scheduleDisplayTimelineEmit(threadId: string): void {
-    this.pendingDisplayTimelineThreadIds.add(threadId);
-    if (this.displayTimelineFlushHandle === null) {
-      this.displayTimelineFlushHandle = setTimeout(() => {
-        this.displayTimelineFlushHandle = null;
-        this.flushDisplayTimelineEmits();
-      }, DISPLAY_TIMELINE_FLUSH_INTERVAL_MS);
+    const interval = this.focusedThreadIds.has(threadId)
+      ? DISPLAY_TIMELINE_FLUSH_INTERVAL_MS
+      : BACKGROUND_DISPLAY_TIMELINE_FLUSH_INTERVAL_MS;
+    const deadline = Date.now() + interval;
+    const existingDeadline = this.pendingDisplayTimelineDeadlines.get(threadId);
+    if (existingDeadline === undefined || deadline < existingDeadline) {
+      this.pendingDisplayTimelineDeadlines.set(threadId, deadline);
     }
+    this.rescheduleDisplayTimelineFlush();
   }
 
   private flushDisplayTimelineEmits(): void {
-    const threadIds = [...this.pendingDisplayTimelineThreadIds];
-    this.pendingDisplayTimelineThreadIds.clear();
-    for (const threadId of threadIds) {
-      const timeline = this.displayTimelines.get(threadId);
-      if (timeline) {
-        this.emit({ type: "display-timeline", timeline });
+    const now = Date.now();
+    const threadIds: string[] = [];
+    for (const [threadId, deadline] of this.pendingDisplayTimelineDeadlines) {
+      if (deadline <= now) {
+        threadIds.push(threadId);
       }
+    }
+    for (const threadId of threadIds) {
+      this.flushDisplayTimelineEmit(threadId);
+    }
+    this.rescheduleDisplayTimelineFlush();
+  }
+
+  private flushDisplayTimelineEmit(threadId: string): void {
+    this.pendingDisplayTimelineDeadlines.delete(threadId);
+    const timeline = this.displayTimelines.get(threadId);
+    if (timeline) {
+      this.emit({ type: "display-timeline", timeline });
     }
   }
 
+  private rescheduleDisplayTimelineFlush(): void {
+    if (this.displayTimelineFlushHandle !== null) {
+      clearTimeout(this.displayTimelineFlushHandle);
+      this.displayTimelineFlushHandle = null;
+    }
+    let nextDeadline: number | null = null;
+    for (const deadline of this.pendingDisplayTimelineDeadlines.values()) {
+      if (nextDeadline === null || deadline < nextDeadline) {
+        nextDeadline = deadline;
+      }
+    }
+    if (nextDeadline === null) {
+      return;
+    }
+    this.displayTimelineFlushHandle = setTimeout(() => {
+      this.displayTimelineFlushHandle = null;
+      this.flushDisplayTimelineEmits();
+    }, Math.max(0, nextDeadline - Date.now()));
+  }
+
   private recordRuntimeEvent(event: AgentRuntimeEvent): void {
-    boundedPush(this.runtimeEvents, event, MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
+    boundedPush(this.runtimeEvents, toWireRuntimeEvent(event), MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
     const threadEvents = this.runtimeEventsByThreadId.get(event.threadId);
     if (threadEvents) {
       boundedPush(threadEvents, event, MAX_RUNTIME_EVENTS_PER_THREAD);
@@ -569,9 +616,6 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   }
 
   private getDisplayTimelines(): RuntimeDisplayTimelineProjection[] {
-    for (const entry of this.runtimes.values()) {
-      this.refreshDisplayTimeline(entry.runtime);
-    }
     return [...this.displayTimelines.values()];
   }
 
@@ -579,6 +623,18 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     return this.runtimeEvents.length <= MAX_RUNTIME_EVENTS_IN_SNAPSHOT
       ? [...this.runtimeEvents]
       : this.runtimeEvents.slice(this.runtimeEvents.length - MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
+  }
+
+  private getRuntimeIdentities(): RuntimeThreadIdentity[] {
+    return [...this.runtimes.values()].map((entry) => {
+      const identity = entry.runtime.identity;
+      return {
+        threadId: identity.threadId,
+        runtimeSessionId: identity.runtimeSessionId,
+        authProviderId: identity.authProviderId,
+        modelId: identity.modelId,
+      };
+    });
   }
 
   private refreshDisplayTimeline(runtime: ThreadAgentRuntime): RuntimeDisplayTimelineProjection {
@@ -705,7 +761,9 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.sessionTrees.delete(threadId);
     this.runtimeEventsByThreadId.delete(threadId);
     this.displayTimelines.delete(threadId);
-    this.pendingDisplayTimelineThreadIds.delete(threadId);
+    this.pendingDisplayTimelineDeadlines.delete(threadId);
+    this.focusedThreadIds.delete(threadId);
+    this.rescheduleDisplayTimelineFlush();
     for (let index = this.runtimeEvents.length - 1; index >= 0; index -= 1) {
       if (this.runtimeEvents[index]?.threadId === threadId) {
         this.runtimeEvents.splice(index, 1);

@@ -434,6 +434,40 @@ html {
   --motion-duration-drawer: 200ms;
   --motion-duration-shimmer: 2000ms;
   --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* transitions-dev */
+  --pulse-dur: 1000ms;
+  --pulse-count: 1;
+  --pulse-min: 0.5;
+  --reveal-dur: 400ms;
+  --reveal-blur: 2px;
+  --reveal-ease: ease-in-out;
+  --shake-distance: 6px;
+  --shake-overshoot: 4px;
+  --shake-dur-a: 80ms;
+  --shake-dur-b: 60ms;
+  --shake-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --revert-hold: 3000ms;
+  --revert-dur: 280ms;
+  --panel-open-dur: 400ms;
+  --panel-close-dur: 350ms;
+  --panel-translate-y: 100px;
+  --panel-blur: 2px;
+  --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-text-muted: color-mix(in srgb, var(--honk-fg-secondary) 92%, transparent);
+  --tabs-text-active: var(--honk-fg-primary);
+  --tabs-bar-bg: var(--honk-bg-quinary);
+  --tabs-pill-bg: var(--honk-bg-tertiary);
+  --tt-in-dur: 150ms;
+  --tt-out-dur: 50ms;
+  --tt-scale: 0.98;
+  --tt-delay: 80ms;
+  --tt-in-ease: ease-out;
+  --tt-out-ease: ease-out;
+  --tt-bg: var(--honk-bg-elevated);
+  --tt-fg: var(--honk-fg-primary);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -442,6 +476,13 @@ html {
     --motion-duration-hover: 0ms;
     --motion-duration-collapsible: 0ms;
     --motion-duration-drawer: 0ms;
+    --reveal-dur: 0ms;
+    --revert-dur: 0ms;
+    --panel-open-dur: 0ms;
+    --panel-close-dur: 0ms;
+    --tabs-dur: 0ms;
+    --tt-in-dur: 0ms;
+    --tt-out-dur: 0ms;
   }
 }
 
@@ -572,6 +613,82 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] {
   --honk-command-palette-surface-background: var(--honk-color-chat-opaque);
+}
+
+/* transitions-dev hooks */
+.t-skel-skeleton {
+  filter: blur(0);
+  transition:
+    opacity var(--reveal-dur) var(--reveal-ease),
+    filter var(--reveal-dur) var(--reveal-ease);
+}
+
+.t-skel-skeleton.is-pulsing {
+  animation: t-skel-pulse var(--pulse-dur) ease-in-out var(--pulse-count);
+}
+
+@keyframes t-skel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: var(--pulse-min);
+  }
+}
+
+.t-input {
+  transition: border-color 150ms ease-out;
+  will-change: transform;
+}
+
+.t-input:has([aria-invalid="true"]),
+.t-input:has([aria-invalid="grammar"]),
+.t-input:has([aria-invalid="spelling"]) {
+  animation: t-input-shake calc(var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2) linear;
+  transition: border-color var(--revert-dur, 280ms) ease-out;
+}
+
+@keyframes t-input-shake {
+  0% {
+    transform: translateX(0);
+    animation-timing-function: var(--shake-ease);
+  }
+
+  28.57% {
+    transform: translateX(var(--shake-distance));
+    animation-timing-function: var(--shake-ease);
+  }
+
+  57.14% {
+    transform: translateX(calc(var(--shake-distance) * -1));
+    animation-timing-function: var(--shake-ease);
+  }
+
+  78.57% {
+    transform: translateX(var(--shake-overshoot));
+    animation-timing-function: var(--shake-ease);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-skel-skeleton {
+    transition: none !important;
+  }
+
+  .t-skel-skeleton.is-pulsing {
+    animation: none !important;
+  }
+
+  .t-input {
+    animation: none !important;
+    transform: none !important;
+  }
 }
 
 @keyframes tool-call-line-shine {

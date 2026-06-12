@@ -483,13 +483,25 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-roo
   width: min(var(--honk-shell-left-width), calc(100cqw - 48px));
   min-width: 0;
   transform: translateX(calc(-100% - 48px));
-  transition: transform var(--motion-duration-drawer) cubic-bezier(0.19, 1, 0.22, 1);
+  opacity: 0;
+  filter: blur(var(--panel-blur));
+  transition:
+    transform var(--panel-close-dur) var(--panel-ease),
+    opacity var(--panel-close-dur) var(--panel-ease),
+    filter var(--panel-close-dur) var(--panel-ease);
+  will-change: transform, opacity, filter;
   box-shadow: var(--honk-shadow-popup);
   -webkit-app-region: no-drag;
 }
 
 .agent-window[data-shell-left-presentation="overlay-expanded"] .agent-window__sidebar {
   transform: translateX(0);
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    transform var(--panel-open-dur) var(--panel-ease),
+    opacity var(--panel-open-dur) var(--panel-ease),
+    filter var(--panel-open-dur) var(--panel-ease);
 }
 
 .agent-window[data-shell-secondary-rail-mode="overlay"] .honk-shell-workbench-columns {
@@ -504,17 +516,36 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-roo
   width: min(var(--honk-shell-secondary-rail-width), calc(100cqw - 48px));
   min-width: 0;
   transform: translateX(calc(-100% - 48px));
-  transition: transform var(--motion-duration-drawer) cubic-bezier(0.19, 1, 0.22, 1);
+  opacity: 0;
+  filter: blur(var(--panel-blur));
+  transition:
+    transform var(--panel-close-dur) var(--panel-ease),
+    opacity var(--panel-close-dur) var(--panel-ease),
+    filter var(--panel-close-dur) var(--panel-ease);
+  will-change: transform, opacity, filter;
   box-shadow: var(--honk-shadow-popup);
 }
 
 .agent-window[data-shell-secondary-rail-mode="overlay"]
   .honk-shell-secondary-rail[data-state="expanded"] {
   transform: translateX(0);
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    transform var(--panel-open-dur) var(--panel-ease),
+    opacity var(--panel-open-dur) var(--panel-ease),
+    filter var(--panel-open-dur) var(--panel-ease);
 }
 
 .agent-window .agent-window__sidebar[data-transition-snap="true"] {
   transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-window[data-shell-left-mode="overlay"] .agent-window__sidebar,
+  .agent-window[data-shell-secondary-rail-mode="overlay"] .honk-shell-secondary-rail {
+    transition: none !important;
+  }
 }
 
 /* Blur over a live-resizing edge shimmers; go opaque for the drag. */

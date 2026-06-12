@@ -1,6 +1,6 @@
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 
-import { Input, type InputProps } from "@honk/multikit/input";
+import { Input, type InputProps } from "@honk/honkkit/input";
 
 export type DraftInputProps = Omit<InputProps, "value" | "onChange" | "defaultValue"> & {
   readonly value: string;

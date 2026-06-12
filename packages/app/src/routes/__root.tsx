@@ -10,7 +10,7 @@ import {
 import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/honk-runtime-api";
 
 function isStandaloneDevRoute(pathname: string): boolean {
-  return import.meta.env.DEV && pathname === "/dev/multikit";
+  return import.meta.env.DEV && pathname === "/dev/honkkit";
 }
 
 export const Route = createRootRouteWithContext<{

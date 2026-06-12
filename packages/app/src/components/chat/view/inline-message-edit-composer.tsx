@@ -1,6 +1,6 @@
 import type { MessageId } from "@honk/contracts";
 import { useRef } from "react";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 
 import {
   type ComposerImageAttachment,

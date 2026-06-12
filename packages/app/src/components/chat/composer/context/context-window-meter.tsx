@@ -3,8 +3,8 @@ import {
   formatContextUsagePercentage,
   formatContextWindowTokens,
 } from "~/lib/context-window";
-import { Button } from "@honk/multikit/button";
-import { Popover, PopoverPopup, PopoverTrigger } from "@honk/multikit/popover";
+import { Button } from "@honk/honkkit/button";
+import { Popover, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
 import { ContextWindowRing } from "./context-window-ring";
 import { ContextWindowUsageDetails } from "./context-window-usage-details";
 

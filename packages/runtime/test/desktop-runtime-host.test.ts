@@ -6,13 +6,18 @@ import {
   AuthProviderId,
   DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
+  EventId,
   type AgentModelPolicy,
+  type AgentRuntimeEvent,
+  type HonkRuntimeHostEvent,
   MessageId,
   ModelId,
+  RuntimeSessionId,
+  type RuntimeDisplayTimelineProjection,
   ThreadId,
   TurnId,
 } from "@honk/contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage } from "@earendil-works/pi-coding-agent";
 import { registerOAuthProvider, unregisterOAuthProvider } from "@earendil-works/pi-ai/oauth";
 import { DesktopRuntimeHost } from "../src/desktop-runtime-host";
@@ -31,6 +36,7 @@ describe("DesktopRuntimeHost", () => {
   };
 
   afterEach(() => {
+    vi.useRealTimers();
     while (tempDirs.length > 0) {
       const tempDir = tempDirs.pop();
       if (tempDir && existsSync(tempDir)) {
@@ -75,6 +81,53 @@ describe("DesktopRuntimeHost", () => {
         >;
       }
     ).runtimes;
+  }
+
+  function displayTimelineMapForTest(
+    host: DesktopRuntimeHost,
+  ): Map<string, RuntimeDisplayTimelineProjection> {
+    return (
+      host as unknown as {
+        readonly displayTimelines: Map<string, RuntimeDisplayTimelineProjection>;
+      }
+    ).displayTimelines;
+  }
+
+  function createRuntimeEvent(
+    input: Pick<AgentRuntimeEvent, "type" | "threadId" | "runtimeSessionId"> &
+      Partial<Omit<AgentRuntimeEvent, "type" | "threadId" | "runtimeSessionId">>,
+  ): AgentRuntimeEvent {
+    return {
+      id: input.id ?? EventId.make(`runtime-event:${input.threadId}:${input.type}`),
+      type: input.type,
+      agentRuntime: "pi",
+      threadId: input.threadId,
+      runtimeSessionId: input.runtimeSessionId,
+      createdAt: input.createdAt ?? "2026-06-12T12:00:00.000Z",
+      ...(input.turnId ? { turnId: input.turnId } : {}),
+      ...(input.summary ? { summary: input.summary } : {}),
+      ...(input.messageRole ? { messageRole: input.messageRole } : {}),
+      ...(input.text ? { text: input.text } : {}),
+      ...(input.thinking ? { thinking: input.thinking } : {}),
+      ...(input.data !== undefined ? { data: input.data } : {}),
+      ...(input.raw !== undefined ? { raw: input.raw } : {}),
+    };
+  }
+
+  function emitRuntimeEventForTest(runtime: ThreadAgentRuntime, event: AgentRuntimeEvent): void {
+    (
+      runtime as unknown as {
+        emit(event: AgentRuntimeEvent): void;
+      }
+    ).emit(event);
+  }
+
+  function schedulerForTest(host: DesktopRuntimeHost): {
+    scheduleDisplayTimelineEmit(threadId: string): void;
+  } {
+    return host as unknown as {
+      scheduleDisplayTimelineEmit(threadId: string): void;
+    };
   }
 
   it("creates Pi auth storage under the Honk agent directory", async () => {
@@ -562,6 +615,302 @@ describe("DesktopRuntimeHost", () => {
     expect(runtimeEvents[0]?.summary).toBe("Thinking low");
     expect(runtimeEvents.at(-1)?.summary).toBe("Thinking medium");
 
+    host.dispose();
+  });
+
+  it("returns cached display timelines in host snapshots without reprojecting runtimes", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:cached-display-timeline");
+    const runtimeSessionId = RuntimeSessionId.make("runtime-session:cached-display-timeline");
+    const cachedTimeline: RuntimeDisplayTimelineProjection = {
+      threadId,
+      runtimeSessionId,
+      items: [],
+    };
+    let getSessionTreeCalls = 0;
+    const runtime = {
+      threadId,
+      runtimeSessionId,
+      identity: {
+        agentRuntime: "pi",
+        threadId,
+        runtimeSessionId,
+        authProviderId: AuthProviderId.make("openai-codex"),
+        modelId: ModelId.make("openai-codex/gpt-5.5"),
+      },
+      authStatus: null,
+      getSessionTree: () => {
+        getSessionTreeCalls += 1;
+        return {
+          threadId,
+          runtimeSessionId,
+          entries: [],
+        };
+      },
+      dispose: () => undefined,
+    } as unknown as ThreadAgentRuntime;
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    runtimeMapForTest(host).set(threadId, {
+      runtime,
+      ui: new DesktopExtensionUiController(),
+      unsubscribe: () => undefined,
+    });
+    displayTimelineMapForTest(host).set(threadId, cachedTimeline);
+
+    const snapshot = await host.getHostSnapshot();
+
+    expect(snapshot.displayTimelines).toEqual([cachedTimeline]);
+    expect(getSessionTreeCalls).toBe(0);
+
+    host.dispose();
+  });
+
+  it("emits trimmed message runtime events while preserving display timeline content", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-12T12:00:00.000Z"));
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:wire-trim-message");
+    const turnId = TurnId.make("turn:wire-trim-message");
+    const host = new DesktopRuntimeHost({
+      agentDir: join(tempDir, "pi-agent"),
+      bindExtensions: async (runtime) => {
+        emitRuntimeEventForTest(
+          runtime,
+          createRuntimeEvent({
+            type: "message.updated",
+            threadId,
+            runtimeSessionId: runtime.runtimeSessionId,
+            turnId,
+            messageRole: "assistant",
+            text: "streamed assistant text",
+            data: { largePayload: "drop me" },
+          }),
+        );
+      },
+    });
+    await host.setThreadFocus({ threadId, focused: true });
+    const hostEvents: HonkRuntimeHostEvent[] = [];
+    const unsubscribe = host.onHostEvent((event) => {
+      hostEvents.push(event);
+    });
+
+    await host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
+    await vi.advanceTimersByTimeAsync(16);
+
+    const runtimeEvent = hostEvents.find(
+      (event) => event.type === "runtime-event" && event.event.type === "message.updated",
+    );
+    const displayTimelineEvent = hostEvents.findLast(
+      (event) => event.type === "display-timeline" && event.timeline.threadId === threadId,
+    );
+    expect(runtimeEvent).toMatchObject({
+      type: "runtime-event",
+      event: expect.objectContaining({
+        type: "message.updated",
+        text: "streamed assistant text",
+      }),
+    });
+    expect(runtimeEvent?.type === "runtime-event" && "data" in runtimeEvent.event).toBe(false);
+    expect(displayTimelineEvent?.type === "display-timeline" && displayTimelineEvent.timeline.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "message",
+          text: "streamed assistant text",
+        }),
+      ]),
+    );
+
+    unsubscribe();
+    host.dispose();
+  });
+
+  it("keeps subagent tool runtime event data on the wire", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:wire-subagent");
+    const subagentData = {
+      toolCallId: "toolu-subagent",
+      toolName: "subagent",
+      partialResult: { details: { activities: [{ id: "activity-1" }] } },
+    };
+    const host = new DesktopRuntimeHost({
+      agentDir: join(tempDir, "pi-agent"),
+      bindExtensions: async (runtime) => {
+        emitRuntimeEventForTest(
+          runtime,
+          createRuntimeEvent({
+            type: "tool.updated",
+            threadId,
+            runtimeSessionId: runtime.runtimeSessionId,
+            data: subagentData,
+          }),
+        );
+      },
+    });
+    const hostEvents: HonkRuntimeHostEvent[] = [];
+    const unsubscribe = host.onHostEvent((event) => {
+      hostEvents.push(event);
+    });
+
+    await host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
+
+    const runtimeEvent = hostEvents.find(
+      (event) => event.type === "runtime-event" && event.event.type === "tool.updated",
+    );
+    expect(runtimeEvent?.type === "runtime-event" ? runtimeEvent.event.data : null).toBe(
+      subagentData,
+    );
+
+    unsubscribe();
+    host.dispose();
+  });
+
+  it("trims global snapshot runtime events without trimming display timeline inputs", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:snapshot-wire-trim");
+    const turnId = TurnId.make("turn:snapshot-wire-trim");
+    const host = new DesktopRuntimeHost({
+      agentDir: join(tempDir, "pi-agent"),
+      bindExtensions: async (runtime) => {
+        emitRuntimeEventForTest(
+          runtime,
+          createRuntimeEvent({
+            type: "message.updated",
+            threadId,
+            runtimeSessionId: runtime.runtimeSessionId,
+            turnId,
+            messageRole: "assistant",
+            text: "snapshot timeline text",
+            data: { largePayload: "drop me" },
+          }),
+        );
+      },
+    });
+
+    await host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
+
+    const snapshot = await host.getHostSnapshot();
+    const messageEvent = snapshot.runtimeEvents.find((event) => event.type === "message.updated");
+    const displayTimeline = snapshot.displayTimelines.find((timeline) => timeline.threadId === threadId);
+    expect(messageEvent).toEqual(
+      expect.objectContaining({
+        type: "message.updated",
+        text: "snapshot timeline text",
+      }),
+    );
+    expect(messageEvent && "data" in messageEvent).toBe(false);
+    expect(displayTimeline?.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "message",
+          text: "snapshot timeline text",
+        }),
+      ]),
+    );
+
+    host.dispose();
+  });
+
+  it("emits runtime identities instead of a full snapshot on successful thread start", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:start-runtime-identities");
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    const hostEvents: HonkRuntimeHostEvent[] = [];
+    const unsubscribe = host.onHostEvent((event) => {
+      hostEvents.push(event);
+    });
+
+    await host.startThread({ threadId, cwd: tempDir, policy: testPolicy });
+
+    expect(hostEvents.some((event) => event.type === "snapshot")).toBe(false);
+    expect(hostEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "runtime-identities",
+          identities: [
+            expect.objectContaining({
+              threadId,
+            }),
+          ],
+        }),
+      ]),
+    );
+
+    unsubscribe();
+    host.dispose();
+  });
+
+  it("flushes display timelines at focused and background cadences", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-12T12:00:00.000Z"));
+    const tempDir = createTempDir();
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    const backgroundThreadId = ThreadId.make("thread:timeline-background");
+    const focusedThreadId = ThreadId.make("thread:timeline-focused");
+    const backgroundTimeline: RuntimeDisplayTimelineProjection = {
+      threadId: backgroundThreadId,
+      runtimeSessionId: RuntimeSessionId.make("runtime-session:timeline-background"),
+      items: [],
+    };
+    const focusedTimeline: RuntimeDisplayTimelineProjection = {
+      threadId: focusedThreadId,
+      runtimeSessionId: RuntimeSessionId.make("runtime-session:timeline-focused"),
+      items: [],
+    };
+    displayTimelineMapForTest(host).set(backgroundThreadId, backgroundTimeline);
+    displayTimelineMapForTest(host).set(focusedThreadId, focusedTimeline);
+    const displayEvents: RuntimeDisplayTimelineProjection[] = [];
+    const unsubscribe = host.onHostEvent((event) => {
+      if (event.type === "display-timeline") {
+        displayEvents.push(event.timeline);
+      }
+    });
+
+    schedulerForTest(host).scheduleDisplayTimelineEmit(backgroundThreadId);
+    schedulerForTest(host).scheduleDisplayTimelineEmit(backgroundThreadId);
+    await vi.advanceTimersByTimeAsync(249);
+    expect(displayEvents).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(displayEvents).toEqual([backgroundTimeline]);
+
+    await host.setThreadFocus({ threadId: focusedThreadId, focused: true });
+    schedulerForTest(host).scheduleDisplayTimelineEmit(focusedThreadId);
+    await vi.advanceTimersByTimeAsync(15);
+    expect(displayEvents).toEqual([backgroundTimeline]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(displayEvents).toEqual([backgroundTimeline, focusedTimeline]);
+
+    unsubscribe();
+    host.dispose();
+  });
+
+  it("flushes a pending display timeline immediately when a thread becomes focused", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-12T12:00:00.000Z"));
+    const tempDir = createTempDir();
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    const threadId = ThreadId.make("thread:timeline-focus-immediate");
+    const timeline: RuntimeDisplayTimelineProjection = {
+      threadId,
+      runtimeSessionId: RuntimeSessionId.make("runtime-session:timeline-focus-immediate"),
+      items: [],
+    };
+    displayTimelineMapForTest(host).set(threadId, timeline);
+    const displayEvents: RuntimeDisplayTimelineProjection[] = [];
+    const unsubscribe = host.onHostEvent((event) => {
+      if (event.type === "display-timeline") {
+        displayEvents.push(event.timeline);
+      }
+    });
+
+    schedulerForTest(host).scheduleDisplayTimelineEmit(threadId);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(displayEvents).toEqual([]);
+
+    await host.setThreadFocus({ threadId, focused: true });
+
+    expect(displayEvents).toEqual([timeline]);
+
+    unsubscribe();
     host.dispose();
   });
 });

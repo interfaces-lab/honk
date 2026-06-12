@@ -215,9 +215,18 @@ export function runtimeToolHasPendingApproval(
     return false;
   }
   const display = tool.display;
-  const toolName = tool.toolName.toLowerCase();
+  const toolName = normalizeRuntimeToolName(tool.toolName);
   return matchesPendingApprovalKinds(kinds, {
-    isCommand: display?.kind === "shell" || toolName === "shell" || typeof tool.command === "string",
+    isCommand:
+      display?.kind === "shell" ||
+      toolName === "shell" ||
+      toolName === "bash" ||
+      toolName === "terminal" ||
+      toolName === "exec" ||
+      toolName === "command" ||
+      toolName.includes("shell") ||
+      toolName.includes("command_execution") ||
+      typeof tool.command === "string",
     isEdit:
       display?.kind === "edit" ||
       toolName.includes("edit") ||
@@ -1008,15 +1017,13 @@ function buildGroupedRun(
   const thinkingCount = steps.filter(isThinkingGroupedStep).length;
   const toolCount = steps.filter(isToolGroupedStep).length;
   const browserCount = runtimeToolSteps.filter(isRuntimeBrowserToolStep).length;
-  const hasError = runtimeToolSteps.some(
-    (step) => step.tool.status === "error" || step.tool.isError === true,
-  );
+  // Tool failures render on the individual tool row in the preview/expanded body; the
+  // grouped header should keep summarizing the work instead of becoming a sticky error state.
   const durationMs = groupedRunDurationMs(steps, workAnalysis.durationMs);
   const summary = summarizeGroupedRunSteps({
     analysis: merged,
     browserCount,
     durationMs,
-    hasError,
     running: input.running,
     stepCount: steps.length,
     thinkingCount,
@@ -1054,7 +1061,6 @@ function summarizeGroupedRunSteps(input: {
   readonly analysis: ToolGroupAnalysisBase;
   readonly browserCount: number;
   readonly durationMs: number;
-  readonly hasError: boolean;
   readonly running: boolean;
   readonly stepCount: number;
   readonly thinkingCount: number;
@@ -1077,12 +1083,6 @@ function summarizeGroupedRunSteps(input: {
     return {
       action: input.running ? "Running" : "Ran",
       details: formatBrowserActionCountDetails(input.browserCount),
-    };
-  }
-  if (input.hasError) {
-    return {
-      action: "Error",
-      details: input.toolCount === 1 ? "1 tool" : `${input.toolCount} tools`,
     };
   }
   return summarizeToolGroupAnalysis(
@@ -1541,7 +1541,17 @@ function isRuntimeCommandToolStep(step: TimelineRuntimeToolStep): boolean {
   if (step.tool.display?.kind === "shell") {
     return true;
   }
-  return step.tool.toolName === "shell" || typeof step.tool.command === "string";
+  const toolName = normalizeRuntimeToolName(step.tool.toolName);
+  return (
+    toolName === "shell" ||
+    toolName === "bash" ||
+    toolName === "terminal" ||
+    toolName === "exec" ||
+    toolName === "command" ||
+    toolName.includes("shell") ||
+    toolName.includes("command_execution") ||
+    typeof step.tool.command === "string"
+  );
 }
 
 function isRuntimeBrowserToolStep(step: TimelineRuntimeToolStep): boolean {

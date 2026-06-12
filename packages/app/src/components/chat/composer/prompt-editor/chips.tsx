@@ -1,5 +1,5 @@
-import { Button } from "@honk/multikit/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
 import { type ComponentType } from "react";

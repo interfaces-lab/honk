@@ -68,7 +68,7 @@ function Textarea({
       className={
         cn(
           !unstyled &&
-            "relative inline-flex w-full rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-primary shadow-none transition-colors has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused/30 has-focus-visible:has-aria-invalid:border-honk-stroke-red-primary has-focus-visible:has-aria-invalid:ring-honk-stroke-red-primary/20 has-aria-invalid:border-honk-stroke-red-primary has-disabled:opacity-64",
+            "t-input relative inline-flex w-full rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-primary shadow-none transition-colors has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused/30 has-focus-visible:has-aria-invalid:border-honk-stroke-red-primary has-focus-visible:has-aria-invalid:ring-honk-stroke-red-primary/20 has-aria-invalid:border-honk-stroke-red-primary has-disabled:opacity-64 motion-reduce:transition-none",
           className,
         ) || undefined
       }

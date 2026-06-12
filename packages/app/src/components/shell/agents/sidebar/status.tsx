@@ -1,4 +1,4 @@
-import { StatusDot as UiStatusDot } from "@honk/multikit/status-dot";
+import { StatusDot as UiStatusDot } from "@honk/honkkit/status-dot";
 import { IconArchive1 } from "central-icons";
 import type { ComponentProps } from "react";
 

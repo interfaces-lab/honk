@@ -2,6 +2,7 @@ import {
   MessageId,
   RuntimeSessionId,
   ThreadId,
+  TurnId,
   type RuntimeDisplayTimelineProjection,
 } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
@@ -11,6 +12,8 @@ import type { ChatMessage, ThreadSendIntent } from "../../../types";
 import { timelineMessageEntryId } from "./timeline-entry-ids";
 import {
   projectThreadTimeline,
+  runtimeDisplayTimelineActiveTurnId,
+  runtimeDisplayTimelineHasActiveWork,
   runtimeDisplayTimelineHasResponseItem,
 } from "./thread-timeline-projector";
 
@@ -66,6 +69,65 @@ describe("projectThreadTimeline", () => {
       phase: "thinking",
       elapsedStartedAt: turnStartedAt,
     });
+  });
+
+  it("appends the waiting row while a follow-up turn is active before work is visible", () => {
+    const entries = project({
+      committedMessages: [
+        userMessage,
+        {
+          id: MessageId.make("message:timeline-projector:assistant"),
+          role: "assistant",
+          text: "Done.",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          completedAt: "2026-06-05T16:00:01.000Z",
+          streaming: false,
+        },
+        {
+          id: pendingSendMessageId,
+          role: "user",
+          text: "Follow up",
+          createdAt: pendingSendCreatedAt,
+          streaming: false,
+        },
+      ],
+      isWorking: false,
+      isTurnActive: true,
+      activeTurnStartedAt: pendingSendCreatedAt,
+    });
+
+    expect(entries.at(-1)).toEqual({
+      id: "working-indicator-row",
+      kind: "waiting",
+      createdAt: pendingSendCreatedAt,
+      phase: "thinking",
+      elapsedStartedAt: pendingSendCreatedAt,
+    });
+  });
+
+  it("does not append a waiting row after completed assistant text while only turn-active", () => {
+    const assistantMessage = {
+      id: MessageId.make("message:timeline-projector:assistant"),
+      role: "assistant",
+      text: "Done.",
+      createdAt: "2026-06-05T16:00:01.000Z",
+      completedAt: "2026-06-05T16:00:01.000Z",
+      streaming: false,
+    } satisfies ChatMessage;
+
+    const entries = project({
+      committedMessages: [userMessage, assistantMessage],
+      isWorking: false,
+      isTurnActive: true,
+      activeTurnStartedAt: turnStartedAt,
+    });
+
+    expect(entries.at(-1)).toEqual(
+      expect.objectContaining({
+        kind: "message",
+        message: assistantMessage,
+      }),
+    );
   });
 
   it("appends a waiting row after a running non-subagent runtime tool", () => {
@@ -209,6 +271,68 @@ describe("projectThreadTimeline", () => {
     const thinkingEntry = entries.find((entry) => entry.kind === "runtime-thinking");
     expect(thinkingEntry?.message.thinking).toBeUndefined();
     expect(runtimeDisplayTimelineHasResponseItem(runtimeTimeline)).toBe(true);
+  });
+
+  it("detects active runtime work from display timeline items", () => {
+    const activeTurnId = TurnId.make("turn:timeline-projector:active");
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "tool:timeline-projector:completed",
+          kind: "tool",
+          orderKey: "2026-06-05T16:00:02.000Z:tool:timeline-projector:completed",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          toolCallId: "toolu-timeline-projector-completed",
+          toolName: "read",
+          turnId: TurnId.make("turn:timeline-projector:completed"),
+          status: "completed",
+          eventIds: [],
+          display: { kind: "read", path: "README.md" },
+        },
+        {
+          id: "tool:timeline-projector:running",
+          kind: "tool",
+          orderKey: "2026-06-05T16:00:03.000Z:tool:timeline-projector:running",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          toolCallId: "toolu-timeline-projector-running",
+          toolName: "bash",
+          turnId: activeTurnId,
+          status: "running",
+          eventIds: [],
+          display: { kind: "shell", command: "pnpm run typecheck" },
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    expect(runtimeDisplayTimelineHasActiveWork(runtimeTimeline)).toBe(true);
+    expect(runtimeDisplayTimelineActiveTurnId(runtimeTimeline)).toBe(activeTurnId);
+  });
+
+  it("does not treat a completed runtime timeline as active work", () => {
+    const completedTurnId = TurnId.make("turn:timeline-projector:completed");
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:timeline-projector:assistant-completed",
+          kind: "message",
+          orderKey: "2026-06-05T16:00:02.000Z:message:timeline-projector:assistant-completed",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          role: "assistant",
+          text: "Done.",
+          streaming: false,
+          source: "session-entry",
+          turnId: completedTurnId,
+          eventIds: [],
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    expect(runtimeDisplayTimelineHasActiveWork(runtimeTimeline)).toBe(false);
+    expect(runtimeDisplayTimelineActiveTurnId(runtimeTimeline)).toBe(completedTurnId);
   });
 
   it("does not append a waiting row after a running runtime subagent task", () => {
@@ -529,6 +653,62 @@ describe("projectThreadTimeline", () => {
       expect.objectContaining({
         id: "working-indicator-row",
         kind: "waiting",
+      }),
+    ]);
+  });
+
+  it("prefers committed edit work entries with diff artifacts over completed runtime edit rows", () => {
+    const committedEditEntry = {
+      id: "tool:turn:timeline-projector:edit",
+      label: "Edited packages/app/src/file.ts",
+      tone: "tool",
+      status: "completed",
+      createdAt: "2026-06-05T16:00:02.000Z",
+      itemType: "file_change",
+      toolCallId: "toolu-timeline-projector-edit",
+      changedFiles: ["packages/app/src/file.ts"],
+      artifacts: [
+        {
+          type: "diff",
+          format: "unified",
+          source: "result",
+          files: [{ path: "packages/app/src/file.ts", additions: 2, deletions: 1 }],
+          unifiedDiff: "@@ -1,2 +1,3 @@\n-old\n+new\n+line\n",
+        },
+      ],
+    } satisfies WorkLogEntry;
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "tool:timeline-projector:edit",
+          kind: "tool",
+          orderKey: "2026-06-05T16:00:02.000Z:tool:timeline-projector:edit",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          toolCallId: "toolu-timeline-projector-edit",
+          toolName: "edit",
+          status: "completed",
+          eventIds: [],
+          display: {
+            kind: "edit",
+            path: "packages/app/src/file.ts",
+          },
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    const entries = project({
+      committedMessages: [],
+      workLogEntries: [committedEditEntry],
+      activeRuntimeDisplayTimeline: runtimeTimeline,
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        id: "tool-call:toolu-timeline-projector-edit",
+        kind: "work",
+        entry: committedEditEntry,
       }),
     ]);
   });

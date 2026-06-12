@@ -147,7 +147,6 @@ export function assertRuntimeApiAvailable(): void {
 
 export async function assertRuntimeHostAvailable(): Promise<void> {
   assertRuntimeApiAvailable();
-  await readHonkRuntimeApi().getHostSnapshot();
 }
 
 export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntimeApi {
@@ -159,6 +158,7 @@ export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntime
     configureCredential: async (input) =>
       decodeHonkRuntimeHostSnapshot(await runtime.configureCredential(input)),
     hydrateThread: (input) => runtime.hydrateThread(input),
+    setThreadFocus: (input) => runtime.setThreadFocus(input),
     sendTurn: (input) => runtime.sendTurn(input),
     abort: (input) => runtime.abort(input),
     respondToExtensionUiRequest: (input) => runtime.respondToExtensionUiRequest(input),

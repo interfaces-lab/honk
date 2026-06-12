@@ -35,6 +35,7 @@ function createRuntimeApi(input: {
     updatePreferences: async () => input.snapshot.preferences,
     configureCredential: async () => input.snapshot,
     hydrateThread: async () => undefined,
+    setThreadFocus: async () => undefined,
     sendTurn: async (turn) => {
       input.onSendTurn?.(turn);
       return TurnId.make(`turn:${turn.threadId}`);

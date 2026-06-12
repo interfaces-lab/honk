@@ -1085,16 +1085,8 @@ function timelineRowToolStatus(row: TimelineRow): "loading" | "completed" | "err
         }
         return row.entry.status === "running" ? "loading" : "completed";
       }
-      if (
-        row.groupedEntries.some((entry) => entry.tone === "error" || entry.status === "error") ||
-        row.steps.some(
-          (step) =>
-            step.kind === "runtime-tool" &&
-            (step.tool.status === "error" || step.tool.isError === true),
-        )
-      ) {
-        return "error";
-      }
+      // Error state belongs to the individual tool row. Group wrappers stay lifecycle-only so
+      // a failed child does not turn the whole collapsed run into a persistent error status.
       return row.isRunning ? "loading" : "completed";
     default:
       return undefined;

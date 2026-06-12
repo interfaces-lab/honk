@@ -1,18 +1,18 @@
 {
   "$schema": "https://ui.shadcn.com/schema/registry.json",
-  "name": "multikit",
+  "name": "honkkit",
   "homepage": "https://honk.app",
   "items": [
     {
       "name": "styles",
       "type": "registry:style",
-      "title": "Multikit Styles",
-      "description": "Light and dark CSS variables for Multikit components.",
+      "title": "HonkKit Styles",
+      "description": "Light and dark CSS variables for HonkKit components.",
       "files": [
         {
           "path": "src/styles.css",
           "type": "registry:style",
-          "target": "styles/multikit.css"
+          "target": "styles/honkkit.css"
         }
       ]
     },

@@ -22,9 +22,9 @@ import {
   workbenchMenuItemClassName,
   workbenchMenuMetaTextClassName,
   workbenchMenuPrimaryTextClassName,
-} from "@honk/multikit/menu";
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
-import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/menu";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
+import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 
 const NEW_TAB_MENU_WIDTH = "w-72 max-w-full min-w-0";
 const NEW_TAB_MENU_MAX_HEIGHT = "max-h-[min(720px,var(--available-height))]";

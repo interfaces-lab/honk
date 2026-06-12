@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { IconChevronLeftMedium } from "central-icons";
 
-import { SidebarItem } from "@honk/multikit/sidebar";
+import { SidebarItem } from "@honk/honkkit/sidebar";
 import { SETTINGS_SECTIONS } from "~/components/settings/settings-sections";
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";

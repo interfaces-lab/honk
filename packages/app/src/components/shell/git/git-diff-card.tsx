@@ -4,8 +4,8 @@ import type { GitFilePatchResult } from "@honk/contracts";
 import { MiddleTruncate } from "@pierre/truncate/react";
 import { memo, type RefObject, useRef } from "react";
 import { toast } from "sonner";
-import { Button } from "@honk/multikit/button";
-import { Checkbox } from "@honk/multikit/checkbox";
+import { Button } from "@honk/honkkit/button";
+import { Checkbox } from "@honk/honkkit/checkbox";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import { cn } from "~/lib/utils";

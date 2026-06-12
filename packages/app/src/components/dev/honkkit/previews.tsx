@@ -1,4 +1,4 @@
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@honk/multikit/alert";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@honk/honkkit/alert";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -8,7 +8,7 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@honk/multikit/alert-dialog";
+} from "@honk/honkkit/alert-dialog";
 import {
   Autocomplete,
   AutocompleteEmpty,
@@ -18,15 +18,15 @@ import {
   AutocompleteItem,
   AutocompleteList,
   AutocompletePopup,
-} from "@honk/multikit/autocomplete";
-import { Avatar, AvatarFallback, AvatarImage } from "@honk/multikit/avatar";
-import { Badge } from "@honk/multikit/badge";
-import { Button } from "@honk/multikit/button";
-import { Card, CardBody, CardFooter, CardHeader } from "@honk/multikit/card";
-import { BarChart, LineChart, PieChart, type ChartDatum } from "@honk/multikit/chart";
-import { Checkbox } from "@honk/multikit/checkbox";
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@honk/multikit/collapsible";
-import { Code, Pre } from "@honk/multikit/code";
+} from "@honk/honkkit/autocomplete";
+import { Avatar, AvatarFallback, AvatarImage } from "@honk/honkkit/avatar";
+import { Badge } from "@honk/honkkit/badge";
+import { Button } from "@honk/honkkit/button";
+import { Card, CardBody, CardFooter, CardHeader } from "@honk/honkkit/card";
+import { BarChart, LineChart, PieChart, type ChartDatum } from "@honk/honkkit/chart";
+import { Checkbox } from "@honk/honkkit/checkbox";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@honk/honkkit/collapsible";
+import { Code, Pre } from "@honk/honkkit/code";
 import {
   Command,
   CommandEmpty,
@@ -39,7 +39,7 @@ import {
   CommandPanel,
   CommandSeparator,
   CommandShortcut,
-} from "@honk/multikit/command";
+} from "@honk/honkkit/command";
 import {
   Combobox,
   ComboboxEmpty,
@@ -49,14 +49,14 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxPopup,
-} from "@honk/multikit/combobox";
+} from "@honk/honkkit/combobox";
 import {
   ContextMenu,
   ContextMenuTrigger,
   WorkbenchContextMenuItem,
   WorkbenchContextMenuPopup,
   WorkbenchContextMenuSeparator,
-} from "@honk/multikit/context-menu";
+} from "@honk/honkkit/context-menu";
 import {
   Dialog,
   DialogDescription,
@@ -65,21 +65,21 @@ import {
   DialogPopup,
   DialogTitle,
   DialogTrigger,
-} from "@honk/multikit/dialog";
-import { ButtonGroup, ButtonGroupSeparator } from "@honk/multikit/group";
-import { HoverCard, HoverCardPopup, HoverCardTrigger } from "@honk/multikit/hover-card";
-import { Icon } from "@honk/multikit/icon";
-import { Input } from "@honk/multikit/input";
+} from "@honk/honkkit/dialog";
+import { ButtonGroup, ButtonGroupSeparator } from "@honk/honkkit/group";
+import { HoverCard, HoverCardPopup, HoverCardTrigger } from "@honk/honkkit/hover-card";
+import { Icon } from "@honk/honkkit/icon";
+import { Input } from "@honk/honkkit/input";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@honk/multikit/input-group";
-import { Kbd, KbdGroup } from "@honk/multikit/kbd";
-import { Label } from "@honk/multikit/label";
-import { Grid, Row, Spacer, Stack } from "@honk/multikit/layout";
-import { Link } from "@honk/multikit/link";
+} from "@honk/honkkit/input-group";
+import { Kbd, KbdGroup } from "@honk/honkkit/kbd";
+import { Label } from "@honk/honkkit/label";
+import { Grid, Row, Spacer, Stack } from "@honk/honkkit/layout";
+import { Link } from "@honk/honkkit/link";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -90,31 +90,31 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@honk/multikit/menu";
+} from "@honk/honkkit/menu";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@honk/multikit/empty";
+} from "@honk/honkkit/empty";
 import {
   Popover,
   PopoverContent,
   PopoverDescription,
   PopoverTitle,
   PopoverTrigger,
-} from "@honk/multikit/popover";
-import { Radio, RadioGroup } from "@honk/multikit/radio-group";
-import { ScrollArea } from "@honk/multikit/scroll-area";
+} from "@honk/honkkit/popover";
+import { Radio, RadioGroup } from "@honk/honkkit/radio-group";
+import { ScrollArea } from "@honk/honkkit/scroll-area";
 import {
   Select,
   SelectItem,
   SelectPopup,
   SelectTrigger,
   SelectValue,
-} from "@honk/multikit/select";
-import { Separator } from "@honk/multikit/separator";
+} from "@honk/honkkit/select";
+import { Separator } from "@honk/honkkit/separator";
 import {
   SidebarItem,
   SidebarTray,
@@ -124,19 +124,19 @@ import {
   SidebarTrayRowContent,
   SidebarTrayRowLabel,
   SidebarTrayRowStatus,
-} from "@honk/multikit/sidebar";
-import { Skeleton } from "@honk/multikit/skeleton";
-import { Spinner } from "@honk/multikit/spinner";
+} from "@honk/honkkit/sidebar";
+import { Skeleton } from "@honk/honkkit/skeleton";
+import { Spinner } from "@honk/honkkit/spinner";
 import {
   SplitButton,
   SplitButtonAction,
   SplitButtonPopup,
   SplitButtonTrigger,
-} from "@honk/multikit/split-button";
-import { Stat, StatLabel, StatValue } from "@honk/multikit/stat";
-import { StatusDot } from "@honk/multikit/status-dot";
-import { Switch } from "@honk/multikit/switch";
-import { Tabs } from "@honk/multikit/tabs";
+} from "@honk/honkkit/split-button";
+import { Stat, StatLabel, StatValue } from "@honk/honkkit/stat";
+import { StatusDot } from "@honk/honkkit/status-dot";
+import { Switch } from "@honk/honkkit/switch";
+import { Tabs } from "@honk/honkkit/tabs";
 import {
   Table,
   TableBody,
@@ -144,13 +144,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@honk/multikit/table";
-import { Text } from "@honk/multikit/text";
-import { Textarea } from "@honk/multikit/textarea";
-import { Toggle as ToggleButton } from "@honk/multikit/toggle";
-import { ToggleGroup, ToggleGroupItem, ToggleGroupSeparator } from "@honk/multikit/toggle-group";
-import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@honk/multikit/tooltip";
-import { toastContentVariants, toastRootVariants } from "@honk/multikit/toast";
+} from "@honk/honkkit/table";
+import { Text } from "@honk/honkkit/text";
+import { Textarea } from "@honk/honkkit/textarea";
+import { Toggle as ToggleButton } from "@honk/honkkit/toggle";
+import { ToggleGroup, ToggleGroupItem, ToggleGroupSeparator } from "@honk/honkkit/toggle-group";
+import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@honk/honkkit/tooltip";
+import { toastContentVariants, toastRootVariants } from "@honk/honkkit/toast";
 import {
   ToolCallLine,
   ToolCallLineChevron,
@@ -166,13 +166,13 @@ import {
   ToolCallTaskTitle,
   ToolCallTaskTitleArea,
   type ToolCallLineStatus,
-} from "@honk/multikit/tool-call";
+} from "@honk/honkkit/tool-call";
 import {
   WorkbenchIconButton,
   WorkbenchTabIconContent,
   WorkbenchTextButton,
-} from "@honk/multikit/workbench-button";
-import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/workbench-button";
+import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 import {
   IconBubbleText,
   IconCheckCircle2,
@@ -1527,7 +1527,7 @@ function CommandPreview() {
   const slashItems = ["Ask", "Plan", "Search files", "Summarize", "New thread", "Open settings"];
   const pathItems = [
     "packages/app/src/components/chat/view/chat-view.tsx",
-    "packages/multikit/src/command.tsx",
+    "packages/honkkit/src/command.tsx",
     "packages/app/src/components/chat/composer/command-menu/menu.tsx",
     "packages/app/src/index.css",
   ];
@@ -1828,7 +1828,7 @@ function ToolCallPreview() {
   const params = useDialKit("Tool Call", {
     scenario: dialSelect(scenarios, "line"),
     action: dialText("Read"),
-    details: dialText("packages/multikit/src/button.tsx"),
+    details: dialText("packages/honkkit/src/button.tsx"),
     status: dialSelect(statuses, "loading"),
     width: dialSelect(widths, "wide"),
     icon: true,
@@ -2026,7 +2026,7 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   "workbench-chrome-row": WorkbenchChromeRowPreview,
 };
 
-export function MultikitPreview({ componentId }: { componentId: string }) {
+export function HonkKitPreview({ componentId }: { componentId: string }) {
   const Preview = MULTIKIT_PREVIEWS[componentId];
   if (!Preview) {
     return (

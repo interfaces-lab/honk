@@ -33,9 +33,9 @@ import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
 import { normalizePathSeparators } from "@honk/shared/paths";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
-import { Button } from "@honk/multikit/button";
-import { Dialog, DialogPopup } from "@honk/multikit/dialog";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
+import { Button } from "@honk/honkkit/button";
+import { Dialog, DialogPopup } from "@honk/honkkit/dialog";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor-preferences";
 import {
@@ -131,6 +131,37 @@ function inferFenceLanguageFromFilename(raw: string): string | undefined {
   }
 
   return undefined;
+}
+
+export function inferCodeLanguageFromFilePath(filePath: string | null | undefined): string {
+  const normalized = filePath?.trim();
+  if (!normalized) {
+    return "text";
+  }
+
+  const candidates = [normalized, ...normalized.split(":")].filter(
+    (candidate) => candidate.length > 0,
+  );
+  for (const candidate of candidates) {
+    const basename = candidate.split(/[\\/]/).at(-1)?.toLowerCase();
+    // Shiki doesn't bundle a gitignore grammar; ini is a close match (#685)
+    if (basename === ".gitignore") {
+      return "ini";
+    }
+    if (basename === ".zshrc" || basename === ".zshenv" || basename === ".zprofile") {
+      return "zsh";
+    }
+    if (basename === ".bashrc" || basename === ".bash_profile" || basename === ".profile") {
+      return "zsh";
+    }
+
+    const language = getFiletypeFromFileName(candidate);
+    if (language !== "text") {
+      return language;
+    }
+  }
+
+  return "text";
 }
 
 function isMermaidFenceLanguage(language: string): boolean {
@@ -593,6 +624,32 @@ function ShikiCodeBlock({ className, code, codeProps, themeName }: ShikiCodeBloc
       />
       <PlainCodeBlock className={className} code={code} codeProps={codeProps} />
     </>
+  );
+}
+
+export function FileCodeBlock({
+  code,
+  filePath,
+  className,
+}: {
+  code: string;
+  filePath: string | null | undefined;
+  className?: string | undefined;
+}) {
+  const { resolvedTheme } = useTheme();
+  const language = inferCodeLanguageFromFilePath(filePath);
+  const diffThemeName = resolveDiffThemeName(resolvedTheme);
+
+  return (
+    <div className={cn("chat-markdown w-full min-w-0", className)}>
+      <MarkdownCodeBlock code={code}>
+        <ShikiCodeBlock
+          className={`language-${language}`}
+          code={code}
+          themeName={diffThemeName}
+        />
+      </MarkdownCodeBlock>
+    </div>
   );
 }
 

@@ -45,7 +45,7 @@ function workEntry(
 function runtimeReadTool(input: {
   id: string;
   createdAt: string;
-  status: "running" | "completed";
+  status: "running" | "completed" | "error";
   path?: string;
 }): Extract<TimelineEntry, { kind: "runtime-tool" }> {
   return {
@@ -61,6 +61,7 @@ function runtimeReadTool(input: {
       toolName: "read",
       status: input.status,
       eventIds: [],
+      isError: input.status === "error",
       display: {
         kind: "read",
         path: input.path ?? "/repo/src/app.ts",
@@ -1326,6 +1327,50 @@ describe("deriveTimelineRenderItems", () => {
         }),
       }),
     ]);
+  });
+
+  it("keeps runtime tool errors out of the grouped header", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeShellTool({
+          id: "tool:shell-1",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        runtimeReadTool({
+          id: "tool:read-error",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          status: "error",
+          path: "/repo/src/app.ts",
+        }),
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+      projectRoot: "/repo",
+    });
+
+    const group = rows[0]?.kind === "group" ? rows[0].group : null;
+    const errorStep = group?.steps.find(
+      (step) => step.kind === "runtime-tool" && step.tool.toolCallId === "tool:read-error",
+    );
+
+    expect(group).toEqual(
+      expect.objectContaining({
+        isRunning: true,
+        isTailGroup: true,
+        summary: {
+          action: "Exploring",
+          details: "1 file, ran 1 command",
+        },
+      }),
+    );
+    expect(errorStep).toEqual(
+      expect.objectContaining({
+        kind: "runtime-tool",
+        tool: expect.objectContaining({ status: "error", isError: true }),
+      }),
+    );
+    expect(errorStep ? isPreviewableWorkGroupStep(errorStep) : false).toBe(true);
   });
 
   it("keeps short assistant narration inside a tool group", () => {

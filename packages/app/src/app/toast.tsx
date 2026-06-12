@@ -23,7 +23,7 @@ import {
   ToastIconButton,
   ToastRoot,
   ToastTitle,
-} from "@honk/multikit/toast";
+} from "@honk/honkkit/toast";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { useRouteTarget } from "~/routes/-thread-route-targets";

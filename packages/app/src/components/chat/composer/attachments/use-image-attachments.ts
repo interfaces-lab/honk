@@ -5,26 +5,21 @@ import {
   type ThreadId,
 } from "@honk/contracts";
 import {
-  createElement,
   useRef,
   useState,
   type ChangeEvent,
   type ClipboardEvent,
   type DragEvent,
   type RefObject,
-  type ReactNode,
 } from "react";
 
 import {
   type ComposerImageAttachment,
   type DraftId,
-  type PersistedComposerImageAttachment,
   useComposerDraftStore,
 } from "../../../../stores/chat-drafts";
 import { randomUUID } from "~/lib/utils";
 import { toastManager } from "~/app/toast";
-import { readFileAsDataUrl } from "../../composer-submit";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 
 const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(RUNTIME_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;
 
@@ -60,16 +55,6 @@ function isCurrentComposerImageDragState(
   );
 }
 
-function useValueIdentityVersion<TValue>(value: TValue): number {
-  const valueRef = useRef(value);
-  const versionRef = useRef(0);
-  if (valueRef.current !== value) {
-    valueRef.current = value;
-    versionRef.current += 1;
-  }
-  return versionRef.current;
-}
-
 export function useComposerImageAttachments(input: {
   composerDraftTarget: ScopedThreadRef | DraftId;
   activeThreadId: ThreadId | null;
@@ -84,7 +69,6 @@ export function useComposerImageAttachments(input: {
     composerDraftTarget,
     activeThreadId,
     pendingUserInputCount,
-    composerImages,
     nonPersistedComposerImageIds,
     composerImagesRef,
     focusComposer,
@@ -107,42 +91,11 @@ export function useComposerImageAttachments(input: {
   const addComposerDraftImage = useComposerDraftStore((store) => store.addImage);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
   const removeComposerDraftImage = useComposerDraftStore((store) => store.removeImage);
-  const clearComposerDraftPersistedAttachments = useComposerDraftStore(
-    (store) => store.clearPersistedAttachments,
-  );
-  const syncComposerDraftPersistedAttachments = useComposerDraftStore(
-    (store) => store.syncPersistedAttachments,
-  );
-  const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
 
   const nonPersistedComposerImageIdSet = new Set(nonPersistedComposerImageIds);
-
-  const composerDraftTargetVersion = useValueIdentityVersion(composerDraftTarget);
-  const composerImagesVersion = useValueIdentityVersion(composerImages);
-  const clearPersistedAttachmentsVersion = useValueIdentityVersion(
-    clearComposerDraftPersistedAttachments,
-  );
-  const getComposerDraftVersion = useValueIdentityVersion(getComposerDraft);
-  const syncPersistedAttachmentsVersion = useValueIdentityVersion(
-    syncComposerDraftPersistedAttachments,
-  );
-  const composerImageAttachmentPersistenceSync: ReactNode = createElement(
-    ComposerImageAttachmentPersistenceSync,
-    {
-      key: [
-        composerDraftTargetVersion,
-        composerImagesVersion,
-        clearPersistedAttachmentsVersion,
-        getComposerDraftVersion,
-        syncPersistedAttachmentsVersion,
-      ].join("\0"),
-      clearComposerDraftPersistedAttachments,
-      composerDraftTarget,
-      composerImages,
-      getComposerDraft,
-      syncComposerDraftPersistedAttachments,
-    },
-  );
+  // Image blobs stay in memory until send. Persisting them as base64 in localStorage
+  // blocks the renderer on paste and scales with every attached image.
+  const composerImageAttachmentPersistenceSync = null;
 
   const addComposerImages = (files: File[]) => {
     if (!activeThreadId || files.length === 0) return;
@@ -286,80 +239,4 @@ export function useComposerImageAttachments(input: {
     onComposerImageInputChange,
     removeComposerImage,
   };
-}
-
-function ComposerImageAttachmentPersistenceSync({
-  clearComposerDraftPersistedAttachments,
-  composerDraftTarget,
-  composerImages,
-  getComposerDraft,
-  syncComposerDraftPersistedAttachments,
-}: {
-  clearComposerDraftPersistedAttachments: ReturnType<
-    typeof useComposerDraftStore.getState
-  >["clearPersistedAttachments"];
-  composerDraftTarget: ScopedThreadRef | DraftId;
-  composerImages: ComposerImageAttachment[];
-  getComposerDraft: ReturnType<typeof useComposerDraftStore.getState>["getComposerDraft"];
-  syncComposerDraftPersistedAttachments: ReturnType<
-    typeof useComposerDraftStore.getState
-  >["syncPersistedAttachments"];
-}) {
-  useMountEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      if (composerImages.length === 0) {
-        clearComposerDraftPersistedAttachments(composerDraftTarget);
-        return;
-      }
-      const getPersistedAttachmentsForThread = () =>
-        getComposerDraft(composerDraftTarget)?.persistedAttachments ?? [];
-      try {
-        const currentPersistedAttachments = getPersistedAttachmentsForThread();
-        const existingPersistedById = new Map(
-          currentPersistedAttachments.map((attachment) => [attachment.id, attachment]),
-        );
-        const stagedAttachmentById = new Map<string, PersistedComposerImageAttachment>();
-        await Promise.all(
-          composerImages.map(async (image) => {
-            try {
-              const dataUrl = await readFileAsDataUrl(image.file);
-              stagedAttachmentById.set(image.id, {
-                id: image.id,
-                name: image.name,
-                mimeType: image.mimeType,
-                sizeBytes: image.sizeBytes,
-                dataUrl,
-              });
-            } catch {
-              const existingPersisted = existingPersistedById.get(image.id);
-              if (existingPersisted) {
-                stagedAttachmentById.set(image.id, existingPersisted);
-              }
-            }
-          }),
-        );
-        const serialized = Array.from(stagedAttachmentById.values());
-        if (cancelled) return;
-        syncComposerDraftPersistedAttachments(composerDraftTarget, serialized);
-      } catch {
-        const currentImageIds = new Set(composerImages.map((image) => image.id));
-        const fallbackPersistedAttachments = getPersistedAttachmentsForThread();
-        const fallbackPersistedIds = fallbackPersistedAttachments
-          .map((attachment) => attachment.id)
-          .filter((id) => currentImageIds.has(id));
-        const fallbackPersistedIdSet = new Set(fallbackPersistedIds);
-        const fallbackAttachments = fallbackPersistedAttachments.filter((attachment) =>
-          fallbackPersistedIdSet.has(attachment.id),
-        );
-        if (cancelled) return;
-        syncComposerDraftPersistedAttachments(composerDraftTarget, fallbackAttachments);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  });
-
-  return null;
 }

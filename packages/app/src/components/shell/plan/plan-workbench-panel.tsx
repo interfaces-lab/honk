@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   Dialog,
   DialogDescription,
@@ -9,10 +9,10 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@honk/multikit/dialog";
-import { Input } from "@honk/multikit/input";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@honk/multikit/menu";
-import { ScrollArea } from "@honk/multikit/scroll-area";
+} from "@honk/honkkit/dialog";
+import { Input } from "@honk/honkkit/input";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@honk/honkkit/menu";
+import { ScrollArea } from "@honk/honkkit/scroll-area";
 import type { EnvironmentId } from "@honk/contracts";
 import type { TimestampFormat } from "@honk/contracts/settings";
 import {
@@ -25,7 +25,7 @@ import {
   IconLoader,
   IconPencilLine,
 } from "central-icons";
-import { WorkbenchIconButton } from "@honk/multikit/workbench-button";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
@@ -41,7 +41,7 @@ import {
   stripDisplayedPlanMarkdown,
 } from "~/plan/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
-import { WorkbenchTextButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
+import { WorkbenchTextButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { PlanEditor } from "./editor/plan-editor";
 import { planEditorMarkdownMatches } from "./editor/markdown";
 

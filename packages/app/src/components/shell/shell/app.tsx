@@ -6,7 +6,7 @@ import {
   IconSidebarHiddenLeftWide,
   IconSidebarHiddenRightWide,
 } from "central-icons";
-import { TabsPanel, TabsRoot } from "@honk/multikit/tabs";
+import { TabsPanel, TabsRoot } from "@honk/honkkit/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
 import {

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
-import { Button } from "@honk/multikit/button";
-import { Popover, PopoverClose, PopoverPopup, PopoverTrigger } from "@honk/multikit/popover";
+import { Button } from "@honk/honkkit/button";
+import { Popover, PopoverClose, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
 import { IconCrossSmall } from "central-icons";
 
 import {

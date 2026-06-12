@@ -3,7 +3,7 @@ import type { MessageId } from "@honk/contracts";
 import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   SidebarTray,
   SidebarTrayHeader,
@@ -12,7 +12,7 @@ import {
   SidebarTrayRowContent,
   SidebarTrayRowLabel,
   SidebarTrayRowStatus,
-} from "@honk/multikit/sidebar";
+} from "@honk/honkkit/sidebar";
 import { cn } from "~/lib/utils";
 
 function handleQueuedItemDragEnter(event: DragEvent<HTMLElement>) {

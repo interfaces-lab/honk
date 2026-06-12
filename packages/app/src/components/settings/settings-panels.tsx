@@ -54,15 +54,15 @@ import {
   useStore,
 } from "../../stores/thread-store";
 import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@honk/multikit/empty";
-import { Input } from "@honk/multikit/input";
+} from "@honk/honkkit/empty";
+import { Input } from "@honk/honkkit/input";
 import {
   Menu,
   MenuItem,
@@ -71,16 +71,16 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-} from "@honk/multikit/menu";
+} from "@honk/honkkit/menu";
 import {
   Select,
   SelectItem,
   SelectPopup,
   SelectTrigger,
   SelectValue,
-} from "@honk/multikit/select";
-import { Switch } from "@honk/multikit/switch";
-import { Text, textVariants } from "@honk/multikit/text";
+} from "@honk/honkkit/select";
+import { Switch } from "@honk/honkkit/switch";
+import { Text, textVariants } from "@honk/honkkit/text";
 import { toastManager } from "~/app/toast";
 import { cn } from "~/lib/utils";
 import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
@@ -97,7 +97,7 @@ import {
   unavailableAgentModeReason,
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,

@@ -1,8 +1,8 @@
 import type { EnvironmentId, GitBranch, ProjectId, ScopedProjectRef } from "@honk/contracts";
 import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@honk/shared/git";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
-import { Button } from "@honk/multikit/button";
-import { Input } from "@honk/multikit/input";
+import { Button } from "@honk/honkkit/button";
+import { Input } from "@honk/honkkit/input";
 import { MiddleTruncate } from "@pierre/truncate/react";
 import {
   Menu,
@@ -10,11 +10,11 @@ import {
   MenuPopup,
   MenuTrigger,
   workbenchMenuLabelClassName,
-} from "@honk/multikit/menu";
+} from "@honk/honkkit/menu";
 import {
   WorkbenchChromeActionGroup,
   workbenchChromeTextControlVariants,
-} from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/workbench-chrome-row";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   IconBranch,

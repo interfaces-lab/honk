@@ -1,4 +1,5 @@
 import {
+  ThreadId,
   TurnId,
   type LocalApi,
   type HonkRuntimeApi,
@@ -7,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  assertRuntimeHostAvailable,
   configureRuntimeClientBootstrap,
   createEmptyRuntimeHostSnapshot,
   isDesktopRuntimeApiAvailable,
@@ -22,17 +24,22 @@ async function notCalled(): Promise<never> {
   throw new Error("Unexpected local API call.");
 }
 
-function createRuntimeApi(snapshot: HonkRuntimeHostSnapshot): HonkRuntimeApi {
+function createRuntimeApi(
+  snapshot: HonkRuntimeHostSnapshot,
+  overrides: Partial<HonkRuntimeApi> = {},
+): HonkRuntimeApi {
   return {
     getHostSnapshot: async () => snapshot,
     getPreferences: async () => snapshot.preferences,
     updatePreferences: async () => snapshot.preferences,
     configureCredential: async () => snapshot,
     hydrateThread: async () => undefined,
+    setThreadFocus: async () => undefined,
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
     onHostEvent: () => () => undefined,
+    ...overrides,
   };
 }
 
@@ -119,6 +126,46 @@ describe("readHonkRuntimeApi", () => {
 
     await expect(readHonkRuntimeApi().getHostSnapshot()).resolves.toStrictEqual(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
+  });
+
+  it("asserts runtime host availability without fetching a full snapshot", async () => {
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    const getHostSnapshot = vi.fn(async () => snapshot);
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: createRuntimeApi(snapshot, { getHostSnapshot }),
+      },
+    });
+
+    await expect(assertRuntimeHostAvailable()).resolves.toBeUndefined();
+
+    expect(getHostSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("forwards thread focus updates through the runtime client", async () => {
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    const setThreadFocus = vi.fn(async () => undefined);
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: createRuntimeApi(snapshot, { setThreadFocus }),
+      },
+    });
+
+    await readHonkRuntimeApi().setThreadFocus({
+      threadId: ThreadId.make("thread:client-focus"),
+      focused: true,
+    });
+
+    expect(setThreadFocus).toHaveBeenCalledWith({
+      threadId: ThreadId.make("thread:client-focus"),
+      focused: true,
+    });
   });
 
   it("rejects when no runtime bridge is available", () => {

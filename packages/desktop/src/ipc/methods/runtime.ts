@@ -7,6 +7,7 @@ import {
   HonkRuntimeHostSnapshot,
   ThreadAgentRuntimeAbortInput,
   ThreadAgentRuntimeHydrateInput,
+  ThreadAgentRuntimeSetThreadFocusInput,
   ThreadAgentRuntimeSendTurnInput,
   TurnId,
 } from "@honk/contracts";
@@ -174,6 +175,21 @@ export const hydrateRuntimeThread = makeIpcMethod({
       yield* Effect.promise(() => host.hydrateThread(input)).pipe(
         Effect.tapError((error) =>
           logRuntimeFailure("runtime thread hydrate failed", input, error),
+        ),
+      );
+    }),
+});
+
+export const setRuntimeThreadFocus = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_SET_THREAD_FOCUS_CHANNEL,
+  payload: ThreadAgentRuntimeSetThreadFocusInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.setThreadFocus(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime thread focus update failed", input, error),
         ),
       );
     }),

@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
-import { Code, Pre } from "@honk/multikit/code";
-import { Link } from "@honk/multikit/link";
+import { Code, Pre } from "@honk/honkkit/code";
+import { Link } from "@honk/honkkit/link";
 
 type RichTextRecord = Record<string, unknown>;
 

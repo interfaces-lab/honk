@@ -558,6 +558,12 @@ body[data-honk-glass-mode="true"] .honk-slash-menu-popup {
   padding-top: var(--chat-timeline-step-gap);
 }
 
+[data-work-group-preview] [data-tool-call-line-chevron],
+[data-work-group-preview] [data-task-tool-call-chevron],
+[data-work-group-preview] [data-subagent-row] > [data-subagent-open] {
+  display: none;
+}
+
 [data-preview-scrollable="true"] [data-work-group-preview] {
   -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35) 0, #000 32px);
   mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35) 0, #000 32px);

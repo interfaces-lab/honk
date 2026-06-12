@@ -760,7 +760,10 @@ function compareCreatedThreadItem(
   return createdAtComparison === 0 ? left.id.localeCompare(right.id) : createdAtComparison;
 }
 
-function runtimeSidebarThreadSummary(thread: Thread): SidebarThreadSummary {
+function sidebarThreadSummaryFromThread(
+  thread: Thread,
+  previousSummary?: SidebarThreadSummary,
+): SidebarThreadSummary {
   return {
     id: thread.id,
     environmentId: thread.environmentId,
@@ -775,10 +778,12 @@ function runtimeSidebarThreadSummary(thread: Thread): SidebarThreadSummary {
     branch: thread.branch,
     worktreePath: thread.worktreePath,
     latestUserMessageAt:
-      thread.messages.findLast((message) => message.role === "user")?.createdAt ?? null,
-    hasPendingApprovals: false,
-    hasPendingUserInput: false,
-    hasActionableProposedPlan: false,
+      thread.messages.findLast((message) => message.role === "user")?.createdAt ??
+      previousSummary?.latestUserMessageAt ??
+      null,
+    hasPendingApprovals: previousSummary?.hasPendingApprovals ?? false,
+    hasPendingUserInput: previousSummary?.hasPendingUserInput ?? false,
+    hasActionableProposedPlan: previousSummary?.hasActionableProposedPlan ?? false,
   };
 }
 
@@ -2119,8 +2124,9 @@ function ensureThreadRegistered(
  * Also writes threadShellById / threadSessionById / threadTurnStateById so
  * the active thread has up-to-date state even if the shell stream event
  * hasn't arrived yet (both streams use structural equality checks to avoid
- * unnecessary re-renders when delivering equivalent data).
- * Does NOT write sidebarThreadSummaryById — that is shell-stream-only.
+ * unnecessary re-renders when delivering equivalent data). Also writes the
+ * denormalized sidebar summary from the same canonical thread state so running
+ * status is stored on the sidebar row itself.
  */
 function writeThreadState(
   state: EnvironmentState,
@@ -2260,6 +2266,18 @@ function writeThreadState(
       turnDiffSummaryByThreadId: {
         ...nextState.turnDiffSummaryByThreadId,
         [nextThread.id]: nextTurnDiffSlice.byId,
+      },
+    };
+  }
+
+  const previousSummary = state.sidebarThreadSummaryById[nextThread.id];
+  const nextSummary = sidebarThreadSummaryFromThread(nextThread, previousSummary);
+  if (!sidebarThreadSummariesEqual(previousSummary, nextSummary)) {
+    nextState = {
+      ...nextState,
+      sidebarThreadSummaryById: {
+        ...nextState.sidebarThreadSummaryById,
+        [nextThread.id]: nextSummary,
       },
     };
   }
@@ -3743,7 +3761,10 @@ export function applyRuntimeSessionTreeProjection(
       shell: toThreadShell(nextThread),
       session: nextThread.session,
       turnState: toThreadTurnState(nextThread),
-      summary: runtimeSidebarThreadSummary(nextThread),
+      summary: sidebarThreadSummaryFromThread(
+        nextThread,
+        currentEnvironmentState.sidebarThreadSummaryById[nextThread.id],
+      ),
     },
   );
   return commitEnvironmentState(state, environmentId, {

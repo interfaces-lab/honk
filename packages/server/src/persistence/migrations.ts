@@ -47,6 +47,7 @@ import Migration0033 from "./migrations/033_NormalizeInteractionModeDefaults.ts"
 import Migration0034 from "./migrations/034_NormalizeProviderActivityFailureKinds.ts";
 import Migration0035 from "./migrations/035_DropProviderSessionSchemaResidue.ts";
 import Migration0036 from "./migrations/036_NormalizeSubagentActivityPayloadThreadIds.ts";
+import Migration0037 from "./migrations/037_BackfillProjectionThreadLatestTurnId.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -93,6 +94,7 @@ export const migrationEntries = [
   [34, "NormalizeProviderActivityFailureKinds", Migration0034],
   [35, "DropProviderSessionSchemaResidue", Migration0035],
   [36, "NormalizeSubagentActivityPayloadThreadIds", Migration0036],
+  [37, "BackfillProjectionThreadLatestTurnId", Migration0037],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

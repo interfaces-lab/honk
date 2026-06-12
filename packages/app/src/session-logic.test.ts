@@ -89,6 +89,64 @@ describe("deriveWorkLogEntries", () => {
     );
   });
 
+  it("keeps compact persisted subagent tool rows visible without child activities", () => {
+    const entries = deriveWorkLogEntries(
+      [
+        {
+          id: EventId.make("event:subagent-tool-completed"),
+          kind: "tool.completed",
+          tone: "tool",
+          summary: "Completed subagent",
+          turnId,
+          createdAt,
+          payload: {
+            itemId: "toolu-subagent",
+            itemType: "collab_agent_tool_call",
+            status: "completed",
+            title: "subagent",
+            data: {
+              item: {
+                tool: "subagent",
+                details: {
+                  runs: [
+                    {
+                      subagentThreadId: "thread:child",
+                      agentId: "agent:child",
+                      nickname: "Review",
+                      role: "oracle",
+                      model: "gpt-5.5",
+                      prompt: "Review the code",
+                      state: "completed",
+                      finalText: null,
+                      errorMessage: null,
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        } satisfies OrchestrationThreadActivity,
+      ],
+      undefined,
+    );
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        itemType: "collab_agent_tool_call",
+        toolCallId: "toolu-subagent",
+        subagents: [
+          expect.objectContaining({
+            subagentThreadId: "thread:child",
+            nickname: "Review",
+            role: "oracle",
+            statusLabel: "Completed",
+            isActive: false,
+          }),
+        ],
+      }),
+    ]);
+  });
+
   it("does not infer a command from command execution detail output", () => {
     const entries = deriveWorkLogEntries(
       [

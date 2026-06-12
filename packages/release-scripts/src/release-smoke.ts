@@ -17,7 +17,7 @@ const workspaceFiles = [
   "packages/client-runtime/package.json",
   "packages/contracts/package.json",
   "packages/shared/package.json",
-  "packages/multikit/package.json",
+  "packages/honkkit/package.json",
   "packages/release-scripts/package.json",
   "scripts/package.json",
 ] as const;

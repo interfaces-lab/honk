@@ -1,5 +1,5 @@
 import { type ApprovalRequestId, type RuntimeApprovalDecision } from "@honk/contracts";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 
 interface ComposerPendingApprovalActionsProps {
   requestId: ApprovalRequestId;

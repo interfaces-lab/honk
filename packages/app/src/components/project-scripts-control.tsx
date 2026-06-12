@@ -32,10 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogPopup,
   AlertDialogTitle,
-} from "@honk/multikit/alert-dialog";
-import { Button } from "@honk/multikit/button";
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
-import { WorkbenchChromeActionGroup } from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/alert-dialog";
+import { Button } from "@honk/honkkit/button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
+import { WorkbenchChromeActionGroup } from "@honk/honkkit/workbench-chrome-row";
 import {
   Dialog,
   DialogDescription,
@@ -44,10 +44,10 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@honk/multikit/dialog";
-import { Input } from "@honk/multikit/input";
-import { Kbd } from "@honk/multikit/kbd";
-import { Label } from "@honk/multikit/label";
+} from "@honk/honkkit/dialog";
+import { Input } from "@honk/honkkit/input";
+import { Kbd } from "@honk/honkkit/kbd";
+import { Label } from "@honk/honkkit/label";
 import {
   Menu,
   MenuItem,
@@ -55,10 +55,10 @@ import {
   MenuShortcut,
   MenuTrigger,
   workbenchMenuMetaTextClassName,
-} from "@honk/multikit/menu";
-import { Popover, PopoverPopup, PopoverTrigger } from "@honk/multikit/popover";
-import { Switch } from "@honk/multikit/switch";
-import { Textarea } from "@honk/multikit/textarea";
+} from "@honk/honkkit/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
+import { Switch } from "@honk/honkkit/switch";
+import { Textarea } from "@honk/honkkit/textarea";
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "play", label: "Play" },

@@ -11,11 +11,11 @@ import type { FormEvent, MouseEventHandler, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizePathSeparators } from "@honk/shared/paths";
 
-import { WorkbenchIconButton } from "@honk/multikit/workbench-button";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeRow,
-} from "@honk/multikit/workbench-chrome-row";
+} from "@honk/honkkit/workbench-chrome-row";
 
 import { resolveShortcutCommand, type ShortcutEventLike } from "~/keybindings";
 import { useServerKeybindings } from "~/rpc/server-state";

@@ -107,7 +107,8 @@ export function threadState(sum: SidebarThreadSummary): SidebarThreadState {
   if (
     sum.isStreaming ||
     sum.orchestrationStatus === "starting" ||
-    sum.orchestrationStatus === "running"
+    sum.orchestrationStatus === "running" ||
+    sum.latestTurnState === "running"
   ) {
     return "running";
   }
@@ -118,8 +119,8 @@ function buildDraftChat(draft: SidebarDraftSummary) {
   return {
     id: draft.id,
     kind: "draft",
-    title: "New chat",
-    state: "draft",
+    title: draft.title?.trim() || "New chat",
+    state: draft.state,
     unread: false,
     updatedAt: draft.updatedAt,
     ago: formatCompactRelativeTimeLabel(draft.updatedAt),

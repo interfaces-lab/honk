@@ -25,7 +25,7 @@ function TabsIndicatorRender(props: React.ComponentProps<"div">) {
       {...props}
       className={cn(
         props.className,
-        "absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-[width,translate,top,height,opacity,scale] duration-150 ease-out motion-reduce:transition-none",
+        "t-tabs-pill absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-[width,translate,top,height,opacity,scale] duration-(--tabs-dur) ease-(--tabs-ease) motion-reduce:transition-none",
         "data-[rendered=false]:scale-95 data-[rendered=false]:opacity-0",
         isSegmented &&
           "top-(--active-tab-top) h-(--active-tab-height) rounded-[5px] bg-honk-bg-tertiary shadow-sm ring-1 ring-honk-stroke-secondary",
@@ -104,7 +104,7 @@ function TabsTab({ className, ...props }: TabsTabPrimitive.Props) {
     <TabsPrimitive.Tab
       className={mergeStatefulClassName(
         cn(
-          "relative flex items-center whitespace-nowrap bg-transparent outline-none transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40",
+          "t-tab relative flex items-center whitespace-nowrap bg-transparent outline-none transition-colors duration-(--tabs-dur) ease-(--tabs-ease) focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none",
           interactiveControlCursorClassName,
         ),
         className,
@@ -172,7 +172,7 @@ function Tabs({
             <TabsList
               activateOnFocus={activateOnFocus}
               className={cn(
-                "scrollbar-hide relative min-w-0 shrink items-stretch",
+                "t-tabs scrollbar-hide relative min-w-0 shrink items-stretch",
                 isSegmented &&
                   "h-7 rounded-[6px] bg-honk-bg-quinary p-0.5 ring-1 ring-honk-stroke-tertiary",
                 isUnderline && "h-7 gap-3 border-b border-honk-stroke-tertiary pb-1",

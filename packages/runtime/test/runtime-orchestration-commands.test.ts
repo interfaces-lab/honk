@@ -121,6 +121,7 @@ describe("runtime orchestration commands", () => {
           summary: "Ran shell",
           payload: {
             itemId: "toolu-1",
+            itemType: "command_execution",
             status: "completed",
             title: "shell",
             detail: "Ran shell",
@@ -137,6 +138,133 @@ describe("runtime orchestration commands", () => {
         createdAt,
       },
     ]);
+  });
+
+  it("keeps a compact parent row for completed subagent tools", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:subagent-tool"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed subagent",
+      createdAt,
+      data: {
+        toolName: "subagent",
+        toolCallId: "toolu-subagent",
+        isError: false,
+        result: {
+          content: [{ type: "text", text: "large final response should not be duplicated" }],
+          details: {
+            mode: "single",
+            agentScope: "both",
+            projectAgentsDir: null,
+            runs: [
+              {
+                subagentThreadId: "thread:child",
+                agentId: "agent:child",
+                nickname: "Review",
+                role: "oracle",
+                model: "gpt-5.5",
+                prompt: "Review the code",
+                state: "completed",
+                finalText: "large final response should not be duplicated",
+                errorMessage: null,
+              },
+            ],
+            activities: [
+              {
+                id: "runtime-subagent:toolu-subagent:thread:child:thread",
+                kind: "subagent.thread.started",
+                tone: "info",
+                summary: "Started Review",
+                createdAt: "2026-06-08T12:00:00.250Z",
+                sequence: 1,
+                payload: {
+                  subagentThreadId: "thread:child",
+                  parentThreadId: threadId,
+                  parentItemId: "toolu-subagent",
+                  agentId: "agent:child",
+                  nickname: "Review",
+                  role: "oracle",
+                  model: "gpt-5.5",
+                  prompt: "Review the code",
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const commands = runtimeToolCompletedActivityCommands(event);
+
+    expect(commands).toHaveLength(2);
+    expect(commands[0]).toEqual({
+      type: "thread.activity.append",
+      commandId: CommandId.make(
+        "runtime-tool:thread:persistence:runtime:persistence:runtime-activity:runtime-event:subagent-tool",
+      ),
+      threadId,
+      activity: {
+        id: EventId.make("runtime-activity:runtime-event:subagent-tool"),
+        tone: "tool",
+        kind: "tool.completed",
+        summary: "Completed subagent",
+        payload: {
+          itemId: "toolu-subagent",
+          itemType: "collab_agent_tool_call",
+          status: "completed",
+          title: "subagent",
+          detail: "Completed subagent",
+          data: {
+            toolCallId: "toolu-subagent",
+            toolName: "subagent",
+            isError: false,
+            item: {
+              tool: "subagent",
+              details: {
+                runs: [
+                  {
+                    subagentThreadId: "thread:child",
+                    agentId: "agent:child",
+                    nickname: "Review",
+                    role: "oracle",
+                    model: "gpt-5.5",
+                    prompt: "Review the code",
+                    state: "completed",
+                    finalText: null,
+                    errorMessage: null,
+                  },
+                ],
+              },
+            },
+          },
+        },
+        turnId,
+        createdAt: "2026-06-08T12:00:00.250Z",
+      },
+      createdAt,
+    });
+    const parentCommand = commands[0];
+    const subagentCommand = commands[1];
+    if (parentCommand?.type !== "thread.activity.append") {
+      throw new Error("Expected parent subagent activity command.");
+    }
+    if (subagentCommand?.type !== "thread.activity.append") {
+      throw new Error("Expected child subagent activity command.");
+    }
+    expect(JSON.stringify(parentCommand.activity.payload)).not.toContain(
+      "large final response should not be duplicated",
+    );
+    expect(subagentCommand.activity).toMatchObject({
+      kind: "subagent.thread.started",
+      payload: {
+        subagentThreadId: "thread:child",
+        parentItemId: RuntimeItemId.make("toolu-subagent"),
+      },
+    });
   });
 
   it("builds context window activity commands from usage snapshots", () => {

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Button } from "@honk/multikit/button";
+import { Button } from "@honk/honkkit/button";
 import { cn } from "~/lib/utils";
 
 const COLLAPSED_MAX_PX = 72;

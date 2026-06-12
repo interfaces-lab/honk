@@ -66,7 +66,7 @@
       "entry": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
       "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
     },
-    "packages/multikit": {
+    "packages/honkkit": {
       "entry": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"]
     },
