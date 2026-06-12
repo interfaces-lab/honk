@@ -54,7 +54,7 @@ const CreatePlanParams = Type.Object({
   }),
   todos: Type.Array(CreatePlanTodo, { description: "Actionable todo list for the plan." }),
   isProject: Type.Optional(
-    Type.Boolean({ description: "True when this is a multi-phase project plan." }),
+    Type.Boolean({ description: "True when this is a honk-phase project plan." }),
   ),
   is_project: Type.Optional(
     Type.Boolean({ description: "Alias for isProject when using snake_case payloads." }),
@@ -158,7 +158,7 @@ export const createPlanExtension: ExtensionFactory = (pi) => {
       name: CREATE_PLAN_TOOL_NAME,
       label: "Create Plan",
       description:
-        "Create a proposed implementation plan for Multi's plan review UI. This is the final action for plan mode.",
+        "Create a proposed implementation plan for Honk's plan review UI. This is the final action for plan mode.",
       promptSnippet: "Create a proposed implementation plan for review.",
       promptGuidelines: [
         "Use create_plan as the final action in plan mode once the plan is ready for review.",

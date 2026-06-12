@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { Effect, FileSystem, Layer, Option, Path, Schema, Scope, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { type ModelSelection } from "@multi/contracts";
-import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@multi/shared/git";
+import { type ModelSelection } from "@honk/contracts";
+import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@honk/shared/git";
 
 import { resolveAttachmentPath } from "../attachment-store.ts";
 import { ServerConfig } from "../config.ts";
-import { TextGenerationError } from "@multi/contracts";
+import { TextGenerationError } from "@honk/contracts";
 import {
   type BranchNameGenerationInput,
   type ThreadTitleGenerationResult,
@@ -31,7 +31,7 @@ import {
 import {
   getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
-} from "@multi/shared/model";
+} from "@honk/shared/model";
 
 const CODEX_GIT_TEXT_GENERATION_REASONING_EFFORT = "low";
 const CODEX_TIMEOUT_MS = 180_000;
@@ -68,7 +68,7 @@ const makeCodexTextGeneration = Effect.gen(function* () {
   ): Effect.Effect<string, TextGenerationError, Scope.Scope> => {
     return fileSystem
       .makeTempFileScoped({
-        prefix: `multi-${prefix}-${process.pid}-${randomUUID()}.tmp`,
+        prefix: `honk-${prefix}-${process.pid}-${randomUUID()}.tmp`,
       })
       .pipe(
         Effect.tap((filePath) => fileSystem.writeFileString(filePath, content)),

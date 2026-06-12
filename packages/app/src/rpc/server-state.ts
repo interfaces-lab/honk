@@ -7,7 +7,7 @@ import {
   type ServerConfigUpdatedPayload,
   type ServerLifecycleWelcomePayload,
   type ServerSettings,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Atom } from "effect/unstable/reactivity";
 import { useRef } from "react";
 

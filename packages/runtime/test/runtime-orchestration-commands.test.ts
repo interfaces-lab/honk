@@ -9,7 +9,7 @@ import {
   TurnId,
   type AgentRuntimeEvent,
   type SessionTreeProjection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import {

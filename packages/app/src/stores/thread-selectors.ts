@@ -4,7 +4,7 @@ import {
   type ScopedProjectRef,
   type ScopedThreadRef,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { selectEnvironmentState, type AppState, type EnvironmentState } from "./thread-store";
 import {
   type ChatMessage,

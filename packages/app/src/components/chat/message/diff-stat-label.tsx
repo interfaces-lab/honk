@@ -12,11 +12,11 @@ export function DiffStatLabel(props: {
 }) {
   return (
     <span className={cn("inline-flex shrink-0 items-baseline gap-1 tabular-nums", props.className)}>
-      {props.showParentheses && <span className="text-multi-fg-quaternary">(</span>}
-      <span className="text-multi-diff-addition">+{props.additions}</span>
-      <span className="text-multi-fg-quaternary">/</span>
-      <span className="text-multi-diff-deletion">-{props.deletions}</span>
-      {props.showParentheses && <span className="text-multi-fg-quaternary">)</span>}
+      {props.showParentheses && <span className="text-honk-fg-quaternary">(</span>}
+      <span className="text-honk-diff-addition">+{props.additions}</span>
+      <span className="text-honk-fg-quaternary">/</span>
+      <span className="text-honk-diff-deletion">-{props.deletions}</span>
+      {props.showParentheses && <span className="text-honk-fg-quaternary">)</span>}
     </span>
   );
 }

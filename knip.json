@@ -56,7 +56,7 @@
     "packages/server": {
       "entry": ["src/bin.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "vitest.config.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "*.config.ts"],
-      "ignoreDependencies": ["@multi/app"]
+      "ignoreDependencies": ["@honk/app"]
     },
     "packages/runtime": {
       "entry": ["src/index.ts", "test/**/*.{ts,tsx}"],

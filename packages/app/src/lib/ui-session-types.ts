@@ -1,11 +1,11 @@
-import type { OrchestrationSessionStatus } from "@multi/contracts";
+import type { OrchestrationSessionStatus } from "@honk/contracts";
 
 /**
- * UI session types (formerly in @multi/contracts).
+ * UI session types (formerly in @honk/contracts).
  *
- * Types that already exist in @multi/contracts (ThreadId, ModelSelection,
+ * Types that already exist in @honk/contracts (ThreadId, ModelSelection,
  * AgentInteractionMode, etc.) are NOT duplicated here --
- * import those directly from @multi/contracts.
+ * import those directly from @honk/contracts.
  */
 
 // ── Primitive ────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export interface UiAskQuestion {
   id: string;
   text: string;
   options: UiAskOption[];
-  multi?: boolean;
+  honk?: boolean;
   optional?: boolean;
 }
 
@@ -322,7 +322,7 @@ export interface UiSkill {
   body: string;
 }
 
-// ── Git (Glass-specific shapes, not in @multi/contracts) ───────────
+// ── Git (Glass-specific shapes, not in @honk/contracts) ───────────
 
 export type GitFileState =
   | "modified"

@@ -1,5 +1,5 @@
 import { useMatch } from "@tanstack/react-router";
-import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@multi/contracts";
+import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@honk/contracts";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
 import type { AppRouter } from "~/router";

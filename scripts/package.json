@@ -1,5 +1,5 @@
 {
-  "name": "@multi/scripts",
+  "name": "@honk/scripts",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@multi/shared": "workspace:*",
+    "@honk/shared": "workspace:*",
     "effect": "catalog:",
     "yaml": "^2.9.0"
   },

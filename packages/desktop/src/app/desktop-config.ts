@@ -32,22 +32,22 @@ const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<s
 export const DesktopConfig = Config.all({
   appDataDirectory: trimmedString("APPDATA"),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
-  multiHome: trimmedString("MULTI_HOME"),
+  honkHome: trimmedString("HONK_HOME"),
   devServerUrl: Config.url("VITE_DEV_SERVER_URL").pipe(
     Config.orElse(() => Config.url("ELECTRON_RENDERER_URL")),
     Config.option,
   ),
-  configuredBackendPort: Config.port("MULTI_PORT").pipe(Config.option),
-  commitHashOverride: trimmedString("MULTI_COMMIT_HASH"),
-  desktopLanHostOverride: trimmedString("MULTI_DESKTOP_LAN_HOST"),
-  otlpTracesUrl: trimmedString("MULTI_OTLP_TRACES_URL"),
-  otlpExportIntervalMs: Config.int("MULTI_OTLP_EXPORT_INTERVAL_MS").pipe(
+  configuredBackendPort: Config.port("HONK_PORT").pipe(Config.option),
+  commitHashOverride: trimmedString("HONK_COMMIT_HASH"),
+  desktopLanHostOverride: trimmedString("HONK_DESKTOP_LAN_HOST"),
+  otlpTracesUrl: trimmedString("HONK_OTLP_TRACES_URL"),
+  otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(
     Config.withDefault(10_000),
   ),
   appImagePath: trimmedString("APPIMAGE"),
-  disableAutoUpdate: optionalBoolean("MULTI_DISABLE_AUTO_UPDATE"),
-  mockUpdates: optionalBoolean("MULTI_DESKTOP_MOCK_UPDATES"),
-  mockUpdateServerPort: Config.port("MULTI_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(
+  disableAutoUpdate: optionalBoolean("HONK_DISABLE_AUTO_UPDATE"),
+  mockUpdates: optionalBoolean("HONK_DESKTOP_MOCK_UPDATES"),
+  mockUpdateServerPort: Config.port("HONK_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(
     Config.withDefault(3000),
   ),
 });

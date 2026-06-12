@@ -15,7 +15,7 @@ import type {
   ScopedThreadRef,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { create } from "zustand";
 import type {
   ChatMessage,

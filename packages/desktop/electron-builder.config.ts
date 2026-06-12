@@ -2,7 +2,7 @@ import type { Configuration } from "electron-builder";
 
 function resolvePublishConfig(): Configuration["publish"] {
   const rawRepo =
-    process.env.MULTI_DESKTOP_UPDATE_REPOSITORY?.trim() ||
+    process.env.HONK_DESKTOP_UPDATE_REPOSITORY?.trim() ||
     process.env.GITHUB_REPOSITORY?.trim() ||
     "";
   if (!rawRepo) {
@@ -25,23 +25,18 @@ function resolvePublishConfig(): Configuration["publish"] {
 }
 
 function resolveMacIdentity(): NonNullable<Configuration["mac"]>["identity"] {
-  return process.env.MULTI_DESKTOP_SKIP_MAC_SIGNING === "true" ? null : undefined;
+  return process.env.HONK_DESKTOP_SKIP_MAC_SIGNING === "true" ? null : undefined;
 }
 
 export default {
-  appId: "com.interfacesco.multi",
-  productName: "Multi",
-  artifactName: "Multi-${version}-${arch}.${ext}",
+  appId: "com.interfacesco.honk",
+  productName: "Honk",
+  artifactName: "Honk-${version}-${arch}.${ext}",
   directories: {
     buildResources: "resources",
     output: "dist",
   },
-  files: ["out/**/*", "resources/**/*"],
-  asarUnpack: [
-    "**/node_modules/@ff-labs/**",
-    "**/node_modules/ffi-rs/**",
-    "**/node_modules/@yuuang/**",
-  ],
+  files: ["out/**/*", "!out/**/*.map", "!out/server/client/**/*", "resources/**/*"],
   publish: resolvePublishConfig(),
   mac: {
     target: ["dmg", "zip"],
@@ -51,12 +46,12 @@ export default {
   },
   linux: {
     target: ["AppImage"],
-    executableName: "multi",
+    executableName: "honk",
     icon: "icon.png",
     category: "Development",
     desktop: {
       entry: {
-        StartupWMClass: "multi",
+        StartupWMClass: "honk",
       },
     },
   },

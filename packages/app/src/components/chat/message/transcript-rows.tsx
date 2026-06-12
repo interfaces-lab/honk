@@ -1,4 +1,4 @@
-import type { MessageId } from "@multi/contracts";
+import type { MessageId } from "@honk/contracts";
 import { type ReactNode } from "react";
 
 import type { ChatMessage } from "../../../types";

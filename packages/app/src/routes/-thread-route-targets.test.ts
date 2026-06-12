@@ -1,4 +1,4 @@
-import { EnvironmentId, ProjectId, ThreadId } from "@multi/contracts";
+import { EnvironmentId, ProjectId, ThreadId } from "@honk/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { scopeThreadRef } from "~/lib/environment-scope";

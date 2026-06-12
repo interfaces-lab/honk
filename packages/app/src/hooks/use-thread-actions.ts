@@ -4,8 +4,8 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@multi/contracts";
-import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
+import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@honk/contracts";
+import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
@@ -17,7 +17,7 @@ import { invalidateGitQueries } from "../lib/git-react-query";
 import { ensureEnvironmentGitApi } from "../lib/environment-git-api";
 import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
 import { newCommandId } from "../lib/utils";
-import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
+import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
 import { ensureLocalApi, readLocalApi } from "../local-api";
 import {
   selectProjectsAcrossEnvironments,
@@ -185,7 +185,7 @@ function threadHasOngoingWork(thread: Pick<Thread, "session">): boolean {
 
 async function stopThreadWork(target: ScopedThreadRef, thread: Pick<Thread, "session">) {
   try {
-    await readMultiRuntimeApi().abort({ threadId: target.threadId });
+    await readHonkRuntimeApi().abort({ threadId: target.threadId });
   } catch {
     // The runtime host may be unavailable or the thread may not be runtime-owned.
   }

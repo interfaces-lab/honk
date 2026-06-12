@@ -1,4 +1,4 @@
-import type { RuntimeRequestKind } from "@multi/contracts";
+import type { RuntimeRequestKind } from "@honk/contracts";
 import type { Thread, ThreadSession } from "../types";
 import {
   derivePendingApprovals,

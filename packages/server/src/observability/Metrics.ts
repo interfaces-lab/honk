@@ -1,7 +1,7 @@
 import { Duration, Effect, Exit, Metric } from "effect";
 import { dual } from "effect/Function";
 
-import { compactMetricAttributes, outcomeFromExit } from "@multi/shared/observability";
+import { compactMetricAttributes, outcomeFromExit } from "@honk/shared/observability";
 
 export const rpcRequestsTotal = Metric.counter("t3_rpc_requests_total", {
   description: "Total RPC requests handled by the websocket RPC server.",

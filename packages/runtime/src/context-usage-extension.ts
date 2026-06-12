@@ -1,4 +1,4 @@
-import type { ThreadTokenUsageCategory, ThreadTokenUsageSnapshot } from "@multi/contracts";
+import type { ThreadTokenUsageCategory, ThreadTokenUsageSnapshot } from "@honk/contracts";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { Usage } from "@earendil-works/pi-ai";
 

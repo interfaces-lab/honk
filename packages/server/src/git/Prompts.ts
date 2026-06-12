@@ -7,7 +7,7 @@
  * @module textGenerationPrompts
  */
 import { Schema } from "effect";
-import type { ChatAttachment } from "@multi/contracts";
+import type { ChatAttachment } from "@honk/contracts";
 
 import { limitSection } from "./Utils.ts";
 

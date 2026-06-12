@@ -1,4 +1,4 @@
-import type { DesktopEnvironmentBootstrap } from "@multi/contracts";
+import type { DesktopEnvironmentBootstrap } from "@honk/contracts";
 import type { KnownEnvironment } from "~/lib/environment-scope";
 
 export interface PrimaryEnvironmentTarget {

@@ -1,5 +1,5 @@
 import { scopedProjectKey } from "~/lib/environment-scope";
-import { type ScopedProjectRef } from "@multi/contracts";
+import { type ScopedProjectRef } from "@honk/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";

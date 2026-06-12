@@ -18,7 +18,7 @@ export interface DesktopAssetsShape {
 }
 
 export class DesktopAssets extends Context.Service<DesktopAssets, DesktopAssetsShape>()(
-  "multi/desktop/Assets",
+  "honk/desktop/Assets",
 ) {}
 
 const resolveResourcePath = Effect.fn("desktop.assets.resolveResourcePath")(function* (
@@ -49,14 +49,18 @@ const resolveIconPath = Effect.fn("desktop.assets.resolveIconPath")(function* (
 > {
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  if (environment.isDevelopment && process.platform === "darwin" && ext === "png") {
-    const developmentDockIconPath = environment.developmentDockIconPath;
-    const developmentDockIconExists = yield* fileSystem
-      .exists(developmentDockIconPath)
+  if (process.platform === "darwin" && ext === "png") {
+    const dockIconPath = environment.isDevelopment
+      ? environment.developmentDockIconPath
+      : environment.productionDockIconPath;
+    const dockIconExists = yield* fileSystem
+      .exists(dockIconPath)
       .pipe(Effect.orElseSucceed(() => false));
-    if (developmentDockIconExists) {
-      return Option.some(developmentDockIconPath);
+    if (dockIconExists) {
+      return Option.some(dockIconPath);
     }
+
+    return yield* resolveResourcePath("dock-icon.png");
   }
 
   return yield* resolveResourcePath(`icon.${ext}`);

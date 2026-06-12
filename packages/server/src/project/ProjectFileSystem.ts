@@ -24,27 +24,9 @@ export const makeProjectFileSystem = Effect.gen(function* () {
   const projectPaths = yield* ProjectPaths;
   const projectEntries = yield* ProjectEntries;
 
-  const normalizeProjectRoot = Effect.fn("ProjectFileSystem.normalizeProjectRoot")(function* (
-    cwd: string,
-    relativePath: string,
-  ): Effect.fn.Return<string, ProjectFileSystemError> {
-    return yield* projectPaths.normalizeProjectRoot(cwd).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectFileSystemError({
-            cwd,
-            relativePath,
-            operation: "projectFileSystem.normalizeProjectRoot",
-            detail: cause.message,
-            cause,
-          }),
-      ),
-    );
-  });
-
   const readFile: ProjectFileSystemShape["readFile"] = Effect.fn("ProjectFileSystem.readFile")(
     function* (input) {
-      const normalizedCwd = yield* normalizeProjectRoot(input.cwd, input.relativePath);
+      const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
       const target = yield* projectPaths.resolveRelativePathWithinRoot({
         projectRoot: normalizedCwd,
         relativePath: input.relativePath,
@@ -129,7 +111,7 @@ export const makeProjectFileSystem = Effect.gen(function* () {
 
   const writeFile: ProjectFileSystemShape["writeFile"] = Effect.fn("ProjectFileSystem.writeFile")(
     function* (input) {
-      const normalizedCwd = yield* normalizeProjectRoot(input.cwd, input.relativePath);
+      const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
       const target = yield* projectPaths.resolveRelativePathWithinRoot({
         projectRoot: normalizedCwd,
         relativePath: input.relativePath,

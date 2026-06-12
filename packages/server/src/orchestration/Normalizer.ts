@@ -4,7 +4,7 @@ import {
   type OrchestrationCommand,
   OrchestrationDispatchCommandError,
   RUNTIME_SEND_TURN_MAX_IMAGE_BYTES,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import { createAttachmentId, resolveAttachmentPath } from "../attachment-store";
 import { ServerConfig } from "../config";

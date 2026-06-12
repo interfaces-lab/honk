@@ -4,7 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { type OrchestrationMessageRichText } from "@multi/contracts";
+import { type OrchestrationMessageRichText } from "@honk/contracts";
 import {
   $applyNodeReplacement,
   $createLineBreakNode,
@@ -1234,7 +1234,7 @@ function lexicalEditorStateFromPrompt(value: string): InitialEditorStateType {
 }
 
 const composerTheme = {
-  paragraph: "multi-lexical-composer-paragraph",
+  paragraph: "honk-lexical-composer-paragraph",
 };
 
 export const ComposerPromptEditor = forwardRef<
@@ -1242,7 +1242,7 @@ export const ComposerPromptEditor = forwardRef<
   ComposerPromptEditorProps
 >(function ComposerPromptEditor({ value, disabled, ...props }, ref) {
   const initialConfig: InitialConfigType = {
-    namespace: "multi-composer-prompt-editor",
+    namespace: "honk-composer-prompt-editor",
     editable: !disabled,
     nodes: [ComposerMentionNode, ComposerCommandNode, ComposerSkillNode, ComposerInlineTokenNode],
     editorState: lexicalEditorStateFromPrompt(value),

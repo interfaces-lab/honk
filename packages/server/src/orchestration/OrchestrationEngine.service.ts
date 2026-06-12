@@ -14,7 +14,7 @@ import type {
   OrchestrationCommand,
   OrchestrationEvent,
   OrchestrationReadModel,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect, Stream } from "effect";
 
@@ -77,4 +77,4 @@ export interface OrchestrationEngineShape {
 export class OrchestrationEngineService extends Context.Service<
   OrchestrationEngineService,
   OrchestrationEngineShape
->()("multi/orchestration/OrchestrationEngine.service/OrchestrationEngineService") {}
+>()("honk/orchestration/OrchestrationEngine.service/OrchestrationEngineService") {}

@@ -19,7 +19,7 @@ function TextareaControl({ className, size = "default", ...props }: TextareaCont
   return (
     <textarea
       className={cn(
-        "field-sizing-content min-h-17.5 w-full rounded-[inherit] px-1.5 py-1 font-multi text-body outline-none max-sm:min-h-20.5",
+        "field-sizing-content min-h-17.5 w-full rounded-[inherit] px-1.5 py-1 font-honk text-body outline-none max-sm:min-h-20.5",
         size === "sm" && "min-h-16.5 px-1.5 py-1 max-sm:min-h-19.5",
         size === "lg" && "min-h-18.5 py-1.5 max-sm:min-h-21.5",
         className,
@@ -68,7 +68,7 @@ function Textarea({
       className={
         cn(
           !unstyled &&
-            "relative inline-flex w-full rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-primary shadow-none transition-colors has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused/30 has-focus-visible:has-aria-invalid:border-multi-stroke-red-primary has-focus-visible:has-aria-invalid:ring-multi-stroke-red-primary/20 has-aria-invalid:border-multi-stroke-red-primary has-disabled:opacity-64",
+            "relative inline-flex w-full rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-primary shadow-none transition-colors has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused/30 has-focus-visible:has-aria-invalid:border-honk-stroke-red-primary has-focus-visible:has-aria-invalid:ring-honk-stroke-red-primary/20 has-aria-invalid:border-honk-stroke-red-primary has-disabled:opacity-64",
           className,
         ) || undefined
       }

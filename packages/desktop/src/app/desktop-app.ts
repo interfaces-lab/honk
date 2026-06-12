@@ -20,7 +20,7 @@ import * as DesktopBackendManager from "../backend/desktop-backend-manager";
 import * as DesktopEnvironment from "./desktop-environment";
 import * as DesktopLifecycle from "./desktop-lifecycle";
 import * as DesktopObservability from "./desktop-observability";
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopServerExposure from "../backend/desktop-server-exposure";
 import * as DesktopAppSettings from "../settings/desktop-app-settings";
 import * as DesktopShellEnvironment from "../shell/desktop-shell-environment";
@@ -48,7 +48,7 @@ class DesktopDevelopmentBackendPortRequiredError extends Data.TaggedError(
   "DesktopDevelopmentBackendPortRequiredError",
 )<{}> {
   override get message() {
-    return "MULTI_PORT is required in desktop development.";
+    return "HONK_PORT is required in desktop development.";
   }
 }
 
@@ -137,7 +137,7 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
   const wasQuitting = yield* Ref.getAndSet(state.quitting, true);
   if (!wasQuitting) {
     yield* electronDialog.showErrorBox(
-      "Multi failed to start",
+      "Honk failed to start",
       `Stage: ${stage}\n${message}${detail}`,
     );
   }

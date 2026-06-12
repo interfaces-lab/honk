@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import { cn } from "~/lib/utils";
 
 const COLLAPSED_MAX_PX = 72;
@@ -38,7 +38,7 @@ export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
       <div
         className={cn(
           collapsed &&
-            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--multi-message-bubble-background)_72%,var(--multi-message-bubble-background)_100%)] after:content-['']",
+            "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--honk-message-bubble-background)_72%,var(--honk-message-bubble-background)_100%)] after:content-['']",
         )}
       >
         <div ref={measureElement}>{children}</div>

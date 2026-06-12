@@ -6,13 +6,13 @@ import type {
   OrchestrationThreadEntry,
   ThreadEntryId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   formatThreadEntryPathIssue,
   resolveLeafIdAfterThreadNavigate,
   resolveThreadEntryPath,
   threadEntryIdForMessageId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect } from "effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";

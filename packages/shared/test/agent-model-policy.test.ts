@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { createAgentModelPolicy } from "../src/agent-model-policy";
 
 const preferences = {
@@ -15,11 +15,22 @@ const preferences = {
   credentials: [],
 } as const;
 
+const codexModelSelection = {
+  instanceId: "codex",
+  model: "gpt-5.5",
+} as const;
+
+const claudeModelSelection = {
+  instanceId: "claudeAgent",
+  model: "claude-opus-4-8",
+} as const;
+
 describe("createAgentModelPolicy", () => {
-  it("maps rush to GPT 5.5 with no thinking", () => {
+  it("uses the pinned Codex model with no thinking in rush mode", () => {
     const policy = createAgentModelPolicy({
       preferences: { ...preferences, agentMode: "rush", thinkingLevel: "xhigh" },
       interactionMode: "plan",
+      modelSelection: codexModelSelection,
     });
 
     expect(policy).toMatchObject({
@@ -35,17 +46,35 @@ describe("createAgentModelPolicy", () => {
     });
   });
 
-  it("keeps smart and deep thinking user-adjustable", () => {
+  it("uses the pinned Claude model independent of agent mode", () => {
     expect(
       createAgentModelPolicy({
         preferences: { ...preferences, agentMode: "smart", thinkingLevel: "low" },
         interactionMode: "agent",
+        modelSelection: claudeModelSelection,
       }),
     ).toMatchObject({
       agentMode: "smart",
       thinkingLevel: "low",
       modelSelection: {
-        type: "explicit",
+        authProviderId: "anthropic",
+        accountId: "anthropic:default",
+        modelId: "anthropic/claude-opus-4-8",
+      },
+    });
+  });
+
+  it("uses the pinned Codex model with user-adjustable thinking", () => {
+    expect(
+      createAgentModelPolicy({
+        preferences: { ...preferences, agentMode: "deep", thinkingLevel: "xhigh" },
+        interactionMode: "agent",
+        modelSelection: codexModelSelection,
+      }),
+    ).toMatchObject({
+      agentMode: "deep",
+      thinkingLevel: "xhigh",
+      modelSelection: {
         authProviderId: "openai-codex",
         accountId: "openai-codex:default",
         modelId: "openai-codex/gpt-5.5",

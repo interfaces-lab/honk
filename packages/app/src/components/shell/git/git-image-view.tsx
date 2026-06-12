@@ -1,6 +1,6 @@
 "use client";
 
-import type { GitFileImageResult, GitFilePatchResult } from "@multi/contracts";
+import type { GitFileImageResult, GitFilePatchResult } from "@honk/contracts";
 import { useEffect, useMemo, useState } from "react";
 
 import { cn } from "~/lib/utils";
@@ -150,7 +150,7 @@ export function GitImageView(props: {
 
       return (
         <div className={cn("flex min-w-0 flex-col gap-2 px-4 py-4", props.className)}>
-          <div className="flex max-h-[70vh] min-h-32 min-w-0 items-center justify-center overflow-auto rounded-[6px] border border-multi-workbench-panel-border-muted bg-multi-bg-primary p-3">
+          <div className="flex max-h-[70vh] min-h-32 min-w-0 items-center justify-center overflow-auto rounded-[6px] border border-honk-workbench-panel-border-muted bg-honk-bg-primary p-3">
             <img
               src={imageSrc}
               alt={props.path}
@@ -158,7 +158,7 @@ export function GitImageView(props: {
               onError={() => setDecodeFailed(true)}
             />
           </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 text-caption text-multi-fg-tertiary">
+          <div className="flex min-w-0 items-center justify-between gap-3 text-caption text-honk-fg-tertiary">
             <span className="min-w-0 truncate">{props.path}</span>
             <span className="shrink-0 tabular-nums">{formatBytes(image.sizeBytes)}</span>
           </div>

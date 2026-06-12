@@ -1,13 +1,13 @@
-import { DEFAULT_TERMINAL_ID } from "@multi/contracts";
+import { DEFAULT_TERMINAL_ID } from "@honk/contracts";
 import { Option, Schema } from "effect";
 import { create } from "zustand";
 import { WORKBENCH_TABS, type WorkbenchTab } from "~/lib/workbench-tabs";
 
-const STORAGE_KEY = "multi.shell.panels.v3";
-const RIGHT_WORKBENCH_STORAGE_KEY = "multi.shell.rightWorkbench.v1";
-const SECONDARY_RAIL_STORAGE_KEY = "multi.shell.secondaryRail.v1";
-const TERMINAL_SESSIONS_STORAGE_KEY = "multi.shell.terminalSessions.v1";
-const BROWSER_WORKBENCH_STORAGE_KEY = "multi.shell.browserWorkbench.v1";
+const STORAGE_KEY = "honk.shell.panels.v3";
+const RIGHT_WORKBENCH_STORAGE_KEY = "honk.shell.rightWorkbench.v1";
+const SECONDARY_RAIL_STORAGE_KEY = "honk.shell.secondaryRail.v1";
+const TERMINAL_SESSIONS_STORAGE_KEY = "honk.shell.terminalSessions.v1";
+const BROWSER_WORKBENCH_STORAGE_KEY = "honk.shell.browserWorkbench.v1";
 const DEFAULT_CWD_KEY = "default";
 
 /** Persisted width limits for the chat/settings thread rail (`LeftAside`). */

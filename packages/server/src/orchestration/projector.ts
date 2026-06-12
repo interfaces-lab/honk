@@ -3,13 +3,13 @@ import type {
   OrchestrationLatestTurn,
   OrchestrationReadModel,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   OrchestrationMessage,
   OrchestrationSession,
   OrchestrationThread,
   resolveLeafIdAfterThreadMessage,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect, Schema } from "effect";
 
 import { toProjectorDecodeError, type OrchestrationProjectorDecodeError } from "./Errors.ts";

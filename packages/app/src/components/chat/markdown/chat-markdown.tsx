@@ -31,10 +31,11 @@ import {
 import remend from "remend";
 import type { Components, UrlTransform } from "streamdown";
 import { defaultUrlTransform, Streamdown } from "streamdown";
+import { normalizePathSeparators } from "@honk/shared/paths";
 import { VscodeEntryIcon } from "../shared/vscode-entry-icon";
-import { Button } from "@multi/multikit/button";
-import { Dialog, DialogPopup } from "@multi/multikit/dialog";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
+import { Button } from "@honk/multikit/button";
+import { Dialog, DialogPopup } from "@honk/multikit/dialog";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
 import { toastManager } from "~/app/toast";
 import { openInPreferredEditor } from "../../../editor-preferences";
 import {
@@ -232,7 +233,7 @@ function createMermaidConfig(themeName: DiffThemeName): MermaidConfig {
   const background = isDarkTheme ? "#242426" : "#ffffff";
   const border = isDarkTheme ? "#4a4a50" : "#d9d9df";
   const accent = isDarkTheme ? "#5fc7df" : "#067a93";
-  const fontFamily = getCssVariableValue("--multi-font-ui", "system-ui, sans-serif");
+  const fontFamily = getCssVariableValue("--honk-font-ui", "system-ui, sans-serif");
 
   return {
     startOnLoad: false,
@@ -377,7 +378,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
     return (
       <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
         <div
-          className="relative w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) text-detail text-(--cursor-text-primary) leading-(--multi-leading-detail) [contain:paint]"
+          className="relative w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) text-detail text-(--cursor-text-primary) leading-(--honk-leading-detail) [contain:paint]"
           data-renderer="mermaid"
         >
           <div className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-[4px] bg-(--vscode-editor-background) p-1">
@@ -430,7 +431,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
     return (
       <>
         {renderSync}
-        <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-primary) [contain:paint]">
+        <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--honk-leading-detail) text-(--cursor-text-primary) [contain:paint]">
           <div className="mb-1 font-semibold text-destructive">Mermaid Syntax Error</div>
           <div className="text-(--cursor-text-secondary)">{rendered.error}</div>
           <pre className="mt-2 whitespace-pre-wrap">
@@ -444,7 +445,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
   return (
     <>
       {renderSync}
-      <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--multi-leading-detail) text-(--cursor-text-secondary) [contain:paint]">
+      <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--honk-leading-detail) text-(--cursor-text-secondary) [contain:paint]">
         Rendering diagram...
       </div>
     </>
@@ -473,7 +474,7 @@ function MermaidRenderSync({
     let isCurrent = true;
     setRendered((current) => (current?.cacheKey === cacheKey ? current : null));
 
-    const id = `multi-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${Math.abs(
+    const id = `honk-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${Math.abs(
       fnv1a32(chart),
     ).toString(36)}`;
     mermaid.initialize(createMermaidConfig(themeName));
@@ -522,7 +523,7 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
         type="button"
         size="icon-sm"
         variant="outline"
-        className="chat-markdown-copy-button pointer-events-none absolute top-1.5 right-1.5 z-[1] size-6 rounded-[3px] border-(--multi-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 hover:border-[color-mix(in_srgb,var(--multi-markdown-request-border)_70%,var(--foreground))] hover:text-foreground [&_svg]:size-3"
+        className="chat-markdown-copy-button pointer-events-none absolute top-1.5 right-1.5 z-[1] size-6 rounded-[3px] border-(--honk-markdown-request-border) bg-[color-mix(in_srgb,var(--background)_82%,transparent)] text-muted-foreground opacity-0 hover:border-[color-mix(in_srgb,var(--honk-markdown-request-border)_70%,var(--foreground))] hover:text-foreground [&_svg]:size-3"
         onClick={handleCopy}
         title={copied ? "Copied" : "Copy code"}
         aria-label={copied ? "Copied" : "Copy code"}
@@ -652,7 +653,7 @@ const MARKDOWN_LINK_HREF_PATTERN = /\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)
 const MARKDOWN_LINK_PATTERN = /(\[[^\]]*]\()([^\s)]+)((?:\s+["'][^"']*["'])?\))/g;
 
 function pathParentSegments(path: string): string[] {
-  const normalized = path.replaceAll("\\", "/");
+  const normalized = normalizePathSeparators(path);
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   return segments.slice(0, -1);
 }
@@ -660,8 +661,7 @@ function pathParentSegments(path: string): string[] {
 function buildFileLinkParentSuffixByPath(filePaths: ReadonlyArray<string>): Map<string, string> {
   const groups = new Map<string, Set<string>>();
   for (const filePath of filePaths) {
-    const pathSegments = filePath
-      .replaceAll("\\", "/")
+    const pathSegments = normalizePathSeparators(filePath)
       .split("/")
       .filter((segment) => segment.length > 0);
     const basename = pathSegments[pathSegments.length - 1];
@@ -831,7 +831,7 @@ function MarkdownFileLinkAnchor({
     <a
       href={href}
       className={cn(
-        "chat-markdown-file-link inline-flex max-w-full min-w-0 items-center gap-1 align-middle text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground)",
+        "chat-markdown-file-link inline-flex max-w-full min-w-0 items-center gap-1 align-middle text-(--honk-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--honk-markdown-link-active-foreground) active:text-(--honk-markdown-link-active-foreground)",
         className,
       )}
       onClick={handleClick}
@@ -904,7 +904,7 @@ function ChatMarkdownAnchor({
         target="_blank"
         rel="noopener noreferrer"
         className={cn(
-          "text-(--multi-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--multi-markdown-link-active-foreground) active:text-(--multi-markdown-link-active-foreground) [&_code]:text-(--multi-markdown-link-foreground)",
+          "text-(--honk-markdown-link-foreground) no-underline transition-colors duration-150 ease-out select-text hover:text-(--honk-markdown-link-active-foreground) active:text-(--honk-markdown-link-active-foreground) [&_code]:text-(--honk-markdown-link-foreground)",
           props.className,
         )}
       />
@@ -1000,7 +1000,7 @@ function ChatMarkdownHeading1({
     <h1
       {...props}
       className={cn(
-        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-honk-fg-primary text-balance",
         className,
       )}
     />
@@ -1016,7 +1016,7 @@ function ChatMarkdownHeading2({
     <h2
       {...props}
       className={cn(
-        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-honk-fg-primary text-balance",
         className,
       )}
     />
@@ -1032,7 +1032,7 @@ function ChatMarkdownHeading3({
     <h3
       {...props}
       className={cn(
-        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-honk-fg-primary text-balance",
         className,
       )}
     />
@@ -1048,7 +1048,7 @@ function ChatMarkdownHeading4({
     <h4
       {...props}
       className={cn(
-        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-primary text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-honk-fg-primary text-balance",
         className,
       )}
     />
@@ -1064,7 +1064,7 @@ function ChatMarkdownHeading5({
     <h5
       {...props}
       className={cn(
-        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-secondary text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-honk-fg-secondary text-balance",
         className,
       )}
     />
@@ -1080,7 +1080,7 @@ function ChatMarkdownHeading6({
     <h6
       {...props}
       className={cn(
-        "my-1.5 font-semibold text-conversation-normalized text-multi-fg-secondary text-balance",
+        "my-1.5 font-semibold text-conversation-normalized text-honk-fg-secondary text-balance",
         className,
       )}
     />
@@ -1121,7 +1121,7 @@ function ChatMarkdownListItem({
   return (
     <li
       {...props}
-      className={cn("mb-0 ps-[0.1em] marker:text-(--multi-markdown-marker-foreground)", className)}
+      className={cn("mb-0 ps-[0.1em] marker:text-(--honk-markdown-marker-foreground)", className)}
     />
   );
 }
@@ -1135,7 +1135,7 @@ function ChatMarkdownHorizontalRule({
     <hr
       {...props}
       className={cn(
-        "my-4 max-w-full border-0 border-t border-(--multi-markdown-rule-color)",
+        "my-4 max-w-full border-0 border-t border-(--honk-markdown-rule-color)",
         className,
       )}
     />
@@ -1151,7 +1151,7 @@ function ChatMarkdownBlockquote({
     <blockquote
       {...props}
       className={cn(
-        "my-2 border-l-[3px] border-(--multi-markdown-blockquote-border) bg-(--multi-markdown-blockquote-background) py-2 pr-0 pl-4 text-(--multi-markdown-blockquote-foreground)",
+        "my-2 border-l-[3px] border-(--honk-markdown-blockquote-border) bg-(--honk-markdown-blockquote-background) py-2 pr-0 pl-4 text-(--honk-markdown-blockquote-foreground)",
         className,
       )}
     />
@@ -1167,7 +1167,7 @@ function ChatMarkdownKbd({
     <kbd
       {...props}
       className={cn(
-        "rounded-[3px] border border-(--multi-markdown-kbd-border) border-b-(--multi-markdown-kbd-bottom-border) bg-(--multi-markdown-kbd-background) px-[3px] py-px align-middle font-mono text-[0.85em] text-(--multi-markdown-kbd-foreground) shadow-[inset_0_-1px_0_var(--multi-markdown-widget-shadow)]",
+        "rounded-[3px] border border-(--honk-markdown-kbd-border) border-b-(--honk-markdown-kbd-bottom-border) bg-(--honk-markdown-kbd-background) px-[3px] py-px align-middle font-mono text-[0.85em] text-(--honk-markdown-kbd-foreground) shadow-[inset_0_-1px_0_var(--honk-markdown-widget-shadow)]",
         className,
       )}
     />
@@ -1227,7 +1227,7 @@ function ChatMarkdownTable({
   ...props
 }: ComponentProps<"table"> & { node?: unknown }) {
   return (
-    <div className="my-[1em] max-w-full overflow-x-auto rounded-md border border-(--multi-markdown-request-border)">
+    <div className="my-[1em] max-w-full overflow-x-auto rounded-md border border-(--honk-markdown-request-border)">
       <table
         {...props}
         className={cn("w-max min-w-full border-collapse text-left", className)}
@@ -1245,7 +1245,7 @@ function ChatMarkdownTableHeaderCell({
     <th
       {...props}
       className={cn(
-        "border-r border-b border-(--multi-markdown-request-border) px-[9px] py-[5px] align-top font-semibold whitespace-nowrap",
+        "border-r border-b border-(--honk-markdown-request-border) px-[9px] py-[5px] align-top font-semibold whitespace-nowrap",
         className,
       )}
     />
@@ -1261,7 +1261,7 @@ function ChatMarkdownTableDataCell({
     <td
       {...props}
       className={cn(
-        "border-r border-b border-(--multi-markdown-request-border) px-[9px] py-[5px] align-top",
+        "border-r border-b border-(--honk-markdown-request-border) px-[9px] py-[5px] align-top",
         className,
       )}
     />
@@ -1342,7 +1342,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
         className={cn(
           "chat-markdown w-full min-w-0 whitespace-normal",
           "text-conversation",
-          "text-multi-fg-primary",
+          "text-honk-fg-primary",
           className,
         )}
       >

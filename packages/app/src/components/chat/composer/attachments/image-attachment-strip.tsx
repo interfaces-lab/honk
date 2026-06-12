@@ -1,5 +1,5 @@
-import { Button } from "@multi/multikit/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
+import { Button } from "@honk/multikit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
 import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {
@@ -22,7 +22,7 @@ export function ComposerImageAttachmentStrip(props: {
       {props.images.map((image) => (
         <div
           key={image.id}
-          className="relative h-14 w-14 overflow-hidden rounded-[var(--multi-radius-control,6px)] border border-border/80 bg-background"
+          className="relative h-14 w-14 overflow-hidden rounded-[var(--honk-radius-control,6px)] border border-border/80 bg-background"
         >
           {image.previewUrl ? (
             <Button

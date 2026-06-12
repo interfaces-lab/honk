@@ -49,6 +49,14 @@ export const AgentWindowUsageSummaryDisplay = Schema.Literals(["auto", "always",
 export type AgentWindowUsageSummaryDisplay = typeof AgentWindowUsageSummaryDisplay.Type;
 export const DEFAULT_AGENT_WINDOW_USAGE_SUMMARY_DISPLAY: AgentWindowUsageSummaryDisplay = "auto";
 
+// "classic" is the brand icon shipped with the app bundle; the other variants are
+// runtime dock-icon swaps resolved from desktop resources (resources/app-icons/<variant>.png).
+// "dev" is the blueprint development icon and is only offered in dev-stage builds. The key
+// stays absent until the user picks one so the effective default can be stage-aware
+// ("dev" in dev builds, "classic" otherwise).
+export const AppIconVariant = Schema.Literals(["classic", "midnight", "sunset", "forest", "dev"]);
+export type AppIconVariant = typeof AppIconVariant.Type;
+
 export const USER_CONVERSATION_DENSITY_VALUES = [
   "detailed",
   "compact-ungrouped",
@@ -103,6 +111,7 @@ export const ClientSettingsSchema = Schema.Struct({
   agentWindowUsageSummaryDisplay: AgentWindowUsageSummaryDisplay.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_WINDOW_USAGE_SUMMARY_DISPLAY)),
   ),
+  appIconVariant: Schema.optionalKey(AppIconVariant),
   autoOpenPlanSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   confirmThreadArchive: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   confirmThreadDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
@@ -208,6 +217,7 @@ export const ClientSettingsPatch = Schema.Struct({
   agentWindowFontSmoothingAntialiased: Schema.optionalKey(Schema.Boolean),
   agentWindowSendWhileStreamingBehavior: Schema.optionalKey(AgentWindowSendWhileStreamingBehavior),
   agentWindowUsageSummaryDisplay: Schema.optionalKey(AgentWindowUsageSummaryDisplay),
+  appIconVariant: Schema.optionalKey(AppIconVariant),
   autoOpenPlanSidebar: Schema.optionalKey(Schema.Boolean),
   confirmThreadArchive: Schema.optionalKey(Schema.Boolean),
   confirmThreadDelete: Schema.optionalKey(Schema.Boolean),

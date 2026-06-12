@@ -1,5 +1,5 @@
 {
-  "name": "@multi/client-runtime",
+  "name": "@honk/client-runtime",
   "version": "0.0.0-alpha.1",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@multi/contracts": "workspace:*"
+    "@honk/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

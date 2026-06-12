@@ -1,8 +1,8 @@
 import * as OS from "node:os";
 import { execFileSync } from "node:child_process";
 
-const PATH_CAPTURE_START = "__MULTI_PATH_START__";
-const PATH_CAPTURE_END = "__MULTI_PATH_END__";
+const PATH_CAPTURE_START = "__HONK_PATH_START__";
+const PATH_CAPTURE_END = "__HONK_PATH_END__";
 const SHELL_ENV_NAME_PATTERN = /^[A-Z0-9_]+$/;
 
 type ExecFileSyncLike = (
@@ -104,11 +104,11 @@ export function mergePathEntries(
 }
 
 function envCaptureStart(name: string): string {
-  return `__MULTI_ENV_${name}_START__`;
+  return `__HONK_ENV_${name}_START__`;
 }
 
 function envCaptureEnd(name: string): string {
-  return `__MULTI_ENV_${name}_END__`;
+  return `__HONK_ENV_${name}_END__`;
 }
 
 function buildEnvironmentCaptureCommand(names: ReadonlyArray<string>): string {

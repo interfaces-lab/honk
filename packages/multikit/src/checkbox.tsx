@@ -9,7 +9,7 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "relative inline-flex size-4.5 shrink-0 items-center justify-center rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-primary-foreground outline-none transition-[background-color,border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-checked:border-primary data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-64 data-indeterminate:border-primary data-indeterminate:bg-primary aria-invalid:border-destructive/36 focus-visible:aria-invalid:border-destructive/64 focus-visible:aria-invalid:ring-destructive/24 sm:size-4",
+        "relative inline-flex size-4.5 shrink-0 items-center justify-center rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-primary-foreground outline-none transition-[background-color,border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-checked:border-primary data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-64 data-indeterminate:border-primary data-indeterminate:bg-primary aria-invalid:border-destructive/36 focus-visible:aria-invalid:border-destructive/64 focus-visible:aria-invalid:ring-destructive/24 sm:size-4",
         interactiveControlCursorClassName,
         controlTransitionClassName,
         className,

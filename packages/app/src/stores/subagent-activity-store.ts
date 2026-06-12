@@ -1,4 +1,4 @@
-import type { EnvironmentId, OrchestrationThreadActivity, ThreadId } from "@multi/contracts";
+import type { EnvironmentId, OrchestrationThreadActivity, ThreadId } from "@honk/contracts";
 import { create } from "zustand";
 
 import {

@@ -7,7 +7,7 @@ import {
   ensurePrimaryEnvironmentReady,
   resolveInitialServerAuthGateState,
 } from "~/environments/primary";
-import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/multi-runtime-api";
+import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/honk-runtime-api";
 
 function isStandaloneDevRoute(pathname: string): boolean {
   return import.meta.env.DEV && pathname === "/dev/multikit";

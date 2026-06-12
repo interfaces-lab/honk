@@ -18,7 +18,7 @@ import {
   SubagentToolDetails,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema } from "effect";
 
 const decodeSubagentToolDetailsOption = Schema.decodeUnknownOption(SubagentToolDetails);
@@ -997,7 +997,13 @@ function projectRuntimeToolDisplay(input: {
   if (isReadToolName(normalizedToolName)) {
     const path = extractToolPath(input.args);
     const startLine = extractLineNumber(input.args, ["startLine", "start_line", "offset"]);
-    const endLine = extractLineNumber(input.args, ["endLine", "end_line", "limit"]);
+    const explicitEndLine = extractLineNumber(input.args, ["endLine", "end_line"]);
+    const limit = extractLineNumber(input.args, ["limit"]);
+    const endLine =
+      explicitEndLine ??
+      (startLine !== undefined && limit !== undefined && limit > 0
+        ? startLine + limit - 1
+        : undefined);
     return {
       kind: "read",
       ...(path !== undefined ? { path } : {}),
@@ -1010,33 +1016,37 @@ function projectRuntimeToolDisplay(input: {
     const query = extractSearchQuery(input.args);
     const path = extractToolPath(input.args);
     const matchedFiles = extractMatchedFiles(input.result, input.details);
-    const fffCounts = extractFffCounts(input.result, input.details);
+    const searchCounts = extractSearchCounts(input.result, input.details);
     return {
       kind: "grep",
       ...(query !== undefined ? { query } : {}),
       ...(path !== undefined ? { path } : {}),
       ...(input.output !== undefined ? { output: input.output } : {}),
       ...(matchedFiles !== undefined ? { matchedFiles } : {}),
-      ...(fffCounts.totalMatched !== undefined ? { totalMatched: fffCounts.totalMatched } : {}),
-      ...(fffCounts.totalIndexedFiles !== undefined
-        ? { totalIndexedFiles: fffCounts.totalIndexedFiles }
+      ...(searchCounts.totalMatched !== undefined
+        ? { totalMatched: searchCounts.totalMatched }
+        : {}),
+      ...(searchCounts.totalIndexedFiles !== undefined
+        ? { totalIndexedFiles: searchCounts.totalIndexedFiles }
         : {}),
     };
   }
   if (isFindToolName(normalizedToolName)) {
     const query = extractSearchQuery(input.args);
     const path = extractToolPath(input.args);
-    const fffCounts = extractFffCounts(input.result, input.details);
+    const searchCounts = extractSearchCounts(input.result, input.details);
     return {
       kind: "find",
       ...(query !== undefined ? { query } : {}),
       ...(path !== undefined ? { path } : {}),
       ...(input.output !== undefined ? { output: input.output } : {}),
-      ...(fffCounts.totalMatched !== undefined ? { totalMatched: fffCounts.totalMatched } : {}),
-      ...(fffCounts.totalIndexedFiles !== undefined
-        ? { totalIndexedFiles: fffCounts.totalIndexedFiles }
+      ...(searchCounts.totalMatched !== undefined
+        ? { totalMatched: searchCounts.totalMatched }
         : {}),
-      ...(fffCounts.hasMore !== undefined ? { hasMore: fffCounts.hasMore } : {}),
+      ...(searchCounts.totalIndexedFiles !== undefined
+        ? { totalIndexedFiles: searchCounts.totalIndexedFiles }
+        : {}),
+      ...(searchCounts.hasMore !== undefined ? { hasMore: searchCounts.hasMore } : {}),
     };
   }
   if (isEditToolName(normalizedToolName)) {
@@ -1118,9 +1128,7 @@ function isGrepToolName(toolName: string): boolean {
 }
 
 function isFindToolName(toolName: string): boolean {
-  return (
-    toolName === "find" || toolName === "fffind" || toolName === "glob" || toolName.includes("find")
-  );
+  return toolName === "find" || toolName === "glob" || toolName.includes("find");
 }
 
 function isEditToolName(toolName: string): boolean {
@@ -1203,7 +1211,7 @@ function extractExitCode(result: unknown, details: unknown): number | undefined 
   );
 }
 
-function extractFffCounts(
+function extractSearchCounts(
   result: unknown,
   details: unknown,
 ): {

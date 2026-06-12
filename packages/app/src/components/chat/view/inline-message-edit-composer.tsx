@@ -1,6 +1,6 @@
-import type { MessageId } from "@multi/contracts";
+import type { MessageId } from "@honk/contracts";
 import { useRef } from "react";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 
 import {
   type ComposerImageAttachment,
@@ -34,6 +34,7 @@ type InlineMessageEditComposerProps = Pick<
   | "isSendBusy"
   | "isPreparingWorktree"
   | "interactionMode"
+  | "modelSelection"
   | "activeContextWindow"
   | "resolvedTheme"
   | "settings"

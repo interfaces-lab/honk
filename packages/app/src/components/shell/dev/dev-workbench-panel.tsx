@@ -7,9 +7,9 @@ import type {
   SessionTreeEntry,
   SessionTreeProjection,
   ThreadId,
-} from "@multi/contracts";
-import { ScrollArea } from "@multi/multikit/scroll-area";
-import { WorkbenchChromeRow } from "@multi/multikit/workbench-chrome-row";
+} from "@honk/contracts";
+import { ScrollArea } from "@honk/multikit/scroll-area";
+import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
 import {
   IconAiTokens,
   IconBug,
@@ -106,16 +106,16 @@ function DevPanelHeader(props: {
     null;
   return (
     <WorkbenchChromeRow variant="panel">
-      <IconCode className="size-4 shrink-0 text-multi-icon-accent-primary" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-body font-medium text-multi-fg-primary">
+      <IconCode className="size-4 shrink-0 text-honk-icon-accent-primary" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-body font-medium text-honk-fg-primary">
         {props.threadTitle ?? "Dev Panel"}
       </span>
       {runtimeSessionId ? (
-        <span className="max-w-36 shrink-0 truncate text-caption text-multi-fg-tertiary">
+        <span className="max-w-36 shrink-0 truncate text-caption text-honk-fg-tertiary">
           {runtimeSessionId}
         </span>
       ) : props.threadId ? (
-        <span className="max-w-36 shrink-0 truncate text-caption text-multi-fg-tertiary">
+        <span className="max-w-36 shrink-0 truncate text-caption text-honk-fg-tertiary">
           {props.threadId}
         </span>
       ) : null}
@@ -131,7 +131,7 @@ function DevPanelTabs(props: {
     <div
       role="tablist"
       aria-label="Dev panel sections"
-      className="flex shrink-0 gap-1 overflow-x-auto border-b border-multi-workbench-panel-border-muted px-2 py-1.5"
+      className="flex shrink-0 gap-1 overflow-x-auto border-b border-honk-workbench-panel-border-muted px-2 py-1.5"
     >
       {DEV_PANEL_SECTIONS.map((section) => {
         const Icon = section.icon;
@@ -144,16 +144,16 @@ function DevPanelTabs(props: {
             aria-selected={selected}
             onClick={() => props.onActiveChange(section.id)}
             className={cn(
-              "flex h-9 shrink-0 items-center gap-2 rounded-multi-control border px-3 text-body font-medium transition-[background-color,border-color,color,transform] active:scale-[0.96]",
+              "flex h-9 shrink-0 items-center gap-2 rounded-honk-control border px-3 text-body font-medium transition-[background-color,border-color,color,transform] active:scale-[0.96]",
               selected
-                ? "border-multi-stroke-secondary bg-multi-bg-quinary text-multi-fg-primary shadow-xs"
-                : "border-transparent text-multi-fg-secondary hover:border-multi-workbench-panel-border-muted hover:bg-multi-bg-tertiary hover:text-multi-fg-primary",
+                ? "border-honk-stroke-secondary bg-honk-bg-quinary text-honk-fg-primary shadow-xs"
+                : "border-transparent text-honk-fg-secondary hover:border-honk-workbench-panel-border-muted hover:bg-honk-bg-tertiary hover:text-honk-fg-primary",
             )}
           >
             <Icon
               className={cn(
                 "size-4 shrink-0",
-                selected ? "text-multi-icon-accent-primary" : "text-multi-icon-secondary",
+                selected ? "text-honk-icon-accent-primary" : "text-honk-icon-secondary",
               )}
               aria-hidden
             />
@@ -167,13 +167,13 @@ function DevPanelTabs(props: {
 
 function DevSection(props: { title: string; meta?: string | null; children: ReactNode }) {
   return (
-    <section className="border-b border-multi-workbench-panel-border-muted px-3 py-3 last:border-b-0">
+    <section className="border-b border-honk-workbench-panel-border-muted px-3 py-3 last:border-b-0">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-3 px-0.5">
-        <h3 className="m-0 truncate text-detail font-medium text-multi-fg-tertiary">
+        <h3 className="m-0 truncate text-detail font-medium text-honk-fg-tertiary">
           {props.title}
         </h3>
         {props.meta ? (
-          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+          <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
             {props.meta}
           </span>
         ) : null}
@@ -185,9 +185,9 @@ function DevSection(props: { title: string; meta?: string | null; children: Reac
 
 function KeyValueRow(props: { label: string; value: ReactNode; title?: string }) {
   return (
-    <div className="grid min-h-8 grid-cols-[7rem_minmax(0,1fr)] items-center gap-2 rounded-multi-control px-2 py-1 text-detail hover:bg-multi-bg-secondary">
-      <div className="truncate text-multi-fg-tertiary">{props.label}</div>
-      <div className="min-w-0 truncate text-multi-fg-primary" title={props.title}>
+    <div className="grid min-h-8 grid-cols-[7rem_minmax(0,1fr)] items-center gap-2 rounded-honk-control px-2 py-1 text-detail hover:bg-honk-bg-secondary">
+      <div className="truncate text-honk-fg-tertiary">{props.label}</div>
+      <div className="min-w-0 truncate text-honk-fg-primary" title={props.title}>
         {props.value}
       </div>
     </div>
@@ -196,7 +196,7 @@ function KeyValueRow(props: { label: string; value: ReactNode; title?: string })
 
 function EmptyRows(props: { children: ReactNode }) {
   return (
-    <div className="flex min-h-24 items-center justify-center px-4 py-6 text-center text-detail text-multi-fg-tertiary">
+    <div className="flex min-h-24 items-center justify-center px-4 py-6 text-center text-detail text-honk-fg-tertiary">
       {props.children}
     </div>
   );
@@ -215,7 +215,7 @@ type ContextUsageColor =
 function contextUsageColorValue(color: ContextUsageColor): string {
   switch (color) {
     case "gray":
-      return "var(--multi-fg-tertiary)";
+      return "var(--honk-fg-tertiary)";
     case "purple":
       return "color-mix(in oklch, var(--primary) 78%, var(--cursor-text-red-primary))";
     case "green":
@@ -306,7 +306,7 @@ function ContextSection(props: { usage: ContextWindowSnapshot | null }) {
 
       <DevSection title="Breakdown" meta={`${categories.length} categories`}>
         <div
-          className="mb-2 flex h-1.5 overflow-hidden rounded-full bg-multi-bg-secondary"
+          className="mb-2 flex h-1.5 overflow-hidden rounded-full bg-honk-bg-secondary"
           role="img"
           aria-label="Context usage by category"
         >
@@ -328,7 +328,7 @@ function ContextSection(props: { usage: ContextWindowSnapshot | null }) {
           {categories.map((category, index) => (
             <div
               key={`${category.id}:${index}`}
-              className="flex min-h-8 min-w-0 items-center gap-2 rounded-multi-control border border-multi-workbench-panel-border-muted bg-multi-bg-secondary px-2 py-1 text-detail"
+              className="flex min-h-8 min-w-0 items-center gap-2 rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-secondary px-2 py-1 text-detail"
             >
               <span
                 className="size-2.5 shrink-0 rounded-[3px]"
@@ -339,10 +339,10 @@ function ContextSection(props: { usage: ContextWindowSnapshot | null }) {
                 }}
                 aria-hidden
               />
-              <span className="min-w-0 flex-1 truncate text-multi-fg-primary">
+              <span className="min-w-0 flex-1 truncate text-honk-fg-primary">
                 {category.label}
               </span>
-              <span className="shrink-0 text-multi-fg-secondary tabular-nums">
+              <span className="shrink-0 text-honk-fg-secondary tabular-nums">
                 {formatContextWindowTokens(category.tokens)}
               </span>
             </div>
@@ -409,20 +409,20 @@ function messageRoleLabel(role: DevMessageItem["role"]): string {
 
 function messageBubbleClassName(role: DevMessageItem["role"]): string {
   if (role === "user") {
-    return "border-multi-stroke-secondary bg-(--multi-message-bubble-background) text-multi-fg-primary";
+    return "border-honk-stroke-secondary bg-(--honk-message-bubble-background) text-honk-fg-primary";
   }
   if (role === "assistant") {
-    return "border-multi-workbench-panel-border-muted bg-multi-bg-tertiary text-multi-fg-primary";
+    return "border-honk-workbench-panel-border-muted bg-honk-bg-tertiary text-honk-fg-primary";
   }
   if (role === "system") {
-    return "border-multi-workbench-panel-border-muted bg-multi-bg-secondary text-multi-fg-secondary";
+    return "border-honk-workbench-panel-border-muted bg-honk-bg-secondary text-honk-fg-secondary";
   }
-  return "border-multi-workbench-panel-border-muted bg-multi-bg-secondary text-multi-fg-primary";
+  return "border-honk-workbench-panel-border-muted bg-honk-bg-secondary text-honk-fg-primary";
 }
 
 function messageAccentClassName(role: DevMessageItem["role"]): string {
   if (role === "user") {
-    return "bg-multi-icon-accent-primary";
+    return "bg-honk-icon-accent-primary";
   }
   if (role === "assistant") {
     return "bg-(--cursor-text-green-primary)";
@@ -430,7 +430,7 @@ function messageAccentClassName(role: DevMessageItem["role"]): string {
   if (role === "system") {
     return "bg-(--cursor-text-yellow-primary)";
   }
-  return "bg-multi-icon-secondary";
+  return "bg-honk-icon-secondary";
 }
 
 function buildDevMessages(
@@ -472,10 +472,10 @@ function MessagePill(props: { children: ReactNode; tone?: "default" | "active" }
   return (
     <span
       className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-multi-control border px-1.5 text-caption font-medium tabular-nums",
+        "inline-flex h-5 shrink-0 items-center rounded-honk-control border px-1.5 text-caption font-medium tabular-nums",
         props.tone === "active"
-          ? "border-multi-stroke-secondary bg-multi-bg-quinary text-multi-fg-primary"
-          : "border-multi-workbench-panel-border-muted bg-multi-bg-tertiary text-multi-fg-secondary",
+          ? "border-honk-stroke-secondary bg-honk-bg-quinary text-honk-fg-primary"
+          : "border-honk-workbench-panel-border-muted bg-honk-bg-tertiary text-honk-fg-secondary",
       )}
     >
       {props.children}
@@ -502,7 +502,7 @@ function MessagesSection(props: {
             <article
               key={`${message.source}:${message.id}:${index}`}
               className={cn(
-                "relative overflow-hidden rounded-multi-control border px-3 py-2.5 shadow-xs",
+                "relative overflow-hidden rounded-honk-control border px-3 py-2.5 shadow-xs",
                 messageBubbleClassName(message.role),
               )}
             >
@@ -515,8 +515,8 @@ function MessagesSection(props: {
               />
               <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
                 <span className="min-w-0 truncate text-detail font-medium">{roleLabel}</span>
-                <span className="text-caption text-multi-fg-tertiary">·</span>
-                <span className="shrink-0 text-caption text-multi-fg-tertiary">
+                <span className="text-caption text-honk-fg-tertiary">·</span>
+                <span className="shrink-0 text-caption text-honk-fg-tertiary">
                   {formatTimestamp(message.createdAt)}
                 </span>
                 <span className="min-w-0 flex-1" />
@@ -526,7 +526,7 @@ function MessagesSection(props: {
                 {message.streaming ? <MessagePill tone="active">Streaming</MessagePill> : null}
               </div>
               {message.thinking && message.text ? (
-                <div className="mb-2 rounded-multi-control border border-multi-workbench-panel-border-muted bg-multi-bg-secondary px-2 py-1.5 text-detail leading-5 text-multi-fg-secondary">
+                <div className="mb-2 rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-secondary px-2 py-1.5 text-detail leading-5 text-honk-fg-secondary">
                   {message.thinking}
                 </div>
               ) : null}
@@ -627,7 +627,7 @@ function timelineItemDescription(item: RuntimeDisplayTimelineItem): string {
 
 function timelineStatusClassName(item: RuntimeDisplayTimelineItem): string {
   if (item.kind === "tool" && item.status === "running") {
-    return "bg-multi-icon-accent-primary";
+    return "bg-honk-icon-accent-primary";
   }
   if (item.kind === "tool" && item.status === "error") {
     return "bg-(--cursor-text-red-primary)";
@@ -635,7 +635,7 @@ function timelineStatusClassName(item: RuntimeDisplayTimelineItem): string {
   if (item.kind === "extension-ui-request" && item.status === "pending") {
     return "bg-(--cursor-text-yellow-primary)";
   }
-  return "bg-multi-stroke-secondary";
+  return "bg-honk-stroke-secondary";
 }
 
 function TimelineSection(props: { timeline: RuntimeDisplayTimelineProjection | null }) {
@@ -650,22 +650,22 @@ function TimelineSection(props: { timeline: RuntimeDisplayTimelineProjection | n
         {items.map((item) => (
           <article
             key={item.id}
-            className="rounded-multi-control border border-multi-workbench-panel-border-muted bg-multi-bg-tertiary px-2.5 py-2 text-detail text-multi-fg-secondary shadow-xs"
+            className="rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-tertiary px-2.5 py-2 text-detail text-honk-fg-secondary shadow-xs"
           >
             <div className="flex min-w-0 items-center gap-2">
               <span
                 className={cn("size-2.5 shrink-0 rounded-full", timelineStatusClassName(item))}
                 aria-hidden
               />
-              <span className="min-w-0 flex-1 truncate text-multi-fg-primary">
+              <span className="min-w-0 flex-1 truncate text-honk-fg-primary">
                 {timelineItemTitle(item)}
               </span>
               <MessagePill>{timelineItemKindLabel(item)}</MessagePill>
-              <span className="shrink-0 text-caption text-multi-fg-tertiary">
+              <span className="shrink-0 text-caption text-honk-fg-tertiary">
                 {formatTimestamp(item.createdAt)}
               </span>
             </div>
-            <div className="mt-1 whitespace-pre-wrap break-words pl-4 text-detail leading-5 text-multi-fg-tertiary">
+            <div className="mt-1 whitespace-pre-wrap break-words pl-4 text-detail leading-5 text-honk-fg-tertiary">
               {timelineItemDescription(item)}
             </div>
             {item.kind === "extension-ui-request" && item.options?.length ? (
@@ -753,12 +753,12 @@ function TreeSection(props: { sessionTree: SessionTreeProjection | null; thread:
               <div
                 key={node.entryId}
                 className={cn(
-                  "rounded-multi-control border px-2 py-2 text-detail shadow-xs",
+                  "rounded-honk-control border px-2 py-2 text-detail shadow-xs",
                   node.isActiveLeaf
-                    ? "border-multi-stroke-secondary bg-multi-bg-quinary text-multi-fg-primary"
+                    ? "border-honk-stroke-secondary bg-honk-bg-quinary text-honk-fg-primary"
                     : node.isActivePath
-                      ? "border-multi-workbench-panel-border-muted bg-multi-bg-tertiary text-multi-fg-primary"
-                      : "border-multi-workbench-panel-border-muted bg-multi-bg-secondary text-multi-fg-secondary",
+                      ? "border-honk-workbench-panel-border-muted bg-honk-bg-tertiary text-honk-fg-primary"
+                      : "border-honk-workbench-panel-border-muted bg-honk-bg-secondary text-honk-fg-secondary",
                 )}
                 style={{ marginLeft: `${Math.min(node.depth, 8) * 10}px` }}
                 aria-current={node.isActiveLeaf ? "true" : undefined}
@@ -768,10 +768,10 @@ function TreeSection(props: { sessionTree: SessionTreeProjection | null; thread:
                     className={cn(
                       "size-2 shrink-0 rounded-full",
                       node.isActiveLeaf
-                        ? "bg-multi-icon-accent-primary"
+                        ? "bg-honk-icon-accent-primary"
                         : node.isActivePath
-                          ? "bg-multi-icon-secondary"
-                          : "bg-multi-stroke-secondary",
+                          ? "bg-honk-icon-secondary"
+                          : "bg-honk-stroke-secondary",
                     )}
                     aria-hidden
                   />
@@ -823,9 +823,9 @@ function eventDotClassName(event: AgentRuntimeEvent): string {
     event.type === "message.started" ||
     event.type === "tool.started"
   ) {
-    return "bg-multi-icon-accent-primary";
+    return "bg-honk-icon-accent-primary";
   }
-  return "bg-multi-stroke-secondary";
+  return "bg-honk-stroke-secondary";
 }
 
 function EventsSection(props: { events: readonly AgentRuntimeEvent[] }) {
@@ -841,18 +841,18 @@ function EventsSection(props: { events: readonly AgentRuntimeEvent[] }) {
         {events.map((event) => (
           <article
             key={event.id}
-            className="rounded-multi-control border border-multi-workbench-panel-border-muted bg-multi-bg-tertiary px-2.5 py-2 text-detail text-multi-fg-secondary shadow-xs"
+            className="rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-tertiary px-2.5 py-2 text-detail text-honk-fg-secondary shadow-xs"
           >
             <div className="flex min-w-0 items-center gap-2">
               <span className={cn("size-2.5 shrink-0 rounded-full", eventDotClassName(event))} />
-              <span className="min-w-0 flex-1 truncate text-multi-fg-primary">
+              <span className="min-w-0 flex-1 truncate text-honk-fg-primary">
                 {eventTypeLabel(event.type)}
               </span>
-              <span className="shrink-0 text-caption text-multi-fg-tertiary">
+              <span className="shrink-0 text-caption text-honk-fg-tertiary">
                 {formatTimestamp(event.createdAt)}
               </span>
             </div>
-            <div className="mt-1 whitespace-pre-wrap break-words pl-4 text-detail leading-5 text-multi-fg-tertiary">
+            <div className="mt-1 whitespace-pre-wrap break-words pl-4 text-detail leading-5 text-honk-fg-tertiary">
               {eventDescription(event)}
             </div>
             <div className="mt-2 flex min-w-0 flex-wrap gap-1 pl-4">
@@ -906,7 +906,7 @@ export function DevWorkbenchPanel(props: {
   );
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--multi-workbench-panel-background) font-multi text-detail text-multi-fg-primary">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--honk-workbench-panel-background) font-honk text-detail text-honk-fg-primary">
       <DevPanelHeader
         threadTitle={props.threadTitle}
         threadId={props.threadId}

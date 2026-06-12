@@ -1,10 +1,10 @@
-import { EDITORS, EditorId, LocalApi } from "@multi/contracts";
+import { EDITORS, EditorId, LocalApi } from "@honk/contracts";
 import {
   getLocalStorageItem,
   setLocalStorageItem,
   useLocalStorage,
 } from "./hooks/use-local-storage";
-const LAST_EDITOR_KEY = "multi:last-editor";
+const LAST_EDITOR_KEY = "honk:last-editor";
 
 export function usePreferredEditor(availableEditors: ReadonlyArray<EditorId>) {
   const [lastEditor, setLastEditor] = useLocalStorage(LAST_EDITOR_KEY, null, EditorId);

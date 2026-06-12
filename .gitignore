@@ -17,7 +17,7 @@ build/
 .logs/
 release/
 release-mock/
-.multi
+.honk
 .idea/
 apps/web/.playwright
 apps/web/playwright-report

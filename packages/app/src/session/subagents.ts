@@ -1,4 +1,4 @@
-import type { SubagentRunSnapshot, SubagentToolDetails } from "@multi/contracts";
+import type { SubagentRunSnapshot, SubagentToolDetails } from "@honk/contracts";
 
 interface ParsedSubagentReceiverAgent {
   subagentThreadId: string;

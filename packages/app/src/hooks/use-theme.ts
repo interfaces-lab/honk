@@ -9,7 +9,7 @@ type ThemeSnapshot = {
   systemDark: boolean;
 };
 
-const STORAGE_KEY = "multi:theme";
+const STORAGE_KEY = "honk:theme";
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
   theme: "system",
@@ -82,8 +82,8 @@ function resolveBrowserChromeSurface(): HTMLElement {
 function wantsElectronGlassBackground() {
   return (
     isElectron &&
-    document.body.getAttribute("data-multi-glass-mode") === "true" &&
-    !document.body.classList.contains("multi-reduce-transparency")
+    document.body.getAttribute("data-honk-glass-mode") === "true" &&
+    !document.body.classList.contains("honk-reduce-transparency")
   );
 }
 

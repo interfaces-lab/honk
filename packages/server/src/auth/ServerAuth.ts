@@ -3,8 +3,8 @@ import {
   type AuthClientSession,
   type AuthPairingCredentialResult,
   type AuthSessionState,
-} from "@multi/contracts";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { DateTime, Effect, Layer } from "effect";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 

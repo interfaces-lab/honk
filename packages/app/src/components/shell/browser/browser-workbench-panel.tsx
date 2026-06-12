@@ -9,12 +9,13 @@ import {
 } from "central-icons";
 import type { FormEvent, MouseEventHandler, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { normalizePathSeparators } from "@honk/shared/paths";
 
-import { WorkbenchIconButton } from "@multi/multikit/workbench-button";
+import { WorkbenchIconButton } from "@honk/multikit/workbench-button";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeRow,
-} from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/workbench-chrome-row";
 
 import { resolveShortcutCommand, type ShortcutEventLike } from "~/keybindings";
 import { useServerKeybindings } from "~/rpc/server-state";
@@ -67,7 +68,7 @@ interface DetectedLocalhostServer {
 function browserWebviewPreloadPathToUrl(path: string | null): string | undefined {
   if (!path) return undefined;
   if (path.startsWith("file://")) return path;
-  const normalized = path.replace(/\\/g, "/");
+  const normalized = normalizePathSeparators(path);
   const prefix = normalized.startsWith("/") ? "file://" : "file:///";
   return `${prefix}${normalized
     .split("/")
@@ -141,7 +142,7 @@ function BrowserToolbarIconButton(props: {
       aria-label={props["aria-label"]}
       chrome="panel"
       className={cn(
-        "border border-multi-workbench-panel-border-muted bg-multi-bg-quinary text-multi-icon-primary shadow-xs hover:border-multi-stroke-secondary hover:bg-multi-bg-tertiary disabled:border-transparent disabled:bg-transparent disabled:text-multi-fg-quaternary/45 disabled:hover:border-transparent disabled:hover:bg-transparent",
+        "border border-honk-workbench-panel-border-muted bg-honk-bg-quinary text-honk-icon-primary shadow-xs hover:border-honk-stroke-secondary hover:bg-honk-bg-tertiary disabled:border-transparent disabled:bg-transparent disabled:text-honk-fg-quaternary/45 disabled:hover:border-transparent disabled:hover:bg-transparent",
         props.className,
       )}
       disabled={props.disabled}
@@ -445,12 +446,12 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       className="pointer-events-none absolute inset-0 flex items-center justify-center"
       aria-hidden
     >
-      <span className="size-3.5 animate-spin rounded-full border border-multi-stroke-tertiary border-t-multi-icon-primary" />
+      <span className="size-3.5 animate-spin rounded-full border border-honk-stroke-tertiary border-t-honk-icon-primary" />
     </span>
   ) : null;
 
   return (
-    <WorkbenchPanel className="bg-multi-bg-secondary">
+    <WorkbenchPanel className="bg-honk-bg-secondary">
       <WorkbenchChromeRow variant="panel">
         <WorkbenchChromeActionGroup>
           <BrowserToolbarIconButton
@@ -468,7 +469,7 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
             <IconArrowRight className="size-4 shrink-0" aria-hidden />
           </BrowserToolbarIconButton>
           <div
-            className="relative flex size-(--multi-workbench-action-size) shrink-0 items-center justify-center"
+            className="relative flex size-(--honk-workbench-action-size) shrink-0 items-center justify-center"
             data-loading={browserState.isLoading ? "true" : undefined}
           >
             <BrowserToolbarIconButton
@@ -483,14 +484,14 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
         </WorkbenchChromeActionGroup>
 
         <form
-          className="no-drag flex h-(--multi-workbench-action-size) min-w-0 flex-1 items-center gap-(--multi-workbench-text-control-gap) rounded-multi-control border border-multi-workbench-panel-border-muted bg-multi-bg-quinary px-(--multi-workbench-text-control-padding-inline) text-body text-multi-fg-primary focus-within:border-multi-stroke-focused focus-within:ring-1 focus-within:ring-multi-stroke-focused focus-within:ring-inset"
+          className="no-drag flex h-(--honk-workbench-action-size) min-w-0 flex-1 items-center gap-(--honk-workbench-text-control-gap) rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-quinary px-(--honk-workbench-text-control-padding-inline) text-body text-honk-fg-primary focus-within:border-honk-stroke-focused focus-within:ring-1 focus-within:ring-honk-stroke-focused focus-within:ring-inset"
           onSubmit={handleSubmit}
         >
-          <IconGlobe className="size-4 shrink-0 text-multi-icon-primary" aria-hidden />
+          <IconGlobe className="size-4 shrink-0 text-honk-icon-primary" aria-hidden />
           <input
             ref={inputRef}
             aria-label="Browser location"
-            className="min-w-0 flex-1 bg-transparent p-0 text-body text-multi-fg-primary outline-hidden placeholder:text-multi-fg-quaternary"
+            className="min-w-0 flex-1 bg-transparent p-0 text-body text-honk-fg-primary outline-hidden placeholder:text-honk-fg-quaternary"
             onChange={(event) => updateBrowserState({ inputValue: event.currentTarget.value })}
             placeholder={detectedLocalhostServers[0]?.url ?? "Search or enter URL"}
             spellCheck={false}
@@ -502,41 +503,41 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       <div
         className={cn(
           "h-0.5 shrink-0 transition-colors",
-          browserState.isLoading ? "bg-multi-icon-accent-primary" : "bg-transparent",
+          browserState.isLoading ? "bg-honk-icon-accent-primary" : "bg-transparent",
         )}
       />
 
       {browserState.loadError ? (
-        <div className="shrink-0 border-b border-multi-workbench-panel-border-muted px-3 py-1.5 text-detail text-multi-fg-red-primary">
+        <div className="shrink-0 border-b border-honk-workbench-panel-border-muted px-3 py-1.5 text-detail text-honk-fg-red-primary">
           {browserState.loadError}
         </div>
       ) : null}
 
-      <div className="relative flex min-h-0 min-w-0 flex-1 bg-multi-bg-secondary">
+      <div className="relative flex min-h-0 min-w-0 flex-1 bg-honk-bg-secondary">
         <webview
           ref={handleWebviewRef}
           allowpopups
           className={cn(
-            "min-h-0 min-w-0 flex-1 bg-(--multi-bg-primary)",
+            "min-h-0 min-w-0 flex-1 bg-(--honk-bg-primary)",
             !browserState.committedUrl && "pointer-events-none opacity-0",
           )}
-          partition="persist:multi-browser"
+          partition="persist:honk-browser"
           preload={preloadUrl}
           src={initialWebviewSrcRef.current}
           webpreferences="contextIsolation=yes, nodeIntegration=no, sandbox=yes"
         />
 
         {!browserState.committedUrl ? (
-          <div className="pointer-events-auto absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col items-center justify-center px-4 py-8 text-center text-multi-fg-primary">
+          <div className="pointer-events-auto absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col items-center justify-center px-4 py-8 text-center text-honk-fg-primary">
             <div className="flex w-full max-w-xs flex-col items-center gap-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-icon-primary shadow-xs">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-icon-primary shadow-xs">
                 <IconBrowserTabs className="size-6 shrink-0" aria-hidden />
               </div>
               <div className="flex max-w-2xs flex-col items-center gap-1">
-                <div className="text-body font-medium text-multi-fg-primary">
+                <div className="text-body font-medium text-honk-fg-primary">
                   Open a local preview
                 </div>
-                <div className="text-detail text-multi-fg-secondary">
+                <div className="text-detail text-honk-fg-secondary">
                   Enter a URL or choose a detected localhost server.
                 </div>
               </div>
@@ -544,23 +545,23 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
               <div className="flex w-full flex-col gap-1.5">
                 {detectedLocalhostServers.length > 0 ? (
                   <>
-                    <div className="px-1 text-left text-caption font-medium text-multi-fg-tertiary">
+                    <div className="px-1 text-left text-caption font-medium text-honk-fg-tertiary">
                       Detected localhost
                     </div>
                     {detectedLocalhostServers.map((server) => (
                       <button
                         key={server.port}
                         type="button"
-                        className="no-drag flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2 text-left text-detail text-multi-fg-primary shadow-xs outline-hidden transition-colors hover:border-multi-stroke-secondary hover:bg-multi-bg-tertiary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+                        className="no-drag flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 text-left text-detail text-honk-fg-primary shadow-xs outline-hidden transition-colors hover:border-honk-stroke-secondary hover:bg-honk-bg-tertiary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
                         onClick={() => void navigateToUrl(server.url)}
                       >
-                        <span className="min-w-0 truncate font-multi-mono">{server.url}</span>
-                        <span className="shrink-0 text-multi-fg-secondary">Open</span>
+                        <span className="min-w-0 truncate font-honk-mono">{server.url}</span>
+                        <span className="shrink-0 text-honk-fg-secondary">Open</span>
                       </button>
                     ))}
                   </>
                 ) : (
-                  <div className="rounded-multi-control border border-multi-workbench-panel-border-muted bg-multi-bg-tertiary px-2.5 py-2 text-detail text-multi-fg-secondary">
+                  <div className="rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-tertiary px-2.5 py-2 text-detail text-honk-fg-secondary">
                     {localhostScanState === "scanning"
                       ? "Looking for localhost servers..."
                       : "No localhost server detected."}

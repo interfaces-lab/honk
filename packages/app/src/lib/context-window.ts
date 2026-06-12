@@ -2,7 +2,7 @@ import type {
   OrchestrationThreadActivity,
   ThreadTokenUsageCategory,
   ThreadTokenUsageSnapshot,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import * as Predicate from "effect/Predicate";
 
 function asRecord(value: unknown): Record<string, unknown> | null {

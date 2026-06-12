@@ -1,12 +1,12 @@
-import { makeLocalFileTracer, makeTraceSink } from "@multi/shared/observability";
+import { makeLocalFileTracer, makeTraceSink } from "@honk/shared/observability";
 import {
-  configureMultiEvlog,
-  configureMultiProcessMetadata,
-  makeMultiEffectLogger,
+  configureHonkEvlog,
+  configureHonkProcessMetadata,
+  makeHonkEffectLogger,
   makeSafeConsolePrettyLogger,
-} from "@multi/shared/logging";
-import * as EffectLogger from "@multi/shared/effect-logger";
-import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
+} from "@honk/shared/logging";
+import * as EffectLogger from "@honk/shared/effect-logger";
+import { parsePersistedServerObservabilitySettings } from "@honk/shared/server-settings";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -37,13 +37,13 @@ export interface DesktopBackendOutputLogShape {
 export class DesktopBackendOutputLog extends Context.Service<
   DesktopBackendOutputLog,
   DesktopBackendOutputLogShape
->()("multi/desktop/BackendOutputLog") {}
+>()("honk/desktop/BackendOutputLog") {}
 
 const textDecoder = new TextDecoder();
 
-export const desktopProcessMetadata = configureMultiProcessMetadata("desktop-main");
+export const desktopProcessMetadata = configureHonkProcessMetadata("desktop-main");
 
-export * as EffectLogger from "@multi/shared/effect-logger";
+export * as EffectLogger from "@honk/shared/effect-logger";
 
 const sanitizeLogValue = (value: string): string => value.replace(/\s+/g, " ").trim();
 
@@ -113,7 +113,7 @@ export const backendOutputLogLayer = Layer.effect(
 const desktopLoggerLayer = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
-    configureMultiEvlog({
+    configureHonkEvlog({
       filePath: environment.path.join(environment.logDir, "desktop.log.ndjson"),
       service: "desktop",
       environment: environment.isDevelopment ? "development" : "production",
@@ -127,7 +127,7 @@ const desktopLoggerLayer = Layer.unwrap(
         [
           makeSafeConsolePrettyLogger(),
           Logger.tracerLogger,
-          makeMultiEffectLogger({
+          makeHonkEffectLogger({
             defaultService: "desktop",
           }),
         ],
@@ -159,8 +159,8 @@ const tracerLayer = Layer.unwrap(
             attributes: {
               "service.runtime": "desktop",
               "service.mode": environment.isDevelopment ? "development" : "packaged",
-              "multi.run_id": desktopProcessMetadata.runId,
-              "multi.process_role": desktopProcessMetadata.processRole,
+              "honk.run_id": desktopProcessMetadata.runId,
+              "honk.process_role": desktopProcessMetadata.processRole,
             },
           },
         });

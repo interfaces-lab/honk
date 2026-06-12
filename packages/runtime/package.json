@@ -1,5 +1,5 @@
 {
-  "name": "@multi/runtime",
+  "name": "@honk/runtime",
   "version": "0.0.0-alpha.1",
   "private": true,
   "type": "module",
@@ -14,14 +14,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.78.1",
-    "@earendil-works/pi-ai": "^0.78.1",
-    "@earendil-works/pi-coding-agent": "^0.78.1",
-    "@ff-labs/pi-fff": "0.9.3",
-    "@multi/contracts": "workspace:*",
-    "@multi/shared": "workspace:*",
+    "@earendil-works/pi-agent-core": "^0.79.1",
+    "@earendil-works/pi-ai": "^0.79.1",
+    "@earendil-works/pi-coding-agent": "^0.79.1",
+    "@honk/contracts": "workspace:*",
+    "@honk/shared": "workspace:*",
     "effect": "catalog:",
-    "typebox": "^1.2.0"
+    "typebox": "^1.2.8"
   },
   "devDependencies": {
     "@types/node": "catalog:",

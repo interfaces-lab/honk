@@ -113,7 +113,7 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
  * ServerConfig - Service tag for server runtime configuration.
  */
 export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShape>()(
-  "multi/config/ServerConfig",
+  "honk/config/ServerConfig",
 ) {
   static readonly layerTest = (cwd: string, baseDirOrPrefix: string | { prefix: string }) =>
     Layer.effect(
@@ -139,7 +139,7 @@ export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShap
           otlpTracesUrl: undefined,
           otlpMetricsUrl: undefined,
           otlpExportIntervalMs: 10_000,
-          otlpServiceName: "multi-server",
+          otlpServiceName: "honk-server",
           cwd,
           baseDir,
           ...derivedPaths,

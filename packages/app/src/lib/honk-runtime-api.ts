@@ -4,5 +4,5 @@ export {
   createEmptyRuntimeHostSnapshot,
   createRuntimeClient,
   isDesktopRuntimeApiAvailable,
-  readMultiRuntimeApi,
-} from "@multi/client-runtime";
+  readHonkRuntimeApi,
+} from "@honk/client-runtime";

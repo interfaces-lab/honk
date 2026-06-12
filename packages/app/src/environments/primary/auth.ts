@@ -8,14 +8,14 @@ import type {
   AuthRevokePairingLinkInput,
   AuthSessionId,
   AuthSessionState,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   AuthBootstrapResult as AuthBootstrapResultSchema,
   AuthClientSession,
   AuthPairingCredentialResult as AuthPairingCredentialResultSchema,
   AuthPairingLink,
   AuthSessionState as AuthSessionStateSchema,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import {
   getPairingTokenFromUrl,
@@ -76,7 +76,7 @@ let bootstrapPromise: Promise<ServerAuthGateState> | null = null;
 let resolvedAuthenticatedGateState: ServerAuthGateState | null = null;
 let serverBearerSessionRecord: ServerBearerSessionRecord | null = null;
 let resolveAuthenticatedServerBearerTokenPromise: Promise<string | null> | null = null;
-const SERVER_BEARER_SESSION_STORAGE_KEY = "multi.server.bearerSession.v1";
+const SERVER_BEARER_SESSION_STORAGE_KEY = "honk.server.bearerSession.v1";
 
 interface ServerBearerSessionRecord {
   readonly httpBaseUrl: string;

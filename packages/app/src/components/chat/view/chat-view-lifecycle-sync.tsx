@@ -2,13 +2,14 @@ import {
   type AgentInteractionMode,
   type EnvironmentId,
   type MessageId,
+  type ModelSelection,
   type ProjectScript,
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
-import { projectScriptCwd } from "@multi/shared/project-scripts";
+import { projectScriptCwd } from "@honk/shared/project-scripts";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
@@ -97,12 +98,14 @@ export function RetainServerThreadDetailSync({
 export function RuntimeThreadHydrationSync({
   cwd,
   interactionMode,
+  modelSelection,
   routeKind,
   threadId,
   isDraftBoundThread = false,
 }: {
   cwd: string | null | undefined;
   interactionMode: AgentInteractionMode;
+  modelSelection: ModelSelection;
   routeKind: "server" | "draft";
   threadId: ThreadId;
   isDraftBoundThread?: boolean;
@@ -116,6 +119,7 @@ export function RuntimeThreadHydrationSync({
         threadId,
         cwd,
         interactionMode,
+        modelSelection,
       }).catch(() => undefined);
     });
   });

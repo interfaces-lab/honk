@@ -15,18 +15,18 @@ import {
   type ResolvedKeybindingsConfig,
   type OrchestrationThreadActivity,
   type AgentInteractionMode,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   parseScopedThreadKey,
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import { projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
+import { projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
 import { Debouncer } from "@tanstack/react-pacer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@multi/multikit/alert";
-import { Button } from "@multi/multikit/button";
+import { Alert, AlertDescription, AlertTitle } from "@honk/multikit/alert";
+import { Button } from "@honk/multikit/button";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
@@ -42,9 +42,8 @@ import {
   prepareRuntimeTurnPolicy,
 } from "~/lib/runtime-turn-dispatch";
 import {
-  AGENT_MODE_LABELS,
   deriveAgentModeAvailability,
-  unavailableAgentModeReason,
+  unavailableModelSelectionReason,
 } from "~/lib/agent-mode-options";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { isElectron } from "../../../env";
@@ -98,7 +97,7 @@ import {
   type Thread,
 } from "../../../types";
 import { useTheme } from "../../../hooks/use-theme";
-import { buildTemporaryWorktreeBranchName } from "@multi/shared/git";
+import { buildTemporaryWorktreeBranchName } from "@honk/shared/git";
 import { shortcutLabelForCommand } from "../../../keybindings";
 import { cn, randomUUID } from "~/lib/utils";
 import { toastManager } from "~/app/toast";
@@ -112,7 +111,7 @@ import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { useSettings } from "../../../hooks/use-settings";
 import { useNewThreadHandler } from "../../../hooks/use-handle-new-thread";
 import { useSelectedWorkspaceProject } from "../../../lib/selected-workspace-project";
-import { readMultiRuntimeApi } from "../../../lib/multi-runtime-api";
+import { readHonkRuntimeApi } from "../../../lib/honk-runtime-api";
 import { openWorkspaceFolder } from "../../../lib/project-selection";
 import { resolveProjectlessCwd, writeStoredProjectSelection } from "../../../lib/project-state";
 import { findWorkspaceProjectForSource, resolveWorkspaceTarget } from "~/lib/workspace-target";
@@ -283,7 +282,7 @@ function getNewAgentFooterTip(input: {
       { kind: "token", text: "/review" },
       {
         kind: "text",
-        text: " to have Multi find bugs, regressions, security issues, and missing tests",
+        text: " to have Honk find bugs, regressions, security issues, and missing tests",
       },
     ],
   };
@@ -1558,7 +1557,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const workspaceTopnavActions =
     showWorkspaceToolbar || workspaceProject ? (
-      <div className="flex min-w-0 items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden">
+      <div className="flex min-w-0 items-center gap-(--honk-workbench-chrome-action-gap) overflow-hidden">
         {showWorkspaceToolbar ? (
           <WorkspaceToolbarWithGitStatus
             environmentId={gitEnvironmentId ?? environmentId}
@@ -1604,41 +1603,48 @@ export default function ChatView(props: ChatViewProps) {
       }),
     [draftId, interactionMode, routeThreadKey, workspaceProject?.name],
   );
-  const heroComposerActions = isHeroComposer ? (
-    <div data-new-agent-footer-actions="">
-      <Button
-        type="button"
-        variant="outline"
-        size="lg"
-        data-new-agent-action-pill=""
-        onClick={() => handleInteractionModeChange("plan")}
-      >
-        <span>Plan New Idea</span>
-        <span data-new-agent-action-hint="">⇧Tab</span>
-      </Button>
-    </div>
-  ) : null;
+  const heroComposerActions =
+    isHeroComposer && interactionMode === "agent" ? (
+      <div data-new-agent-footer-actions="">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          data-new-agent-action-pill=""
+          onClick={() => handleInteractionModeChange("plan")}
+        >
+          <span>Plan New Idea</span>
+          <span data-new-agent-action-hint="">⇧Tab</span>
+        </Button>
+      </div>
+    ) : null;
 
-  const requireAvailableAgentModeForSend = (targetThreadId: ThreadId): boolean => {
+  const requireAvailableModelSelectionForSend = (
+    targetThreadId: ThreadId,
+    modelSelection: ModelSelection,
+  ): boolean => {
     const { snapshot } = useAgentRuntimeStore.getState();
-    const agentMode = snapshot.preferences.agentMode;
-    const reason = unavailableAgentModeReason(
-      agentMode,
+    const reason = unavailableModelSelectionReason(
+      modelSelection,
       deriveAgentModeAvailability(snapshot.authStatuses),
     );
     if (reason === null) {
       return true;
     }
-    setThreadError(targetThreadId, `${AGENT_MODE_LABELS[agentMode]} mode is unavailable. ${reason}`);
+    setThreadError(targetThreadId, `Selected model is unavailable. ${reason}`);
     return false;
   };
 
   const prepareRuntimePolicyForSend = (
     targetThreadId: ThreadId,
     nextInteractionMode: AgentInteractionMode,
+    modelSelection: ModelSelection,
   ): PreparedRuntimeTurnPolicy | null => {
     try {
-      return prepareRuntimeTurnPolicy({ interactionMode: nextInteractionMode });
+      return prepareRuntimeTurnPolicy({
+        interactionMode: nextInteractionMode,
+        modelSelection,
+      });
     } catch (err) {
       setThreadError(
         targetThreadId,
@@ -1692,12 +1698,13 @@ export default function ChatView(props: ChatViewProps) {
       setThreadError(threadIdForSend, "Pi runtime requires an active project before sending.");
       return false;
     }
-    if (!requireAvailableAgentModeForSend(threadIdForSend)) {
+    if (!requireAvailableModelSelectionForSend(threadIdForSend, activeThread.modelSelection)) {
       return false;
     }
     const preparedRuntimePolicy = prepareRuntimePolicyForSend(
       threadIdForSend,
       input.interactionMode,
+      activeThread.modelSelection,
     );
     if (!preparedRuntimePolicy) {
       return false;
@@ -1922,12 +1929,13 @@ export default function ChatView(props: ChatViewProps) {
       setThreadError(threadIdForSend, "Pi runtime requires an active project before sending.");
       return;
     }
-    if (!requireAvailableAgentModeForSend(threadIdForSend)) {
+    if (!requireAvailableModelSelectionForSend(threadIdForSend, activeThread.modelSelection)) {
       return;
     }
     const preparedRuntimePolicy = prepareRuntimePolicyForSend(
       threadIdForSend,
       interactionModeForSend,
+      activeThread.modelSelection,
     );
     if (!preparedRuntimePolicy) {
       return;
@@ -1998,7 +2006,7 @@ export default function ChatView(props: ChatViewProps) {
           threadId: threadIdForSend,
           projectId: threadProjectId,
           title,
-          modelSelection: threadCreateModelSelection,
+          modelSelection: activeThread.modelSelection,
           runtimeMode: DEFAULT_RUNTIME_MODE,
           interactionMode: interactionModeForSend,
           branch: threadBranch,
@@ -2077,7 +2085,7 @@ export default function ChatView(props: ChatViewProps) {
                 createThread: {
                   projectId: threadProjectId,
                   title,
-                  modelSelection: threadCreateModelSelection,
+                  modelSelection: activeThread.modelSelection,
                   runtimeMode: DEFAULT_RUNTIME_MODE,
                   interactionMode: interactionModeForSend,
                   branch: threadBranch,
@@ -2492,7 +2500,7 @@ export default function ChatView(props: ChatViewProps) {
     setRespondingExtensionUiRequestIds((existing) =>
       existing.includes(request.id) ? existing : [...existing, request.id],
     );
-    void readMultiRuntimeApi()
+    void readHonkRuntimeApi()
       .respondToExtensionUiRequest({
         threadId: request.threadId,
         requestId: request.id,
@@ -2538,7 +2546,14 @@ export default function ChatView(props: ChatViewProps) {
       setThreadError(threadIdForSend, "Pi runtime requires an active project before sending.");
       return;
     }
-    const preparedRuntimePolicy = prepareRuntimePolicyForSend(threadIdForSend, nextInteractionMode);
+    if (!requireAvailableModelSelectionForSend(threadIdForSend, activeThread.modelSelection)) {
+      return;
+    }
+    const preparedRuntimePolicy = prepareRuntimePolicyForSend(
+      threadIdForSend,
+      nextInteractionMode,
+      activeThread.modelSelection,
+    );
     if (!preparedRuntimePolicy) {
       return;
     }
@@ -2697,6 +2712,7 @@ export default function ChatView(props: ChatViewProps) {
           isSendBusy={isSendBusy}
           isPreparingWorktree={isPreparingWorktree}
           interactionMode={interactionMode}
+          modelSelection={activeThread?.modelSelection ?? threadCreateModelSelection}
           activeContextWindow={activeContextWindow}
           resolvedTheme={resolvedTheme}
           settings={settings}
@@ -2713,6 +2729,7 @@ export default function ChatView(props: ChatViewProps) {
     },
     [
       activeThreadId,
+      activeThread?.modelSelection,
       draftId,
       editComposerDraftTarget,
       environmentId,
@@ -2732,6 +2749,7 @@ export default function ChatView(props: ChatViewProps) {
       settings,
       terminalState.terminalOpen,
       activeContextWindow,
+      threadCreateModelSelection,
     ],
   );
   const activeTimelineCacheKey = activeThread?.id ?? "";
@@ -2760,6 +2778,7 @@ export default function ChatView(props: ChatViewProps) {
           )}
           cwd={activeProjectCwd ?? gitCwd}
           interactionMode={interactionMode}
+          modelSelection={threadCreateModelSelection}
           routeKind={routeKind}
           threadId={threadId}
         />
@@ -2912,7 +2931,7 @@ export default function ChatView(props: ChatViewProps) {
       {isHeroComposer ? null : (
         <header
           className={cn(
-            "agent-window-chat-header pointer-events-none box-border flex h-(--multi-workbench-chrome-row-height) select-none items-center px-(--multi-workbench-chrome-padding-inline)",
+            "agent-window-chat-header pointer-events-none box-border flex h-(--honk-workbench-chrome-row-height) select-none items-center px-(--honk-workbench-chrome-padding-inline)",
             isElectron &&
               reserveTitleBarControlInset &&
               "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
@@ -2982,12 +3001,12 @@ export default function ChatView(props: ChatViewProps) {
                       size="icon"
                       variant="outline"
                       onClick={() => scrollTimelineToBottom(true)}
-                      className="pointer-events-auto rounded-full bg-(--multi-composer-surface-background)! text-multi-icon-secondary hover:bg-(--multi-composer-surface-background)! data-pressed:bg-(--multi-composer-surface-background)!"
+                      className="pointer-events-auto rounded-full bg-(--honk-composer-surface-background)! text-honk-icon-secondary hover:bg-(--honk-composer-surface-background)! data-pressed:bg-(--honk-composer-surface-background)!"
                       aria-label="Scroll to bottom"
                       title="Scroll to bottom"
                     >
                       <IconChevronRightMedium
-                        className="size-3 rotate-90 text-multi-icon-secondary"
+                        className="size-3 rotate-90 text-honk-icon-secondary"
                         aria-hidden="true"
                       />
                     </Button>
@@ -2996,7 +3015,7 @@ export default function ChatView(props: ChatViewProps) {
                 <div
                   aria-hidden="true"
                   data-chat-bottom-gradient-overlay=""
-                  className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-32 bg-[linear-gradient(to_top,var(--multi-shell-center-surface-background)_0,color-mix(in_srgb,var(--multi-shell-center-surface-background)_82%,transparent)_52%,transparent_100%)]"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-32 bg-[linear-gradient(to_top,var(--honk-shell-center-surface-background)_0,color-mix(in_srgb,var(--honk-shell-center-surface-background)_82%,transparent)_52%,transparent_100%)]"
                 />
               </div>
               {subagentTrayPresented ? (
@@ -3024,7 +3043,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--multi-shell-center-surface-background) *:pointer-events-auto *:relative *:z-1"
+                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--honk-shell-center-surface-background) *:pointer-events-auto *:relative *:z-1"
                 : undefined,
             )}
             data-new-agent-empty-state={isHeroComposer ? "" : undefined}
@@ -3043,7 +3062,7 @@ export default function ChatView(props: ChatViewProps) {
             />
             {isHeroComposer && workspaceTopnavActions ? (
               <div
-                className="@container/header-actions pointer-events-auto flex items-center gap-(--multi-workbench-chrome-action-gap) overflow-hidden"
+                className="@container/header-actions pointer-events-auto flex items-center gap-(--honk-workbench-chrome-action-gap) overflow-hidden"
                 data-new-agent-env-row=""
               >
                 {workspaceTopnavActions}
@@ -3078,6 +3097,7 @@ export default function ChatView(props: ChatViewProps) {
               activeProposedPlan={activeProposedPlan}
               planSurfaceOpen={planSurfaceOpen}
               interactionMode={interactionMode}
+              modelSelection={threadCreateModelSelection}
               activeContextWindow={activeContextWindow}
               resolvedTheme={resolvedTheme}
               settings={settings}

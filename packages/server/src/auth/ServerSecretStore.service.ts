@@ -17,5 +17,5 @@ export interface ServerSecretStoreShape {
 }
 
 export class ServerSecretStore extends Context.Service<ServerSecretStore, ServerSecretStoreShape>()(
-  "multi/auth/ServerSecretStore.service",
+  "honk/auth/ServerSecretStore.service",
 ) {}

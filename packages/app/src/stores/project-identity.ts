@@ -1,5 +1,5 @@
 import { scopedProjectKey } from "~/lib/environment-scope";
-import type { ScopedProjectRef } from "@multi/contracts";
+import type { ScopedProjectRef } from "@honk/contracts";
 import { normalizeProjectPathForComparison } from "../lib/project-paths";
 import type { Project } from "../types";
 

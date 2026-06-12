@@ -2,13 +2,14 @@
 
 import { prepareFileTreeInput } from "@pierre/trees";
 import type { GitStatus, GitStatusEntry } from "@pierre/trees";
+import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
 import { type RefObject, useEffect, useMemo, useRef } from "react";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { cn } from "~/lib/utils";
 import { useTheme } from "~/hooks/use-theme";
-import { normalizeTreePath, Tree, useTreeModel } from "../../tree";
+import { Tree, useTreeModel } from "../../tree";
 
 type GitChangesTreeModel = ReturnType<typeof useTreeModel>["model"];
 type GitChangesPreparedInput = ReturnType<typeof prepareFileTreeInput>;
@@ -117,7 +118,7 @@ export function GitChangesFileTree(props: {
   return (
     <section
       className={cn(
-        "git-changes-file-tree project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--multi-workbench-panel-background) text-multi-fg-primary",
+        "git-changes-file-tree project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--honk-workbench-panel-background) text-honk-fg-primary",
         props.className,
       )}
     >

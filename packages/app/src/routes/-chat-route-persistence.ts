@@ -1,10 +1,10 @@
-import { ScopedThreadRef } from "@multi/contracts";
+import { ScopedThreadRef } from "@honk/contracts";
 import { Option, Schema } from "effect";
 
 import { DraftId } from "~/stores/chat-drafts";
 import type { ChatRouteTarget } from "~/app/chat-route-state";
 
-const LAST_CHAT_ROUTE_KEY = "multi:last-chat-route";
+const LAST_CHAT_ROUTE_KEY = "honk:last-chat-route";
 
 const LastChatRouteTargetSchema = Schema.Union([
   Schema.Struct({

@@ -1,5 +1,5 @@
 import { getModel } from "@earendil-works/pi-ai";
-import { AGENT_THINKING_LEVELS } from "@multi/contracts";
+import { AGENT_THINKING_LEVELS } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 import {
   accountIdFromProvider,

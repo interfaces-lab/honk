@@ -1,4 +1,4 @@
-import type { EnvironmentApi } from "@multi/contracts";
+import type { EnvironmentApi } from "@honk/contracts";
 
 export type EnvironmentRpcClient = EnvironmentApi;
 

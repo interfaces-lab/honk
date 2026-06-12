@@ -4,14 +4,14 @@ import type { Dirent } from "node:fs";
 
 import { Cache, Duration, Effect, Exit, Layer, Option, Path } from "effect";
 
-import { type FilesystemBrowseInput, type ProjectEntry } from "@multi/contracts";
-import { isExplicitRelativePath, isWindowsAbsolutePath } from "@multi/shared/path";
+import { type FilesystemBrowseInput, type ProjectEntry } from "@honk/contracts";
+import { isExplicitRelativePath, isWindowsAbsolutePath } from "@honk/shared/path";
 import {
   insertRankedSearchResult,
   normalizeSearchQuery,
   scoreQueryMatch,
   type RankedSearchResult,
-} from "@multi/shared/search-ranking";
+} from "@honk/shared/search-ranking";
 
 import { GitCore } from "../git/GitCore.service.ts";
 import {
@@ -401,22 +401,6 @@ export const makeProjectEntries = Effect.gen(function* () {
     },
   );
 
-  const normalizeProjectRoot = Effect.fn("ProjectEntries.normalizeProjectRoot")(function* (
-    cwd: string,
-  ): Effect.fn.Return<string, ProjectEntriesError> {
-    return yield* projectPaths.normalizeProjectRoot(cwd).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectEntriesError({
-            cwd,
-            operation: "projectEntries.normalizeProjectRoot",
-            detail: cause.message,
-            cause,
-          }),
-      ),
-    );
-  });
-
   const resolveDirectoryTarget = Effect.fn("ProjectEntries.resolveDirectoryTarget")(function* (
     cwd: string,
     rawRelativeDir: string,
@@ -464,13 +448,7 @@ export const makeProjectEntries = Effect.gen(function* () {
 
   const invalidate: ProjectEntriesShape["invalidate"] = Effect.fn("ProjectEntries.invalidate")(
     function* (cwd) {
-      const normalizedCwd = yield* normalizeProjectRoot(cwd).pipe(
-        Effect.catch(() => Effect.succeed(cwd)),
-      );
       yield* Cache.invalidate(projectIndexCache, cwd);
-      if (normalizedCwd !== cwd) {
-        yield* Cache.invalidate(projectIndexCache, normalizedCwd);
-      }
     },
   );
 
@@ -516,7 +494,7 @@ export const makeProjectEntries = Effect.gen(function* () {
 
   const search: ProjectEntriesShape["search"] = Effect.fn("ProjectEntries.search")(
     function* (input) {
-      const normalizedCwd = yield* normalizeProjectRoot(input.cwd);
+      const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
       return yield* Cache.get(projectIndexCache, normalizedCwd).pipe(
         Effect.map((index) => {
           const normalizedQuery = normalizeSearchQuery(input.query, {
@@ -552,7 +530,7 @@ export const makeProjectEntries = Effect.gen(function* () {
   const listDirectory: ProjectEntriesShape["listDirectory"] = Effect.fn(
     "ProjectEntries.listDirectory",
   )(function* (input) {
-    const normalizedCwd = yield* normalizeProjectRoot(input.cwd);
+    const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
     const { absoluteDir, relativeDir } = yield* resolveDirectoryTarget(
       normalizedCwd,
       input.relativeDir,

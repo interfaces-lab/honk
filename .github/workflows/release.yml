@@ -78,7 +78,7 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "name=Multi v$version" >> "$GITHUB_OUTPUT"
+          echo "name=Honk v$version" >> "$GITHUB_OUTPUT"
           if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
             echo "make_latest=true" >> "$GITHUB_OUTPUT"
@@ -181,7 +181,7 @@ jobs:
             else
               echo "macOS signing disabled (missing one or more Apple signing secrets)."
               export CSC_IDENTITY_AUTO_DISCOVERY=false
-              export MULTI_DESKTOP_SKIP_MAC_SIGNING=true
+              export HONK_DESKTOP_SKIP_MAC_SIGNING=true
             fi
           else
             echo "Signing disabled for ${{ matrix.platform }}."
@@ -255,7 +255,7 @@ jobs:
         run: node packages/release-scripts/src/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
 
       - name: Build CLI package
-        run: pnpm run build -- --filter=@multi/app --filter=usemulti
+        run: pnpm run build -- --filter=@honk/app --filter=usehonk
 
       - name: Publish CLI package
         run: node packages/server/scripts/cli.ts publish --tag latest --app-version "${{ needs.preflight.outputs.version }}" --verbose

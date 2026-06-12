@@ -6,9 +6,10 @@ import {
   ThreadEntryId,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
+import type { WorkLogEntry } from "../../../session-logic";
 import {
   computeStableMessagesTimelineRows,
   type MessagesTimelineRow,
@@ -186,6 +187,16 @@ describe("computeStableMessagesTimelineRows", () => {
 
     expect(secondState).toBe(firstState);
     expect(secondState.result[0]).toBe(first);
+  });
+
+  it("replaces a grouped work row when the next projection has a single work row with the same id", () => {
+    const first = groupedRuntimeToolRow("running");
+    const firstState = computeStableMessagesTimelineRows([first], emptyState());
+    const single = singleWorkRow(first.id);
+    const secondState = computeStableMessagesTimelineRows([single], firstState);
+
+    expect(secondState).not.toBe(firstState);
+    expect(secondState.result[0]).toBe(single);
   });
 
   it("replaces grouped runtime tool rows when a grouped step changes", () => {
@@ -431,6 +442,22 @@ function groupedRuntimeToolRow(status: "running" | "completed"): MessagesTimelin
         entries: [],
       },
     },
+  };
+}
+
+function singleWorkRow(id: string): MessagesTimelineRow {
+  const entry: WorkLogEntry = {
+    id,
+    createdAt,
+    label: "Reading files",
+    tone: "tool",
+    status: "running",
+  };
+  return {
+    kind: "work",
+    id,
+    createdAt,
+    entry,
   };
 }
 

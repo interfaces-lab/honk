@@ -22,11 +22,11 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import {
   DesktopBackendBootstrap,
   type DesktopBackendBootstrap as DesktopBackendBootstrapValue,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import * as DesktopBackendConfiguration from "./desktop-backend-configuration";
 import * as DesktopObservability from "../app/desktop-observability";
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
 import * as DesktopWindow from "../window/desktop-window";
 
@@ -36,7 +36,7 @@ const DEFAULT_BACKEND_READINESS_TIMEOUT = Duration.minutes(1);
 const DEFAULT_BACKEND_READINESS_INTERVAL = Duration.millis(100);
 const DEFAULT_BACKEND_READINESS_REQUEST_TIMEOUT = Duration.seconds(1);
 const DEFAULT_BACKEND_TERMINATE_GRACE = Duration.seconds(2);
-const BACKEND_READINESS_PATH = "/.well-known/multi/environment";
+const BACKEND_READINESS_PATH = "/.well-known/honk/environment";
 const BackendReadinessDescriptor = Schema.Struct({
   startupStatus: Schema.optionalKey(Schema.Literals(["starting", "ready"])),
 });
@@ -121,7 +121,7 @@ export interface DesktopBackendManagerShape {
 export class DesktopBackendManager extends Context.Service<
   DesktopBackendManager,
   DesktopBackendManagerShape
->()("multi/desktop/BackendManager") {}
+>()("honk/desktop/BackendManager") {}
 
 const elog = EffectLogger.create({ service: "desktop-backend-manager" });
 

@@ -13,7 +13,7 @@ import {
   type SourceProposedPlanReference,
   type ThreadEntryId,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import { DEFAULT_RUNTIME_MODE } from "~/types";
 import { randomUUID } from "~/lib/utils";

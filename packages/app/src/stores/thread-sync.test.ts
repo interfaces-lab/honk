@@ -16,7 +16,7 @@ import {
   type OrchestrationThreadActivity,
   type OrchestrationThread,
   type SessionTreeProjection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { getThreadFromEnvironmentState } from "../thread-derivation";
@@ -162,7 +162,7 @@ const sessionTreeProjection = {
           role: "toolResult",
           toolCallId: seededToolCallId,
           toolName: "bash",
-          content: [{ type: "text", text: "/Users/workgyver/Developer/multi" }],
+          content: [{ type: "text", text: "/Users/workgyver/Developer/honk" }],
           isError: false,
         },
       },
@@ -999,7 +999,7 @@ describe("Pi runtime thread sync", () => {
           kind: "tool.completed",
           payload: expect.objectContaining({
             itemId: seededToolCallId,
-            detail: "/Users/workgyver/Developer/multi",
+            detail: "/Users/workgyver/Developer/honk",
           }),
           turnId,
         }),

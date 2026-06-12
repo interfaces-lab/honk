@@ -1,16 +1,16 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
-    "MULTI_TRACE_MIN_LEVEL",
-    "MULTI_TRACE_TIMING_ENABLED",
-    "MULTI_TRACE_FILE",
-    "MULTI_TRACE_MAX_BYTES",
-    "MULTI_TRACE_MAX_FILES",
-    "MULTI_TRACE_BATCH_WINDOW_MS",
-    "MULTI_OTLP_TRACES_URL",
-    "MULTI_OTLP_METRICS_URL",
-    "MULTI_OTLP_EXPORT_INTERVAL_MS",
-    "MULTI_OTLP_SERVICE_NAME"
+    "HONK_TRACE_MIN_LEVEL",
+    "HONK_TRACE_TIMING_ENABLED",
+    "HONK_TRACE_FILE",
+    "HONK_TRACE_MAX_BYTES",
+    "HONK_TRACE_MAX_FILES",
+    "HONK_TRACE_BATCH_WINDOW_MS",
+    "HONK_OTLP_TRACES_URL",
+    "HONK_OTLP_METRICS_URL",
+    "HONK_OTLP_EXPORT_INTERVAL_MS",
+    "HONK_OTLP_SERVICE_NAME"
   ],
   "cacheMaxAge": "1d",
   "globalPassThroughEnv": ["PATHEXT"],
@@ -20,21 +20,21 @@
       "outputs": ["dist/**", "dist-electron/**", "out/**"]
     },
     "dev": {
-      "dependsOn": ["@multi/contracts#build"],
+      "dependsOn": ["@honk/contracts#build"],
       "env": [
         "HOST",
         "PORT",
         "VITE_DEV_SERVER_URL",
         "VITE_HTTP_URL",
         "VITE_WS_URL",
-        "MULTI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD",
-        "MULTI_LOG_WS_EVENTS",
-        "MULTI_MODE",
-        "MULTI_PORT",
-        "MULTI_NO_BROWSER",
-        "MULTI_HOME",
-        "MULTI_AUTH_TOKEN",
-        "MULTI_DESKTOP_WS_URL"
+        "HONK_AUTO_BOOTSTRAP_PROJECT_FROM_CWD",
+        "HONK_LOG_WS_EVENTS",
+        "HONK_MODE",
+        "HONK_PORT",
+        "HONK_NO_BROWSER",
+        "HONK_HOME",
+        "HONK_AUTH_TOKEN",
+        "HONK_DESKTOP_WS_URL"
       ],
       "cache": false,
       "persistent": true

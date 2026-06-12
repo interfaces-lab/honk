@@ -5,40 +5,40 @@
   word-break: normal;
   color: color-mix(in srgb, var(--foreground) 84%, transparent);
   font-size: var(--conversation-text-font-size);
-  line-height: var(--multi-markdown-line-height);
+  line-height: var(--honk-markdown-line-height);
   text-rendering: optimizeLegibility;
-  --monaco-monospace-font: var(--multi-font-mono);
-  --multi-markdown-line-height: max(
+  --monaco-monospace-font: var(--honk-font-mono);
+  --honk-markdown-line-height: max(
     var(--conversation-text-leading, 18px),
     calc(var(--conversation-text-font-size, 13px) * 1.55)
   );
-  --multi-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --multi-markdown-code-background: var(--cursor-bg-editor);
-  --multi-markdown-inline-code-background: var(--multi-bg-tertiary);
-  --multi-markdown-blockquote-background: transparent;
-  --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
-  --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 68%, transparent);
-  --multi-markdown-link-foreground: var(--primary);
-  --multi-markdown-link-active-foreground: color-mix(
+  --honk-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --honk-markdown-code-background: var(--cursor-bg-editor);
+  --honk-markdown-inline-code-background: var(--honk-bg-tertiary);
+  --honk-markdown-blockquote-background: transparent;
+  --honk-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --honk-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 68%, transparent);
+  --honk-markdown-link-foreground: var(--primary);
+  --honk-markdown-link-active-foreground: color-mix(
     in srgb,
     var(--primary) 72%,
     var(--foreground)
   );
-  --multi-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 30%, transparent);
-  --multi-markdown-preformat-foreground: var(--foreground);
-  --multi-markdown-request-border: var(--border);
-  --multi-markdown-rule-color: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --multi-markdown-kbd-background: var(--muted);
-  --multi-markdown-kbd-border: var(--border);
-  --multi-markdown-kbd-bottom-border: var(--border);
-  --multi-markdown-kbd-foreground: var(--foreground);
+  --honk-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --honk-markdown-preformat-foreground: var(--foreground);
+  --honk-markdown-request-border: var(--border);
+  --honk-markdown-rule-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --honk-markdown-kbd-background: var(--muted);
+  --honk-markdown-kbd-border: var(--border);
+  --honk-markdown-kbd-bottom-border: var(--border);
+  --honk-markdown-kbd-foreground: var(--foreground);
 }
 
 .dark .chat-markdown {
-  --multi-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 22%, transparent);
-  --multi-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 62%, transparent);
-  --multi-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 34%, transparent);
-  --multi-markdown-rule-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --honk-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --honk-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 62%, transparent);
+  --honk-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 34%, transparent);
+  --honk-markdown-rule-color: color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
 .chat-markdown-streamdown > :last-child {
@@ -110,9 +110,9 @@
 .chat-markdown .chat-markdown-inline-code {
   padding: 1.5px 4px;
   border-radius: 5px;
-  background-color: var(--multi-markdown-inline-code-background);
-  color: var(--multi-markdown-preformat-foreground);
-  font-family: var(--multi-font-mono);
+  background-color: var(--honk-markdown-inline-code-background);
+  color: var(--honk-markdown-preformat-foreground);
+  font-family: var(--honk-font-mono);
   font-size: 0.9em;
   line-height: 1.4;
   word-break: normal;
@@ -126,12 +126,12 @@
   max-width: 100%;
   overflow-x: auto;
   border: 0;
-  border-radius: var(--multi-radius-control);
-  background-color: var(--multi-markdown-code-background) !important;
-  color: var(--multi-markdown-preformat-foreground);
-  font-family: var(--multi-font-mono);
-  font-size: var(--multi-code-font-size-user, 12px);
-  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  border-radius: var(--honk-radius-control);
+  background-color: var(--honk-markdown-code-background) !important;
+  color: var(--honk-markdown-preformat-foreground);
+  font-family: var(--honk-font-mono);
+  font-size: var(--honk-code-font-size-user, 12px);
+  line-height: calc(var(--honk-code-font-size-user, 12px) * 1.45);
 }
 
 .chat-markdown .chat-markdown-codeblock pre code {
@@ -160,12 +160,12 @@
   max-width: 100%;
   overflow-x: auto;
   border: 0;
-  border-radius: var(--multi-radius-control);
-  background-color: var(--multi-markdown-code-background) !important;
-  color: var(--multi-markdown-preformat-foreground) !important;
-  font-family: var(--multi-font-mono);
-  font-size: var(--multi-code-font-size-user, 12px);
-  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  border-radius: var(--honk-radius-control);
+  background-color: var(--honk-markdown-code-background) !important;
+  color: var(--honk-markdown-preformat-foreground) !important;
+  font-family: var(--honk-font-mono);
+  font-size: var(--honk-code-font-size-user, 12px);
+  line-height: calc(var(--honk-code-font-size-user, 12px) * 1.45);
 }
 
 /* Streamdown's built-in code path should match chat transcript surfaces. */
@@ -176,11 +176,11 @@
 }
 
 .chat-markdown [data-streamdown="code-block-body"] pre {
-  background-color: var(--multi-markdown-code-background) !important;
-  color: var(--multi-markdown-preformat-foreground) !important;
-  font-family: var(--multi-font-mono);
-  font-size: var(--multi-code-font-size-user, 12px);
-  line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
+  background-color: var(--honk-markdown-code-background) !important;
+  color: var(--honk-markdown-preformat-foreground) !important;
+  font-family: var(--honk-font-mono);
+  font-size: var(--honk-code-font-size-user, 12px);
+  line-height: calc(var(--honk-code-font-size-user, 12px) * 1.45);
 }
 
 .chat-markdown .chat-markdown-shiki pre.shiki code,
@@ -195,9 +195,9 @@
 }
 
 .plan-tray__markdown.chat-markdown {
-  color: var(--multi-fg-tertiary);
-  font-size: var(--multi-text-detail);
-  line-height: var(--multi-leading-detail);
+  color: var(--honk-fg-tertiary);
+  font-size: var(--honk-text-detail);
+  line-height: var(--honk-leading-detail);
 }
 
 .plan-tray__markdown.chat-markdown :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr) {
@@ -210,12 +210,12 @@
 
 .chat-markdown--plan-panel.chat-markdown {
   color: var(--cursor-text-primary);
-  font-size: var(--multi-text-title);
+  font-size: var(--honk-text-title);
   letter-spacing: 0;
-  line-height: var(--multi-leading-title);
-  --conversation-text-font-size: var(--multi-text-title);
-  --conversation-text-leading: var(--multi-leading-title);
-  --multi-markdown-line-height: var(--multi-leading-title);
+  line-height: var(--honk-leading-title);
+  --conversation-text-font-size: var(--honk-text-title);
+  --conversation-text-leading: var(--honk-leading-title);
+  --honk-markdown-line-height: var(--honk-leading-title);
 }
 
 .chat-markdown--plan-panel.chat-markdown :where(p, ul, ol, blockquote, pre) {
@@ -225,20 +225,20 @@
 .chat-markdown--plan-panel.chat-markdown h1 {
   margin: 0 0 12px;
   color: var(--cursor-text-primary);
-  font-size: var(--multi-text-heading);
+  font-size: var(--honk-text-heading);
   font-weight: 600;
   letter-spacing: 0;
-  line-height: var(--multi-leading-heading);
+  line-height: var(--honk-leading-heading);
 }
 
 .chat-markdown--plan-panel.chat-markdown h2 {
   display: block;
   margin: 16px 0 8px;
   color: var(--cursor-text-primary);
-  font-size: var(--multi-text-title);
+  font-size: var(--honk-text-title);
   font-weight: 600;
   letter-spacing: 0;
-  line-height: var(--multi-leading-title);
+  line-height: var(--honk-leading-title);
 }
 
 .chat-markdown--plan-panel.chat-markdown h2::after {
@@ -252,8 +252,8 @@
 .chat-markdown--plan-panel.chat-markdown h6 {
   margin: 12px 0 6px;
   color: var(--cursor-text-primary);
-  font-size: var(--multi-text-title);
+  font-size: var(--honk-text-title);
   font-weight: 600;
   letter-spacing: 0;
-  line-height: var(--multi-leading-title);
+  line-height: var(--honk-leading-title);
 }

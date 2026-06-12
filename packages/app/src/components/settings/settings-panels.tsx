@@ -19,11 +19,11 @@ import {
   type AgentPreferencesPatch,
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
-  type MultiRuntimeHostSnapshot,
+  type HonkRuntimeHostSnapshot,
   type ScopedThreadRef,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { scopeThreadRef } from "~/lib/environment-scope";
-import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
+import { DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
 import { Equal } from "effect";
 import { APP_VERSION } from "~/app/branding";
 import {
@@ -54,15 +54,15 @@ import {
   useStore,
 } from "../../stores/thread-store";
 import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@multi/multikit/empty";
-import { Input } from "@multi/multikit/input";
+} from "@honk/multikit/empty";
+import { Input } from "@honk/multikit/input";
 import {
   Menu,
   MenuItem,
@@ -71,19 +71,19 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-} from "@multi/multikit/menu";
+} from "@honk/multikit/menu";
 import {
   Select,
   SelectItem,
   SelectPopup,
   SelectTrigger,
   SelectValue,
-} from "@multi/multikit/select";
-import { Switch } from "@multi/multikit/switch";
-import { Text, textVariants } from "@multi/multikit/text";
+} from "@honk/multikit/select";
+import { Switch } from "@honk/multikit/switch";
+import { Text, textVariants } from "@honk/multikit/text";
 import { toastManager } from "~/app/toast";
 import { cn } from "~/lib/utils";
-import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
+import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
   AGENT_MODE_LABELS,
@@ -97,7 +97,7 @@ import {
   unavailableAgentModeReason,
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -142,7 +142,7 @@ function AboutVersionTitle() {
       weight="medium"
     >
       <span>Version</span>
-      <code className="font-multi-mono text-multi-sm font-medium text-multi-fg-secondary">
+      <code className="font-honk-mono text-honk-sm font-medium text-honk-fg-secondary">
         {APP_VERSION}
       </code>
     </Text>
@@ -465,7 +465,7 @@ export function GeneralSettingsPanel() {
           control={
             <Input
               size="sm"
-              className="w-full border-multi-stroke-tertiary bg-multi-bg-quinary shadow-none has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused sm:w-34"
+              className="w-full border-honk-stroke-tertiary bg-honk-bg-quinary shadow-none has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused sm:w-34"
               value={settings.addProjectBaseDirectory}
               onChange={(event) => updateSettings({ addProjectBaseDirectory: event.target.value })}
               placeholder="~/"
@@ -482,7 +482,7 @@ export function GeneralSettingsPanel() {
           description="Open the persisted keybindings file to edit advanced bindings directly."
           status={
             <>
-              <span className="block break-all font-multi-mono text-multi-sm text-multi-fg-secondary">
+              <span className="block break-all font-honk-mono text-honk-sm text-honk-fg-secondary">
                 {keybindingsConfigPath ?? "Resolving keybindings path..."}
               </span>
               {openPathErrorByTarget.keybindings ? (
@@ -525,7 +525,7 @@ export function GeneralSettingsPanel() {
           description={diagnosticsDescription}
           status={
             <>
-              <span className="block break-all font-multi-mono text-multi-sm text-multi-fg-secondary">
+              <span className="block break-all font-honk-mono text-honk-sm text-honk-fg-secondary">
                 {logsDirectoryPath ?? "Resolving logs directory..."}
               </span>
               {openPathErrorByTarget.logsDirectory ? (
@@ -989,20 +989,20 @@ function AgentModeSelector({
       <MenuTrigger
         type="button"
         className={cn(
-          "inline-flex h-7 min-w-43 max-w-full items-center gap-1.5 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2 text-body text-multi-fg-secondary outline-hidden transition-colors",
-          "hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex h-7 min-w-43 max-w-full items-center gap-1.5 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 text-body text-honk-fg-secondary outline-hidden transition-colors",
+          "hover:border-honk-stroke-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused disabled:pointer-events-none disabled:opacity-50",
         )}
         aria-label="Agent mode"
         disabled={disabled}
       >
-        <AgentModeIcon mode={activeMode} className="size-3.5 shrink-0 text-multi-icon-secondary" />
-        <span className="min-w-0 truncate text-multi-fg-primary">
+        <AgentModeIcon mode={activeMode} className="size-3.5 shrink-0 text-honk-icon-secondary" />
+        <span className="min-w-0 truncate text-honk-fg-primary">
           {AGENT_MODE_LABELS[activeMode]}
         </span>
-        <span className="hidden shrink-0 text-detail text-multi-fg-tertiary sm:inline">
+        <span className="hidden shrink-0 text-detail text-honk-fg-tertiary sm:inline">
           {activeDetails.modelName}
         </span>
-        <IconChevronDownSmall className="ml-auto size-3 shrink-0 text-multi-icon-tertiary" />
+        <IconChevronDownSmall className="ml-auto size-3 shrink-0 text-honk-icon-tertiary" />
       </MenuTrigger>
       <MenuPopup
         align="end"
@@ -1010,7 +1010,7 @@ function AgentModeSelector({
         side="bottom"
         sideOffset={4}
         variant="workbench"
-        className="w-[240px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
+        className="w-[240px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
       >
         {AGENT_MODE_OPTIONS.map((option) => {
           const details = AGENT_MODE_MODEL_DETAILS[option.value];
@@ -1027,16 +1027,16 @@ function AgentModeSelector({
             <>
               <AgentModeIcon
                 mode={option.value}
-                className="mt-0.5 size-3.5 shrink-0 text-multi-icon-secondary"
+                className="mt-0.5 size-3.5 shrink-0 text-honk-icon-secondary"
               />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-multi-fg-primary">{option.label}</span>
-                  <span className="shrink-0 text-detail text-multi-fg-tertiary">
+                  <span className="truncate text-honk-fg-primary">{option.label}</span>
+                  <span className="shrink-0 text-detail text-honk-fg-tertiary">
                     {details.modelName}
                   </span>
                 </span>
-                <span className="block truncate text-detail text-multi-fg-tertiary">
+                <span className="block truncate text-detail text-honk-fg-tertiary">
                   {unavailableReason ?? effortLabel}
                 </span>
               </span>
@@ -1074,18 +1074,18 @@ function AgentModeSelector({
               <MenuSubPopup
                 variant="workbench"
                 side="inline-end"
-                className="w-[220px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
+                className="w-[220px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
               >
                 <div className="px-2 py-1.5">
-                  <div className="flex items-center gap-1.5 text-body font-medium text-multi-fg-primary">
+                  <div className="flex items-center gap-1.5 text-body font-medium text-honk-fg-primary">
                     <AgentModeIcon
                       mode={option.value}
-                      className="size-4 shrink-0 text-multi-icon-secondary"
+                      className="size-4 shrink-0 text-honk-icon-secondary"
                     />
                     <span>{details.modelName}</span>
                   </div>
-                  <p className="mt-1 text-body text-multi-fg-secondary">{details.description}</p>
-                  <p className="mt-2 text-detail text-multi-fg-tertiary">{effortLabel}</p>
+                  <p className="mt-1 text-body text-honk-fg-secondary">{details.description}</p>
+                  <p className="mt-2 text-detail text-honk-fg-tertiary">{effortLabel}</p>
                 </div>
               </MenuSubPopup>
             </MenuSub>
@@ -1107,8 +1107,8 @@ function AgentModeInlineSummary({
   const unavailableReason = unavailableAgentModeReason(mode, availability);
 
   return (
-    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-detail text-multi-fg-tertiary">
-      <AgentModeIcon mode={mode} className="size-3 shrink-0 text-multi-icon-tertiary" />
+    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-detail text-honk-fg-tertiary">
+      <AgentModeIcon mode={mode} className="size-3 shrink-0 text-honk-icon-tertiary" />
       <span className="truncate">
         {details.modelName}
         {unavailableReason ? ` unavailable. ${unavailableReason}` : ""}
@@ -1162,7 +1162,7 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
   };
 
   return (
-    <div className="mt-3 border-t border-multi-stroke-quaternary pt-3">
+    <div className="mt-3 border-t border-honk-stroke-quaternary pt-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <Text render={<div />} size="sm" tone="primary" weight="medium">
@@ -1180,7 +1180,7 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
       </div>
       {flow.userCode ? (
         <div className="mt-2 flex min-w-0 items-center gap-2">
-          <code className="min-w-0 truncate font-multi-mono text-body tracking-wide text-multi-fg-primary">
+          <code className="min-w-0 truncate font-honk-mono text-body tracking-wide text-honk-fg-primary">
             {flow.userCode}
           </code>
           <Button size="xs" variant="ghost" onClick={copyUserCode}>
@@ -1211,7 +1211,7 @@ function CredentialApiKeyForm({
 
   return (
     <form
-      className="mt-3 border-t border-multi-stroke-quaternary pt-3"
+      className="mt-3 border-t border-honk-stroke-quaternary pt-3"
       onSubmit={(event) => {
         event.preventDefault();
         if (trimmedDraft.length > 0) {
@@ -1268,8 +1268,8 @@ export function AgentRuntimeSettingsSectionsView({
   snapshot,
   setSnapshot,
 }: {
-  snapshot: MultiRuntimeHostSnapshot;
-  setSnapshot: (snapshot: MultiRuntimeHostSnapshot) => void;
+  snapshot: HonkRuntimeHostSnapshot;
+  setSnapshot: (snapshot: HonkRuntimeHostSnapshot) => void;
 }) {
   const preferences = snapshot.preferences;
   const authStatuses = snapshot.authStatuses;
@@ -1287,7 +1287,7 @@ export function AgentRuntimeSettingsSectionsView({
 
   const updateAgentPreferences = (patch: AgentPreferencesPatch) => {
     setIsSaving(true);
-    const runtimeApi = readMultiRuntimeApi();
+    const runtimeApi = readHonkRuntimeApi();
     void runtimeApi
       .updatePreferences(patch)
       .then(async () => {
@@ -1305,7 +1305,7 @@ export function AgentRuntimeSettingsSectionsView({
   };
 
   const configureOAuthCredential = async (credential: AgentCredentialPreference) => {
-    const runtimeApi = readMultiRuntimeApi();
+    const runtimeApi = readHonkRuntimeApi();
     setPendingCredentialKind(credential.kind);
     try {
       const snapshot = await runtimeApi.configureCredential({
@@ -1334,7 +1334,7 @@ export function AgentRuntimeSettingsSectionsView({
       return;
     }
 
-    const runtimeApi = readMultiRuntimeApi();
+    const runtimeApi = readHonkRuntimeApi();
     setPendingCredentialKind(credential.kind);
     try {
       const snapshot = await runtimeApi.configureCredential({
@@ -1361,7 +1361,7 @@ export function AgentRuntimeSettingsSectionsView({
   };
 
   const removeCredential = async (credential: AgentCredentialPreference) => {
-    const runtimeApi = readMultiRuntimeApi();
+    const runtimeApi = readHonkRuntimeApi();
     setPendingCredentialKind(credential.kind);
     try {
       const snapshot = await runtimeApi.configureCredential({
@@ -1414,7 +1414,7 @@ export function AgentRuntimeSettingsSectionsView({
       <SettingsSection title="Pi runtime">
         <SettingsRow
           title="Agent mode"
-          description="Default model posture for new Pi sessions."
+          description="Default model for new sessions."
           status={
             <AgentModeInlineSummary mode={preferences.agentMode} availability={modelAvailability} />
           }
@@ -1539,7 +1539,7 @@ export function AgentRuntimeSettingsSectionsView({
                   >
                     <CredentialKindIcon
                       kind={credential.kind}
-                      className="size-3.5 shrink-0 text-multi-icon-secondary"
+                      className="size-3.5 shrink-0 text-honk-icon-secondary"
                     />
                     {credential.label}
                   </MenuItem>
@@ -1571,7 +1571,7 @@ export function AgentRuntimeSettingsSectionsView({
                 <span className="inline-flex items-center gap-1.5">
                   <CredentialKindIcon
                     kind={credential.kind}
-                    className="size-3.5 shrink-0 text-multi-icon-secondary"
+                    className="size-3.5 shrink-0 text-honk-icon-secondary"
                   />
                   {credential.label}
                 </span>
@@ -1730,7 +1730,7 @@ export function ArchivedThreadsPanel() {
             {projectThreads.map((thread) => (
               <div
                 key={thread.id}
-                className="flex items-center justify-between gap-3 border-t border-(--multi-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
+                className="flex items-center justify-between gap-3 border-t border-(--honk-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
                 onContextMenu={(event) => {
                   event.preventDefault();
                   void handleArchivedThreadContextMenu(

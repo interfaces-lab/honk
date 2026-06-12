@@ -1,4 +1,4 @@
-import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@multi/contracts";
+import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@honk/contracts";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,

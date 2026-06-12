@@ -6,7 +6,7 @@ export function SidebarItemTime(props: { ago: string; selected: boolean; compact
       className={cn(
         "shrink-0 truncate text-right text-sidebar-subtitle tabular-nums",
         props.compact ? "max-w-14" : "min-w-8 max-w-14",
-        props.selected ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
+        props.selected ? "text-honk-fg-secondary" : "text-honk-fg-tertiary",
       )}
       data-agent-sidebar-subtitle=""
     >

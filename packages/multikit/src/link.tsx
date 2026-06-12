@@ -8,7 +8,7 @@ import { cn, controlTransitionClassName } from "./utils";
 
 const linkVariants = cva(
   cn(
-    "font-medium outline-none underline-offset-4 transition-colors focus-visible:ring-1 focus-visible:ring-multi-stroke-focused",
+    "font-medium outline-none underline-offset-4 transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused",
     controlTransitionClassName,
   ),
   {
@@ -18,7 +18,7 @@ const linkVariants = cva(
     variants: {
       tone: {
         primary: "text-primary hover:text-primary/86",
-        muted: "text-multi-fg-secondary hover:text-multi-fg-primary",
+        muted: "text-honk-fg-secondary hover:text-honk-fg-primary",
         inherit: "text-inherit hover:underline",
       },
     },

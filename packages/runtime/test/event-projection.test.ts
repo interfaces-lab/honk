@@ -1,11 +1,36 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { RuntimeSessionId, ThreadId } from "@multi/contracts";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { RuntimeSessionId, ThreadId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { projectPiAgentSessionEvent } from "../src/event-projection";
 
 const threadId = ThreadId.make("thread:event-projection");
 const runtimeSessionId = RuntimeSessionId.make("runtime:event-projection");
+const failedAssistantMessage: AssistantMessage = {
+  role: "assistant",
+  content: [],
+  api: "anthropic-messages",
+  provider: "anthropic",
+  model: "claude-opus-4-8",
+  usage: {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0,
+    },
+  },
+  stopReason: "error",
+  timestamp: 1781226634337,
+  errorMessage: "400 usage limit reached",
+};
 
 function project(event: AgentSessionEvent) {
   return projectPiAgentSessionEvent(event, {
@@ -62,6 +87,20 @@ describe("Pi runtime event projection", () => {
     expect(project(event)).toMatchObject({
       type: "runtime.error",
       summary: "Retry failed",
+    });
+  });
+
+  it("projects provider error assistant messages as visible text", () => {
+    const event = {
+      type: "message_end",
+      message: failedAssistantMessage,
+    } satisfies AgentSessionEvent;
+
+    expect(project(event)).toMatchObject({
+      type: "message.completed",
+      messageRole: "assistant",
+      text: "Provider error: 400 usage limit reached",
+      summary: "Provider error: 400 usage limit reached",
     });
   });
 });

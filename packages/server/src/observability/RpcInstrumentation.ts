@@ -1,6 +1,6 @@
 import { Cause, Duration, Effect, Exit, Metric, Stream } from "effect";
-import * as EffectLogger from "@multi/shared/effect-logger";
-import { outcomeFromExit } from "@multi/shared/observability";
+import * as EffectLogger from "@honk/shared/effect-logger";
+import { outcomeFromExit } from "@honk/shared/observability";
 
 import { metricAttributes, rpcRequestDuration, rpcRequestsTotal, withMetrics } from "./Metrics.ts";
 

@@ -4,7 +4,7 @@ import {
   IconChevronRightMedium,
   IconCrossMediumDefault,
 } from "central-icons";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import type { ExpandedImageItem, ExpandedImagePreview } from "./expanded-image-preview";
 import { useAuthenticatedImagePreviewSrc } from "./authenticated-image-preview";
 

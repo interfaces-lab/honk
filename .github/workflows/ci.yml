@@ -106,4 +106,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Exercise release-only workflow steps
-        run: pnpm --filter=@multi/release-scripts run test
+        run: pnpm --filter=@honk/release-scripts run test

@@ -5,13 +5,13 @@ import {
   type TerminalEvent,
   type TerminalSessionSnapshot,
   type TerminalSessionStatus,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   type FullShellEnvironmentReader,
   listLoginShellCandidates,
   readFullEnvironmentFromLoginShell,
   readUserLoginShell,
-} from "@multi/shared/shell";
+} from "@honk/shared/shell";
 import {
   Effect,
   Encoding,
@@ -80,7 +80,7 @@ const toTerminalProcessOperationError =
 
 // Keep shell identity out of the inherited process environment.
 //
-// Multi may be launched from Electron, a dev server, Codex, or a real terminal.
+// Honk may be launched from Electron, a dev server, Codex, or a real terminal.
 // Inheriting TERM/COLORTERM from that parent makes the child shell render for the
 // parent terminal instead of the PTY we actually create. The visible regression
 // is prompt/theme tools taking an xterm-256color branch and showing the wrong
@@ -672,7 +672,7 @@ function toSessionKey(threadId: string, terminalId: string): string {
 
 function shouldExcludeTerminalEnvKey(key: string): boolean {
   const normalizedKey = key.toUpperCase();
-  if (normalizedKey.startsWith("MULTI_")) {
+  if (normalizedKey.startsWith("HONK_")) {
     return true;
   }
   if (normalizedKey.startsWith("VITE_")) {

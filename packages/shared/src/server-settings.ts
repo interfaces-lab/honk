@@ -1,4 +1,4 @@
-import { ServerSettings, type ServerSettingsPatch } from "@multi/contracts";
+import { ServerSettings, type ServerSettingsPatch } from "@honk/contracts";
 import { Result, Schema } from "effect";
 import { deepMerge } from "./Struct";
 import { fromLenientJson } from "./schema-json";

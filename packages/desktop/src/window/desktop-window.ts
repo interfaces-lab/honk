@@ -9,7 +9,7 @@ import type * as Electron from "electron";
 
 import * as DesktopAssets from "../app/desktop-assets";
 import * as DesktopEnvironment from "../app/desktop-environment";
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
 import * as ElectronShell from "../electron/electron-shell";
 import * as ElectronTheme from "../electron/electron-theme";
@@ -67,7 +67,7 @@ export interface DesktopWindowShape {
 }
 
 export class DesktopWindow extends Context.Service<DesktopWindow, DesktopWindowShape>()(
-  "multi/desktop/Window",
+  "honk/desktop/Window",
 ) {}
 
 const elog = EffectLogger.create({ service: "desktop-window" });

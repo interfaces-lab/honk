@@ -16,7 +16,7 @@ const toolCallLineVariants = cva(
     "group/tool-call-line inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden",
     "border-0 bg-transparent text-left select-none",
     "text-conversation",
-    "text-ellipsis whitespace-nowrap text-multi-fg-primary",
+    "text-ellipsis whitespace-nowrap text-honk-fg-primary",
   ),
   {
     variants: {
@@ -28,7 +28,7 @@ const toolCallLineVariants = cva(
         idle: "",
         loading: "",
         completed: "",
-        error: "text-multi-fg-red-primary",
+        error: "text-honk-fg-red-primary",
       },
     },
     defaultVariants: {
@@ -41,9 +41,9 @@ const toolCallLineVariants = cva(
 const toolCallLineActionVariants = cva(
   cn(
     "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap",
-    "font-normal text-multi-fg-secondary",
+    "font-normal text-honk-fg-secondary",
     "transition-colors duration-100",
-    "group-hover/tool-call-line:text-multi-fg-primary",
+    "group-hover/tool-call-line:text-honk-fg-primary",
   ),
   {
     variants: {
@@ -55,7 +55,7 @@ const toolCallLineActionVariants = cva(
         idle: "",
         loading: "",
         completed: "",
-        error: "text-multi-fg-red-primary group-hover/tool-call-line:text-multi-fg-red-primary",
+        error: "text-honk-fg-red-primary group-hover/tool-call-line:text-honk-fg-red-primary",
       },
     },
     defaultVariants: {
@@ -67,9 +67,9 @@ const toolCallLineActionVariants = cva(
 
 const toolCallLineDetailsVariants = cva(
   cn(
-    "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums",
+    "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums",
     "transition-colors duration-100",
-    "group-hover/tool-call-line:text-multi-fg-secondary",
+    "group-hover/tool-call-line:text-honk-fg-secondary",
   ),
   {
     variants: {
@@ -78,18 +78,18 @@ const toolCallLineDetailsVariants = cva(
         true: cn(
           "underline",
           interactiveControlCursorClassName,
-          "decoration-[color-mix(in_srgb,var(--multi-fg-tertiary)_45%,transparent)]",
-          "hover:text-multi-fg-secondary",
-          "hover:decoration-[color-mix(in_srgb,var(--multi-fg-secondary)_55%,transparent)]",
-          "focus-visible:text-multi-fg-secondary",
-          "focus-visible:decoration-[color-mix(in_srgb,var(--multi-fg-secondary)_55%,transparent)]",
+          "decoration-[color-mix(in_srgb,var(--honk-fg-tertiary)_45%,transparent)]",
+          "hover:text-honk-fg-secondary",
+          "hover:decoration-[color-mix(in_srgb,var(--honk-fg-secondary)_55%,transparent)]",
+          "focus-visible:text-honk-fg-secondary",
+          "focus-visible:decoration-[color-mix(in_srgb,var(--honk-fg-secondary)_55%,transparent)]",
         ),
       },
       status: {
         idle: "",
         loading: "",
         completed: "",
-        error: "text-multi-fg-red-primary group-hover/tool-call-line:text-multi-fg-red-primary",
+        error: "text-honk-fg-red-primary group-hover/tool-call-line:text-honk-fg-red-primary",
       },
     },
     defaultVariants: {
@@ -123,7 +123,7 @@ function ToolCallLine({
   const resolvedStatus = loading ? "loading" : status;
   const content = (
     <>
-      {Icon ? <Icon className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+      {Icon ? <Icon className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
       <ToolCallLineAction loading={resolvedStatus === "loading"} status={resolvedStatus}>
         {action}
       </ToolCallLineAction>
@@ -217,7 +217,7 @@ function ToolCallLineChevron({
     >
       <IconChevronRightMedium
         className={cn(
-          "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
+          "size-3 shrink-0 text-honk-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
           expanded && "rotate-90",
         )}
       />
@@ -271,7 +271,7 @@ function ToolCallTaskStatusIcon({ className, ...props }: ComponentPropsWithoutRe
   return (
     <span
       className={cn(
-        "flex h-5 w-3.5 shrink-0 items-center justify-center text-multi-fg-secondary",
+        "flex h-5 w-3.5 shrink-0 items-center justify-center text-honk-fg-secondary",
         className,
       )}
       data-task-tool-call-status-icon=""
@@ -303,7 +303,7 @@ function ToolCallTaskTitle({
   return (
     <span
       className={cn(
-        "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap leading-5 text-multi-fg-primary",
+        "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap leading-5 text-honk-fg-primary",
         loading && "tool-call-shimmer",
         className,
       )}
@@ -317,7 +317,7 @@ function ToolCallTaskSubtitle({ className, ...props }: ComponentPropsWithoutRef<
   return (
     <span
       className={cn(
-        "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-5 text-multi-fg-tertiary",
+        "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-5 text-honk-fg-tertiary",
         className,
       )}
       data-task-tool-call-subtitle=""
@@ -336,7 +336,7 @@ function ToolCallTaskChevron({
   return (
     <IconChevronRightMedium
       className={cn(
-        "size-3 shrink-0 text-multi-icon-tertiary opacity-0 transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
+        "size-3 shrink-0 text-honk-icon-tertiary opacity-0 transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
         "group-hover/task-tool-call:opacity-100 group-focus-within/task-tool-call:opacity-100",
         expanded && "rotate-90 opacity-100",
         className,
@@ -396,9 +396,9 @@ function ToolCallShellHeader({
       type="button"
       className={cn(
         "group/shell-trigger inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-visible",
-        "border-0 bg-transparent py-0 text-left text-conversation text-multi-fg-primary select-none",
+        "border-0 bg-transparent py-0 text-left text-conversation text-honk-fg-primary select-none",
         expandable ? interactiveControlCursorClassName : "cursor-default",
-        hasError && "text-multi-fg-red-primary",
+        hasError && "text-honk-fg-red-primary",
         className,
       )}
       aria-expanded={expandable ? expanded : undefined}
@@ -414,7 +414,7 @@ function ToolCallShellBody({ className, ...props }: ComponentPropsWithoutRef<"di
   return (
     <div
       className={cn(
-        "mt-1 min-w-0 max-w-full overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-elevated",
+        "mt-1 min-w-0 max-w-full overflow-hidden rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-elevated",
         className,
       )}
       data-shell-tool-call-body=""

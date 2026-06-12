@@ -23,14 +23,14 @@ Use this table to onboard an agent or engineer. Each row is the **first file to 
 
 ### Cursor production (reference binary)
 
-| # | Council | Cursor symbol / selector | What it does | Multi equivalent |
+| # | Council | Cursor symbol / selector | What it does | Honk equivalent |
 |---|---------|------------------------|--------------|------------------|
 | 1 | Tool renderer | `MRm` → `ToolCallRenderer` | Dispatches `shellToolCall` / `readToolCall` / `taskToolCall` / edit | `tool-renderer.tsx` → `ToolCallRenderer` |
 | 2 | Tray DOM/CSS | `.agent-panel-subagent-preview-tray-body__conversation-mask` | `overflow:hidden`; inner `qDp` scrolls | `[data-subagent-tray-body]` — **wrong: scroll on body not inner mask** |
-| 3 | Font tokens | `.composer-messages-container` → `--conversation-text-font-size: var(--cursor-font-size-base)`; transcript → `-lg` | Base vs large tiers; tools use `--conversation-tool-font-size` | `--multi-ui-font-size-user` → single `--conversation-text-font-size` (no lg tier) |
+| 3 | Font tokens | `.composer-messages-container` → `--conversation-text-font-size: var(--cursor-font-size-base)`; transcript → `-lg` | Base vs large tiers; tools use `--conversation-tool-font-size` | `--honk-ui-font-size-user` → single `--conversation-text-font-size` (no lg tier) |
 | 10 | Subagent nest | `O4b` → `F4b` → `LRm` + `renderStep` → `MRm` | `subagentConversation.turns[].steps` flattened by `NRm` | Flat `SubagentTranscriptItem[]` → ad-hoc `TimelineStep` builders |
 
-### Multi renderer (fix UI here)
+### Honk renderer (fix UI here)
 
 | # | Council | Entry file | Symbol / hook | Notes |
 |---|---------|------------|---------------|-------|
@@ -41,7 +41,7 @@ Use this table to onboard an agent or engineer. Each row is the **first file to 
 | 4 | Store ingest | `stores/subagent-activity-store.ts` | `upsertActivities`, `reduceSubagentActivityProjection` | Tray-only; `includeTranscript` when tray open |
 | 4 | Event feed | `stores/thread-store.ts` ~344 | `syncSubagentActivitiesForRuntimeEvent` | Orchestration `subagent.*` skipped at `thread-sync.ts` ~3283 |
 
-### Multi ChatView / performance
+### Honk ChatView / performance
 
 | # | Council | Entry file | Hot subscription | Fix |
 |---|---------|------------|------------------|-----|
@@ -49,7 +49,7 @@ Use this table to onboard an agent or engineer. Each row is the **first file to 
 | 5 | Timeline | `chat-view.tsx` ~978 | `useThreadTimeline({ workLogEntries, activeRuntimeDisplayTimeline })` | Split runtime tail vs stable committed rows |
 | 5 | Activities | `chat-view.tsx` ~832 | `deriveWorkLogEntries(visibleThreadActivities)` | Subagent.* already stripped; runtime frames still reproject timeline |
 
-### Multi desktop / persistence
+### Honk desktop / persistence
 
 | # | Council | Entry file | Role |
 |---|---------|------------|------|
@@ -72,28 +72,28 @@ Use this table to onboard an agent or engineer. Each row is the **first file to 
 
 ## Council findings (10 agents)
 
-### Agent 1 — Cursor `MRm` / Multi `ToolCallRenderer`
+### Agent 1 — Cursor `MRm` / Honk `ToolCallRenderer`
 
 - `MRm` props: `toolCall`, `subagentConversation`, **`renderStep`**, `callId`, `loading`, `hasError`, …
 - `conversationDensity` comes from context (`SCe` / `useAgentConversationContext`), not `MRm` props.
 - `taskToolCall` → `O4b` (`TaskToolCallView`) — only path that gets `subagentConversation` + `renderStep`.
 - `data-tool-status`: `loading|completed|error` on wrapper; hooks in `tool-call.css` (JS-only in Cursor).
-- **Multi:** `tool-renderer.tsx` + `tool-message.tsx` + `use-conversation-density.ts`. **Gap:** `renderStep` not passed from `tool-message.tsx`.
+- **Honk:** `tool-renderer.tsx` + `tool-message.tsx` + `use-conversation-density.ts`. **Gap:** `renderStep` not passed from `tool-message.tsx`.
 
 ### Agent 2 — Tray DOM / scroll
 
 - Cursor preview tray: mask `overflow:hidden`, scroll on inner `qDp` (composer scroll primitive).
 - `ui-tray__scroll-area` is for **expanded agent-list tray**, not preview follow-up tray.
-- Multi: `[data-subagent-tray-body] { overflow-y: auto }` **and** `SubagentTrayBody` class adds `overflow-y-auto` → double scroll.
-- Multi `min-height: 160px`; Cursor `min-height: 220px`.
+- Honk: `[data-subagent-tray-body] { overflow-y: auto }` **and** `SubagentTrayBody` class adds `overflow-y-auto` → double scroll.
+- Honk `min-height: 160px`; Cursor `min-height: 220px`.
 
 ### Agent 3 — Font pipeline
 
 - Cursor: settings `uiFontSizePx` (11–23) → **window zoom** + CSS aliases to unresolved `--cursor-font-size-base` / `-lg`.
 - Scopes: composer bar = base; `.react-composer-transcript-scroll` = lg; glass agent panel promotes messages to lg.
-- Multi: direct `--multi-ui-font-size-user` (11–16px) → `text-conversation`. **Gaps:** no base/lg split; no `--conversation-tool-font-size`; hardcoded `14px` new-agent + chips in `conversation.css`.
+- Honk: direct `--honk-ui-font-size-user` (11–16px) → `text-conversation`. **Gaps:** no base/lg split; no `--conversation-tool-font-size`; hardcoded `14px` new-agent + chips in `conversation.css`.
 
-### Agent 4 — Multi tray call graph
+### Agent 4 — Honk tray call graph
 
 ```
 runtime/orchestration event
@@ -152,7 +152,7 @@ subagentConversation.turns[]
   → NRm flatten → LRm + renderStep → MRm for tool-call steps
 ```
 
-Multi flat `SubagentTranscriptItem` must project to: `tool-call` (with `toolCall`, `status`, `startedAtMs`, `callId`), `assistant-message`, `thinking`. Needs full tool proto, not label-only `WorkLogEntry`.
+Honk flat `SubagentTranscriptItem` must project to: `tool-call` (with `toolCall`, `status`, `startedAtMs`, `callId`), `assistant-message`, `thinking`. Needs full tool proto, not label-only `WorkLogEntry`.
 
 ---
 
@@ -305,10 +305,10 @@ rg 'conversation-text-font-size' "$CURSOR_CSS" -o | head -10
 
 | # | Focus | Agent |
 |---|-------|-------|
-| 1 | Cursor MRm / Multi ToolCallRenderer | [dcfefe0d](dcfefe0d-f5f6-4f3a-8e34-6ab73a771359) |
+| 1 | Cursor MRm / Honk ToolCallRenderer | [dcfefe0d](dcfefe0d-f5f6-4f3a-8e34-6ab73a771359) |
 | 2 | Tray DOM / scroll CSS | [5902ac3b](5902ac3b-76ea-4686-a434-c021fed99a65) |
 | 3 | Font token pipeline | [5dad9efc](5dad9efc-8006-41d6-903f-bd105a549497) |
-| 4 | Multi tray call graph | [7686f68a](7686f68a-0d51-439e-9800-524bac843044) |
+| 4 | Honk tray call graph | [7686f68a](7686f68a-0d51-439e-9800-524bac843044) |
 | 5 | ChatView hot paths | [7c97fdb0](7c97fdb0-a9d5-46eb-820c-ef0b51b9c26f) |
 | 6 | Desktop bootstrap / ingestion | [c4fe72d7](c4fe72d7-0a61-4b65-b5d5-d87c57cb4e37) |
 | 7 | Shared render path plan | [3727da78](3727da78-1f6b-48f9-993d-8a539e362e00) |

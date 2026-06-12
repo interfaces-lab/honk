@@ -24,7 +24,7 @@ function StatLabel({ className, render, ...props }: useRender.ComponentProps<"di
     defaultTagName: "div",
     props: mergeProps(
       {
-        className: cn("text-detail text-multi-fg-tertiary", className),
+        className: cn("text-detail text-honk-fg-tertiary", className),
         "data-slot": "stat-label",
       },
       props,
@@ -38,7 +38,7 @@ function StatValue({ className, render, ...props }: useRender.ComponentProps<"di
     defaultTagName: "div",
     props: mergeProps(
       {
-        className: cn("text-title font-medium text-multi-fg-primary", className),
+        className: cn("text-title font-medium text-honk-fg-primary", className),
         "data-slot": "stat-value",
       },
       props,

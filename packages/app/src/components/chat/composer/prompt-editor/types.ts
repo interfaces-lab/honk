@@ -1,4 +1,4 @@
-import type { OrchestrationMessageRichText } from "@multi/contracts";
+import type { OrchestrationMessageRichText } from "@honk/contracts";
 import type { ClipboardEventHandler, RefObject } from "react";
 import type { LexicalEditor, NodeKey, SerializedLexicalNode } from "lexical";
 

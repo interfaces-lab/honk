@@ -40,7 +40,7 @@ export interface ElectronAppShape {
 }
 
 export class ElectronApp extends Context.Service<ElectronApp, ElectronAppShape>()(
-  "multi/desktop/electron/App",
+  "honk/desktop/electron/App",
 ) {}
 
 const addScopedAppListener = (

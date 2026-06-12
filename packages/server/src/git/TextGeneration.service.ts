@@ -8,9 +8,9 @@
  */
 import { Context } from "effect";
 import type { Effect } from "effect";
-import type { ChatAttachment, ModelSelection } from "@multi/contracts";
+import type { ChatAttachment, ModelSelection } from "@honk/contracts";
 
-import type { TextGenerationError } from "@multi/contracts";
+import type { TextGenerationError } from "@honk/contracts";
 
 /** Providers that support git text generation (commit messages, PR content, branch names). */
 export type TextGenerationProvider = "codex" | "claudeAgent" | "cursor";
@@ -119,5 +119,5 @@ export interface TextGenerationShape {
  * TextGeneration - Service tag for commit and PR text generation.
  */
 export class TextGeneration extends Context.Service<TextGeneration, TextGenerationShape>()(
-  "multi/git/TextGeneration.service",
+  "honk/git/TextGeneration.service",
 ) {}

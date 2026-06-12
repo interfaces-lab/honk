@@ -1,4 +1,4 @@
-import type { OrchestrationMessageRichText } from "@multi/contracts";
+import type { OrchestrationMessageRichText } from "@honk/contracts";
 import { Data, Effect, Schema } from "effect";
 
 import type { ComposerImageAttachment } from "../../stores/chat-drafts";

@@ -1,4 +1,4 @@
-import { type EnvironmentId, type MessageId, type ThreadId } from "@multi/contracts";
+import { type EnvironmentId, type MessageId, type ThreadId } from "@honk/contracts";
 import {
   memo,
   useCallback,

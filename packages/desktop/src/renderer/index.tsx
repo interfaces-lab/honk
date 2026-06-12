@@ -1,3 +1,3 @@
-import { mountDesktopMultiApp } from "@multi/app/desktop-renderer";
+import { mountDesktopHonkApp } from "@honk/app/desktop-renderer";
 
-mountDesktopMultiApp();
+mountDesktopHonkApp();

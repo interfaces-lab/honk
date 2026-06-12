@@ -1,4 +1,4 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
+import { type EnvironmentId, type ThreadId } from "@honk/contracts";
 import { create } from "zustand";
 import {
   isSubagentSnapshotItemType,

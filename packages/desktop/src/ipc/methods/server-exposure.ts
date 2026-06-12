@@ -1,7 +1,7 @@
 import {
   DesktopServerExposureModeSchema,
   DesktopServerExposureStateSchema,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as DesktopLifecycle from "../../app/desktop-lifecycle";

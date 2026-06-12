@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@multi/contracts";
+import type { EnvironmentId } from "@honk/contracts";
 import type { FileContents } from "@pierre/diffs";
 import { File, type FileOptions } from "@pierre/diffs/react";
 import { useQuery } from "@tanstack/react-query";
@@ -50,7 +50,7 @@ export function SourcePreview(props: {
   if (canReadFile && fileQuery.isPending) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="space-y-2 bg-(--multi-workbench-editor-surface-background) p-3">
+        <div className="space-y-2 bg-(--honk-workbench-editor-surface-background) p-3">
           <div className="h-3 w-11/12 animate-pulse rounded bg-muted-foreground/10" />
           <div className="h-3 w-7/12 animate-pulse rounded bg-muted-foreground/10" />
           <div className="h-3 w-10/12 animate-pulse rounded bg-muted-foreground/10" />
@@ -77,13 +77,13 @@ export function SourcePreview(props: {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {fileQuery.data.truncated ? (
-        <div className="shrink-0 border-b border-multi-border/30 px-3 py-1.5 text-detail text-muted-foreground/60">
+        <div className="shrink-0 border-b border-honk-border/30 px-3 py-1.5 text-detail text-muted-foreground/60">
           Showing the first 1 MB of this file.
         </div>
       ) : null}
       {fileContents ? (
         <div
-          className="project-file-preview web-component min-h-0 min-w-0 flex-1 overflow-hidden bg-(--multi-workbench-editor-surface-background) text-foreground"
+          className="project-file-preview web-component min-h-0 min-w-0 flex-1 overflow-hidden bg-(--honk-workbench-editor-surface-background) text-foreground"
           data-diffs-container
         >
           <File

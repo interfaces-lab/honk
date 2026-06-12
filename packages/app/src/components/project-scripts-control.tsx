@@ -3,7 +3,7 @@ import type {
   ProjectScript,
   ProjectScriptIcon,
   ResolvedKeybindingsConfig,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   IconBug,
   IconChecklist,
@@ -32,10 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogPopup,
   AlertDialogTitle,
-} from "@multi/multikit/alert-dialog";
-import { Button } from "@multi/multikit/button";
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
-import { WorkbenchChromeActionGroup } from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/alert-dialog";
+import { Button } from "@honk/multikit/button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
+import { WorkbenchChromeActionGroup } from "@honk/multikit/workbench-chrome-row";
 import {
   Dialog,
   DialogDescription,
@@ -44,10 +44,10 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/multikit/dialog";
-import { Input } from "@multi/multikit/input";
-import { Kbd } from "@multi/multikit/kbd";
-import { Label } from "@multi/multikit/label";
+} from "@honk/multikit/dialog";
+import { Input } from "@honk/multikit/input";
+import { Kbd } from "@honk/multikit/kbd";
+import { Label } from "@honk/multikit/label";
 import {
   Menu,
   MenuItem,
@@ -55,10 +55,10 @@ import {
   MenuShortcut,
   MenuTrigger,
   workbenchMenuMetaTextClassName,
-} from "@multi/multikit/menu";
-import { Popover, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
-import { Switch } from "@multi/multikit/switch";
-import { Textarea } from "@multi/multikit/textarea";
+} from "@honk/multikit/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "@honk/multikit/popover";
+import { Switch } from "@honk/multikit/switch";
+import { Textarea } from "@honk/multikit/textarea";
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "play", label: "Play" },
@@ -442,10 +442,10 @@ export default function ProjectScriptsControl({
                             <button
                               key={entry.id}
                               type="button"
-                              className={`relative flex flex-col items-center gap-2 rounded-multi-control border px-2 py-2 text-detail transition-colors ${
+                              className={`relative flex flex-col items-center gap-2 rounded-honk-control border px-2 py-2 text-detail transition-colors ${
                                 isSelected
-                                  ? "border-multi-stroke-focused bg-multi-bg-quaternary text-multi-fg-primary"
-                                  : "border-multi-stroke-tertiary text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary"
+                                  ? "border-honk-stroke-focused bg-honk-bg-quaternary text-honk-fg-primary"
+                                  : "border-honk-stroke-tertiary text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
                               }`}
                               onClick={() => {
                                 setIcon(entry.id);
@@ -478,7 +478,7 @@ export default function ProjectScriptsControl({
                   readOnly
                   onKeyDown={captureKeybinding}
                 />
-                <p className="text-detail text-multi-fg-tertiary">
+                <p className="text-detail text-honk-fg-tertiary">
                   Press a shortcut. Use <Kbd>Backspace</Kbd> to clear.
                 </p>
               </div>
@@ -492,7 +492,7 @@ export default function ProjectScriptsControl({
                 />
               </div>
               <label
-                className="flex items-center justify-between gap-3 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-1.5 text-body text-multi-fg-primary"
+                className="flex items-center justify-between gap-3 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-3 py-1.5 text-body text-honk-fg-primary"
                 htmlFor={runOnWorktreeCreateId}
               >
                 <span>Run as a setup action on worktree creation</span>
@@ -503,7 +503,7 @@ export default function ProjectScriptsControl({
                 />
               </label>
               {validationError && (
-                <p className="text-body text-multi-fg-red-primary">{validationError}</p>
+                <p className="text-body text-honk-fg-red-primary">{validationError}</p>
               )}
             </form>
           </DialogPanel>

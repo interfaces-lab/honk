@@ -1,4 +1,4 @@
-import type { AuthPairingLink } from "@multi/contracts";
+import type { AuthPairingLink } from "@honk/contracts";
 import { DateTime, Duration, Effect, Layer, PubSub, Ref, Stream } from "effect";
 import { Option } from "effect";
 

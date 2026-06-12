@@ -17,8 +17,9 @@ import type {
   GitStatusLocalResult,
   GitStatusRemoteResult,
   GitStatusStreamEvent,
-} from "@multi/contracts";
-import { mergeGitStatusParts } from "@multi/shared/git";
+} from "@honk/contracts";
+import { mergeGitStatusParts } from "@honk/shared/git";
+import { normalizePathSeparators } from "@honk/shared/paths";
 
 import {
   GitStatusBroadcaster,
@@ -58,7 +59,7 @@ interface ActiveRemotePoller {
 
 const normalizeCwd = (cwd: string): Effect.Effect<string> =>
   Effect.try({
-    try: () => realpathSync.native(cwd),
+    try: () => normalizePathSeparators(realpathSync.native(cwd)),
     catch: () => cwd,
   }).pipe(Effect.catch((fallback) => Effect.succeed(fallback)));
 

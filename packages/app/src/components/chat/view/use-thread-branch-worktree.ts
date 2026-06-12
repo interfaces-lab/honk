@@ -1,4 +1,4 @@
-import type { GitBranch } from "@multi/contracts";
+import type { GitBranch } from "@honk/contracts";
 import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
 
 import { toastManager } from "~/app/toast";

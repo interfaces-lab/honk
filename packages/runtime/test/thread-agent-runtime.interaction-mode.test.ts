@@ -1,6 +1,6 @@
 import { fauxAssistantMessage, type Context, type UserMessage } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentRuntimeEvent } from "@multi/contracts";
+import type { AgentRuntimeEvent } from "@honk/contracts";
 import {
   createRuntimeHarness,
   EMPTY_SEND_MESSAGE_OPTIONS,
@@ -11,14 +11,14 @@ import {
 const MODE_EXPECTATIONS = [
   {
     mode: "ask",
-    heading: "Multi Interaction Mode: Ask",
+    heading: "Honk Interaction Mode: Ask",
     expectedGuidance: ["Answer the user directly."],
   },
   {
     mode: "plan",
-    heading: "Multi Interaction Mode: Plan",
+    heading: "Honk Interaction Mode: Plan",
     expectedGuidance: [
-      "Produce a concrete implementation plan through Multi's built-in Pi planning surface.",
+      "Produce a concrete implementation plan through Honk's built-in Pi planning surface.",
       "Research the codebase to find relevant files and review relevant docs before planning.",
       "Ask clarifying questions when requirements are ambiguous or the plan depends on missing decisions.",
       "Use the create_plan tool as the final action once the plan is ready for review.",
@@ -30,7 +30,7 @@ const MODE_EXPECTATIONS = [
   },
   {
     mode: "debug",
-    heading: "Multi Interaction Mode: Debug",
+    heading: "Honk Interaction Mode: Debug",
     expectedGuidance: ["Diagnose the issue first"],
   },
 ] as const;
@@ -42,6 +42,26 @@ describe("ThreadAgentRuntime interaction modes", () => {
     while (harnesses.length > 0) {
       harnesses.pop()?.cleanup();
     }
+  });
+
+  it("overwrites the default Pi system identity with Honk", async () => {
+    const harness = await createRuntimeHarness();
+    harnesses.push(harness);
+    const observedSystemPrompts: string[] = [];
+    harness.setResponses([
+      (context: Context) => {
+        observedSystemPrompts.push(context.systemPrompt ?? "");
+        return fauxAssistantMessage("ok");
+      },
+    ]);
+
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("hello", EMPTY_SEND_MESSAGE_OPTIONS),
+    );
+
+    expect(observedSystemPrompts[0]).toContain("You are Honk, an AI coding assistant.");
+    expect(observedSystemPrompts[0]).not.toContain("operating inside pi");
+    expect(observedSystemPrompts[0]).not.toContain("a coding agent harness");
   });
 
   it.each(MODE_EXPECTATIONS)(
@@ -107,8 +127,8 @@ describe("ThreadAgentRuntime interaction modes", () => {
       harness.runtime.sendMessage("now do it", EMPTY_SEND_MESSAGE_OPTIONS),
     );
 
-    expect(observedSystemPrompts[0]).toContain("Multi Interaction Mode: Plan");
-    expect(observedSystemPrompts[1]).not.toContain("Multi Interaction Mode:");
+    expect(observedSystemPrompts[0]).toContain("Honk Interaction Mode: Plan");
+    expect(observedSystemPrompts[1]).not.toContain("Honk Interaction Mode:");
   });
 
   it("emits a proposed plan event for completed plan-mode turns", async () => {

@@ -1,4 +1,4 @@
-import type { ServerAuthDescriptor } from "@multi/contracts";
+import type { ServerAuthDescriptor } from "@honk/contracts";
 import { Effect, Layer } from "effect";
 
 import { ServerConfig } from "../config.ts";

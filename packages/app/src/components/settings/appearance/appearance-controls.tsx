@@ -1,6 +1,6 @@
-import { Button } from "@multi/multikit/button";
-import { Input } from "@multi/multikit/input";
-import { Text } from "@multi/multikit/text";
+import { Button } from "@honk/multikit/button";
+import { Input } from "@honk/multikit/input";
+import { Text } from "@honk/multikit/text";
 import { useThrottler } from "@tanstack/react-pacer";
 import { type CSSProperties, type KeyboardEvent, useRef, useState } from "react";
 
@@ -26,17 +26,17 @@ function SettingsSlider(props: {
   const swatchColor = `hsl(${thumbHue} ${thumbSaturation}% 50%)`;
   const sliderClassName =
     props.variant === "hue"
-      ? "multi-appearance-hue-slider"
+      ? "honk-appearance-hue-slider"
       : props.variant === "intensity"
-        ? "multi-appearance-intensity-slider"
+        ? "honk-appearance-intensity-slider"
         : undefined;
   const sliderStyle = props.variant
     ? ({
-        "--multi-appearance-slider-hue": String(thumbHue),
-        "--multi-appearance-slider-sat": `${thumbSaturation}%`,
-        "--multi-appearance-slider-light": "50%",
+        "--honk-appearance-slider-hue": String(thumbHue),
+        "--honk-appearance-slider-sat": `${thumbSaturation}%`,
+        "--honk-appearance-slider-light": "50%",
       } as CSSProperties)
-    : { accentColor: "var(--multi-action)" };
+    : { accentColor: "var(--honk-action)" };
 
   return (
     <div className="grid w-full grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2 sm:w-34">
@@ -54,7 +54,7 @@ function SettingsSlider(props: {
         {props.showSwatch ? (
           <span
             aria-hidden
-            className="size-5 rounded-full shadow-multi-swatch-inset"
+            className="size-5 rounded-full shadow-honk-swatch-inset"
             style={{ backgroundColor: swatchColor }}
           />
         ) : (
@@ -69,7 +69,7 @@ function SettingsSlider(props: {
 }
 
 const NUMBER_STEPPER_BUTTON_CLASS =
-  "h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-multi-fg-tertiary shadow-none outline-none ring-offset-0 before:hidden hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-0 data-pressed:bg-multi-bg-quaternary active:bg-multi-bg-quaternary";
+  "h-7 min-h-7 w-7 shrink-0 rounded-none border-transparent px-0 text-honk-fg-tertiary shadow-none outline-none ring-offset-0 before:hidden hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-0 data-pressed:bg-honk-bg-quaternary active:bg-honk-bg-quaternary";
 
 export function NumberStepper(props: {
   label: string;
@@ -85,7 +85,7 @@ export function NumberStepper(props: {
   };
 
   return (
-    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-body shadow-none">
+    <div className="inline-flex h-7 min-h-7 items-stretch overflow-hidden rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-body shadow-none">
       <Button
         type="button"
         variant="ghost"
@@ -97,7 +97,7 @@ export function NumberStepper(props: {
       </Button>
       <input
         aria-label={props.label}
-        className="-mx-px h-full min-h-7 w-14 shrink-0 border-x border-multi-stroke-tertiary bg-transparent px-0 py-0 text-center leading-7 tabular-nums outline-none [appearance:textfield] focus-visible:relative focus-visible:z-[1] focus-visible:border-multi-stroke-focused [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
+        className="-mx-px h-full min-h-7 w-14 shrink-0 border-x border-honk-stroke-tertiary bg-transparent px-0 py-0 text-center leading-7 tabular-nums outline-none [appearance:textfield] focus-visible:relative focus-visible:z-[1] focus-visible:border-honk-stroke-focused [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
         max={props.max}
         min={props.min}
         inputMode="numeric"
@@ -182,7 +182,7 @@ export function FontFamilyInput(props: {
     <Input
       nativeInput
       size="sm"
-      className="w-full border-multi-stroke-tertiary bg-multi-bg-quinary shadow-none has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused sm:w-36"
+      className="w-full border-honk-stroke-tertiary bg-honk-bg-quinary shadow-none has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused sm:w-36"
       value={displayedValue}
       placeholder={props.placeholder}
       aria-label={props.label}
@@ -262,27 +262,27 @@ const CODE_FONT_PREVIEW_LINES: CodePreviewLine[] = [
 ];
 
 const CODE_PREVIEW_TOKEN_CLASS: Record<CodePreviewTokenColor, string> = {
-  keyword: "text-[var(--multi-git-diff-syntax-keyword)]",
-  variable: "text-[var(--multi-git-diff-syntax-variable)]",
-  punctuation: "text-[var(--multi-git-diff-syntax-punctuation)]",
+  keyword: "text-[var(--honk-git-diff-syntax-keyword)]",
+  variable: "text-[var(--honk-git-diff-syntax-variable)]",
+  punctuation: "text-[var(--honk-git-diff-syntax-punctuation)]",
 };
 
 const CODE_PREVIEW_LINE_CLASS = {
-  deletion: "bg-[var(--multi-git-diff-deletion-line-background)]",
-  addition: "bg-[var(--multi-git-diff-addition-line-background)]",
+  deletion: "bg-[var(--honk-git-diff-deletion-line-background)]",
+  addition: "bg-[var(--honk-git-diff-addition-line-background)]",
 } as const;
 
 const CODE_PREVIEW_LINE_NUMBER_CLASS = {
-  deletion: "text-[var(--multi-git-diff-deletion-line-number)]",
-  addition: "text-[var(--multi-git-diff-addition-line-number)]",
+  deletion: "text-[var(--honk-git-diff-deletion-line-number)]",
+  addition: "text-[var(--honk-git-diff-addition-line-number)]",
 } as const;
 
 export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
   const [codeFontDraft, setCodeFontDraft] = useState(() => props.codeFont);
   const codePreviewStyle: CSSProperties = {
-    fontFamily: codeFontDraft.trim() || "var(--multi-font-mono)",
-    fontSize: "var(--multi-code-font-size-user, 12px)",
-    lineHeight: "calc(var(--multi-code-font-size-user, 12px) * 1.45)",
+    fontFamily: codeFontDraft.trim() || "var(--honk-font-mono)",
+    fontSize: "var(--honk-code-font-size-user, 12px)",
+    lineHeight: "calc(var(--honk-code-font-size-user, 12px) * 1.45)",
   };
 
   return (

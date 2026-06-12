@@ -8,7 +8,7 @@ import {
   ThreadId,
   type AgentModelPolicy,
   type AgentRuntimeEvent,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   AuthStorage,
   type ExtensionFactory,
@@ -94,7 +94,7 @@ export async function createRuntimeHarness(
 ): Promise<RuntimeHarness> {
   const tempDir =
     options.tempDir ??
-    join(tmpdir(), `multi-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    join(tmpdir(), `honk-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(tempDir, { recursive: true });
 
   const faux = registerFauxProvider(options.models ? { models: [...options.models] } : {});

@@ -1,5 +1,5 @@
 {
-  "name": "@multi/shared",
+  "name": "@honk/shared",
   "version": "0.0.0-alpha.1",
   "private": true,
   "type": "module",
@@ -72,6 +72,10 @@
       "types": "./src/path.ts",
       "import": "./src/path.ts"
     },
+    "./paths": {
+      "types": "./src/paths.ts",
+      "import": "./src/paths.ts"
+    },
     "./thread-segments": {
       "types": "./src/thread-segments.ts",
       "import": "./src/thread-segments.ts"
@@ -82,7 +86,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@multi/contracts": "workspace:*",
+    "@honk/contracts": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

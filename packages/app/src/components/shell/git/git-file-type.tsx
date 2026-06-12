@@ -1,6 +1,6 @@
 "use client";
 
-import type { GitFilePatchResult, GitNonTextFileType } from "@multi/contracts";
+import type { GitFilePatchResult, GitNonTextFileType } from "@honk/contracts";
 import {
   IconArchive1,
   IconFileBend,
@@ -75,56 +75,56 @@ const BASE_DESCRIPTORS: Record<GitFileDisplayType, GitFileTypeDescriptor> = {
     label: "Image",
     symbol: "IMG",
     Icon: IconImages1,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   video: {
     type: "video",
     label: "Video",
     symbol: "VID",
     Icon: IconVideo,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   audio: {
     type: "audio",
     label: "Audio",
     symbol: "AUD",
     Icon: IconMultiMedia,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   archive: {
     type: "archive",
     label: "Archive",
     symbol: "ZIP",
     Icon: IconArchive1,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   document: {
     type: "document",
     label: "Document",
     symbol: "DOC",
     Icon: IconPageText,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   font: {
     type: "font",
     label: "Font",
     symbol: "FONT",
     Icon: IconTextSize,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   binary: {
     type: "binary",
     label: "Binary",
     symbol: "BIN",
     Icon: IconFileBend,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
   large: {
     type: "large",
     label: "Large",
     symbol: "BIG",
     Icon: IconWarningSign,
-    className: "text-multi-fg-secondary",
+    className: "text-honk-fg-secondary",
   },
 };
 
@@ -189,7 +189,7 @@ export function GitFileTypeSymbol(props: {
     <span
       aria-label={`${props.descriptor.label} file`}
       className={cn(
-        "inline-flex h-4 min-w-6 shrink-0 items-center justify-center rounded-[3px] border border-multi-workbench-panel-border-muted px-1 text-[9px]/[14px] font-medium tabular-nums",
+        "inline-flex h-4 min-w-6 shrink-0 items-center justify-center rounded-[3px] border border-honk-workbench-panel-border-muted px-1 text-[9px]/[14px] font-medium tabular-nums",
         props.descriptor.className,
         props.className,
       )}
@@ -209,7 +209,7 @@ export function GitFileTypeIcon(props: {
     <span
       aria-hidden
       className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] border border-multi-workbench-panel-border-muted bg-multi-bg-tertiary text-multi-icon-secondary",
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] border border-honk-workbench-panel-border-muted bg-honk-bg-tertiary text-honk-icon-secondary",
         props.className,
       )}
     >

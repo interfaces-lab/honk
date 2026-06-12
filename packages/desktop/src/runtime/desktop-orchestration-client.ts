@@ -3,8 +3,8 @@ import {
   AuthBootstrapResult,
   ClientOrchestrationCommand,
   ClientOrchestrationCommand as ClientOrchestrationCommandSchema,
-} from "@multi/contracts";
-import { formatSchemaError, formatSchemaIssues } from "@multi/shared/schema-json";
+} from "@honk/contracts";
+import { formatSchemaError, formatSchemaIssues } from "@honk/shared/schema-json";
 import { Exit, Schema } from "effect";
 
 const decodeBootstrapResult = Schema.decodeUnknownSync(AuthBootstrapResult);

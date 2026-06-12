@@ -2,7 +2,7 @@
 
 import { IconCheckmark1, IconCrossSmall } from "central-icons";
 
-import { WorkbenchTextButton } from "@multi/multikit/workbench-button";
+import { WorkbenchTextButton } from "@honk/multikit/workbench-button";
 
 import type { PlanEditorProps } from "./plan-editor-contract";
 import { TipTapPlanEditor } from "./tiptap-editor";
@@ -15,7 +15,7 @@ export function PlanEditor(props: PlanEditorProps) {
       data-plan-editor=""
       className="composer-plan-markdown-container mb-4 flex min-w-0 flex-col"
     >
-      <div className="plan-editor-toolbar mb-2 flex justify-end gap-(--multi-workbench-chrome-action-gap) px-1.5">
+      <div className="plan-editor-toolbar mb-2 flex justify-end gap-(--honk-workbench-chrome-action-gap) px-1.5">
         <WorkbenchTextButton
           onClick={props.onCancel}
           disabled={props.disabled}

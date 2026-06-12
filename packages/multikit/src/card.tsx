@@ -7,17 +7,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./utils";
 
 const cardVariants = cva(
-  "relative min-w-0 overflow-hidden rounded-multi-card border font-multi text-body text-multi-fg-primary",
+  "relative min-w-0 overflow-hidden rounded-honk-card border font-honk text-body text-honk-fg-primary",
   {
     defaultVariants: {
       variant: "default",
     },
     variants: {
       variant: {
-        default: "border-multi-stroke-tertiary bg-multi-bg-elevated shadow-multi-card",
-        flat: "border-multi-stroke-tertiary bg-transparent shadow-none",
+        default: "border-honk-stroke-tertiary bg-honk-bg-elevated shadow-honk-card",
+        flat: "border-honk-stroke-tertiary bg-transparent shadow-none",
         panel:
-          "border-multi-workbench-panel-border-soft bg-multi-workbench-panel-background shadow-none",
+          "border-honk-workbench-panel-border-soft bg-honk-workbench-panel-background shadow-none",
       },
     },
   },

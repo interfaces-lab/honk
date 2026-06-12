@@ -15,15 +15,15 @@ import {
   type DesktopExtensionUiRequest,
   type DesktopExtensionUiRespondInput,
   ModelId,
-  type MultiRuntimeApi,
-  type MultiRuntimeHostEvent,
-  type MultiRuntimeHostSnapshot,
+  type HonkRuntimeApi,
+  type HonkRuntimeHostEvent,
+  type HonkRuntimeHostSnapshot,
   type RuntimeDisplayTimelineProjection,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
   type ThreadAgentRuntimeHydrateInput,
   type ThreadAgentRuntimeSendTurnInput,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import {
   AuthStorage,
@@ -34,7 +34,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
-import { applyFffEnvironment, resolveFffExtensionPaths } from "./fff-extension";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
 import {
   projectRuntimeDisplayTimeline,
@@ -151,7 +150,7 @@ export interface DesktopRuntimeHostOptions {
     | null;
 }
 
-export class DesktopRuntimeHost implements MultiRuntimeApi {
+export class DesktopRuntimeHost implements HonkRuntimeApi {
   private preferences: AgentPreferences;
   private readonly agentDir: string;
   private readonly authStorage: AuthStorage | null;
@@ -167,19 +166,18 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   private readonly sessionTrees = new Map<string, SessionTreeProjection>();
   private readonly displayTimelines = new Map<string, RuntimeDisplayTimelineProjection>();
   private readonly credentialAuthFlows = new Map<string, AgentCredentialAuthFlow>();
-  private readonly listeners = new Set<(event: MultiRuntimeHostEvent) => void>();
+  private readonly listeners = new Set<(event: HonkRuntimeHostEvent) => void>();
   private readonly startOperations = new Map<string, Promise<void>>();
   private readonly pendingDisplayTimelineThreadIds = new Set<string>();
   private displayTimelineFlushHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: DesktopRuntimeHostOptions) {
     if (options.agentDir.trim().length === 0) {
-      throw new Error("DesktopRuntimeHost requires a Multi agent directory.");
+      throw new Error("DesktopRuntimeHost requires a Honk agent directory.");
     }
 
     this.preferences = options?.preferences ?? DEFAULT_AGENT_PREFERENCES;
     this.agentDir = options.agentDir;
-    applyFffEnvironment();
     this.authStorage =
       options.authStorage === undefined
         ? AuthStorage.create(join(this.agentDir, "auth.json"))
@@ -190,16 +188,22 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     this.extensionFactories =
       options.extensionFactories ??
       createDesktopAgentExtensionFactories({ agentDir: this.agentDir });
-    this.extensionPaths =
-      options.extensionPaths === undefined
-        ? resolveFffExtensionPaths()
-        : (options.extensionPaths ?? []);
+    this.extensionPaths = options.extensionPaths ?? [];
     this.bindRuntimeExtensions = options?.bindExtensions ?? null;
   }
 
-  async getHostSnapshot(): Promise<MultiRuntimeHostSnapshot> {
+  async getHostSnapshot(): Promise<HonkRuntimeHostSnapshot> {
     return {
       preferences: this.preferences,
+      runtimeIdentities: [...this.runtimes.values()].map((entry) => {
+        const identity = entry.runtime.identity;
+        return {
+          threadId: identity.threadId,
+          runtimeSessionId: identity.runtimeSessionId,
+          authProviderId: identity.authProviderId,
+          modelId: identity.modelId,
+        };
+      }),
       models: this.getModelDescriptors(),
       authStatuses: this.getAuthStatuses(),
       credentialAuthFlows: [...this.credentialAuthFlows.values()],
@@ -228,7 +232,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
   async configureCredential(
     input: AgentCredentialConfigureInput,
     callbacks?: OAuthLoginCallbacks,
-  ): Promise<MultiRuntimeHostSnapshot> {
+  ): Promise<HonkRuntimeHostSnapshot> {
     if (!this.authStorage) {
       throw new Error("Pi auth storage is unavailable.");
     }
@@ -505,7 +509,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     this.scheduleDisplayTimelineEmit(entry.runtime.threadId);
   }
 
-  onHostEvent(listener: (event: MultiRuntimeHostEvent) => void): () => void {
+  onHostEvent(listener: (event: HonkRuntimeHostEvent) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
@@ -683,7 +687,7 @@ export class DesktopRuntimeHost implements MultiRuntimeApi {
     return statuses;
   }
 
-  private emit(event: MultiRuntimeHostEvent): void {
+  private emit(event: HonkRuntimeHostEvent): void {
     for (const listener of this.listeners) {
       listener(event);
     }

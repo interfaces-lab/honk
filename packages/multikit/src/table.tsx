@@ -24,7 +24,7 @@ function TableHeader({ className, render, ...props }: useRender.ComponentProps<"
     defaultTagName: "thead",
     props: mergeProps(
       {
-        className: cn("border-b border-multi-stroke-tertiary", className),
+        className: cn("border-b border-honk-stroke-tertiary", className),
         "data-slot": "table-header",
       },
       props,
@@ -52,7 +52,7 @@ function TableRow({ className, render, ...props }: useRender.ComponentProps<"tr"
     defaultTagName: "tr",
     props: mergeProps(
       {
-        className: cn("border-b border-multi-stroke-quaternary", className),
+        className: cn("border-b border-honk-stroke-quaternary", className),
         "data-slot": "table-row",
       },
       props,
@@ -66,7 +66,7 @@ function TableHead({ className, render, ...props }: useRender.ComponentProps<"th
     defaultTagName: "th",
     props: mergeProps(
       {
-        className: cn("px-2 py-1.5 text-left font-medium text-multi-fg-tertiary", className),
+        className: cn("px-2 py-1.5 text-left font-medium text-honk-fg-tertiary", className),
         "data-slot": "table-head",
       },
       props,
@@ -80,7 +80,7 @@ function TableCell({ className, render, ...props }: useRender.ComponentProps<"td
     defaultTagName: "td",
     props: mergeProps(
       {
-        className: cn("px-2 py-1.5 text-multi-fg-primary", className),
+        className: cn("px-2 py-1.5 text-honk-fg-primary", className),
         "data-slot": "table-cell",
       },
       props,

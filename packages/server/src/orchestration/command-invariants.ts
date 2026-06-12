@@ -5,7 +5,7 @@ import type {
   OrchestrationThread,
   ProjectId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect } from "effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";

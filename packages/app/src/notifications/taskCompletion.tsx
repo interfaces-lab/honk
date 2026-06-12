@@ -1,4 +1,4 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
+import { type EnvironmentId, type ThreadId } from "@honk/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useRef } from "react";
 import { toastManager } from "~/app/toast";
@@ -62,7 +62,7 @@ interface ThreadNotificationCopy {
   body: string;
 }
 
-const SEEN_ATTENTION_NOTIFICATION_IDS_KEY = "multi.seenAttentionNotificationIds.v1";
+const SEEN_ATTENTION_NOTIFICATION_IDS_KEY = "honk.seenAttentionNotificationIds.v1";
 const MAX_SEEN_ATTENTION_NOTIFICATION_IDS = 200;
 
 function readSeenAttentionNotificationIds(): Set<string> {

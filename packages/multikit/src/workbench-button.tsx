@@ -8,20 +8,20 @@ import { cn, controlTransitionClassName } from "./utils";
 
 const workbenchIconButtonVariants = cva(
   cn(
-    "no-drag ui-icon-button box-border flex shrink-0 select-none items-center justify-center rounded-multi-control border-0 px-(--multi-workbench-chrome-icon-padding-x) text-multi-icon-secondary shadow-none outline-hidden before:hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:text-multi-fg-quaternary/45 disabled:hover:bg-transparent disabled:hover:text-multi-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
+    "no-drag ui-icon-button box-border flex shrink-0 select-none items-center justify-center rounded-honk-control border-0 px-(--honk-workbench-chrome-icon-padding-x) text-honk-icon-secondary shadow-none outline-hidden before:hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:text-honk-fg-quaternary/45 disabled:hover:bg-transparent disabled:hover:text-honk-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
     controlTransitionClassName,
   ),
   {
     variants: {
       active: {
-        true: "bg-multi-bg-tertiary text-multi-icon-primary",
-        false: "bg-transparent hover:bg-multi-bg-quaternary hover:text-multi-icon-primary",
+        true: "bg-honk-bg-tertiary text-honk-icon-primary",
+        false: "bg-transparent hover:bg-honk-bg-quaternary hover:text-honk-icon-primary",
       },
       chrome: {
-        tool: "h-(--multi-workbench-action-size) min-h-(--multi-workbench-action-size) max-h-(--multi-workbench-action-size) min-w-(--multi-workbench-action-size)",
+        tool: "h-(--honk-workbench-action-size) min-h-(--honk-workbench-action-size) max-h-(--honk-workbench-action-size) min-w-(--honk-workbench-action-size)",
         panel:
-          "h-(--multi-workbench-action-size) min-h-(--multi-workbench-action-size) max-h-(--multi-workbench-action-size) min-w-(--multi-workbench-action-size)",
-        sub: "h-(--multi-workbench-action-size) min-h-(--multi-workbench-action-size) max-h-(--multi-workbench-action-size) min-w-(--multi-workbench-action-size)",
+          "h-(--honk-workbench-action-size) min-h-(--honk-workbench-action-size) max-h-(--honk-workbench-action-size) min-w-(--honk-workbench-action-size)",
+        sub: "h-(--honk-workbench-action-size) min-h-(--honk-workbench-action-size) max-h-(--honk-workbench-action-size) min-w-(--honk-workbench-action-size)",
       },
       tabSystem: {
         true: "ui-tab-system-tab",
@@ -42,17 +42,17 @@ type WorkbenchIconButtonChrome = NonNullable<
 
 const workbenchTextButtonVariants = cva(
   cn(
-    "no-drag box-border inline-flex h-(--multi-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-(--multi-workbench-text-control-gap) truncate rounded-multi-control border-0 px-(--multi-workbench-text-control-padding-inline) text-body font-medium outline-hidden before:hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:pointer-events-none disabled:text-multi-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
+    "no-drag box-border inline-flex h-(--honk-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) truncate rounded-honk-control border-0 px-(--honk-workbench-text-control-padding-inline) text-body font-medium outline-hidden before:hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:pointer-events-none disabled:text-honk-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
     controlTransitionClassName,
   ),
   {
     variants: {
       tone: {
         default:
-          "bg-transparent text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
-        primary: "bg-multi-bg-tertiary text-multi-fg-primary hover:bg-multi-bg-secondary",
+          "bg-transparent text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary",
+        primary: "bg-honk-bg-tertiary text-honk-fg-primary hover:bg-honk-bg-secondary",
         danger:
-          "bg-transparent text-multi-fg-tertiary hover:bg-multi-bg-quaternary hover:text-multi-fg-red-primary",
+          "bg-transparent text-honk-fg-tertiary hover:bg-honk-bg-quaternary hover:text-honk-fg-red-primary",
       },
     },
     defaultVariants: {
@@ -153,7 +153,7 @@ function WorkbenchTabIconContent(props: {
         <span
           aria-hidden
           className={cn(
-            "absolute rounded-full bg-warning text-warning-foreground shadow-[0_0_0_1px_var(--multi-bg-primary)]",
+            "absolute rounded-full bg-warning text-warning-foreground shadow-[0_0_0_1px_var(--honk-bg-primary)]",
             showBadgeCount
               ? "-top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center px-0.5 text-[9px] leading-none font-semibold tabular-nums"
               : "top-0.5 right-0.5 size-2",

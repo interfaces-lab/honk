@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "./utils";
 
-const textVariants = cva("font-multi", {
+const textVariants = cva("font-honk", {
   defaultVariants: {
     size: "base",
     tone: "primary",
@@ -14,17 +14,17 @@ const textVariants = cva("font-multi", {
   },
   variants: {
     size: {
-      xs: "text-multi-xs",
-      sm: "text-multi-sm",
-      base: "text-multi-base",
-      lg: "text-multi-lg",
-      xl: "text-multi-xl",
+      xs: "text-honk-xs",
+      sm: "text-honk-sm",
+      base: "text-honk-base",
+      lg: "text-honk-lg",
+      xl: "text-honk-xl",
     },
     tone: {
-      primary: "text-multi-fg-primary",
-      secondary: "text-multi-fg-secondary",
-      tertiary: "text-multi-fg-tertiary",
-      quaternary: "text-multi-fg-quaternary",
+      primary: "text-honk-fg-primary",
+      secondary: "text-honk-fg-secondary",
+      tertiary: "text-honk-fg-tertiary",
+      quaternary: "text-honk-fg-quaternary",
       inherit: "",
     },
     weight: {

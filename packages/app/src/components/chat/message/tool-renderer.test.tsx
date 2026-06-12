@@ -220,7 +220,7 @@ describe("tool renderer conversation density", () => {
       />,
     );
 
-    expect(html).toContain("border-multi-stroke-secondary");
+    expect(html).toContain("border-honk-stroke-secondary");
     expect(html).toContain("-old line");
   });
 
@@ -246,7 +246,7 @@ describe("tool renderer conversation density", () => {
       />,
     );
 
-    expect(html).not.toContain("border-multi-stroke-secondary");
+    expect(html).not.toContain("border-honk-stroke-secondary");
     expect(html).not.toContain(status);
   });
 
@@ -270,7 +270,7 @@ describe("tool renderer conversation density", () => {
     );
 
     expect(html).toContain("data-tool-call-line");
-    expect(html).not.toContain("border-multi-stroke-secondary");
+    expect(html).not.toContain("border-honk-stroke-secondary");
   });
 
   it("switches shell markers when density changes without changing tool payload", () => {

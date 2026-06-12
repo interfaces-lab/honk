@@ -1,5 +1,5 @@
 {
-  "name": "@multi/release-scripts",
+  "name": "@honk/release-scripts",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@multi/shared": "workspace:*",
+    "@honk/shared": "workspace:*",
     "effect": "catalog:",
     "yaml": "^2.9.0"
   },

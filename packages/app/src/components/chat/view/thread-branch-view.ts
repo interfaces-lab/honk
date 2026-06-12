@@ -5,7 +5,7 @@ import {
   type OrchestrationThreadActivity,
   type ThreadEntryId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import type { ChatMessage, Thread, ThreadTreeEntry } from "../../../types";
 

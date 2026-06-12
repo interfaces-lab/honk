@@ -1,4 +1,4 @@
-import { makeMultiEffectLogger, makeSafeConsolePrettyLogger } from "@multi/shared/logging";
+import { makeHonkEffectLogger, makeSafeConsolePrettyLogger } from "@honk/shared/logging";
 import { Effect, Logger, References, Layer } from "effect";
 
 import { ServerConfig } from "./config";
@@ -10,7 +10,7 @@ export const ServerLoggerLive = Effect.gen(function* () {
     [
       makeSafeConsolePrettyLogger(),
       Logger.tracerLogger,
-      makeMultiEffectLogger({
+      makeHonkEffectLogger({
         defaultService: "server",
       }),
     ],

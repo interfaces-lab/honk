@@ -27,7 +27,7 @@ function AutocompleteInput({
 
   return (
     <InputControlSizeContext.Provider value={sizeValue}>
-      <div className="relative not-has-[>*.w-full]:w-fit w-full font-multi text-foreground has-disabled:opacity-40">
+      <div className="relative not-has-[>*.w-full]:w-fit w-full font-honk text-foreground has-disabled:opacity-40">
         {startAddon && (
           <div
             aria-hidden="true"
@@ -129,7 +129,7 @@ function AutocompleteItem({ className, children, ...props }: AutocompletePrimiti
   return (
     <AutocompletePrimitive.Item
       className={cn(
-        "flex min-h-7 cursor-default select-none items-center rounded-multi-control px-2 py-1 font-multi text-body outline-none hover:bg-multi-hover data-disabled:pointer-events-none data-selected:bg-multi-hover/60 data-selected:text-foreground data-highlighted:bg-multi-hover data-highlighted:text-foreground [&[data-highlighted][data-selected]]:bg-multi-hover [&[data-highlighted][data-selected]]:text-foreground data-disabled:opacity-40",
+        "flex min-h-7 cursor-default select-none items-center rounded-honk-control px-2 py-1 font-honk text-body outline-none hover:bg-honk-hover data-disabled:pointer-events-none data-selected:bg-honk-hover/60 data-selected:text-foreground data-highlighted:bg-honk-hover data-highlighted:text-foreground [&[data-highlighted][data-selected]]:bg-honk-hover [&[data-highlighted][data-selected]]:text-foreground data-disabled:opacity-40",
         className,
       )}
       data-slot="autocomplete-item"
@@ -163,7 +163,7 @@ function AutocompleteGroup({ className, ...props }: AutocompletePrimitive.Group.
 function AutocompleteGroupLabel({ className, ...props }: AutocompletePrimitive.GroupLabel.Props) {
   return (
     <AutocompletePrimitive.GroupLabel
-      className={cn("px-2 py-1.5 font-multi text-detail text-muted-foreground/68", className)}
+      className={cn("px-2 py-1.5 font-honk text-detail text-muted-foreground/68", className)}
       data-slot="autocomplete-group-label"
       {...props}
     />
@@ -174,7 +174,7 @@ function AutocompleteEmpty({ className, ...props }: AutocompletePrimitive.Empty.
   return (
     <AutocompletePrimitive.Empty
       className={cn(
-        "not-empty:p-2 text-center font-multi text-body text-muted-foreground",
+        "not-empty:p-2 text-center font-honk text-body text-muted-foreground",
         className,
       )}
       data-slot="autocomplete-empty"

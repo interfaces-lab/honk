@@ -3,14 +3,14 @@ import {
   DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
   decodeAgentPreferences,
-  decodeMultiRuntimeHostEvent,
-  decodeMultiRuntimeHostSnapshot,
+  decodeHonkRuntimeHostEvent,
+  decodeHonkRuntimeHostSnapshot,
   type AgentPreferences,
   type LocalApi,
-  type MultiRuntimeApi,
-  type MultiRuntimeHostEvent,
-  type MultiRuntimeHostSnapshot,
-} from "@multi/contracts";
+  type HonkRuntimeApi,
+  type HonkRuntimeHostEvent,
+  type HonkRuntimeHostSnapshot,
+} from "@honk/contracts";
 
 const now = () => new Date().toISOString();
 
@@ -53,9 +53,10 @@ let fallbackPreferences: AgentPreferences = DEFAULT_AGENT_PREFERENCES;
 
 export function createEmptyRuntimeHostSnapshot(
   preferences: AgentPreferences = fallbackPreferences,
-): MultiRuntimeHostSnapshot {
+): HonkRuntimeHostSnapshot {
   return {
     preferences,
+    runtimeIdentities: [],
     models: [],
     authStatuses: [],
     credentialAuthFlows: [],
@@ -63,7 +64,7 @@ export function createEmptyRuntimeHostSnapshot(
       {
         state: "warning",
         title: "Runtime host unavailable",
-        message: "No MultiRuntimeApi has been exposed yet.",
+        message: "No HonkRuntimeApi has been exposed yet.",
         updatedAt: now(),
       },
     ],
@@ -78,7 +79,7 @@ export function runtimeHostUnavailableError(): Error {
   return new Error("Runtime host unavailable.");
 }
 
-export type RuntimeApiResolver = () => MultiRuntimeApi | undefined;
+export type RuntimeApiResolver = () => HonkRuntimeApi | undefined;
 
 let runtimeApiResolver: RuntimeApiResolver | null = null;
 
@@ -104,14 +105,14 @@ export function resetRuntimeClientBootstrapForTests(): void {
   runtimeClientBootstrap = null;
 }
 
-function readDesktopRuntimeApiFromWindow(): MultiRuntimeApi | undefined {
+function readDesktopRuntimeApiFromWindow(): HonkRuntimeApi | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
-  return window.desktopBridge?.runtime ?? window.multiRuntime;
+  return window.desktopBridge?.runtime ?? window.honkRuntime;
 }
 
-function resolveRuntimeApi(): MultiRuntimeApi | undefined {
+function resolveRuntimeApi(): HonkRuntimeApi | undefined {
   return (
     runtimeApiResolver?.() ??
     runtimeClientBootstrap?.readLocalApi()?.runtime ??
@@ -119,7 +120,7 @@ function resolveRuntimeApi(): MultiRuntimeApi | undefined {
   );
 }
 
-export function createRuntimeClient(): MultiRuntimeApi {
+export function createRuntimeClient(): HonkRuntimeApi {
   const runtime = resolveRuntimeApi();
   if (!runtime) {
     throw runtimeHostUnavailableError();
@@ -127,7 +128,7 @@ export function createRuntimeClient(): MultiRuntimeApi {
   return createRuntimeClientFromApi(runtime);
 }
 
-export function readMultiRuntimeApi(): MultiRuntimeApi {
+export function readHonkRuntimeApi(): HonkRuntimeApi {
   return createRuntimeClient();
 }
 
@@ -146,26 +147,26 @@ export function assertRuntimeApiAvailable(): void {
 
 export async function assertRuntimeHostAvailable(): Promise<void> {
   assertRuntimeApiAvailable();
-  await readMultiRuntimeApi().getHostSnapshot();
+  await readHonkRuntimeApi().getHostSnapshot();
 }
 
-export function createRuntimeClientFromApi(runtime: MultiRuntimeApi): MultiRuntimeApi {
+export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntimeApi {
   return {
-    getHostSnapshot: async () => decodeMultiRuntimeHostSnapshot(await runtime.getHostSnapshot()),
+    getHostSnapshot: async () => decodeHonkRuntimeHostSnapshot(await runtime.getHostSnapshot()),
     getPreferences: async () => decodeAgentPreferences(await runtime.getPreferences()),
     updatePreferences: async (patch) =>
       decodeAgentPreferences(await runtime.updatePreferences(patch)),
     configureCredential: async (input) =>
-      decodeMultiRuntimeHostSnapshot(await runtime.configureCredential(input)),
+      decodeHonkRuntimeHostSnapshot(await runtime.configureCredential(input)),
     hydrateThread: (input) => runtime.hydrateThread(input),
     sendTurn: (input) => runtime.sendTurn(input),
     abort: (input) => runtime.abort(input),
     respondToExtensionUiRequest: (input) => runtime.respondToExtensionUiRequest(input),
     onHostEvent: (listener) =>
       runtime.onHostEvent((event) => {
-        listener(decodeMultiRuntimeHostEvent(event));
+        listener(decodeHonkRuntimeHostEvent(event));
       }),
   };
 }
 
-export type { MultiRuntimeApi, MultiRuntimeHostEvent, MultiRuntimeHostSnapshot };
+export type { HonkRuntimeApi, HonkRuntimeHostEvent, HonkRuntimeHostSnapshot };

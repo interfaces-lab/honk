@@ -1,6 +1,6 @@
 ---
 name: Tool Call Density Parity
-overview: Tool Call Density parity with Cursor using exactly three values (Detailed, Balanced, Compact). Legacy modes removed. Plan covers Cursor entry-point chain, Multi mapping, Phase 0 contract collapse, then renderer/grouping parity.
+overview: Tool Call Density parity with Cursor using exactly three values (Detailed, Balanced, Compact). Legacy modes removed. Plan covers Cursor entry-point chain, Honk mapping, Phase 0 contract collapse, then renderer/grouping parity.
 todos:
   - id: collapse-three-values
     content: "Phase 0: narrow ConversationDensity to 3 values; migrate at decode/hydrate + write-back (settings.ts, desktop-client-settings.ts, use-settings.ts); simplify predicates"
@@ -15,7 +15,7 @@ todos:
     content: "Phase 4: completed header uses summary.action (Explored/Edited) not generic Worked for; running header shows segment details"
     status: completed
   - id: doc-entry-points
-    content: Add Cursor/Multi entry-point map to packages/app/ARCHITECTURE.md (Layer 0-6 with symbol equivalents)
+    content: Add Cursor/Honk entry-point map to packages/app/ARCHITECTURE.md (Layer 0-6 with symbol equivalents)
     status: completed
   - id: predicate-parity
     content: Align conversation-density.ts predicates (pqb activity mode, yAm cross-type mixing) and extend timeline-render-items.test.ts matrix
@@ -35,13 +35,13 @@ todos:
 isProject: false
 ---
 
-# Tool Call Density Parity — Cursor Entry Points and Multi Implementation Plan
+# Tool Call Density Parity — Cursor Entry Points and Honk Implementation Plan
 
 ## What this plan covers
 
 This plan turns the reverse-engineered Cursor research into an actionable parity roadmap. The **entry point** is not a single function — it is a **layered pipeline** with two runtime paths in Cursor (Glass transcript vs legacy step list) that converge on the same density predicates and renderers.
 
-**Product decision (locked):** Multi supports exactly **three** density values — the same stops as the settings slider. No legacy modes.
+**Product decision (locked):** Honk supports exactly **three** density values — the same stops as the settings slider. No legacy modes.
 
 
 | Slider label      | Stored value          | Behavior                               |
@@ -51,7 +51,7 @@ This plan turns the reverse-engineered Cursor research into an actionable parity
 | Compact (left)    | `compact-all-grouped` | Compact edit/shell lines; grouped runs |
 
 
-**Removed from Multi:** `compact-shells`, `compact-grouped`, `verbose`, `minimal`. Cursor still has these internally (`XBn` aliases, 5-stop `G8i`); we mirror only the **current 3-stop user-facing behavior**, not Cursor's legacy enum.
+**Removed from Honk:** `compact-shells`, `compact-grouped`, `verbose`, `minimal`. Cursor still has these internally (`XBn` aliases, 5-stop `G8i`); we mirror only the **current 3-stop user-facing behavior**, not Cursor's legacy enum.
 
 ---
 
@@ -69,7 +69,7 @@ This plan turns the reverse-engineered Cursor research into an actionable parity
 | Feature flag  | `conversation_density_setting`              | Gates slider UI and runtime reads          |
 
 
-Cursor still normalizes legacy stored values via `XBn` (`verbose`, `minimal`, `compact-shells`, `compact-grouped`). **Multi does not** — persisted settings are migrated once to the nearest of the three values above, then only those three are valid at runtime.
+Cursor still normalizes legacy stored values via `XBn` (`verbose`, `minimal`, `compact-shells`, `compact-grouped`). **Honk does not** — persisted settings are migrated once to the nearest of the three values above, then only those three are valid at runtime.
 
 **Binary location:** `[/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js](/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js)`
 
@@ -90,7 +90,7 @@ jTA(n, e)                              // hidden DOM React root for settings tab
 **Ownership:**
 
 - `ETA` — mounts "Tool Call Density" row; label + description; analytics
-- `ATA` — slider UI: Compact (left), Balanced (middle), Detailed (right) — **this 3-stop UX is what Multi implements**
+- `ATA` — slider UI: Compact (left), Balanced (middle), Detailed (right) — **this 3-stop UX is what Honk implements**
 - `VHn` — reads/writes `configurationService` for `HFr`
 
 **Start here in Cursor binary:** search `ETA` / `ATA` / `conversation_density_setting`.
@@ -120,7 +120,7 @@ GMS()  → s8(HFr, …, VFr) + s8(vSm, …, ySm)
 f4o()  → $MS() ? GMS() : M9t("detailed")
 
 WMS()  → isGlass ? GMS() : Iex(collapseAutoRunCommands)
-         // non-glass terminal-compact path — out of scope for Multi (no compact-shells mode)
+         // non-glass terminal-compact path — out of scope for Honk (no compact-shells mode)
 ```
 
 **Glass transcript bootstrap (`qDp`):**
@@ -286,7 +286,7 @@ flowchart TD
 
 The plan covers **four preview surfaces**. Cursor uses density to decide which appear collapsed vs only on expand.
 
-| Preview | Cursor (`XJr` / `kRm` / `A4b`) | Densities | Multi today | Plan phase |
+| Preview | Cursor (`XJr` / `kRm` / `A4b`) | Densities | Honk today | Plan phase |
 |---------|--------------------------------|-----------|-------------|------------|
 | **Edit diff preview** | Collapsed `Bef` inline diff inside card; chevron expands to full diff | Detailed only (Balanced/Compact: line until expand) | `showCollapsedPreview` + `InlineToolDiff` in `tool-renderer.tsx` | Phase 3 |
 | **Shell output preview** | `ui-shell-tool-call__output-preview` — ~5 lines, clipped; expand → full scroll | Detailed card only; Balanced/Compact use compact line, output on accordion expand | `STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX` (90px today) + `data-shell-tool-call-output-preview` | Phase 3 — align line count + max-height with Cursor |
@@ -362,7 +362,7 @@ isPreviewableWorkGroupStep(step):
 
 **Cursor equivalents:** `summarizeGroupedRun` action selection (`Exploring`/`Explored`), `isThinkingGroup` all-thinking runs, `A4b` preview children via `eif` → `renderStep`, `zIb` merge rules keeping thinking before tools in same group.
 
-**Multi files:** [`timeline-render-items.ts`](packages/app/src/components/chat/timeline/timeline-render-items.ts) (`formatExploringSummary`, `isPreviewableWorkGroupStep`, `RUNTIME_EXPLORE_ONLY_MIN_GROUP_SIZE`), [`step-renderer.tsx`](packages/app/src/components/chat/timeline/step-renderer.tsx) (`GroupedStepsRenderer`, `WorkGroupPreview`, `WorkGroupPreviewStep`).
+**Honk files:** [`timeline-render-items.ts`](packages/app/src/components/chat/timeline/timeline-render-items.ts) (`formatExploringSummary`, `isPreviewableWorkGroupStep`, `RUNTIME_EXPLORE_ONLY_MIN_GROUP_SIZE`), [`step-renderer.tsx`](packages/app/src/components/chat/timeline/step-renderer.tsx) (`GroupedStepsRenderer`, `WorkGroupPreview`, `WorkGroupPreviewStep`).
 
 **Preview rules by density (implementation checklist):**
 
@@ -373,17 +373,17 @@ isPreviewableWorkGroupStep(step):
 
 ---
 
-## Multi entry point chain (implementation target)
+## Honk entry point chain (implementation target)
 
 ### Layer 0 — Constants and storage
 
 
-| Cursor       | Multi equivalent                                                                                                       |
+| Cursor       | Honk equivalent                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | `HFr`        | `[packages/contracts/src/settings.ts](packages/contracts/src/settings.ts)` — `conversationDensity` (three values only) |
 | `XBn`        | **Removed** — no legacy alias layer; one-time migration in `normalizeConversationDensity` or settings decode           |
 | Valid values | `USER_CONVERSATION_DENSITY_VALUES`: `detailed`, `compact-ungrouped`, `compact-all-grouped`                             |
-| Feature flag | **Not implemented** — Multi always exposes slider and always applies stored density                                    |
+| Feature flag | **Not implemented** — Honk always exposes slider and always applies stored density                                    |
 
 
 ---
@@ -430,7 +430,7 @@ useSettings(selector)
 
 **Cursor:** `F5r` / `SCe()` — single provider, all renderers consume context.
 
-**Multi:** Hook + prop pattern — density read in multiple places:
+**Honk:** Hook + prop pattern — density read in multiple places:
 
 
 | Consumer                                                                                   | Mechanism                                               |
@@ -463,7 +463,7 @@ chat-view.tsx
 - `[packages/app/src/components/chat/timeline/timeline-rows.ts](packages/app/src/components/chat/timeline/timeline-rows.ts)`
 - `[packages/app/src/components/chat/timeline/timeline-render-items.ts](packages/app/src/components/chat/timeline/timeline-render-items.ts)` — **density-aware grouping**
 
-**Cursor equivalent:** `aof` + `pqb` + `cof` → Multi's `deriveTimelineRenderItems` + `shouldGroupEdits`/`shouldGroupShells`/`shouldGroupToolCalls`.
+**Cursor equivalent:** `aof` + `pqb` + `cof` → Honk's `deriveTimelineRenderItems` + `shouldGroupEdits`/`shouldGroupShells`/`shouldGroupToolCalls`.
 
 ---
 
@@ -511,7 +511,7 @@ StepRenderer → WorkStepRenderer / RuntimeToolStepRenderer
 ## Side-by-side entry point map
 
 
-| Layer            | Cursor symbol                  | Multi file / symbol                                              | Parity status                          |
+| Layer            | Cursor symbol                  | Honk file / symbol                                              | Parity status                          |
 | ---------------- | ------------------------------ | ---------------------------------------------------------------- | -------------------------------------- |
 | Storage key      | `HFr`                          | `ClientSettings.conversationDensity`                             | OK                                     |
 | Normalize        | `XBn`                          | `normalizeConversationDensity` (migrate-only, then identity)     | **Change** — drop legacy aliases       |
@@ -569,7 +569,7 @@ StepRenderer → WorkStepRenderer / RuntimeToolStepRenderer
 
 ### Phase 1 — Document and verify entry points (no behavior change)
 
-Add an **Entry Point Map** section to `[packages/app/ARCHITECTURE.md](packages/app/ARCHITECTURE.md)` mirroring this plan's two chains. Annotate each Multi file with its Cursor symbol equivalent so future agents land in the right layer first.
+Add an **Entry Point Map** section to `[packages/app/ARCHITECTURE.md](packages/app/ARCHITECTURE.md)` mirroring this plan's two chains. Annotate each Honk file with its Cursor symbol equivalent so future agents land in the right layer first.
 
 **Verification:** `pnpm run typecheck` from repo root.
 
@@ -584,7 +584,7 @@ Align with Cursor predicates:
 - Add `shouldMixEditAndShellGroups(density)` for `compact-all-grouped` only (`yAm`/`_Am`)
 - Add `activityGroupingMode(density)` → `"all"` | `"lane"` (`pqb`)
 - Wire `timelineMinGroupSize(2)` into `shouldGroupUnifiedSteps` for compact runtime shell/edit pairs (today only work-log path uses it)
-- **Cursor parity decision:** explore ≥3 at Detailed/Balanced — Multi **does not** do this today (`shouldGroupToolCalls` gate). Document as intentional divergence OR add explicit subtask to change behavior + tests
+- **Cursor parity decision:** explore ≥3 at Detailed/Balanced — Honk **does not** do this today (`shouldGroupToolCalls` gate). Document as intentional divergence OR add explicit subtask to change behavior + tests
 - Pending approval: wire `approval` prop `tool-message.tsx` → `ToolCallRenderer`; add `zIb`-style break in grouping loop; correlate `PendingApproval` to tool rows
 
 **Tests:** Extend `[timeline-render-items.test.ts](packages/app/src/components/chat/timeline/timeline-render-items.test.ts)` with matrix cases for all three user-facing densities.
@@ -692,11 +692,11 @@ flowchart TD
 
 ## Open decisions (resolve before Phase 2)
 
-1. **Feature flag:** Should Multi gate the density setting behind `conversation_density_setting` (flag off → always `detailed`), or always honor stored value?
+1. **Feature flag:** Should Honk gate the density setting behind `conversation_density_setting` (flag off → always `detailed`), or always honor stored value?
 2. **Context provider:** Introduce `AgentConversationProvider` equivalent to dedupe subscriptions, or keep hook+prop pattern?
-3. **Explore grouping at Detailed/Balanced:** Cursor council said ≥3; Multi never groups explores unless Compact. Intentional divergence or parity gap to fix?
+3. **Explore grouping at Detailed/Balanced:** Cursor council said ≥3; Honk never groups explores unless Compact. Intentional divergence or parity gap to fix?
 
-**Resolved:** Legacy density modes removed. Multi uses only `detailed`, `compact-ungrouped`, `compact-all-grouped`.
+**Resolved:** Legacy density modes removed. Honk uses only `detailed`, `compact-ungrouped`, `compact-all-grouped`.
 
 ---
 
@@ -723,11 +723,11 @@ flowchart TD
 | Task                    | Open first                                                                                                                     |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Understand Cursor chain | `workbench.desktop.main.js` — search `ETA`, `f4o`, `F5r`, `aof`, `NAm`, `MRm`                                                  |
-| Multi settings entry    | `[appearance-settings-panel.tsx](packages/app/src/components/settings/appearance/appearance-settings-panel.tsx)`               |
-| Multi grouping entry    | `[timeline-render-items.ts](packages/app/src/components/chat/timeline/timeline-render-items.ts)` — `deriveTimelineRenderItems` |
-| Multi render entry      | `[tool-renderer.tsx](packages/app/src/components/chat/message/tool-renderer.tsx)` — `ToolCallRenderer`                         |
+| Honk settings entry    | `[appearance-settings-panel.tsx](packages/app/src/components/settings/appearance/appearance-settings-panel.tsx)`               |
+| Honk grouping entry    | `[timeline-render-items.ts](packages/app/src/components/chat/timeline/timeline-render-items.ts)` — `deriveTimelineRenderItems` |
+| Honk render entry      | `[tool-renderer.tsx](packages/app/src/components/chat/message/tool-renderer.tsx)` — `ToolCallRenderer`                         |
 | Three-value collapse    | `[settings.ts](packages/contracts/src/settings.ts)` + `[conversation-density.ts](packages/shared/src/conversation-density.ts)` |
-| Multi predicates        | `[conversation-density.ts](packages/shared/src/conversation-density.ts)`                                                       |
+| Honk predicates        | `[conversation-density.ts](packages/shared/src/conversation-density.ts)`                                                       |
 | Tray parity             | `[subagent-tray.tsx](packages/app/src/components/chat/composer/subagents/subagent-tray.tsx)`                                   |
 
 

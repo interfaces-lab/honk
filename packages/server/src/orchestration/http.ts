@@ -4,8 +4,8 @@ import {
   type OrchestrationHttpErrorResponse,
   OrchestrationGetSnapshotError,
   type OrchestrationReadModel,
-} from "@multi/contracts";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 

@@ -18,7 +18,7 @@ import {
   ResolvedKeybindingsConfig,
   THREAD_JUMP_KEYBINDING_COMMANDS,
   type ServerConfigIssue,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Mutable } from "effect/Types";
 import {
   Array,
@@ -45,7 +45,7 @@ import {
 } from "effect";
 import * as Semaphore from "effect/Semaphore";
 import { ServerConfig } from "./config";
-import { fromLenientJson } from "@multi/shared/schema-json";
+import { fromLenientJson } from "@honk/shared/schema-json";
 
 type WhenToken =
   | { type: "identifier"; value: string }
@@ -534,7 +534,7 @@ export interface KeybindingsShape {
  * Keybindings - Service tag for keybinding configuration operations.
  */
 export class Keybindings extends Context.Service<Keybindings, KeybindingsShape>()(
-  "multi/keybindings",
+  "honk/keybindings",
 ) {}
 
 const makeKeybindings = Effect.gen(function* () {

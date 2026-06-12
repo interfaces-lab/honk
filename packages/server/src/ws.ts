@@ -23,8 +23,8 @@ import {
   type TerminalEvent,
   WS_METHODS,
   WsRpcGroup,
-} from "@multi/contracts";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { clamp } from "effect/Number";
 import { HttpRouter, HttpServerRequest } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";

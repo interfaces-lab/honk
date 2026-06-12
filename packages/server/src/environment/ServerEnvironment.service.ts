@@ -1,4 +1,4 @@
-import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@multi/contracts";
+import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect } from "effect";
 
@@ -9,5 +9,5 @@ export interface ServerEnvironmentShape {
 }
 
 export class ServerEnvironment extends Context.Service<ServerEnvironment, ServerEnvironmentShape>()(
-  "multi/environment/ServerEnvironment.service",
+  "honk/environment/ServerEnvironment.service",
 ) {}

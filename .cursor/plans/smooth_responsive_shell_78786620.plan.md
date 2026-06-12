@@ -1,6 +1,6 @@
 ---
 name: Smooth responsive shell
-overview: Fix Multi's broken narrow-layout sidebar by splitting user intent (Zustand) from presentation (ResizeObserver + CSS), mirroring Cursor's layout-service model. Remove CSS force-hides, add overlay drawers with GPU-friendly motion, and tighten sash/width authority for smooth resize and toggle.
+overview: Fix Honk's broken narrow-layout sidebar by splitting user intent (Zustand) from presentation (ResizeObserver + CSS), mirroring Cursor's layout-service model. Remove CSS force-hides, add overlay drawers with GPU-friendly motion, and tighten sash/width authority for smooth resize and toggle.
 todos:
   - id: shell-layout-resolver
     content: Add shell-layout.ts + use-shell-layout.ts (pure resolver + ResizeObserver with enum-only updates)
@@ -41,9 +41,9 @@ All five subagents agree on diagnosis and direction:
 - **CSS classes** on `.monaco-workbench` — visibility presentation
 - **Commit-only persistence** — save on pointer-up / shutdown, not on window resize
 
-Multi already mirrors the hardest part in `[use-column-resize.ts](packages/app/src/components/shell/shell/use-column-resize.ts)`: rAF-throttled inline `style.width` during drag, Zustand commit only on pointer-up. **Do not replace this with React width state.**
+Honk already mirrors the hardest part in `[use-column-resize.ts](packages/app/src/components/shell/shell/use-column-resize.ts)`: rAF-throttled inline `style.width` during drag, Zustand commit only on pointer-up. **Do not replace this with React width state.**
 
-What Multi should change:
+What Honk should change:
 
 
 | Layer          | Today                            | Target                                                                               |
@@ -194,7 +194,7 @@ After pointer-up (and when collapsing), `**elementRef.current.style.removeProper
 - Overlay panels: `transform: translateX(±100%) → 0`, `transition: transform 200ms cubic-bezier(0.19,1,0.22,1)` (match existing right inline easing)
 - Backdrop: `opacity` fade 200ms, `bg-black/32 backdrop-blur-sm` (mirror `[dialog.tsx](packages/multikit/src/dialog.tsx)`)
 - `**motion-reduce:transition-none`** on all shell motion (already used on asides)
-- Disable `backdrop-filter` on `.multi-shell-sidebar` during `data-resizing` / transition (glass recomposite jank)
+- Disable `backdrop-filter` on `.honk-shell-sidebar` during `data-resizing` / transition (glass recomposite jank)
 
 **New tokens in** `[packages/multikit/src/styles.css](packages/multikit/src/styles.css)`:
 
@@ -225,7 +225,7 @@ Defer `visibility: hidden` until width transition completes (or use `opacity` + 
 
 **Edit:** `[right-workbench-layout.tsx](packages/app/src/components/shell/shell/right-workbench-layout.tsx)`
 
-Move `transition-[width]` to `.multi-shell-secondary-rail` (width-bearing node), not inner flex child.
+Move `transition-[width]` to `.honk-shell-secondary-rail` (width-bearing node), not inner flex child.
 
 ### F. Reduce React subscriptions on resize
 
@@ -291,7 +291,7 @@ After shell fix, center pane width is trustworthy. Add container `ResizeObserver
 
 ```bash
 pnpm run typecheck
-pnpm --filter @multi/app exec vitest run packages/app/src/components/shell/shell/shell-layout.test.ts
+pnpm --filter @honk/app exec vitest run packages/app/src/components/shell/shell/shell-layout.test.ts
 ```
 
 Manual matrix: 1400 / 850 / 500px — toggle left, toggle right, drag sash, Escape, scrim, reduced motion, Electron titlebar controls still reachable (`no-drag` on overlay panel).

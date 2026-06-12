@@ -41,14 +41,14 @@ delete childEnv.ELECTRON_RUN_AS_NODE;
 
 function resolveDevUserDataDir() {
   if (process.platform === "win32") {
-    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "multi-dev");
+    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "honk-dev");
   }
 
   if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "multi-dev");
+    return join(homedir(), "Library", "Application Support", "honk-dev");
   }
 
-  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "multi-dev");
+  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "honk-dev");
 }
 
 const devUserDataDir = resolveDevUserDataDir();
@@ -196,7 +196,7 @@ function findStaleDevProcessPids() {
     return { appPids: [], ownerPids: [] };
   }
 
-  const marker = `--multi-dev-root=${desktopDir}`;
+  const marker = `--honk-dev-root=${desktopDir}`;
   const appPids = new Set();
   const ownerPids = new Set();
 
@@ -264,7 +264,7 @@ function startApp() {
     [
       "--trace-warnings",
       `--user-data-dir=${devUserDataDir}`,
-      `--multi-dev-root=${desktopDir}`,
+      `--honk-dev-root=${desktopDir}`,
       "out/main/index.js",
     ],
     {

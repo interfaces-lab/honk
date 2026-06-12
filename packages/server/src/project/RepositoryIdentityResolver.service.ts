@@ -1,4 +1,4 @@
-import type { RepositoryIdentity } from "@multi/contracts";
+import type { RepositoryIdentity } from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect } from "effect";
 
@@ -9,4 +9,4 @@ export interface RepositoryIdentityResolverShape {
 export class RepositoryIdentityResolver extends Context.Service<
   RepositoryIdentityResolver,
   RepositoryIdentityResolverShape
->()("multi/project/RepositoryIdentityResolver.service") {}
+>()("honk/project/RepositoryIdentityResolver.service") {}

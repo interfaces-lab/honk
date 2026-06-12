@@ -4,7 +4,7 @@ import type {
   OrchestrationProposedPlanId,
   AgentInteractionMode,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import type { WorkLogEntry, WorkLogSubagent } from "../../../session-logic";
 import { DEFAULT_INTERACTION_MODE, type Thread } from "../../../types";

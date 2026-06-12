@@ -9,7 +9,7 @@ import type {
   AuthSessionState,
   ServerAuthDescriptor,
   ServerAuthSessionMethod,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Data, DateTime, Context } from "effect";
 import type { Effect } from "effect";
 import type * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
@@ -65,5 +65,5 @@ export interface ServerAuthShape {
 }
 
 export class ServerAuth extends Context.Service<ServerAuth, ServerAuthShape>()(
-  "multi/auth/ServerAuth.service",
+  "honk/auth/ServerAuth.service",
 ) {}

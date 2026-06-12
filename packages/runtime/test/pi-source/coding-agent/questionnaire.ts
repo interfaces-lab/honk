@@ -222,7 +222,7 @@ export default function questionnaire(pi: ExtensionAPI) {
           const q = currentQuestion();
           const opts = currentOptions();
 
-          // Tab navigation (multi-question only)
+          // Tab navigation (honk-question only)
           if (isMulti) {
             if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
               currentTab = (currentTab + 1) % totalTabs;
@@ -293,7 +293,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 
           add(theme.fg("accent", "─".repeat(width)));
 
-          // Tab bar (multi-question only)
+          // Tab bar (honk-question only)
           if (isMulti) {
             const tabs: string[] = ["← "];
             for (let i = 0; i < questions.length; i++) {

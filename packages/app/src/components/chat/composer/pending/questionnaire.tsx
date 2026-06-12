@@ -16,7 +16,7 @@ export function QuestionnaireSurface(props: { children: ReactNode }) {
   return (
     <div
       data-questionnaire-surface=""
-      className="flex flex-col gap-3 rounded-[inherit] bg-(--multi-composer-surface-opaque-background) p-1.5 px-4 py-3 sm:px-5"
+      className="flex flex-col gap-3 rounded-[inherit] bg-(--honk-composer-surface-opaque-background) p-1.5 px-4 py-3 sm:px-5"
     >
       {props.children}
     </div>
@@ -31,9 +31,9 @@ export function QuestionnaireHeader(props: {
   return (
     <div className="relative ml-1 flex items-center gap-2 text-conversation">
       {props.icon ? <span className="mt-0.5 inline-block opacity-70">{props.icon}</span> : null}
-      <span className="inline-block min-w-0 truncate text-multi-fg-primary">{props.title}</span>
+      <span className="inline-block min-w-0 truncate text-honk-fg-primary">{props.title}</span>
       {props.trailing ? (
-        <span className="ml-auto mr-0.5 inline-flex items-center gap-1 text-caption tabular-nums text-multi-fg-secondary">
+        <span className="ml-auto mr-0.5 inline-flex items-center gap-1 text-caption tabular-nums text-honk-fg-secondary">
           {props.trailing}
         </span>
       ) : null}
@@ -46,9 +46,9 @@ export function QuestionnaireQuestionLabel(props: {
   children: ReactNode;
 }) {
   return (
-    <div className="ml-1.5 flex items-start gap-2 text-conversation font-[590] leading-[135%] text-multi-fg-primary">
+    <div className="ml-1.5 flex items-start gap-2 text-conversation font-[590] leading-[135%] text-honk-fg-primary">
       {props.number ? (
-        <span className="w-3 min-w-3 shrink-0 text-left text-multi-fg-secondary">
+        <span className="w-3 min-w-3 shrink-0 text-left text-honk-fg-secondary">
           {props.number}
         </span>
       ) : null}
@@ -75,7 +75,7 @@ export function QuestionnaireOptionLetter(props: { selected: boolean; children: 
       className={
         props.selected
           ? "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-(--cursor-text-yellow-primary,var(--warning)) bg-(--cursor-text-yellow-primary,var(--warning)) p-px font-sans text-[10px] font-bold leading-none text-(--cursor-editor,var(--background))"
-          : "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-multi-stroke-tertiary bg-transparent p-px font-sans text-[10px] font-bold leading-none text-multi-fg-secondary"
+          : "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-honk-stroke-tertiary bg-transparent p-px font-sans text-[10px] font-bold leading-none text-honk-fg-secondary"
       }
       aria-hidden="true"
     >
@@ -102,8 +102,8 @@ export function QuestionnaireOptionButton(props: {
       onClick={props.onSelect}
       className={[
         "flex cursor-pointer items-start gap-2 overflow-hidden rounded-[4px] border border-transparent px-1 py-[3px] text-left",
-        "hover:bg-multi-bg-tertiary",
-        "focus-visible:bg-multi-bg-tertiary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--multi-stroke-focused)",
+        "hover:bg-honk-bg-tertiary",
+        "focus-visible:bg-honk-bg-tertiary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--honk-stroke-focused)",
         props.disabled ? "cursor-not-allowed opacity-60" : "",
       ].join(" ")}
     >
@@ -114,14 +114,14 @@ export function QuestionnaireOptionButton(props: {
         <span
           className={
             props.selected
-              ? "text-conversation text-multi-fg-primary"
-              : "text-conversation text-multi-fg-secondary"
+              ? "text-conversation text-honk-fg-primary"
+              : "text-conversation text-honk-fg-secondary"
           }
         >
           {props.label}
         </span>
         {props.description ? (
-          <span className="ml-2 text-caption text-multi-fg-tertiary">{props.description}</span>
+          <span className="ml-2 text-caption text-honk-fg-tertiary">{props.description}</span>
         ) : null}
       </span>
     </button>
@@ -153,7 +153,7 @@ export function QuestionnaireFreeformRow(props: {
           event.preventDefault();
           props.onSubmit();
         }}
-        className="min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent p-0 text-conversation leading-[1.4] text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
+        className="min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent p-0 text-conversation leading-[1.4] text-honk-fg-primary outline-none placeholder:text-honk-fg-quaternary"
       />
     </div>
   );

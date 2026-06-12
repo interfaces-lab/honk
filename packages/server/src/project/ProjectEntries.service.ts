@@ -16,7 +16,8 @@ import type {
   ProjectListDirectoryResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
-} from "@multi/contracts";
+} from "@honk/contracts";
+import type { ProjectRootNormalizeError } from "./ProjectPaths.service.ts";
 
 export class ProjectEntriesError extends Schema.TaggedErrorClass<ProjectEntriesError>()(
   "ProjectEntriesError",
@@ -57,14 +58,14 @@ export interface ProjectEntriesShape {
    */
   readonly search: (
     input: ProjectSearchEntriesInput,
-  ) => Effect.Effect<ProjectSearchEntriesResult, ProjectEntriesError>;
+  ) => Effect.Effect<ProjectSearchEntriesResult, ProjectEntriesError | ProjectRootNormalizeError>;
 
   /**
    * List immediate children for explorer/file-tree presentation.
    */
   readonly listDirectory: (
     input: ProjectListDirectoryInput,
-  ) => Effect.Effect<ProjectListDirectoryResult, ProjectEntriesError>;
+  ) => Effect.Effect<ProjectListDirectoryResult, ProjectEntriesError | ProjectRootNormalizeError>;
 
   /**
    * Drop any cached project entries for the given project root.
@@ -76,5 +77,5 @@ export interface ProjectEntriesShape {
  * ProjectEntries - Service tag for cached project entry search.
  */
 export class ProjectEntries extends Context.Service<ProjectEntries, ProjectEntriesShape>()(
-  "multi/project/ProjectEntries.service",
+  "honk/project/ProjectEntries.service",
 ) {}

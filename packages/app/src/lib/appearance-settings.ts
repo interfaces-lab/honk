@@ -7,13 +7,13 @@ import {
 } from "./appearance-colors";
 import { BASE_UI_FONT_PX, uiFontSizeToZoomFactor } from "./display-zoom";
 
-export const STORAGE_REDUCE_TRANSPARENCY = "multi:reduce-transparency";
-export const STORAGE_TINT_HUE = "multi:accent-hue";
-export const STORAGE_TINT_SATURATION = "multi:accent-saturation";
-export const STORAGE_UI_FONT_SIZE = "multi:ui-font-size";
-export const STORAGE_CODE_FONT_SIZE = "multi:code-font-size";
-export const STORAGE_UI_FONT = "multi:ui-font";
-export const STORAGE_CODE_FONT = "multi:mono-font";
+export const STORAGE_REDUCE_TRANSPARENCY = "honk:reduce-transparency";
+export const STORAGE_TINT_HUE = "honk:accent-hue";
+export const STORAGE_TINT_SATURATION = "honk:accent-saturation";
+export const STORAGE_UI_FONT_SIZE = "honk:ui-font-size";
+export const STORAGE_CODE_FONT_SIZE = "honk:code-font-size";
+export const STORAGE_UI_FONT = "honk:ui-font";
+export const STORAGE_CODE_FONT = "honk:mono-font";
 
 export const APPEARANCE_SETTINGS_CHANGED = "appearance-settings-changed" as const;
 
@@ -69,15 +69,15 @@ function emitAppearanceSettingsChanged() {
 function wantsOsVibrancy() {
   if (localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1") return false;
   if (!isElectron) return false;
-  if (document.body.getAttribute("data-multi-glass-mode") !== "true") return false;
+  if (document.body.getAttribute("data-honk-glass-mode") !== "true") return false;
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
 function syncVibrancy() {
   const wantsVibrancy = wantsOsVibrancy();
-  const glassMode = document.body.getAttribute("data-multi-glass-mode") === "true";
-  document.body.classList.toggle("multi-os-vibrancy-on", glassMode && wantsVibrancy);
-  document.body.classList.toggle("multi-os-vibrancy-off", glassMode && !wantsVibrancy);
+  const glassMode = document.body.getAttribute("data-honk-glass-mode") === "true";
+  document.body.classList.toggle("honk-os-vibrancy-on", glassMode && wantsVibrancy);
+  document.body.classList.toggle("honk-os-vibrancy-off", glassMode && !wantsVibrancy);
 
   const bridge = window.desktopBridge;
   if (!bridge?.setVibrancy) return;
@@ -92,7 +92,7 @@ export function syncAppearanceDisplayZoom() {
   const uiFontSizePx = readStoredUiFontSizePx();
   const zoomFactor = uiFontSizeToZoomFactor(uiFontSizePx);
   const root = document.documentElement;
-  root.style.setProperty("--multi-display-zoom-factor", String(zoomFactor));
+  root.style.setProperty("--honk-display-zoom-factor", String(zoomFactor));
 
   if (!isElectron) {
     return;
@@ -112,23 +112,23 @@ function applyChromeRoot() {
   const body = document.body;
 
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
-  body.classList.toggle("multi-reduce-transparency", reduce);
+  body.classList.toggle("honk-reduce-transparency", reduce);
 
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);
-  root.style.setProperty("--multi-ui-font-size-user", `${BASE_UI_FONT_PX}px`);
-  root.style.setProperty("--multi-code-font-size-user", `${codePx}px`);
+  root.style.setProperty("--honk-ui-font-size-user", `${BASE_UI_FONT_PX}px`);
+  root.style.setProperty("--honk-code-font-size-user", `${codePx}px`);
 
   const uiFont = localStorage.getItem(STORAGE_UI_FONT)?.trim() ?? "";
   const codeFont = localStorage.getItem(STORAGE_CODE_FONT)?.trim() ?? "";
   if (uiFont) {
-    root.style.setProperty("--multi-font-ui", uiFont);
+    root.style.setProperty("--honk-font-ui", uiFont);
   } else {
-    root.style.removeProperty("--multi-font-ui");
+    root.style.removeProperty("--honk-font-ui");
   }
   if (codeFont) {
-    root.style.setProperty("--multi-font-mono", codeFont);
+    root.style.setProperty("--honk-font-mono", codeFont);
   } else {
-    root.style.removeProperty("--multi-font-mono");
+    root.style.removeProperty("--honk-font-mono");
   }
 
   const hue = parseIntStored(
@@ -138,8 +138,8 @@ function applyChromeRoot() {
     360,
   );
   const intensity = readTintSaturation();
-  root.style.setProperty("--multi-user-hue", String(hue));
-  root.style.setProperty("--multi-intensity", String(intensity));
+  root.style.setProperty("--honk-user-hue", String(hue));
+  root.style.setProperty("--honk-intensity", String(intensity));
   applyAppearanceBaseColors(root, getAppearanceThemeMode(root), hue, intensity);
 }
 

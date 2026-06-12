@@ -1,5 +1,5 @@
-import { ClientSettingsSchema, type ClientSettings } from "@multi/contracts";
-import { fromLenientJson } from "@multi/shared/schema-json";
+import { ClientSettingsSchema, type ClientSettings } from "@honk/contracts";
+import { fromLenientJson } from "@honk/shared/schema-json";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -36,7 +36,7 @@ export interface DesktopClientSettingsShape {
 export class DesktopClientSettings extends Context.Service<
   DesktopClientSettings,
   DesktopClientSettingsShape
->()("multi/desktop/ClientSettings") {}
+>()("honk/desktop/ClientSettings") {}
 
 const readClientSettings = (
   fileSystem: FileSystem.FileSystem,

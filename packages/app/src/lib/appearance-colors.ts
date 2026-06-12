@@ -1,11 +1,11 @@
 export type AppearanceThemeMode = "light" | "dark";
 
 export type AppearanceBaseTokenName =
-  | "--multi-base-sidebar"
-  | "--multi-base-chrome"
-  | "--multi-base-editor"
-  | "--multi-base-accent"
-  | "--multi-base-focus";
+  | "--honk-base-sidebar"
+  | "--honk-base-chrome"
+  | "--honk-base-editor"
+  | "--honk-base-accent"
+  | "--honk-base-focus";
 
 export type AppearanceBaseColors = Record<AppearanceBaseTokenName, string>;
 
@@ -20,12 +20,12 @@ type CursorCoreTokenName =
   | "--cursor-accent"
   | "--cursor-focus";
 
-type MultiCursorTokenName =
-  | "--multi-cursor-sidebar"
-  | "--multi-cursor-chrome"
-  | "--multi-cursor-editor"
-  | "--multi-cursor-accent"
-  | "--multi-cursor-focus";
+type HonkCursorTokenName =
+  | "--honk-cursor-sidebar"
+  | "--honk-cursor-chrome"
+  | "--honk-cursor-editor"
+  | "--honk-cursor-accent"
+  | "--honk-cursor-focus";
 
 type HslColor = {
   readonly h: number;
@@ -65,19 +65,19 @@ const TINT_TOKENS: readonly TintTokenConfig[] = [
 ];
 
 const APPEARANCE_BASE_TOKEN_NAMES: readonly AppearanceBaseTokenName[] = [
-  "--multi-base-sidebar",
-  "--multi-base-chrome",
-  "--multi-base-editor",
-  "--multi-base-accent",
-  "--multi-base-focus",
+  "--honk-base-sidebar",
+  "--honk-base-chrome",
+  "--honk-base-editor",
+  "--honk-base-accent",
+  "--honk-base-focus",
 ];
 
-const MULTI_CURSOR_TOKEN_NAMES: readonly MultiCursorTokenName[] = [
-  "--multi-cursor-sidebar",
-  "--multi-cursor-chrome",
-  "--multi-cursor-editor",
-  "--multi-cursor-accent",
-  "--multi-cursor-focus",
+const HONK_CURSOR_TOKEN_NAMES: readonly HonkCursorTokenName[] = [
+  "--honk-cursor-sidebar",
+  "--honk-cursor-chrome",
+  "--honk-cursor-editor",
+  "--honk-cursor-accent",
+  "--honk-cursor-focus",
 ];
 
 const CURSOR_CORE_TOKEN_NAMES: readonly CursorCoreTokenName[] = [
@@ -88,7 +88,7 @@ const CURSOR_CORE_TOKEN_NAMES: readonly CursorCoreTokenName[] = [
   "--cursor-focus",
 ];
 
-const APPEARANCE_TINT_STYLE_ID = "multi-custom-tint-tokens";
+const APPEARANCE_TINT_STYLE_ID = "honk-custom-tint-tokens";
 
 export const DEFAULT_APPEARANCE_TINT_HUE = 261;
 export const DEFAULT_APPEARANCE_TINT_INTENSITY = 20;
@@ -196,7 +196,7 @@ function removeAppearanceTintStyleElement(root: HTMLElement) {
 
 function removeStaleInlineTintTokens(root: HTMLElement) {
   for (const token of APPEARANCE_BASE_TOKEN_NAMES) root.style.removeProperty(token);
-  for (const token of MULTI_CURSOR_TOKEN_NAMES) root.style.removeProperty(token);
+  for (const token of HONK_CURSOR_TOKEN_NAMES) root.style.removeProperty(token);
   for (const token of CURSOR_CORE_TOKEN_NAMES) root.style.removeProperty(token);
 }
 
@@ -220,11 +220,11 @@ export function buildAppearanceBaseColors(
   }
 
   return {
-    "--multi-base-sidebar": colors.sidebar,
-    "--multi-base-chrome": colors.chrome,
-    "--multi-base-editor": colors.editor,
-    "--multi-base-accent": colors.accent,
-    "--multi-base-focus": colors.focus,
+    "--honk-base-sidebar": colors.sidebar,
+    "--honk-base-chrome": colors.chrome,
+    "--honk-base-editor": colors.editor,
+    "--honk-base-accent": colors.accent,
+    "--honk-base-focus": colors.focus,
   };
 }
 
@@ -245,11 +245,11 @@ export function applyAppearanceBaseColors(
 
   for (const [token, value] of Object.entries(colors) as Array<[AppearanceBaseTokenName, string]>) {
     lines.push(`  ${token}: ${value};`);
-    lines.push(`  ${token.replace("--multi-base-", "--multi-cursor-")}: ${value};`);
-    lines.push(`  ${token.replace("--multi-base-", "--cursor-")}: ${value};`);
+    lines.push(`  ${token.replace("--honk-base-", "--honk-cursor-")}: ${value};`);
+    lines.push(`  ${token.replace("--honk-base-", "--cursor-")}: ${value};`);
   }
 
   removeStaleInlineTintTokens(root);
   getAppearanceTintStyleElement(root).textContent =
-    `body[data-multi-glass-mode="true"] {\n${lines.join("\n")}\n}`;
+    `body[data-honk-glass-mode="true"] {\n${lines.join("\n")}\n}`;
 }

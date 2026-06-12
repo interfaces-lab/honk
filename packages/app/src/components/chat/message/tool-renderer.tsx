@@ -23,8 +23,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { ConversationDensity } from "@multi/contracts/settings";
-import { shouldUseCompactEdits, shouldUseCompactShells } from "@multi/shared/conversation-density";
+import type { ConversationDensity } from "@honk/contracts/settings";
+import { shouldUseCompactEdits, shouldUseCompactShells } from "@honk/shared/conversation-density";
 import {
   formatDuration,
   type ToolCommandArtifact,
@@ -37,7 +37,7 @@ import {
 } from "../../../session-logic";
 import { cn } from "~/lib/utils";
 import { InlineToolDiff } from "./tool-inline-diff";
-import { Badge } from "@multi/multikit/badge";
+import { Badge } from "@honk/multikit/badge";
 import {
   ToolCallLine,
   ToolCallLineChevron,
@@ -55,8 +55,8 @@ import {
   ToolCallTaskTitleArea,
   toolCallLineActionVariants,
   toolCallLineVariants,
-} from "@multi/multikit/tool-call";
-import { Button } from "@multi/multikit/button";
+} from "@honk/multikit/tool-call";
+import { Button } from "@honk/multikit/button";
 import {
   parseFindOutput,
   parseGrepOutput,
@@ -161,10 +161,11 @@ export interface ToolCallRendererProps {
   onUrlClick?: ((url: string) => void) | undefined;
   onNestedToolExpand?: ((callId: string | undefined, expanded: boolean) => void) | undefined;
   defaultExpanded?: boolean | undefined;
+  defaultEditExpanded?: boolean | undefined;
   conversationDensity?: ConversationDensity | undefined;
 }
 
-const thinkingStatusTaskVariants = cva(cn("min-w-0", "text-conversation text-multi-fg-tertiary"), {
+const thinkingStatusTaskVariants = cva(cn("min-w-0", "text-conversation text-honk-fg-tertiary"), {
   variants: {
     active: {
       false: "",
@@ -183,9 +184,9 @@ const thinkingStatusTaskVariants = cva(cn("min-w-0", "text-conversation text-mul
 
 const editToolCallFilenameVariants = cva(
   cn(
-    "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
+    "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary",
     "transition-colors duration-100",
-    "group-hover/tool-call-line:text-multi-fg-secondary",
+    "group-hover/tool-call-line:text-honk-fg-secondary",
   ),
   {
     variants: {
@@ -195,7 +196,7 @@ const editToolCallFilenameVariants = cva(
       },
       isDelete: {
         false: "",
-        true: "group-hover/tool-call-line:text-multi-fg-tertiary",
+        true: "group-hover/tool-call-line:text-honk-fg-tertiary",
       },
     },
     defaultVariants: {
@@ -216,7 +217,7 @@ export function ThinkingStatus({
 }) {
   return (
     <div className={cn("flex min-h-6 gap-1 py-0.5", wrap ? "items-start" : "items-center")}>
-      <IconRobot className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+      <IconRobot className="size-3.5 shrink-0 text-honk-fg-tertiary" />
       <span className={thinkingStatusTaskVariants({ active, wrap })}>{task}</span>
     </div>
   );
@@ -234,6 +235,7 @@ export function ToolCallRenderer({
   onUrlClick,
   onNestedToolExpand,
   defaultExpanded = false,
+  defaultEditExpanded,
   conversationDensity = "compact-all-grouped",
 }: ToolCallRendererProps) {
   const { action, details, command, output, path, stats, artifacts } = toolCall.tool.value;
@@ -314,7 +316,7 @@ export function ToolCallRenderer({
           detail={output ?? details ?? null}
           diffArtifact={artifactLookup.diff}
           isDelete={toolCall.tool.case === "deleteToolCall"}
-          defaultExpanded={defaultExpanded}
+          defaultExpanded={defaultEditExpanded ?? defaultExpanded}
           onFileClick={onFileClick}
           onNestedToolExpand={onNestedToolExpand}
           callId={callId}
@@ -565,7 +567,7 @@ function TaskToolCall({
           {loading ? (
             <IconClock className="tool-call-shimmer size-3.5" />
           ) : hasError ? (
-            <IconWarningSign className="size-3.5 text-multi-fg-red-primary" />
+            <IconWarningSign className="size-3.5 text-honk-fg-red-primary" />
           ) : (
             <IconCheckCircle2 className="size-3.5" />
           )}
@@ -685,7 +687,7 @@ export function ExpandableToolMetadataLine({
 
   const headerInner = (
     <>
-      {Icon ? <Icon className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+      {Icon ? <Icon className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
       <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
         {action}
       </span>
@@ -711,10 +713,10 @@ export function ExpandableToolMetadataLine({
               variant="ghost"
               className={cn(
                 "inline-flex size-4 shrink-0 cursor-pointer items-center justify-center",
-                "border-0 bg-transparent p-0 text-multi-fg-tertiary",
+                "border-0 bg-transparent p-0 text-honk-fg-tertiary",
                 "opacity-0 transition-[color,opacity] duration-100",
-                "hover:text-multi-fg-secondary hover:opacity-100",
-                "focus-visible:text-multi-fg-secondary focus-visible:opacity-100",
+                "hover:text-honk-fg-secondary hover:opacity-100",
+                "focus-visible:text-honk-fg-secondary focus-visible:opacity-100",
                 "aria-expanded:opacity-100 group-hover/metadata-tool:opacity-100",
               )}
               aria-label={isExpanded ? "Collapse tool output" : "Expand tool output"}
@@ -743,13 +745,13 @@ export function ExpandableToolMetadataLine({
       </div>
       {showBody ? (
         <div
-          className="mt-1 max-w-agent-chat font-mono text-conversation text-multi-fg-tertiary"
+          className="mt-1 max-w-agent-chat font-mono text-conversation text-honk-fg-tertiary"
           data-tool-call-line-body=""
         >
           {bodyText ? (
             <>
               {displayOutput?.truncated ? (
-                <div className="pb-1 font-mono text-detail text-multi-fg-tertiary select-none">
+                <div className="pb-1 font-mono text-detail text-honk-fg-tertiary select-none">
                   Showing latest output while tool runs.
                 </div>
               ) : null}
@@ -774,7 +776,7 @@ export function ExpandableToolMetadataLine({
             </>
           ) : null}
           {isExpanded && metadataItems.length > 0 ? (
-            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-detail text-multi-fg-tertiary">
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-detail text-honk-fg-tertiary">
               {metadataItems.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -837,7 +839,7 @@ function SearchToolCall({
   const headerInner = (
     <>
       {showIcon ? (
-        <IconMagnifyingGlass className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+        <IconMagnifyingGlass className="size-3.5 shrink-0 text-honk-fg-tertiary" />
       ) : null}
       <span className={toolCallLineActionVariants({ loading })} data-tool-call-line-action="">
         {action}
@@ -847,7 +849,7 @@ function SearchToolCall({
         <Badge
           variant="outline"
           size="sm"
-          className="ml-1 h-4 shrink-0 border-multi-stroke-secondary bg-transparent px-1 font-mono text-caption text-multi-fg-tertiary tabular-nums"
+          className="ml-1 h-4 shrink-0 border-honk-stroke-secondary bg-transparent px-1 font-mono text-caption text-honk-fg-tertiary tabular-nums"
         >
           {badgeText}
         </Badge>
@@ -884,7 +886,7 @@ function SearchToolCall({
       </Button>
       {isExpanded ? (
         <div className="mt-1 max-w-agent-chat" data-tool-call-line-body="">
-          <div className="max-h-[min(42vh,520px)] overflow-y-auto font-mono text-conversation text-multi-fg-tertiary">
+          <div className="max-h-[min(42vh,520px)] overflow-y-auto font-mono text-conversation text-honk-fg-tertiary">
             <SearchOutputBody parsedOutput={parsedOutput} fallbackText={outputText} />
           </div>
         </div>
@@ -916,10 +918,10 @@ function SearchOutputBody({
 
 function GrepOutputBody({ files }: { files: ReadonlyArray<ParsedGrepFile> }) {
   return (
-    <div className="min-w-0 divide-y divide-multi-stroke-secondary/60">
+    <div className="min-w-0 divide-y divide-honk-stroke-secondary/60">
       {files.map((file) => (
         <div key={file.path} className="min-w-0 py-1.5 first:pt-0 last:pb-0">
-          <div className="flex min-w-0 items-center gap-1.5 text-multi-fg-secondary">
+          <div className="flex min-w-0 items-center gap-1.5 text-honk-fg-secondary">
             <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
               {file.path}
             </span>
@@ -927,7 +929,7 @@ function GrepOutputBody({ files }: { files: ReadonlyArray<ParsedGrepFile> }) {
               <Badge
                 variant="outline"
                 size="sm"
-                className="h-4 shrink-0 border-multi-stroke-secondary bg-transparent px-1 text-caption text-multi-fg-tertiary"
+                className="h-4 shrink-0 border-honk-stroke-secondary bg-transparent px-1 text-caption text-honk-fg-tertiary"
               >
                 {file.annotation}
               </Badge>
@@ -939,11 +941,11 @@ function GrepOutputBody({ files }: { files: ReadonlyArray<ParsedGrepFile> }) {
                 key={`${file.path}:${line.lineNumber}:${line.separator}:${line.text}`}
                 className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-2"
               >
-                <span className="text-right text-multi-fg-quaternary tabular-nums select-none">
+                <span className="text-right text-honk-fg-quaternary tabular-nums select-none">
                   {line.lineNumber}
                   {line.separator}
                 </span>
-                <span className="min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary wrap-anywhere select-text">
+                <span className="min-w-0 whitespace-pre-wrap break-words text-honk-fg-tertiary wrap-anywhere select-text">
                   {line.text}
                 </span>
               </div>
@@ -963,14 +965,14 @@ function FindOutputBody({ files }: { files: ReadonlyArray<ParsedFindFile> }) {
           key={`${file.path}:${file.annotation ?? ""}`}
           className="flex min-w-0 items-center gap-1.5 py-0.5"
         >
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary select-text">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary select-text">
             {file.path}
           </span>
           {file.annotation ? (
             <Badge
               variant="outline"
               size="sm"
-              className="h-4 shrink-0 border-multi-stroke-secondary bg-transparent px-1 text-caption text-multi-fg-tertiary"
+              className="h-4 shrink-0 border-honk-stroke-secondary bg-transparent px-1 text-caption text-honk-fg-tertiary"
             >
               {file.annotation}
             </Badge>
@@ -1130,11 +1132,11 @@ function ShellToolCall({
                   "m-0",
                   "px-(--conversation-tool-card-padding-x) py-1.5",
                   "font-mono text-conversation whitespace-pre-wrap",
-                  hasError ? "text-multi-fg-red-primary" : "text-multi-fg-tertiary",
+                  hasError ? "text-honk-fg-red-primary" : "text-honk-fg-tertiary",
                   "wrap-anywhere select-text",
                 )}
               >
-                <span className="text-multi-fg-tertiary select-none">$ </span>
+                <span className="text-honk-fg-tertiary select-none">$ </span>
                 <ShellCommandTokens command={bodyCommand} />
               </pre>
             ) : null}
@@ -1144,7 +1146,7 @@ function ShellToolCall({
               preview={showStreamingPreview && !isExpanded ? true : showCollapsedOutputPreview}
             />
             {isExpanded && metadataItems.length > 0 ? (
-              <div className="flex flex-wrap gap-x-2 gap-y-1 py-1 text-detail text-multi-fg-tertiary">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 py-1 text-detail text-honk-fg-tertiary">
                 {metadataItems.map((item) => (
                   <span key={item}>{item}</span>
                 ))}
@@ -1183,7 +1185,7 @@ const ShellToolCallHeader = memo(function ShellToolCallHeader({
       hasError={hasError}
       onClick={onToggleExpanded}
     >
-      {showIcon ? <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" /> : null}
+      {showIcon ? <IconConsole className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
       <span
         className={cn(
           "inline-flex min-w-0 max-w-full items-center gap-1",
@@ -1195,7 +1197,7 @@ const ShellToolCallHeader = memo(function ShellToolCallHeader({
         </span>
         {details ? (
           <span
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary"
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary"
             data-tool-call-line-details=""
           >
             {details}
@@ -1232,7 +1234,7 @@ const ShellOutputBlock = memo(function ShellOutputBlock({
   return (
     <>
       {displayOutput.truncated ? (
-        <div className="px-(--conversation-tool-card-padding-x) pb-1 font-mono text-detail text-multi-fg-tertiary select-none">
+        <div className="px-(--conversation-tool-card-padding-x) pb-1 font-mono text-detail text-honk-fg-tertiary select-none">
           Showing latest output while command runs.
         </div>
       ) : null}
@@ -1255,7 +1257,7 @@ const ShellOutputBlock = memo(function ShellOutputBlock({
             "m-0",
             "px-(--conversation-tool-card-padding-x) pb-1.5",
             "font-mono text-conversation whitespace-pre-wrap",
-            "text-multi-fg-tertiary wrap-anywhere select-text",
+            "text-honk-fg-tertiary wrap-anywhere select-text",
           )}
           data-shell-tool-call-output=""
           data-output-truncated={displayOutput.truncated ? "true" : undefined}
@@ -1356,7 +1358,7 @@ function EditToolCall({
             onClick={toggleExpanded}
           >
             {showIcon ? (
-              <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+              <IconFileEdit className="size-3.5 shrink-0 text-honk-fg-tertiary" />
             ) : null}
             <span className={toolCallLineActionVariants()}>{action}</span>
             <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
@@ -1377,7 +1379,7 @@ function EditToolCall({
                 onClick={() => onFileClick(path)}
               >
                 {showIcon ? (
-                  <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+                  <IconFileEdit className="size-3.5 shrink-0 text-honk-fg-tertiary" />
                 ) : null}
                 <span className={toolCallLineActionVariants()}>{action}</span>
                 <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
@@ -1386,7 +1388,7 @@ function EditToolCall({
             ) : (
               <div className={toolCallLineVariants({ clickable: false })} data-tool-call-line="">
                 {showIcon ? (
-                  <IconFileEdit className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+                  <IconFileEdit className="size-3.5 shrink-0 text-honk-fg-tertiary" />
                 ) : null}
                 <span className={toolCallLineActionVariants()}>{action}</span>
                 <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
@@ -1401,8 +1403,8 @@ function EditToolCall({
           <div
             className={cn(
               "mt-1 max-w-agent-chat",
-              "overflow-hidden rounded-multi-control border border-multi-stroke-secondary",
-              "font-mono text-conversation text-multi-fg-tertiary",
+              "overflow-hidden rounded-honk-control border border-honk-stroke-secondary",
+              "font-mono text-conversation text-honk-fg-tertiary",
               showCollapsedPreview && "max-h-[var(--streaming-tool-output-preview-max-height)]",
             )}
             style={
@@ -1434,8 +1436,8 @@ function EditStats({ stats }: { stats: ToolCallModel["tool"]["value"]["stats"] |
 
   return (
     <span className="ml-1 inline-flex shrink-0 gap-1 tabular-nums">
-      {additions > 0 ? <span className="text-multi-diff-addition">+{additions}</span> : null}
-      {deletions > 0 ? <span className="text-multi-diff-deletion">-{deletions}</span> : null}
+      {additions > 0 ? <span className="text-honk-diff-addition">+{additions}</span> : null}
+      {deletions > 0 ? <span className="text-honk-diff-deletion">-{deletions}</span> : null}
     </span>
   );
 }
@@ -1497,12 +1499,12 @@ function ShellCommandTokens({ command }: { command: string }) {
 function shellCommandTokenColor(
   kind: "whitespace" | "command" | "flag" | "string" | "operator" | "variable" | "text",
 ): string {
-  if (kind === "command") return "var(--multi-fg-primary)";
-  if (kind === "flag") return "var(--multi-fg-active)";
-  if (kind === "string") return "var(--multi-fg-green-primary)";
-  if (kind === "operator") return "var(--multi-fg-secondary)";
-  if (kind === "variable") return "var(--multi-fg-green-primary)";
-  if (kind === "text") return "var(--multi-fg-secondary)";
+  if (kind === "command") return "var(--honk-fg-primary)";
+  if (kind === "flag") return "var(--honk-fg-active)";
+  if (kind === "string") return "var(--honk-fg-green-primary)";
+  if (kind === "operator") return "var(--honk-fg-secondary)";
+  if (kind === "variable") return "var(--honk-fg-green-primary)";
+  if (kind === "text") return "var(--honk-fg-secondary)";
   return "inherit";
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import type { EditorId, EnvironmentId } from "@multi/contracts";
+import type { EditorId, EnvironmentId } from "@honk/contracts";
+import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { useQuery } from "@tanstack/react-query";
 import {
   Command,
@@ -13,7 +14,7 @@ import {
   CommandItem,
   CommandList,
   CommandPanel,
-} from "@multi/multikit/command";
+} from "@honk/multikit/command";
 import {
   IconBarsThree,
   IconChevronLeftMedium,
@@ -60,14 +61,14 @@ function pushPreviewHistory(current: PreviewHistory, relativePath: string): Prev
 }
 
 function filterOpenFilePaths(paths: readonly string[], query: string): string[] {
-  const normalizedQuery = query.trim().toLowerCase().replace(/\s+/g, " ");
+  const normalizedQuery = normalizeSearchQuery(query);
   const sortedPaths = [...paths].toSorted((left, right) => left.localeCompare(right));
   if (!normalizedQuery) {
     return sortedPaths.slice(0, MAX_OPEN_FILE_RESULTS);
   }
 
   return sortedPaths
-    .filter((path) => path.trim().toLowerCase().replace(/\s+/g, " ").includes(normalizedQuery))
+    .filter((path) => normalizeSearchQuery(path).includes(normalizedQuery))
     .slice(0, MAX_OPEN_FILE_RESULTS);
 }
 
@@ -133,13 +134,13 @@ function ProjectFilesPanelContent(props: {
       onFilePathsChange={setLoadedFilePaths}
       selectedPath={selectedPath}
       active={fileRailOpen || openFileDialogOpen}
-      className="min-h-36 flex-1 border-b-0 bg-(--multi-workbench-panel-background)"
+      className="min-h-36 flex-1 border-b-0 bg-(--honk-workbench-panel-background)"
     />
   );
 
   return (
     <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="multi-workbench-panel-title-row gap-(--multi-workbench-chrome-action-gap)">
+      <div className="honk-workbench-panel-title-row gap-(--honk-workbench-chrome-action-gap)">
         <ModeButton
           active={fileRailOpen}
           chrome="panel"
@@ -175,7 +176,7 @@ function ProjectFilesPanelContent(props: {
         railOpen={fileRailOpen}
         rail={tree}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-editor-surface-background)">
           <div className="flex min-h-0 flex-1 flex-col">
             {selectedPath ? (
               <SourcePreview
@@ -288,9 +289,9 @@ function OpenFileCommandDialog(props: {
                       >
                         <FileTreeFileIcon
                           path={relativePath}
-                          className="size-3.5 text-multi-icon-tertiary"
+                          className="size-3.5 text-honk-icon-tertiary"
                         />
-                        <span className="min-w-0 flex-1 truncate text-body text-multi-fg-primary">
+                        <span className="min-w-0 flex-1 truncate text-body text-honk-fg-primary">
                           {relativePath}
                         </span>
                       </CommandItem>

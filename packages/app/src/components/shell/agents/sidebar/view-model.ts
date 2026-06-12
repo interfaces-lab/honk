@@ -4,7 +4,8 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import type { ScopedThreadRef } from "@multi/contracts";
+import type { ScopedThreadRef } from "@honk/contracts";
+import { contractHomeDir } from "@honk/shared/paths";
 
 import { formatCompactRelativeTimeLabel } from "~/lib/timestamp-format";
 import type {
@@ -29,7 +30,7 @@ function compactSerializedSkillPreviewTokens(text: string): string {
 }
 
 function shortProjectPathLabel(path: string, home: string | null): string {
-  const normalizedPath = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalizedPath = contractHomeDir(path, home);
   if (!normalizedPath) return "Project";
 
   const gitSsh = normalizedPath.match(/git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i);
@@ -38,18 +39,14 @@ function shortProjectPathLabel(path: string, home: string | null): string {
   const gitHttps = normalizedPath.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/|$)/i);
   if (gitHttps) return `${gitHttps[1]}/${gitHttps[2]}`;
 
-  if (home) {
-    const normalizedHome = home.replace(/\\/g, "/").replace(/\/+$/, "");
-    if (normalizedPath === normalizedHome) return "~";
-    const homePrefix = `${normalizedHome}/`;
-    if (normalizedPath.startsWith(homePrefix)) {
-      const relativeSegments = normalizedPath.slice(homePrefix.length).split("/").filter(Boolean);
-      if (relativeSegments.length >= 2) {
-        return `${relativeSegments[relativeSegments.length - 2]}/${relativeSegments[relativeSegments.length - 1]}`;
-      }
-      if (relativeSegments.length === 1) return `~/${relativeSegments[0]}`;
-      return "~";
+  if (normalizedPath === "~") return "~";
+  if (normalizedPath.startsWith("~/")) {
+    const relativeSegments = normalizedPath.slice(2).split("/").filter(Boolean);
+    if (relativeSegments.length >= 2) {
+      return `${relativeSegments[relativeSegments.length - 2]}/${relativeSegments[relativeSegments.length - 1]}`;
     }
+    if (relativeSegments.length === 1) return `~/${relativeSegments[0]}`;
+    return "~";
   }
 
   const segments = normalizedPath.split("/").filter(Boolean);

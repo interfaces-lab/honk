@@ -24,9 +24,9 @@ import {
   type GitFilePatchResult,
   type GitNonTextFileType,
   type GitWorkingTreeFileStatus,
-} from "@multi/contracts";
-import { dedupeRemoteBranchesWithLocalMatches } from "@multi/shared/git";
-import { compactTraceAttributes } from "@multi/shared/observability";
+} from "@honk/contracts";
+import { dedupeRemoteBranchesWithLocalMatches } from "@honk/shared/git";
+import { compactTraceAttributes } from "@honk/shared/observability";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import {
   GitCore,
@@ -43,7 +43,7 @@ import {
   parseRemoteRefWithRemoteNames,
 } from "./remote-refs.ts";
 import { ServerConfig } from "../config.ts";
-import { decodeJsonResult } from "@multi/shared/schema-json";
+import { decodeJsonResult } from "@honk/shared/schema-json";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
@@ -720,7 +720,7 @@ const createTrace2Monitor = Effect.fn("createTrace2Monitor")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const traceFilePath = yield* fs.makeTempFileScoped({
-    prefix: `multi-git-trace2-${process.pid}-`,
+    prefix: `honk-git-trace2-${process.pid}-`,
     suffix: ".json",
   });
   const hookStartByChildKey = new Map<string, { hookName: string; startedAtMs: number }>();

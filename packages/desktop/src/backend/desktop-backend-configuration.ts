@@ -1,9 +1,9 @@
-import { parsePersistedServerObservabilitySettings } from "@multi/shared/server-settings";
+import { parsePersistedServerObservabilitySettings } from "@honk/shared/server-settings";
 import {
-  MULTI_PROCESS_INSTANCE_ID_ENV,
-  MULTI_PROCESS_ROLE_ENV,
-  MULTI_RUN_ID_ENV,
-} from "@multi/shared/logging";
+  HONK_PROCESS_INSTANCE_ID_ENV,
+  HONK_PROCESS_ROLE_ENV,
+  HONK_RUN_ID_ENV,
+} from "@honk/shared/logging";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -15,7 +15,7 @@ import * as Ref from "effect/Ref";
 import * as DesktopBackendManager from "./desktop-backend-manager";
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as DesktopObservability from "../app/desktop-observability";
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopServerExposure from "./desktop-server-exposure";
 
 export interface DesktopBackendConfigurationShape {
@@ -25,7 +25,7 @@ export interface DesktopBackendConfigurationShape {
 export class DesktopBackendConfiguration extends Context.Service<
   DesktopBackendConfiguration,
   DesktopBackendConfigurationShape
->()("multi/desktop/BackendConfiguration") {}
+>()("honk/desktop/BackendConfiguration") {}
 
 interface BackendObservabilitySettings {
   readonly otlpTracesUrl: Option.Option<string>;
@@ -38,16 +38,16 @@ const emptyBackendObservabilitySettings: BackendObservabilitySettings = {
 };
 
 const DESKTOP_BACKEND_ENV_NAMES = [
-  "MULTI_PORT",
-  "MULTI_MODE",
-  "MULTI_NO_BROWSER",
-  "MULTI_HOST",
-  "MULTI_DESKTOP_BOOTSTRAP_TOKEN",
-  "MULTI_DESKTOP_WS_URL",
-  "MULTI_DESKTOP_LAN_ACCESS",
-  "MULTI_DESKTOP_LAN_HOST",
-  MULTI_PROCESS_INSTANCE_ID_ENV,
-  MULTI_PROCESS_ROLE_ENV,
+  "HONK_PORT",
+  "HONK_MODE",
+  "HONK_NO_BROWSER",
+  "HONK_HOST",
+  "HONK_DESKTOP_BOOTSTRAP_TOKEN",
+  "HONK_DESKTOP_WS_URL",
+  "HONK_DESKTOP_LAN_ACCESS",
+  "HONK_DESKTOP_LAN_HOST",
+  HONK_PROCESS_INSTANCE_ID_ENV,
+  HONK_PROCESS_ROLE_ENV,
 ] as const;
 
 const backendChildEnvPatch = (): Record<string, string | undefined> =>
@@ -84,7 +84,7 @@ const readPersistedBackendObservabilitySettings: Effect.Effect<
 
 const getOrCreateBootstrapToken = Effect.fn("desktop.backendConfiguration.bootstrapToken")(
   function* (tokenRef: Ref.Ref<Option.Option<string>>) {
-    const configuredToken = process.env.MULTI_DESKTOP_BOOTSTRAP_TOKEN?.trim();
+    const configuredToken = process.env.HONK_DESKTOP_BOOTSTRAP_TOKEN?.trim();
     if (configuredToken) {
       yield* Ref.set(tokenRef, Option.some(configuredToken));
       return configuredToken;
@@ -125,15 +125,15 @@ const resolveBackendStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       env: {
         ...backendChildEnvPatch(),
         ELECTRON_RUN_AS_NODE: "1",
-        [MULTI_RUN_ID_ENV]: DesktopObservability.desktopProcessMetadata.runId,
-        [MULTI_PROCESS_ROLE_ENV]: "server",
-        [MULTI_PROCESS_INSTANCE_ID_ENV]: undefined,
+        [HONK_RUN_ID_ENV]: DesktopObservability.desktopProcessMetadata.runId,
+        [HONK_PROCESS_ROLE_ENV]: "server",
+        [HONK_PROCESS_INSTANCE_ID_ENV]: undefined,
       },
       bootstrap: {
         mode: "desktop",
         noBrowser: true,
         port: backendExposure.port,
-        multiHome: environment.baseDir,
+        honkHome: environment.baseDir,
         host: backendExposure.bindHost,
         desktopBootstrapToken: input.bootstrapToken,
         runId: DesktopObservability.desktopProcessMetadata.runId,

@@ -3,13 +3,13 @@ import {
   type RuntimeDisplayTimelineExtensionUiRequestItem,
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineToolItem,
-} from "@multi/contracts";
-import { DEFAULT_CONVERSATION_DENSITY, type ConversationDensity } from "@multi/contracts/settings";
+} from "@honk/contracts";
+import { DEFAULT_CONVERSATION_DENSITY, type ConversationDensity } from "@honk/contracts/settings";
 import {
   shouldGroupEdits,
   shouldGroupShells,
   shouldGroupToolCalls,
-} from "@multi/shared/conversation-density";
+} from "@honk/shared/conversation-density";
 
 import {
   formatDuration,

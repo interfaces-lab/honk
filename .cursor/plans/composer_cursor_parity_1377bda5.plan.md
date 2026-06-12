@@ -1,6 +1,6 @@
 ---
 name: Composer Cursor Parity
-overview: "Adopt Cursor composer behavior into Multi via two tracks: (A) Lexical input shell parity—responsive layout, placeholder state, menu anchoring, tokens—and (B) in-flight tool-call density transcript work. Stay on Lexical; do not port TipTap/Glass dual-stack."
+overview: "Adopt Cursor composer behavior into Honk via two tracks: (A) Lexical input shell parity—responsive layout, placeholder state, menu anchoring, tokens—and (B) in-flight tool-call density transcript work. Stay on Lexical; do not port TipTap/Glass dual-stack."
 todos:
   - id: density-p0-approval
     content: "Track B P0: Wire approval density override in tool-message.tsx + break groups on pending approval in timeline-render-items.ts"
@@ -35,13 +35,13 @@ todos:
 isProject: false
 ---
 
-# Multi Composer Improvement Plan (Council Decision)
+# Honk Composer Improvement Plan (Council Decision)
 
 ## Council consensus
 
-Five research passes on Multi vs Cursor agreed on:
+Five research passes on Honk vs Cursor agreed on:
 
-1. **Stay Lexical** — Multi’s chat composer (`[prompt-editor/index.tsx](packages/app/src/components/chat/composer/prompt-editor/index.tsx)`) already mirrors Cursor’s **IDE/Lexical** path. Do **not** migrate to TipTap or maintain two editor stacks.
+1. **Stay Lexical** — Honk’s chat composer (`[prompt-editor/index.tsx](packages/app/src/components/chat/composer/prompt-editor/index.tsx)`) already mirrors Cursor’s **IDE/Lexical** path. Do **not** migrate to TipTap or maintain two editor stacks.
 2. **Already at parity** — 1×1 caret menu anchor, fixed top-start popover with shift-only collision, compact pill radius (`9999px`), `840px` chat column (`--agent-window-chat-max-width`), content-driven bar/pane expansion.
 3. **Largest gaps** — width-correlated layout (no `isNarrow` @ 448px, no toolbar tiers @ 200/260/300), placeholder priority order (generating/worktree beat mode strings), menu `anchorRevision` not wired, broken context-bar scroll-hide selector, absolute vs grid placeholder.
 4. **Separate track** — tool-call density / transcript parity (in-flight in git) is **above** the input box; finish P0 density wiring before composer chrome polish.
@@ -110,7 +110,7 @@ In `[command-menu/menu.tsx](packages/app/src/components/chat/composer/command-me
 `[conversation.css](packages/app/src/styles/conversation.css)` targets `[data-composer-context-usage-bar]` but `[context-usage-bar.tsx](packages/app/src/components/chat/composer/context/context-usage-bar.tsx)` renders `data-composer-thread-status-bar`.
 
 - Align attribute name **or** update CSS selector
-- Decide with product: keep Multi’s `agentWindowUsageSummaryDisplay` setting vs Cursor scroll-only behavior (council: fix selector regardless)
+- Decide with product: keep Honk’s `agentWindowUsageSummaryDisplay` setting vs Cursor scroll-only behavior (council: fix selector regardless)
 
 ### 4. Harden menu anchor observer mount
 
@@ -127,7 +127,7 @@ In `[command-menu/menu.tsx](packages/app/src/components/chat/composer/command-me
 
 ### 1. Responsive center pane (`isNarrow` @ 448px)
 
-**Problem:** With panels open (260 + 300), center can be ~280px; Multi has zero narrow handling. Shell collapse (`[shell.css](packages/app/src/styles/shell.css)`) uses window totals (620/900/980), not center pane.
+**Problem:** With panels open (260 + 300), center can be ~280px; Honk has zero narrow handling. Shell collapse (`[shell.css](packages/app/src/styles/shell.css)`) uses window totals (620/900/980), not center pane.
 
 **Implementation:**
 
@@ -142,7 +142,7 @@ In `[command-menu/menu.tsx](packages/app/src/components/chat/composer/command-me
 
 ### 2. Toolbar container queries (200 / 260 / 300px)
 
-Cursor measures composer container (`Ep().width`); Multi should use `@container` on `[data-chat-input-footer]` or composer shell.
+Cursor measures composer container (`Ep().width`); Honk should use `@container` on `[data-chat-input-footer]` or composer shell.
 
 
 | Width       | Behavior                                                                                                                  |
@@ -154,7 +154,7 @@ Cursor measures composer container (`Ep().width`); Multi should use `@container`
 
 Replace blunt `max-w-[46%]` in toolbar left cluster with container-driven rules in `[conversation.css](packages/app/src/styles/conversation.css)`.
 
-Context ring: council split — either move ring into bottom toolbar (Cursor parity) **or** apply same hide rules to `[context-usage-bar.tsx](packages/app/src/components/chat/composer/context/context-usage-bar.tsx)`. **Recommendation:** keep status bar, apply `<260px` hide to ring/percent only (preserve branch/execution labels as Multi differentiator).
+Context ring: council split — either move ring into bottom toolbar (Cursor parity) **or** apply same hide rules to `[context-usage-bar.tsx](packages/app/src/components/chat/composer/context/context-usage-bar.tsx)`. **Recommendation:** keep status bar, apply `<260px` hide to ring/percent only (preserve branch/execution labels as Honk differentiator).
 
 ### 3. Placeholder state machine
 
@@ -162,11 +162,11 @@ Extract inline 24-line ternary in `[input.tsx](packages/app/src/components/chat/
 
 **New file:** `[resolve-composer-placeholder.ts](packages/app/src/components/chat/composer/resolve-composer-placeholder.ts)`
 
-**Priority (council-adopted, Multi-aware):**
+**Priority (council-adopted, Honk-aware):**
 
 ```
 override → suggestions (future) → queue edit → questionnaire →
-debug repro (future) → approval → plan follow-up (Multi) →
+debug repro (future) → approval → plan follow-up (Honk) →
 worktree → preparing worktree → generating → inline-edit →
 disconnected → mode fallback → compact "Send follow-up"
 ```
@@ -205,7 +205,7 @@ Current overlay uses `white-space: nowrap; text-overflow: ellipsis` — fine for
 In `[conversation.css](packages/app/src/styles/conversation.css)`:
 
 - Compact thread shell: `8px 10px 6px` (asymmetric bottom, Cursor parity)
-- Alias `--multi-composer-radius-expanded` → shared `--conversation-surface-border-radius` (single token for message + composer corners)
+- Alias `--honk-composer-radius-expanded` → shared `--conversation-surface-border-radius` (single token for message + composer corners)
 - Consolidate expanded editor padding to one token `8px 12px` (remove scattered `px-3 pt-2` in `[input.tsx](packages/app/src/components/chat/composer/input.tsx)`)
 
 ### 3. Header chrome container rules
@@ -224,10 +224,10 @@ Cursor `zf()` / `cursor.composer.suggestNextPrompt` — phase 3 only if product 
 | Defer                                              | Reason                                                     |
 | -------------------------------------------------- | ---------------------------------------------------------- |
 | TipTap for chat composer                           | Wrong stack; plan editor TipTap stays isolated             |
-| Cursor model picker                                | Multi uses Deep/Smart/Rush — only port responsive collapse |
-| Claude Code / background-agent placeholder strings | No Multi surface                                           |
-| `new_placeholder` experiment flag                  | Multi uses unified string by default                       |
-| Moving branch labels into toolbar                  | Multi product choice                                       |
+| Cursor model picker                                | Honk uses Deep/Smart/Rush — only port responsive collapse |
+| Claude Code / background-agent placeholder strings | No Honk surface                                           |
+| `new_placeholder` experiment flag                  | Honk uses unified string by default                       |
+| Moving branch labels into toolbar                  | Honk product choice                                       |
 | 20-agent binary RE per release                     | Behavior reference only; symbols change each Cursor build  |
 
 

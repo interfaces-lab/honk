@@ -7,8 +7,8 @@ import {
   type OrchestrationThreadActivity,
   type SourceProposedPlanReference,
   type ThreadId,
-} from "@multi/contracts";
-import type { TimestampFormat } from "@multi/contracts/settings";
+} from "@honk/contracts";
+import type { TimestampFormat } from "@honk/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
 import { Outlet, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,7 +37,7 @@ import { refreshGitStatus, useGitStatus } from "~/lib/git-status-state";
 import { useServerAvailableEditors, useServerConfig } from "~/rpc/server-state";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { readEnvironmentApi } from "~/environment-api";
-import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
+import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
 import { prepareRuntimeTurnPolicy } from "~/lib/runtime-turn-dispatch";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { resolveProjectlessCwd } from "~/lib/project-state";
@@ -162,6 +162,7 @@ async function sendRuntimeShellTurn(input: {
 }): Promise<void> {
   const preparedPolicy = prepareRuntimeTurnPolicy({
     interactionMode: input.interactionMode,
+    modelSelection: input.modelSelection,
   });
   const result = await coordinateTurnSend({
     environmentId: input.environmentId,
@@ -304,7 +305,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
   const settingsLeft = (
     <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-(--multi-shell-sidebar-content-top-offset,var(--multi-electron-traffic-padding-top))"
+        className="pointer-events-none absolute inset-x-0 top-0 h-(--honk-shell-sidebar-content-top-offset,var(--honk-electron-traffic-padding-top))"
         aria-hidden="true"
       />
       <SettingsNavRail onBack={backToChat} />
@@ -711,7 +712,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     let localTurnStartAnnounced = false;
     let serverTurnStartSucceeded = false;
     const threadKey = scopedThreadKey(scopeThreadRef(targetThreadEnvironmentId, threadId));
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode, modelSelection });
 
     const applyLocalBootstrapThread = () => {
       if (currentServerThread || localThreadAnnounced) {
@@ -897,7 +898,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       setGitAgentOrchestrationHandoff(null);
     },
     mutationFn: async (target: GitAgentRun["target"]) => {
-      await readMultiRuntimeApi().abort({ threadId: target.threadId });
+      await readHonkRuntimeApi().abort({ threadId: target.threadId });
     },
     onError: (error) => {
       toastManager.add({
@@ -939,7 +940,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const chatLeft = (
     <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-(--multi-shell-sidebar-content-top-offset,var(--multi-electron-traffic-padding-top))"
+        className="pointer-events-none absolute inset-x-0 top-0 h-(--honk-shell-sidebar-content-top-offset,var(--honk-electron-traffic-padding-top))"
         aria-hidden="true"
       />
       <div className={cn("shrink-0", isElectron && "no-drag")}>

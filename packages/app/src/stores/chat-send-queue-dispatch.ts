@@ -3,7 +3,7 @@ import type {
   AgentInteractionMode,
   SourceProposedPlanReference,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 
 import { readEnvironmentApi } from "../environment-api";
@@ -84,6 +84,7 @@ async function sendQueuedTurn(input: {
   const api = readEnvironmentApi(input.environmentId);
   const preparedPolicy = prepareRuntimeTurnPolicy({
     interactionMode: input.prepared.interactionMode,
+    modelSelection: thread.modelSelection,
   });
 
   const result = await coordinateTurnSend({

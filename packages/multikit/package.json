@@ -1,5 +1,5 @@
 {
-  "name": "@multi/multikit",
+  "name": "@honk/multikit",
   "version": "0.0.0",
   "private": false,
   "type": "module",
@@ -220,13 +220,13 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
-    "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.257",
+    "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.260",
     "class-variance-authority": "^0.7.1",
     "react": "^19.2.7",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.16",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "react-dom": "^19.2.7",
     "typescript": "catalog:",

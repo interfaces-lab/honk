@@ -1,4 +1,4 @@
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@multi/multikit/alert";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@honk/multikit/alert";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -8,7 +8,7 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@multi/multikit/alert-dialog";
+} from "@honk/multikit/alert-dialog";
 import {
   Autocomplete,
   AutocompleteEmpty,
@@ -18,15 +18,15 @@ import {
   AutocompleteItem,
   AutocompleteList,
   AutocompletePopup,
-} from "@multi/multikit/autocomplete";
-import { Avatar, AvatarFallback, AvatarImage } from "@multi/multikit/avatar";
-import { Badge } from "@multi/multikit/badge";
-import { Button } from "@multi/multikit/button";
-import { Card, CardBody, CardFooter, CardHeader } from "@multi/multikit/card";
-import { BarChart, LineChart, PieChart, type ChartDatum } from "@multi/multikit/chart";
-import { Checkbox } from "@multi/multikit/checkbox";
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@multi/multikit/collapsible";
-import { Code, Pre } from "@multi/multikit/code";
+} from "@honk/multikit/autocomplete";
+import { Avatar, AvatarFallback, AvatarImage } from "@honk/multikit/avatar";
+import { Badge } from "@honk/multikit/badge";
+import { Button } from "@honk/multikit/button";
+import { Card, CardBody, CardFooter, CardHeader } from "@honk/multikit/card";
+import { BarChart, LineChart, PieChart, type ChartDatum } from "@honk/multikit/chart";
+import { Checkbox } from "@honk/multikit/checkbox";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@honk/multikit/collapsible";
+import { Code, Pre } from "@honk/multikit/code";
 import {
   Command,
   CommandEmpty,
@@ -39,7 +39,7 @@ import {
   CommandPanel,
   CommandSeparator,
   CommandShortcut,
-} from "@multi/multikit/command";
+} from "@honk/multikit/command";
 import {
   Combobox,
   ComboboxEmpty,
@@ -49,14 +49,14 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxPopup,
-} from "@multi/multikit/combobox";
+} from "@honk/multikit/combobox";
 import {
   ContextMenu,
   ContextMenuTrigger,
   WorkbenchContextMenuItem,
   WorkbenchContextMenuPopup,
   WorkbenchContextMenuSeparator,
-} from "@multi/multikit/context-menu";
+} from "@honk/multikit/context-menu";
 import {
   Dialog,
   DialogDescription,
@@ -65,21 +65,21 @@ import {
   DialogPopup,
   DialogTitle,
   DialogTrigger,
-} from "@multi/multikit/dialog";
-import { ButtonGroup, ButtonGroupSeparator } from "@multi/multikit/group";
-import { HoverCard, HoverCardPopup, HoverCardTrigger } from "@multi/multikit/hover-card";
-import { Icon } from "@multi/multikit/icon";
-import { Input } from "@multi/multikit/input";
+} from "@honk/multikit/dialog";
+import { ButtonGroup, ButtonGroupSeparator } from "@honk/multikit/group";
+import { HoverCard, HoverCardPopup, HoverCardTrigger } from "@honk/multikit/hover-card";
+import { Icon } from "@honk/multikit/icon";
+import { Input } from "@honk/multikit/input";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@multi/multikit/input-group";
-import { Kbd, KbdGroup } from "@multi/multikit/kbd";
-import { Label } from "@multi/multikit/label";
-import { Grid, Row, Spacer, Stack } from "@multi/multikit/layout";
-import { Link } from "@multi/multikit/link";
+} from "@honk/multikit/input-group";
+import { Kbd, KbdGroup } from "@honk/multikit/kbd";
+import { Label } from "@honk/multikit/label";
+import { Grid, Row, Spacer, Stack } from "@honk/multikit/layout";
+import { Link } from "@honk/multikit/link";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -90,31 +90,31 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@multi/multikit/menu";
+} from "@honk/multikit/menu";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@multi/multikit/empty";
+} from "@honk/multikit/empty";
 import {
   Popover,
   PopoverContent,
   PopoverDescription,
   PopoverTitle,
   PopoverTrigger,
-} from "@multi/multikit/popover";
-import { Radio, RadioGroup } from "@multi/multikit/radio-group";
-import { ScrollArea } from "@multi/multikit/scroll-area";
+} from "@honk/multikit/popover";
+import { Radio, RadioGroup } from "@honk/multikit/radio-group";
+import { ScrollArea } from "@honk/multikit/scroll-area";
 import {
   Select,
   SelectItem,
   SelectPopup,
   SelectTrigger,
   SelectValue,
-} from "@multi/multikit/select";
-import { Separator } from "@multi/multikit/separator";
+} from "@honk/multikit/select";
+import { Separator } from "@honk/multikit/separator";
 import {
   SidebarItem,
   SidebarTray,
@@ -124,19 +124,19 @@ import {
   SidebarTrayRowContent,
   SidebarTrayRowLabel,
   SidebarTrayRowStatus,
-} from "@multi/multikit/sidebar";
-import { Skeleton } from "@multi/multikit/skeleton";
-import { Spinner } from "@multi/multikit/spinner";
+} from "@honk/multikit/sidebar";
+import { Skeleton } from "@honk/multikit/skeleton";
+import { Spinner } from "@honk/multikit/spinner";
 import {
   SplitButton,
   SplitButtonAction,
   SplitButtonPopup,
   SplitButtonTrigger,
-} from "@multi/multikit/split-button";
-import { Stat, StatLabel, StatValue } from "@multi/multikit/stat";
-import { StatusDot } from "@multi/multikit/status-dot";
-import { Switch } from "@multi/multikit/switch";
-import { Tabs } from "@multi/multikit/tabs";
+} from "@honk/multikit/split-button";
+import { Stat, StatLabel, StatValue } from "@honk/multikit/stat";
+import { StatusDot } from "@honk/multikit/status-dot";
+import { Switch } from "@honk/multikit/switch";
+import { Tabs } from "@honk/multikit/tabs";
 import {
   Table,
   TableBody,
@@ -144,13 +144,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@multi/multikit/table";
-import { Text } from "@multi/multikit/text";
-import { Textarea } from "@multi/multikit/textarea";
-import { Toggle as ToggleButton } from "@multi/multikit/toggle";
-import { ToggleGroup, ToggleGroupItem, ToggleGroupSeparator } from "@multi/multikit/toggle-group";
-import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@multi/multikit/tooltip";
-import { toastContentVariants, toastRootVariants } from "@multi/multikit/toast";
+} from "@honk/multikit/table";
+import { Text } from "@honk/multikit/text";
+import { Textarea } from "@honk/multikit/textarea";
+import { Toggle as ToggleButton } from "@honk/multikit/toggle";
+import { ToggleGroup, ToggleGroupItem, ToggleGroupSeparator } from "@honk/multikit/toggle-group";
+import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@honk/multikit/tooltip";
+import { toastContentVariants, toastRootVariants } from "@honk/multikit/toast";
 import {
   ToolCallLine,
   ToolCallLineChevron,
@@ -166,13 +166,13 @@ import {
   ToolCallTaskTitle,
   ToolCallTaskTitleArea,
   type ToolCallLineStatus,
-} from "@multi/multikit/tool-call";
+} from "@honk/multikit/tool-call";
 import {
   WorkbenchIconButton,
   WorkbenchTabIconContent,
   WorkbenchTextButton,
-} from "@multi/multikit/workbench-button";
-import { WorkbenchChromeRow } from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/workbench-button";
+import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
 import {
   IconBubbleText,
   IconCheckCircle2,
@@ -279,11 +279,11 @@ function WorkbenchChromeRowPreview() {
 
   return (
     <PreviewFrame>
-      <div className="w-full max-w-xl overflow-hidden rounded-multi-card border border-multi-stroke-tertiary bg-multi-bg-elevated">
+      <div className="w-full max-w-xl overflow-hidden rounded-honk-card border border-honk-stroke-tertiary bg-honk-bg-elevated">
         <WorkbenchChromeRow
           end={
             params.end ? (
-              <div className="multi-workbench-titlebar-end-space size-(--multi-workbench-action-size)" />
+              <div className="honk-workbench-titlebar-end-space size-(--honk-workbench-action-size)" />
             ) : undefined
           }
           gap={pickDialSelect(params.gap, gaps)}
@@ -311,7 +311,7 @@ function WorkbenchChromeRowPreview() {
           >
             <IconChevronRightMedium className="size-4 rotate-90" />
           </WorkbenchIconButton>
-          <span className="no-drag min-w-0 truncate text-body font-medium text-multi-fg-secondary">
+          <span className="no-drag min-w-0 truncate text-body font-medium text-honk-fg-secondary">
             {variant === "tool" ? "Tool island" : "Panel title row"}
           </span>
         </WorkbenchChromeRow>
@@ -350,7 +350,7 @@ function SidebarPreview() {
   return (
     <PreviewFrame>
       {mode === "queue" ? (
-        <SidebarTray className="w-80 rounded-multi-card border border-multi-stroke-tertiary bg-multi-bg-elevated">
+        <SidebarTray className="w-80 rounded-honk-card border border-honk-stroke-tertiary bg-honk-bg-elevated">
           <SidebarTrayHeader>
             <SidebarTrayHeaderButton>
               <IconChevronRightMedium className="size-3.5 rotate-90" />
@@ -369,13 +369,13 @@ function SidebarPreview() {
                 <SidebarTrayRowContent disabled={item.selected}>
                   {item.thumbnails ? (
                     <span className="inline-flex shrink-0 items-center gap-0.5">
-                      <span className="size-4 rounded-[3px] bg-multi-bg-secondary" />
-                      <span className="size-4 rounded-[3px] bg-multi-bg-tertiary" />
+                      <span className="size-4 rounded-[3px] bg-honk-bg-secondary" />
+                      <span className="size-4 rounded-[3px] bg-honk-bg-tertiary" />
                     </span>
                   ) : (
                     <IconBubbleText className="size-4 shrink-0" />
                   )}
-                  <SidebarTrayRowLabel className={cn(item.selected && "text-multi-fg-primary")}>
+                  <SidebarTrayRowLabel className={cn(item.selected && "text-honk-fg-primary")}>
                     {item.label}
                   </SidebarTrayRowLabel>
                 </SidebarTrayRowContent>
@@ -395,7 +395,7 @@ function SidebarPreview() {
           </div>
         </SidebarTray>
       ) : mode === "tray" ? (
-        <SidebarTray className="w-72 rounded-multi-card border border-multi-stroke-tertiary bg-multi-bg-elevated">
+        <SidebarTray className="w-72 rounded-honk-card border border-honk-stroke-tertiary bg-honk-bg-elevated">
           <SidebarTrayHeader>
             <SidebarTrayHeaderButton>
               <IconChevronRightMedium className="size-3.5 rotate-90" />
@@ -405,7 +405,7 @@ function SidebarPreview() {
           <SidebarTrayRow selected={params.selected} interactive={params.interactive}>
             <SidebarTrayRowContent disabled={params.selected}>
               <IconBubbleText className="size-4 shrink-0" />
-              <SidebarTrayRowLabel className={cn(params.selected && "text-multi-fg-primary")}>
+              <SidebarTrayRowLabel className={cn(params.selected && "text-honk-fg-primary")}>
                 {pickDialSelect(params.status, statuses)}
               </SidebarTrayRowLabel>
             </SidebarTrayRowContent>
@@ -420,7 +420,7 @@ function SidebarPreview() {
         >
           <SidebarTrayRowContent disabled={params.selected}>
             <IconBubbleText className="size-4 shrink-0" />
-            <SidebarTrayRowLabel className={cn(params.selected && "text-multi-fg-primary")}>
+            <SidebarTrayRowLabel className={cn(params.selected && "text-honk-fg-primary")}>
               {params.label}
             </SidebarTrayRowLabel>
           </SidebarTrayRowContent>
@@ -826,7 +826,7 @@ function RadioGroupPreview() {
           ["shell", "Shell"],
         ].map(([itemValue, label]) => (
           <label
-            className="flex items-center gap-2 text-body text-multi-fg-primary"
+            className="flex items-center gap-2 text-body text-honk-fg-primary"
             key={itemValue}
           >
             <Radio value={itemValue} />
@@ -1034,7 +1034,7 @@ function CardPreview() {
           </Text>
         </CardBody>
         {params.showFooter ? (
-          <CardFooter className="justify-between border-t border-multi-stroke-tertiary pt-3">
+          <CardFooter className="justify-between border-t border-honk-stroke-tertiary pt-3">
             <Text size="sm" tone="tertiary">
               Footer
             </Text>
@@ -1071,7 +1071,7 @@ function LayoutPreview() {
 
   const previewItem = (item: string) => (
     <div
-      className="min-w-14 rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-center text-body text-multi-fg-secondary"
+      className="min-w-14 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-3 py-2 text-center text-body text-honk-fg-secondary"
       key={item}
     >
       {item}
@@ -1084,7 +1084,7 @@ function LayoutPreview() {
         <Stack
           align={align}
           gap={gap}
-          className="w-72 rounded-multi-card border border-multi-stroke-tertiary p-3"
+          className="w-72 rounded-honk-card border border-honk-stroke-tertiary p-3"
         >
           {items.slice(0, 3).map(previewItem)}
         </Stack>
@@ -1093,7 +1093,7 @@ function LayoutPreview() {
           align={align}
           gap={gap}
           wrap={params.wrap}
-          className="w-72 rounded-multi-card border border-multi-stroke-tertiary p-3"
+          className="w-72 rounded-honk-card border border-honk-stroke-tertiary p-3"
         >
           {items.map(previewItem)}
         </Row>
@@ -1101,15 +1101,15 @@ function LayoutPreview() {
         <Grid
           columns={columnCount}
           gap={gap}
-          className="w-80 rounded-multi-card border border-multi-stroke-tertiary p-3"
+          className="w-80 rounded-honk-card border border-honk-stroke-tertiary p-3"
         >
           {items.map(previewItem)}
         </Grid>
       ) : (
-        <Row className="rounded-multi-card border border-multi-stroke-tertiary p-3">
-          <span className="text-body text-multi-fg-secondary">Before</span>
+        <Row className="rounded-honk-card border border-honk-stroke-tertiary p-3">
+          <span className="text-body text-honk-fg-secondary">Before</span>
           <Spacer orientation="horizontal" size={pickDialSelect(params.spacerSize, gaps)} />
-          <span className="text-body text-multi-fg-secondary">After</span>
+          <span className="text-body text-honk-fg-secondary">After</span>
         </Row>
       )}
     </PreviewFrame>
@@ -1256,14 +1256,14 @@ function ScrollAreaPreview() {
   return (
     <PreviewFrame>
       <ScrollArea
-        className="w-56 rounded-lg border border-multi-stroke-tertiary"
+        className="w-56 rounded-lg border border-honk-stroke-tertiary"
         style={{ height: params.height }}
       >
         <div className="flex flex-col gap-2 p-3">
           {Array.from({ length: params.itemCount }, (_, index) => (
             <div
               key={index}
-              className="rounded-md bg-multi-bg-quaternary px-3 py-2 text-sm text-multi-fg-secondary"
+              className="rounded-md bg-honk-bg-quaternary px-3 py-2 text-sm text-honk-fg-secondary"
             >
               Scroll item {index + 1}
             </div>
@@ -1307,10 +1307,10 @@ function CollapsiblePreview() {
   return (
     <PreviewFrame>
       <Collapsible defaultOpen={params.defaultOpen} className="w-full max-w-md text-left">
-        <CollapsibleTrigger className="font-medium text-multi-fg-primary">
+        <CollapsibleTrigger className="font-medium text-honk-fg-primary">
           {params.title}
         </CollapsibleTrigger>
-        <CollapsiblePanel className="pt-2 text-sm text-multi-fg-secondary">
+        <CollapsiblePanel className="pt-2 text-sm text-honk-fg-secondary">
           {params.body}
         </CollapsiblePanel>
       </Collapsible>
@@ -1488,7 +1488,7 @@ function ContextMenuPreview() {
   return (
     <PreviewFrame>
       <ContextMenu open={params.open}>
-        <ContextMenuTrigger className="rounded-multi-card border border-dashed border-multi-stroke-tertiary bg-multi-bg-quinary px-4 py-3 text-body text-multi-fg-secondary">
+        <ContextMenuTrigger className="rounded-honk-card border border-dashed border-honk-stroke-tertiary bg-honk-bg-quinary px-4 py-3 text-body text-honk-fg-secondary">
           Right click target
         </ContextMenuTrigger>
         <WorkbenchContextMenuPopup>
@@ -1542,8 +1542,8 @@ function CommandPreview() {
     <Command aria-label="Command preview" items={items} mode="none">
       <div
         className={cn(
-          "relative w-96 max-w-full overflow-hidden rounded-lg border border-multi-stroke-secondary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup",
-          mode !== "palette" && "max-w-sm bg-multi-bg-quinary",
+          "relative w-96 max-w-full overflow-hidden rounded-lg border border-honk-stroke-secondary bg-honk-bg-elevated font-honk text-body text-honk-fg-primary shadow-honk-popup",
+          mode !== "palette" && "max-w-sm bg-honk-bg-quinary",
         )}
       >
         <CommandInput placeholder={params.placeholder} />
@@ -1595,7 +1595,7 @@ function CommandPreview() {
     <PreviewFrame>
       {mode === "composer-positioned" ? (
         <div className="flex w-96 max-w-full flex-col items-start gap-2">
-          <div className="rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-3 py-2 text-body text-multi-fg-secondary">
+          <div className="rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-3 py-2 text-body text-honk-fg-secondary">
             Ask @ or / at the caret
           </div>
           <div className="w-80 origin-bottom-left">{panel}</div>
@@ -1717,7 +1717,7 @@ function ToastPreview() {
           {
             kind: "loading",
             title: "Running command",
-            description: "pnpm --filter @multi/app typecheck",
+            description: "pnpm --filter @honk/app typecheck",
           },
           { kind: selectedKind, title: params.title, description: params.description },
           { kind: "info", title: "Context updated", description: "3 files added to the prompt" },
@@ -1737,7 +1737,7 @@ function ToastPreview() {
     <PreviewFrame>
       <div
         className={cn(
-          "relative flex min-h-40 w-96 max-w-full rounded-multi-card border border-dashed border-multi-stroke-tertiary p-3",
+          "relative flex min-h-40 w-96 max-w-full rounded-honk-card border border-dashed border-honk-stroke-tertiary p-3",
           selectedPosition === "top-right" && "items-start justify-end",
           selectedPosition === "bottom-right" && "items-end justify-end",
           selectedPosition === "bottom-center" && "items-end justify-center",
@@ -1775,16 +1775,16 @@ function ToastPreview() {
                       toast.kind === "info" && "text-info",
                       toast.kind === "warning" && "text-warning",
                       toast.kind === "error" && "text-destructive",
-                      toast.kind === "loading" && "tool-call-shimmer text-multi-icon-secondary",
+                      toast.kind === "loading" && "tool-call-shimmer text-honk-icon-secondary",
                     )}
                   />
                 )}
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="min-w-0 wrap-break-word font-medium text-multi-fg-primary">
+                  <div className="min-w-0 wrap-break-word font-medium text-honk-fg-primary">
                     {toast.title}
                   </div>
                   {selectedChrome === "tooltip" || scenario === "anchored-tooltip" ? null : (
-                    <div className="min-w-0 wrap-break-word text-multi-fg-secondary">
+                    <div className="min-w-0 wrap-break-word text-honk-fg-secondary">
                       {toast.description}
                     </div>
                   )}
@@ -1874,7 +1874,7 @@ function ToolCallPreview() {
                 {status === "loading" ? (
                   <IconClock className="tool-call-shimmer size-3.5" />
                 ) : status === "error" ? (
-                  <IconWarningSign className="size-3.5 text-multi-fg-red-primary" />
+                  <IconWarningSign className="size-3.5 text-honk-fg-red-primary" />
                 ) : (
                   <IconCheckCircle2 className="size-3.5" />
                 )}
@@ -1888,7 +1888,7 @@ function ToolCallPreview() {
               <ToolCallTaskChevron expanded />
             </ToolCallTaskHeader>
             <ToolCallTaskBody>
-              <div className="rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary px-2 py-1.5 text-multi-fg-secondary">
+              <div className="rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 py-1.5 text-honk-fg-secondary">
                 Subagent transcript slot
               </div>
             </ToolCallTaskBody>
@@ -1900,12 +1900,12 @@ function ToolCallPreview() {
           >
             <ToolCallShellHeader expandable expanded hasError={status === "error"}>
               {params.icon ? (
-                <IconConsole className="size-3.5 shrink-0 text-multi-fg-tertiary" />
+                <IconConsole className="size-3.5 shrink-0 text-honk-fg-tertiary" />
               ) : null}
               <span className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
                 <span
                   className={cn(
-                    "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary",
+                    "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary",
                     status === "loading" && "tool-call-shimmer",
                   )}
                   data-tool-call-line-action=""
@@ -1913,7 +1913,7 @@ function ToolCallPreview() {
                   {params.action}
                 </span>
                 <span
-                  className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary"
+                  className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary"
                   data-tool-call-line-details=""
                 >
                   {params.details}
@@ -1922,8 +1922,8 @@ function ToolCallPreview() {
               <ToolCallLineChevron expanded />
             </ToolCallShellHeader>
             <ToolCallShellBody>
-              <pre className="m-0 whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5 font-mono text-conversation text-multi-fg-tertiary wrap-anywhere">
-                $ pnpm --filter @multi/app typecheck{"\n"}tsgo --noEmit
+              <pre className="m-0 whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5 font-mono text-conversation text-honk-fg-tertiary wrap-anywhere">
+                $ pnpm --filter @honk/app typecheck{"\n"}tsgo --noEmit
               </pre>
             </ToolCallShellBody>
           </ToolCallShellRoot>

@@ -34,4 +34,4 @@ export interface ProjectSetupScriptRunnerShape {
 export class ProjectSetupScriptRunner extends Context.Service<
   ProjectSetupScriptRunner,
   ProjectSetupScriptRunnerShape
->()("multi/project/ProjectSetupScriptRunner") {}
+>()("honk/project/ProjectSetupScriptRunner") {}

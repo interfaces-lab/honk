@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Refresh Multi brand + desktop icons from a master SVG or PNG.
+"""Refresh Honk brand + desktop icons from a master SVG or PNG.
 
 Requires: Python 3.11+, Pillow (`python3 -m pip install pillow`).
 Requires: ImageMagick (`magick`) for SVG sources.
 Requires (macOS only): `sips` and `iconutil` for `.icns` output.
 
-Default source: assets/brand/multi-app-icon-source.png (transparent square app icon).
-Default dev source: assets/brand/multi-app-icon-dev-source.png (rough development app icon).
+Default source: assets/brand/honk-app-icon-source.png (transparent square app icon).
+Default dev source: assets/brand/honk-app-icon-dev-source.png (rough development app icon).
 
 Writes:
   - assets/brand/generated/* (canonical generated brand assets)
-  - packages/desktop/resources/icon.png, icon.icns, icon.ico, and dev-dock-icon.png
+  - packages/desktop/resources/icon.png, dock-icon.png, icon.icns, icon.ico, and dev-dock-icon.png
     (canonical desktop artwork)
   - packages/app/public/* (dev web favicon and touch icon mirrors)
 
-To refresh desktop icons after editing `assets/brand/multi-app-icon-source.png` or
-`assets/brand/multi-app-icon-dev-source.png`:
+To refresh desktop icons after editing `assets/brand/honk-app-icon-source.png` or
+`assets/brand/honk-app-icon-dev-source.png`:
 
   python3 scripts/sync-brand-icons-from-source.py
 """
@@ -56,7 +56,7 @@ def render_svg_1024(source: Path) -> Image.Image:
     magick = shutil.which("magick")
     if magick is None:
         raise SystemExit("Install ImageMagick: SVG sources require the `magick` command.")
-    with tempfile.TemporaryDirectory(prefix="multi-svg-raster-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="honk-svg-raster-") as tmp:
         out = Path(tmp) / "source-1024.png"
         subprocess.run(
             [
@@ -123,7 +123,7 @@ def write_icns_macos(source_png: Path, target_icns: Path) -> None:
         print("Skipping icon.icns: not macOS (sips/iconutil unavailable).", file=sys.stderr)
         return
     target_icns.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="multi-icns-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="honk-icns-") as tmp:
         iconset = Path(tmp) / "icon.iconset"
         iconset.mkdir()
         for size in ICNS_BASE_SIZES:
@@ -170,21 +170,21 @@ def main() -> int:
         "source",
         nargs="?",
         default=None,
-        help="Source SVG or PNG (default: <repo>/assets/brand/multi-app-icon-source.png)",
+        help="Source SVG or PNG (default: <repo>/assets/brand/honk-app-icon-source.png)",
     )
     parser.add_argument(
         "--dev-source",
         default=None,
         help=(
             "Development source SVG or PNG "
-            "(default: <repo>/assets/brand/multi-app-icon-dev-source.png if present)"
+            "(default: <repo>/assets/brand/honk-app-icon-dev-source.png if present)"
         ),
     )
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
-    default_source = repo / "assets" / "brand" / "multi-app-icon-source.png"
-    default_dev_source = repo / "assets" / "brand" / "multi-app-icon-dev-source.png"
+    default_source = repo / "assets" / "brand" / "honk-app-icon-source.png"
+    default_dev_source = repo / "assets" / "brand" / "honk-app-icon-dev-source.png"
     source = Path(args.source).expanduser() if args.source else default_source
     if not source.is_file():
         print(f"Missing source SVG or PNG: {source}", file=sys.stderr)
@@ -202,36 +202,38 @@ def main() -> int:
         )
     desktop_res = repo / "packages" / "desktop" / "resources"
 
-    with tempfile.TemporaryDirectory(prefix="multi-icon-src-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="honk-icon-src-") as tmp:
         tmp1024 = Path(tmp) / "master-1024.png"
         tmp_dev_1024 = Path(tmp) / "master-dev-1024.png"
         write_png(tmp1024, master)
         write_png(tmp_dev_1024, master_dev)
 
         write_png(desktop_res / "icon.png", master)
+        write_png(desktop_res / "dock-icon.png", macos_dock_icon(master))
         write_png(desktop_res / "dev-dock-icon.png", macos_dock_icon(master_dev))
         write_icns_macos(tmp1024, desktop_res / "icon.icns")
         write_ico(desktop_res / "icon.ico", master)
 
         brand = repo / "assets" / "brand" / "generated"
         prod = brand / "prod"
-        write_icns_macos(tmp1024, prod / "multi-production-macos-icon.icns")
-        write_png(prod / "multi-production-desktop-icon-1024.png", master)
-        write_png(prod / "multi-production-linux-icon-1024.png", master)
-        write_png(prod / "multi-production-splash-icon-180.png", _resize(master, 180))
+        write_icns_macos(tmp1024, prod / "honk-production-macos-icon.icns")
+        write_png(prod / "honk-production-desktop-icon-1024.png", master)
+        write_png(prod / "honk-production-dock-icon-256.png", macos_dock_icon(master))
+        write_png(prod / "honk-production-linux-icon-1024.png", master)
+        write_png(prod / "honk-production-splash-icon-180.png", _resize(master, 180))
         write_png(prod / "black-macos-1024.png", master)
         write_png(prod / "black-universal-1024.png", master)
         write_png(prod / "black-ios-1024.png", master)
-        write_png(prod / "multi-black-web-apple-touch-180.png", _resize(master, 180))
-        write_png(prod / "multi-black-web-favicon-16x16.png", _resize(master, 16))
-        write_png(prod / "multi-black-web-favicon-32x32.png", _resize(master, 32))
-        write_ico(prod / "multi-black-web-favicon.ico", master)
+        write_png(prod / "honk-black-web-apple-touch-180.png", _resize(master, 180))
+        write_png(prod / "honk-black-web-favicon-16x16.png", _resize(master, 16))
+        write_png(prod / "honk-black-web-favicon-32x32.png", _resize(master, 32))
+        write_ico(prod / "honk-black-web-favicon.ico", master)
 
         dev = brand / "dev"
-        write_icns_macos(tmp_dev_1024, dev / "multi-development-macos-icon.icns")
-        write_png(dev / "multi-development-desktop-icon-1024.png", master_dev)
-        write_png(dev / "multi-development-dock-icon-256.png", macos_dock_icon(master_dev))
-        write_png(dev / "multi-development-splash-icon-180.png", _resize(master_dev, 180))
+        write_icns_macos(tmp_dev_1024, dev / "honk-development-macos-icon.icns")
+        write_png(dev / "honk-development-desktop-icon-1024.png", master_dev)
+        write_png(dev / "honk-development-dock-icon-256.png", macos_dock_icon(master_dev))
+        write_png(dev / "honk-development-splash-icon-180.png", _resize(master_dev, 180))
         write_png(dev / "blueprint-macos-1024.png", master_dev)
         write_png(dev / "blueprint-universal-1024.png", master_dev)
         write_png(dev / "blueprint-ios-1024.png", master_dev)
@@ -247,7 +249,7 @@ def main() -> int:
         shutil.copyfile(dev_base / "blueprint-web-favicon.ico", web_public / "favicon.ico")
         shutil.copyfile(dev_base / "blueprint-web-favicon-16x16.png", web_public / "favicon-16x16.png")
         shutil.copyfile(dev_base / "blueprint-web-favicon-32x32.png", web_public / "favicon-32x32.png")
-        shutil.copyfile(dev_base / "multi-development-splash-icon-180.png", web_public / "apple-touch-icon.png")
+        shutil.copyfile(dev_base / "honk-development-splash-icon-180.png", web_public / "apple-touch-icon.png")
 
     print("Updated assets/brand/generated, desktop resources, and app public icons.")
     return 0

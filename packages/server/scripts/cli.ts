@@ -9,9 +9,9 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import {
   DEVELOPMENT_ICON_OVERRIDES,
   PUBLISH_ICON_OVERRIDES,
-} from "@multi/release-scripts/lib/brand-assets";
-import { resolveCatalogDependencies } from "@multi/release-scripts/lib/resolve-catalog";
-import { readWorkspaceCatalog } from "@multi/release-scripts/lib/workspace-catalog";
+} from "@honk/release-scripts/lib/brand-assets";
+import { resolveCatalogDependencies } from "@honk/release-scripts/lib/resolve-catalog";
+import { readWorkspaceCatalog } from "@honk/release-scripts/lib/workspace-catalog";
 import rootPackageJson from "../../../package.json" with { type: "json" };
 import serverPackageJson from "../package.json" with { type: "json" };
 

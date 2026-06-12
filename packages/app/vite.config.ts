@@ -9,13 +9,13 @@ const port = Number(process.env.PORT ?? 5733);
 const host = process.env.HOST?.trim() || "localhost";
 const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
 const configuredWsUrl = process.env.VITE_WS_URL?.trim();
-const inferredBackendPort = process.env.MULTI_PORT?.trim();
+const inferredBackendPort = process.env.HONK_PORT?.trim();
 const resolvedHttpUrl =
   configuredHttpUrl ??
   (inferredBackendPort ? `http://127.0.0.1:${inferredBackendPort}` : undefined);
 const resolvedWsUrl =
   configuredWsUrl ?? (inferredBackendPort ? `ws://127.0.0.1:${inferredBackendPort}` : undefined);
-const sourcemapEnv = process.env.MULTI_WEB_SOURCEMAP?.trim().toLowerCase();
+const sourcemapEnv = process.env.HONK_WEB_SOURCEMAP?.trim().toLowerCase();
 // oxlint-disable-next-line eslint/no-control-regex
 const rolldownRuntimeModulePattern = new RegExp("^\\u0000rolldown/runtime\\.js$");
 

@@ -61,7 +61,7 @@ function CommandDialogPopup({ className, children, ...props }: CommandDialogPrim
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup
           className={cn(
-            "relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-[640px] flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-(--multi-command-palette-surface-background) font-multi text-body text-multi-fg-primary shadow-multi-popup outline-hidden backdrop-blur-xl transition-[scale,opacity,translate] duration-150 ease-out data-ending-style:-translate-y-3 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:-translate-y-3 data-starting-style:scale-[0.98] data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+            "relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-[640px] flex-col overflow-hidden rounded-[8px] border border-honk-stroke-tertiary bg-(--honk-command-palette-surface-background) font-honk text-body text-honk-fg-primary shadow-honk-popup outline-hidden backdrop-blur-xl transition-[scale,opacity,translate] duration-150 ease-out data-ending-style:-translate-y-3 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:-translate-y-3 data-starting-style:scale-[0.98] data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
             className,
           )}
           data-slot="command-dialog-popup"
@@ -101,7 +101,7 @@ function CommandInput({
   return (
     <div
       className={cn(
-        "relative border-b border-multi-stroke-tertiary bg-transparent px-2 py-1",
+        "relative border-b border-honk-stroke-tertiary bg-transparent px-2 py-1",
         wrapperClassName,
       )}
     >
@@ -161,7 +161,7 @@ function CommandGroupLabel({
 }: React.ComponentProps<typeof AutocompleteGroupLabel>) {
   return (
     <AutocompleteGroupLabel
-      className={cn("px-2 py-1 text-caption text-multi-fg-tertiary", className)}
+      className={cn("px-2 py-1 text-caption text-honk-fg-tertiary", className)}
       data-slot="command-group-label"
       {...props}
     />
@@ -176,7 +176,7 @@ function CommandItem({ className, ...props }: React.ComponentProps<typeof Autoco
   return (
     <AutocompleteItem
       className={cn(
-        "min-h-7 gap-2 rounded-[6px] px-2 py-1 text-multi-fg-primary transition-[background-color,color] hover:bg-multi-bg-quaternary data-highlighted:bg-multi-bg-tertiary data-selected:bg-multi-bg-tertiary [&_svg]:shrink-0 [&_svg]:text-multi-icon-tertiary [&[data-highlighted][data-selected]]:bg-multi-bg-tertiary",
+        "min-h-7 gap-2 rounded-[6px] px-2 py-1 text-honk-fg-primary transition-[background-color,color] hover:bg-honk-bg-quaternary data-highlighted:bg-honk-bg-tertiary data-selected:bg-honk-bg-tertiary [&_svg]:shrink-0 [&_svg]:text-honk-icon-tertiary [&[data-highlighted][data-selected]]:bg-honk-bg-tertiary",
         className,
       )}
       data-slot="command-item"
@@ -202,7 +202,7 @@ function CommandShortcut({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd
       className={cn(
-        "ms-auto inline-flex items-center gap-0.5 font-multi text-caption font-medium tracking-normal text-multi-fg-tertiary",
+        "ms-auto inline-flex items-center gap-0.5 font-honk text-caption font-medium tracking-normal text-honk-fg-tertiary",
         className,
       )}
       data-slot="command-shortcut"
@@ -215,7 +215,7 @@ function CommandShortcutKey({ className, ...props }: React.ComponentProps<"span"
   return (
     <span
       className={cn(
-        "inline-flex min-w-3 items-center justify-center rounded-[3px] bg-multi-bg-quinary px-1 leading-4 text-multi-fg-tertiary shadow-[inset_0_0_0_1px_var(--multi-stroke-tertiary)]",
+        "inline-flex min-w-3 items-center justify-center rounded-[3px] bg-honk-bg-quinary px-1 leading-4 text-honk-fg-tertiary shadow-[inset_0_0_0_1px_var(--honk-stroke-tertiary)]",
         className,
       )}
       data-slot="command-shortcut-key"
@@ -228,7 +228,7 @@ function CommandFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex min-h-9 items-center justify-between gap-2 border-t border-multi-stroke-tertiary/70 bg-multi-bg-quinary/55 px-3 py-2 font-multi text-detail text-multi-fg-secondary",
+        "flex min-h-9 items-center justify-between gap-2 border-t border-honk-stroke-tertiary/70 bg-honk-bg-quinary/55 px-3 py-2 font-honk text-detail text-honk-fg-secondary",
         className,
       )}
       data-slot="command-footer"

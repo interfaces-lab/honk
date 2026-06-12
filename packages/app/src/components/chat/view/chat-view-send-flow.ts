@@ -1,4 +1,4 @@
-import type { MessageId, AgentInteractionMode } from "@multi/contracts";
+import type { MessageId, AgentInteractionMode } from "@honk/contracts";
 
 import type {
   QueuedComposerItem,

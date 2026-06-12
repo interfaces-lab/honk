@@ -1,4 +1,4 @@
-import type { DesktopAppBranding, DesktopRuntimeInfo } from "@multi/contracts";
+import type { DesktopAppBranding, DesktopRuntimeInfo } from "@honk/contracts";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -67,13 +67,14 @@ export interface DesktopEnvironmentShape {
   readonly runtimeInfo: DesktopRuntimeInfo;
   readonly resolvePickFolderDefaultPath: (rawOptions: unknown) => Option.Option<string>;
   readonly resolveResourcePathCandidates: (fileName: string) => readonly string[];
+  readonly productionDockIconPath: string;
   readonly developmentDockIconPath: string;
 }
 
 export class DesktopEnvironment extends Context.Service<
   DesktopEnvironment,
   DesktopEnvironmentShape
->()("multi/desktop/Environment") {}
+>()("honk/desktop/Environment") {}
 
 export function resolveDefaultBackendCwd(input: { readonly documentsDirectory: string }): string {
   return input.documentsDirectory;
@@ -95,7 +96,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
       : input.platform === "darwin"
         ? path.join(homeDirectory, "Library", "Application Support")
         : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
-  const baseDir = Option.getOrElse(config.multiHome, () => path.join(homeDirectory, ".multi"));
+  const baseDir = Option.getOrElse(config.honkHome, () => path.join(homeDirectory, ".honk"));
   const defaultBackendCwd = resolveDefaultBackendCwd({
     documentsDirectory: input.documentsDirectory,
   });
@@ -104,7 +105,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   });
   const displayName = branding.displayName;
   const stateDir = path.join(baseDir, "userdata");
-  const userDataDirName = isDevelopment ? "multi-dev" : "multi";
+  const userDataDirName = isDevelopment ? "honk-dev" : "honk";
   const resourcesPath = input.resourcesPath;
   const desktopPackageDir = input.isPackaged ? input.appPath : path.resolve(input.dirname, "../..");
   const rootDir = input.isPackaged ? input.appPath : path.resolve(desktopPackageDir, "../..");
@@ -147,9 +148,9 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     otlpExportIntervalMs: config.otlpExportIntervalMs,
     branding,
     displayName,
-    appUserModelId: isDevelopment ? "com.interfacesco.multi.dev" : "com.interfacesco.multi",
-    linuxDesktopEntryName: isDevelopment ? "multi-dev.desktop" : "multi.desktop",
-    linuxWmClass: isDevelopment ? "multi-dev" : "multi",
+    appUserModelId: isDevelopment ? "com.interfacesco.honk.dev" : "com.interfacesco.honk",
+    linuxDesktopEntryName: isDevelopment ? "honk-dev.desktop" : "honk.desktop",
+    linuxWmClass: isDevelopment ? "honk-dev" : "honk",
     userDataDirName,
     defaultDesktopSettings: resolveDefaultDesktopSettings(input.appVersion),
     runtimeInfo: resolveDesktopRuntimeInfo({
@@ -187,6 +188,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
       path.join(resourcesPath, "resources", fileName),
       path.join(resourcesPath, fileName),
     ],
+    productionDockIconPath: path.join(desktopPackageDir, "resources/dock-icon.png"),
     developmentDockIconPath: path.join(desktopPackageDir, "resources/dev-dock-icon.png"),
   });
 });

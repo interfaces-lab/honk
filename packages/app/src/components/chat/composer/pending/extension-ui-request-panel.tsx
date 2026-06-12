@@ -1,5 +1,5 @@
-import { type DesktopExtensionUiRequest } from "@multi/contracts";
-import { Button } from "@multi/multikit/button";
+import { type DesktopExtensionUiRequest } from "@honk/contracts";
+import { Button } from "@honk/multikit/button";
 import { IconBubbleQuestion } from "central-icons";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import {
@@ -130,7 +130,7 @@ export function ComposerPendingExtensionUiRequestPanel({
         <div className="ml-1 flex flex-col gap-0.5">
           <QuestionnaireQuestionLabel>{request.title}</QuestionnaireQuestionLabel>
           {request.message ? (
-            <p className="ml-1.5 mt-0.5 select-text text-caption text-multi-fg-tertiary">
+            <p className="ml-1.5 mt-0.5 select-text text-caption text-honk-fg-tertiary">
               {request.message}
             </p>
           ) : null}

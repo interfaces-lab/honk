@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@multi/contracts";
+import type { ContextMenuItem } from "@honk/contracts";
 
 /**
  * Imperative DOM-based context menu for non-Electron environments.

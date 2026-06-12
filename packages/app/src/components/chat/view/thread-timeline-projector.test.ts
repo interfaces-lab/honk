@@ -3,7 +3,7 @@ import {
   RuntimeSessionId,
   ThreadId,
   type RuntimeDisplayTimelineProjection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { WorkLogEntry } from "../../../session-logic";

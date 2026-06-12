@@ -4,7 +4,7 @@ import {
   type OrchestrationThreadActivity,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { useCallback, useMemo, useState, type RefObject } from "react";
 
 import { readEnvironmentApi } from "../../../environment-api";

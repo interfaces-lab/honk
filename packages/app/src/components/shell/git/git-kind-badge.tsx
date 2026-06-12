@@ -8,32 +8,32 @@ const kindBadge: Partial<
   Record<GitFileState, { className: string; label: string; title: string }>
 > = {
   untracked: {
-    className: "text-(--multi-git-status-added)",
+    className: "text-(--honk-git-status-added)",
     label: "U",
     title: "Untracked",
   },
   added: {
-    className: "text-(--multi-git-status-added)",
+    className: "text-(--honk-git-status-added)",
     label: "A",
     title: "Added",
   },
   deleted: {
-    className: "text-(--multi-git-status-deleted)",
+    className: "text-(--honk-git-status-deleted)",
     label: "D",
     title: "Deleted",
   },
   modified: {
-    className: "text-(--multi-git-status-modified)",
+    className: "text-(--honk-git-status-modified)",
     label: "M",
     title: "Modified",
   },
   renamed: {
-    className: "text-(--multi-git-status-renamed)",
+    className: "text-(--honk-git-status-renamed)",
     label: "R",
     title: "Renamed",
   },
   copied: {
-    className: "text-(--multi-git-status-renamed)",
+    className: "text-(--honk-git-status-renamed)",
     label: "C",
     title: "Copied",
   },
@@ -43,7 +43,7 @@ const kindBadge: Partial<
     title: "Ignored",
   },
   conflict: {
-    className: "text-(--multi-git-status-deleted)",
+    className: "text-(--honk-git-status-deleted)",
     label: "!",
     title: "Conflict",
   },

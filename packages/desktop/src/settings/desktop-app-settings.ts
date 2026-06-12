@@ -3,8 +3,8 @@ import {
   DesktopThemeSchema,
   type DesktopServerExposureMode,
   type DesktopTheme,
-} from "@multi/contracts";
-import { fromLenientJson } from "@multi/shared/schema-json";
+} from "@honk/contracts";
+import { fromLenientJson } from "@honk/shared/schema-json";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -78,7 +78,7 @@ export interface DesktopAppSettingsShape {
 export class DesktopAppSettings extends Context.Service<
   DesktopAppSettings,
   DesktopAppSettingsShape
->()("multi/desktop/AppSettings") {}
+>()("honk/desktop/AppSettings") {}
 
 export function resolveDefaultDesktopSettings(_appVersion: string): DesktopSettings {
   return DEFAULT_DESKTOP_SETTINGS;

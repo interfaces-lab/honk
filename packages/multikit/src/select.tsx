@@ -31,20 +31,20 @@ const selectTriggerVariants = cva(
       variant: {
         /** Matches `Button` `outline` / workbench secondary control tokens. */
         outline:
-          "border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-secondary shadow-none hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-pressed:bg-multi-bg-tertiary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused",
+          "border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-secondary shadow-none hover:border-honk-stroke-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-pressed:bg-honk-bg-tertiary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused",
         default:
           "w-full min-w-36 border-input bg-background not-dark:bg-clip-padding text-foreground shadow-xs/5 ring-ring/24 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-data-disabled:not-focus-visible:not-aria-invalid:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 focus-visible:border-ring focus-visible:ring-[3px] aria-invalid:border-destructive/36 focus-visible:aria-invalid:border-destructive/64 focus-visible:aria-invalid:ring-destructive/16 dark:bg-input/32 dark:aria-invalid:ring-destructive/24 dark:not-data-disabled:not-focus-visible:not-aria-invalid:not-data-pressed:before:shadow-[0_-1px_--theme(--color-white/6%)] [&_svg:not([class*='opacity-'])]:opacity-80 [[data-disabled],:focus-visible,[aria-invalid],[data-pressed]]:shadow-none",
         ghost:
           "border-transparent text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground/80",
       },
       size: {
-        /** Dense `rounded-multi-control` trigger (composer / toolbar height). */
+        /** Dense `rounded-honk-control` trigger (composer / toolbar height). */
         control:
-          "h-7 gap-1.5 rounded-multi-control px-2 text-body [&_svg:not([class*='size-'])]:size-3.5",
+          "h-7 gap-1.5 rounded-honk-control px-2 text-body [&_svg:not([class*='size-'])]:size-3.5",
         default: "min-h-9 px-3 sm:min-h-8",
         lg: "min-h-10 px-3 sm:min-h-9",
         sm: "min-h-8 gap-1.5 px-2.5 sm:min-h-7",
-        xs: "h-7 min-h-7 gap-1 rounded-multi-control px-2.5 font-multi text-body before:rounded-[calc(var(--multi-radius-control)-1px)] [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
+        xs: "h-7 min-h-7 gap-1 rounded-honk-control px-2.5 font-honk text-body before:rounded-[calc(var(--honk-radius-control)-1px)] [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
       },
     },
   },
@@ -158,7 +158,7 @@ function SelectPopup({
           {...props}
         >
           <SelectPrimitive.ScrollUpArrow
-            className="top-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[7px] before:bg-linear-to-b before:from-50% before:from-multi-bg-elevated"
+            className="top-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[7px] before:bg-linear-to-b before:from-50% before:from-honk-bg-elevated"
             data-slot="select-scroll-up-arrow"
           >
             <IconChevronRightMedium className="relative size-4.5 -rotate-90 sm:size-4" />
@@ -172,7 +172,7 @@ function SelectPopup({
             </SelectPrimitive.List>
           </div>
           <SelectPrimitive.ScrollDownArrow
-            className="bottom-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:bottom-px before:h-[200%] before:rounded-b-[7px] before:bg-linear-to-t before:from-50% before:from-multi-bg-elevated"
+            className="bottom-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:bottom-px before:h-[200%] before:rounded-b-[7px] before:bg-linear-to-t before:from-50% before:from-honk-bg-elevated"
             data-slot="select-scroll-down-arrow"
           >
             <IconChevronRightMedium className="relative size-4.5 rotate-90 sm:size-4" />
@@ -204,7 +204,7 @@ function SelectItem({
       {hideIndicator ? null : (
         <SelectPrimitive.ItemIndicator
           className={cn(
-            "col-start-1 inline-flex size-4 items-center justify-center text-multi-fg-primary opacity-0 transition-opacity in-data-selected:opacity-100 [&_svg:not([class*='size-'])]:size-3",
+            "col-start-1 inline-flex size-4 items-center justify-center text-honk-fg-primary opacity-0 transition-opacity in-data-selected:opacity-100 [&_svg:not([class*='size-'])]:size-3",
             controlTransitionClassName,
           )}
           data-slot="select-item-indicator"

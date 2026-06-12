@@ -1,4 +1,4 @@
-import type { DesktopActiveWorkState } from "@multi/contracts";
+import type { DesktopActiveWorkState } from "@honk/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -10,7 +10,7 @@ export interface DesktopActiveWorkShape {
 }
 
 export class DesktopActiveWork extends Context.Service<DesktopActiveWork, DesktopActiveWorkShape>()(
-  "multi/desktop/ActiveWork",
+  "honk/desktop/ActiveWork",
 ) {}
 
 export const layer = Layer.effect(

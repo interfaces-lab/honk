@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import type { MessageId } from "@multi/contracts";
+import type { MessageId } from "@honk/contracts";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import type { ChatMessage } from "../../../types";
 import { preloadAuthenticatedImagePreview } from "../message/authenticated-image-preview";

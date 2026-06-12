@@ -8,7 +8,7 @@ export function WorkbenchPanel(props: { children: ReactNode; className?: string 
   return (
     <div
       className={cn(
-        "relative flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background) after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-px after:bg-multi-stroke-quaternary",
+        "relative flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-editor-surface-background) after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-px after:bg-honk-stroke-quaternary",
         props.className,
       )}
     >

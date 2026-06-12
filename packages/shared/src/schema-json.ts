@@ -138,7 +138,7 @@ const parseLenientJsonGetter = SchemaGetter.onSome((input: string) =>
         (match, stringLiteral: string | undefined) => (stringLiteral ? match : ""),
       );
 
-      // Strip multi-line comments.
+      // Strip honk-line comments.
       stripped = stripped.replace(
         /("(?:[^"\\]|\\.)*")|\/\*[\s\S]*?\*\//g,
         (match, stringLiteral: string | undefined) => (stringLiteral ? match : ""),

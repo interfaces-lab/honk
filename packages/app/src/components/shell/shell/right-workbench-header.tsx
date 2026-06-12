@@ -1,7 +1,7 @@
 "use client";
 
-import { TabsList, TabsTab } from "@multi/multikit/tabs";
-import { Button } from "@multi/multikit/button";
+import { TabsList, TabsTab } from "@honk/multikit/tabs";
+import { Button } from "@honk/multikit/button";
 import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
 import type { ComponentType, ReactNode } from "react";
 
@@ -13,14 +13,14 @@ import {
   WorkbenchIconButton,
   WorkbenchTabIconContent,
   workbenchIconButtonVariants,
-} from "@multi/multikit/workbench-button";
+} from "@honk/multikit/workbench-button";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeDivider,
   WorkbenchChromeSpacer,
   workbenchChromeActionGroupVariants,
   workbenchChromeTextControlVariants,
-} from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/workbench-chrome-row";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 export interface WorkbenchTabMeta {
@@ -46,7 +46,7 @@ function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
             chrome: "tool",
             tabSystem: true,
           }),
-          "size-(--multi-workbench-action-size) p-0",
+          "size-(--honk-workbench-action-size) p-0",
         )
       }
       aria-label={`${props.tab.label}${badgeText}`}
@@ -95,8 +95,8 @@ function TerminalSessionTab(props: {
       role="presentation"
       className={cn(
         workbenchChromeTextControlVariants({ tone: props.active ? "primary" : "default" }),
-        "group relative max-w-(--multi-workbench-tab-label-max-width) px-0",
-        props.active ? "bg-multi-bg-tertiary text-multi-fg-primary" : "",
+        "group relative max-w-(--honk-workbench-tab-label-max-width) px-0",
+        props.active ? "bg-honk-bg-tertiary text-honk-fg-primary" : "",
       )}
     >
       <Button
@@ -105,7 +105,7 @@ function TerminalSessionTab(props: {
         role="tab"
         aria-selected={props.active}
         onClick={props.onActivate}
-        className="h-full min-w-0 flex-1 justify-start gap-(--multi-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--multi-workbench-text-control-padding-inline) text-left text-inherit shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
+        className="h-full min-w-0 flex-1 justify-start gap-(--honk-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-left text-inherit shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
         aria-current={props.active ? "page" : undefined}
       >
         <IconConsole className="size-3 shrink-0 opacity-60" aria-hidden />
@@ -120,7 +120,7 @@ function TerminalSessionTab(props: {
             e.stopPropagation();
             props.onClose();
           }}
-          className="no-drag mr-0.5 size-4 shrink-0 rounded-sm border-0 bg-transparent p-0 text-multi-fg-tertiary opacity-0 shadow-none before:hidden transition-opacity hover:bg-transparent hover:text-multi-fg-primary group-hover:opacity-100 data-pressed:bg-transparent focus-visible:opacity-100"
+          className="no-drag mr-0.5 size-4 shrink-0 rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none before:hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary group-hover:opacity-100 data-pressed:bg-transparent focus-visible:opacity-100"
         >
           <IconCrossMediumDefault className="size-3" />
         </Button>
@@ -150,7 +150,7 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
   return (
     <RightWorkbenchToolIsland
       trailing={props.trailing}
-      end={<div className="multi-workbench-titlebar-end-space shrink-0" aria-hidden />}
+      end={<div className="honk-workbench-titlebar-end-space shrink-0" aria-hidden />}
     >
       <>
         <WorkbenchTabList activeTab={props.activeTab} tabs={props.tabs} />

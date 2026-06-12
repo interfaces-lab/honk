@@ -4,14 +4,14 @@ import {
   TurnId,
   type AgentPreferences,
   type LocalApi,
-  type MultiRuntimeApi,
-  type MultiRuntimeHostSnapshot,
+  type HonkRuntimeApi,
+  type HonkRuntimeHostSnapshot,
   type ThreadAgentRuntimeSendTurnInput,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetLocalApiForTests } from "../local-api";
-import { createEmptyRuntimeHostSnapshot } from "./multi-runtime-api";
+import { createEmptyRuntimeHostSnapshot } from "./honk-runtime-api";
 import {
   hydrateRuntimeThread,
   prepareRuntimeTurnPolicy,
@@ -25,10 +25,10 @@ async function notCalled(): Promise<never> {
 }
 
 function createRuntimeApi(input: {
-  snapshot: MultiRuntimeHostSnapshot;
+  snapshot: HonkRuntimeHostSnapshot;
   getPreferences?: () => Promise<AgentPreferences>;
   onSendTurn?: (turn: ThreadAgentRuntimeSendTurnInput) => void;
-}): MultiRuntimeApi {
+}): HonkRuntimeApi {
   return {
     getHostSnapshot: async () => input.snapshot,
     getPreferences: input.getPreferences ?? (async () => input.snapshot.preferences),
@@ -45,7 +45,7 @@ function createRuntimeApi(input: {
   };
 }
 
-function createLocalApi(runtime: MultiRuntimeApi): LocalApi {
+function createLocalApi(runtime: HonkRuntimeApi): LocalApi {
   return {
     runtime,
     dialogs: {
@@ -71,6 +71,16 @@ function createLocalApi(runtime: MultiRuntimeApi): LocalApi {
     },
   };
 }
+
+const codexModelSelection = {
+  instanceId: "codex",
+  model: "gpt-5.5",
+} as const;
+
+const claudeModelSelection = {
+  instanceId: "claudeAgent",
+  model: "claude-opus-4-8",
+} as const;
 
 describe("hydrateRuntimeThread", () => {
   beforeEach(async () => {
@@ -100,11 +110,13 @@ describe("hydrateRuntimeThread", () => {
       threadId,
       cwd: "/tmp",
       interactionMode: "agent",
+      modelSelection: codexModelSelection,
     });
     await hydrateRuntimeThread({
       threadId,
       cwd: "/tmp",
       interactionMode: "agent",
+      modelSelection: codexModelSelection,
     });
 
     expect(hydrateCount).toBe(1);
@@ -135,6 +147,7 @@ describe("sendRuntimeTurn", () => {
         sourceProposedPlan: null,
         clientMessageId: MessageId.make("message:missing-runtime-host"),
         images: [],
+        modelSelection: codexModelSelection,
       }),
     ).rejects.toThrow("Runtime host unavailable.");
   });
@@ -164,6 +177,7 @@ describe("sendRuntimeTurn", () => {
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:runtime-host"),
       images: [],
+      modelSelection: codexModelSelection,
     });
 
     expect(sentInputs).toEqual([
@@ -175,8 +189,102 @@ describe("sendRuntimeTurn", () => {
         sourceProposedPlan: null,
         clientMessageId: MessageId.make("message:runtime-host"),
         images: [],
+        policy: expect.objectContaining({
+          modelSelection: expect.objectContaining({
+            authProviderId: "openai-codex",
+            modelId: "openai-codex/gpt-5.5",
+          }),
+        }),
       }),
     ]);
+  });
+
+  it("uses the pinned model selection even when preferences are Smart", async () => {
+    const sentInputs: ThreadAgentRuntimeSendTurnInput[] = [];
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+      preferences: {
+        ...createEmptyRuntimeHostSnapshot().preferences,
+        agentMode: "smart" as const,
+        thinkingLevel: "medium" as const,
+      },
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentInputs.push(turn);
+          },
+        }),
+      ),
+    });
+
+    const preparedPolicy = prepareRuntimeTurnPolicy({
+      interactionMode: "agent",
+      modelSelection: codexModelSelection,
+    });
+    await sendRuntimeTurnWithPreparedPolicy({
+      preparedPolicy,
+      threadId: ThreadId.make("thread:smart-runtime-host"),
+      cwd: "/tmp",
+      text: "hi",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: MessageId.make("message:smart-runtime-host"),
+      images: [],
+      modelSelection: codexModelSelection,
+    });
+
+    expect(sentInputs[0]?.policy.modelSelection).toMatchObject({
+      authProviderId: "openai-codex",
+      modelId: "openai-codex/gpt-5.5",
+    });
+  });
+
+  it("prepares Anthropic turns from a pinned Claude model", async () => {
+    const sentInputs: ThreadAgentRuntimeSendTurnInput[] = [];
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+      preferences: {
+        ...createEmptyRuntimeHostSnapshot().preferences,
+        agentMode: "deep" as const,
+        thinkingLevel: "medium" as const,
+      },
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentInputs.push(turn);
+          },
+        }),
+      ),
+    });
+
+    const preparedPolicy = prepareRuntimeTurnPolicy({
+      interactionMode: "agent",
+      modelSelection: claudeModelSelection,
+    });
+    await sendRuntimeTurnWithPreparedPolicy({
+      preparedPolicy,
+      threadId: ThreadId.make("thread:claude-runtime-host"),
+      cwd: "/tmp",
+      text: "hi",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: MessageId.make("message:claude-runtime-host"),
+      images: [],
+      modelSelection: claudeModelSelection,
+    });
+
+    expect(sentInputs[0]?.policy.modelSelection).toMatchObject({
+      authProviderId: "anthropic",
+      modelId: "anthropic/claude-opus-4-8",
+    });
   });
 
   it("starts policy preparation before the later send", async () => {
@@ -206,7 +314,10 @@ describe("sendRuntimeTurn", () => {
       ),
     });
 
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({
+      interactionMode: "agent",
+      modelSelection: codexModelSelection,
+    });
     expect(events).toEqual(["preferences"]);
 
     const sendPromise = sendRuntimeTurnWithPreparedPolicy({
@@ -218,6 +329,7 @@ describe("sendRuntimeTurn", () => {
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:prepared-policy"),
       images: [],
+      modelSelection: codexModelSelection,
     });
     await Promise.resolve();
     expect(sentInputs).toEqual([]);

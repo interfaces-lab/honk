@@ -29,7 +29,7 @@ function TooltipPopup({
   side?: TooltipPrimitive.Positioner.Props["side"];
   sideOffset?: TooltipPrimitive.Positioner.Props["sideOffset"];
   anchor?: TooltipPrimitive.Positioner.Props["anchor"];
-  /** `workbench` = multi-token shell aligned with elevated menus (see Popover `variant="workbench"`). */
+  /** `workbench` = honk-token shell aligned with elevated menus (see Popover `variant="workbench"`). */
   variant?: "default" | "workbench";
 }) {
   const workbench = variant === "workbench";
@@ -51,7 +51,7 @@ function TooltipPopup({
         <TooltipPrimitive.Popup
           className={cn(
             workbench
-              ? "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) overflow-hidden rounded-[10px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-popup outline-none backdrop-blur-xl transition-[width,height,scale,opacity] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100"
+              ? "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) overflow-hidden rounded-[10px] border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-detail text-honk-fg-primary shadow-honk-popup outline-none backdrop-blur-xl transition-[width,height,scale,opacity] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100"
               : "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) text-balance rounded-md border bg-popover not-dark:bg-clip-padding text-popover-foreground text-detail shadow-md/5 transition-[width,height,scale,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-md)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 data-instant:duration-0 dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             className,
           )}
@@ -59,7 +59,7 @@ function TooltipPopup({
           {...props}
         >
           <TooltipPrimitive.Viewport
-            className={cn(tooltipViewportClassName, workbench && "font-multi")}
+            className={cn(tooltipViewportClassName, workbench && "font-honk")}
             data-slot="tooltip-viewport"
           >
             {children}

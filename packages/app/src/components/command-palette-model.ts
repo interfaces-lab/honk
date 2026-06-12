@@ -1,5 +1,6 @@
-import { type KeybindingCommand } from "@multi/contracts";
-import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
+import { type KeybindingCommand } from "@honk/contracts";
+import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { type ReactNode } from "react";
 import { sortThreads } from "../lib/thread-sort";
 import { formatRelativeTimeLabel } from "../lib/timestamp-format";
@@ -46,10 +47,6 @@ export interface CommandPaletteView {
 }
 
 export type CommandPaletteMode = "root" | "submenu";
-
-export function normalizeSearchText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
 
 export function buildProjectActionItems(input: {
   projects: ReadonlyArray<Project>;
@@ -129,7 +126,7 @@ export function buildThreadActionItems(input: {
 }
 
 function rankSearchFieldMatch(field: string, normalizedQuery: string): number {
-  const normalizedField = normalizeSearchText(field);
+  const normalizedField = normalizeSearchQuery(field);
   if (normalizedField.length === 0 || !normalizedField.includes(normalizedQuery)) {
     return Number.NEGATIVE_INFINITY;
   }
@@ -170,7 +167,7 @@ export function filterCommandPaletteGroups(input: {
 }): CommandPaletteGroup[] {
   const isActionsFilter = input.query.startsWith(">");
   const searchQuery = isActionsFilter ? input.query.slice(1) : input.query;
-  const normalizedQuery = normalizeSearchText(searchQuery);
+  const normalizedQuery = normalizeSearchQuery(searchQuery);
 
   if (normalizedQuery.length === 0) {
     if (isActionsFilter) {
@@ -208,7 +205,7 @@ export function filterCommandPaletteGroups(input: {
   return searchableGroups.flatMap((group) => {
     const items = group.items
       .map((item, index) => {
-        const haystack = normalizeSearchText(item.searchTerms.join(" "));
+        const haystack = normalizeSearchQuery(item.searchTerms.join(" "));
         if (!haystack.includes(normalizedQuery)) {
           return null;
         }

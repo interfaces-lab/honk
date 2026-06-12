@@ -1,4 +1,4 @@
-import { EnvironmentId, type ExecutionEnvironmentDescriptor } from "@multi/contracts";
+import { EnvironmentId, type ExecutionEnvironmentDescriptor } from "@honk/contracts";
 import { Effect, FileSystem, Layer, Path, Random, Ref } from "effect";
 
 import { ServerConfig } from "../config.ts";

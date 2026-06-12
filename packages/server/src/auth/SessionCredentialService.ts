@@ -3,8 +3,8 @@ import {
   type AuthClientMetadata,
   type AuthClientSession,
   type ServerAuthSessionMethod,
-} from "@multi/contracts";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { Clock, DateTime, Duration, Effect, Layer, PubSub, Ref, Schema, Stream } from "effect";
 import { Option } from "effect";
 

@@ -238,9 +238,9 @@ deferred to their own focused PRs and documented at the bottom.
   <h3><span class="tag decision">Decision</span> Resolution order &amp; agent directories</h3>
   <p>
     Precedence is <strong>builtin &lt; user &lt; project &lt; per-call overrides</strong> (later wins). User agents:
-    <code>&lt;agentDir&gt;/agents/*.md</code> (the pi-agent dir, multi's equivalent of <code>~/.pi/agent/agents</code>).
-    Project agents: the nearest <code>.multi/agents</code> directory at or above the working dir.
-    <span class="tag decision">Assumption</span> I chose <code>.multi/agents</code> for the project scope (the spec
+    <code>&lt;agentDir&gt;/agents/*.md</code> (the pi-agent dir, honk's equivalent of <code>~/.pi/agent/agents</code>).
+    Project agents: the nearest <code>.honk/agents</code> directory at or above the working dir.
+    <span class="tag decision">Assumption</span> I chose <code>.honk/agents</code> for the project scope (the spec
     didn't name it); pi-subagents uses <code>.pi/agents</code>. Easy to change or additionally support if you'd
     prefer <code>.pi/agents</code>. Per-call <code>agentScope</code> (<code>user</code>/<code>project</code>/<code>both</code>)
     gates which scopes are read; default <code>user</code>.
@@ -262,7 +262,7 @@ deferred to their own focused PRs and documented at the bottom.
 <div class="entry">
   <h3><span class="tag risk">Tradeoff</span> Tool allowlists drop <code>read</code>; specialists use <code>bash</code></h3>
   <p>
-    multi force-excludes the pi builtin <code>read</code> (<code>DEFAULT_EXCLUDED_TOOL_NAMES</code> in
+    honk force-excludes the pi builtin <code>read</code> (<code>DEFAULT_EXCLUDED_TOOL_NAMES</code> in
     thread-agent-runtime) — it reads via its fff extension, which children don't load. So the builtin profiles use
     <code>grep/find/ls/bash</code> for read-only work (bash reaches file content) and add <code>edit/write</code> for the
     worker. Including <code>read</code> in an allowlist would be a silent no-op. This matches pi-subagents' own reviewer/scout
@@ -283,7 +283,7 @@ deferred to their own focused PRs and documented at the bottom.
 <div class="entry">
   <h3><span class="tag decision">Decision</span> Depth guard is in-process (no env/subprocess to carry it)</h3>
   <p>
-    pi-subagents propagates depth via an env var to spawned child processes. multi runs children in-process, so depth is
+    pi-subagents propagates depth via an env var to spawned child processes. honk runs children in-process, so depth is
     threaded explicitly: <code>createSubagentExtension({ depth, maxSubagentDepth })</code>. The factory refuses to register
     the <code>subagent</code> tool when <code>depth &gt;= maxSubagentDepth</code>, and a child is handed its own fan-out
     extension <em>only</em> when its resolved <code>tools</code> include <code>"subagent"</code> and it's still below the
@@ -305,10 +305,10 @@ deferred to their own focused PRs and documented at the bottom.
   <p>
     Full-repo typecheck passes 10/10; the affected runtime suites pass (32 tests); under the real project lint config
     both new/changed subagent files are clean (the <code>no-redundant-type-constituents</code> hits only appear when
-    oxlint runs on isolated files and can't resolve <code>@multi/contracts</code> types — they vanish with project type
+    oxlint runs on isolated files and can't resolve <code>@honk/contracts</code> types — they vanish with project type
     resolution). No new unit tests for the resolver, per the repo's canonical no-regression-tests style; the resolver is
     pure and typechecked. Not done (out of the requested scope): a settings UI for managing agents, user-confirmation
-    before running project-scoped agents (pi-subagents prompts; multi runs headless), and shipping example agent
+    before running project-scoped agents (pi-subagents prompts; honk runs headless), and shipping example agent
     <code>.md</code> files.
   </p>
 </div>

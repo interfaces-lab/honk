@@ -5,7 +5,7 @@ import {
   RuntimeSessionId,
   ThreadId,
   type DesktopExtensionUiRequest,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   ComposerPendingExtensionUiRequestPanel,
   pendingExtensionUiRequestResponseActions,

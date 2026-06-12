@@ -1,8 +1,8 @@
 import { Effect, Layer, Result, Schema, SchemaIssue } from "effect";
-import { TrimmedNonEmptyString } from "@multi/contracts";
+import { TrimmedNonEmptyString } from "@honk/contracts";
 
 import { runProcess } from "../process-runner";
-import { GitHubCliError } from "@multi/contracts";
+import { GitHubCliError } from "@honk/contracts";
 import {
   GitHubCli,
   type GitHubRepositoryCloneUrls,
@@ -72,16 +72,6 @@ const RawGitHubRepositoryCloneUrlsSchema = Schema.Struct({
   url: TrimmedNonEmptyString,
   sshUrl: TrimmedNonEmptyString,
 });
-
-function normalizeRepositoryCloneUrls(
-  raw: Schema.Schema.Type<typeof RawGitHubRepositoryCloneUrlsSchema>,
-): GitHubRepositoryCloneUrls {
-  return {
-    nameWithOwner: raw.nameWithOwner,
-    url: raw.url,
-    sshUrl: raw.sshUrl,
-  };
-}
 
 function decodeGitHubJson<S extends Schema.Top>(
   raw: string,
@@ -199,7 +189,6 @@ const makeGitHubCli = Effect.sync(() => {
             "GitHub CLI returned invalid repository JSON.",
           ),
         ),
-        Effect.map(normalizeRepositoryCloneUrls),
       ),
     createPullRequest: (input) =>
       execute({

@@ -3,7 +3,7 @@ name: Chat Foundation Integrated + Dual SDK Boundaries
 overview: "Rewrite chat foundation around the Pi-core dual-SDK boundary: app coordinates sends through Promise SDK clients only, desktop main owns Pi runtime ingestion, server stores durable facts, and the UI has one projector with deletion-first legacy cleanup."
 todos:
   - id: p0-boundary-contract
-    content: "Document and enforce package boundaries: app Promise-only, Pi imports only in @multi/runtime, durable facts through EnvironmentApi, Pi execution through MultiRuntimeApi"
+    content: "Document and enforce package boundaries: app Promise-only, Pi imports only in @honk/runtime, durable facts through EnvironmentApi, Pi execution through HonkRuntimeApi"
     status: completed
   - id: p1-client-runtime
     content: Add/centralize client-runtime APIs; remove fallbackRuntimeApi and scattered runtime host reads from app code
@@ -34,7 +34,7 @@ The objective is still the chat foundation end state: duplicate user rows, git d
 
 ## Core Invariant
 
-Pi is the agent engine. Multi extends Pi through `@multi/runtime`. The app never imports Pi, never synthesizes durable orchestration facts from runtime streams, and never sends a turn by hand from UI components.
+Pi is the agent engine. Honk extends Pi through `@honk/runtime`. The app never imports Pi, never synthesizes durable orchestration facts from runtime streams, and never sends a turn by hand from UI components.
 
 ```mermaid
 flowchart TB
@@ -45,19 +45,19 @@ flowchart TB
     RuntimeOverlay["agent-runtime-store overlay"]
   end
 
-  subgraph client ["@multi/client-runtime"]
+  subgraph client ["@honk/client-runtime"]
     RuntimeClient["createRuntimeClient"]
     EnvironmentClient["createEnvironmentClient"]
     LocalClient["createLocalApi"]
   end
 
   subgraph desktop ["packages/desktop main"]
-    IPC["MultiRuntimeApi IPC"]
+    IPC["HonkRuntimeApi IPC"]
     Host["DesktopRuntimeHost"]
     Ingestion["runtime-ingestion"]
   end
 
-  subgraph runtime ["@multi/runtime"]
+  subgraph runtime ["@honk/runtime"]
     TAR["ThreadAgentRuntime"]
     PiProjection["Pi projections + sidecars"]
   end
@@ -84,17 +84,17 @@ flowchart TB
 
 | Package                   | Allowed                                                                                 | Delete / forbid                                                                                                      |
 | ------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `packages/app`            | `@multi/contracts`, `@multi/client-runtime`, `@multi/shared`, React stores for UI state | Pi imports, `@multi/runtime`, server imports, Effect services, IPC channel strings, renderer orchestration ingestion |
-| `packages/client-runtime` | Promise clients for `MultiRuntimeApi`, `EnvironmentApi`, `LocalApi`                     | Pi, server internals, UI state                                                                                       |
+| `packages/app`            | `@honk/contracts`, `@honk/client-runtime`, `@honk/shared`, React stores for UI state | Pi imports, `@honk/runtime`, server imports, Effect services, IPC channel strings, renderer orchestration ingestion |
+| `packages/client-runtime` | Promise clients for `HonkRuntimeApi`, `EnvironmentApi`, `LocalApi`                     | Pi, server internals, UI state                                                                                       |
 | `packages/runtime`        | Pi SDK imports, projections, `ThreadAgentRuntime`, sidecars                             | React, app stores, desktop IPC details                                                                               |
-| `packages/desktop`        | `@multi/runtime`, IPC, runtime ingestion, Effect runtime services                       | Pi types in renderer/preload                                                                                         |
+| `packages/desktop`        | `@honk/runtime`, IPC, runtime ingestion, Effect runtime services                       | Pi types in renderer/preload                                                                                         |
 | `packages/server`         | durable orchestration facts and projections                                             | Pi execution, runtime display rows, `chatTimelineRows`                                                               |
 
 App uses two agent-adjacent SDK surfaces:
 
 | API               | Transport     | Owns                                                                         |
 | ----------------- | ------------- | ---------------------------------------------------------------------------- |
-| `MultiRuntimeApi` | Electron IPC  | Pi execution: `sendTurn`, `abort`, `hydrateThread`, credentials, host events |
+| `HonkRuntimeApi` | Electron IPC  | Pi execution: `sendTurn`, `abort`, `hydrateThread`, credentials, host events |
 | `EnvironmentApi`  | WebSocket RPC | Durable orchestration facts, projects, git, terminal, thread snapshots       |
 | `LocalApi`        | IPC           | Shell/local UI operations only, not agent/environment proxying               |
 
@@ -118,8 +118,8 @@ One `MessageId` is assigned at send and used everywhere:
 
 1. `coordinateTurnSend` receives `clientMessageId`.
 2. `EnvironmentApi.orchestration.dispatchCommand({ type: "thread.turn.start", messageId: clientMessageId, ... })`.
-3. `MultiRuntimeApi.sendTurn({ clientMessageId, ... })`.
-4. `@multi/runtime` persists `CLIENT_MESSAGE_ID_SIDECAR_TYPE = "multi.client-message-id"` beside Pi JSONL user entries.
+3. `HonkRuntimeApi.sendTurn({ clientMessageId, ... })`.
+4. `@honk/runtime` persists `CLIENT_MESSAGE_ID_SIDECAR_TYPE = "honk.client-message-id"` beside Pi JSONL user entries.
 5. Session-tree projection emits `clientMessageId`; app merge aliases runtime user facts to existing committed rows.
 
 Old Pi JSONL without sidecars is handled by enrichment alias rules, not timestamp/text display dedupe.
@@ -131,7 +131,7 @@ Old Pi JSONL without sidecars is handled by enrichment alias rules, not timestam
 Inputs:
 
 - committed `ChatMessage[]`, entries, activities, proposed plans from `EnvironmentApi`
-- runtime display overlay from `MultiRuntimeApi` host events
+- runtime display overlay from `HonkRuntimeApi` host events
 - `ThreadSendIntent[]` for local in-flight sends
 - active turn state for waiting-row eligibility
 
@@ -155,14 +155,14 @@ Write or update architecture documentation:
 
 Add or extend boundary checks so they fail on:
 
-- Pi imports outside `@multi/runtime`
-- `@multi/runtime` imports in app
+- Pi imports outside `@honk/runtime`
+- `@honk/runtime` imports in app
 - app imports from server internals
 - Effect service usage in React stores or UI modules
 
 ### P1 — Client Runtime And Fallback Deletion
 
-Create or centralize `@multi/client-runtime`:
+Create or centralize `@honk/client-runtime`:
 
 - `createRuntimeClient`
 - `createEnvironmentClient`
@@ -172,9 +172,9 @@ Delete:
 
 - `fallbackRuntimeApi`
 - silent empty runtime host behavior
-- scattered `window.multiRuntime` / `readNativeRuntimeApi` reads outside bootstrap/client construction
+- scattered `window.honkRuntime` / `readNativeRuntimeApi` reads outside bootstrap/client construction
 
-`readMultiRuntimeApi()` should require a desktop host and fail loudly when unavailable. Browser fallback stubs are out of scope for this app path.
+`readHonkRuntimeApi()` should require a desktop host and fail loudly when unavailable. Browser fallback stubs are out of scope for this app path.
 
 ### P2 — Turn Coordinator
 
@@ -197,14 +197,14 @@ Coordinator responsibilities:
 1. create/use one `clientMessageId`
 2. write `ThreadSendIntent`
 3. dispatch durable turn start through `EnvironmentApi`
-4. call runtime `sendTurn` through `MultiRuntimeApi`
+4. call runtime `sendTurn` through `HonkRuntimeApi`
 5. reconcile failure and retry without creating a second user row
 
 ### P3 — Runtime Identity And Desktop Ingestion
 
 Keep the chat-foundation identity work:
 
-- Pi JSONL client-message-id sidecars in `@multi/runtime`
+- Pi JSONL client-message-id sidecars in `@honk/runtime`
 - sidecar hydration in session-tree projection
 - runtime user echo aliasing in app merge
 
@@ -287,7 +287,7 @@ Before completion, grep source and delete or justify every hit:
 - `RuntimeDisplayTimelineCustomMessageItem`
 - renderer-side runtime persistence dispatch helpers
 - `fallbackRuntimeApi`
-- raw `window.multiRuntime` reads outside bootstrap/client-runtime
+- raw `window.honkRuntime` reads outside bootstrap/client-runtime
 
 Intentional exceptions:
 

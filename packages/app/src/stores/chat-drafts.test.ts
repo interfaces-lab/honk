@@ -1,4 +1,4 @@
-import { EnvironmentId, ProjectId, ThreadId } from "@multi/contracts";
+import { EnvironmentId, ProjectId, ThreadId } from "@honk/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { scopeProjectRef, scopeThreadRef, scopedThreadKey } from "../lib/environment-scope";
@@ -20,7 +20,7 @@ type FlushablePersistStorage = {
 
 const environmentId = EnvironmentId.make("environment:chat-drafts");
 const projectId = ProjectId.make("project:chat-drafts");
-const logicalProjectKey = "git:/Users/workgyver/Developer/multi";
+const logicalProjectKey = "git:/Users/workgyver/Developer/honk";
 
 function resetComposerDraftStore(): void {
   useComposerDraftStore.setState({

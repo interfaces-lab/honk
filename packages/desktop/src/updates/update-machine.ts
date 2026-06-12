@@ -1,4 +1,4 @@
-import type { DesktopRuntimeInfo, DesktopUpdateState } from "@multi/contracts";
+import type { DesktopRuntimeInfo, DesktopUpdateState } from "@honk/contracts";
 
 export function nextStatusAfterDownloadFailure(
   currentState: DesktopUpdateState,

@@ -9,7 +9,7 @@ import * as Layer from "effect/Layer";
 
 import * as Electron from "electron";
 
-import { NetService } from "@multi/shared/Net";
+import { NetService } from "@honk/shared/Net";
 
 import * as DesktopIpc from "../ipc/desktop-ipc";
 import * as ElectronApp from "../electron/electron-app";

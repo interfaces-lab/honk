@@ -1,15 +1,15 @@
-import { type ProjectEntry, type EnvironmentId } from "@multi/contracts";
+import { type ProjectEntry, type EnvironmentId } from "@honk/contracts";
 import {
   insertRankedSearchResult,
   normalizeSearchQuery,
   scoreQueryMatch,
-} from "@multi/shared/search-ranking";
+} from "@honk/shared/search-ranking";
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconBug, IconBubbleQuestion, IconRobot, IconSquareChecklist } from "central-icons";
 import { useMemo, type ComponentProps } from "react";
 
-import { Popover, PopoverPopup } from "@multi/multikit/popover";
+import { Popover, PopoverPopup } from "@honk/multikit/popover";
 import { cn } from "~/lib/utils";
 
 import {
@@ -27,7 +27,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@multi/multikit/command";
+} from "@honk/multikit/command";
 import { VscodeEntryIcon } from "../../shared/vscode-entry-icon";
 
 /**
@@ -83,7 +83,7 @@ function readComposerMenuCollisionPaddingTop(): number {
     return 8;
   }
   const raw = getComputedStyle(document.documentElement)
-    .getPropertyValue("--multi-composer-menu-collision-padding-top")
+    .getPropertyValue("--honk-composer-menu-collision-padding-top")
     .trim();
   const parsed = Number.parseFloat(raw);
   return Number.isFinite(parsed) ? parsed : 8;
@@ -346,7 +346,7 @@ export function useComposerCommandMenu(input: {
 }
 
 function renderSlashCommandIcon(command: ComposerSlashCommand) {
-  const className = "size-4 shrink-0 text-multi-fg-secondary";
+  const className = "size-4 shrink-0 text-honk-fg-secondary";
   if (command === "ask") return <IconBubbleQuestion className={className} />;
   if (command === "plan") return <IconSquareChecklist className={className} />;
   if (command === "debug") return <IconBug className={className} />;
@@ -412,7 +412,7 @@ export function ComposerCommandMenu(props: {
       }}
     >
       <div
-        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-multi-stroke-secondary bg-(--multi-composer-popup-surface-background) font-multi text-body text-multi-fg-primary shadow-multi-popup motion-reduce:animate-none motion-reduce:transition-none"
+        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) font-honk text-body text-honk-fg-primary shadow-honk-popup motion-reduce:animate-none motion-reduce:transition-none"
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >
@@ -423,7 +423,7 @@ export function ComposerCommandMenu(props: {
               {groupIndex > 0 ? <CommandSeparator className="my-px" /> : null}
               <CommandGroup>
                 {group.label ? (
-                  <CommandGroupLabel className="px-1.5 py-0.5 text-detail font-medium text-multi-fg-tertiary opacity-60">
+                  <CommandGroupLabel className="px-1.5 py-0.5 text-detail font-medium text-honk-fg-tertiary opacity-60">
                     {group.label}
                   </CommandGroupLabel>
                 ) : null}
@@ -443,7 +443,7 @@ export function ComposerCommandMenu(props: {
         </CommandList>
         {props.items.length === 0 ? (
           <div className="px-2.5 py-2">
-            <p className="text-body text-multi-fg-tertiary">
+            <p className="text-body text-honk-fg-tertiary">
               {props.isLoading
                 ? "Searching project files..."
                 : (props.emptyStateText ??
@@ -481,7 +481,7 @@ const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
       data-composer-item-id={props.item.id}
       data-is-selected={props.isActive ? "" : undefined}
       data-menu-item-type={props.item.type}
-      className="flex min-h-[22px] cursor-pointer items-center gap-1.5 rounded-multi-control px-1.5 py-1 text-body text-multi-fg-primary select-none hover:bg-multi-bg-quaternary data-highlighted:bg-multi-bg-quaternary data-[is-selected]:bg-multi-bg-quaternary"
+      className="flex min-h-[22px] cursor-pointer items-center gap-1.5 rounded-honk-control px-1.5 py-1 text-body text-honk-fg-primary select-none hover:bg-honk-bg-quaternary data-highlighted:bg-honk-bg-quaternary data-[is-selected]:bg-honk-bg-quaternary"
       onMouseMove={() => {
         if (!props.isActive) props.onHighlight(props.item.id);
       }}
@@ -501,15 +501,15 @@ const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
       ) : null}
       {slashIcon}
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="min-w-0 flex-none truncate text-body font-medium text-multi-fg-primary">
+        <span className="min-w-0 flex-none truncate text-body font-medium text-honk-fg-primary">
           {props.item.label}
         </span>
-        <span className="min-w-0 flex-1 truncate text-detail text-multi-fg-tertiary">
+        <span className="min-w-0 flex-1 truncate text-detail text-honk-fg-tertiary">
           {props.item.description}
         </span>
       </span>
       {tertiaryText ? (
-        <span className="flex-none whitespace-nowrap rounded-full border border-multi-stroke-secondary bg-multi-bg-tertiary/70 px-1.5 py-0 text-caption text-multi-fg-tertiary">
+        <span className="flex-none whitespace-nowrap rounded-full border border-honk-stroke-secondary bg-honk-bg-tertiary/70 px-1.5 py-0 text-caption text-honk-fg-tertiary">
           {tertiaryText}
         </span>
       ) : null}

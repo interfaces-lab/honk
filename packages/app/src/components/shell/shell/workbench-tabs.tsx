@@ -22,9 +22,9 @@ import {
   workbenchMenuItemClassName,
   workbenchMenuMetaTextClassName,
   workbenchMenuPrimaryTextClassName,
-} from "@multi/multikit/menu";
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
-import { WorkbenchChromeRow } from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/menu";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
+import { WorkbenchChromeRow } from "@honk/multikit/workbench-chrome-row";
 
 const NEW_TAB_MENU_WIDTH = "w-72 max-w-full min-w-0";
 const NEW_TAB_MENU_MAX_HEIGHT = "max-h-[min(720px,var(--available-height))]";
@@ -103,11 +103,11 @@ export function WorkbenchTabBar(props: {
             sideOffset={4}
             variant="workbench"
           >
-            <div className="flex items-center gap-1 border-b border-multi-stroke-tertiary px-1.5 py-1.5">
-              <IconMagnifyingGlass className="size-4 shrink-0 text-multi-fg-tertiary" aria-hidden />
+            <div className="flex items-center gap-1 border-b border-honk-stroke-tertiary px-1.5 py-1.5">
+              <IconMagnifyingGlass className="size-4 shrink-0 text-honk-fg-tertiary" aria-hidden />
               <input
                 aria-label="Search new tab menu"
-                className="h-6 min-w-0 flex-1 bg-transparent text-body text-multi-fg-primary outline-none placeholder:text-multi-fg-quaternary"
+                className="h-6 min-w-0 flex-1 bg-transparent text-body text-honk-fg-primary outline-none placeholder:text-honk-fg-quaternary"
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={stopMenuSearchBubbling}
                 placeholder="Open any file, URL, ..."
@@ -139,7 +139,7 @@ export function WorkbenchTabBar(props: {
                       <span className={workbenchMenuMetaTextClassName}>Soon</span>
                     ) : null}
                     {isActive ? (
-                      <IconCheckmark1 className="size-4 shrink-0 text-multi-fg-tertiary" />
+                      <IconCheckmark1 className="size-4 shrink-0 text-honk-fg-tertiary" />
                     ) : null}
                   </MenuItem>
                 );

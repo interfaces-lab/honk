@@ -5,12 +5,12 @@ import type {
   ScopedProjectRef,
   ScopedThreadRef,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   EnvironmentId as EnvironmentIdSchema,
   ProjectId as ProjectIdSchema,
   ThreadId as ThreadIdSchema,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 export const DESKTOP_RUNTIME_ENVIRONMENT_ID = EnvironmentIdSchema.make("desktop-runtime");
 

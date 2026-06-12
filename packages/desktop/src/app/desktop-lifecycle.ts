@@ -9,7 +9,7 @@ import * as Scope from "effect/Scope";
 import type * as Electron from "electron";
 
 import * as DesktopEnvironment from "./desktop-environment";
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as ElectronApp from "../electron/electron-app";
 import * as ElectronTheme from "../electron/electron-theme";
 import * as DesktopQuitGuard from "./desktop-quit-guard";
@@ -25,7 +25,7 @@ export interface DesktopShutdownShape {
 }
 
 export class DesktopShutdown extends Context.Service<DesktopShutdown, DesktopShutdownShape>()(
-  "multi/desktop/Shutdown",
+  "honk/desktop/Shutdown",
 ) {}
 
 const makeShutdown = Effect.gen(function* () {
@@ -64,7 +64,7 @@ export interface DesktopLifecycleShape {
 }
 
 export class DesktopLifecycle extends Context.Service<DesktopLifecycle, DesktopLifecycleShape>()(
-  "multi/desktop/Lifecycle",
+  "honk/desktop/Lifecycle",
 ) {}
 
 const elog = EffectLogger.create({ service: "desktop-lifecycle" });

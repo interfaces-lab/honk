@@ -1,6 +1,6 @@
 import { fauxAssistantMessage, fauxText, fauxThinking } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentRuntimeEvent } from "@multi/contracts";
+import type { AgentRuntimeEvent } from "@honk/contracts";
 import {
   createRuntimeHarness,
   EMPTY_SEND_MESSAGE_OPTIONS,

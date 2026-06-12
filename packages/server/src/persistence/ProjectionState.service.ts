@@ -6,7 +6,7 @@
  *
  * @module ProjectionStateRepository
  */
-import { IsoDateTime, NonNegativeInt } from "@multi/contracts";
+import { IsoDateTime, NonNegativeInt } from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -61,4 +61,4 @@ export interface ProjectionStateRepositoryShape {
 export class ProjectionStateRepository extends Context.Service<
   ProjectionStateRepository,
   ProjectionStateRepositoryShape
->()("multi/persistence/ProjectionState.service/ProjectionStateRepository") {}
+>()("honk/persistence/ProjectionState.service/ProjectionStateRepository") {}

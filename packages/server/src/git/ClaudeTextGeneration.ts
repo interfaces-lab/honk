@@ -10,10 +10,10 @@
 import { Effect, Layer, Option, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { type ModelSelection } from "@multi/contracts";
-import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@multi/shared/git";
+import { type ModelSelection } from "@honk/contracts";
+import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@honk/shared/git";
 
-import { TextGenerationError } from "@multi/contracts";
+import { TextGenerationError } from "@honk/contracts";
 import { type TextGenerationShape, TextGeneration } from "./TextGeneration.service.ts";
 import {
   buildBranchNamePrompt,
@@ -31,7 +31,7 @@ import {
 import {
   getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
-} from "@multi/shared/model";
+} from "@honk/shared/model";
 
 const CLAUDE_TIMEOUT_MS = 180_000;
 

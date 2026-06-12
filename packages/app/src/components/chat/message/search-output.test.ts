@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseFindOutput, parseGrepOutput } from "./search-output";
 
 describe("search output parser", () => {
-  it("parses pi-fff grouped grep output with file annotations", () => {
+  it("parses grouped grep output with file annotations", () => {
     expect(
       parseGrepOutput(
         [
@@ -53,7 +53,7 @@ describe("search output parser", () => {
       parseFindOutput(
         [
           "packages/app/src/components/chat/message/tool-renderer.tsx  [often touched file]",
-          "packages/runtime/src/fff-extension.ts  [modified in git]",
+          "packages/runtime/src/display-timeline-projection.ts  [modified in git]",
           "",
           '[38 more matches available. cursor="1" to continue]',
         ].join("\n"),
@@ -66,7 +66,7 @@ describe("search output parser", () => {
           annotation: "often touched file",
         },
         {
-          path: "packages/runtime/src/fff-extension.ts",
+          path: "packages/runtime/src/display-timeline-projection.ts",
           annotation: "modified in git",
         },
       ],

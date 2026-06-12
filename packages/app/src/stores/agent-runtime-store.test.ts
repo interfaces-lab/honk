@@ -10,12 +10,12 @@ import {
   type DesktopExtensionUiRequest,
   type SessionTreeProjection,
   type RuntimeDisplayTimelineProjection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetEnvironmentApiOverridesForTests } from "../environment-api";
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
-import { createEmptyRuntimeHostSnapshot } from "../lib/multi-runtime-api";
+import { createEmptyRuntimeHostSnapshot } from "../lib/honk-runtime-api";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
 import { selectIsRuntimeThread, useAgentRuntimeStore } from "./agent-runtime-store";
 import { initialState, selectEnvironmentState, useStore } from "./thread-store";

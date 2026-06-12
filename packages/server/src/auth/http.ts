@@ -4,7 +4,7 @@ import {
   AuthCreatePairingCredentialInput,
   AuthRevokeClientSessionInput,
   AuthRevokePairingLinkInput,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 

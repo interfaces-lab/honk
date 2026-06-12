@@ -13,7 +13,7 @@ import {
   ProjectionPendingApprovalStatus,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -88,4 +88,4 @@ export interface ProjectionPendingApprovalRepositoryShape {
 export class ProjectionPendingApprovalRepository extends Context.Service<
   ProjectionPendingApprovalRepository,
   ProjectionPendingApprovalRepositoryShape
->()("multi/persistence/ProjectionPendingApprovals.service/ProjectionPendingApprovalRepository") {}
+>()("honk/persistence/ProjectionPendingApprovals.service/ProjectionPendingApprovalRepository") {}

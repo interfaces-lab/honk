@@ -2,27 +2,28 @@ import {
   type DesktopExtensionUiRequest,
   type EnvironmentId,
   EnvironmentId as EnvironmentIdSchema,
-  type MultiRuntimeHostEvent,
-  type MultiRuntimeHostSnapshot,
+  type HonkRuntimeHostEvent,
+  type HonkRuntimeHostSnapshot,
   type RuntimeDisplayTimelineItem,
   type RuntimeDisplayTimelineProjection,
+  type RuntimeThreadIdentity,
   type SessionTreeProjection,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { create } from "zustand";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
-import { createEmptyRuntimeHostSnapshot, readMultiRuntimeApi } from "../lib/multi-runtime-api";
+import { createEmptyRuntimeHostSnapshot, readHonkRuntimeApi } from "../lib/honk-runtime-api";
 import { resetRuntimeThreadHydrationCache } from "../lib/runtime-turn-dispatch";
 import { runtimeParentToolDisplaySignature } from "../lib/runtime-tool-display";
 import { useComposerDraftStore } from "./chat-drafts";
 import { useStore, type EnvironmentState } from "./thread-store";
 
 interface AgentRuntimeState {
-  readonly snapshot: MultiRuntimeHostSnapshot;
+  readonly snapshot: HonkRuntimeHostSnapshot;
   readonly localRuntimeThreadIds: ReadonlySet<ThreadId>;
-  readonly setSnapshot: (snapshot: MultiRuntimeHostSnapshot) => void;
-  readonly applyHostEvent: (event: MultiRuntimeHostEvent) => void;
+  readonly setSnapshot: (snapshot: HonkRuntimeHostSnapshot) => void;
+  readonly applyHostEvent: (event: HonkRuntimeHostEvent) => void;
   readonly markLocalRuntimeThread: (threadId: ThreadId) => void;
   readonly clearLocalRuntimeThread: (threadId: ThreadId) => void;
 }
@@ -52,7 +53,7 @@ function resolveRuntimeThreadEnvironmentId(threadId: ThreadId): EnvironmentId {
 }
 
 function applyRuntimeSessionTreeToThreadStore(
-  tree: MultiRuntimeHostSnapshot["sessionTrees"][number],
+  tree: HonkRuntimeHostSnapshot["sessionTrees"][number],
 ): void {
   const store = useStore.getState();
   const environmentId = resolveRuntimeThreadEnvironmentId(tree.threadId);
@@ -60,7 +61,7 @@ function applyRuntimeSessionTreeToThreadStore(
 }
 
 function applyRuntimeEventToThreadStore(
-  event: MultiRuntimeHostSnapshot["runtimeEvents"][number],
+  event: HonkRuntimeHostSnapshot["runtimeEvents"][number],
 ): void {
   const store = useStore.getState();
   const environmentId = resolveRuntimeThreadEnvironmentId(event.threadId);
@@ -98,7 +99,7 @@ function syncPendingExtensionUiRequestsToThreadStore(
   }
 }
 
-function runtimeThreadIds(snapshot: MultiRuntimeHostSnapshot): Set<ThreadId> {
+function runtimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
   const threadIds = new Set<ThreadId>();
   for (const tree of snapshot.sessionTrees) {
     threadIds.add(tree.threadId);
@@ -115,7 +116,7 @@ function runtimeThreadIds(snapshot: MultiRuntimeHostSnapshot): Set<ThreadId> {
   return threadIds;
 }
 
-function hostOwnedRuntimeThreadIds(snapshot: MultiRuntimeHostSnapshot): Set<ThreadId> {
+function hostOwnedRuntimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
   const threadIds = new Set<ThreadId>();
   for (const tree of snapshot.sessionTrees) {
     threadIds.add(tree.threadId);
@@ -129,7 +130,7 @@ function hostOwnedRuntimeThreadIds(snapshot: MultiRuntimeHostSnapshot): Set<Thre
   return threadIds;
 }
 
-function hostOwnedRuntimeThreadIdsForEvent(event: MultiRuntimeHostEvent): Set<ThreadId> {
+function hostOwnedRuntimeThreadIdsForEvent(event: HonkRuntimeHostEvent): Set<ThreadId> {
   switch (event.type) {
     case "snapshot":
       return hostOwnedRuntimeThreadIds(event.snapshot);
@@ -165,8 +166,8 @@ function clearAcknowledgedLocalRuntimeThreadIds(
 }
 
 function clearStaleRuntimeThreadsFromThreadStore(
-  snapshot: MultiRuntimeHostSnapshot,
-  previousSnapshot: MultiRuntimeHostSnapshot,
+  snapshot: HonkRuntimeHostSnapshot,
+  previousSnapshot: HonkRuntimeHostSnapshot,
 ): void {
   const activeThreadIds = runtimeThreadIds(snapshot);
   for (const threadId of runtimeThreadIds(previousSnapshot)) {
@@ -178,8 +179,8 @@ function clearStaleRuntimeThreadsFromThreadStore(
 }
 
 function syncRuntimeSnapshotToThreadStore(
-  snapshot: MultiRuntimeHostSnapshot,
-  previousSnapshot: MultiRuntimeHostSnapshot,
+  snapshot: HonkRuntimeHostSnapshot,
+  previousSnapshot: HonkRuntimeHostSnapshot,
 ): void {
   clearStaleRuntimeThreadsFromThreadStore(snapshot, previousSnapshot);
   for (const tree of snapshot.sessionTrees) {
@@ -192,8 +193,8 @@ function syncRuntimeSnapshotToThreadStore(
 }
 
 function applyRuntimeHostEventToThreadStore(
-  event: MultiRuntimeHostEvent,
-  previousSnapshot: MultiRuntimeHostSnapshot,
+  event: HonkRuntimeHostEvent,
+  previousSnapshot: HonkRuntimeHostSnapshot,
 ): void {
   if (event.type === "snapshot") {
     syncRuntimeSnapshotToThreadStore(
@@ -217,9 +218,9 @@ function applyRuntimeHostEventToThreadStore(
 }
 
 function reduceHostEvent(
-  snapshot: MultiRuntimeHostSnapshot,
-  event: MultiRuntimeHostEvent,
-): MultiRuntimeHostSnapshot {
+  snapshot: HonkRuntimeHostSnapshot,
+  event: HonkRuntimeHostEvent,
+): HonkRuntimeHostSnapshot {
   switch (event.type) {
     case "snapshot":
       return normalizeRuntimeHostSnapshot(event.snapshot, snapshot);
@@ -246,17 +247,17 @@ function reduceHostEvent(
 }
 
 function retainRecentRuntimeEvents(
-  events: ReadonlyArray<MultiRuntimeHostSnapshot["runtimeEvents"][number]>,
-): MultiRuntimeHostSnapshot["runtimeEvents"] {
+  events: ReadonlyArray<HonkRuntimeHostSnapshot["runtimeEvents"][number]>,
+): HonkRuntimeHostSnapshot["runtimeEvents"] {
   return events.length <= MAX_RETAINED_RUNTIME_EVENTS
     ? [...events]
     : events.slice(events.length - MAX_RETAINED_RUNTIME_EVENTS);
 }
 
 function upsertPendingExtensionUiRequests(
-  snapshot: MultiRuntimeHostSnapshot,
+  snapshot: HonkRuntimeHostSnapshot,
   requests: ReadonlyArray<DesktopExtensionUiRequest>,
-): MultiRuntimeHostSnapshot {
+): HonkRuntimeHostSnapshot {
   if (arePendingExtensionUiRequestsEqual(snapshot.pendingExtensionUiRequests, requests)) {
     return snapshot;
   }
@@ -318,9 +319,9 @@ function areSameStrings(left: ReadonlyArray<string>, right: ReadonlyArray<string
 }
 
 function upsertDisplayTimeline(
-  snapshot: MultiRuntimeHostSnapshot,
+  snapshot: HonkRuntimeHostSnapshot,
   timeline: RuntimeDisplayTimelineProjection,
-): MultiRuntimeHostSnapshot {
+): HonkRuntimeHostSnapshot {
   const existingTimeline = snapshot.displayTimelines.find(
     (candidate) => candidate.threadId === timeline.threadId,
   );
@@ -439,9 +440,9 @@ function areRuntimeToolVisibleDetailsEqual(
 }
 
 function normalizeRuntimeHostSnapshot(
-  snapshot: MultiRuntimeHostSnapshot,
-  previousSnapshot?: MultiRuntimeHostSnapshot | undefined,
-): MultiRuntimeHostSnapshot {
+  snapshot: HonkRuntimeHostSnapshot,
+  previousSnapshot?: HonkRuntimeHostSnapshot | undefined,
+): HonkRuntimeHostSnapshot {
   return {
     ...snapshot,
     runtimeEvents: retainRecentRuntimeEvents(snapshot.runtimeEvents),
@@ -549,6 +550,18 @@ export function selectIsRuntimeThread(
   );
 }
 
+export function selectRuntimeIdentityForThread(
+  state: AgentRuntimeState,
+  threadId: ThreadId | null | undefined,
+): RuntimeThreadIdentity | null {
+  if (!threadId) {
+    return null;
+  }
+  return (
+    state.snapshot.runtimeIdentities.find((identity) => identity.threadId === threadId) ?? null
+  );
+}
+
 export function selectPendingExtensionUiRequestsForThread(
   state: AgentRuntimeState,
   threadId: ThreadId | null | undefined,
@@ -577,7 +590,7 @@ export function selectPendingExtensionUiRequestsForThread(
 }
 
 export function startDesktopRuntimeHostSync(): () => void {
-  const api = readMultiRuntimeApi();
+  const api = readHonkRuntimeApi();
   let disposed = false;
 
   void api.getHostSnapshot().then((snapshot) => {

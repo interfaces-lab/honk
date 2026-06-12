@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import path from "node:path";
 
 import { Effect } from "effect";
-import type { ProjectId, ThreadId } from "@multi/contracts";
+import type { ProjectId, ThreadId } from "@honk/contracts";
 import { expandHomePath } from "../path-expansion.ts";
 
 export interface ProjectCwdCandidate {

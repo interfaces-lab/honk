@@ -2,17 +2,22 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  AccountId,
   AuthProviderId,
   DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
   type AgentModelPolicy,
   MessageId,
+  ModelId,
   ThreadId,
-} from "@multi/contracts";
+  TurnId,
+} from "@honk/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { AuthStorage } from "@earendil-works/pi-coding-agent";
 import { registerOAuthProvider, unregisterOAuthProvider } from "@earendil-works/pi-ai/oauth";
 import { DesktopRuntimeHost } from "../src/desktop-runtime-host";
+import { DesktopExtensionUiController } from "../src/extension-ui";
+import type { ThreadAgentRuntime } from "../src/thread-agent-runtime";
 
 describe("DesktopRuntimeHost", () => {
   const tempDirs: string[] = [];
@@ -41,7 +46,7 @@ describe("DesktopRuntimeHost", () => {
   }
 
   function createTempDir(): string {
-    const tempDir = mkdtempSync(join(tmpdir(), "multi-runtime-host-"));
+    const tempDir = mkdtempSync(join(tmpdir(), "honk-runtime-host-"));
     tempDirs.push(tempDir);
     return tempDir;
   }
@@ -50,7 +55,29 @@ describe("DesktopRuntimeHost", () => {
     return join(createTempDir(), "pi-agent");
   }
 
-  it("creates Pi auth storage under the Multi agent directory", async () => {
+  function runtimeMapForTest(host: DesktopRuntimeHost): Map<
+    string,
+    {
+      readonly runtime: ThreadAgentRuntime;
+      readonly ui: DesktopExtensionUiController;
+      readonly unsubscribe: () => void;
+    }
+  > {
+    return (
+      host as unknown as {
+        readonly runtimes: Map<
+          string,
+          {
+            readonly runtime: ThreadAgentRuntime;
+            readonly ui: DesktopExtensionUiController;
+            readonly unsubscribe: () => void;
+          }
+        >;
+      }
+    ).runtimes;
+  }
+
+  it("creates Pi auth storage under the Honk agent directory", async () => {
     const tempDir = createTempDir();
     const agentDir = join(tempDir, "pi-agent");
 
@@ -340,7 +367,7 @@ describe("DesktopRuntimeHost", () => {
     host.dispose();
   });
 
-  it("keeps same-cwd Multi threads in distinct Pi session directories", async () => {
+  it("keeps same-cwd Honk threads in distinct Pi session directories", async () => {
     const tempDir = createTempDir();
     const agentDir = join(tempDir, "pi-agent");
     const firstThreadId = ThreadId.make("thread:same-cwd:first");
@@ -350,7 +377,7 @@ describe("DesktopRuntimeHost", () => {
     await host.hydrateThread({ threadId: firstThreadId, cwd: tempDir, policy: testPolicy });
     await host.hydrateThread({ threadId: secondThreadId, cwd: tempDir, policy: testPolicy });
 
-    const sessionDirs = readdirSync(join(agentDir, "multi-thread-sessions"));
+    const sessionDirs = readdirSync(join(agentDir, "honk-thread-sessions"));
     expect(sessionDirs).toHaveLength(2);
     expect(new Set(sessionDirs).size).toBe(2);
 
@@ -433,6 +460,82 @@ describe("DesktopRuntimeHost", () => {
     ]);
 
     host.dispose();
+  });
+
+  it("sends continued turns on the existing runtime without applying a new provider policy", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:pinned-provider-existing-runtime");
+    const messageId = MessageId.make("message:pinned-provider-existing-runtime");
+    const sentMessages: Array<{ text: string; interactionMode: string; clientMessageId: string }> =
+      [];
+    let disposed = false;
+    let unsubscribed = false;
+    const runtime = {
+      threadId,
+      identity: {
+        agentRuntime: "pi",
+        threadId,
+        runtimeSessionId: "runtime-session:pinned-provider-existing-runtime",
+        authProviderId: AuthProviderId.make("openai-codex"),
+        modelId: ModelId.make("openai-codex/gpt-5.5"),
+      },
+      authStatus: null,
+      sendMessage: async (
+        text: string,
+        options: { interactionMode: string; clientMessageId: string | null },
+      ) => {
+        sentMessages.push({
+          text,
+          interactionMode: options.interactionMode,
+          clientMessageId: options.clientMessageId ?? "",
+        });
+        return TurnId.make("turn:pinned-provider-existing-runtime");
+      },
+      dispose: () => {
+        disposed = true;
+      },
+    } as unknown as ThreadAgentRuntime;
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    runtimeMapForTest(host).set(threadId, {
+      runtime,
+      ui: new DesktopExtensionUiController(),
+      unsubscribe: () => {
+        unsubscribed = true;
+      },
+    });
+
+    await host.sendTurn({
+      threadId,
+      cwd: tempDir,
+      input: "continue",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: messageId,
+      images: [],
+      policy: {
+        ...testPolicy,
+        modelSelection: {
+          type: "explicit",
+          authProviderId: AuthProviderId.make("anthropic"),
+          accountId: AccountId.make("anthropic:default"),
+          modelId: ModelId.make("anthropic/claude-opus-4-8"),
+        },
+      },
+    });
+
+    expect(sentMessages).toEqual([
+      {
+        text: "continue",
+        interactionMode: "agent",
+        clientMessageId: messageId,
+      },
+    ]);
+    expect(disposed).toBe(false);
+    expect(unsubscribed).toBe(false);
+
+    host.dispose();
+    expect(disposed).toBe(true);
+    expect(unsubscribed).toBe(true);
   });
 
   it("caps raw runtime events in host snapshots", async () => {

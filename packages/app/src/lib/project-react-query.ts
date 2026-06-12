@@ -2,7 +2,7 @@ import type {
   EnvironmentId,
   ProjectListDirectoryResult,
   ProjectSearchEntriesResult,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { queryOptions } from "@tanstack/react-query";
 import { ensureEnvironmentApi } from "~/environment-api";
 

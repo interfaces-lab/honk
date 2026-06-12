@@ -12,7 +12,7 @@ import * as Electron from "electron";
 
 import { DesktopEnvironment, type DesktopEnvironmentShape } from "../app/desktop-environment";
 
-export const DESKTOP_SCHEME = "multi";
+export const DESKTOP_SCHEME = "honk";
 
 export class ElectronProtocolRegistrationError extends Data.TaggedError(
   "ElectronProtocolRegistrationError",
@@ -53,7 +53,7 @@ export interface ElectronProtocolShape {
 }
 
 export class ElectronProtocol extends Context.Service<ElectronProtocol, ElectronProtocolShape>()(
-  "multi/desktop/electron/Protocol",
+  "honk/desktop/electron/Protocol",
 ) {}
 
 export function normalizeDesktopProtocolPathname(rawPath: string): Option.Option<string> {

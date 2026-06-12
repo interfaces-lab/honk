@@ -9,7 +9,7 @@ import {
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
   type SessionTreeProjection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 import {
   projectRuntimeDisplayTimeline,

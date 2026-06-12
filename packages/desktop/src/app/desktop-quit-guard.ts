@@ -28,7 +28,7 @@ export interface DesktopQuitGuardShape {
 }
 
 export class DesktopQuitGuard extends Context.Service<DesktopQuitGuard, DesktopQuitGuardShape>()(
-  "multi/desktop/QuitGuard",
+  "honk/desktop/QuitGuard",
 ) {}
 
 const confirmQuitWithRunningThreads = Effect.fn("desktop.quitGuard.confirmRunningThreads")(

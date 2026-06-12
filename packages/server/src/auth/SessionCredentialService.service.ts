@@ -3,7 +3,7 @@ import type {
   AuthClientSession,
   AuthSessionId,
   ServerAuthSessionMethod,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Data, DateTime, Duration, Context } from "effect";
 import type { Effect, Stream } from "effect";
 
@@ -67,4 +67,4 @@ export interface SessionCredentialServiceShape {
 export class SessionCredentialService extends Context.Service<
   SessionCredentialService,
   SessionCredentialServiceShape
->()("multi/auth/SessionCredentialService.service") {}
+>()("honk/auth/SessionCredentialService.service") {}

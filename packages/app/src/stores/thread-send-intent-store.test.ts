@@ -1,4 +1,4 @@
-import { MessageId } from "@multi/contracts";
+import { MessageId } from "@honk/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createThreadSendIntent, useThreadSendIntentStore } from "./thread-send-intent-store";

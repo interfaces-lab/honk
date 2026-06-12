@@ -2,7 +2,7 @@ import { Debouncer } from "@tanstack/react-pacer";
 import { Option, Schema } from "effect";
 import { create } from "zustand";
 
-const PERSISTED_STATE_KEY = "multi:ui-state:v1";
+const PERSISTED_STATE_KEY = "honk:ui-state:v1";
 
 export const SIDEBAR_THREAD_FILTERS = [
   "running",

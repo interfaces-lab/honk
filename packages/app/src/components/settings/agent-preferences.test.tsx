@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { AuthProviderId } from "@multi/contracts";
+import { AuthProviderId } from "@honk/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { createEmptyRuntimeHostSnapshot } from "../../lib/multi-runtime-api";
+import { createEmptyRuntimeHostSnapshot } from "../../lib/honk-runtime-api";
 import { useAgentRuntimeStore } from "../../stores/agent-runtime-store";
 import { AgentRuntimeSettingsSectionsView } from "./settings-panels";
 
@@ -69,7 +69,7 @@ describe("AgentRuntimeSettingsSections", () => {
     const html = renderAgentPreferences();
 
     expect(html).toContain("GPT-5.5 unavailable");
-    expect(html).toContain("Requires Codex OAuth or a Codex API Key in Pi auth storage.");
+    expect(html).toContain("Requires Codex sign-in.");
   });
 
   it("includes Claude OAuth in the default credentials", () => {

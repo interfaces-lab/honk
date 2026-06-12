@@ -8,8 +8,8 @@ import {
   ThreadId,
   TurnId,
   type AgentRuntimeEvent,
-  type MultiRuntimeHostEvent,
-} from "@multi/contracts";
+  type HonkRuntimeHostEvent,
+} from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -63,7 +63,7 @@ describe("runtime ingestion", () => {
 
   it("dispatches assistant complete commands for session-tree host events", async () => {
     const fetchMock = vi.mocked(fetch);
-    const event: MultiRuntimeHostEvent = {
+    const event: HonkRuntimeHostEvent = {
       type: "session-tree",
       tree: {
         threadId,

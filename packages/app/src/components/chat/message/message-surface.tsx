@@ -81,7 +81,7 @@ export function MessageMetaRow(props: { alignEnd?: boolean; children: ReactNode 
 }
 
 export function MessageMeta(props: { children: ReactNode }) {
-  return <p className="m-0 select-none text-caption text-multi-fg-tertiary/55">{props.children}</p>;
+  return <p className="m-0 select-none text-caption text-honk-fg-tertiary/55">{props.children}</p>;
 }
 
 export function MessageActions(props: { children: ReactNode }) {
@@ -112,7 +112,7 @@ export function ChatMessageBubble({
   return (
     <div className={assistantMessageSurfaceVariants({ leading: Boolean(leadingIcon) })}>
       {leadingIcon ? <div className="mt-[3px] shrink-0">{leadingIcon}</div> : null}
-      <div className="group/message-bubble w-full min-w-0 text-conversation text-multi-fg-primary">
+      <div className="group/message-bubble w-full min-w-0 text-conversation text-honk-fg-primary">
         {body}
         {footer ? <div className="mt-1.5">{footer}</div> : null}
       </div>
@@ -210,7 +210,7 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
           className={cn(
             "flex min-w-0 flex-col whitespace-pre-wrap break-words wrap-anywhere select-text",
             "text-conversation",
-            "text-multi-fg-primary",
+            "text-honk-fg-primary",
           )}
         >
           {props.body}

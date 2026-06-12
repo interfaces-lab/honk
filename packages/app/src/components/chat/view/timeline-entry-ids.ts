@@ -1,4 +1,4 @@
-import type { MessageId } from "@multi/contracts";
+import type { MessageId } from "@honk/contracts";
 
 export function timelineMessageEntryId(messageId: MessageId): string {
   return `message:${messageId}`;

@@ -3,7 +3,7 @@ import type {
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
   DesktopUpdateState,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -19,7 +19,7 @@ import * as Scope from "effect/Scope";
 import * as DesktopBackendManager from "../backend/desktop-backend-manager";
 import * as DesktopConfig from "../app/desktop-config";
 import * as DesktopEnvironment from "../app/desktop-environment";
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
 import * as ElectronUpdater from "../electron/electron-updater";
 import * as ElectronWindow from "../electron/electron-window";
@@ -69,7 +69,7 @@ export interface DesktopUpdatesShape {
 }
 
 export class DesktopUpdates extends Context.Service<DesktopUpdates, DesktopUpdatesShape>()(
-  "multi/desktop/Updates",
+  "honk/desktop/Updates",
 ) {}
 
 const elog = EffectLogger.create({ service: "desktop-updater" });
@@ -137,7 +137,7 @@ function getAutoUpdateDisabledReason(args: {
     return "Automatic updates are only available in packaged production builds.";
   }
   if (args.disabledByEnv) {
-    return "Automatic updates are disabled by the MULTI_DISABLE_AUTO_UPDATE setting.";
+    return "Automatic updates are disabled by the HONK_DISABLE_AUTO_UPDATE setting.";
   }
   if (args.platform === "linux" && !args.appImage) {
     return "Automatic updates on Linux require running the AppImage build.";
@@ -475,7 +475,7 @@ const make = Effect.gen(function* () {
       yield* Ref.set(appUpdateYmlConfigRef, appUpdateYmlConfig);
 
       const githubToken =
-        process.env.MULTI_DESKTOP_UPDATE_GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || "";
+        process.env.HONK_DESKTOP_UPDATE_GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || "";
       if (githubToken) {
         yield* Option.match(appUpdateYmlConfig, {
           onNone: () => Effect.void,

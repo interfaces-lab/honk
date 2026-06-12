@@ -5,7 +5,7 @@ import {
   type GitManagerServiceError,
   type GitStatusResult,
   type GitWorkingTreeFileStatus,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
 import * as Schema from "effect/Schema";
@@ -30,7 +30,7 @@ type GitImagePatchResult = Extract<GitFilePatchResult, { kind: "non_text" }> & {
 
 export function useDiffStylePreference() {
   return useLocalStorage<"unified" | "split", "unified" | "split">(
-    "multi:git-diff-style",
+    "honk:git-diff-style",
     "unified",
     DiffStyle,
   );

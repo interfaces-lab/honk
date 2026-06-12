@@ -1,4 +1,4 @@
-import { EventId, TurnId, type OrchestrationThreadActivity } from "@multi/contracts";
+import { EventId, TurnId, type OrchestrationThreadActivity } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { deriveWorkLogEntries } from "./session-logic";

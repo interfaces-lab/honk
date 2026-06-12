@@ -4,14 +4,14 @@ export function SkeletonRows() {
       {[0, 1].map((i) => (
         <div className="flex flex-col gap-2" key={i}>
           <div
-            className="h-3 w-16 animate-pulse rounded-multi-control bg-multi-bg-tertiary"
+            className="h-3 w-16 animate-pulse rounded-honk-control bg-honk-bg-tertiary"
             data-skeleton={i}
           />
           <div className="flex flex-col gap-px">
             {[0, 1, 2].map((j) => (
               <div
                 key={j}
-                className="h-7 w-full animate-pulse rounded-multi-control bg-multi-bg-tertiary"
+                className="h-7 w-full animate-pulse rounded-honk-control bg-honk-bg-tertiary"
                 data-skeleton={j}
               />
             ))}

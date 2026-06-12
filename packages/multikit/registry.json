@@ -1,7 +1,7 @@
 {
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "multikit",
-  "homepage": "https://multi.app",
+  "homepage": "https://honk.app",
   "items": [
     {
       "name": "styles",

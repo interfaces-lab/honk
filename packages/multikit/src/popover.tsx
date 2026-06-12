@@ -39,7 +39,7 @@ function PopoverPopup({
   sticky,
   ...props
 }: PopoverPrimitive.Popup.Props & {
-  /** `workbench` = elevated multi-token shell (formerly Cursor slash-menu chrome). */
+  /** `workbench` = elevated honk-token shell (formerly Cursor slash-menu chrome). */
   variant?: "default" | "workbench";
   /** Skip position/size transition animations (reduces jitter for dynamic menus). */
   instant?: boolean;
@@ -86,7 +86,7 @@ function PopoverPopup({
         <PopoverPrimitive.Popup
           className={cn(
             variant === "workbench"
-              ? "multi-slash-menu-popup relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) overflow-hidden rounded-[12px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup outline-none backdrop-blur-xl transition-[width,height,scale,opacity] data-starting-style:scale-98 data-starting-style:opacity-0 data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100"
+              ? "honk-slash-menu-popup relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) overflow-hidden rounded-[12px] border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-body text-honk-fg-primary shadow-honk-popup outline-none backdrop-blur-xl transition-[width,height,scale,opacity] data-starting-style:scale-98 data-starting-style:opacity-0 data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100"
               : "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding text-popover-foreground shadow-lg/5 outline-none transition-[width,height,scale,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] has-data-[slot=calendar]:rounded-xl has-data-[slot=calendar]:before:rounded-[calc(var(--radius-xl)-1px)] data-starting-style:scale-98 data-starting-style:opacity-0 data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100 dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             tooltipStyle &&
               "w-fit text-balance rounded-md text-xs shadow-md/5 before:rounded-[calc(var(--radius-md)-1px)]",

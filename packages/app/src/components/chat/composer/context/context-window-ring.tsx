@@ -20,12 +20,12 @@ const RING_SIZE_CLASS = {
 } as const;
 
 const RING_STYLE = {
-  "--multi-context-usage-ring-track": "var(--multi-stroke-tertiary)",
-  "--multi-context-usage-ring-progress": "var(--multi-fg-secondary)",
-  "--multi-context-usage-ring-progress-warning": "var(--warning)",
+  "--honk-context-usage-ring-track": "var(--honk-stroke-tertiary)",
+  "--honk-context-usage-ring-progress": "var(--honk-fg-secondary)",
+  "--honk-context-usage-ring-progress-warning": "var(--warning)",
 } as CSSProperties;
 
-function normalizeUsagePercentage(value: number | null | undefined): number {
+function clampUsagePercentage(value: number | null | undefined): number {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return 0;
   }
@@ -37,7 +37,7 @@ function ContextUsageRingGraphic(props: {
   empty?: boolean;
   highUsage?: boolean;
 }) {
-  const normalizedPercentage = normalizeUsagePercentage(props.percentage);
+  const normalizedPercentage = clampUsagePercentage(props.percentage);
   const dashOffset = RING_CIRCUMFERENCE * (1 - normalizedPercentage / 100);
   const showProgress = !props.empty && normalizedPercentage > 0;
 
@@ -53,7 +53,7 @@ function ContextUsageRingGraphic(props: {
         cy={RING_CENTER}
         r={RING_RADIUS}
         fill="none"
-        stroke="var(--multi-context-usage-ring-track)"
+        stroke="var(--honk-context-usage-ring-track)"
         strokeWidth={RING_STROKE_WIDTH}
         opacity={props.empty ? 0.5 : 1}
       />
@@ -65,8 +65,8 @@ function ContextUsageRingGraphic(props: {
           fill="none"
           stroke={
             props.highUsage
-              ? "var(--multi-context-usage-ring-progress-warning)"
-              : "var(--multi-context-usage-ring-progress)"
+              ? "var(--honk-context-usage-ring-progress-warning)"
+              : "var(--honk-context-usage-ring-progress)"
           }
           strokeWidth={RING_STROKE_WIDTH}
           strokeLinecap="round"
@@ -104,7 +104,7 @@ export function ContextWindowRing(props: {
 }) {
   const { usage, size = "md", className } = props;
   const usedPercentage = formatContextUsagePercentage(usage.usedPercentage);
-  const normalizedPercentage = normalizeUsagePercentage(usage.usedPercentage);
+  const normalizedPercentage = clampUsagePercentage(usage.usedPercentage);
   const highUsage = usage.usedPercentage !== null && normalizedPercentage >= 85;
 
   return (
@@ -120,7 +120,7 @@ export function ContextWindowRing(props: {
       {size === "md" ? (
         <span
           className={cn(
-            "relative size-2 rounded-full bg-multi-fg-secondary/70",
+            "relative size-2 rounded-full bg-honk-fg-secondary/70",
             highUsage && "bg-warning",
           )}
           aria-hidden

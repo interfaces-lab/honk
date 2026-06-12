@@ -1,4 +1,4 @@
-import { StatusDot as UiStatusDot } from "@multi/multikit/status-dot";
+import { StatusDot as UiStatusDot } from "@honk/multikit/status-dot";
 import { IconArchive1 } from "central-icons";
 import type { ComponentProps } from "react";
 
@@ -22,7 +22,7 @@ function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
 
 export function StatusDot(props: { item: SidebarChatItem }) {
   if (props.item.kind === "thread" && props.item.archived) {
-    return <IconArchive1 className="size-4 shrink-0 text-multi-icon-tertiary" aria-hidden />;
+    return <IconArchive1 className="size-4 shrink-0 text-honk-icon-tertiary" aria-hidden />;
   }
 
   if (props.item.state === "running") {
@@ -39,7 +39,7 @@ export function StatusDot(props: { item: SidebarChatItem }) {
 export function StatusSlot(props: { item: SidebarChatItem }) {
   return (
     <span
-      className="flex size-5 shrink-0 items-center justify-center text-multi-icon-secondary"
+      className="flex size-5 shrink-0 items-center justify-center text-honk-icon-secondary"
       data-agent-sidebar-status=""
     >
       <StatusDot item={props.item} />

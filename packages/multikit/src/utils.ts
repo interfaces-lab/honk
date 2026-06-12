@@ -7,16 +7,16 @@ const twMerge = extendTailwindMerge({
       "font-size": [
         {
           text: [
-            "multi-xs",
-            "multi-sm",
-            "multi-base",
-            "multi-lg",
-            "multi-xl",
+            "honk-xs",
+            "honk-sm",
+            "honk-base",
+            "honk-lg",
+            "honk-xl",
             "caption",
             "detail",
             "body",
             "title",
-            "multi-code",
+            "honk-code",
             "heading",
             "conversation",
             "conversation-normalized",
@@ -28,22 +28,22 @@ const twMerge = extendTailwindMerge({
       "text-color": [
         {
           text: [
-            "multi-fg-primary",
-            "multi-fg-secondary",
-            "multi-fg-tertiary",
-            "multi-fg-quaternary",
-            "multi-icon-accent-primary",
-            "multi-icon-primary",
-            "multi-icon-quaternary",
-            "multi-icon-secondary",
-            "multi-icon-tertiary",
-            "multi-icon-warning",
+            "honk-fg-primary",
+            "honk-fg-secondary",
+            "honk-fg-tertiary",
+            "honk-fg-quaternary",
+            "honk-icon-accent-primary",
+            "honk-icon-primary",
+            "honk-icon-quaternary",
+            "honk-icon-secondary",
+            "honk-icon-tertiary",
+            "honk-icon-warning",
           ],
         },
       ],
       rounded: [
         {
-          rounded: ["multi", "multi-card", "multi-chip", "multi-control", "multi-pill"],
+          rounded: ["honk", "honk-card", "honk-chip", "honk-control", "honk-pill"],
         },
       ],
     },
@@ -55,5 +55,5 @@ export function cn(...inputs: CxOptions) {
 }
 
 export const controlTransitionClassName = "duration-150 ease-out motion-reduce:transition-none";
-export const interactiveControlCursorClassName = "cursor-(--multi-button-cursor)";
-export const interactiveHostCursorClassName = "[button&,a&]:cursor-(--multi-button-cursor)";
+export const interactiveControlCursorClassName = "cursor-(--honk-button-cursor)";
+export const interactiveHostCursorClassName = "[button&,a&]:cursor-(--honk-button-cursor)";

@@ -1,6 +1,6 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
-import type { ScopedProjectRef, ScopedThreadRef } from "@multi/contracts";
-import { SidebarItem } from "@multi/multikit/sidebar";
+import type { ScopedProjectRef, ScopedThreadRef } from "@honk/contracts";
+import { SidebarItem } from "@honk/multikit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
 import { type DragEvent, memo, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -189,7 +189,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
         <div
           aria-hidden
           className={cn(
-            "pointer-events-none absolute inset-x-2 z-10 h-px rounded-full bg-multi-stroke-focused",
+            "pointer-events-none absolute inset-x-2 z-10 h-px rounded-full bg-honk-stroke-focused",
             projectDropPosition === "before" ? "top-0" : "bottom-0",
           )}
         />
@@ -207,8 +207,8 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
           <SidebarItem
             render={<div />}
             className={cn(
-              "overflow-hidden group-data-[popup-open]/sidebar-section:bg-multi-bg-quaternary group-data-[popup-open]/sidebar-section:text-multi-fg-primary [@media(hover:hover)]:hover:text-multi-fg-primary",
-              section.active ? "text-multi-fg-secondary" : "text-multi-fg-tertiary",
+              "overflow-hidden group-data-[popup-open]/sidebar-section:bg-honk-bg-quaternary group-data-[popup-open]/sidebar-section:text-honk-fg-primary [@media(hover:hover)]:hover:text-honk-fg-primary",
+              section.active ? "text-honk-fg-secondary" : "text-honk-fg-tertiary",
               canReorderProject && "[-webkit-user-drag:element]",
             )}
             data-agent-sidebar-section-title=""
@@ -228,10 +228,10 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
               aria-expanded={open}
               aria-controls={open ? panelId : undefined}
               onClick={toggleOpen}
-              className="relative m-0 flex min-h-sidebar-item w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-sidebar-item-gap border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
+              className="relative m-0 flex min-h-sidebar-item w-auto min-w-0 flex-1 cursor-(--honk-button-cursor) touch-manipulation items-center justify-start gap-sidebar-item-gap border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--honk-stroke-focused)_92%,transparent)]"
             >
               <span
-                className="relative flex size-4 shrink-0 items-center justify-center text-multi-icon-tertiary"
+                className="relative flex size-4 shrink-0 items-center justify-center text-honk-icon-tertiary"
                 data-agent-sidebar-section-folder=""
                 aria-hidden
               >
@@ -270,7 +270,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
                 }}
                 aria-label={`New agent in ${section.label}`}
                 title={`New agent in ${section.label}`}
-                className="relative mr-0 flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-inherit outline-hidden touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
+                className="relative mr-0 flex size-5 shrink-0 cursor-(--honk-button-cursor) items-center justify-center rounded-honk-control border border-transparent bg-transparent p-0 text-inherit outline-hidden touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
               >
                 <span aria-hidden>+</span>
               </button>
@@ -301,7 +301,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
             <SidebarItem
               type="button"
               onClick={() => setExtra((count) => count + 1)}
-              className="relative touch-manipulation text-multi-fg-tertiary pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 [@media(hover:hover)]:hover:text-multi-fg-primary"
+              className="relative touch-manipulation text-honk-fg-tertiary pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 [@media(hover:hover)]:hover:text-honk-fg-primary"
             >
               <span className="size-2.5 shrink-0 opacity-55" aria-hidden>
                 ⋯

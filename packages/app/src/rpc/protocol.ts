@@ -1,4 +1,4 @@
-import { WsRpcGroup } from "@multi/contracts";
+import { WsRpcGroup } from "@honk/contracts";
 import { Duration, Effect, Layer, Schedule } from "effect";
 import { RpcClient, RpcSerialization } from "effect/unstable/rpc";
 import * as Socket from "effect/unstable/socket/Socket";

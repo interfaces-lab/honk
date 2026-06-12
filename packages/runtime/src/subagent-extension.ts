@@ -20,7 +20,7 @@ import {
   type SubagentRunState,
   type SubagentScope,
   type SubagentToolDetails,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
 import {
   accountIdFromProvider,

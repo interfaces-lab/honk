@@ -11,7 +11,7 @@ import {
   ProjectionThreadRepository,
   type ProjectionThreadRepositoryShape,
 } from "./ProjectionThreads.service.ts";
-import { ModelSelection } from "@multi/contracts";
+import { ModelSelection } from "@honk/contracts";
 
 const ProjectionThreadDbRow = ProjectionThread.mapFields(
   Struct.assign({

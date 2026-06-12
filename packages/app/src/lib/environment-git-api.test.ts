@@ -1,5 +1,5 @@
-import type { EnvironmentApi, GitStatusResult } from "@multi/contracts";
-import { EnvironmentId } from "@multi/contracts";
+import type { EnvironmentApi, GitStatusResult } from "@honk/contracts";
+import { EnvironmentId } from "@honk/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {

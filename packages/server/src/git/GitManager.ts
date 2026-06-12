@@ -29,16 +29,16 @@ import {
   type GitStatusLocalResult,
   type GitStatusRemoteResult,
   ModelSelection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   detectGitHostingProviderFromRemoteUrl,
   mergeGitStatusParts,
   resolveAutoFeatureBranchName,
   sanitizeBranchFragment,
   sanitizeFeatureBranchName,
-} from "@multi/shared/git";
+} from "@honk/shared/git";
 
-import { GitManagerError } from "@multi/contracts";
+import { GitManagerError } from "@honk/contracts";
 import {
   GitManager,
   type GitActionProgressReporter,
@@ -52,7 +52,7 @@ import { ProjectSetupScriptRunner } from "../project/ProjectSetupScriptRunner.se
 import { OrchestrationEngineService } from "../orchestration/OrchestrationEngine.service.ts";
 import { extractBranchNameFromRemoteRef } from "./remote-refs.ts";
 import { ServerSettingsService } from "../server-settings.ts";
-import type { GitManagerServiceError } from "@multi/contracts";
+import type { GitManagerServiceError } from "@honk/contracts";
 import {
   decodeGitHubPullRequestListJson,
   formatGitHubJsonDecodeError,
@@ -149,7 +149,7 @@ function resolvePullRequestWorktreeLocalBranchName(
 
   const sanitizedHeadBranch = sanitizeBranchFragment(pullRequest.headBranch).trim();
   const suffix = sanitizedHeadBranch.length > 0 ? sanitizedHeadBranch : "head";
-  return `multi/pr-${pullRequest.number}/${suffix}`;
+  return `honk/pr-${pullRequest.number}/${suffix}`;
 }
 
 function parseGitHubRepositoryNameWithOwnerFromRemoteUrl(url: string | null): string | null {
@@ -1264,7 +1264,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       modelSelection,
     });
 
-    const bodyFile = path.join(tempDir, `multi-pr-body-${process.pid}-${randomUUID()}.md`);
+    const bodyFile = path.join(tempDir, `honk-pr-body-${process.pid}-${randomUUID()}.md`);
     yield* fileSystem
       .writeFileString(bodyFile, generated.body)
       .pipe(

@@ -5,12 +5,12 @@ import type {
   GitStatusRemoteResult,
   GitStatusResult,
   GitStatusStreamEvent,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import * as Effect from "effect/Effect";
 import * as Random from "effect/Random";
 import * as Result from "effect/Result";
 
-export const WORKTREE_BRANCH_PREFIX = "multi";
+export const WORKTREE_BRANCH_PREFIX = "honk";
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}\\/[0-9a-f]{8}$`);
 
 /**

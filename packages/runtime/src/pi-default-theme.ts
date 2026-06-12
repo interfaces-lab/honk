@@ -64,7 +64,7 @@ let cachedTheme: Theme | undefined;
 
 export function readDefaultPiTheme(): Theme {
   cachedTheme ??= new Theme(defaultThemeColors, defaultThemeBackgrounds, "truecolor", {
-    name: "multi",
+    name: "honk",
   });
   return cachedTheme;
 }

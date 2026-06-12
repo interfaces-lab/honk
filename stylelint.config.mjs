@@ -1,6 +1,6 @@
 /**
  * stylelint-config-standard + allowances for Tailwind v4/CSS entrypoints (`@tailwind`,
- * `@layer`, `@theme`, …) and for VS Code / Multi naming (`--vscode-sideBar-*`, BEM-ish
+ * `@layer`, `@theme`, …) and for VS Code / Honk naming (`--vscode-sideBar-*`, BEM-ish
  * selectors in shell.css).
  *
  * Note: this validates `.css` only. Tailwind utilities in JSX/TSX are not linted here.

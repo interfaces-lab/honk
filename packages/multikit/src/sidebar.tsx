@@ -15,7 +15,7 @@ type SidebarItemProps = Omit<ComponentProps<typeof Button>, "variant"> & {
 function SidebarTray({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn("ui-tray font-multi text-detail text-multi-fg-primary", className)}
+      className={cn("ui-tray font-honk text-detail text-honk-fg-primary", className)}
       data-slot="sidebar-tray"
       {...props}
     />
@@ -44,7 +44,7 @@ function SidebarTrayHeaderButton({
       type="button"
       variant="ghost"
       className={cn(
-        "flex min-w-0 flex-1 items-center gap-2 rounded-multi-control px-1.5 py-1 text-left text-multi-fg-secondary transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:outline-none",
+        "flex min-w-0 flex-1 items-center gap-2 rounded-honk-control px-1.5 py-1 text-left text-honk-fg-secondary transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:outline-none",
         "bg-transparent shadow-none before:hidden",
         controlTransitionClassName,
         className,
@@ -64,6 +64,28 @@ function SidebarItem({
   selected,
   ...rest
 }: SidebarItemProps) {
+  const itemClassName = cn(
+    "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left transition-none [-webkit-user-drag:none]",
+    interactive &&
+      cn(
+        "outline-none ring-offset-0 hover:bg-honk-bg-quaternary data-[highlighted=true]:bg-honk-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-honk-stroke-focused focus-visible:ring-offset-0",
+        interactiveControlCursorClassName,
+      ),
+    "data-[selected=true]:bg-honk-bg-quaternary data-[selected=true]:hover:bg-honk-bg-quaternary",
+    "bg-transparent shadow-none before:hidden",
+    className,
+  );
+  if (!interactive) {
+    return (
+      <div
+        data-selected={selected}
+        data-slot="sidebar-item"
+        draggable={draggable}
+        className={cn("h-sidebar-item text-sidebar-label font-normal", itemClassName)}
+        {...(rest as ComponentProps<"div">)}
+      />
+    );
+  }
   return (
     <Button
       variant="ghost"
@@ -73,17 +95,7 @@ function SidebarItem({
       draggable={draggable}
       nativeButton={nativeButton ?? (render ? false : undefined)}
       render={render}
-      className={cn(
-        "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-sidebar-item-gap rounded-multi-control border border-transparent px-1.5 py-1 text-left transition-none [-webkit-user-drag:none]",
-        interactive &&
-          cn(
-            "outline-none ring-offset-0 hover:bg-multi-bg-quaternary data-[highlighted=true]:bg-multi-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-multi-stroke-focused focus-visible:ring-offset-0",
-            interactiveControlCursorClassName,
-          ),
-        "data-[selected=true]:bg-multi-bg-quaternary data-[selected=true]:hover:bg-multi-bg-quaternary",
-        "bg-transparent shadow-none before:hidden",
-        className,
-      )}
+      className={itemClassName}
       {...rest}
     />
   );
@@ -110,7 +122,7 @@ function SidebarButton(
       className={cn(
         variant === "chrome"
           ? cn(
-              "flex min-h-sidebar-item w-full select-none items-center justify-start gap-sidebar-item-gap rounded-multi-control border border-transparent px-1.5 py-1 text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
+              "flex min-h-sidebar-item w-full select-none items-center justify-start gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
               interactiveControlCursorClassName,
               controlTransitionClassName,
             )
@@ -129,7 +141,7 @@ function SidebarTrayRow({ className, ...props }: SidebarItemProps) {
   return (
     <SidebarItem
       className={cn(
-        "ui-tray-row group/sidebar-item h-auto data-[selected=true]:focus-within:bg-multi-bg-tertiary",
+        "ui-tray-row group/sidebar-item h-auto data-[selected=true]:focus-within:bg-honk-bg-tertiary",
         className,
       )}
       data-slot="sidebar-tray-row"
@@ -153,7 +165,7 @@ function SidebarTrayRowLabel({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "ui-tray-row__label min-w-0 flex-1 truncate text-multi-fg-secondary",
+        "ui-tray-row__label min-w-0 flex-1 truncate text-honk-fg-secondary",
         className,
       )}
       data-slot="sidebar-tray-row-label"
@@ -166,7 +178,7 @@ function SidebarTrayRowStatus({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-sidebar-subtitle text-multi-fg-secondary",
+        "ui-tray-row__status min-w-8 max-w-14 shrink-0 truncate text-right text-sidebar-subtitle text-honk-fg-secondary",
         className,
       )}
       data-slot="sidebar-tray-row-status"

@@ -4,11 +4,12 @@ import type {
   MessageId,
   RuntimeApprovalDecision,
   AgentInteractionMode,
+  ModelSelection,
   ResolvedKeybindingsConfig,
   ScopedThreadRef,
   ThreadId,
-} from "@multi/contracts";
-import type { UnifiedSettings } from "@multi/contracts/settings";
+} from "@honk/contracts";
+import type { UnifiedSettings } from "@honk/contracts/settings";
 import type { RefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
@@ -97,6 +98,7 @@ export interface ComposerInputProps {
   planSurfaceOpen?: boolean | undefined;
 
   interactionMode: AgentInteractionMode;
+  modelSelection: ModelSelection;
 
   activeContextWindow: ContextWindowSnapshot | null | undefined;
 

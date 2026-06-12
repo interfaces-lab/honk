@@ -1,4 +1,4 @@
-import type { DesktopRuntimeArch, DesktopRuntimeInfo } from "@multi/contracts";
+import type { DesktopRuntimeArch, DesktopRuntimeInfo } from "@honk/contracts";
 
 interface ResolveDesktopRuntimeInfoInput {
   readonly platform: NodeJS.Platform;

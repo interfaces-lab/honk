@@ -1,5 +1,5 @@
 import { scopeProjectRef } from "~/lib/environment-scope";
-import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@multi/contracts";
+import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@honk/contracts";
 import { type DraftThreadEnvMode, useComposerDraftStore } from "../stores/chat-drafts";
 import type { ThreadRouteTarget } from "~/routes/-thread-route-targets";
 import { useStore } from "../stores/thread-store";

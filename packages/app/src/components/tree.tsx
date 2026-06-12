@@ -14,6 +14,7 @@ import {
 } from "@pierre/trees";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type { FileTreeProps as PierreFileTreeProps } from "@pierre/trees/react";
+import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
 import type { CSSProperties } from "react";
 
 import { cn } from "~/lib/utils";
@@ -55,12 +56,12 @@ function toTreeThemeInput(theme: PierreTheme): TreeThemeInput {
 function getExtendedGitTreeStyles(): TreeThemeStyles {
   const styles: TreeThemeStyles = {};
 
-  styles["--trees-git-added-color-override"] = "var(--multi-git-status-added)";
-  styles["--trees-git-deleted-color-override"] = "var(--multi-git-status-deleted)";
-  styles["--trees-git-ignored-color-override"] = "var(--multi-fg-quaternary)";
-  styles["--trees-git-modified-color-override"] = "var(--multi-git-status-modified)";
-  styles["--trees-git-renamed-color-override"] = "var(--multi-git-status-renamed)";
-  styles["--trees-git-untracked-color-override"] = "var(--multi-git-status-added)";
+  styles["--trees-git-added-color-override"] = "var(--honk-git-status-added)";
+  styles["--trees-git-deleted-color-override"] = "var(--honk-git-status-deleted)";
+  styles["--trees-git-ignored-color-override"] = "var(--honk-fg-quaternary)";
+  styles["--trees-git-modified-color-override"] = "var(--honk-git-status-modified)";
+  styles["--trees-git-renamed-color-override"] = "var(--honk-git-status-renamed)";
+  styles["--trees-git-untracked-color-override"] = "var(--honk-git-status-added)";
 
   return styles;
 }
@@ -93,13 +94,13 @@ function getPierreTreeThemeStyles(resolvedTheme: "light" | "dark"): TreeThemeSty
 
 function treeHostLayout(): TreeHostStyle {
   return {
-    "--trees-bg-override": "var(--multi-workbench-panel-background)",
-    "--trees-input-bg-override": "var(--multi-workbench-panel-background)",
-    "--trees-bg-muted-override": "var(--multi-workbench-toolbar-hover-wash)",
-    "--trees-selected-bg-override": "var(--multi-workbench-card-selected-background)",
-    "--trees-fg-override": "var(--multi-fg-primary)",
-    "--trees-fg-muted-override": "var(--multi-fg-secondary)",
-    "--trees-font-family-override": "var(--multi-font-ui)",
+    "--trees-bg-override": "var(--honk-workbench-panel-background)",
+    "--trees-input-bg-override": "var(--honk-workbench-panel-background)",
+    "--trees-bg-muted-override": "var(--honk-workbench-toolbar-hover-wash)",
+    "--trees-selected-bg-override": "var(--honk-workbench-card-selected-background)",
+    "--trees-fg-override": "var(--honk-fg-primary)",
+    "--trees-fg-muted-override": "var(--honk-fg-secondary)",
+    "--trees-font-family-override": "var(--honk-font-ui)",
     "--trees-font-size-override": "12px",
     "--trees-font-weight-regular-override": 400,
     "--trees-font-weight-semibold-override": 500,
@@ -150,10 +151,6 @@ export function Tree({ className, resolvedTheme, style, ...props }: TreeProps) {
       style={hostStyle}
     />
   );
-}
-
-export function normalizeTreePath(path: string): string {
-  return path.replace(/\\/g, "/");
 }
 
 export function FileTreeIconSprite() {

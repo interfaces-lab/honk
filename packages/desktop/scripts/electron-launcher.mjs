@@ -1,4 +1,4 @@
-// This file patches Electron bundles so macOS uses the Multi app identity
+// This file patches Electron bundles so macOS uses the Honk app identity
 // instead of the stock Electron identity.
 
 import { spawnSync } from "node:child_process";
@@ -27,13 +27,13 @@ const productionLauncherIconPath = join(desktopDir, "resources", "icon.icns");
 function resolveLauncherIdentity() {
   return isDevelopment
     ? {
-        appDisplayName: "Multi (Dev)",
-        appBundleId: "com.interfacesco.multi.dev",
+        appDisplayName: "Honk (Dev)",
+        appBundleId: "com.interfacesco.honk.dev",
         iconPath: productionLauncherIconPath,
       }
     : {
-        appDisplayName: "Multi",
-        appBundleId: "com.interfacesco.multi",
+        appDisplayName: "Honk",
+        appBundleId: "com.interfacesco.honk",
         iconPath: productionLauncherIconPath,
       };
 }

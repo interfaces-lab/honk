@@ -5,7 +5,7 @@ import {
   type OrchestrationShellStreamEvent,
   type TerminalEvent,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { type QueryClient } from "@tanstack/react-query";
 import {
   getKnownEnvironmentWsBaseUrl,

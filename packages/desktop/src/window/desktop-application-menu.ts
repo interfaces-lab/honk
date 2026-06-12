@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 
 import type * as Electron from "electron";
 
-import * as EffectLogger from "@multi/shared/effect-logger";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as ElectronApp from "../electron/electron-app";
 import * as ElectronDialog from "../electron/electron-dialog";
 import * as ElectronMenu from "../electron/electron-menu";
@@ -21,7 +21,7 @@ export interface DesktopApplicationMenuShape {
 export class DesktopApplicationMenu extends Context.Service<
   DesktopApplicationMenu,
   DesktopApplicationMenuShape
->()("multi/desktop/ApplicationMenu") {}
+>()("honk/desktop/ApplicationMenu") {}
 
 type DesktopApplicationMenuRuntimeServices =
   | DesktopUpdates.DesktopUpdates
@@ -52,7 +52,7 @@ const checkForUpdatesFromMenu: Effect.Effect<
     yield* electronDialog.showMessageBox({
       type: "info",
       title: "You're up to date!",
-      message: `Multi ${updateState.currentVersion} is currently the newest version available.`,
+      message: `Honk ${updateState.currentVersion} is currently the newest version available.`,
       buttons: ["OK"],
     });
   } else if (updateState.status === "error") {

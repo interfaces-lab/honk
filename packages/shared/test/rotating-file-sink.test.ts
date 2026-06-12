@@ -24,7 +24,7 @@ describe("RotatingFileSink", () => {
   });
 
   it("rotates when the active file exceeds maxBytes", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "multi-log-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "honk-log-"));
     tempDirs.push(dir);
     const filePath = path.join(dir, "server.log.ndjson");
     const sink = new RotatingFileSink({

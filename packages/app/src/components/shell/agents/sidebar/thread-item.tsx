@@ -1,6 +1,6 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
-import type { ScopedThreadRef } from "@multi/contracts";
-import { SidebarButton, SidebarItem } from "@multi/multikit/sidebar";
+import type { ScopedThreadRef } from "@honk/contracts";
+import { SidebarButton, SidebarItem } from "@honk/multikit/sidebar";
 import { IconArchive1, IconPin, IconUnpin } from "central-icons";
 import { type KeyboardEvent, memo, type MouseEvent, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -203,9 +203,8 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
   if (renaming) {
     return (
       <SidebarItem
-        render={<div />}
         interactive={false}
-        className="cursor-(--multi-button-cursor) border-multi-stroke-primary bg-multi-bg-tertiary"
+        className="cursor-(--honk-button-cursor) border-honk-stroke-primary bg-honk-bg-tertiary"
         data-agent-sidebar-cell=""
         data-renaming="true"
       >
@@ -242,7 +241,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
       <SidebarItem
         render={<div />}
         selected={props.selected}
-        className="group/sidebar-item data-popup-open:bg-multi-bg-quaternary data-[selected=true]:focus-within:bg-multi-bg-tertiary data-[selected=true]:data-popup-open:bg-multi-bg-tertiary"
+        className="group/sidebar-item data-popup-open:bg-honk-bg-quaternary data-[selected=true]:focus-within:bg-honk-bg-tertiary data-[selected=true]:data-popup-open:bg-honk-bg-tertiary"
         data-agent-sidebar-cell=""
         data-agent-sidebar-row-shell=""
         onClick={selectThread}

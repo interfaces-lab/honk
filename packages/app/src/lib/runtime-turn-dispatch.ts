@@ -2,18 +2,19 @@ import type {
   AgentInteractionMode,
   AgentModelPolicy,
   MessageId,
-  MultiRuntimeApi,
+  ModelSelection,
+  HonkRuntimeApi,
   SourceProposedPlanReference,
   ThreadAgentRuntimeImageAttachment,
   ThreadId,
-} from "@multi/contracts";
-import { createAgentModelPolicy } from "@multi/shared/agent-model-policy";
+} from "@honk/contracts";
+import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
 
 import {
   assertRuntimeApiAvailable,
   assertRuntimeHostAvailable,
-  readMultiRuntimeApi,
-} from "./multi-runtime-api";
+  readHonkRuntimeApi,
+} from "./honk-runtime-api";
 
 interface RuntimeTurnInput {
   readonly threadId: ThreadId;
@@ -23,22 +24,26 @@ interface RuntimeTurnInput {
   readonly sourceProposedPlan: SourceProposedPlanReference | null;
   readonly clientMessageId: MessageId;
   readonly images: readonly ThreadAgentRuntimeImageAttachment[];
+  readonly modelSelection: ModelSelection;
 }
 
 export interface PreparedRuntimeTurnPolicy {
-  readonly runtimeApi: MultiRuntimeApi;
+  readonly runtimeApi: HonkRuntimeApi;
   readonly policy: Promise<AgentModelPolicy>;
 }
 
 export function prepareRuntimeTurnPolicy(input: {
   readonly interactionMode: AgentInteractionMode;
+  readonly modelSelection: ModelSelection;
 }): PreparedRuntimeTurnPolicy {
   assertRuntimeApiAvailable();
-  const runtimeApi = readMultiRuntimeApi();
-  const policy = runtimeApi.getPreferences().then((preferences) =>
+  const runtimeApi = readHonkRuntimeApi();
+  const preferences = runtimeApi.getPreferences();
+  const policy = preferences.then((preferences) =>
     createAgentModelPolicy({
       preferences,
       interactionMode: input.interactionMode,
+      modelSelection: input.modelSelection,
     }),
   );
   void policy.catch(() => undefined);
@@ -65,6 +70,7 @@ export async function sendRuntimeTurnWithPreparedPolicy(
 export async function sendRuntimeTurn(input: RuntimeTurnInput): Promise<void> {
   const preparedPolicy = prepareRuntimeTurnPolicy({
     interactionMode: input.interactionMode,
+    modelSelection: input.modelSelection,
   });
   await sendRuntimeTurnWithPreparedPolicy({
     ...input,
@@ -84,6 +90,7 @@ export async function hydrateRuntimeThread(input: {
   readonly threadId: ThreadId;
   readonly cwd: string;
   readonly interactionMode: AgentInteractionMode;
+  readonly modelSelection: ModelSelection;
 }): Promise<void> {
   const threadKey = String(input.threadId);
   if (hydratedRuntimeThreadIds.has(threadKey)) {
@@ -98,11 +105,12 @@ export async function hydrateRuntimeThread(input: {
 
   const hydratePromise = (async () => {
     await assertRuntimeHostAvailable();
-    const runtimeApi = readMultiRuntimeApi();
+    const runtimeApi = readHonkRuntimeApi();
     const preferences = await runtimeApi.getPreferences();
     const policy = createAgentModelPolicy({
       preferences,
       interactionMode: input.interactionMode,
+      modelSelection: input.modelSelection,
     });
 
     await runtimeApi.hydrateThread({

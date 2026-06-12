@@ -1,4 +1,4 @@
-import { EnvironmentId, ThreadId, type RuntimeDisplayTimelineToolItem } from "@multi/contracts";
+import { EnvironmentId, ThreadId, type RuntimeDisplayTimelineToolItem } from "@honk/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -16,7 +16,7 @@ function renderWorkEntry(workEntry: WorkLogEntry): string {
   return renderToStaticMarkup(
     <ToolCallMessage
       workEntry={workEntry}
-      projectRoot="/Users/workgyver/Developer/multi"
+      projectRoot="/Users/workgyver/Developer/honk"
       activeThreadId={ThreadId.make("thread:thinking-markdown")}
       environmentId={EnvironmentId.make("environment:thinking-markdown")}
     />,
@@ -31,7 +31,7 @@ function renderRuntimeToolWithContext(tool: RuntimeDisplayTimelineToolItem): str
   return renderToStaticMarkup(
     <RuntimeToolCallMessage
       tool={tool}
-      projectRoot="/Users/workgyver/Developer/multi"
+      projectRoot="/Users/workgyver/Developer/honk"
       activeThreadId={ThreadId.make("thread:runtime-tool-context")}
       environmentId={EnvironmentId.make("environment:runtime-tool-context")}
     />,

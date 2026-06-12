@@ -18,7 +18,7 @@ import {
   ThreadApprovalResponseRequestedPayload as ContractsThreadApprovalResponseRequestedPayloadSchema,
   ThreadSessionStopRequestedPayload as ContractsThreadSessionStopRequestedPayloadSchema,
   ThreadTreeLeafMovedPayload as ContractsThreadTreeLeafMovedPayloadSchema,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 // Server-internal alias surface, backed by contract schemas as the source of truth.
 export const ProjectCreatedPayload = ContractsProjectCreatedPayloadSchema;

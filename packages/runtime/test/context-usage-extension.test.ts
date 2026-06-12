@@ -1,4 +1,4 @@
-import type { ThreadTokenUsageSnapshot } from "@multi/contracts";
+import type { ThreadTokenUsageSnapshot } from "@honk/contracts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Usage } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";

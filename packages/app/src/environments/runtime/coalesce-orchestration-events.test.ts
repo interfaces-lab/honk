@@ -4,7 +4,7 @@ import {
   TurnId,
   type OrchestrationEvent,
   type OrchestrationThreadActivity,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { coalesceOrchestrationUiEvents } from "./coalesce-orchestration-events";

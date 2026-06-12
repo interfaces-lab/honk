@@ -1,5 +1,5 @@
-import { type EnvironmentId, type ThreadId } from "@multi/contracts";
-import { Button } from "@multi/multikit/button";
+import { type EnvironmentId, type ThreadId } from "@honk/contracts";
+import { Button } from "@honk/multikit/button";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -67,11 +67,13 @@ export function StepRenderer({
   step,
   editUserMessagesDisabled,
   isEditingUserMessage = false,
+  defaultEditExpanded = false,
   ctx,
 }: {
   step: TimelineStep;
   editUserMessagesDisabled: boolean;
   isEditingUserMessage?: boolean;
+  defaultEditExpanded?: boolean;
   ctx: StepRendererContext;
 }) {
   switch (step.kind) {
@@ -89,7 +91,13 @@ export function StepRenderer({
       return <ProposedPlanStepRenderer step={step} ctx={ctx} />;
 
     case "runtime-tool":
-      return <RuntimeToolStepRenderer step={step} ctx={ctx} />;
+      return (
+        <RuntimeToolStepRenderer
+          step={step}
+          ctx={ctx}
+          defaultEditExpanded={defaultEditExpanded}
+        />
+      );
 
     case "runtime-task":
       return <RuntimeTaskStepRenderer step={step} ctx={ctx} />;
@@ -101,7 +109,9 @@ export function StepRenderer({
       return <RuntimeExtensionUiRequestStepRenderer step={step} />;
 
     case "work":
-      return <WorkStepRenderer step={step} ctx={ctx} />;
+      return (
+        <WorkStepRenderer step={step} ctx={ctx} defaultEditExpanded={defaultEditExpanded} />
+      );
 
     case "waiting":
       return <WaitingStepRenderer step={step} />;
@@ -175,6 +185,7 @@ export function GroupedStepsRenderer({
                   key={`work-row:${step.id}`}
                   step={step}
                   editUserMessagesDisabled={editUserMessagesDisabled}
+                  defaultEditExpanded
                   ctx={ctx}
                 />
               ),
@@ -221,8 +232,8 @@ function WorkGroupHeaderButton({
       className={cn(
         "group/work-header inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-(--chat-timeline-collapsible-header-gap) overflow-hidden",
         "h-auto border-0 bg-transparent px-(--conversation-text-inset) py-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
-        "text-conversation text-multi-fg-tertiary",
-        "hover:text-multi-fg-secondary focus-visible:text-multi-fg-secondary",
+        "text-conversation text-honk-fg-tertiary",
+        "hover:text-honk-fg-secondary focus-visible:text-honk-fg-secondary",
       )}
       aria-expanded={expanded}
       aria-controls={contentId}
@@ -231,11 +242,11 @@ function WorkGroupHeaderButton({
     >
       {isWaitingGroup ? (
         <>
-          <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary">
+          <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
             {actionText}
           </span>
           {!isRunning && summary.details ? (
-            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums">
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums">
               {summary.details}
             </span>
           ) : null}
@@ -256,10 +267,10 @@ function WorkGroupHeaderButton({
       )}
       {showHeaderSummaryDetails ? (
         <>
-          <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
+          <span aria-hidden="true" className="shrink-0 text-honk-fg-tertiary">
             ·
           </span>
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums">
             {summary.details}
           </span>
           <WorkGroupStats summary={summary} />
@@ -267,7 +278,7 @@ function WorkGroupHeaderButton({
       ) : null}
       <IconChevronRightMedium
         className={cn(
-          "size-3 shrink-0 text-multi-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
+          "size-3 shrink-0 text-honk-icon-tertiary transition-transform duration-(--motion-duration-collapsible) ease-out motion-reduce:transition-none",
           expanded && "rotate-90",
         )}
         aria-hidden="true"
@@ -324,7 +335,15 @@ function ProposedPlanStepRenderer({
   );
 }
 
-function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRendererContext }) {
+function WorkStepRenderer({
+  step,
+  ctx,
+  defaultEditExpanded,
+}: {
+  step: TimelineWorkStep;
+  ctx: StepRendererContext;
+  defaultEditExpanded: boolean;
+}) {
   return (
     <ToolCallMessage
       workEntry={step.entry}
@@ -333,6 +352,7 @@ function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRend
       environmentId={ctx.activeThreadEnvironmentId}
       pendingApprovalKinds={ctx.pendingApprovalKinds}
       subagentDetailsEnabled
+      defaultEditExpanded={defaultEditExpanded}
     />
   );
 }
@@ -340,9 +360,11 @@ function WorkStepRenderer({ step, ctx }: { step: TimelineWorkStep; ctx: StepRend
 function RuntimeToolStepRenderer({
   step,
   ctx,
+  defaultEditExpanded,
 }: {
   step: TimelineRuntimeToolStep;
   ctx: StepRendererContext;
+  defaultEditExpanded: boolean;
 }) {
   return (
     <RuntimeToolCallMessage
@@ -352,6 +374,7 @@ function RuntimeToolStepRenderer({
       environmentId={ctx.activeThreadEnvironmentId}
       pendingApprovalKinds={ctx.pendingApprovalKinds}
       subagentDetailsEnabled
+      defaultEditExpanded={defaultEditExpanded}
     />
   );
 }
@@ -406,14 +429,14 @@ function GroupedMessageText({
   }
   return (
     <div
-      className="min-w-0 py-0.5 text-conversation text-multi-fg-secondary"
+      className="min-w-0 py-0.5 text-conversation text-honk-fg-secondary"
       data-work-group-text=""
     >
       <ChatMarkdown
         text={text}
         cwd={ctx.markdownCwd}
         isStreaming={step.message.streaming === true}
-        className="text-multi-fg-secondary"
+        className="text-honk-fg-secondary"
       />
     </div>
   );
@@ -432,7 +455,7 @@ function RuntimeThinkingStepRenderer({
   }
   return (
     <div
-      className="min-w-0 py-0.5 text-conversation text-multi-fg-tertiary"
+      className="min-w-0 py-0.5 text-conversation text-honk-fg-tertiary"
       data-runtime-thinking=""
       data-runtime-thinking-streaming={step.message.streaming ? "true" : undefined}
     >
@@ -440,7 +463,7 @@ function RuntimeThinkingStepRenderer({
         text={thinking}
         cwd={ctx.markdownCwd}
         isStreaming={step.message.streaming === true}
-        className="text-multi-fg-tertiary"
+        className="text-honk-fg-tertiary"
       />
     </div>
   );
@@ -473,10 +496,10 @@ function WorkGroupSummaryLine({ summary }: { summary: WorkGroupSummary }) {
       className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-conversation"
       data-work-group-summary=""
     >
-      <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-secondary">
+      <span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
         {summary.action}
       </span>
-      <span className="min-w-0 overflow-hidden text-ellipsis text-multi-fg-tertiary tabular-nums">
+      <span className="min-w-0 overflow-hidden text-ellipsis text-honk-fg-tertiary tabular-nums">
         {summary.details}
       </span>
       <WorkGroupStats summary={summary} />
@@ -618,7 +641,7 @@ function CompactToolOutputStrip({ output, loading }: { output: string; loading: 
       data-work-preview-output=""
       className={cn(
         "m-0 overflow-x-hidden overflow-y-auto",
-        "font-mono text-detail leading-[18px] text-multi-fg-tertiary",
+        "font-mono text-detail leading-[18px] text-honk-fg-tertiary",
         "whitespace-pre-wrap wrap-anywhere select-none",
         "[overflow-anchor:none] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       )}
@@ -779,8 +802,8 @@ function WorkGroupStats({ summary }: { summary: WorkGroupSummary }) {
 
   return (
     <span className="inline-flex shrink-0 gap-1 tabular-nums" data-work-group-stats="">
-      {additions > 0 ? <span className="text-multi-diff-addition">+{additions}</span> : null}
-      {deletions > 0 ? <span className="text-multi-diff-deletion">-{deletions}</span> : null}
+      {additions > 0 ? <span className="text-honk-diff-addition">+{additions}</span> : null}
+      {deletions > 0 ? <span className="text-honk-diff-deletion">-{deletions}</span> : null}
     </span>
   );
 }

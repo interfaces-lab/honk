@@ -73,4 +73,4 @@ export interface AuthPairingLinkRepositoryShape {
 export class AuthPairingLinkRepository extends Context.Service<
   AuthPairingLinkRepository,
   AuthPairingLinkRepositoryShape
->()("multi/persistence/AuthPairingLinks.service/AuthPairingLinkRepository") {}
+>()("honk/persistence/AuthPairingLinks.service/AuthPairingLinkRepository") {}

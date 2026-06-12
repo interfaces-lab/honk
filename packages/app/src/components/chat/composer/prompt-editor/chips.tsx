@@ -1,5 +1,5 @@
-import { Button } from "@multi/multikit/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@multi/multikit/tooltip";
+import { Button } from "@honk/multikit/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/multikit/tooltip";
 import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
 import { type ComponentType } from "react";
@@ -24,23 +24,23 @@ function resolvedThemeFromDocument(): "light" | "dark" {
 
 const composerPromptChipVariants = cva(
   cn(
-    "inline-flex min-w-0 max-w-(--multi-composer-chip-max-width) select-none items-center gap-0.5",
-    "bg-transparent px-0 py-0 font-multi font-normal align-middle",
-    "-mt-[3px] -ml-px text-(length:--multi-composer-chip-font-size) leading-(--multi-composer-chip-line-height)",
+    "inline-flex min-w-0 max-w-(--honk-composer-chip-max-width) select-none items-center gap-0.5",
+    "bg-transparent px-0 py-0 font-honk font-normal align-middle",
+    "-mt-[3px] -ml-px text-(length:--honk-composer-chip-font-size) leading-(--honk-composer-chip-line-height)",
   ),
   {
     variants: {
       kind: {
-        mention: "text-(--multi-composer-mention-text)",
-        command: "rounded-[2px] text-(--multi-composer-command-text)",
-        skill: "rounded-[2px] text-(--multi-composer-command-text)",
-        "inline-token": "text-(--multi-composer-mention-text)",
+        mention: "text-(--honk-composer-mention-text)",
+        command: "rounded-[2px] text-(--honk-composer-command-text)",
+        skill: "rounded-[2px] text-(--honk-composer-command-text)",
+        "inline-token": "text-(--honk-composer-mention-text)",
       },
     },
   },
 );
 
-const composerPromptChipIconClass = "size-(--multi-composer-chip-icon-size) shrink-0";
+const composerPromptChipIconClass = "size-(--honk-composer-chip-icon-size) shrink-0";
 
 export function ComposerMentionChip({ label, lineEnd, lineStart, path }: ComposerMentionPayload) {
   const theme = resolvedThemeFromDocument();
@@ -62,7 +62,7 @@ export function ComposerMentionChip({ label, lineEnd, lineStart, path }: Compose
       />
       <span className="min-w-0 truncate">{displayedLabel}</span>
       {lineStart !== null && lineEnd !== null ? (
-        <span className="shrink-0 text-(length:--multi-composer-chip-line-range-font-size) text-(--multi-composer-mention-line-range-text)">
+        <span className="shrink-0 text-(length:--honk-composer-chip-line-range-font-size) text-(--honk-composer-mention-line-range-text)">
           {lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`}
         </span>
       ) : null}
@@ -123,9 +123,9 @@ export function ComposerSkillChip({ description, label }: ComposerSkillPayload) 
     >
       <span
         aria-hidden="true"
-        className={cn(composerPromptChipIconClass, "text-(--multi-composer-command-text)")}
+        className={cn(composerPromptChipIconClass, "text-(--honk-composer-command-text)")}
       >
-        <SkillIcon className="size-(--multi-composer-chip-icon-size)" />
+        <SkillIcon className="size-(--honk-composer-chip-icon-size)" />
       </span>
       <span className="min-w-0 truncate">{label}</span>
     </span>

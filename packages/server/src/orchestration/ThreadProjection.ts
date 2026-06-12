@@ -9,7 +9,7 @@ import {
   OrchestrationThreadActivity,
   type OrchestrationThreadEntry,
   type OrchestrationThreadShell,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect, Layer, Option, Schema } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";

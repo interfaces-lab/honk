@@ -1,4 +1,4 @@
-import { type OrchestrationEvent, type OrchestrationThreadActivity } from "@multi/contracts";
+import { type OrchestrationEvent, type OrchestrationThreadActivity } from "@honk/contracts";
 
 type ThreadActivityAppendedEvent = Extract<
   OrchestrationEvent,

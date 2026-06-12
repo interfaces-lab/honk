@@ -1,4 +1,4 @@
-import type { EnvironmentId, ScopedProjectRef } from "@multi/contracts";
+import type { EnvironmentId, ScopedProjectRef } from "@honk/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 

@@ -1,6 +1,6 @@
-# usemulti
+# usehonk
 
-Node.js server and CLI package for Multi.
+Node.js server and CLI package for Honk.
 
 ## Boundary
 
@@ -14,8 +14,8 @@ Branch navigation order is derived in the app projector from messages and entrie
 - The server is the process and security boundary between GUI clients and coding-agent runtimes.
 - Domain folders under `src` are self-contained. Implementation modules use `Foo.ts`; service contracts/tags use `Foo.service.ts`.
 - Do not add `Layers/`, `Services/`, or barrel `index.ts` files.
-- Keep schemas shared with the app in `@multi/contracts`; keep runtime utilities shared with the app in `@multi/shared`.
-- The package name and binary stay `usemulti`/`multi`.
+- Keep schemas shared with the app in `@honk/contracts`; keep runtime utilities shared with the app in `@honk/shared`.
+- The package name and binary stay `usehonk`/`honk`.
 
 ## Orchestration boundary
 
@@ -23,7 +23,7 @@ The server stores and exports **durable orchestration facts** only. It does not 
 
 | Owns                                                 | Does not own                                            |
 | ---------------------------------------------------- | ------------------------------------------------------- |
-| Messages, thread entries, activities, proposed plans | Pi agent execution (`@multi/runtime`, desktop main)     |
+| Messages, thread entries, activities, proposed plans | Pi agent execution (`@honk/runtime`, desktop main)     |
 | Session metadata, turns, projects, pending approvals | Runtime display timelines or overlay rows               |
 | Event-sourced projection into `OrchestrationThread`  | `chatTimelineRows` or other pre-rendered chat row lists |
 | WebSocket RPC for `EnvironmentApi`                   | Branch navigation order for the chat UI                 |
@@ -43,11 +43,11 @@ Do not add server helpers that derive chat timeline rows, attach display orderin
 
 Remaining `try/catch` sites in `src` should be boundary-required:
 
-- `@multi/shared/logging`: synchronous rotating file sink internals.
-- `@multi/shared/Net` and `src/process-runner.ts`: socket/process cleanup.
-- `@multi/shared/shell` and `src/os-jank.ts`: platform PATH probing.
+- `@honk/shared/logging`: synchronous rotating file sink internals.
+- `@honk/shared/Net` and `src/process-runner.ts`: socket/process cleanup.
+- `@honk/shared/shell` and `src/os-jank.ts`: platform PATH probing.
 - `src/open.ts`: platform executable probing and detached process spawn callback.
 - `src/observability/TraceRecord.ts` / `TraceSink.ts`: defensive trace parsing and synchronous sink buffering.
 - `src/persistence/NodeSqliteClient.ts`: `node:sqlite` statement boundary mapped to `SqlError`.
-- Desktop Pi runtime execution lives in `@multi/runtime`; the server no longer owns provider process callback files.
+- Desktop Pi runtime execution lives in `@honk/runtime`; the server no longer owns provider process callback files.
 - `src/project/ProjectEntries.ts`: grep false positives from `ProjectEntry` identifiers, not `try/catch` statements.

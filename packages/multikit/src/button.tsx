@@ -8,7 +8,7 @@ import { cn, controlTransitionClassName, interactiveControlCursorClassName } fro
 
 const buttonVariants = cva(
   cn(
-    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-multi-control border font-multi outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--multi-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-honk-control border font-honk outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--honk-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     interactiveControlCursorClassName,
     controlTransitionClassName,
   ),
@@ -50,13 +50,13 @@ const buttonVariants = cva(
           "border-input bg-popover text-destructive-foreground shadow-xs/5 dark:bg-input/32 [:disabled,:active,[data-pressed]]:shadow-none [:hover,[data-pressed]]:border-destructive/32 [:hover,[data-pressed]]:bg-destructive/4",
         /** Transparent hit target (workbench tertiary / ghost control). */
         ghost:
-          "border-transparent bg-transparent text-multi-fg-secondary shadow-none hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-pressed:bg-multi-bg-tertiary",
+          "border-transparent bg-transparent text-honk-fg-secondary shadow-none hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-pressed:bg-honk-bg-tertiary",
         link: "border-transparent underline-offset-4 [:hover,[data-pressed]]:underline",
         /** Secondary bordered surface (workbench outline control). */
         outline:
-          "border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-secondary shadow-none hover:border-multi-stroke-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-pressed:bg-multi-bg-tertiary",
+          "border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-secondary shadow-none hover:border-honk-stroke-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-pressed:bg-honk-bg-tertiary",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground [:active,[data-pressed]]:bg-secondary/80 [:hover,[data-pressed]]:bg-multi-hover",
+          "border-transparent bg-secondary text-secondary-foreground [:active,[data-pressed]]:bg-secondary/80 [:hover,[data-pressed]]:bg-honk-hover",
       },
     },
   },

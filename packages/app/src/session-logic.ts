@@ -20,7 +20,7 @@ import {
   type UserInputQuestion,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import type { ChatMessage, ProposedPlan, SessionPhase, Thread, ThreadSession } from "./types";
 import { decodeSubagentAgentStates, decodeSubagentReceiverAgents } from "./session/subagents";

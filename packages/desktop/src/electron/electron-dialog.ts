@@ -29,7 +29,7 @@ export interface ElectronDialogShape {
 }
 
 export class ElectronDialog extends Context.Service<ElectronDialog, ElectronDialogShape>()(
-  "multi/desktop/electron/Dialog",
+  "honk/desktop/electron/Dialog",
 ) {}
 
 const make = ElectronDialog.of({

@@ -1139,7 +1139,7 @@ Expected response: `extension_ui_response` with `value` (the entered text) or `c
 
 #### editor
 
-Open a multi-line text editor with optional prefilled content.
+Open a honk-line text editor with optional prefilled content.
 
 ```json
 {

@@ -1,4 +1,4 @@
-import { EnvironmentId, ProjectId } from "@multi/contracts";
+import { EnvironmentId, ProjectId } from "@honk/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {

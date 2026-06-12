@@ -1,5 +1,5 @@
 import { getRouteApi, useRouter } from "@tanstack/react-router";
-import { Spinner } from "@multi/multikit/spinner";
+import { Spinner } from "@honk/multikit/spinner";
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 

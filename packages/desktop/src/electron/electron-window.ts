@@ -33,7 +33,7 @@ export interface ElectronWindowShape {
 }
 
 export class ElectronWindow extends Context.Service<ElectronWindow, ElectronWindowShape>()(
-  "multi/desktop/electron/Window",
+  "honk/desktop/electron/Window",
 ) {}
 
 const make = Effect.gen(function* () {

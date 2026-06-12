@@ -5,8 +5,8 @@ import {
   type OrchestrationEvent,
   resolveLeafIdAfterThreadMessage,
   ThreadId,
-} from "@multi/contracts";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 

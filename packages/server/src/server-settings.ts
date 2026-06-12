@@ -15,7 +15,7 @@ import {
   ServerSettings,
   ServerSettingsError,
   type ServerSettingsPatch,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   Cache,
   Deferred,
@@ -38,9 +38,9 @@ import {
 import * as Semaphore from "effect/Semaphore";
 import { writeFileStringAtomically } from "./atomic-write.ts";
 import { ServerConfig } from "./config.ts";
-import { type DeepPartial, deepMerge } from "@multi/shared/Struct";
-import { fromLenientJson } from "@multi/shared/schema-json";
-import { applyServerSettingsPatch } from "@multi/shared/server-settings";
+import { type DeepPartial, deepMerge } from "@honk/shared/Struct";
+import { fromLenientJson } from "@honk/shared/schema-json";
+import { applyServerSettingsPatch } from "@honk/shared/server-settings";
 
 const decodeServerSettings = Schema.decodeEffect(ServerSettings);
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
-import { type ResolvedKeybindingsConfig } from "@multi/contracts";
+import { type ResolvedKeybindingsConfig } from "@honk/contracts";
+import { normalizePathSeparators } from "@honk/shared/paths";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   IconCode,
@@ -93,8 +94,8 @@ import {
   CommandPanel,
   CommandShortcut,
   CommandShortcutKey,
-} from "@multi/multikit/command";
-import { Button } from "@multi/multikit/button";
+} from "@honk/multikit/command";
+import { Button } from "@honk/multikit/button";
 import { toastManager } from "~/app/toast";
 import {
   ComposerHandleContext,
@@ -107,8 +108,10 @@ import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections"
 
 function joinFileSystemPath(basePath: string, ...segments: string[]): string {
   const separator = basePath.includes("\\") && !basePath.includes("/") ? "\\" : "/";
-  const normalizedBase = basePath.replace(/[\\/]+$/g, "");
-  const normalizedSegments = segments.map((segment) => segment.replace(/^[\\/]+|[\\/]+$/g, ""));
+  const normalizedBase = normalizePathSeparators(basePath, separator).replace(/[\\/]+$/g, "");
+  const normalizedSegments = segments.map((segment) =>
+    normalizePathSeparators(segment, separator).replace(/^[\\/]+|[\\/]+$/g, ""),
+  );
   return [normalizedBase, ...normalizedSegments].join(separator);
 }
 
@@ -173,7 +176,7 @@ function shortcutLabelParts(label: string): ShortcutLabelPart[] {
 function CommandPaletteResults(props: CommandPaletteResultsProps) {
   if (props.groups.length === 0) {
     return (
-      <div className="py-8 text-center font-multi text-body text-muted-foreground">
+      <div className="py-8 text-center font-honk text-body text-muted-foreground">
         {props.isActionsOnly
           ? "No matching actions."
           : "No matching commands, projects, or threads."}
@@ -225,18 +228,18 @@ function CommandPaletteResultRow(props: {
       {props.item.icon}
       {props.item.description ? (
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body text-multi-fg-primary">{props.item.title}</span>
-          <span className="truncate text-detail text-multi-fg-tertiary">
+          <span className="truncate text-body text-honk-fg-primary">{props.item.title}</span>
+          <span className="truncate text-detail text-honk-fg-tertiary">
             {props.item.description}
           </span>
         </span>
       ) : (
-        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-multi-fg-primary">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-honk-fg-primary">
           <span className="truncate">{props.item.title}</span>
         </span>
       )}
       {props.item.timestamp ? (
-        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-multi-fg-tertiary">
+        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-honk-fg-tertiary">
           {props.item.timestamp}
         </span>
       ) : null}
@@ -248,7 +251,7 @@ function CommandPaletteResultRow(props: {
         </CommandShortcut>
       ) : null}
       {props.item.kind === "submenu" ? (
-        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-multi-icon-tertiary" />
+        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-honk-icon-tertiary" />
       ) : null}
     </CommandItem>
   );
@@ -342,7 +345,7 @@ function projectCommandPaletteIcon(project: Project): ReactNode {
     <ProjectFavicon
       environmentId={project.environmentId}
       cwd={project.cwd}
-      className="size-4 text-multi-icon-tertiary"
+      className="size-4 text-honk-icon-tertiary"
     />
   );
 }
@@ -485,7 +488,7 @@ function OpenCommandPaletteDialog() {
     ...(activeThreadId ? { activeThreadId } : {}),
     projectTitleForThread: (thread) => findWorkspaceProjectForSource(projects, thread)?.name,
     sortOrder: settings.sidebarThreadSortOrder,
-    icon: <IconThread className="size-4 text-multi-icon-tertiary" />,
+    icon: <IconThread className="size-4 text-honk-icon-tertiary" />,
     runThread: async (thread) => {
       const selectedThread =
         threads.find(
@@ -628,7 +631,7 @@ function OpenCommandPaletteDialog() {
           searchTerms: ["add project", "add project", "folder", "directory"],
           title: "Add Project",
           description: "Choose a folder",
-          icon: <IconFolderAddRight className="size-4 text-multi-icon-tertiary" />,
+          icon: <IconFolderAddRight className="size-4 text-honk-icon-tertiary" />,
           keepOpen: true,
           run: async () => {
             openAddProjectFlow();
@@ -745,7 +748,7 @@ function OpenCommandPaletteDialog() {
             New thread in <span className="font-semibold">{activeProjectTitle}</span>
           </>
         ),
-        icon: <IconAgent className="size-4 text-multi-icon-tertiary" />,
+        icon: <IconAgent className="size-4 text-honk-icon-tertiary" />,
         shortcutCommand: "chat.new",
         run: async () => {
           await startNewThreadFromContext(
@@ -767,7 +770,7 @@ function OpenCommandPaletteDialog() {
       value: "action:new-thread-in",
       searchTerms: ["new thread", "project", "pick", "choose", "select"],
       title: "New thread in...",
-      icon: <IconProjects className="size-4 text-multi-icon-tertiary" />,
+      icon: <IconProjects className="size-4 text-honk-icon-tertiary" />,
       addonIcon: <IconProjects className="size-4" />,
       groups: [{ value: "projects", label: "Projects", items: projectThreadItems }],
     });
@@ -778,7 +781,7 @@ function OpenCommandPaletteDialog() {
     value: "action:add-project",
     searchTerms: ["add project", "folder", "directory"],
     title: "Add project",
-    icon: <IconFolderAddRight className="size-4 text-multi-icon-tertiary" />,
+    icon: <IconFolderAddRight className="size-4 text-honk-icon-tertiary" />,
     keepOpen: true,
     run: async () => {
       openAddProjectFlow();
@@ -792,7 +795,7 @@ function OpenCommandPaletteDialog() {
       searchTerms: ["open workspace in editor", "open project in editor", "editor", "code"],
       title: "Open workspace in editor",
       description: currentProjectCwd,
-      icon: <IconFolderOpen className="size-4 text-multi-icon-tertiary" />,
+      icon: <IconFolderOpen className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
         await openPathInPreferredEditor(currentProjectCwd, "Unable to open workspace");
       },
@@ -804,7 +807,7 @@ function OpenCommandPaletteDialog() {
       searchTerms: ["copy workspace path", "copy project path", "path", "clipboard"],
       title: "Copy workspace path",
       description: currentProjectCwd,
-      icon: <IconClipboard className="size-4 text-multi-icon-tertiary" />,
+      icon: <IconClipboard className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
         await copyPathToClipboard(currentProjectCwd, "Copied workspace path");
       },
@@ -816,7 +819,7 @@ function OpenCommandPaletteDialog() {
     value: "action:settings",
     searchTerms: ["settings", "preferences", "configuration", "keybindings"],
     title: "Open settings",
-    icon: <IconSettingsGear2 className="size-4 text-multi-icon-tertiary" />,
+    icon: <IconSettingsGear2 className="size-4 text-honk-icon-tertiary" />,
     run: async () => {
       await navigate({ to: DEFAULT_SETTINGS_ROUTE });
     },
@@ -837,7 +840,7 @@ function OpenCommandPaletteDialog() {
     ],
     title: "Open Dev Panel",
     description: "Inspect the active thread runtime, context, timeline, and tree",
-    icon: <IconCode className="size-4 text-multi-icon-tertiary" />,
+    icon: <IconCode className="size-4 text-honk-icon-tertiary" />,
     run: async () => {
       shellPanelsActions.activateDevTab(workspaceTarget.workspaceKey);
     },
@@ -849,7 +852,7 @@ function OpenCommandPaletteDialog() {
     searchTerms: ["keyboard shortcuts", "keybindings", "shortcuts", "hotkeys"],
     title: "Open keyboard shortcuts",
     description: keybindingsConfigPath ?? "Keybindings file path unavailable",
-    icon: <IconKeyboard className="size-4 text-multi-icon-tertiary" />,
+    icon: <IconKeyboard className="size-4 text-honk-icon-tertiary" />,
     run: async () => {
       if (!keybindingsConfigPath) {
         toastManager.add({
@@ -870,7 +873,7 @@ function OpenCommandPaletteDialog() {
       searchTerms: ["copy server trace path", "copy trace path", "debug", "trace", "logs"],
       title: "Copy server trace path",
       description: "Local server trace NDJSON file",
-      icon: <IconBug className="size-4 text-multi-icon-tertiary" />,
+      icon: <IconBug className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
         await copyPathToClipboard(serverTracePath, "Copied server trace path");
       },
@@ -888,13 +891,13 @@ function OpenCommandPaletteDialog() {
         "component gallery",
         "ui",
         "primitives",
-        "@multi/multikit",
+        "@honk/multikit",
         "dialkit",
         "dev",
       ],
       title: "Open Multikit",
       description: "Browse the Multikit design system with DialKit (dev)",
-      icon: <IconSettingsSliderHor className="size-4 text-multi-icon-tertiary" />,
+      icon: <IconSettingsSliderHor className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
         await navigate({ to: "/dev/multikit" });
       },

@@ -15,6 +15,7 @@
 ## Code
 
 - Read the relevant files before editing. Do not rely on search snippets for broad changes.
+- When writing Effect code, read `docs/effect-llms.md` first (idiomatic guide: `Effect.gen`/`Effect.fn`, `Context.Service`, errors, `Scope`, `Stream`).
 - No `any` types unless there is no better option.
 - Check installed dependency types instead of guessing external APIs.
 - Use top-level imports. Do not use inline imports such as `await import("./x")`, `import("pkg").Type`, or dynamic type imports.
@@ -32,11 +33,11 @@
 
 ## Multikit (design system)
 
-- **Multikit** is Multi's design system. Primitives live in `@multi/multikit/*`; tokens in `@multi/multikit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
+- **Multikit** is Honk's design system. Primitives live in `@honk/multikit/*`; tokens in `@honk/multikit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
 - Browse and tweak components in dev at `/dev/multikit` (Cmd+K → "Open Multikit"). DialKit panel adjusts the active preview.
-- Prefer existing Multikit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@multi/multikit/text` is for settings and structured copy.
+- Prefer existing Multikit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@honk/multikit/text` is for settings and structured copy.
 - Stack: Base UI headless + CVA variants + Tailwind v4. Icons: `central-icons` only.
-- `cn()` / `tailwind-merge` must treat `text-multi-*` size utilities separately from `text-multi-fg-*` color utilities (see `packages/multikit/src/utils.ts`).
+- `cn()` / `tailwind-merge` must treat `text-honk-*` size utilities separately from `text-honk-fg-*` color utilities (see `packages/multikit/src/utils.ts`).
 
 ## Commands
 
@@ -58,7 +59,7 @@
 
 ## Releases
 
-- Published versions for `usemulti`, `@multi/app`, `@multi/desktop`, and `@multi/contracts` stay in sync via `scripts/update-release-package-versions.ts`.
+- Published versions for `usehonk`, `@honk/app`, `@honk/desktop`, and `@honk/contracts` stay in sync via `scripts/update-release-package-versions.ts`.
 - Release automation lives in `.github/workflows/release.yml`.
 
 ## Composer command menu (`/` and `@`)

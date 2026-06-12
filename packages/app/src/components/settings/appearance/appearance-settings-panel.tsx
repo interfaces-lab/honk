@@ -1,16 +1,13 @@
-import { DEFAULT_UNIFIED_SETTINGS } from "@multi/contracts/settings";
-import { Button } from "@multi/multikit/button";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "@multi/multikit/select";
-import { Switch } from "@multi/multikit/switch";
+import { type AppIconVariant, DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
+import { Button } from "@honk/multikit/button";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@honk/multikit/select";
+import { Switch } from "@honk/multikit/switch";
+
+import { APP_STAGE_LABEL } from "~/app/branding";
 
 import { useSettings, useUpdateSettings } from "../../../hooks/use-settings";
 import { useTheme } from "../../../hooks/use-theme";
+import { cn, isMacPlatform } from "../../../lib/utils";
 import {
   appearanceSettingsActions,
   useAppearanceSettingsSnapshot,
@@ -28,6 +25,72 @@ import {
   FontFamilyInput,
   NumberStepper,
 } from "./appearance-controls";
+
+// The blueprint development icon is only offered in dev-stage builds, where it is
+// also the effective default until the user picks a variant.
+const IS_DEV_STAGE = APP_STAGE_LABEL === "Dev";
+const DEFAULT_APP_ICON_VARIANT: AppIconVariant = IS_DEV_STAGE ? "dev" : "classic";
+
+const APP_ICON_OPTIONS: ReadonlyArray<{ value: AppIconVariant; label: string }> = [
+  { value: "classic", label: "Classic" },
+  { value: "midnight", label: "Midnight" },
+  { value: "sunset", label: "Sunset" },
+  { value: "forest", label: "Forest" },
+  ...(IS_DEV_STAGE ? ([{ value: "dev", label: "Dev" }] as const) : []),
+];
+
+function AppIconSettingsRow() {
+  const appIconVariant = useSettings(
+    (settings) => settings.appIconVariant ?? DEFAULT_APP_ICON_VARIANT,
+  );
+  const { updateSettings } = useUpdateSettings();
+
+  return (
+    <SettingsRow
+      title="App Icon"
+      description="Dock icon shown while the app is running."
+      resetAction={
+        appIconVariant !== DEFAULT_APP_ICON_VARIANT ? (
+          <SettingResetButton
+            label="app icon"
+            onClick={() => void updateSettings({ appIconVariant: DEFAULT_APP_ICON_VARIANT })}
+          />
+        ) : null
+      }
+      control={
+        <div aria-label="App icon" className="flex items-center gap-1.5" role="radiogroup">
+          {APP_ICON_OPTIONS.map((option) => {
+            const selected = appIconVariant === option.value;
+            return (
+              <button
+                key={option.value}
+                aria-checked={selected}
+                aria-label={option.label}
+                className={cn(
+                  "rounded-honk-control border p-1 outline-hidden transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused",
+                  selected
+                    ? "border-honk-stroke-focused bg-honk-bg-tertiary"
+                    : "border-transparent hover:border-honk-stroke-secondary hover:bg-honk-bg-quaternary",
+                )}
+                role="radio"
+                title={option.label}
+                type="button"
+                onClick={() => void updateSettings({ appIconVariant: option.value })}
+              >
+                <img
+                  alt={option.label}
+                  className="size-9 select-none"
+                  draggable={false}
+                  src={`/app-icons/${option.value}.png`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      }
+    />
+  );
+}
 
 const THEME_OPTIONS = [
   {
@@ -49,6 +112,10 @@ export function AppearanceSettingsPanel() {
   const appearance = useAppearanceSettingsSnapshot();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
+  const supportsAppIconSwitching =
+    typeof window !== "undefined" &&
+    window.desktopBridge !== undefined &&
+    isMacPlatform(navigator.platform);
 
   return (
     <SettingsPageContainer>
@@ -88,6 +155,7 @@ export function AppearanceSettingsPanel() {
             </Select>
           }
         />
+        {supportsAppIconSwitching ? <AppIconSettingsRow /> : null}
       </SettingsSection>
 
       <SettingsSection title="Colors">

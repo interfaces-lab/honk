@@ -3,15 +3,15 @@ import {
   AgentPreferences,
   AgentPreferencesPatch,
   DesktopExtensionUiRespondInput,
-  MultiRuntimeHostEvent,
-  MultiRuntimeHostSnapshot,
+  HonkRuntimeHostEvent,
+  HonkRuntimeHostSnapshot,
   ThreadAgentRuntimeAbortInput,
   ThreadAgentRuntimeHydrateInput,
   ThreadAgentRuntimeSendTurnInput,
   TurnId,
-} from "@multi/contracts";
-import type { DesktopRuntimeHost } from "@multi/runtime";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import type { DesktopRuntimeHost } from "@honk/runtime";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -26,7 +26,7 @@ import { ingestRuntimeHostEvent, installRuntimeIngestion } from "../../runtime/r
 export { installRuntimeIngestion };
 
 let runtimeHost: DesktopRuntimeHost | null = null;
-const encodeHostEvent = Schema.encodeUnknownSync(MultiRuntimeHostEvent);
+const encodeHostEvent = Schema.encodeUnknownSync(HonkRuntimeHostEvent);
 const elog = EffectLogger.create({ service: "desktop.runtime.ipc" });
 
 const getRuntimeHost = Effect.gen(function* () {
@@ -37,7 +37,7 @@ const getRuntimeHost = Effect.gen(function* () {
   const appIdentity = yield* DesktopAppIdentity.DesktopAppIdentity;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const userDataPath = yield* appIdentity.resolveUserDataPath;
-  const Runtime = yield* Effect.promise(() => import("@multi/runtime"));
+  const Runtime = yield* Effect.promise(() => import("@honk/runtime"));
   runtimeHost = new Runtime.DesktopRuntimeHost({
     agentDir: environment.path.join(userDataPath, "pi-agent"),
   });
@@ -97,7 +97,7 @@ export const installRuntimeHostEventBridge = Effect.acquireRelease(
 export const getRuntimeHostSnapshot = makeIpcMethod({
   channel: IpcChannels.RUNTIME_GET_HOST_SNAPSHOT_CHANNEL,
   payload: Schema.Void,
-  result: MultiRuntimeHostSnapshot,
+  result: HonkRuntimeHostSnapshot,
   handler: () =>
     Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getHostSnapshot())),
 });
@@ -143,7 +143,7 @@ function createRuntimeCredentialLoginCallbacks(
 export const configureRuntimeCredential = makeIpcMethod({
   channel: IpcChannels.RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL,
   payload: AgentCredentialConfigureInput,
-  result: MultiRuntimeHostSnapshot,
+  result: HonkRuntimeHostSnapshot,
   handler: (input) =>
     Effect.gen(function* () {
       yield* elog.info("runtime credential configure started", {

@@ -8,7 +8,7 @@ import {
 } from "./PTY.service";
 
 const BUN_PTY_WINDOWS_UNAVAILABLE_MESSAGE =
-  "Bun PTY terminal support is unavailable on Windows. Please use Node.js (e.g. by running `npx usemulti`) instead.";
+  "Bun PTY terminal support is unavailable on Windows. Please use Node.js (e.g. by running `npx usehonk`) instead.";
 
 class BunPtyProcess implements PtyProcess {
   private readonly dataListeners = new Set<(data: string) => void>();

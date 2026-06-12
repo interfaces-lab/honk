@@ -1,4 +1,4 @@
-import { EnvironmentId, ProjectId, ThreadId } from "@multi/contracts";
+import { EnvironmentId, ProjectId, ThreadId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";

@@ -1,4 +1,4 @@
-import type { ServerAuthDescriptor } from "@multi/contracts";
+import type { ServerAuthDescriptor } from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect } from "effect";
 
@@ -7,5 +7,5 @@ export interface ServerAuthPolicyShape {
 }
 
 export class ServerAuthPolicy extends Context.Service<ServerAuthPolicy, ServerAuthPolicyShape>()(
-  "multi/auth/ServerAuthPolicy.service",
+  "honk/auth/ServerAuthPolicy.service",
 ) {}

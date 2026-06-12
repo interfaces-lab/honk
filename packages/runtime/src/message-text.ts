@@ -40,6 +40,13 @@ function messageContent(message: unknown): unknown {
   return message.content;
 }
 
+function messageErrorMessage(message: unknown): string {
+  if (typeof message !== "object" || message === null || !("errorMessage" in message)) {
+    return "";
+  }
+  return typeof message.errorMessage === "string" ? message.errorMessage.trim() : "";
+}
+
 export function extractMessageText(message: unknown): string {
   const content = messageContent(message);
   if (typeof content === "string") {
@@ -53,6 +60,11 @@ export function extractMessageText(message: unknown): string {
     .filter(isTextPart)
     .map((part) => part.text)
     .join("\n");
+}
+
+export function extractMessageErrorText(message: unknown): string {
+  const errorMessage = messageErrorMessage(message);
+  return errorMessage ? `Provider error: ${errorMessage}` : "";
 }
 
 export function extractMessageThinking(message: unknown): string {

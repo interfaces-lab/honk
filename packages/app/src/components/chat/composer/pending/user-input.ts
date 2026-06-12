@@ -1,4 +1,4 @@
-import type { UserInputQuestion } from "@multi/contracts";
+import type { UserInputQuestion } from "@honk/contracts";
 
 export interface PendingUserInputDraftAnswer {
   selectedOptionLabels?: string[];

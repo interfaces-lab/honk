@@ -5,7 +5,7 @@ import {
   type ScopedThreadRef,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Schema } from "effect";
 import { type DraftId as DraftIdType, type DraftThreadState } from "../../../stores/chat-drafts";
 import { useStore } from "../../../stores/thread-store";
@@ -17,7 +17,7 @@ import {
   type ThreadSession,
 } from "../../../types";
 
-export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "multi:last-invoked-script-by-project";
+export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "honk:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
 export const LastInvokedScriptByProjectSchema = Schema.Record(ProjectId, Schema.String);

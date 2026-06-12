@@ -2,7 +2,7 @@
 
 import type { Toast as BaseToast } from "@base-ui/react/toast";
 import { type CSSProperties } from "react";
-import { type ScopedThreadRef, type ThreadId } from "@multi/contracts";
+import { type ScopedThreadRef, type ThreadId } from "@honk/contracts";
 import {
   IconCheckmark1,
   IconCircleCheck,
@@ -23,7 +23,7 @@ import {
   ToastIconButton,
   ToastRoot,
   ToastTitle,
-} from "@multi/multikit/toast";
+} from "@honk/multikit/toast";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { useRouteTarget } from "~/routes/-thread-route-targets";
@@ -71,7 +71,7 @@ function buildVisibleToastLayout<TToast extends object>(
   let offsetY = 0;
 
   return {
-    frontmostHeight: normalizeToastHeight(visibleToasts[0]?.height),
+    frontmostHeight: clampToastHeight(visibleToasts[0]?.height),
     items: visibleToasts.map((toast, visibleIndex) => {
       const item = {
         toast,
@@ -79,13 +79,13 @@ function buildVisibleToastLayout<TToast extends object>(
         offsetY,
       };
 
-      offsetY += normalizeToastHeight(toast.height);
+      offsetY += clampToastHeight(toast.height);
       return item;
     }),
   };
 }
 
-function normalizeToastHeight(height: number | null | undefined): number {
+function clampToastHeight(height: number | null | undefined): number {
   return typeof height === "number" && Number.isFinite(height) && height > 0 ? height : 0;
 }
 

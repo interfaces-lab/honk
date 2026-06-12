@@ -659,8 +659,19 @@ export const RuntimeDisplayTimelineProjection = Schema.Struct({
 });
 export type RuntimeDisplayTimelineProjection = typeof RuntimeDisplayTimelineProjection.Type;
 
-export const MultiRuntimeHostSnapshot = Schema.Struct({
+export const RuntimeThreadIdentity = Schema.Struct({
+  threadId: ThreadId,
+  runtimeSessionId: RuntimeSessionId,
+  authProviderId: Schema.NullOr(AuthProviderId),
+  modelId: Schema.NullOr(ModelId),
+});
+export type RuntimeThreadIdentity = typeof RuntimeThreadIdentity.Type;
+
+export const HonkRuntimeHostSnapshot = Schema.Struct({
   preferences: AgentPreferences,
+  runtimeIdentities: Schema.Array(RuntimeThreadIdentity).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   models: Schema.Array(AgentRuntimeModelDescriptor).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -684,13 +695,13 @@ export const MultiRuntimeHostSnapshot = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
 });
-export type MultiRuntimeHostSnapshot = typeof MultiRuntimeHostSnapshot.Type;
-export const decodeMultiRuntimeHostSnapshot = Schema.decodeUnknownSync(MultiRuntimeHostSnapshot);
+export type HonkRuntimeHostSnapshot = typeof HonkRuntimeHostSnapshot.Type;
+export const decodeHonkRuntimeHostSnapshot = Schema.decodeUnknownSync(HonkRuntimeHostSnapshot);
 
-export const MultiRuntimeHostEvent = Schema.Union([
+export const HonkRuntimeHostEvent = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("snapshot"),
-    snapshot: MultiRuntimeHostSnapshot,
+    snapshot: HonkRuntimeHostSnapshot,
   }),
   Schema.Struct({
     type: Schema.Literal("runtime-event"),
@@ -713,17 +724,17 @@ export const MultiRuntimeHostEvent = Schema.Union([
     flows: Schema.Array(AgentCredentialAuthFlow),
   }),
 ]);
-export type MultiRuntimeHostEvent = typeof MultiRuntimeHostEvent.Type;
-export const decodeMultiRuntimeHostEvent = Schema.decodeUnknownSync(MultiRuntimeHostEvent);
+export type HonkRuntimeHostEvent = typeof HonkRuntimeHostEvent.Type;
+export const decodeHonkRuntimeHostEvent = Schema.decodeUnknownSync(HonkRuntimeHostEvent);
 
-export interface MultiRuntimeApi {
-  getHostSnapshot: () => Promise<MultiRuntimeHostSnapshot>;
+export interface HonkRuntimeApi {
+  getHostSnapshot: () => Promise<HonkRuntimeHostSnapshot>;
   getPreferences: () => Promise<AgentPreferences>;
   updatePreferences: (patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
-  configureCredential: (input: AgentCredentialConfigureInput) => Promise<MultiRuntimeHostSnapshot>;
+  configureCredential: (input: AgentCredentialConfigureInput) => Promise<HonkRuntimeHostSnapshot>;
   hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;
   respondToExtensionUiRequest: (input: DesktopExtensionUiRespondInput) => Promise<void>;
-  onHostEvent: (listener: (event: MultiRuntimeHostEvent) => void) => () => void;
+  onHostEvent: (listener: (event: HonkRuntimeHostEvent) => void) => () => void;
 }

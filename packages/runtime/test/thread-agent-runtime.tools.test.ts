@@ -5,7 +5,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentRuntimeEvent } from "@multi/contracts";
+import type { AgentRuntimeEvent } from "@honk/contracts";
 import { createDesktopAgentExtensionFactories } from "../src/desktop-agent-extensions";
 import {
   createDesktopExtensionUi,
@@ -99,7 +99,7 @@ describe("ThreadAgentRuntime tools", () => {
   function createAgentDir(): string {
     const tempDir = join(
       tmpdir(),
-      `multi-runtime-agent-dir-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `honk-runtime-agent-dir-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
     const agentDir = join(tempDir, "pi-agent");
     mkdirSync(agentDir, { recursive: true });
@@ -165,24 +165,12 @@ describe("ThreadAgentRuntime tools", () => {
     expect(harness.runtime.policy.allowedToolNames).toEqual(["echo"]);
   });
 
-  it("excludes the built-in read tool by default", async () => {
-    const echoTool = defineTool({
-      name: "echo",
-      label: "Echo",
-      description: "Echo text back",
-      promptSnippet: "Echoes a value.",
-      parameters: Type.Object({ text: Type.String() }),
-      execute: async (_toolCallId, params) => ({
-        content: [{ type: "text", text: `echo:${params.text}` }],
-        details: { text: params.text },
-      }),
-    });
-    const harness = await createRuntimeHarness({ customTools: [echoTool], tools: ["echo"] });
+  it("allows the built-in read tool by default", async () => {
+    const harness = await createRuntimeHarness();
     harnesses.push(harness);
 
-    expect(harness.runtime.policy.allowedToolNames).toEqual(["echo"]);
-    expect(harness.runtime.policy.excludedToolNames).toContain("read");
-    expect(harness.runtime.session.getActiveToolNames()).not.toContain("read");
+    expect(harness.runtime.policy.excludedToolNames).not.toContain("read");
+    expect(harness.runtime.session.getActiveToolNames()).toContain("read");
   });
 
   it("runs the first-party ask_user extension through desktop UI", async () => {

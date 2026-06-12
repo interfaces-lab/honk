@@ -1,6 +1,6 @@
 "use client";
 
-import type { GitFileImageResult, GitFilePatchResult } from "@multi/contracts";
+import type { GitFileImageResult, GitFilePatchResult } from "@honk/contracts";
 import {
   type ChangeTypes,
   type CodeViewItem,
@@ -25,7 +25,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import {
   Menu,
   MenuCheckboxItem,
@@ -39,7 +39,7 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-} from "@multi/multikit/menu";
+} from "@honk/multikit/menu";
 import {
   Dialog,
   DialogDescription,
@@ -47,7 +47,7 @@ import {
   DialogHeader,
   DialogPopup,
   DialogTitle,
-} from "@multi/multikit/dialog";
+} from "@honk/multikit/dialog";
 
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
 import {
@@ -79,8 +79,8 @@ import { GitImageView } from "./git-image-view";
 import {
   WorkbenchChromeActionGroup,
   WorkbenchChromeRow,
-} from "@multi/multikit/workbench-chrome-row";
-import { WorkbenchIconButton, workbenchIconButtonVariants } from "@multi/multikit/workbench-button";
+} from "@honk/multikit/workbench-chrome-row";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/multikit/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
 type GitChangesFilter = "uncommitted" | "unstaged" | "staged" | "branch";
@@ -166,7 +166,7 @@ const GIT_CODE_VIEW_LAYOUT = {
 const GIT_CODE_VIEW_UNSAFE_CSS = `${WORKBENCH_CODE_UNSAFE_CSS}
   [data-diffs-header='custom'] {
     min-height: ${GIT_CODE_VIEW_DIFF_HEADER_HEIGHT}px;
-    background-color: var(--multi-chat-surface-background);
+    background-color: var(--honk-chat-surface-background);
     overflow: hidden;
   }
 
@@ -292,7 +292,7 @@ function InitGitButton({ git }: { git: GitPanelModel }) {
       variant="outline"
       size="sm"
       onClick={handleClick}
-      className="bg-multi-active/40 text-body font-medium text-foreground hover:bg-multi-hover"
+      className="bg-honk-active/40 text-body font-medium text-foreground hover:bg-honk-hover"
     >
       Init Git
     </Button>
@@ -425,7 +425,9 @@ function createImageAnnotationFileDiff(file: DiffRow, patch: GitImagePatchResult
     unifiedLineCount: 1,
     isPartial: true,
     deletionLines: [],
-    additionLines: [""],
+    // @pierre/diffs treats an empty concatenated side as no rendered line. Use a
+    // newline-backed blank line so the synthetic image annotation row exists.
+    additionLines: ["\n"],
     cacheKey,
   };
 }
@@ -1009,10 +1011,10 @@ function GitPanelInner(props: {
           workspaceKey={props.workspaceKey}
           tab="git"
           railOpen={gitRailOpen}
-          railHostClassName="bg-(--multi-shell-sidebar-bg) shadow-[inset_-1px_0_0_color-mix(in_srgb,var(--multi-stroke-quaternary)_78%,transparent)]"
+          railHostClassName="bg-(--honk-shell-sidebar-bg) shadow-[inset_-1px_0_0_color-mix(in_srgb,var(--honk-stroke-quaternary)_78%,transparent)]"
           rail={gitRailOpen ? changesRail : undefined}
         >
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--multi-workbench-editor-surface-background)">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-editor-surface-background)">
             {selectedId ? (
               <SelectedGitDiffSync
                 key={selectedId}
@@ -1034,7 +1036,7 @@ function GitPanelInner(props: {
                 ref={codeViewRef}
                 containerRef={handleCodeViewContainerRef}
                 items={codeViewData.items}
-                className="git-diff-scroll-root web-component relative h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--multi-git-diff-editor-background) px-0 pb-0 [contain:strict] [overflow-anchor:none] scrollbar-gutter-stable"
+                className="git-diff-scroll-root web-component relative h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-(--honk-git-diff-editor-background) px-0 pb-0 [contain:strict] [overflow-anchor:none] scrollbar-gutter-stable"
                 options={codeViewOptions}
                 renderAnnotation={renderGitCodeViewAnnotation}
                 renderCustomHeader={renderGitCodeViewHeader}
@@ -1178,7 +1180,7 @@ function LocalBranchBarTrailing(props: {
             <MenuSub>
               <MenuSubTrigger variant="workbench">
                 <span className="min-w-0 flex-1 truncate">Layout</span>
-                <span className="shrink-0 text-multi-fg-tertiary">{diffStyleLabel}</span>
+                <span className="shrink-0 text-honk-fg-tertiary">{diffStyleLabel}</span>
               </MenuSubTrigger>
               <MenuSubPopup
                 className="min-w-44"
@@ -1220,13 +1222,13 @@ function LocalBranchBarTrailing(props: {
       </div>
       <Menu open={props.commitMenuOpen} onOpenChange={handleCommitMenuOpenChange}>
         <div
-          className="group no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none overflow-hidden rounded-multi-control border border-foreground/10 bg-foreground text-body font-medium text-background shadow-xs"
+          className="group no-drag inline-flex h-(--honk-workbench-action-size) min-w-0 select-none overflow-hidden rounded-honk-control border border-foreground/10 bg-foreground text-body font-medium text-background shadow-xs"
           data-pending={isAgentActionPending || undefined}
         >
           <Button
             type="button"
             variant="ghost"
-            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--multi-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--multi-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-background/10 hover:text-inherit disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent"
+            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-background/10 hover:text-inherit disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent"
             disabled={
               isAgentActionPending &&
               (props.onStopAgentAction === null || props.stoppingAgentAction)
@@ -1324,14 +1326,14 @@ function LocalBranchBar(props: {
       >
         <IconBarsThree className="size-4 shrink-0" aria-hidden />
       </WorkbenchIconButton>
-      <span className="inline-flex h-(--multi-workbench-action-size) shrink-0 items-center gap-1.5 rounded-full bg-multi-bg-tertiary px-2 text-body font-medium text-multi-fg-primary">
-        <IconStudioDisplay1 className="size-3.5 shrink-0 text-multi-icon-secondary" aria-hidden />
+      <span className="inline-flex h-(--honk-workbench-action-size) shrink-0 items-center gap-1.5 rounded-full bg-honk-bg-tertiary px-2 text-body font-medium text-honk-fg-primary">
+        <IconStudioDisplay1 className="size-3.5 shrink-0 text-honk-icon-secondary" aria-hidden />
         <span>Local</span>
       </span>
       <button
         type="button"
         onClick={copyBranch}
-        className="no-drag inline-flex h-(--multi-workbench-action-size) min-w-0 select-none items-center justify-start overflow-hidden rounded-full border-0 bg-multi-bg-tertiary px-2 text-body font-medium text-multi-fg-tertiary outline-hidden transition-[background-color,color] hover:bg-multi-bg-secondary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className="no-drag inline-flex h-(--honk-workbench-action-size) min-w-0 select-none items-center justify-start overflow-hidden rounded-full border-0 bg-honk-bg-tertiary px-2 text-body font-medium text-honk-fg-tertiary outline-hidden transition-[background-color,color] hover:bg-honk-bg-secondary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
         title="Copy branch name"
       >
         <span className="truncate">{props.branch ?? "detached"}</span>
@@ -1368,10 +1370,10 @@ function ChangesHeaderTrailing(props: {
           <span
             aria-hidden
             className={cn(
-              "inline-flex size-4 shrink-0 items-center justify-center rounded-multi-control border transition-colors",
+              "inline-flex size-4 shrink-0 items-center justify-center rounded-honk-control border transition-colors",
               props.allViewed
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-multi-stroke-tertiary bg-multi-bg-quinary text-transparent",
+                : "border-honk-stroke-tertiary bg-honk-bg-quinary text-transparent",
             )}
           >
             <IconCheckmark1 className="size-3 shrink-0" />
@@ -1447,12 +1449,12 @@ function ChangesFilterMenu(props: {
     <Menu>
       <MenuTrigger
         type="button"
-        className="inline-flex h-(--multi-workbench-action-size) max-w-full min-w-0 select-none items-center justify-start gap-1.5 overflow-hidden rounded-multi-control border-0 bg-transparent px-1.5 text-body font-medium text-multi-fg-secondary shadow-none outline-hidden before:hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className="inline-flex h-(--honk-workbench-action-size) max-w-full min-w-0 select-none items-center justify-start gap-1.5 overflow-hidden rounded-honk-control border-0 bg-transparent px-1.5 text-body font-medium text-honk-fg-secondary shadow-none outline-hidden before:hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
         aria-label="Change filter"
       >
-        <IconFolderOpen className="size-4 shrink-0 text-multi-icon-secondary" aria-hidden />
+        <IconFolderOpen className="size-4 shrink-0 text-honk-icon-secondary" aria-hidden />
         <span className="min-w-0 truncate">{label}</span>
-        <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary" />
+        <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-honk-icon-tertiary" />
       </MenuTrigger>
       <MenuPopup align="start" variant="workbench">
         <MenuRadioGroup value={props.filter} onValueChange={handleFilterChange}>
@@ -1472,11 +1474,11 @@ function BranchCommitFilterMenu(props: { commits: readonly BranchCommitOption[] 
     <Menu>
       <MenuTrigger
         type="button"
-        className="inline-flex h-(--multi-workbench-action-size) max-w-40 min-w-0 select-none items-center justify-start gap-1.5 overflow-hidden rounded-multi-control border-0 bg-transparent px-1.5 text-body font-medium text-multi-fg-tertiary shadow-none outline-hidden before:hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+        className="inline-flex h-(--honk-workbench-action-size) max-w-40 min-w-0 select-none items-center justify-start gap-1.5 overflow-hidden rounded-honk-control border-0 bg-transparent px-1.5 text-body font-medium text-honk-fg-tertiary shadow-none outline-hidden before:hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
         aria-label="Commit filter"
       >
         <span className="min-w-0 truncate">All Commits</span>
-        <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-multi-icon-tertiary" />
+        <IconChevronRightMedium className="size-3 shrink-0 rotate-90 text-honk-icon-tertiary" />
       </MenuTrigger>
       <MenuPopup
         align="start"
@@ -1485,8 +1487,8 @@ function BranchCommitFilterMenu(props: { commits: readonly BranchCommitOption[] 
         variant="workbench"
       >
         <MenuItem className="min-h-9 gap-3 px-3 py-1.5 text-body" variant="workbench">
-          <span className="min-w-0 flex-1 truncate text-multi-fg-primary">All Commits</span>
-          <IconCheckmark1 className="size-4 shrink-0 text-multi-fg-primary" />
+          <span className="min-w-0 flex-1 truncate text-honk-fg-primary">All Commits</span>
+          <IconCheckmark1 className="size-4 shrink-0 text-honk-fg-primary" />
         </MenuItem>
         {props.commits.map((commit) => (
           <MenuItem
@@ -1494,11 +1496,11 @@ function BranchCommitFilterMenu(props: { commits: readonly BranchCommitOption[] 
             className="min-h-9 gap-3 px-3 py-1.5 text-body"
             variant="workbench"
           >
-            <span className="min-w-0 flex-1 truncate text-multi-fg-primary">{commit.subject}</span>
-            <span className="shrink-0 font-multi-mono text-detail text-multi-fg-tertiary">
+            <span className="min-w-0 flex-1 truncate text-honk-fg-primary">{commit.subject}</span>
+            <span className="shrink-0 font-honk-mono text-detail text-honk-fg-tertiary">
               {commit.shortSha}
             </span>
-            <IconCheckmark1 className="size-4 shrink-0 text-multi-fg-primary" />
+            <IconCheckmark1 className="size-4 shrink-0 text-honk-fg-primary" />
           </MenuItem>
         ))}
       </MenuPopup>
@@ -1512,12 +1514,12 @@ function ChangeTotals(props: { totalAdd: number; totalDel: number }) {
   }
 
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 font-multi-mono text-body tabular-nums">
+    <span className="inline-flex shrink-0 items-center gap-1.5 font-honk-mono text-body tabular-nums">
       {props.totalAdd > 0 ? (
-        <span className="text-(--multi-diff-addition)">+{props.totalAdd}</span>
+        <span className="text-(--honk-diff-addition)">+{props.totalAdd}</span>
       ) : null}
       {props.totalDel > 0 ? (
-        <span className="text-(--multi-diff-deletion)">-{props.totalDel}</span>
+        <span className="text-(--honk-diff-deletion)">-{props.totalDel}</span>
       ) : null}
     </span>
   );

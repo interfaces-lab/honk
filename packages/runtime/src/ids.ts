@@ -5,7 +5,7 @@ import {
   ThreadEntryId,
   TurnId,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 export function makeRuntimeSessionId(value: string): RuntimeSessionId {
   return RuntimeSessionId.make(value);

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#161616" />
     <script>
-      window.performance?.mark?.("multi:html-start");
+      window.performance?.mark?.("honk:html-start");
     </script>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -17,7 +17,7 @@
         const DARK_BACKGROUND = "#161616";
         const themeColorMeta = document.querySelector('meta[name="theme-color"]');
         try {
-          const storedTheme = window.localStorage.getItem("multi:theme");
+          const storedTheme = window.localStorage.getItem("honk:theme");
           const theme =
             storedTheme === "light" || storedTheme === "dark" || storedTheme === "system"
               ? storedTheme
@@ -36,7 +36,7 @@
       })();
     </script>
     <script>
-      window.performance?.mark?.("multi:theme-ready");
+      window.performance?.mark?.("honk:theme-ready");
     </script>
     <style>
       html,
@@ -109,7 +109,7 @@
       }
     </style>
     <script>
-      window.performance?.mark?.("multi:boot-shell-ready");
+      window.performance?.mark?.("honk:boot-shell-ready");
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -117,13 +117,13 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&display=swap"
       rel="stylesheet"
     />
-    <title>Multi</title>
+    <title>Honk</title>
   </head>
   <body>
     <div id="root">
       <div id="boot-shell">
-        <div id="boot-shell-card" aria-label="Multi splash screen">
-          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="Multi" />
+        <div id="boot-shell-card" aria-label="Honk splash screen">
+          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="Honk" />
         </div>
       </div>
     </div>

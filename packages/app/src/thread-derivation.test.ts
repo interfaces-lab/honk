@@ -1,4 +1,4 @@
-import { EnvironmentId, MessageId, ProjectId, ThreadId } from "@multi/contracts";
+import { EnvironmentId, MessageId, ProjectId, ThreadId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { initialEnvironmentState, type EnvironmentState } from "./stores/thread-store";

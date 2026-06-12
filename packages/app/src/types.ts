@@ -16,7 +16,7 @@ import type {
   MessageId,
   AgentInteractionMode,
   RuntimeMode,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";

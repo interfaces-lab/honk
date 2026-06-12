@@ -4,8 +4,8 @@ import {
   type OrchestrationReadModel,
   type ProjectId,
   type ThreadId,
-} from "@multi/contracts";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/contracts";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import {
   Cause,
   Deferred,

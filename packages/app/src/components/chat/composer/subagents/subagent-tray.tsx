@@ -4,7 +4,7 @@ import {
   MessageId,
   type ThreadId,
   type ToolLifecycleItemType,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { IconCrossSmall } from "central-icons";
 import {
   memo,
@@ -16,8 +16,8 @@ import {
   type RefObject,
 } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
-import { Button } from "@multi/multikit/button";
-import { ToolCallLine } from "@multi/multikit/tool-call";
+import { Button } from "@honk/multikit/button";
+import { ToolCallLine } from "@honk/multikit/tool-call";
 import { ExpandableToolMetadataLine } from "../../message/tool-renderer";
 import { cn } from "~/lib/utils";
 import {
@@ -106,7 +106,7 @@ export function SubagentTrayStack(props: {
         data-subagent-followup-tray-stack=""
       >
         <div
-          className={cn("font-multi text-conversation", props.compact ? "w-full" : "")}
+          className={cn("font-honk text-conversation", props.compact ? "w-full" : "")}
           data-subagent-followup-tray=""
           data-subagent-tray-open=""
         >
@@ -168,7 +168,7 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
 
   return (
     <div
-      className="flex w-full min-w-0 flex-col overflow-hidden text-multi-fg-primary"
+      className="flex w-full min-w-0 flex-col overflow-hidden text-honk-fg-primary"
       data-subagent-tray-container=""
       data-subagent-thread-id={subagentThreadId}
     >
@@ -177,13 +177,13 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
         data-subagent-tray-header=""
       >
         <div
-          className="min-w-0 flex-1 truncate text-title font-medium text-multi-fg-primary"
+          className="min-w-0 flex-1 truncate text-title font-medium text-honk-fg-primary"
           title={title}
         >
           {title}
         </div>
         <Button
-          className="ml-auto shrink-0 text-multi-icon-secondary hover:text-multi-icon-primary"
+          className="ml-auto shrink-0 text-honk-icon-secondary hover:text-honk-icon-primary"
           size="icon-sm"
           variant="ghost"
           aria-label="Close subagent tray"
@@ -248,7 +248,7 @@ function SubagentTrayBody(props: {
     <div
       ref={scrollElementRef}
       data-subagent-tray-body=""
-      className="min-h-0 min-w-0 flex-1 px-3 py-2 text-conversation text-multi-fg-primary"
+      className="min-h-0 min-w-0 flex-1 px-3 py-2 text-conversation text-honk-fg-primary"
     >
       <SubagentTrayVirtualRows
         activeThreadId={activeThreadId}
@@ -452,7 +452,7 @@ const SubagentTrayVirtualRowContent = memo(function SubagentTrayVirtualRowConten
         </div>
       );
     case "empty":
-      return <div className="py-1 text-detail text-multi-fg-tertiary">No thread content yet.</div>;
+      return <div className="py-1 text-detail text-honk-fg-tertiary">No thread content yet.</div>;
   }
 }, areSameSubagentTrayVirtualRowContentProps);
 

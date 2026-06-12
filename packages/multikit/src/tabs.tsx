@@ -28,24 +28,24 @@ function TabsIndicatorRender(props: React.ComponentProps<"div">) {
         "absolute left-0 z-[1] w-(--active-tab-width) translate-x-(--active-tab-left) transition-[width,translate,top,height,opacity,scale] duration-150 ease-out motion-reduce:transition-none",
         "data-[rendered=false]:scale-95 data-[rendered=false]:opacity-0",
         isSegmented &&
-          "top-(--active-tab-top) h-(--active-tab-height) rounded-[5px] bg-multi-bg-tertiary shadow-sm ring-1 ring-multi-stroke-secondary",
-        isUnderline && "bottom-0 h-0.5 bg-multi-stroke-focused",
+          "top-(--active-tab-top) h-(--active-tab-height) rounded-[5px] bg-honk-bg-tertiary shadow-sm ring-1 ring-honk-stroke-secondary",
+        isUnderline && "bottom-0 h-0.5 bg-honk-stroke-focused",
         indicatorClassName,
       )}
     />
   );
 }
 
-export const MULTI_TABS_VARIANTS = {
+export const HONK_TABS_VARIANTS = {
   variant: ["segmented", "underline"],
 } as const;
 
-export const MULTI_TABS_DEFAULT_VARIANTS = {
+export const HONK_TABS_DEFAULT_VARIANTS = {
   variant: "segmented",
 } as const;
 
-export interface MultiTabsVariantsProps {
-  variant?: (typeof MULTI_TABS_VARIANTS.variant)[number];
+export interface TabsVariantsProps {
+  variant?: (typeof HONK_TABS_VARIANTS.variant)[number];
 }
 
 export type TabsItem = {
@@ -55,7 +55,7 @@ export type TabsItem = {
   render?: TabsTabPrimitive.Props["render"];
 };
 
-export type TabsProps = MultiTabsVariantsProps & {
+export type TabsProps = TabsVariantsProps & {
   tabs?: TabsItem[];
   value?: string;
   selectedValue?: string;
@@ -104,7 +104,7 @@ function TabsTab({ className, ...props }: TabsTabPrimitive.Props) {
     <TabsPrimitive.Tab
       className={mergeStatefulClassName(
         cn(
-          "relative flex items-center whitespace-nowrap bg-transparent outline-none transition-colors focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40",
+          "relative flex items-center whitespace-nowrap bg-transparent outline-none transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40",
           interactiveControlCursorClassName,
         ),
         className,
@@ -144,7 +144,7 @@ function Tabs({
   className,
   listClassName,
   indicatorClassName,
-  variant = MULTI_TABS_DEFAULT_VARIANTS.variant,
+  variant = HONK_TABS_DEFAULT_VARIANTS.variant,
 }: TabsProps) {
   const items: TabsItem[] = tabs ?? [];
 
@@ -164,7 +164,7 @@ function Tabs({
           <TabsRoot
             value={isControlled ? value : undefined}
             defaultValue={isControlled ? undefined : (selectedValue ?? fallbackValue)}
-            className={cn("relative isolate min-w-0 font-multi font-medium", className)}
+            className={cn("relative isolate min-w-0 font-honk font-medium", className)}
             onValueChange={(nextValue) => {
               onValueChange?.(String(nextValue));
             }}
@@ -174,8 +174,8 @@ function Tabs({
               className={cn(
                 "scrollbar-hide relative min-w-0 shrink items-stretch",
                 isSegmented &&
-                  "h-7 rounded-[6px] bg-multi-bg-quinary p-0.5 ring-1 ring-multi-stroke-tertiary",
-                isUnderline && "h-7 gap-3 border-b border-multi-stroke-tertiary pb-1",
+                  "h-7 rounded-[6px] bg-honk-bg-quinary p-0.5 ring-1 ring-honk-stroke-tertiary",
+                isUnderline && "h-7 gap-3 border-b border-honk-stroke-tertiary pb-1",
                 listClassName,
               )}
             >
@@ -187,9 +187,9 @@ function Tabs({
                   className={cn(
                     "relative z-[2] rounded-[5px] text-body",
                     isSegmented &&
-                      "h-6 px-2 text-multi-fg-secondary hover:text-multi-fg-primary aria-selected:text-multi-fg-primary focus-visible:ring-inset",
+                      "h-6 px-2 text-honk-fg-secondary hover:text-honk-fg-primary aria-selected:text-honk-fg-primary focus-visible:ring-inset",
                     isUnderline &&
-                      "px-1.5 py-1 text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary aria-selected:font-medium aria-selected:text-multi-fg-primary",
+                      "px-1.5 py-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary aria-selected:font-medium aria-selected:text-honk-fg-primary",
                     tab.className,
                   )}
                 >

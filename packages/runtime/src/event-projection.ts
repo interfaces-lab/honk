@@ -5,10 +5,15 @@ import {
   type RuntimeSessionId,
   type ThreadId,
   type TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { Schema } from "effect";
-import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
+import {
+  extractMessageErrorText,
+  extractMessageText,
+  extractMessageThinking,
+  toUnknownRecord,
+} from "./message-text";
 import { makeRuntimeEventId } from "./ids";
 
 export interface RuntimeEventProjectionContext {
@@ -83,6 +88,12 @@ function summarizePiEvent(event: AgentSessionEvent): string | undefined {
       return event.errorMessage;
     case "auto_retry_end":
       return event.finalError;
+    case "message_end":
+      if ("message" in event) {
+        const errorText = extractMessageErrorText(event.message);
+        return errorText ? errorText : undefined;
+      }
+      return undefined;
     default:
       return undefined;
   }
@@ -91,7 +102,11 @@ function summarizePiEvent(event: AgentSessionEvent): string | undefined {
 function textForPiEvent(event: AgentSessionEvent): string | undefined {
   if ("message" in event) {
     const text = extractMessageText(event.message);
-    return text ? text : undefined;
+    if (text) {
+      return text;
+    }
+    const errorText = extractMessageErrorText(event.message);
+    return errorText ? errorText : undefined;
   }
   return undefined;
 }

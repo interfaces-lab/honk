@@ -10,7 +10,7 @@ import { cn } from "./utils";
 const Toast = ToastPrimitive;
 
 const toastRootVariants = cva(
-  "border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-multi-fg-primary shadow-multi-popup backdrop-blur-xl",
+  "border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-fg-primary shadow-honk-popup backdrop-blur-xl",
   {
     defaultVariants: {
       chrome: "default",
@@ -28,7 +28,7 @@ const toastRootVariants = cva(
 );
 
 const toastContentVariants = cva(
-  "pointer-events-auto overflow-hidden text-multi-fg-primary transition-opacity duration-150 ease-out data-expanded:opacity-100 motion-reduce:transition-none",
+  "pointer-events-auto overflow-hidden text-honk-fg-primary transition-opacity duration-150 ease-out data-expanded:opacity-100 motion-reduce:transition-none",
   {
     defaultVariants: {
       layout: "default",
@@ -71,7 +71,7 @@ function ToastContent({
 function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
   return (
     <ToastPrimitive.Title
-      className={cn("min-w-0 wrap-break-word font-medium text-multi-fg-primary", className)}
+      className={cn("min-w-0 wrap-break-word font-medium text-honk-fg-primary", className)}
       data-slot="toast-title"
       {...props}
     />
@@ -81,7 +81,7 @@ function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
 function ToastDescription({ className, ...props }: ToastPrimitive.Description.Props) {
   return (
     <ToastPrimitive.Description
-      className={cn("min-w-0 select-text wrap-break-word text-multi-fg-secondary", className)}
+      className={cn("min-w-0 select-text wrap-break-word text-honk-fg-secondary", className)}
       data-slot="toast-description"
       {...props}
     />
@@ -112,7 +112,7 @@ function ToastIconButton(props: ComponentProps<typeof Button>) {
       variant="ghost"
       {...props}
       className={cn(
-        "shrink-0 rounded-sm text-multi-fg-tertiary opacity-70 hover:bg-multi-bg-quaternary hover:text-multi-fg-primary hover:opacity-100",
+        "shrink-0 rounded-sm text-honk-fg-tertiary opacity-70 hover:bg-honk-bg-quaternary hover:text-honk-fg-primary hover:opacity-100",
         props.className,
       )}
     />

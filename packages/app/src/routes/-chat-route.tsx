@@ -1,5 +1,5 @@
 import { Outlet, useRouter } from "@tanstack/react-router";
-import type { ScopedProjectRef } from "@multi/contracts";
+import type { ScopedProjectRef } from "@honk/contracts";
 import { useEffect, useRef } from "react";
 
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";

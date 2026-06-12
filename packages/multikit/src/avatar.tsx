@@ -8,7 +8,7 @@ function Avatar({ className, ...props }: AvatarPrimitive.Root.Props) {
   return (
     <AvatarPrimitive.Root
       className={cn(
-        "relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-multi-bg-tertiary font-multi text-detail font-medium text-multi-fg-secondary",
+        "relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-honk-bg-tertiary font-honk text-detail font-medium text-honk-fg-secondary",
         className,
       )}
       data-slot="avatar"

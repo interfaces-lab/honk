@@ -1,3 +1,4 @@
+import { type AppIconVariant } from "@honk/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -7,6 +8,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 
 import * as ElectronApp from "../electron/electron-app";
+import * as DesktopClientSettings from "../settings/desktop-client-settings";
 import * as DesktopAssets from "./desktop-assets";
 import * as DesktopEnvironment from "./desktop-environment";
 
@@ -14,19 +16,20 @@ const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
 const COMMIT_HASH_DISPLAY_LENGTH = 12;
 
 const AppPackageMetadata = Schema.Struct({
-  multiCommitHash: Schema.optional(Schema.String),
+  honkCommitHash: Schema.optional(Schema.String),
 });
 const decodeAppPackageMetadata = Schema.decodeEffect(Schema.fromJsonString(AppPackageMetadata));
 
 export interface DesktopAppIdentityShape {
   readonly resolveUserDataPath: Effect.Effect<string>;
   readonly configure: Effect.Effect<void>;
+  readonly applyAppIconVariant: (variant: AppIconVariant | undefined) => Effect.Effect<void>;
 }
 
 export class DesktopAppIdentity extends Context.Service<
   DesktopAppIdentity,
   DesktopAppIdentityShape
->()("multi/desktop/AppIdentity") {}
+>()("honk/desktop/AppIdentity") {}
 
 const normalizeCommitHash = (value: string): Option.Option<string> => {
   const trimmed = value.trim();
@@ -37,10 +40,35 @@ const normalizeCommitHash = (value: string): Option.Option<string> => {
 
 const make = Effect.gen(function* () {
   const assets = yield* DesktopAssets.DesktopAssets;
+  const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
   const electronApp = yield* ElectronApp.ElectronApp;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
   const commitHashCache = yield* Ref.make<Option.Option<Option.Option<string>>>(Option.none());
+
+  // Until the user picks a variant the effective default is stage-aware: the blueprint
+  // "dev" icon in development, the "classic" brand icon otherwise. Explicit picks resolve
+  // their own artwork ("classic" is always the production brand icon, even in dev), and
+  // anything unresolvable falls back to the bundle default.
+  const applyAppIconVariant = Effect.fn("desktop.appIdentity.applyAppIconVariant")(function* (
+    variant: AppIconVariant | undefined,
+  ) {
+    if (environment.platform !== "darwin") {
+      return;
+    }
+    const effective = variant ?? (environment.isDevelopment ? "dev" : "classic");
+    const variantIconPath =
+      effective === "classic"
+        ? yield* assets.resolveResourcePath("dock-icon.png")
+        : yield* assets.resolveResourcePath(`app-icons/${effective}.png`);
+    const iconPath = Option.isSome(variantIconPath)
+      ? variantIconPath
+      : (yield* assets.iconPaths).png;
+    yield* Option.match(iconPath, {
+      onNone: () => Effect.void,
+      onSome: electronApp.setDockIcon,
+    });
+  });
 
   const resolveEmbeddedCommitHash = Effect.gen(function* () {
     const packageJsonPath = environment.path.join(environment.appRoot, "package.json");
@@ -50,7 +78,7 @@ const make = Effect.gen(function* () {
       onSome: (value) =>
         decodeAppPackageMetadata(value).pipe(
           Effect.map((parsed) =>
-            Option.fromNullishOr(parsed.multiCommitHash).pipe(Option.flatMap(normalizeCommitHash)),
+            Option.fromNullishOr(parsed.honkCommitHash).pipe(Option.flatMap(normalizeCommitHash)),
           ),
           Effect.catch(() => Effect.succeed(Option.none<string>())),
         ),
@@ -102,17 +130,20 @@ const make = Effect.gen(function* () {
     }
 
     if (environment.platform === "darwin") {
-      const iconPaths = yield* assets.iconPaths;
-      yield* Option.match(iconPaths.png, {
-        onNone: () => Effect.void,
-        onSome: electronApp.setDockIcon,
-      });
+      const settings = yield* clientSettings.get;
+      yield* applyAppIconVariant(
+        Option.match(settings, {
+          onNone: () => undefined,
+          onSome: (value) => value.appIconVariant,
+        }),
+      );
     }
   }).pipe(Effect.withSpan("desktop.appIdentity.configure"));
 
   return DesktopAppIdentity.of({
     resolveUserDataPath,
     configure,
+    applyAppIconVariant,
   });
 });
 

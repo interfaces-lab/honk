@@ -1,4 +1,4 @@
-import { ThreadId } from "@multi/contracts";
+import { ThreadId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { shouldPresentSubagentTray } from "./subagent-tray";

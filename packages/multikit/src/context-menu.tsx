@@ -18,13 +18,13 @@ const ContextMenuTrigger = forwardRef<HTMLDivElement, ContextMenuPrimitive.Trigg
 );
 
 const workbenchContextMenuPopupClassName =
-  "multi-slash-menu-popup origin-(--transform-origin) overflow-hidden rounded-multi-card border border-multi-stroke bg-multi-bubble shadow-multi-popup w-72 max-w-screen text-body select-none outline-hidden";
+  "honk-slash-menu-popup origin-(--transform-origin) overflow-hidden rounded-honk-card border border-honk-stroke bg-honk-bubble shadow-honk-popup w-72 max-w-screen text-body select-none outline-hidden";
 
 const workbenchContextMenuViewportClassName =
   "flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1";
 
 const workbenchContextMenuItemClassName = cn(
-  "flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-multi-hover/40 data-highlighted:bg-multi-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
+  "flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-honk-hover/40 data-highlighted:bg-honk-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
   interactiveControlCursorClassName,
   controlTransitionClassName,
 );
@@ -32,7 +32,7 @@ const workbenchContextMenuItemClassName = cn(
 const workbenchContextMenuIconSlotClassName =
   "inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60 [&>svg]:size-3 [&>svg]:shrink-0";
 
-const workbenchContextMenuSeparatorClassName = "my-0.5 h-px shrink-0 bg-multi-stroke/60";
+const workbenchContextMenuSeparatorClassName = "my-0.5 h-px shrink-0 bg-honk-stroke/60";
 
 function WorkbenchContextMenuPopup({
   children,

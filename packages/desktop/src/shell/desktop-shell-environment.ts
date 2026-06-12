@@ -26,7 +26,7 @@ export interface DesktopShellEnvironmentShape {
 export class DesktopShellEnvironment extends Context.Service<
   DesktopShellEnvironment,
   DesktopShellEnvironmentShape
->()("multi/desktop/ShellEnvironment") {}
+>()("honk/desktop/ShellEnvironment") {}
 
 const LOGIN_SHELL_ENV_NAMES = [
   "PATH",
@@ -140,8 +140,8 @@ const knownWindowsCliDirs = (env: NodeJS.ProcessEnv): ReadonlyArray<string> => [
   ),
 ];
 
-const startMarker = (name: string) => `__MULTI_ENV_${name}_START__`;
-const endMarker = (name: string) => `__MULTI_ENV_${name}_END__`;
+const startMarker = (name: string) => `__HONK_ENV_${name}_START__`;
+const endMarker = (name: string) => `__HONK_ENV_${name}_END__`;
 
 const capturePosixEnvironmentCommand = (names: ReadonlyArray<string>) =>
   names

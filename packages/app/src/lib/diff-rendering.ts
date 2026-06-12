@@ -1,8 +1,8 @@
 import { registerCustomTheme } from "@pierre/diffs";
 
 export const DIFF_THEME_NAMES = {
-  light: "multi-cursor-light",
-  dark: "multi-cursor-dark",
+  light: "honk-cursor-light",
+  dark: "honk-cursor-dark",
 } as const;
 
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];
@@ -277,15 +277,15 @@ export const CURSOR_LIGHT_THEME = {
 } as const satisfies CustomDiffThemeRegistration;
 
 type DiffThemeRegistrationGlobal = typeof globalThis & {
-  __multiCursorDiffThemesRegistered?: boolean;
+  __honkDiffThemesRegistered?: boolean;
 };
 
 const diffThemeRegistrationGlobal = globalThis as DiffThemeRegistrationGlobal;
 
-if (diffThemeRegistrationGlobal.__multiCursorDiffThemesRegistered !== true) {
+if (diffThemeRegistrationGlobal.__honkDiffThemesRegistered !== true) {
   registerCustomTheme(DIFF_THEME_NAMES.dark, () => Promise.resolve(CURSOR_DARK_THEME));
   registerCustomTheme(DIFF_THEME_NAMES.light, () => Promise.resolve(CURSOR_LIGHT_THEME));
-  diffThemeRegistrationGlobal.__multiCursorDiffThemesRegistered = true;
+  diffThemeRegistrationGlobal.__honkDiffThemesRegistered = true;
 }
 
 export function resolveDiffThemeName(theme: "light" | "dark"): DiffThemeName {
@@ -337,8 +337,8 @@ export const WORKBENCH_CODE_UNSAFE_CSS = `
       linear-gradient(
         to right,
         var(
-          --multi-git-diff-addition-gutter,
-          var(--multi-git-diff-addition, var(--diffs-addition-base))
+          --honk-git-diff-addition-gutter,
+          var(--honk-git-diff-addition, var(--diffs-addition-base))
         ) 0 2px,
         var(--diffs-bg-addition) 2px 100%
       );
@@ -349,8 +349,8 @@ export const WORKBENCH_CODE_UNSAFE_CSS = `
       linear-gradient(
         to right,
         var(
-          --multi-git-diff-deletion-gutter,
-          var(--multi-git-diff-deletion, var(--diffs-deletion-base))
+          --honk-git-diff-deletion-gutter,
+          var(--honk-git-diff-deletion, var(--diffs-deletion-base))
         ) 0 2px,
         var(--diffs-bg-deletion) 2px 100%
       );

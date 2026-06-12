@@ -1,14 +1,14 @@
 {
-  "name": "usemulti",
+  "name": "usehonk",
   "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/interfaces-co/Multi",
+    "url": "https://github.com/interfaces-lab/honk",
     "directory": "packages/server"
   },
   "bin": {
-    "multi": "./dist/bin.mjs"
+    "honk": "./dist/bin.mjs"
   },
   "files": [
     "dist"
@@ -22,22 +22,21 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.163",
     "@effect/platform-bun": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",
     "@lydell/node-pty": "1.2.0-beta.12",
-    "@multi/release-scripts": "workspace:*",
-    "@pierre/diffs": "^1.2.7",
+    "@honk/release-scripts": "workspace:*",
+    "@pierre/diffs": "^1.2.9",
     "effect": "catalog:",
     "open": "^11.0.0"
   },
   "devDependencies": {
     "@effect/language-service": "catalog:",
     "@effect/vitest": "catalog:",
-    "@multi/app": "workspace:*",
-    "@multi/contracts": "workspace:*",
-    "@multi/shared": "workspace:*",
+    "@honk/app": "workspace:*",
+    "@honk/contracts": "workspace:*",
+    "@honk/shared": "workspace:*",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "tsdown": "catalog:",

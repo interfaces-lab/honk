@@ -9,7 +9,7 @@ export interface DesktopStateShape {
 }
 
 export class DesktopState extends Context.Service<DesktopState, DesktopStateShape>()(
-  "multi/desktop/State",
+  "honk/desktop/State",
 ) {}
 
 export const layer = Layer.effect(

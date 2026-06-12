@@ -5,7 +5,7 @@ import {
   type ResolvedKeybindingsConfig,
   THREAD_JUMP_KEYBINDING_COMMANDS,
   type ThreadJumpKeybindingCommand,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { isMacPlatform } from "./lib/utils";
 
 export const COMMAND_PALETTE_FALLBACK_KEYBINDINGS: ResolvedKeybindingsConfig = [

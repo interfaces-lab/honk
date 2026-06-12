@@ -8,8 +8,8 @@ import {
   ORCHESTRATION_WS_METHODS,
   type ServerSettingsPatch,
   WS_METHODS,
-} from "@multi/contracts";
-import { applyGitStatusStreamEvent } from "@multi/shared/git";
+} from "@honk/contracts";
+import { applyGitStatusStreamEvent } from "@honk/shared/git";
 import { Effect, Stream } from "effect";
 
 import { type WsRpcProtocolClient } from "./protocol";

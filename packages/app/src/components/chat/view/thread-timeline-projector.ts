@@ -6,7 +6,7 @@ import {
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineProjection,
   type RuntimeSessionId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import { resolveWaitingTimelineStatus } from "../message/waiting-status";
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";

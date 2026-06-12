@@ -1,5 +1,5 @@
-import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@multi/multikit/menu";
-import { SidebarItem } from "@multi/multikit/sidebar";
+import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/multikit/menu";
+import { SidebarItem } from "@honk/multikit/sidebar";
 import { IconChevronRightMedium, IconFilter2, IconFolderAddRight } from "central-icons";
 import { type DragEvent, useCallback, useId, useMemo, useState } from "react";
 
@@ -32,9 +32,9 @@ function SidebarThreadFilterMenu() {
             aria-label="Filter threads"
             title="Filter threads"
             className={cn(
-              "relative mr-0 flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-icon-tertiary opacity-0 outline-hidden transition-opacity duration-0 touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 data-popup-open:opacity-100 [@media(hover:hover)]:hover:text-multi-fg-primary [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150",
+              "relative mr-0 flex size-5 shrink-0 cursor-(--honk-button-cursor) items-center justify-center rounded-honk-control border border-transparent bg-transparent p-0 text-honk-icon-tertiary opacity-0 outline-hidden transition-opacity duration-0 touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 data-popup-open:opacity-100 [@media(hover:hover)]:hover:text-honk-fg-primary [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150",
               filtersActive &&
-                "bg-multi-bg-quaternary text-primary opacity-100 group-focus-within/workspaces:opacity-100 [@media(hover:hover)]:hover:text-primary [@media(hover:hover)]:group-hover/workspaces:opacity-100",
+                "bg-honk-bg-quaternary text-primary opacity-100 group-focus-within/workspaces:opacity-100 [@media(hover:hover)]:hover:text-primary [@media(hover:hover)]:group-hover/workspaces:opacity-100",
             )}
           />
         }
@@ -51,6 +51,7 @@ function SidebarThreadFilterMenu() {
           <MenuCheckboxItem
             key={option.value}
             variant="workbench"
+            indicatorPosition="end"
             checked={sidebarThreadFilters.includes(option.value)}
             onCheckedChange={() => toggleSidebarThreadFilter(option.value)}
           >
@@ -60,6 +61,7 @@ function SidebarThreadFilterMenu() {
         <MenuSeparator variant="workbench" />
         <MenuCheckboxItem
           variant="workbench"
+          indicatorPosition="end"
           checked={sidebarThreadFilters.includes("archived")}
           onCheckedChange={() => toggleSidebarThreadFilter("archived")}
         >
@@ -201,7 +203,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
           data-agent-sidebar-workspaces=""
         >
           <div
-            className="font-multi flex min-h-sidebar-item min-w-0 items-center justify-start gap-sidebar-item-gap overflow-hidden rounded-[4px] px-1.5 py-1 text-left text-sidebar-label text-multi-fg-tertiary [@media(hover:hover)]:hover:text-multi-fg-primary"
+            className="font-honk flex min-h-sidebar-item min-w-0 items-center justify-start gap-sidebar-item-gap overflow-hidden rounded-[4px] px-1.5 text-left text-sidebar-label text-honk-fg-tertiary [@media(hover:hover)]:hover:text-honk-fg-primary"
             data-agent-sidebar-workspaces-title=""
           >
             <button
@@ -210,12 +212,12 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
               aria-expanded={workspaceCollectionOpen}
               aria-controls={workspaceCollectionOpen ? workspaceCollectionPanelId : undefined}
               onClick={() => setWorkspaceCollectionOpen((open) => !open)}
-              className="relative m-0 flex min-h-sidebar-item w-auto min-w-0 flex-1 cursor-(--multi-button-cursor) touch-manipulation items-center justify-start gap-sidebar-item-gap border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--multi-stroke-focused)_92%,transparent)]"
+              className="relative m-0 flex min-h-sidebar-item w-auto min-w-0 flex-1 cursor-(--honk-button-cursor) touch-manipulation items-center justify-start gap-sidebar-item-gap border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--honk-stroke-focused)_92%,transparent)]"
             >
               <span className="min-w-0 truncate text-left">Workspaces</span>
               <IconChevronRightMedium
                 className={cn(
-                  "size-4 shrink-0 text-multi-icon-tertiary opacity-0 transition-[opacity,transform] duration-0 ease-out motion-reduce:transition-none group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150",
+                  "size-4 shrink-0 text-honk-icon-tertiary opacity-0 transition-[opacity,transform] duration-0 ease-out motion-reduce:transition-none group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150",
                   workspaceCollectionOpen && "rotate-90",
                 )}
                 aria-hidden
@@ -231,7 +233,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
                 }}
                 aria-label="Open Workspace"
                 title="Open Workspace"
-                className="relative mr-0 flex size-5 shrink-0 cursor-(--multi-button-cursor) items-center justify-center rounded-multi-control border border-transparent bg-transparent p-0 text-multi-icon-tertiary opacity-0 outline-hidden transition-opacity duration-0 touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 [@media(hover:hover)]:hover:text-multi-fg-primary [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150"
+                className="relative mr-0 flex size-5 shrink-0 cursor-(--honk-button-cursor) items-center justify-center rounded-honk-control border border-transparent bg-transparent p-0 text-honk-icon-tertiary opacity-0 outline-hidden transition-opacity duration-0 touch-manipulation pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 group-focus-within/workspaces:opacity-65 group-focus-within/workspaces:duration-150 [@media(hover:hover)]:hover:text-honk-fg-primary [@media(hover:hover)]:group-hover/workspaces:opacity-65 [@media(hover:hover)]:group-hover/workspaces:duration-150"
               >
                 <IconFolderAddRight className="size-4 shrink-0" aria-hidden />
               </button>
@@ -245,11 +247,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
               aria-labelledby={workspaceCollectionLabelId}
             >
               {workspaceSections.length === 0 ? (
-                <SidebarItem
-                  render={<div />}
-                  interactive={false}
-                  className="text-multi-fg-tertiary"
-                >
+                <SidebarItem interactive={false} className="text-honk-fg-tertiary">
                   <span className="size-4 shrink-0" aria-hidden />
                   <span className="min-w-0 flex-1 truncate">No recent workspaces</span>
                 </SidebarItem>
@@ -261,8 +259,8 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
                   type="button"
                   onClick={props.onOpenWorkspace}
                   className={cn(
-                    "text-multi-fg-tertiary [@media(hover:hover)]:hover:text-multi-fg-primary",
-                    workspaceSections.length === 0 && "text-multi-fg-secondary",
+                    "text-honk-fg-tertiary [@media(hover:hover)]:hover:text-honk-fg-primary",
+                    workspaceSections.length === 0 && "text-honk-fg-secondary",
                   )}
                   data-testid="sidebar-add-project-trigger"
                 >

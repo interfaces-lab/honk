@@ -1,7 +1,7 @@
 /* Settings form scaling */
 .settings-form-page {
-  font-family: var(--multi-font-ui);
-  font-size: var(--multi-ui-font-size-user, 13px);
+  font-family: var(--honk-font-ui);
+  font-size: var(--honk-ui-font-size-user, 13px);
 }
 
 .settings-form-page button,
@@ -9,5 +9,5 @@
 .settings-form-page [data-slot="button"],
 .settings-form-page [data-slot="input-control"] {
   font-family: inherit;
-  font-size: var(--multi-ui-font-size-user, 13px);
+  font-size: var(--honk-ui-font-size-user, 13px);
 }

@@ -1,4 +1,4 @@
-import { type ApprovalRequestId } from "@multi/contracts";
+import { type ApprovalRequestId } from "@honk/contracts";
 import { IconBubbleQuestion } from "central-icons";
 import { type KeyboardEvent } from "react";
 import { type PendingUserInput } from "../../../../session-logic";
@@ -101,7 +101,7 @@ function ComposerPendingUserInputCard({
                 {questionIndex + 1}/{prompt.questions.length}
               </span>
             ) : activeQuestion.multiSelect ? (
-              <span>Multi-select</span>
+              <span>Multiple choice</span>
             ) : undefined
           }
         />
@@ -112,7 +112,7 @@ function ComposerPendingUserInputCard({
             {activeQuestion.question}
           </QuestionnaireQuestionLabel>
           {activeQuestion.multiSelect ? (
-            <p className="ml-1.5 mt-0.5 select-text text-caption text-multi-fg-tertiary">
+            <p className="ml-1.5 mt-0.5 select-text text-caption text-honk-fg-tertiary">
               Select one or more options.
             </p>
           ) : null}

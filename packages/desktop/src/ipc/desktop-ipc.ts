@@ -45,7 +45,7 @@ export interface DesktopIpcShape {
 }
 
 export class DesktopIpc extends Context.Service<DesktopIpc, DesktopIpcShape>()(
-  "multi/desktop/Ipc",
+  "honk/desktop/Ipc",
 ) {}
 
 export const make = (ipcMain: DesktopIpcMain): DesktopIpcShape =>

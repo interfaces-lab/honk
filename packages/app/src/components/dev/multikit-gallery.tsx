@@ -1,5 +1,6 @@
-import { Input } from "@multi/multikit/input";
-import { Text } from "@multi/multikit/text";
+import { Input } from "@honk/multikit/input";
+import { Text } from "@honk/multikit/text";
+import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { DialRoot } from "dialkit";
 import "dialkit/styles.css";
 import { useMemo, useState } from "react";
@@ -26,7 +27,7 @@ export function MultikitGalleryPage() {
   const selected = findMultikitComponent(selectedId) ?? MULTIKIT_COMPONENTS[0]!;
 
   const filteredCatalog = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) {
       return MULTIKIT_CATALOG;
     }
@@ -34,7 +35,7 @@ export function MultikitGalleryPage() {
     return MULTIKIT_CATALOG.map((group) => ({
       ...group,
       components: group.components.filter((entry) => {
-        const haystack = [entry.name, entry.id, entry.importPath].join(" ").toLowerCase();
+        const haystack = normalizeSearchQuery([entry.name, entry.id, entry.importPath].join(" "));
         return haystack.includes(normalizedQuery);
       }),
     })).filter((group) => group.components.length > 0);
@@ -42,8 +43,8 @@ export function MultikitGalleryPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full !flex-row overflow-hidden bg-background text-foreground">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-multi-stroke-tertiary/60 bg-background">
-        <div className="border-b border-multi-stroke-tertiary/60 px-3 py-3">
+      <aside className="flex w-56 shrink-0 flex-col border-r border-honk-stroke-tertiary/60 bg-background">
+        <div className="border-b border-honk-stroke-tertiary/60 px-3 py-3">
           <Text size="sm" weight="semibold">
             Multikit
           </Text>
@@ -77,10 +78,10 @@ export function MultikitGalleryPage() {
                         type="button"
                         onClick={() => setSelectedId(entry.id)}
                         className={cn(
-                          "w-full rounded-multi-control px-2 py-1.5 text-left text-sm transition-colors",
+                          "w-full rounded-honk-control px-2 py-1.5 text-left text-sm transition-colors",
                           isSelected
-                            ? "bg-multi-bg-tertiary text-multi-fg-primary"
-                            : "text-multi-fg-secondary hover:bg-multi-bg-quaternary hover:text-multi-fg-primary",
+                            ? "bg-honk-bg-tertiary text-honk-fg-primary"
+                            : "text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary",
                         )}
                       >
                         {entry.name}

@@ -4,7 +4,9 @@ import {
   type AgentAuthStatus,
   type AgentMode,
   type AgentThinkingLevel,
-} from "@multi/contracts";
+  type ModelSelection,
+} from "@honk/contracts";
+import { authProviderIdForModelSelection } from "@honk/shared/agent-model-policy";
 
 export interface AgentModeAvailability {
   readonly anthropic: boolean;
@@ -40,9 +42,33 @@ export function unavailableAgentModeReason(
   if (isAgentModeAvailable(mode, availability)) {
     return null;
   }
-  return mode === "smart"
-    ? "Requires Claude OAuth or a Claude API Key in Pi auth storage."
-    : "Requires Codex OAuth or a Codex API Key in Pi auth storage.";
+  return mode === "smart" ? "Requires Claude sign-in." : "Requires Codex sign-in.";
+}
+
+export function isModelSelectionAvailable(
+  modelSelection: ModelSelection,
+  availability: AgentModeAvailability,
+): boolean {
+  const authProviderId = authProviderIdForModelSelection(modelSelection);
+  if (authProviderId === "anthropic") {
+    return availability.anthropic;
+  }
+  if (authProviderId === "openai-codex" || authProviderId === "openai") {
+    return availability.codex;
+  }
+  return true;
+}
+
+export function unavailableModelSelectionReason(
+  modelSelection: ModelSelection,
+  availability: AgentModeAvailability,
+): string | null {
+  if (isModelSelectionAvailable(modelSelection, availability)) {
+    return null;
+  }
+  return authProviderIdForModelSelection(modelSelection) === "anthropic"
+    ? "Requires Claude sign-in."
+    : "Requires Codex sign-in.";
 }
 
 export const AGENT_MODE_LABELS: Record<AgentMode, string> = {

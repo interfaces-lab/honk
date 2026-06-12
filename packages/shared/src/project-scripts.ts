@@ -1,4 +1,4 @@
-import type { ProjectScript } from "@multi/contracts";
+import type { ProjectScript } from "@honk/contracts";
 
 interface ProjectScriptRuntimeEnvInput {
   project: {
@@ -21,10 +21,10 @@ export function projectScriptRuntimeEnv(
   input: ProjectScriptRuntimeEnvInput,
 ): Record<string, string> {
   const env: Record<string, string> = {
-    MULTI_PROJECT_ROOT: input.project.cwd,
+    HONK_PROJECT_ROOT: input.project.cwd,
   };
   if (input.worktreePath) {
-    env.MULTI_WORKTREE_PATH = input.worktreePath;
+    env.HONK_WORKTREE_PATH = input.worktreePath;
   }
   if (input.extraEnv) {
     return { ...env, ...input.extraEnv };

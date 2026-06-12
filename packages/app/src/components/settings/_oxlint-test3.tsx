@@ -1,4 +1,4 @@
-import { Text } from "@multi/multikit/text";
+import { Text } from "@honk/multikit/text";
 
 const TEXT_SPAN_RENDER = <span />;
 

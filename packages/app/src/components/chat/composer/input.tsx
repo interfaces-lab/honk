@@ -14,8 +14,8 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { Button } from "@multi/multikit/button";
-import { Spinner } from "@multi/multikit/spinner";
+import { Button } from "@honk/multikit/button";
+import { Spinner } from "@honk/multikit/spinner";
 import {
   Menu,
   MenuGroupLabel,
@@ -26,8 +26,8 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
   MenuTrigger,
-} from "@multi/multikit/menu";
-import { workbenchChromeTextControlVariants } from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/menu";
+import { workbenchChromeTextControlVariants } from "@honk/multikit/workbench-chrome-row";
 import {
   IconArrowUp,
   IconBug,
@@ -50,9 +50,11 @@ import {
   type AgentThinkingLevel,
   type MessageId,
   type AgentInteractionMode,
+  type ModelSelection,
   type ScopedThreadRef,
-} from "@multi/contracts";
-import type { UnifiedSettings } from "@multi/contracts/settings";
+  type ThreadId,
+} from "@honk/contracts";
+import type { UnifiedSettings } from "@honk/contracts/settings";
 import {
   clampCollapsedComposerCursor,
   type ComposerTrigger,
@@ -102,8 +104,11 @@ import { ComposerContextUsageBar } from "./context/context-usage-bar";
 import { PlanFollowUpTray } from "./plan-follow-up/plan-follow-up-tray";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import { readMultiRuntimeApi } from "~/lib/multi-runtime-api";
-import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
+import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
+import {
+  selectRuntimeIdentityForThread,
+  useAgentRuntimeStore,
+} from "~/stores/agent-runtime-store";
 import {
   AGENT_MODE_LABELS,
   AGENT_MODE_THINKING_LEVELS,
@@ -116,7 +121,7 @@ import {
 export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
 
 const composerEditorClass = cva(
-  "block w-full min-w-0 overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-multi-fg-secondary outline-hidden",
+  "block w-full min-w-0 overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-honk-fg-secondary outline-hidden",
   {
     variants: {
       mode: {
@@ -289,21 +294,57 @@ function AgentModeProviderIcon(props: { agentMode: AgentMode; className?: string
   return <Icon className={props.className} aria-hidden />;
 }
 
+function modelSelectionIcon(modelSelection: ModelSelection): ComponentType<CentralIconBaseProps> {
+  return modelSelection.instanceId === "claudeAgent" || modelSelection.model.startsWith("claude-")
+    ? IconClawd
+    : IconOpenaiCodex;
+}
+
+function modelSelectionLabel(modelSelection: ModelSelection): string {
+  switch (modelSelection.model) {
+    case "claude-opus-4-8":
+      return "Claude Opus 4.8";
+    case "gpt-5.5":
+      return "GPT-5.5";
+    default:
+      return modelSelection.model;
+  }
+}
+
+function ComposerReadOnlyModelChip(props: { modelSelection: ModelSelection }) {
+  const Icon = modelSelectionIcon(props.modelSelection);
+  const label = modelSelectionLabel(props.modelSelection);
+
+  return (
+    <span
+      className={cn(
+        workbenchChromeTextControlVariants(),
+        "max-w-44 cursor-default rounded-full px-2 transition-none",
+      )}
+      aria-label={`Model: ${label}`}
+      title={label}
+    >
+      <Icon className="size-3 shrink-0 text-honk-icon-secondary" aria-hidden />
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+}
+
 function AgentModeDetailsPopup(props: { mode: AgentMode; unavailableReason?: string | null }) {
   const details = AGENT_MODE_MODEL_DETAILS[props.mode];
 
   return (
-    <div className="space-y-2 px-2 py-1 text-body text-multi-fg-primary">
+    <div className="space-y-2 px-2 py-1 text-body text-honk-fg-primary">
       <div className="flex items-center gap-1.5 font-medium">
         <AgentModeProviderIcon
           agentMode={props.mode}
-          className="size-4 shrink-0 text-multi-icon-secondary"
+          className="size-4 shrink-0 text-honk-icon-secondary"
         />
         <span>{details.modelName}</span>
       </div>
-      <p className="text-multi-fg-secondary">{details.description}</p>
+      <p className="text-honk-fg-secondary">{details.description}</p>
       {props.unavailableReason ? (
-        <p className="text-multi-fg-tertiary">Unavailable. {props.unavailableReason}</p>
+        <p className="text-honk-fg-tertiary">Unavailable. {props.unavailableReason}</p>
       ) : null}
     </div>
   );
@@ -355,17 +396,17 @@ function ComposerAgentModePicker(props: {
       >
         <AgentModeProviderIcon
           agentMode={props.agentMode}
-          className="size-3 shrink-0 text-multi-icon-secondary"
+          className="size-3 shrink-0 text-honk-icon-secondary"
         />
         <span className="min-w-0 truncate">{triggerLabel}</span>
-        <IconChevronDownSmall className="size-3 shrink-0 text-multi-icon-tertiary" aria-hidden />
+        <IconChevronDownSmall className="size-3 shrink-0 text-honk-icon-tertiary" aria-hidden />
       </MenuTrigger>
       <MenuPopup
         align="end"
         side="top"
         sideOffset={6}
         variant="workbench"
-        className="w-[184px] border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]"
+        className="w-[184px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
       >
         {COMPOSER_AGENT_MODE_OPTIONS.map((mode) => {
           const selected = mode === props.agentMode;
@@ -440,11 +481,11 @@ function ComposerAgentModePicker(props: {
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
                   <AgentModeProviderIcon
                     agentMode={mode}
-                    className="size-3.5 shrink-0 text-multi-icon-secondary"
+                    className="size-3.5 shrink-0 text-honk-icon-secondary"
                   />
-                  <span className="min-w-0 truncate text-multi-fg-primary">{label}</span>
+                  <span className="min-w-0 truncate text-honk-fg-primary">{label}</span>
                   {isThinkingAgentMode(mode) ? (
-                    <span className="shrink-0 text-multi-fg-tertiary">
+                    <span className="shrink-0 text-honk-fg-tertiary">
                       {MODEL_THINKING_LEVEL_LABELS[thinkingLevel]}
                     </span>
                   ) : null}
@@ -452,7 +493,7 @@ function ComposerAgentModePicker(props: {
                 {isThinkingAgentMode(mode) && !modeUnavailable ? (
                   <span
                     className={cn(
-                      "hidden shrink-0 text-detail text-multi-fg-secondary",
+                      "hidden shrink-0 text-detail text-honk-fg-secondary",
                       "group-hover/model:inline group-data-[highlighted]/model:inline",
                       "data-[selected=true]:inline",
                     )}
@@ -469,7 +510,7 @@ function ComposerAgentModePicker(props: {
                 variant="workbench"
                 side="inline-end"
                 className={cn(
-                  "border-transparent shadow-[0_0_0_1px_var(--multi-stroke-tertiary),0_0_4px_0_var(--multi-shadow-secondary),0_8px_24px_-2px_var(--multi-shadow-secondary)]",
+                  "border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]",
                   showEffortSettings ? "w-[160px]" : "w-[220px]",
                 )}
               >
@@ -866,8 +907,8 @@ const composerActionButtonClass = cva(
     variants: {
       action: {
         submit:
-          "enabled:cursor-pointer text-multi-icon-secondary hover:bg-multi-bg-quaternary hover:text-multi-icon-primary disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-multi-icon-secondary",
-        stop: "cursor-pointer text-multi-fg-red-primary hover:bg-multi-bg-quaternary hover:opacity-85",
+          "enabled:cursor-pointer text-honk-icon-secondary hover:bg-honk-bg-quaternary hover:text-honk-icon-primary disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-honk-icon-secondary",
+        stop: "cursor-pointer text-honk-fg-red-primary hover:bg-honk-bg-quaternary hover:opacity-85",
       },
     },
   },
@@ -887,8 +928,8 @@ function ComposerActionButton({
       size="icon-sm"
       variant="ghost"
       className={cn(composerActionButtonClass({ action }), className)}
-      data-multi-composer-action={action}
-      data-multi-composer-state={state}
+      data-honk-composer-action={action}
+      data-honk-composer-state={state}
       {...props}
     />
   );
@@ -900,7 +941,7 @@ function ComposerAttachmentButton(props: { disabled: boolean; onClick: () => voi
       type="button"
       size="icon-sm"
       variant="ghost"
-      className="rounded-full bg-multi-bg-tertiary text-multi-icon-tertiary hover:bg-multi-bg-secondary hover:text-multi-icon-secondary disabled:opacity-35"
+      className="rounded-full bg-honk-bg-tertiary text-honk-icon-tertiary hover:bg-honk-bg-secondary hover:text-honk-icon-secondary disabled:opacity-35"
       aria-label="Attach images"
       disabled={props.disabled}
       onClick={props.onClick}
@@ -1102,7 +1143,7 @@ function ComposerFooter(props: {
     <div
       data-chat-input-footer="true"
       data-chat-input-footer-compact={dockSingleRow ? "true" : "false"}
-      data-multi-composer-toolbar={isThreadShell ? "bottom" : undefined}
+      data-honk-composer-toolbar={isThreadShell ? "bottom" : undefined}
       className={cn(
         "min-w-0",
         dockSingleRow
@@ -1115,7 +1156,7 @@ function ComposerFooter(props: {
       )}
     >
       <div
-        data-multi-composer-toolbar="left"
+        data-honk-composer-toolbar="left"
         className={cn(
           "flex min-w-0 items-center gap-1",
           dockSingleRow ? "max-w-[46%] shrink overflow-hidden" : "flex-1 overflow-hidden",
@@ -1201,6 +1242,7 @@ export const ComposerInput = memo(
       activeProposedPlan = null,
       planSurfaceOpen = false,
       interactionMode,
+      modelSelection,
       activeContextWindow,
       resolvedTheme,
       settings,
@@ -1370,7 +1412,7 @@ export const ComposerInput = memo(
       setSaving?: Dispatch<SetStateAction<boolean>>,
     ) => {
       setSaving?.(true);
-      const runtimeApi = readMultiRuntimeApi();
+      const runtimeApi = readHonkRuntimeApi();
       void runtimeApi
         .updatePreferences(patch)
         .then(async () => {
@@ -2143,14 +2185,18 @@ export const ComposerInput = memo(
       );
     const composerAgentModeControl = showModeControls ? (
       <span className="inline-flex min-w-0 max-w-full shrink items-center gap-1 overflow-hidden">
-        <ComposerAgentModePicker
-          agentMode={runtimePreferences.agentMode}
-          thinkingLevel={runtimePreferences.thinkingLevel}
-          availability={agentModeAvailability}
-          disabled={isAgentModeSaving || isConnecting}
-          onAgentModeChange={handleAgentModeChange}
-          onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}
-        />
+        {isNewAgentComposer ? (
+          <ComposerAgentModePicker
+            agentMode={runtimePreferences.agentMode}
+            thinkingLevel={runtimePreferences.thinkingLevel}
+            availability={agentModeAvailability}
+            disabled={isAgentModeSaving || isConnecting}
+            onAgentModeChange={handleAgentModeChange}
+            onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}
+          />
+        ) : (
+          <ComposerReadOnlyModelChip modelSelection={modelSelection} />
+        )}
       </span>
     ) : null;
     const composerAttachmentButtonDisabled = pendingUserInputs.length > 0 || isConnecting;
@@ -2232,10 +2278,10 @@ export const ComposerInput = memo(
           {promptInputHeaderContent ? (
             <div
               className={cn(
-                "select-none overflow-hidden border border-b-0 border-multi-stroke-tertiary text-multi-fg-primary",
+                "select-none overflow-hidden border border-b-0 border-honk-stroke-tertiary text-honk-fg-primary",
               )}
-              data-multi-composer-header=""
-              data-multi-composer-surface=""
+              data-honk-composer-header=""
+              data-honk-composer-surface=""
               data-variant={composerVariant}
               data-expanded={isDockComposerExpanded ? "" : undefined}
               data-visible={hasComposerHeader ? "true" : "false"}
@@ -2253,7 +2299,7 @@ export const ComposerInput = memo(
             data-layout={
               isInlineEditComposer ? "inline-edit" : isNewAgentComposer ? "new-agent" : undefined
             }
-            data-multi-composer-surface=""
+            data-honk-composer-surface=""
             data-has-images={composerImages.length > 0 ? "" : undefined}
             data-dragging={isDragOverComposer ? "" : undefined}
             data-expanded={isDockComposerExpanded ? "" : undefined}
@@ -2267,7 +2313,7 @@ export const ComposerInput = memo(
           >
             <div
               className={composerShellClass({ mode: composerShellMode })}
-              data-multi-composer-shell={composerShellMode}
+              data-honk-composer-shell={composerShellMode}
               {...(isDockComposerExpanded ? { "data-expanded": "" } : {})}
             >
               {!isComposerApprovalState ? (
@@ -2351,7 +2397,7 @@ export const ComposerInput = memo(
               {/* Bottom toolbar */}
               {activePendingApproval ? (
                 <div
-                  data-multi-composer-toolbar={
+                  data-honk-composer-toolbar={
                     composerShellMode === "thread" ? "bottom" : undefined
                   }
                   className={cn(

@@ -1,7 +1,7 @@
 import {
   USER_CONVERSATION_DENSITY_VALUES,
   type ConversationDensity,
-} from "@multi/contracts/settings";
+} from "@honk/contracts/settings";
 import { IconChevronRightMedium } from "central-icons";
 
 import { ToolCallRenderer, type ToolCallModel } from "../chat/message/tool-renderer";
@@ -66,14 +66,14 @@ export function ToolCallDensitySlider(props: {
           {SLIDER_DENSITIES.map((density) => (
             <span
               key={density}
-              className="size-1 rounded-full bg-multi-stroke-tertiary opacity-60"
+              className="size-1 rounded-full bg-honk-stroke-tertiary opacity-60"
             />
           ))}
         </div>
         <input
           aria-label="Tool Call Density"
           aria-valuetext={DENSITY_ARIA_LABELS[props.value]}
-          className="multi-settings-range-slider relative z-1 h-4 w-full"
+          className="honk-settings-range-slider relative z-1 h-4 w-full"
           type="range"
           min={0}
           max={SLIDER_DENSITIES.length - 1}
@@ -87,7 +87,7 @@ export function ToolCallDensitySlider(props: {
           }}
         />
       </div>
-      <div className="flex justify-between text-detail text-multi-fg-tertiary">
+      <div className="flex justify-between text-detail text-honk-fg-tertiary">
         <span>Compact</span>
         <span>Detailed</span>
       </div>
@@ -100,19 +100,19 @@ export function ToolCallDensityPreview({ density }: { density: ConversationDensi
     return (
       <div className="mt-2 w-full max-w-72" data-density-preview="combined">
         <div
-          className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden text-conversation text-multi-fg-tertiary"
+          className="inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-hidden text-conversation text-honk-fg-tertiary"
           data-work-group-header=""
         >
           <span className="shrink-0 whitespace-nowrap tabular-nums">Explored</span>
-          <span aria-hidden="true" className="shrink-0 text-multi-fg-tertiary">
+          <span aria-hidden="true" className="shrink-0 text-honk-fg-tertiary">
             ·
           </span>
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary tabular-nums">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums">
             2 files, ran 2 commands
           </span>
           <IconChevronRightMedium
             aria-hidden="true"
-            className="size-3 shrink-0 text-multi-icon-tertiary"
+            className="size-3 shrink-0 text-honk-icon-tertiary"
           />
         </div>
       </div>

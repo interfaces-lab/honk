@@ -9,7 +9,7 @@
  *
  * @module OrchestrationEventStore
  */
-import { OrchestrationEvent } from "@multi/contracts";
+import { OrchestrationEvent } from "@honk/contracts";
 import { Context } from "effect";
 import type { Effect, Stream } from "effect";
 
@@ -67,4 +67,4 @@ export interface OrchestrationEventStoreShape {
 export class OrchestrationEventStore extends Context.Service<
   OrchestrationEventStore,
   OrchestrationEventStoreShape
->()("multi/persistence/OrchestrationEventStore.service") {}
+>()("honk/persistence/OrchestrationEventStore.service") {}

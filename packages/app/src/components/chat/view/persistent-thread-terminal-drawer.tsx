@@ -1,5 +1,5 @@
-import type { ScopedThreadRef, ThreadId } from "@multi/contracts";
-import { projectScriptCwd, projectScriptRuntimeEnv } from "@multi/shared/project-scripts";
+import type { ScopedThreadRef, ThreadId } from "@honk/contracts";
+import { projectScriptCwd, projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 

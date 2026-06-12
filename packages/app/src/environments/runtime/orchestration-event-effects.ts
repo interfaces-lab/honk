@@ -1,4 +1,4 @@
-import type { OrchestrationEvent, ThreadId } from "@multi/contracts";
+import type { OrchestrationEvent, ThreadId } from "@honk/contracts";
 
 export interface OrchestrationBatchEffects {
   promoteDraftThreadIds: ThreadId[];

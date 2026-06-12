@@ -1,4 +1,4 @@
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
 import { useState } from "react";
 
@@ -29,7 +29,7 @@ export function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--multi-composer-plan-tray-radius) bg-multi-bg-elevated font-multi text-detail text-multi-fg-primary shadow-multi-card",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--honk-composer-plan-tray-radius) bg-honk-bg-elevated font-honk text-detail text-honk-fg-primary shadow-honk-card",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
@@ -38,13 +38,13 @@ export function PlanFollowUpTray(props: {
     >
       <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="text-caption font-medium text-multi-fg-tertiary">Review Plan</div>
-          <div className="truncate text-detail font-medium text-multi-fg-primary" title={title}>
+          <div className="text-caption font-medium text-honk-fg-tertiary">Review Plan</div>
+          <div className="truncate text-detail font-medium text-honk-fg-primary" title={title}>
             {title}
           </div>
         </div>
         <Button
-          className="shrink-0 bg-multi-bg-quinary text-multi-icon-secondary hover:text-multi-icon-primary"
+          className="shrink-0 bg-honk-bg-quinary text-honk-icon-secondary hover:text-honk-icon-primary"
           size="icon-sm"
           variant="ghost"
           aria-label="Dismiss plan"

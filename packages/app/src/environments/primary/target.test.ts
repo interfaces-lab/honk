@@ -20,8 +20,8 @@ describe("resolvePrimaryEnvironmentHttpUrl", () => {
     });
 
     try {
-      expect(resolvePrimaryEnvironmentHttpUrl("/.well-known/multi/environment")).toBe(
-        "http://127.0.0.1:13773/.well-known/multi/environment",
+      expect(resolvePrimaryEnvironmentHttpUrl("/.well-known/honk/environment")).toBe(
+        "http://127.0.0.1:13773/.well-known/honk/environment",
       );
     } finally {
       import.meta.env.VITE_DEV_SERVER_URL = previousDevServerUrl;

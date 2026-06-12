@@ -3,7 +3,7 @@ import type {
   OrchestrationSession,
   OrchestrationProject,
   OrchestrationProjectShell,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { Schema } from "effect";
 
 import {

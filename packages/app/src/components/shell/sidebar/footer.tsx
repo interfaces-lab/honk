@@ -2,7 +2,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { IconSettingsGear2 } from "central-icons";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 
 import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
 import { UpdatePill } from "~/components/shell/shared/update-pill";
@@ -25,7 +25,7 @@ export function ShellSidebarFooter(props: ShellSidebarFooterProps) {
             onClick={props.onToggleSettings}
             size="icon-sm"
             variant="ghost"
-            className="bg-multi-bg-tertiary text-foreground hover:bg-multi-bg-tertiary hover:text-foreground"
+            className="bg-honk-bg-tertiary text-foreground hover:bg-honk-bg-tertiary hover:text-foreground"
             aria-label="Settings"
             aria-pressed
             draggable={false}
@@ -37,7 +37,7 @@ export function ShellSidebarFooter(props: ShellSidebarFooterProps) {
           <Link
             to={DEFAULT_SETTINGS_ROUTE}
             className={cn(
-              "flex size-6 select-none items-center justify-center rounded-multi-control border border-transparent text-muted-foreground/60 transition-colors hover:bg-multi-hover hover:text-foreground",
+              "flex size-6 select-none items-center justify-center rounded-honk-control border border-transparent text-muted-foreground/60 transition-colors hover:bg-honk-hover hover:text-foreground",
             )}
             aria-label="Open settings"
             draggable={false}

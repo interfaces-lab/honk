@@ -7,18 +7,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./utils";
 
 const statusDotVariants = cva(
-  "relative inline-flex shrink-0 items-center justify-center after:block after:size-(--multi-status-dot-size,5.5px) after:rounded-full after:content-['']",
+  "relative inline-flex shrink-0 items-center justify-center after:block after:size-(--honk-status-dot-size,5.5px) after:rounded-full after:content-['']",
   {
     defaultVariants: {
       state: "draft",
     },
     variants: {
       state: {
-        draft: "after:border after:border-multi-icon-quaternary after:bg-transparent",
-        running: "after:bg-multi-icon-tertiary",
+        draft: "after:border after:border-honk-icon-quaternary after:bg-transparent",
+        running: "after:bg-honk-icon-tertiary",
         needsAttention: "after:bg-warning",
-        doneUnseen: "after:bg-multi-icon-accent-primary",
-        doneSeen: "after:bg-multi-icon-quaternary",
+        doneUnseen: "after:bg-honk-icon-accent-primary",
+        doneSeen: "after:bg-honk-icon-quaternary",
         /** Positive health / authenticated / ready indicators (e.g. provider status). */
         success: "after:bg-success",
         /** Hard failure (e.g. provider error). */

@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseCliArgs } from "@multi/shared/cli-args";
+import { parseCliArgs } from "@honk/shared/cli-args";
 
 export const releasePackageFiles = [
   "packages/server/package.json",

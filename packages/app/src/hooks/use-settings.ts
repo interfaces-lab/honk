@@ -10,16 +10,16 @@
  * store.
  */
 import { useSyncExternalStore } from "react";
-import { ServerSettings, ServerSettingsPatch } from "@multi/contracts";
+import { ServerSettings, ServerSettingsPatch } from "@honk/contracts";
 import {
   type ClientSettings,
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_UNIFIED_SETTINGS,
   UnifiedSettings,
-} from "@multi/contracts/settings";
+} from "@honk/contracts/settings";
 import { ensureLocalApi } from "~/local-api";
 import { Struct } from "effect";
-import { deepMerge } from "@multi/shared/Struct";
+import { deepMerge } from "@honk/shared/Struct";
 import { applySettingsUpdated, getServerConfig, useServerSettings } from "~/rpc/server-state";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";

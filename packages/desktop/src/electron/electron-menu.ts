@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@multi/contracts";
+import type { ContextMenuItem } from "@honk/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -33,7 +33,7 @@ export interface ElectronMenuShape {
 }
 
 export class ElectronMenu extends Context.Service<ElectronMenu, ElectronMenuShape>()(
-  "multi/desktop/electron/Menu",
+  "honk/desktop/electron/Menu",
 ) {}
 
 function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextMenuItem[] {

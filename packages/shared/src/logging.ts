@@ -1,14 +1,14 @@
-// In-house rotating NDJSON file sink for Effect.Logger output (`makeMultiEffectLogger`).
+// In-house rotating NDJSON file sink for Effect.Logger output (`makeHonkEffectLogger`).
 import fs from "node:fs";
 import path from "node:path";
 
 import { Cause, Logger, References } from "effect";
 
-export const MULTI_RUN_ID_ENV = "MULTI_RUN_ID";
-export const MULTI_PROCESS_ROLE_ENV = "MULTI_PROCESS_ROLE";
-export const MULTI_PROCESS_INSTANCE_ID_ENV = "MULTI_PROCESS_INSTANCE_ID";
+export const HONK_RUN_ID_ENV = "HONK_RUN_ID";
+export const HONK_PROCESS_ROLE_ENV = "HONK_PROCESS_ROLE";
+export const HONK_PROCESS_INSTANCE_ID_ENV = "HONK_PROCESS_INSTANCE_ID";
 
-export type MultiProcessRole =
+export type HonkProcessRole =
   | "app-renderer"
   | "desktop-main"
   | "desktop-renderer"
@@ -18,25 +18,25 @@ export type MultiProcessRole =
   | "server"
   | "terminal";
 
-export type MultiLogLevel = "debug" | "info" | "warn" | "error";
+export type HonkLogLevel = "debug" | "info" | "warn" | "error";
 
-export interface MultiProcessMetadata {
+export interface HonkProcessMetadata {
   readonly runId: string;
   readonly processInstanceId: string;
-  readonly processRole: MultiProcessRole;
+  readonly processRole: HonkProcessRole;
 }
 
-export interface ConfigureMultiEvlogOptions {
+export interface ConfigureHonkEvlogOptions {
   readonly filePath: string;
   readonly service: string;
   readonly environment: string;
-  readonly minLevel?: MultiLogLevel;
+  readonly minLevel?: HonkLogLevel;
   readonly maxFiles?: number;
   readonly maxSizePerFile?: number;
 }
 
-export interface MultiLogEventInput {
-  readonly level: MultiLogLevel;
+export interface HonkLogEventInput {
+  readonly level: HonkLogLevel;
   readonly message: string;
   readonly service?: string;
   readonly fields?: Record<string, unknown>;
@@ -63,20 +63,20 @@ const SECRET_FIELD_PATTERN =
 const REDACTED = "[redacted]";
 const MAX_SANITIZE_DEPTH = 6;
 
-const LOG_LEVEL_RANK: Record<MultiLogLevel, number> = {
+const LOG_LEVEL_RANK: Record<HonkLogLevel, number> = {
   debug: 0,
   info: 1,
   warn: 2,
   error: 3,
 };
 
-let processMetadata: MultiProcessMetadata | undefined;
+let processMetadata: HonkProcessMetadata | undefined;
 let logSink: RotatingFileSink | undefined;
 let logConfig:
   | {
       readonly service: string;
       readonly environment: string;
-      readonly minLevel: MultiLogLevel;
+      readonly minLevel: HonkLogLevel;
     }
   | undefined;
 
@@ -186,16 +186,16 @@ export class RotatingFileSink {
   }
 }
 
-export function configureMultiProcessMetadata(processRole: MultiProcessRole): MultiProcessMetadata {
+export function configureHonkProcessMetadata(processRole: HonkProcessRole): HonkProcessMetadata {
   if (processMetadata?.processRole === processRole) {
     return processMetadata;
   }
 
-  const runId = process.env[MULTI_RUN_ID_ENV] || crypto.randomUUID();
-  const processInstanceId = process.env[MULTI_PROCESS_INSTANCE_ID_ENV] || crypto.randomUUID();
-  process.env[MULTI_RUN_ID_ENV] = runId;
-  process.env[MULTI_PROCESS_ROLE_ENV] = processRole;
-  process.env[MULTI_PROCESS_INSTANCE_ID_ENV] = processInstanceId;
+  const runId = process.env[HONK_RUN_ID_ENV] || crypto.randomUUID();
+  const processInstanceId = process.env[HONK_PROCESS_INSTANCE_ID_ENV] || crypto.randomUUID();
+  process.env[HONK_RUN_ID_ENV] = runId;
+  process.env[HONK_PROCESS_ROLE_ENV] = processRole;
+  process.env[HONK_PROCESS_INSTANCE_ID_ENV] = processInstanceId;
   processMetadata = {
     runId,
     processInstanceId,
@@ -204,7 +204,7 @@ export function configureMultiProcessMetadata(processRole: MultiProcessRole): Mu
   return processMetadata;
 }
 
-export function configureMultiEvlog(options: ConfigureMultiEvlogOptions): void {
+export function configureHonkEvlog(options: ConfigureHonkEvlogOptions): void {
   logSink = new RotatingFileSink({
     filePath: options.filePath,
     maxBytes: options.maxSizePerFile ?? DEFAULT_LOG_MAX_BYTES,
@@ -217,7 +217,7 @@ export function configureMultiEvlog(options: ConfigureMultiEvlogOptions): void {
   };
 }
 
-export function writeMultiLogEvent(input: MultiLogEventInput): void {
+export function writeHonkLogEvent(input: HonkLogEventInput): void {
   if (!logSink || !logConfig) {
     return;
   }
@@ -233,9 +233,9 @@ export function writeMultiLogEvent(input: MultiLogEventInput): void {
     environment: logConfig.environment,
   };
 
-  const runId = process.env[MULTI_RUN_ID_ENV];
-  const processRole = process.env[MULTI_PROCESS_ROLE_ENV];
-  const processInstanceId = process.env[MULTI_PROCESS_INSTANCE_ID_ENV];
+  const runId = process.env[HONK_RUN_ID_ENV];
+  const processRole = process.env[HONK_PROCESS_ROLE_ENV];
+  const processInstanceId = process.env[HONK_PROCESS_INSTANCE_ID_ENV];
   if (runId) event.runId = runId;
   if (processRole) event.processRole = processRole;
   if (processInstanceId) event.processInstanceId = processInstanceId;
@@ -251,7 +251,7 @@ export function writeMultiLogEvent(input: MultiLogEventInput): void {
   }
 }
 
-export function makeMultiEffectLogger(input: { readonly defaultService: string }) {
+export function makeHonkEffectLogger(input: { readonly defaultService: string }) {
   return Logger.make((options) => {
     const annotations = sanitizeRecord(
       options.fiber.getRef(References.CurrentLogAnnotations),
@@ -270,7 +270,7 @@ export function makeMultiEffectLogger(input: { readonly defaultService: string }
     const service = readService(fields) ?? input.defaultService;
     delete fields.service;
 
-    writeMultiLogEvent({
+    writeHonkLogEvent({
       level: effectLogLevel(options.logLevel),
       message: text(options.message),
       service,
@@ -307,7 +307,7 @@ export function isIgnorableStdioWriteError(error: unknown): boolean {
   );
 }
 
-export function effectLogLevel(level: unknown): MultiLogLevel {
+export function effectLogLevel(level: unknown): HonkLogLevel {
   switch (String(level)) {
     case "Trace":
     case "Debug":

@@ -3,7 +3,7 @@ import {
   type ModelSelection,
   type ModelOptionDescriptor,
   type ModelOptionSelection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 export interface SelectableModelOption {
   slug: string;

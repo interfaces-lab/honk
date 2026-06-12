@@ -4,7 +4,7 @@ import {
   SCRIPT_RUN_COMMAND_PATTERN,
   type KeybindingCommand,
   type KeybindingRule,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Schema } from "effect";
 
 export const PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE = "Invalid keybinding.";

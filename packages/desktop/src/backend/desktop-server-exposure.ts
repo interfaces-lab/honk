@@ -1,6 +1,6 @@
 import * as NodeOS from "node:os";
 
-import type { DesktopServerExposureMode, DesktopServerExposureState } from "@multi/contracts";
+import type { DesktopServerExposureMode, DesktopServerExposureState } from "@honk/contracts";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -38,11 +38,6 @@ interface ResolvedDesktopServerExposure {
   readonly advertisedHost: string | null;
 }
 
-const normalizeOptionalHost = (value: string | undefined): string | undefined => {
-  const normalized = value?.trim();
-  return normalized && normalized.length > 0 ? normalized : undefined;
-};
-
 const isUsableLanIpv4Address = (address: string): boolean =>
   !address.startsWith("127.") && !address.startsWith("169.254.");
 
@@ -50,7 +45,7 @@ const resolveLanAdvertisedHost = (
   networkInterfaces: DesktopNetworkInterfaces,
   explicitHost: string | undefined,
 ): string | null => {
-  const normalizedExplicitHost = normalizeOptionalHost(explicitHost);
+  const normalizedExplicitHost = explicitHost?.trim();
   if (normalizedExplicitHost) {
     return normalizedExplicitHost;
   }
@@ -153,7 +148,7 @@ export interface DesktopServerExposureShape {
 export class DesktopServerExposure extends Context.Service<
   DesktopServerExposure,
   DesktopServerExposureShape
->()("multi/desktop/ServerExposure") {}
+>()("honk/desktop/ServerExposure") {}
 
 export interface DesktopNetworkInterfacesServiceShape {
   readonly read: Effect.Effect<DesktopNetworkInterfaces>;
@@ -162,7 +157,7 @@ export interface DesktopNetworkInterfacesServiceShape {
 export class DesktopNetworkInterfacesService extends Context.Service<
   DesktopNetworkInterfacesService,
   DesktopNetworkInterfacesServiceShape
->()("multi/desktop/ServerExposure/NetworkInterfaces") {}
+>()("honk/desktop/ServerExposure/NetworkInterfaces") {}
 
 interface RuntimeState {
   readonly requestedMode: DesktopServerExposureMode;

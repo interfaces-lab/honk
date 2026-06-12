@@ -11,7 +11,7 @@ function Code({ className, render, ...props }: useRender.ComponentProps<"code">)
     props: mergeProps(
       {
         className: cn(
-          "rounded-sm bg-multi-bg-tertiary px-1 py-0.5 font-multi-mono text-multi-code text-multi-fg-primary",
+          "rounded-sm bg-honk-bg-tertiary px-1 py-0.5 font-honk-mono text-honk-code text-honk-fg-primary",
           className,
         ),
         "data-slot": "code",
@@ -28,7 +28,7 @@ function Pre({ className, render, ...props }: useRender.ComponentProps<"pre">) {
     props: mergeProps(
       {
         className: cn(
-          "max-h-64 overflow-auto rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary p-3 font-multi-mono text-multi-code text-multi-fg-primary",
+          "max-h-64 overflow-auto rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary p-3 font-honk-mono text-honk-code text-honk-fg-primary",
           className,
         ),
         "data-slot": "pre",

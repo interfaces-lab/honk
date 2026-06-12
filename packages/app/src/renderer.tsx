@@ -7,7 +7,7 @@ import "./app/appearance-boot";
 import "./local-api";
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
-import "@multi/multikit/styles.css";
+import "@honk/multikit/styles.css";
 import "./styles/app.css";
 
 import { installDesktopActiveWorkBridge } from "./desktop-active-work-bridge";
@@ -15,7 +15,7 @@ import { installDesktopMenuActionBridge } from "./desktop-menu-actions";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./app/branding";
 
-type MultiHistory = ReturnType<typeof createBrowserHistory>;
+type HonkHistory = ReturnType<typeof createBrowserHistory>;
 
 interface WindowControlsOverlayLike {
   readonly visible: boolean;
@@ -26,8 +26,8 @@ interface NavigatorWithWindowControlsOverlay extends Navigator {
   readonly windowControlsOverlay?: WindowControlsOverlayLike;
 }
 
-export interface MountMultiAppOptions {
-  readonly history: MultiHistory;
+export interface MountHonkAppOptions {
+  readonly history: HonkHistory;
   readonly isElectron: boolean;
 }
 
@@ -45,7 +45,7 @@ function installWindowControlsOverlayMarker(): void {
   overlay?.addEventListener("geometrychange", updateWindowControlsOverlayClass);
 }
 
-export function mountMultiApp(options: MountMultiAppOptions): void {
+export function mountHonkApp(options: MountHonkAppOptions): void {
   const router = getRouter(options.history);
 
   if (options.isElectron) {

@@ -1,19 +1,19 @@
 import {
   ClientOrchestrationCommand as ClientOrchestrationCommandSchema,
   type AgentRuntimeEvent,
-  type MultiRuntimeHostEvent,
-  type MultiRuntimeHostSnapshot,
+  type HonkRuntimeHostEvent,
+  type HonkRuntimeHostSnapshot,
   type SessionTreeProjection,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   runtimeAssistantEntryIngestionKey,
   runtimeContextWindowActivityCommands,
   runtimeEventIngestionKey,
   runtimeSessionTreeAssistantCompleteCommand,
   runtimeToolCompletedActivityCommands,
-} from "@multi/runtime";
-import { formatSchemaError, formatSchemaIssues } from "@multi/shared/schema-json";
-import * as EffectLogger from "@multi/shared/effect-logger";
+} from "@honk/runtime";
+import { formatSchemaError, formatSchemaIssues } from "@honk/shared/schema-json";
+import * as EffectLogger from "@honk/shared/effect-logger";
 import { Exit, Schema } from "effect";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -106,7 +106,7 @@ class RuntimeIngestionState {
     this.configuredClientConfig = null;
   }
 
-  ingestHostEvent(event: MultiRuntimeHostEvent): void {
+  ingestHostEvent(event: HonkRuntimeHostEvent): void {
     switch (event.type) {
       case "snapshot":
         this.ingestSnapshot(event.snapshot);
@@ -122,7 +122,7 @@ class RuntimeIngestionState {
     }
   }
 
-  ingestSnapshot(snapshot: MultiRuntimeHostSnapshot): void {
+  ingestSnapshot(snapshot: HonkRuntimeHostSnapshot): void {
     for (const tree of snapshot.sessionTrees) {
       this.ingestSessionTree(tree);
     }
@@ -223,7 +223,7 @@ function getIngestionState(): RuntimeIngestionState {
   return ingestionState;
 }
 
-export function ingestRuntimeHostEvent(event: MultiRuntimeHostEvent): void {
+export function ingestRuntimeHostEvent(event: HonkRuntimeHostEvent): void {
   getIngestionState().ingestHostEvent(event);
 }
 

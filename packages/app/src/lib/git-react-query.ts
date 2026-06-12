@@ -3,7 +3,7 @@ import {
   type GitActionProgressEvent,
   type GitStackedAction,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   infiniteQueryOptions,
   mutationOptions,

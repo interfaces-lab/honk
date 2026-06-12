@@ -1,7 +1,8 @@
-import type { EnvironmentId, GitBranch, ProjectId, ScopedProjectRef } from "@multi/contracts";
-import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@multi/shared/git";
-import { Button } from "@multi/multikit/button";
-import { Input } from "@multi/multikit/input";
+import type { EnvironmentId, GitBranch, ProjectId, ScopedProjectRef } from "@honk/contracts";
+import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@honk/shared/git";
+import { normalizeSearchQuery } from "@honk/shared/search-ranking";
+import { Button } from "@honk/multikit/button";
+import { Input } from "@honk/multikit/input";
 import { MiddleTruncate } from "@pierre/truncate/react";
 import {
   Menu,
@@ -9,11 +10,11 @@ import {
   MenuPopup,
   MenuTrigger,
   workbenchMenuLabelClassName,
-} from "@multi/multikit/menu";
+} from "@honk/multikit/menu";
 import {
   WorkbenchChromeActionGroup,
   workbenchChromeTextControlVariants,
-} from "@multi/multikit/workbench-chrome-row";
+} from "@honk/multikit/workbench-chrome-row";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   IconBranch,
@@ -101,7 +102,7 @@ function buildBranchMenuSections(branches: ReadonlyArray<GitBranch>): BranchMenu
     take("Default", (branch) => branch.isDefault),
     take("Current", (branch) => branch.current),
     take("Worktrees", (branch) => branch.worktreePath !== null),
-    take("Created by Multi", (branch) => isTemporaryWorktreeBranch(branch.name)),
+    take("Created by Honk", (branch) => isTemporaryWorktreeBranch(branch.name)),
     take("Your branches", (branch) => branch.isRemote !== true),
     take("Other branches", () => true),
   ].filter((section) => section.branches.length > 0);
@@ -109,11 +110,11 @@ function buildBranchMenuSections(branches: ReadonlyArray<GitBranch>): BranchMenu
 
 function BranchIconWithState(props: { hasLocalChanges: boolean }) {
   return (
-    <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center text-multi-icon-tertiary">
+    <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center text-honk-icon-tertiary">
       <IconBranchSimple className="size-3.5" aria-hidden />
       {props.hasLocalChanges ? (
         <span
-          className="absolute right-0 top-0 size-1 rounded-full bg-[var(--vscode-gitDecoration-modifiedResourceForeground,var(--multi-accent-primary))]"
+          className="absolute right-0 top-0 size-1 rounded-full bg-[var(--vscode-gitDecoration-modifiedResourceForeground,var(--honk-accent-primary))]"
           aria-hidden
         />
       ) : null}
@@ -178,11 +179,11 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
     : "Branch";
   const normalizedBranchQuery = branchQuery.trim();
   const parsedPullRequestReference = parsePullRequestReference(normalizedBranchQuery);
-  const normalizedBranchSearch = normalizedBranchQuery.toLowerCase();
+  const normalizedBranchSearch = normalizeSearchQuery(normalizedBranchQuery);
   const filteredBranches = branches.filter((branch) => {
     return (
       normalizedBranchSearch.length === 0 ||
-      branch.name.toLowerCase().includes(normalizedBranchSearch)
+      normalizeSearchQuery(branch.name).includes(normalizedBranchSearch)
     );
   });
   const branchMenuSections = buildBranchMenuSections(filteredBranches);
@@ -258,13 +259,13 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
             />
           }
         >
-          <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
+          <IconFolder1 className="size-3.5 shrink-0 text-honk-icon-tertiary" aria-hidden />
           <MiddleTruncate className="min-w-0" split="leaf-path">
             {workspaceLabel}
           </MiddleTruncate>
           <IconChevronDownSmall
             className={cn(
-              "size-3.5 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
+              "size-3.5 shrink-0 text-honk-icon-tertiary transition-transform duration-150",
               workspaceOpen ? "rotate-180" : "",
             )}
             aria-hidden
@@ -290,17 +291,17 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   variant="workbench"
                   className={cn(
                     "h-auto py-1.5",
-                    isActive && "bg-multi-bg-tertiary text-multi-fg-primary",
+                    isActive && "bg-honk-bg-tertiary text-honk-fg-primary",
                   )}
                   onClick={() => selectProject(project)}
                 >
-                  <IconFolder1 className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
+                  <IconFolder1 className="size-3.5 shrink-0 text-honk-icon-tertiary" aria-hidden />
                   <span className="grid min-w-0 flex-1 text-left">
                     <MiddleTruncate className="min-w-0" split="leaf-path">
                       {projectLabel}
                     </MiddleTruncate>
                     <MiddleTruncate
-                      className="min-w-0 text-detail text-multi-fg-tertiary"
+                      className="min-w-0 text-detail text-honk-fg-tertiary"
                       split="leaf-path"
                     >
                       {project.cwd}
@@ -308,22 +309,22 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   </span>
                   {isActive ? (
                     <IconCheckmark1Small
-                      className="size-3.5 shrink-0 text-multi-fg-primary"
+                      className="size-3.5 shrink-0 text-honk-fg-primary"
                       aria-hidden
                     />
                   ) : null}
                 </MenuItem>
               );
             })}
-            <div className="border-multi-stroke-tertiary mt-1 border-t pt-1">
+            <div className="border-honk-stroke-tertiary mt-1 border-t pt-1">
               <MenuItem variant="workbench" className="h-auto py-1.5" onClick={openFolder}>
                 <IconFolderAddRight
-                  className="size-3.5 shrink-0 text-multi-icon-tertiary"
+                  className="size-3.5 shrink-0 text-honk-icon-tertiary"
                   aria-hidden
                 />
                 <span className="grid min-w-0 flex-1 text-left">
                   <span className="truncate">Open Folder...</span>
-                  <span className="truncate text-detail text-multi-fg-tertiary">
+                  <span className="truncate text-detail text-honk-fg-tertiary">
                     {openFolderDescription}
                   </span>
                 </span>
@@ -344,7 +345,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   disabled={props.disabled || !props.canChangeEnvMode}
                   className={cn(
                     workbenchChromeTextControlVariants(),
-                    "max-w-[12rem] shrink disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:text-multi-icon-tertiary",
+                    "max-w-[12rem] shrink disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:text-honk-icon-tertiary",
                   )}
                   aria-label={`Environment mode: ${envModeLabel}`}
                   title="Choose where the agent runs"
@@ -373,16 +374,16 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                 className="h-auto py-1.5"
                 onClick={() => selectEnvMode("local")}
               >
-                <IconGit className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
+                <IconGit className="size-3.5 shrink-0 text-honk-icon-tertiary" aria-hidden />
                 <span className="grid min-w-0 flex-1 text-left">
                   <span className="truncate">Local</span>
-                  <span className="truncate text-detail text-multi-fg-tertiary">
+                  <span className="truncate text-detail text-honk-fg-tertiary">
                     Use the current checkout
                   </span>
                 </span>
                 {props.envMode === "local" ? (
                   <IconCheckmark1Small
-                    className="size-3.5 shrink-0 text-multi-fg-primary"
+                    className="size-3.5 shrink-0 text-honk-fg-primary"
                     aria-hidden
                   />
                 ) : null}
@@ -392,16 +393,16 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                 className="h-auto py-1.5"
                 onClick={() => selectEnvMode("worktree")}
               >
-                <IconBranch className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden />
+                <IconBranch className="size-3.5 shrink-0 text-honk-icon-tertiary" aria-hidden />
                 <span className="grid min-w-0 flex-1 text-left">
                   <span className="truncate">New branch/worktree</span>
-                  <span className="truncate text-detail text-multi-fg-tertiary">
+                  <span className="truncate text-detail text-honk-fg-tertiary">
                     Create an isolated branch on send
                   </span>
                 </span>
                 {props.envMode === "worktree" ? (
                   <IconCheckmark1Small
-                    className="size-3.5 shrink-0 text-multi-fg-primary"
+                    className="size-3.5 shrink-0 text-honk-fg-primary"
                     aria-hidden
                   />
                 ) : null}
@@ -419,7 +420,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   className={cn(
                     workbenchChromeTextControlVariants(),
                     "max-w-[11rem] shrink disabled:opacity-50",
-                    missingStoredBranch ? "text-multi-fg-red-primary" : "text-multi-fg-secondary",
+                    missingStoredBranch ? "text-honk-fg-red-primary" : "text-honk-fg-secondary",
                   )}
                   aria-label={`Branch selector: ${branchButtonLabel}`}
                   title={
@@ -434,7 +435,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
               <span className="min-w-0 truncate">{branchButtonLabel}</span>
               <IconChevronDownSmall
                 className={cn(
-                  "size-3.5 shrink-0 text-multi-icon-tertiary transition-transform duration-150",
+                  "size-3.5 shrink-0 text-honk-icon-tertiary transition-transform duration-150",
                   branchOpen ? "rotate-180" : "",
                 )}
                 aria-hidden
@@ -446,7 +447,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
               variant="workbench"
               className="w-72 overflow-hidden p-0 [&>div]:flex [&>div]:max-h-[min(24rem,var(--available-height))] [&>div]:min-h-0 [&>div]:flex-col [&>div]:overflow-hidden [&>div]:p-0"
             >
-              <div className="border-multi-stroke-tertiary shrink-0 border-b p-1.5">
+              <div className="border-honk-stroke-tertiary shrink-0 border-b p-1.5">
                 <Input
                   ref={focusBranchInput}
                   placeholder="Search branches..."
@@ -464,11 +465,11 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-1">
                 {missingStoredBranch ? (
-                  <div className="border-multi-stroke-tertiary mb-1 border-b px-2 py-2">
-                    <p className="font-multi text-body text-multi-fg-red-primary">
+                  <div className="border-honk-stroke-tertiary mb-1 border-b px-2 py-2">
+                    <p className="font-honk text-body text-honk-fg-red-primary">
                       Base branch &ldquo;{missingStoredBranch}&rdquo; is no longer available.
                     </p>
-                    <p className="mt-1 font-multi text-detail text-multi-fg-tertiary">
+                    <p className="mt-1 font-honk text-detail text-honk-fg-tertiary">
                       It may have been deleted on the remote. Choose another branch below.
                     </p>
                   </div>
@@ -495,20 +496,20 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                           variant="workbench"
                           className={cn(
                             branch.name === selectedBranch &&
-                              "bg-multi-bg-tertiary text-multi-fg-primary",
+                              "bg-honk-bg-tertiary text-honk-fg-primary",
                           )}
                           onClick={() => selectBranch(branch)}
                         >
                           <BranchIconWithState hasLocalChanges={branchHasLocalChanges} />
                           <span className="min-w-0 flex-1 truncate text-left">{branch.name}</span>
                           {branchHasLocalChanges ? (
-                            <span className="shrink-0 text-detail text-multi-fg-tertiary">
+                            <span className="shrink-0 text-detail text-honk-fg-tertiary">
                               with changes
                             </span>
                           ) : null}
                           {branch.name === selectedBranch ? (
                             <IconCheckmark1Small
-                              className="size-3.5 shrink-0 text-multi-fg-primary"
+                              className="size-3.5 shrink-0 text-honk-fg-primary"
                               aria-hidden
                             />
                           ) : null}
@@ -518,14 +519,14 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   </div>
                 ))}
                 {branchesQuery.isFetching && branchMenuSections.length === 0 ? (
-                  <div className="px-2 py-4 text-center font-multi text-body text-multi-fg-tertiary">
+                  <div className="px-2 py-4 text-center font-honk text-body text-honk-fg-tertiary">
                     Loading branches...
                   </div>
                 ) : null}
                 {branchMenuSections.length === 0 &&
                 !showPullRequestItem &&
                 !branchesQuery.isFetching ? (
-                  <div className="px-2 py-4 text-center font-multi text-body text-multi-fg-tertiary">
+                  <div className="px-2 py-4 text-center font-honk text-body text-honk-fg-tertiary">
                     No branches found
                   </div>
                 ) : null}

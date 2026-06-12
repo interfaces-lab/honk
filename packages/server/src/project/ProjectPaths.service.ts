@@ -19,6 +19,10 @@ export class ProjectRootNotExistsError extends Schema.TaggedErrorClass<ProjectRo
   override get message(): string {
     return `Project root does not exist: ${this.normalizedProjectRoot}`;
   }
+
+  get detail(): string {
+    return this.message;
+  }
 }
 
 export class ProjectRootCreateFailedError extends Schema.TaggedErrorClass<ProjectRootCreateFailedError>()(
@@ -30,6 +34,10 @@ export class ProjectRootCreateFailedError extends Schema.TaggedErrorClass<Projec
 ) {
   override get message(): string {
     return `Failed to create project root: ${this.normalizedProjectRoot}`;
+  }
+
+  get detail(): string {
+    return this.message;
   }
 }
 
@@ -43,7 +51,16 @@ export class ProjectRootNotDirectoryError extends Schema.TaggedErrorClass<Projec
   override get message(): string {
     return `Project root is not a directory: ${this.normalizedProjectRoot}`;
   }
+
+  get detail(): string {
+    return this.message;
+  }
 }
+
+export type ProjectRootNormalizeError =
+  | ProjectRootNotExistsError
+  | ProjectRootCreateFailedError
+  | ProjectRootNotDirectoryError;
 
 export class ProjectPathOutsideRootError extends Schema.TaggedErrorClass<ProjectPathOutsideRootError>()(
   "ProjectPathOutsideRootError",
@@ -75,10 +92,7 @@ export interface ProjectPathsShape {
   readonly normalizeProjectRoot: (
     projectRoot: string,
     options?: { readonly createIfMissing?: boolean },
-  ) => Effect.Effect<
-    string,
-    ProjectRootNotExistsError | ProjectRootCreateFailedError | ProjectRootNotDirectoryError
-  >;
+  ) => Effect.Effect<string, ProjectRootNormalizeError>;
 
   /**
    * Resolve a relative path within a validated project root.
@@ -95,5 +109,5 @@ export interface ProjectPathsShape {
  * ProjectPaths - Service tag for project path normalization and resolution.
  */
 export class ProjectPaths extends Context.Service<ProjectPaths, ProjectPathsShape>()(
-  "multi/project/ProjectPaths.service",
+  "honk/project/ProjectPaths.service",
 ) {}

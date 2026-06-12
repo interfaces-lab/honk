@@ -1,4 +1,4 @@
-import { AuthClientMetadataDeviceType, AuthSessionId } from "@multi/contracts";
+import { AuthClientMetadataDeviceType, AuthSessionId } from "@honk/contracts";
 import { Option, Schema, Context } from "effect";
 import type { Effect } from "effect";
 
@@ -90,4 +90,4 @@ export interface AuthSessionRepositoryShape {
 export class AuthSessionRepository extends Context.Service<
   AuthSessionRepository,
   AuthSessionRepositoryShape
->()("multi/persistence/AuthSessions.service/AuthSessionRepository") {}
+>()("honk/persistence/AuthSessions.service/AuthSessionRepository") {}

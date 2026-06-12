@@ -1,11 +1,11 @@
 "use client";
 import { IconChevronRightMedium, IconClipboard, IconStepBack } from "central-icons";
-import type { GitFilePatchResult } from "@multi/contracts";
+import type { GitFilePatchResult } from "@honk/contracts";
 import { MiddleTruncate } from "@pierre/truncate/react";
 import { memo, type RefObject, useRef } from "react";
 import { toast } from "sonner";
-import { Button } from "@multi/multikit/button";
-import { Checkbox } from "@multi/multikit/checkbox";
+import { Button } from "@honk/multikit/button";
+import { Checkbox } from "@honk/multikit/checkbox";
 
 import type { DiffRow } from "~/hooks/use-environment-git";
 import { cn } from "~/lib/utils";
@@ -58,8 +58,8 @@ export function GitDiffCard(props: {
         ref={rootRef}
         data-diff-card-id={props.file.id}
         className={cn(
-          "@container min-w-0 border-0 border-b border-multi-workbench-panel-border-muted bg-(--multi-chat-surface-background) last:border-b-transparent",
-          props.selected && "bg-(--multi-chat-surface-background)",
+          "@container min-w-0 border-0 border-b border-honk-workbench-panel-border-muted bg-(--honk-chat-surface-background) last:border-b-transparent",
+          props.selected && "bg-(--honk-chat-surface-background)",
         )}
       >
         {props.expanded ? (
@@ -99,8 +99,8 @@ export function GitDiffCard(props: {
       ref={rootRef}
       data-diff-card-id={props.file.id}
       className={cn(
-        "@container flex min-h-0 min-w-0 select-none flex-col overflow-hidden border-0 border-b border-multi-workbench-panel-border-muted bg-(--multi-chat-surface-background) transition-colors last:border-b-transparent",
-        props.selected && "bg-(--multi-chat-surface-background)",
+        "@container flex min-h-0 min-w-0 select-none flex-col overflow-hidden border-0 border-b border-honk-workbench-panel-border-muted bg-(--honk-chat-surface-background) transition-colors last:border-b-transparent",
+        props.selected && "bg-(--honk-chat-surface-background)",
       )}
     >
       {props.expanded ? (
@@ -122,7 +122,7 @@ export function GitDiffCard(props: {
         onToggleViewed={toggleViewed}
       />
       {props.expanded && hasDiffBody ? (
-        <div className="min-h-0 min-w-0 bg-(--multi-git-diff-editor-background) select-text">
+        <div className="min-h-0 min-w-0 bg-(--honk-git-diff-editor-background) select-text">
           {showLoading ? (
             <div className="flex flex-col gap-2 p-3">
               <div className="h-3 w-full max-w-56 animate-pulse rounded bg-muted/35" />
@@ -165,8 +165,8 @@ export function GitDiffCardHeader(props: {
   return (
     <div
       className={cn(
-        "group/git-diff-header flex h-8 min-h-8 w-full shrink-0 select-none flex-nowrap items-center gap-1 overflow-hidden border-b bg-(--multi-git-diff-editor-background) px-1.5 py-0 text-multi-code",
-        props.expanded ? "border-multi-git-diff-header-border" : "border-b-transparent",
+        "group/git-diff-header flex h-8 min-h-8 w-full shrink-0 select-none flex-nowrap items-center gap-1 overflow-hidden border-b bg-(--honk-git-diff-editor-background) px-1.5 py-0 text-honk-code",
+        props.expanded ? "border-honk-git-diff-header-border" : "border-b-transparent",
       )}
     >
       <Button
@@ -178,18 +178,18 @@ export function GitDiffCardHeader(props: {
         aria-expanded={props.expanded}
         title={props.file.path}
       >
-        <span className="inline-flex size-4 shrink-0 items-center justify-center text-multi-icon-secondary">
+        <span className="inline-flex size-4 shrink-0 items-center justify-center text-honk-icon-secondary">
           <VsFileIcon path={props.file.path} className="size-4" />
         </span>
         <span className="flex min-w-0 flex-1 basis-0 items-center overflow-hidden">
           <GitDiffHeaderPath path={props.file.path} />
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 font-multi-mono tabular-nums @max-[360px]:gap-1">
+        <span className="flex shrink-0 items-center gap-1.5 font-honk-mono tabular-nums @max-[360px]:gap-1">
           {props.file.add > 0 ? (
-            <span className="text-(--multi-diff-addition)">+{props.file.add}</span>
+            <span className="text-(--honk-diff-addition)">+{props.file.add}</span>
           ) : null}
           {props.file.del > 0 ? (
-            <span className="text-(--multi-diff-deletion)">-{props.file.del}</span>
+            <span className="text-(--honk-diff-deletion)">-{props.file.del}</span>
           ) : null}
         </span>
       </Button>
@@ -204,7 +204,7 @@ export function GitDiffCardHeader(props: {
         {fileStatus ? (
           <span
             className={cn(
-              "max-w-24 shrink-0 truncate font-multi text-multi-code tabular-nums",
+              "max-w-24 shrink-0 truncate font-honk text-honk-code tabular-nums",
               fileStatus.className,
             )}
             title={fileStatus.label}
@@ -237,7 +237,7 @@ const GitDiffHeaderPath = memo(function GitDiffHeaderPath(props: { readonly path
     <MiddleTruncate
       split="leaf-path"
       priority="end"
-      className="min-w-0 flex-1 whitespace-normal font-normal text-multi-fg-primary [--truncate-marker-background-color:var(--multi-git-diff-editor-background)]"
+      className="min-w-0 flex-1 whitespace-normal font-normal text-honk-fg-primary [--truncate-marker-background-color:var(--honk-git-diff-editor-background)]"
     >
       {props.path}
     </MiddleTruncate>
@@ -257,7 +257,7 @@ function GitDiffHeaderIconButton(props: {
       onClick={props.onClick}
       aria-label={props["aria-label"]}
       title={props.title}
-      className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-[4px] border-0 bg-transparent px-1 text-multi-icon-secondary shadow-none before:hidden transition-colors hover:bg-transparent hover:text-multi-icon-primary focus-visible:ring-1 focus-visible:ring-multi-stroke-focused focus-visible:ring-inset"
+      className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-[4px] border-0 bg-transparent px-1 text-honk-icon-secondary shadow-none before:hidden transition-colors hover:bg-transparent hover:text-honk-icon-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
     >
       {props.children}
     </Button>
@@ -272,27 +272,27 @@ function resolveGitDiffHeaderStatus(props: {
   if (props.statusLabel) {
     return {
       label: props.statusLabel,
-      className: props.statusTone === "danger" ? "text-destructive/85" : "text-multi-fg-tertiary",
+      className: props.statusTone === "danger" ? "text-destructive/85" : "text-honk-fg-tertiary",
     };
   }
 
   switch (props.file.state) {
     case "added":
-      return { label: "Added", className: "text-(--multi-diff-addition)" };
+      return { label: "Added", className: "text-(--honk-diff-addition)" };
     case "conflict":
       return { label: "Conflict", className: "text-destructive/90" };
     case "deleted":
-      return { label: "Deleted", className: "text-(--multi-diff-deletion)" };
+      return { label: "Deleted", className: "text-(--honk-diff-deletion)" };
     case "ignored":
-      return { label: "Ignored", className: "text-multi-fg-tertiary" };
+      return { label: "Ignored", className: "text-honk-fg-tertiary" };
     case "modified":
       return props.file.add === 0 && props.file.del === 0
-        ? { label: "Changed", className: "text-multi-fg-tertiary" }
+        ? { label: "Changed", className: "text-honk-fg-tertiary" }
         : null;
     case "renamed":
-      return { label: "Renamed", className: "text-multi-fg-tertiary" };
+      return { label: "Renamed", className: "text-honk-fg-tertiary" };
     case "untracked":
-      return { label: "Untracked", className: "text-(--multi-diff-addition)" };
+      return { label: "Untracked", className: "text-(--honk-diff-addition)" };
     default:
       return null;
   }

@@ -1,5 +1,5 @@
-import { Button } from "@multi/multikit/button";
-import { Textarea } from "@multi/multikit/textarea";
+import { Button } from "@honk/multikit/button";
+import { Textarea } from "@honk/multikit/textarea";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
 import { useState, type FormEvent } from "react";
 
@@ -45,9 +45,9 @@ export function ProposedPlanMessage({
     <div className="box-border flex w-full min-w-0 justify-start">
       <div
         data-proposed-plan-message=""
-        className="flex w-full min-w-0 flex-col overflow-hidden rounded-multi-card border border-multi-stroke-secondary bg-multi-bg-secondary text-conversation text-multi-fg-primary shadow-multi-card"
+        className="flex w-full min-w-0 flex-col overflow-hidden rounded-honk-card border border-honk-stroke-secondary bg-honk-bg-secondary text-conversation text-honk-fg-primary shadow-honk-card"
       >
-        <div className="flex min-w-0 items-center gap-2 border-b border-multi-stroke-tertiary px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2 border-b border-honk-stroke-tertiary px-3 py-2">
           <div className="min-w-0 flex-1 truncate text-title font-medium">{title}</div>
           {canEdit && !editing ? (
             <Button
@@ -70,8 +70,8 @@ export function ProposedPlanMessage({
             <Textarea
               value={draft}
               onChange={(event) => setDraft(event.currentTarget.value)}
-              className="bg-multi-bg-primary"
-              controlClassName="min-h-48 resize-y px-2 py-2 font-multi-mono text-detail leading-relaxed"
+              className="bg-honk-bg-primary"
+              controlClassName="min-h-48 resize-y px-2 py-2 font-honk-mono text-detail leading-relaxed"
               data-proposed-plan-editor=""
               aria-label="Edit plan"
               spellCheck={false}

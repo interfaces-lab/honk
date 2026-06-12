@@ -1,4 +1,4 @@
-import type { DesktopWindowChromeState } from "@multi/contracts";
+import type { DesktopWindowChromeState } from "@honk/contracts";
 
 import { isElectronHost } from "../env";
 
@@ -16,12 +16,12 @@ export const MACOS_TRAFFIC_LIGHTS = {
   paddingTop: 28,
 } as const;
 
-const INSET = "--multi-electron-traffic-inset";
-const TOP = "--multi-electron-traffic-padding-top";
-const CONTROL_HEIGHT = "--multi-titlebar-control-height";
-const SIDEBAR_CONTENT_TOP_OFFSET = "--multi-shell-sidebar-content-top-offset";
+const INSET = "--honk-electron-traffic-inset";
+const TOP = "--honk-electron-traffic-padding-top";
+const CONTROL_HEIGHT = "--honk-titlebar-control-height";
+const SIDEBAR_CONTENT_TOP_OFFSET = "--honk-shell-sidebar-content-top-offset";
 /** Match Cursor/VS Code `.part.titlebar` (`height: 34px` in workbench.desktop.main.css). */
-const TITLEBAR_HEIGHT = "--multi-header-height";
+const TITLEBAR_HEIGHT = "--honk-header-height";
 /** Match Cursor no-titlebar content/top-tab reserve (`padding-top: 35px`). */
 const TITLEBAR_CONTENT_RESERVE_PX = 35;
 const FULLSCREEN_TRAFFIC_INSET_PX = 8;

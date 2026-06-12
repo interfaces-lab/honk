@@ -6,7 +6,7 @@ import type {
   ScopedProjectRef,
   ScopedThreadRef,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import type { HarnessKind } from "~/lib/ui-session-types";
 

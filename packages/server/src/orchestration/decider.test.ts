@@ -4,7 +4,7 @@ import {
   ThreadId,
   type OrchestrationReadModel,
   type OrchestrationThread,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

@@ -1,10 +1,13 @@
 import {
-  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+  AccountId,
+  AuthProviderId,
+  ModelId,
   type AgentInteractionMode,
   type AgentModelPolicy,
   type AgentPreferences,
   type AgentThinkingLevel,
-} from "@multi/contracts";
+  type ModelSelection,
+} from "@honk/contracts";
 
 function thinkingLevelForAgentMode(agentMode: AgentPreferences["agentMode"]): AgentThinkingLevel {
   switch (agentMode) {
@@ -15,6 +18,29 @@ function thinkingLevelForAgentMode(agentMode: AgentPreferences["agentMode"]): Ag
     case "deep":
       return "high";
   }
+}
+
+export function authProviderIdForModelSelection(modelSelection: ModelSelection): AuthProviderId {
+  switch (modelSelection.instanceId) {
+    case "claudeAgent":
+      return AuthProviderId.make("anthropic");
+    case "codex":
+      return AuthProviderId.make("openai-codex");
+    default:
+      return AuthProviderId.make(modelSelection.instanceId);
+  }
+}
+
+export function agentPolicyModelSelectionForPinnedModel(
+  modelSelection: ModelSelection,
+): AgentModelPolicy["modelSelection"] {
+  const authProviderId = authProviderIdForModelSelection(modelSelection);
+  return {
+    type: "explicit",
+    authProviderId,
+    accountId: AccountId.make(`${authProviderId}:default`),
+    modelId: ModelId.make(`${authProviderId}/${modelSelection.model}`),
+  };
 }
 
 function selectedModelThinkingLevel(input: {
@@ -30,8 +56,9 @@ function selectedModelThinkingLevel(input: {
 export function createAgentModelPolicy(input: {
   readonly preferences: AgentPreferences;
   readonly interactionMode: AgentInteractionMode;
+  readonly modelSelection: ModelSelection;
 }): AgentModelPolicy {
-  const modelSelection = input.preferences.modelSelection ?? DEFAULT_AGENT_POLICY_MODEL_SELECTION;
+  const modelSelection = agentPolicyModelSelectionForPinnedModel(input.modelSelection);
   const modelThinkingLevel = selectedModelThinkingLevel({
     preferences: input.preferences,
     modelSelection,

@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import {
   ConversationDensity,
   USER_CONVERSATION_DENSITY_VALUES,
-} from "@multi/contracts/settings";
+} from "@honk/contracts/settings";
 import {
   shouldGroupEdits,
   shouldGroupShells,

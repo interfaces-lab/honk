@@ -1,9 +1,9 @@
 import {
   TurnId,
   type LocalApi,
-  type MultiRuntimeApi,
-  type MultiRuntimeHostSnapshot,
-} from "@multi/contracts";
+  type HonkRuntimeApi,
+  type HonkRuntimeHostSnapshot,
+} from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,7 +11,7 @@ import {
   createEmptyRuntimeHostSnapshot,
   isDesktopRuntimeApiAvailable,
   readLocalApi,
-  readMultiRuntimeApi,
+  readHonkRuntimeApi,
   registerRuntimeApiResolver,
   resetLocalApiForTests,
   resetRuntimeApiResolverForTests,
@@ -22,7 +22,7 @@ async function notCalled(): Promise<never> {
   throw new Error("Unexpected local API call.");
 }
 
-function createRuntimeApi(snapshot: MultiRuntimeHostSnapshot): MultiRuntimeApi {
+function createRuntimeApi(snapshot: HonkRuntimeHostSnapshot): HonkRuntimeApi {
   return {
     getHostSnapshot: async () => snapshot,
     getPreferences: async () => snapshot.preferences,
@@ -36,7 +36,7 @@ function createRuntimeApi(snapshot: MultiRuntimeHostSnapshot): MultiRuntimeApi {
   };
 }
 
-function createTestLocalApi(runtime: MultiRuntimeApi): LocalApi {
+function createTestLocalApi(runtime: HonkRuntimeApi): LocalApi {
   return {
     runtime,
     dialogs: {
@@ -63,7 +63,7 @@ function createTestLocalApi(runtime: MultiRuntimeApi): LocalApi {
   };
 }
 
-describe("readMultiRuntimeApi", () => {
+describe("readHonkRuntimeApi", () => {
   beforeEach(() => {
     resetLocalApiForTests();
     resetRuntimeApiResolverForTests();
@@ -81,7 +81,7 @@ describe("readMultiRuntimeApi", () => {
       if (window.nativeApi?.runtime) {
         return window.nativeApi.runtime;
       }
-      return window.desktopBridge?.runtime ?? window.multiRuntime;
+      return window.desktopBridge?.runtime ?? window.honkRuntime;
     });
     configureRuntimeClientBootstrap({ readLocalApi });
   });
@@ -102,7 +102,7 @@ describe("readMultiRuntimeApi", () => {
       nativeApi: createTestLocalApi(createRuntimeApi(snapshot)),
     });
 
-    await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toBe(snapshot);
+    await expect(readHonkRuntimeApi().getHostSnapshot()).resolves.toStrictEqual(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
   });
 
@@ -117,7 +117,7 @@ describe("readMultiRuntimeApi", () => {
       },
     });
 
-    await expect(readMultiRuntimeApi().getHostSnapshot()).resolves.toBe(snapshot);
+    await expect(readHonkRuntimeApi().getHostSnapshot()).resolves.toStrictEqual(snapshot);
     expect(isDesktopRuntimeApiAvailable()).toBe(true);
   });
 
@@ -125,6 +125,6 @@ describe("readMultiRuntimeApi", () => {
     vi.stubGlobal("window", {});
 
     expect(isDesktopRuntimeApiAvailable()).toBe(false);
-    expect(() => readMultiRuntimeApi()).toThrow("Runtime host unavailable.");
+    expect(() => readHonkRuntimeApi()).toThrow("Runtime host unavailable.");
   });
 });

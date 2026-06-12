@@ -3,12 +3,12 @@ import {
   type ClientSettings,
   type ContextMenuItem,
   type LocalApi,
-  type MultiRuntimeApi,
-} from "@multi/contracts";
+  type HonkRuntimeApi,
+} from "@honk/contracts";
 
 import { configureRuntimeClientBootstrap, registerRuntimeApiResolver } from "./runtime-client";
 
-const CLIENT_SETTINGS_STORAGE_KEY = "multi:client-settings:v1";
+const CLIENT_SETTINGS_STORAGE_KEY = "honk:client-settings:v1";
 
 export type LocalApiRpcClient = {
   readonly server: LocalApi["server"];
@@ -35,11 +35,11 @@ export function resetLocalApiHostForTests(): void {
   localApiHost = null;
 }
 
-function readBootstrapRuntimeApi(): MultiRuntimeApi | undefined {
+function readBootstrapRuntimeApi(): HonkRuntimeApi | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
-  return window.desktopBridge?.runtime ?? window.multiRuntime;
+  return window.desktopBridge?.runtime ?? window.honkRuntime;
 }
 
 function attachDesktopRuntimeApi(api: Omit<LocalApi, "runtime">): LocalApi {

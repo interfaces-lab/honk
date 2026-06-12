@@ -5,8 +5,8 @@ import {
   TurnId,
   type AgentRuntimeEvent,
   type OrchestrationThreadActivity,
-} from "@multi/contracts";
-import { toJsonValue } from "@multi/shared/schema-json";
+} from "@honk/contracts";
+import { toJsonValue } from "@honk/shared/schema-json";
 
 type RuntimeSubagentActivityKind = Extract<
   OrchestrationThreadActivity["kind"],

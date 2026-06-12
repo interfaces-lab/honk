@@ -1,5 +1,5 @@
 import { IconFiles } from "central-icons";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 
 export function EmptyFilePreview(props: { onOpenFile: () => void }) {
   return (

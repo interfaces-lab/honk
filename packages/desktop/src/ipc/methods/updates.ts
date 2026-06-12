@@ -2,7 +2,7 @@ import {
   DesktopUpdateActionResultSchema,
   DesktopUpdateCheckResultSchema,
   DesktopUpdateStateSchema,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 

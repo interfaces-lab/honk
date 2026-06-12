@@ -139,7 +139,7 @@ function respondToStaticRouteError(error: StaticRouteError) {
 
 export const serverEnvironmentRouteLayer = HttpRouter.add(
   "GET",
-  "/.well-known/multi/environment",
+  "/.well-known/honk/environment",
   Effect.gen(function* () {
     const descriptor = yield* Effect.service(ServerEnvironment).pipe(
       Effect.flatMap((serverEnvironment) => serverEnvironment.getDescriptor),

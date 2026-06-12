@@ -1,4 +1,4 @@
-import { CommandId, MessageId, ProjectId, ThreadId } from "@multi/contracts";
+import { CommandId, MessageId, ProjectId, ThreadId } from "@honk/contracts";
 import { type CxOptions, cx } from "class-variance-authority";
 import { extendTailwindMerge } from "tailwind-merge";
 import * as Random from "effect/Random";
@@ -11,11 +11,11 @@ const twMerge = extendTailwindMerge({
       "font-size": [
         {
           text: [
-            "multi-xs",
-            "multi-sm",
-            "multi-base",
-            "multi-lg",
-            "multi-xl",
+            "honk-xs",
+            "honk-sm",
+            "honk-base",
+            "honk-lg",
+            "honk-xl",
             "caption",
             "detail",
             "body",
@@ -31,10 +31,10 @@ const twMerge = extendTailwindMerge({
       "text-color": [
         {
           text: [
-            "multi-fg-primary",
-            "multi-fg-secondary",
-            "multi-fg-tertiary",
-            "multi-fg-quaternary",
+            "honk-fg-primary",
+            "honk-fg-secondary",
+            "honk-fg-tertiary",
+            "honk-fg-quaternary",
           ],
         },
       ],

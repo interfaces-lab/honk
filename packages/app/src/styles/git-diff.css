@@ -1,97 +1,97 @@
 html {
-  --multi-git-diff-header-border: color-mix(in srgb, var(--multi-stroke-tertiary) 82%, transparent);
-  --multi-git-diff-addition: #1f8a65;
-  --multi-git-diff-deletion: #cf2d56;
-  --multi-git-diff-editor-background: var(
-    --multi-color-editor-opaque,
-    var(--multi-workbench-editor-surface-background)
+  --honk-git-diff-header-border: color-mix(in srgb, var(--honk-stroke-tertiary) 82%, transparent);
+  --honk-git-diff-addition: #1f8a65;
+  --honk-git-diff-deletion: #cf2d56;
+  --honk-git-diff-editor-background: var(
+    --honk-color-editor-opaque,
+    var(--honk-workbench-editor-surface-background)
   );
-  --multi-git-diff-addition-gutter: color-mix(
+  --honk-git-diff-addition-gutter: color-mix(
     in srgb,
-    var(--multi-git-diff-addition) 60%,
-    var(--multi-git-diff-editor-background)
+    var(--honk-git-diff-addition) 60%,
+    var(--honk-git-diff-editor-background)
   );
-  --multi-git-diff-deletion-gutter: color-mix(
+  --honk-git-diff-deletion-gutter: color-mix(
     in srgb,
-    var(--multi-git-diff-deletion) 60%,
-    var(--multi-git-diff-editor-background)
+    var(--honk-git-diff-deletion) 60%,
+    var(--honk-git-diff-editor-background)
   );
-  --multi-git-diff-addition-line-background: #1f8a651f;
-  --multi-git-diff-addition-text-background: #1f8a6524;
-  --multi-git-diff-deletion-line-background: #cf2d5614;
-  --multi-git-diff-deletion-text-background: #cf2d561f;
-  --multi-git-diff-line-number: #1414147a;
-  --multi-git-diff-addition-line-number: #1f8a65;
-  --multi-git-diff-deletion-line-number: #b3003f;
-  --multi-git-diff-collapsed-background: color-mix(
+  --honk-git-diff-addition-line-background: #1f8a651f;
+  --honk-git-diff-addition-text-background: #1f8a6524;
+  --honk-git-diff-deletion-line-background: #cf2d5614;
+  --honk-git-diff-deletion-text-background: #cf2d561f;
+  --honk-git-diff-line-number: #1414147a;
+  --honk-git-diff-addition-line-number: #1f8a65;
+  --honk-git-diff-deletion-line-number: #b3003f;
+  --honk-git-diff-collapsed-background: color-mix(
     in srgb,
-    var(--multi-git-diff-editor-background) 96%,
+    var(--honk-git-diff-editor-background) 96%,
     var(--foreground)
   );
   /* Static syntax-highlight shim colors, mirroring the cursor diff themes in diff-rendering.ts. */
-  --multi-git-diff-syntax-keyword: #b3003f;
-  --multi-git-diff-syntax-variable: #206595;
-  --multi-git-diff-syntax-punctuation: #141414eb;
+  --honk-git-diff-syntax-keyword: #b3003f;
+  --honk-git-diff-syntax-variable: #206595;
+  --honk-git-diff-syntax-punctuation: #141414eb;
 }
 
 html.dark {
-  --multi-git-diff-addition: #3fa266;
-  --multi-git-diff-deletion: #fc6b83;
-  --multi-git-diff-editor-background: var(
-    --multi-color-editor-opaque,
-    var(--multi-workbench-editor-surface-background)
+  --honk-git-diff-addition: #3fa266;
+  --honk-git-diff-deletion: #fc6b83;
+  --honk-git-diff-editor-background: var(
+    --honk-color-editor-opaque,
+    var(--honk-workbench-editor-surface-background)
   );
-  --multi-git-diff-addition-gutter: color-mix(
+  --honk-git-diff-addition-gutter: color-mix(
     in srgb,
-    var(--multi-git-diff-addition) 60%,
-    var(--multi-git-diff-editor-background)
+    var(--honk-git-diff-addition) 60%,
+    var(--honk-git-diff-editor-background)
   );
-  --multi-git-diff-deletion-gutter: color-mix(
+  --honk-git-diff-deletion-gutter: color-mix(
     in srgb,
-    var(--multi-git-diff-deletion) 60%,
-    var(--multi-git-diff-editor-background)
+    var(--honk-git-diff-deletion) 60%,
+    var(--honk-git-diff-editor-background)
   );
-  --multi-git-diff-addition-line-background: #3fa26633;
-  --multi-git-diff-addition-text-background: #3fa26622;
-  --multi-git-diff-deletion-line-background: #b8004933;
-  --multi-git-diff-deletion-text-background: #b8004922;
-  --multi-git-diff-line-number: #e4e4e442;
-  --multi-git-diff-addition-line-number: #70b489;
-  --multi-git-diff-deletion-line-number: #fc6b83;
-  --multi-git-diff-collapsed-background: color-mix(
+  --honk-git-diff-addition-line-background: #3fa26633;
+  --honk-git-diff-addition-text-background: #3fa26622;
+  --honk-git-diff-deletion-line-background: #b8004933;
+  --honk-git-diff-deletion-text-background: #b8004922;
+  --honk-git-diff-line-number: #e4e4e442;
+  --honk-git-diff-addition-line-number: #70b489;
+  --honk-git-diff-deletion-line-number: #fc6b83;
+  --honk-git-diff-collapsed-background: color-mix(
     in srgb,
-    var(--multi-git-diff-editor-background) 96%,
+    var(--honk-git-diff-editor-background) 96%,
     var(--foreground)
   );
-  --multi-git-diff-syntax-keyword: #82d2ce;
-  --multi-git-diff-syntax-variable: #87c3ff;
-  --multi-git-diff-syntax-punctuation: #d6d6dd;
+  --honk-git-diff-syntax-keyword: #82d2ce;
+  --honk-git-diff-syntax-variable: #87c3ff;
+  --honk-git-diff-syntax-punctuation: #d6d6dd;
 }
 
 /* Pierre diffs CSS bridge - layout variables inherit into Shadow DOM */
 [data-diffs-container] {
-  --diffs-light-bg: var(--multi-git-diff-editor-background);
-  --diffs-dark-bg: var(--multi-git-diff-editor-background);
+  --diffs-light-bg: var(--honk-git-diff-editor-background);
+  --diffs-dark-bg: var(--honk-git-diff-editor-background);
   --diffs-light: var(--foreground);
   --diffs-dark: var(--foreground);
-  --diffs-bg-context-override: var(--multi-git-diff-editor-background);
-  --diffs-bg-context-gutter-override: var(--multi-git-diff-editor-background);
-  --diffs-bg-buffer-override: var(--multi-git-diff-editor-background);
-  --diffs-bg-separator-override: var(--multi-git-diff-collapsed-background);
-  --diffs-bg-hover-override: var(--multi-workbench-toolbar-hover-background);
-  --diffs-bg-selection-override: var(--multi-color-active);
-  --diffs-addition-color-override: var(--multi-git-diff-addition);
-  --diffs-deletion-color-override: var(--multi-git-diff-deletion);
-  --diffs-bg-addition-override: var(--multi-git-diff-addition-line-background);
-  --diffs-bg-deletion-override: var(--multi-git-diff-deletion-line-background);
-  --diffs-bg-addition-emphasis-override: var(--multi-git-diff-addition-text-background);
-  --diffs-bg-deletion-emphasis-override: var(--multi-git-diff-deletion-text-background);
-  --diffs-fg-number-override: var(--multi-git-diff-line-number);
-  --diffs-fg-number-addition-override: var(--multi-git-diff-addition-line-number);
-  --diffs-fg-number-deletion-override: var(--multi-git-diff-deletion-line-number);
-  --diffs-font-family: var(--multi-font-mono);
-  --diffs-header-font-family: var(--multi-font-ui);
-  --diffs-font-size: var(--multi-code-font-size-user, 12px);
+  --diffs-bg-context-override: var(--honk-git-diff-editor-background);
+  --diffs-bg-context-gutter-override: var(--honk-git-diff-editor-background);
+  --diffs-bg-buffer-override: var(--honk-git-diff-editor-background);
+  --diffs-bg-separator-override: var(--honk-git-diff-collapsed-background);
+  --diffs-bg-hover-override: var(--honk-workbench-toolbar-hover-background);
+  --diffs-bg-selection-override: var(--honk-color-active);
+  --diffs-addition-color-override: var(--honk-git-diff-addition);
+  --diffs-deletion-color-override: var(--honk-git-diff-deletion);
+  --diffs-bg-addition-override: var(--honk-git-diff-addition-line-background);
+  --diffs-bg-deletion-override: var(--honk-git-diff-deletion-line-background);
+  --diffs-bg-addition-emphasis-override: var(--honk-git-diff-addition-text-background);
+  --diffs-bg-deletion-emphasis-override: var(--honk-git-diff-deletion-text-background);
+  --diffs-fg-number-override: var(--honk-git-diff-line-number);
+  --diffs-fg-number-addition-override: var(--honk-git-diff-addition-line-number);
+  --diffs-fg-number-deletion-override: var(--honk-git-diff-deletion-line-number);
+  --diffs-font-family: var(--honk-font-mono);
+  --diffs-header-font-family: var(--honk-font-ui);
+  --diffs-font-size: var(--honk-code-font-size-user, 12px);
   --diffs-line-height: 20px;
   /*
    * Pierre pads the code grid by --diffs-gap-block (8px fallback) on the block
@@ -102,21 +102,21 @@ html.dark {
   --diffs-gap-block: 0px;
   min-width: 0;
   max-width: 100%;
-  font-family: var(--multi-font-mono);
-  font-size: var(--multi-code-font-size-user, 12px);
+  font-family: var(--honk-font-mono);
+  font-size: var(--honk-code-font-size-user, 12px);
   line-height: 20px;
 }
 
 .web-component[data-diffs-container] {
   color: var(--foreground);
-  background-color: var(--multi-git-diff-editor-background);
+  background-color: var(--honk-git-diff-editor-background);
 }
 
 .web-component[data-diffs-container] > diffs-container {
   display: block;
   max-width: 100%;
   min-width: 0;
-  background-color: var(--multi-git-diff-editor-background);
+  background-color: var(--honk-git-diff-editor-background);
 }
 
 .diff-render-file {

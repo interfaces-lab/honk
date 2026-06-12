@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Command } from "effect/unstable/cli";
 
-import { NetService } from "@multi/shared/Net";
+import { NetService } from "@honk/shared/Net";
 import { cli } from "./cli";
 import { version } from "../package.json" with { type: "json" };
 

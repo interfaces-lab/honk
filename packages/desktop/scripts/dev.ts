@@ -18,7 +18,7 @@ const devPortProbeHosts = ["127.0.0.1", "0.0.0.0", "::1", "::"] as const;
 const staleProcessTerminateGraceMs = 2_000;
 const staleProcessPollIntervalMs = 50;
 const forcedDevShutdownTimeoutMs = 3_000;
-const desktopBootstrapTokenEnv = "MULTI_DESKTOP_BOOTSTRAP_TOKEN";
+const desktopBootstrapTokenEnv = "HONK_DESKTOP_BOOTSTRAP_TOKEN";
 const shutdownSignals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 type ShutdownSignal = (typeof shutdownSignals)[number];
@@ -65,25 +65,25 @@ function resolveOffset(env: NodeJS.ProcessEnv): {
   readonly offset: number;
   readonly source: string;
 } {
-  const explicitOffset = parseOptionalInteger(env.MULTI_PORT_OFFSET);
+  const explicitOffset = parseOptionalInteger(env.HONK_PORT_OFFSET);
   if (explicitOffset !== undefined) {
     if (explicitOffset < 0) {
-      throw new Error(`Invalid MULTI_PORT_OFFSET: ${explicitOffset}`);
+      throw new Error(`Invalid HONK_PORT_OFFSET: ${explicitOffset}`);
     }
-    return { offset: explicitOffset, source: `MULTI_PORT_OFFSET=${explicitOffset}` };
+    return { offset: explicitOffset, source: `HONK_PORT_OFFSET=${explicitOffset}` };
   }
 
-  const seed = env.MULTI_DEV_INSTANCE?.trim();
+  const seed = env.HONK_DEV_INSTANCE?.trim();
   if (!seed) {
     return { offset: 0, source: "default ports" };
   }
 
   if (/^\d+$/.test(seed)) {
-    return { offset: Number(seed), source: `numeric MULTI_DEV_INSTANCE=${seed}` };
+    return { offset: Number(seed), source: `numeric HONK_DEV_INSTANCE=${seed}` };
   }
 
   const offset = (hashString(seed) % maxHashOffset) + 1;
-  return { offset, source: `hashed MULTI_DEV_INSTANCE=${seed}` };
+  return { offset, source: `hashed HONK_DEV_INSTANCE=${seed}` };
 }
 
 function canListenOnHost(port: number, host: string): Promise<boolean> {
@@ -135,18 +135,18 @@ async function findFirstAvailableOffset(input: {
 
 function resolveDevUserDataDir() {
   if (process.platform === "win32") {
-    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "multi-dev");
+    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "honk-dev");
   }
 
   if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "multi-dev");
+    return join(homedir(), "Library", "Application Support", "honk-dev");
   }
 
-  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "multi-dev");
+  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "honk-dev");
 }
 
 async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
-  const explicitBackendPort = parseOptionalPort(baseEnv.MULTI_PORT);
+  const explicitBackendPort = parseOptionalPort(baseEnv.HONK_PORT);
   const explicitRendererUrl = baseEnv.VITE_DEV_SERVER_URL?.trim() || undefined;
   const { offset, source } = resolveOffset(baseEnv);
   const selectedOffset = await findFirstAvailableOffset({
@@ -156,7 +156,7 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
   });
   const backendPort = explicitBackendPort ?? baseServerPort + selectedOffset;
   const rendererPort = parseOptionalPort(baseEnv.PORT) ?? baseRendererPort + selectedOffset;
-  const multiHome = resolve(baseEnv.MULTI_HOME?.trim() || join(homedir(), ".multi"));
+  const honkHome = resolve(baseEnv.HONK_HOME?.trim() || join(homedir(), ".honk"));
   const bootstrapToken = baseEnv[desktopBootstrapTokenEnv]?.trim() || createDesktopBootstrapToken();
   const rendererUrl = explicitRendererUrl ?? `http://${desktopDevLoopbackHost}:${rendererPort}`;
 
@@ -166,23 +166,23 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
     HOST: desktopDevLoopbackHost,
     PORT: String(rendererPort),
     VITE_DEV_SERVER_URL: rendererUrl,
-    MULTI_HOME: multiHome,
-    MULTI_PORT: String(backendPort),
+    HONK_HOME: honkHome,
+    HONK_PORT: String(backendPort),
     [desktopBootstrapTokenEnv]: bootstrapToken,
   };
 
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.VITE_HTTP_URL;
   delete env.VITE_WS_URL;
-  delete env.MULTI_MODE;
-  delete env.MULTI_NO_BROWSER;
-  delete env.MULTI_HOST;
-  delete env.MULTI_DESKTOP_WS_URL;
+  delete env.HONK_MODE;
+  delete env.HONK_NO_BROWSER;
+  delete env.HONK_HOST;
+  delete env.HONK_DESKTOP_WS_URL;
 
   const selectionSuffix =
     selectedOffset === offset ? "" : ` selectedOffset=${String(selectedOffset)}`;
   console.log(
-    `[desktop-dev] source=${source}${selectionSuffix} backendPort=${env.MULTI_PORT} rendererUrl=${env.VITE_DEV_SERVER_URL} baseDir=${env.MULTI_HOME}`,
+    `[desktop-dev] source=${source}${selectionSuffix} backendPort=${env.HONK_PORT} rendererUrl=${env.VITE_DEV_SERVER_URL} baseDir=${env.HONK_HOME}`,
   );
   console.log(
     `[desktop-dev] Browser bootstrap URL: ${buildBrowserBootstrapUrl({
@@ -332,7 +332,7 @@ function findStaleDevProcessPids(): { readonly appPids: number[]; readonly owner
     return { appPids: [], ownerPids: [] };
   }
 
-  const marker = `--multi-dev-root=${desktopDir}`;
+  const marker = `--honk-dev-root=${desktopDir}`;
   const appPids = new Set<number>();
   const ownerPids = new Set<number>();
 
@@ -399,7 +399,7 @@ const childEnv = await createDesktopDevEnv(process.env);
 
 const child = spawn(
   "pnpm",
-  ["exec", "electron-vite", "dev", "--", `--multi-dev-root=${desktopDir}`],
+  ["exec", "electron-vite", "dev", "--", `--honk-dev-root=${desktopDir}`],
   {
     cwd: desktopDir,
     env: childEnv,

@@ -1,4 +1,4 @@
-import type { EnvironmentId, GitResolvePullRequestResult, ThreadId } from "@multi/contracts";
+import type { EnvironmentId, GitResolvePullRequestResult, ThreadId } from "@honk/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useId, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import {
 } from "~/lib/git-react-query";
 import { cn } from "~/lib/utils";
 import { parsePullRequestReference } from "~/git/pull-request-reference";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import {
   Dialog,
   DialogDescription,
@@ -19,9 +19,9 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
-} from "@multi/multikit/dialog";
-import { Input } from "@multi/multikit/input";
-import { Spinner } from "@multi/multikit/spinner";
+} from "@honk/multikit/dialog";
+import { Input } from "@honk/multikit/input";
+import { Spinner } from "@honk/multikit/spinner";
 
 interface PullRequestThreadDialogProps {
   open: boolean;

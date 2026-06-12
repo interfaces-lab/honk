@@ -10,14 +10,19 @@ import {
   type ThreadId,
   type TurnId,
   threadEntryIdForMessageId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Schema } from "effect";
 import { makeRuntimeItemId, makeRuntimeSessionId, makeThreadEntryIdForRuntimeEntry } from "./ids";
-import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
+import {
+  extractMessageErrorText,
+  extractMessageText,
+  extractMessageThinking,
+  toUnknownRecord,
+} from "./message-text";
 
 type RuntimeTreeNode = ReturnType<SessionManager["getTree"]>[number];
-export const CLIENT_MESSAGE_ID_SIDECAR_TYPE = "multi.client-message-id";
+export const CLIENT_MESSAGE_ID_SIDECAR_TYPE = "honk.client-message-id";
 
 export function clientMessageIdSidecarData(
   entry: SessionEntry,
@@ -94,7 +99,11 @@ function messageRole(entry: SessionEntry): SessionMessageRole | undefined {
 function entryText(entry: SessionEntry): string | undefined {
   if (entry.type === "message") {
     const text = extractMessageText(entry.message);
-    return text ? text : undefined;
+    if (text) {
+      return text;
+    }
+    const errorText = extractMessageErrorText(entry.message);
+    return errorText ? errorText : undefined;
   }
   if (entry.type === "compaction" || entry.type === "branch_summary") {
     return entry.summary;

@@ -1,4 +1,4 @@
-import type { GitBranch } from "@multi/contracts";
+import type { GitBranch } from "@honk/contracts";
 
 export function isBranchListed(branches: ReadonlyArray<GitBranch>, branchName: string): boolean {
   return branches.some((branch) => branch.name === branchName);

@@ -2,16 +2,44 @@ import {
   fauxAssistantMessage,
   fauxText,
   fauxThinking,
+  type AssistantMessage,
   type UserMessage,
 } from "@earendil-works/pi-ai";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
-import { MessageId, threadEntryIdForMessageId } from "@multi/contracts";
+import { MessageId, threadEntryIdForMessageId } from "@honk/contracts";
+import { projectRuntimeSessionEntry } from "../src/session-tree-projection";
 import {
   createRuntimeHarness,
   EMPTY_SEND_MESSAGE_OPTIONS,
   type RuntimeHarness,
   waitForEvent,
 } from "./runtime-test-harness";
+
+const failedAssistantMessage: AssistantMessage = {
+  role: "assistant",
+  content: [],
+  api: "anthropic-messages",
+  provider: "anthropic",
+  model: "claude-opus-4-8",
+  usage: {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0,
+    },
+  },
+  stopReason: "error",
+  timestamp: 1781226634337,
+  errorMessage: "400 usage limit reached",
+};
 
 describe("Pi session tree contract", () => {
   const harnesses: RuntimeHarness[] = [];
@@ -22,7 +50,7 @@ describe("Pi session tree contract", () => {
     }
   });
 
-  it("projects Pi JSONL entries into Multi session tree entries", async () => {
+  it("projects Pi JSONL entries into Honk session tree entries", async () => {
     const harness = await createRuntimeHarness();
     harnesses.push(harness);
     harness.setResponses([
@@ -71,6 +99,21 @@ describe("Pi session tree contract", () => {
         (node) => node.threadEntryId === threadEntryIdForMessageId(firstClientMessageId),
       ),
     ).toEqual(expect.objectContaining({ childCount: 1 }));
+  });
+
+  it("projects provider error messages as visible session tree text", () => {
+    const entry = {
+      type: "message",
+      id: "assistant-error",
+      parentId: "user",
+      timestamp: "2026-06-12T01:10:34.992Z",
+      message: failedAssistantMessage,
+    } satisfies SessionEntry;
+
+    expect(projectRuntimeSessionEntry(entry)).toMatchObject({
+      role: "assistant",
+      text: "Provider error: 400 usage limit reached",
+    });
   });
 
   it("projects the client message id before turn-completed tree publication", async () => {

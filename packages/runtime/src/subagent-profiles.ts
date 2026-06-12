@@ -9,12 +9,12 @@ import {
   type AgentMode,
   type AgentThinkingLevel,
   type SubagentScope,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 // A subagent profile is the resolved specialization a child runs with: which model and thinking
 // level, which tools it may use, what system prompt specializes it, how much of the host's resources
 // it inherits, and how deep it may itself fan out. Resolution order is builtin < user < project <
-// per-call overrides, mirroring pi-subagents (named .md agents) but resolved for multi's in-process
+// per-call overrides, mirroring pi-subagents (named .md agents) but resolved for honk's in-process
 // embedding rather than a spawned CLI.
 
 export interface SubagentResourceAccess {
@@ -61,10 +61,8 @@ const SCOUT_PROMPT = `You are a reconnaissance subagent. Quickly map the relevan
 
 const ORACLE_PROMPT = `You are a deep-reasoning advisory subagent. Analyze the problem thoroughly: root-cause the issue, weigh design trade-offs, and recommend a concrete approach. Read and search to ground every claim in the actual code; do not modify files. Think carefully before answering, show the key reasoning that supports your recommendation, then end with a clear, actionable conclusion.`;
 
-// Inspection tools for the recon/analysis specialists. multi excludes the pi builtin `read`
-// (it reads via its fff extension, which children do not load), so file content is reached through
-// bash; grep/find/ls cover search and listing.
-const READONLY_TOOLS = ["grep", "find", "ls", "bash"] as const;
+// Inspection tools for the recon/analysis specialists.
+const READONLY_TOOLS = ["read", "grep", "find", "ls", "bash"] as const;
 
 const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
   [DEFAULT_SUBAGENT_AGENT_NAME]: {
@@ -217,11 +215,11 @@ function userAgentsDir(agentDir: string): string {
   return join(agentDir, "agents");
 }
 
-// Project agents live in the nearest `.multi/agents` directory at or above the working directory.
+// Project agents live in the nearest `.honk/agents` directory at or above the working directory.
 function findProjectAgentsDir(cwd: string): string | null {
   let current = cwd;
   for (;;) {
-    const candidate = join(current, ".multi", "agents");
+    const candidate = join(current, ".honk", "agents");
     try {
       if (statSync(candidate).isDirectory()) {
         return candidate;

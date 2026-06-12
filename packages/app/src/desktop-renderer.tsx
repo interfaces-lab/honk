@@ -1,9 +1,9 @@
 import { createHashHistory } from "@tanstack/react-router";
 
-import { mountMultiApp } from "./renderer";
+import { mountHonkApp } from "./renderer";
 
-export function mountDesktopMultiApp(): void {
-  mountMultiApp({
+export function mountDesktopHonkApp(): void {
+  mountHonkApp({
     history: createHashHistory(),
     isElectron: true,
   });

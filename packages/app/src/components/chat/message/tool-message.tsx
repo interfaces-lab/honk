@@ -3,8 +3,8 @@ import {
   type RuntimeDisplayTimelineExtensionUiRequestItem,
   type RuntimeDisplayTimelineToolItem,
   type ThreadId,
-} from "@multi/contracts";
-import { Button } from "@multi/multikit/button";
+} from "@honk/contracts";
+import { Button } from "@honk/multikit/button";
 import {
   IconBubbleQuestion,
   IconChevronRightMedium,
@@ -59,6 +59,7 @@ interface ToolCallMessageProps {
   environmentId: EnvironmentId;
   pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
   subagentDetailsEnabled?: boolean | undefined;
+  defaultEditExpanded?: boolean | undefined;
 }
 
 export const ToolCallMessage = memo(function ToolCallMessage({
@@ -68,6 +69,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   environmentId,
   pendingApprovalKinds,
   subagentDetailsEnabled = true,
+  defaultEditExpanded = false,
 }: ToolCallMessageProps) {
   const conversationDensity = useConversationDensity();
   const status = useMemo(() => resolveStatus(workEntry), [workEntry]);
@@ -126,6 +128,7 @@ export const ToolCallMessage = memo(function ToolCallMessage({
             : undefined
         }
         conversationDensity={conversationDensity}
+        defaultEditExpanded={defaultEditExpanded}
       />
       {subagentStatusSurface}
     </div>
@@ -139,6 +142,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   environmentId,
   pendingApprovalKinds,
   subagentDetailsEnabled = true,
+  defaultEditExpanded = false,
 }: {
   tool: RuntimeDisplayTimelineToolItem;
   projectRoot?: string | undefined;
@@ -146,6 +150,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   environmentId?: EnvironmentId | undefined;
   pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
   subagentDetailsEnabled?: boolean | undefined;
+  defaultEditExpanded?: boolean | undefined;
 }) {
   const conversationDensity = useConversationDensity();
   const status = resolveRuntimeToolStatus(tool);
@@ -192,6 +197,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
         conversationDensity={conversationDensity}
         subagentConversation={subagentStatusSurface}
         defaultExpanded={tool.display?.kind === "subagent" || (isLoading && hasStreamingOutput)}
+        defaultEditExpanded={defaultEditExpanded}
       />
     </div>
   );
@@ -211,26 +217,26 @@ export function RuntimeExtensionUiRequestMessage({
       data-extension-ui-request-id={request.requestId}
       data-extension-ui-request-kind={request.requestKind}
       data-extension-ui-request-active={active ? "true" : undefined}
-      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-honk-fg-secondary"
     >
       <IconBubbleQuestion
         className={cn(
-          "mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary",
-          active && "tool-call-shimmer text-multi-icon-accent-primary",
+          "mt-0.5 size-3.5 shrink-0 text-honk-icon-tertiary",
+          active && "tool-call-shimmer text-honk-icon-accent-primary",
         )}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "min-w-0 break-words font-medium text-multi-fg-primary wrap-anywhere",
+            "min-w-0 break-words font-medium text-honk-fg-primary wrap-anywhere",
             active && "tool-call-shimmer",
           )}
         >
           {label}
         </div>
         {detail ? (
-          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary wrap-anywhere">
+          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-honk-fg-tertiary wrap-anywhere">
             {detail}
           </div>
         ) : null}
@@ -252,26 +258,26 @@ function ExtensionUiRequestRow({
       data-extension-ui-request=""
       data-extension-ui-request-kind={workEntry.extensionUiRequestKind}
       data-extension-ui-request-active={active ? "true" : undefined}
-      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-honk-fg-secondary"
     >
       <IconBubbleQuestion
         className={cn(
-          "mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary",
-          active && "tool-call-shimmer text-multi-icon-accent-primary",
+          "mt-0.5 size-3.5 shrink-0 text-honk-icon-tertiary",
+          active && "tool-call-shimmer text-honk-icon-accent-primary",
         )}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "min-w-0 break-words font-medium text-multi-fg-primary wrap-anywhere",
+            "min-w-0 break-words font-medium text-honk-fg-primary wrap-anywhere",
             active && "tool-call-shimmer",
           )}
         >
           {workEntry.label}
         </div>
         {detail ? (
-          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-multi-fg-tertiary wrap-anywhere">
+          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-honk-fg-tertiary wrap-anywhere">
             {detail}
           </div>
         ) : null}
@@ -659,10 +665,10 @@ function ToolSummaryRow({ text }: { text: string }) {
   return (
     <div
       data-tool-summary=""
-      className="flex w-full min-w-0 items-start gap-2 text-conversation text-multi-fg-secondary"
+      className="flex w-full min-w-0 items-start gap-2 text-conversation text-honk-fg-secondary"
     >
       <IconSummary
-        className="mt-0.5 size-3.5 shrink-0 text-multi-icon-tertiary"
+        className="mt-0.5 size-3.5 shrink-0 text-honk-icon-tertiary"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1 whitespace-pre-wrap break-words">{trimmed}</div>
@@ -762,10 +768,10 @@ function SubagentStatusRow({
       variant="ghost"
       className={cn(
         "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
-        "h-auto border-0 bg-transparent p-0 text-left text-conversation text-multi-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
+        "h-auto border-0 bg-transparent p-0 text-left text-conversation text-honk-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
         hasDetails &&
-          "cursor-pointer hover:text-multi-fg-primary focus-visible:text-multi-fg-primary focus-visible:outline-hidden focus-visible:shadow-[0_0_0_1px_var(--multi-stroke-focused)]",
-        isTrayOpen && hasDetails && "text-multi-fg-primary",
+          "cursor-pointer hover:text-honk-fg-primary focus-visible:text-honk-fg-primary focus-visible:outline-hidden focus-visible:shadow-[0_0_0_1px_var(--honk-stroke-focused)]",
+        isTrayOpen && hasDetails && "text-honk-fg-primary",
       )}
       data-subagent-row=""
       data-subagent-state={rowState}
@@ -780,12 +786,12 @@ function SubagentStatusRow({
       <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5 overflow-hidden">
         <span
           data-subagent-name=""
-          className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-multi-fg-primary"
+          className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-primary"
         >
           {title}
         </span>
         {subagent.model ? (
-          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+          <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
             {subagent.model}
           </span>
         ) : null}
@@ -793,7 +799,7 @@ function SubagentStatusRow({
           <span
             data-subagent-task=""
             className={cn(
-              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-multi-fg-tertiary",
+              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary",
               subagent.isActive && "tool-call-shimmer",
             )}
           >
@@ -801,7 +807,7 @@ function SubagentStatusRow({
           </span>
         ) : null}
         {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
-          <span className="shrink-0 text-caption text-multi-fg-tertiary tabular-nums">
+          <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
             {formatSubagentUsageLabel(subagent)}
           </span>
         ) : null}
@@ -831,18 +837,18 @@ function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
     subagent.rawStatus === "error";
   if (subagent.isActive) {
     return (
-      <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-accent-primary">
+      <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-accent-primary">
         <IconClock className="tool-call-shimmer size-3" />
       </span>
     );
   }
   if (isFailed) {
     return (
-      <span className="size-1.5 shrink-0 rounded-full bg-multi-fg-red-primary" aria-hidden="true" />
+      <span className="size-1.5 shrink-0 rounded-full bg-honk-fg-red-primary" aria-hidden="true" />
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-center justify-center text-multi-icon-tertiary">
+    <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-tertiary">
       <IconRobot className="size-3" />
     </span>
   );
@@ -898,14 +904,14 @@ function ThinkingMarkdown({
 }) {
   return (
     <div
-      className="min-w-0 py-0.5 text-conversation text-multi-fg-tertiary"
+      className="min-w-0 py-0.5 text-conversation text-honk-fg-tertiary"
       data-thinking-markdown=""
     >
       <ChatMarkdown
         text={text}
         cwd={cwd}
         isStreaming={isStreaming}
-        className="text-multi-fg-tertiary"
+        className="text-honk-fg-tertiary"
       />
     </div>
   );

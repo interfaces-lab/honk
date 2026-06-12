@@ -12,7 +12,8 @@ import type {
   EnvironmentId,
   GitWorkingTreeFileStatus,
   ProjectEntry,
-} from "@multi/contracts";
+} from "@honk/contracts";
+import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
   type Dispatch,
@@ -34,7 +35,7 @@ import { projectListDirectoryQueryOptions } from "~/lib/project-react-query";
 import { cn } from "~/lib/utils";
 import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
 import { useTheme } from "~/hooks/use-theme";
-import { normalizeTreePath, Tree, useTreeModel } from "../../tree";
+import { Tree, useTreeModel } from "../../tree";
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
 type ProjectTreeModel = ReturnType<typeof useTreeModel>["model"];
@@ -353,7 +354,7 @@ export const ProjectFileTree = forwardRef<
   return (
     <section
       className={cn(
-        "project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--multi-workbench-panel-background) text-multi-fg-primary",
+        "project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--honk-workbench-panel-background) text-honk-fg-primary",
         props.className,
       )}
     >
@@ -406,12 +407,12 @@ export const ProjectFileTree = forwardRef<
             resolvedTheme={resolvedTheme}
             renderContextMenu={(item, context) => (
               <div
-                className="min-w-32 rounded-multi-control border border-multi-border/70 bg-multi-bubble-opaque p-1 font-multi text-body text-foreground shadow-multi-popup"
+                className="min-w-32 rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-body text-foreground shadow-honk-popup"
                 data-file-tree-context-menu-root="true"
               >
                 <button
                   type="button"
-                  className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground hover:bg-multi-hover hover:text-foreground"
+                  className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground hover:bg-honk-hover hover:text-foreground"
                   onClick={() => {
                     context.close();
                     openProjectFilePath({

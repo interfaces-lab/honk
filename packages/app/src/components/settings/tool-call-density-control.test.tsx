@@ -34,8 +34,8 @@ describe("ToolCallDensityPreview", () => {
       );
 
       if (density === "detailed") {
-        expect(preview).toContain("border-multi-stroke-secondary");
-        expect(edit).toContain("border-multi-stroke-secondary");
+        expect(preview).toContain("border-honk-stroke-secondary");
+        expect(edit).toContain("border-honk-stroke-secondary");
         expect(preview).toContain("data-shell-tool-call");
         expect(shell).toContain("data-shell-tool-call");
       } else {

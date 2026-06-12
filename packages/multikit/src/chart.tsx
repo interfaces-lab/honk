@@ -17,11 +17,11 @@ type ChartSvgProps = Omit<React.ComponentProps<"svg">, "children" | "viewBox"> &
 };
 
 const chartColors = [
-  "var(--multi-icon-accent-primary)",
-  "var(--multi-icon-secondary)",
-  "var(--multi-icon-tertiary)",
-  "var(--multi-icon-warning)",
-  "var(--multi-icon-quaternary)",
+  "var(--honk-icon-accent-primary)",
+  "var(--honk-icon-secondary)",
+  "var(--honk-icon-tertiary)",
+  "var(--honk-icon-warning)",
+  "var(--honk-icon-quaternary)",
 ] as const;
 
 function cleanValue(value: number): number {
@@ -41,7 +41,7 @@ function getDatumColor(datum: ChartDatum, index: number): string {
 
 function chartClassName(className: string | undefined): string {
   return cn(
-    "block h-32 w-full max-w-full overflow-visible font-multi text-detail text-multi-fg-tertiary",
+    "block h-32 w-full max-w-full overflow-visible font-honk text-detail text-honk-fg-tertiary",
     className,
   );
 }
@@ -141,7 +141,7 @@ function LineChart({ className, data, maxValue, showLabels = false, ...props }: 
       <polyline
         fill="none"
         points={pointString}
-        stroke="var(--multi-icon-accent-primary)"
+        stroke="var(--honk-icon-accent-primary)"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2"
@@ -152,7 +152,7 @@ function LineChart({ className, data, maxValue, showLabels = false, ...props }: 
           <circle
             cx={point.x}
             cy={point.y}
-            fill="var(--multi-bg-elevated)"
+            fill="var(--honk-bg-elevated)"
             r="3"
             stroke={getDatumColor(point.datum, point.index)}
             strokeWidth="2"
@@ -252,7 +252,7 @@ function PieChart({ className, data, showLabels = false, ...props }: PieChartPro
               d={describeArc(centerX, centerY, radius, startAngle, endAngle)}
               fill={getDatumColor(datum, index)}
               key={`${datum.label}:${index}`}
-              stroke="var(--multi-bg-elevated)"
+              stroke="var(--honk-bg-elevated)"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />

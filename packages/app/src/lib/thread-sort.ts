@@ -1,4 +1,4 @@
-import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
+import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
 import type { Thread } from "../types";
 
 export type ThreadSortInput = Pick<Thread, "createdAt" | "updatedAt"> & {

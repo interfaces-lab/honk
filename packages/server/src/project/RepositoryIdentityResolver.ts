@@ -1,6 +1,6 @@
-import type { RepositoryIdentity } from "@multi/contracts";
+import type { RepositoryIdentity } from "@honk/contracts";
 import { Cache, Duration, Effect, Exit, Layer, Schema } from "effect";
-import { detectGitHostingProviderFromRemoteUrl, normalizeGitRemoteUrl } from "@multi/shared/git";
+import { detectGitHostingProviderFromRemoteUrl, normalizeGitRemoteUrl } from "@honk/shared/git";
 
 import { runProcess } from "../process-runner.ts";
 import {

@@ -5,7 +5,7 @@ import type {
   ServerConfig,
   ServerLifecycleWelcomePayload,
   TerminalEvent,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { KnownEnvironment } from "~/lib/environment-scope";
 
 import type { WsRpcClient } from "~/rpc/ws-rpc-client";

@@ -1,6 +1,6 @@
-import type { EnvironmentId, ScopedProjectRef } from "@multi/contracts";
-import type { SidebarThreadSortOrder } from "@multi/contracts/settings";
-import { projectScriptCwd } from "@multi/shared/project-scripts";
+import type { EnvironmentId, ScopedProjectRef } from "@honk/contracts";
+import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import { projectScriptCwd } from "@honk/shared/project-scripts";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopeProjectRef } from "~/lib/environment-scope";
 import type { Project, Thread } from "~/types";

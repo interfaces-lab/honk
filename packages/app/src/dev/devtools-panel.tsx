@@ -44,7 +44,7 @@ type DevPerformanceMonitorApi = {
 
 declare global {
   interface Window {
-    __MULTI_DEV_PERFORMANCE_MONITOR__?: DevPerformanceMonitorApi;
+    __HONK_DEV_PERFORMANCE_MONITOR__?: DevPerformanceMonitorApi;
   }
 }
 
@@ -86,11 +86,11 @@ function DevPerformanceMonitor() {
       getSnapshot: () => snapshotRef.current,
     };
 
-    window.__MULTI_DEV_PERFORMANCE_MONITOR__ = monitorApi;
+    window.__HONK_DEV_PERFORMANCE_MONITOR__ = monitorApi;
 
     return () => {
-      if (window.__MULTI_DEV_PERFORMANCE_MONITOR__ === monitorApi) {
-        delete window.__MULTI_DEV_PERFORMANCE_MONITOR__;
+      if (window.__HONK_DEV_PERFORMANCE_MONITOR__ === monitorApi) {
+        delete window.__HONK_DEV_PERFORMANCE_MONITOR__;
       }
     };
   }, []);
@@ -182,7 +182,7 @@ function exportMonitorReport(
 ): void {
   const exportedAt = new Date().toISOString();
   const report = {
-    kind: "multi-dev-performance-monitor",
+    kind: "honk-dev-performance-monitor",
     version: 1,
     startedAt,
     exportedAt,
@@ -200,7 +200,7 @@ function exportMonitorReport(
   const anchor = document.createElement("a");
 
   anchor.href = url;
-  anchor.download = `multi-dev-performance-${exportedAt.replaceAll(":", "-")}.json`;
+  anchor.download = `honk-dev-performance-${exportedAt.replaceAll(":", "-")}.json`;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();

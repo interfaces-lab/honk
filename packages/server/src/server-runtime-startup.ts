@@ -5,7 +5,7 @@ import {
   type ModelSelection,
   ProjectId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   Data,
   Deferred,
@@ -56,7 +56,7 @@ export interface ServerRuntimeStartupShape {
 export class ServerRuntimeStartup extends Context.Service<
   ServerRuntimeStartup,
   ServerRuntimeStartupShape
->()("multi/server-runtime-startup") {}
+>()("honk/server-runtime-startup") {}
 
 interface QueuedCommand {
   readonly run: Effect.Effect<void, never>;
@@ -524,7 +524,7 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
         const startupBrowserTarget = yield* resolveStartupBrowserTarget;
         if (serverConfig.mode !== "desktop") {
           yield* Effect.logInfo(
-            "Authentication required. Open Multi using the bootstrap URL.",
+            "Authentication required. Open Honk using the bootstrap URL.",
           ).pipe(Effect.annotateLogs({ bootstrapUrl: startupBrowserTarget }));
         }
         yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));

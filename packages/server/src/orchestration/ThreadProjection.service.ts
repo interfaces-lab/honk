@@ -15,7 +15,7 @@ import type {
   OrchestrationThreadShell,
   ProjectId,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Context } from "effect";
 import type { Option } from "effect";
 import type { Effect } from "effect";
@@ -95,5 +95,5 @@ export interface ThreadProjectionShape {
  * ThreadProjection - Service tag for thread projection queries.
  */
 export class ThreadProjection extends Context.Service<ThreadProjection, ThreadProjectionShape>()(
-  "multi/orchestration/ThreadProjection.service",
+  "honk/orchestration/ThreadProjection.service",
 ) {}

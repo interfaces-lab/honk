@@ -11,7 +11,7 @@ import {
   OrchestrationSessionStatus,
   ThreadId,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Option, Schema, Context, type Effect } from "effect";
 
 import type { ProjectionRepositoryError } from "./Errors.ts";
@@ -68,4 +68,4 @@ export interface ProjectionThreadSessionRepositoryShape {
 export class ProjectionThreadSessionRepository extends Context.Service<
   ProjectionThreadSessionRepository,
   ProjectionThreadSessionRepositoryShape
->()("multi/persistence/ProjectionThreadSessions.service/ProjectionThreadSessionRepository") {}
+>()("honk/persistence/ProjectionThreadSessions.service/ProjectionThreadSessionRepository") {}

@@ -53,7 +53,7 @@ import type {
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
 } from "./orchestration";
-import type { MultiRuntimeApi } from "./runtime";
+import type { HonkRuntimeApi } from "./runtime";
 import { Schema } from "effect";
 
 import { EditorId } from "./editor";
@@ -305,7 +305,7 @@ export interface DesktopBridge {
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
   logRendererDiagnostic?: (input: DesktopRendererDiagnosticInput) => Promise<void>;
-  runtime?: MultiRuntimeApi;
+  runtime?: HonkRuntimeApi;
 }
 
 /**
@@ -319,7 +319,7 @@ export interface DesktopBridge {
  * concepts.
  */
 export interface LocalApi {
-  runtime?: MultiRuntimeApi;
+  runtime?: HonkRuntimeApi;
   dialogs: {
     pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;

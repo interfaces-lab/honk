@@ -1,4 +1,4 @@
-import type { EnvironmentId, ScopedThreadRef } from "@multi/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/contracts";
 import { getRouteApi, useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import ChatView from "~/components/chat/view/chat-view";

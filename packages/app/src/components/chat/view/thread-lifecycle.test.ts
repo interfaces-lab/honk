@@ -1,4 +1,4 @@
-import { EnvironmentId, MessageId, ProjectId, ThreadId, TurnId } from "@multi/contracts";
+import { EnvironmentId, MessageId, ProjectId, ThreadId, TurnId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import {

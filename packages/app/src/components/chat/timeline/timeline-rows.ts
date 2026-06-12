@@ -1,5 +1,5 @@
-import { type MessageId } from "@multi/contracts";
-import type { ConversationDensity } from "@multi/contracts/settings";
+import { type MessageId } from "@honk/contracts";
+import type { ConversationDensity } from "@honk/contracts/settings";
 
 import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
 import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
@@ -188,15 +188,18 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
     case "runtime-extension-ui-request":
       return isRuntimeExtensionUiRequestRowUnchanged(a, b as typeof a);
 
-    case "work":
-      if ("entry" in a) {
+    case "work": {
+      const workB = b as WorkTimelineRow | TimelineWorkStep;
+      if ("entry" in a || "entry" in workB) {
         return (
-          "entry" in (b as typeof a) &&
-          a.createdAt === (b as TimelineWorkStep).createdAt &&
-          a.entry === (b as TimelineWorkStep).entry
+          "entry" in a &&
+          "entry" in workB &&
+          a.createdAt === workB.createdAt &&
+          a.entry === workB.entry
         );
       }
-      return isWorkRowUnchanged(a as WorkTimelineRow, b as WorkTimelineRow);
+      return isWorkRowUnchanged(a, workB);
+    }
 
     case "message": {
       const bm = b as typeof a;

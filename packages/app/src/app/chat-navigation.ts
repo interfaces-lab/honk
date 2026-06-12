@@ -1,4 +1,4 @@
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@multi/contracts";
+import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@honk/contracts";
 import {
   DraftId,
   isNewThreadDraftId,

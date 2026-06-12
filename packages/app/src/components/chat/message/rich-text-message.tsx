@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
-import { Code, Pre } from "@multi/multikit/code";
-import { Link } from "@multi/multikit/link";
+import { Code, Pre } from "@honk/multikit/code";
+import { Link } from "@honk/multikit/link";
 
 type RichTextRecord = Record<string, unknown>;
 
@@ -88,7 +88,7 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
       return <li key={key}>{children}</li>;
     case "blockquote":
       return (
-        <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">
+        <blockquote key={key} className="m-0 border-l border-honk-stroke-secondary pl-2">
           {children}
         </blockquote>
       );
@@ -96,7 +96,7 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
       return (
         <Pre
           key={key}
-          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-multi-bg-tertiary px-2 py-1 text-detail"
+          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-honk-bg-tertiary px-2 py-1 text-detail"
         >
           {plainTextFromTiptap(record)}
         </Pre>
@@ -161,7 +161,7 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
       return <li key={key}>{children}</li>;
     case "quote":
       return (
-        <blockquote key={key} className="m-0 border-l border-multi-stroke-secondary pl-2">
+        <blockquote key={key} className="m-0 border-l border-honk-stroke-secondary pl-2">
           {children}
         </blockquote>
       );
@@ -169,7 +169,7 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
       return (
         <Pre
           key={key}
-          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-multi-bg-tertiary px-2 py-1 text-detail"
+          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-honk-bg-tertiary px-2 py-1 text-detail"
         >
           {lexicalPlainText(record)}
         </Pre>
@@ -222,7 +222,7 @@ function applyTiptapMarks(text: string, marks: unknown[]): ReactNode {
       case "strike":
         return <s>{node}</s>;
       case "code":
-        return <Code className="rounded-multi-control px-1 py-0 text-detail">{node}</Code>;
+        return <Code className="rounded-honk-control px-1 py-0 text-detail">{node}</Code>;
       case "link": {
         const href = safeHref(stringField(asRecord(record.attrs), "href"));
         return href ? (
@@ -246,7 +246,7 @@ function applyLexicalFormat(text: string, format: number): ReactNode {
   if ((format & 4) !== 0) node = <s>{node}</s>;
   if ((format & 8) !== 0) node = <span className="underline underline-offset-2">{node}</span>;
   if ((format & 16) !== 0) {
-    node = <Code className="rounded-multi-control px-1 py-0 text-detail">{node}</Code>;
+    node = <Code className="rounded-honk-control px-1 py-0 text-detail">{node}</Code>;
   }
   return node;
 }

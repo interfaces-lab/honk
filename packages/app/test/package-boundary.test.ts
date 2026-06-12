@@ -24,11 +24,11 @@ const appSrc = join(process.cwd(), "src");
 const repoPackagesRoot = join(process.cwd(), "..");
 const storeFiles = listSourceFiles(join(appSrc, "stores"));
 const piSdkImportPattern = /from ["']@earendil-works\/pi-/;
-const multiRuntimeBootstrapAllowlist = new Set([join(appSrc, "local-api.ts")]);
+const honkRuntimeBootstrapAllowlist = new Set([join(appSrc, "local-api.ts")]);
 
 describe("app package boundary", () => {
-  it("does not import @multi/runtime", () => {
-    expect(filesMatching(appSrc, /from ["']@multi\/runtime/)).toEqual([]);
+  it("does not import @honk/runtime", () => {
+    expect(filesMatching(appSrc, /from ["']@honk\/runtime/)).toEqual([]);
   });
 
   it("does not import Pi SDK packages", () => {
@@ -36,8 +36,8 @@ describe("app package boundary", () => {
   });
 
   it("does not import server internals", () => {
-    expect(filesMatching(appSrc, /from ["']@multi\/server/)).toEqual([]);
-    expect(filesMatching(appSrc, /from ["']usemulti/)).toEqual([]);
+    expect(filesMatching(appSrc, /from ["']@honk\/server/)).toEqual([]);
+    expect(filesMatching(appSrc, /from ["']usehonk/)).toEqual([]);
   });
 
   it("does not use Effect services in React stores", () => {
@@ -51,12 +51,12 @@ describe("app package boundary", () => {
     expect(effectServiceImports).toEqual([]);
   });
 
-  it("does not read window.multiRuntime outside bootstrap", () => {
+  it("does not read window.honkRuntime outside bootstrap", () => {
     const offenders = listSourceFiles(appSrc).filter((file) => {
-      if (multiRuntimeBootstrapAllowlist.has(file)) {
+      if (honkRuntimeBootstrapAllowlist.has(file)) {
         return false;
       }
-      return /window\.multiRuntime/.test(readFileSync(file, "utf8"));
+      return /window\.honkRuntime/.test(readFileSync(file, "utf8"));
     });
     expect(offenders).toEqual([]);
   });

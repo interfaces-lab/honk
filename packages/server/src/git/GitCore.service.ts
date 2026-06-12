@@ -27,9 +27,9 @@ import type {
   GitRemoveWorktreeInput,
   GitStatusInput,
   GitStatusResult,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
-import type { GitCommandError } from "@multi/contracts";
+import type { GitCommandError } from "@honk/contracts";
 
 export interface ExecuteGitInput {
   readonly operation: string;
@@ -335,5 +335,5 @@ export interface GitCoreShape {
  * GitCore - Service tag for low-level Git repository operations.
  */
 export class GitCore extends Context.Service<GitCore, GitCoreShape>()(
-  "multi/git/GitCore.service",
+  "honk/git/GitCore.service",
 ) {}

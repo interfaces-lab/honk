@@ -6,9 +6,9 @@ import type {
   DesktopRendererDiagnosticInput,
   DesktopUpdateState,
   DesktopWindowChromeState,
-  MultiRuntimeHostEvent,
-  MultiRuntimeApi,
-} from "@multi/contracts";
+  HonkRuntimeHostEvent,
+  HonkRuntimeApi,
+} from "@honk/contracts";
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CONFIRM_CHANNEL = "desktop:confirm";
@@ -58,7 +58,7 @@ const desktopRuntimeApi = {
   respondToExtensionUiRequest: (input) =>
     ipcRenderer.invoke(RUNTIME_RESPOND_EXTENSION_UI_CHANNEL, input),
   onHostEvent: (listener) => {
-    const wrappedListener = (_event: IpcRendererEvent, hostEvent: MultiRuntimeHostEvent) => {
+    const wrappedListener = (_event: IpcRendererEvent, hostEvent: HonkRuntimeHostEvent) => {
       listener(hostEvent);
     };
 
@@ -67,7 +67,7 @@ const desktopRuntimeApi = {
       ipcRenderer.removeListener(RUNTIME_HOST_EVENT_CHANNEL, wrappedListener);
     };
   },
-} satisfies MultiRuntimeApi;
+} satisfies HonkRuntimeApi;
 
 function readWindowChromeState(): DesktopWindowChromeState {
   const state: unknown = ipcRenderer.sendSync(GET_WINDOW_CHROME_STATE_CHANNEL);
@@ -157,4 +157,4 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   runtime: desktopRuntimeApi,
 } satisfies DesktopBridge);
 
-contextBridge.exposeInMainWorld("multiRuntime", desktopRuntimeApi);
+contextBridge.exposeInMainWorld("honkRuntime", desktopRuntimeApi);

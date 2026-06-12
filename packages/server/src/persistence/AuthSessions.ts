@@ -1,4 +1,4 @@
-import { AuthSessionId } from "@multi/contracts";
+import { AuthSessionId } from "@honk/contracts";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 import { Effect, Layer, Option, Schema } from "effect";

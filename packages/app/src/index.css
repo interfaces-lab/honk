@@ -41,109 +41,109 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --color-multi-sidebar: var(--multi-color-sidebar);
-  --color-multi-chat: var(--multi-color-chat);
-  --color-multi-editor: var(--multi-color-editor);
-  --color-multi-surface: var(--multi-color-surface);
-  --color-multi-elevated: var(--multi-color-elevated);
-  --color-multi-bubble: var(--multi-input-surface);
-  --color-multi-bubble-opaque: var(--multi-input-surface-opaque);
-  --color-multi-menubar: var(--multi-color-menubar);
-  --color-multi-border: var(--multi-color-border);
-  --color-multi-stroke: var(--multi-color-stroke);
-  --color-multi-stroke-strong: var(--multi-color-stroke-strong);
-  --color-multi-hover: var(--multi-color-hover);
-  --color-multi-active: var(--multi-color-active);
-  --color-multi-bg-elevated: var(--multi-bg-elevated);
-  --color-multi-bg-quinary: var(--multi-bg-quinary);
-  --color-multi-bg-quaternary: var(--multi-bg-quaternary);
-  --color-multi-bg-tertiary: var(--multi-bg-tertiary);
-  --color-multi-bg-secondary: var(--multi-bg-secondary);
-  --color-multi-bg-active: var(--multi-bg-active);
-  --color-multi-fg-primary: var(--multi-fg-primary);
-  --color-multi-fg-secondary: var(--multi-fg-secondary);
-  --color-multi-fg-tertiary: var(--multi-fg-tertiary);
-  --color-multi-fg-quaternary: var(--multi-fg-quaternary);
-  --color-multi-stroke-secondary: var(--multi-stroke-secondary);
-  --color-multi-stroke-tertiary: var(--multi-stroke-tertiary);
-  --color-multi-stroke-focused: var(--multi-stroke-focused);
-  --color-multi-stroke-primary: var(--multi-stroke-primary);
-  --color-multi-stroke-red-primary: var(--multi-stroke-red-primary);
-  --color-multi-stroke-quaternary: var(--multi-stroke-quaternary);
-  --color-multi-action: var(--multi-action);
-  --color-multi-diff-addition: var(--multi-diff-addition);
-  --color-multi-diff-deletion: var(--multi-diff-deletion);
-  --color-multi-fg-red-primary: var(--multi-fg-red-primary);
-  --color-multi-fg-green-primary: var(--multi-fg-green-primary);
-  --color-multi-icon-primary: var(--multi-icon-primary);
-  --color-multi-icon-secondary: var(--multi-icon-secondary);
-  --color-multi-icon-tertiary: var(--multi-icon-tertiary);
-  --color-multi-icon-quaternary: var(--multi-icon-quaternary);
-  --color-multi-icon-accent-primary: var(--multi-icon-accent-primary);
-  --color-multi-bg-primary: var(--multi-bg-primary);
-  --color-multi-bg-secondary-wash: var(--multi-bg-secondary-wash);
-  --color-multi-workbench-panel-border-faint: var(--multi-workbench-panel-border-faint);
-  --color-multi-workbench-panel-border-muted: var(--multi-workbench-panel-border-muted);
-  --color-multi-workbench-panel-border-soft: var(--multi-workbench-panel-border-soft);
-  --color-multi-workbench-panel-border-dim: var(--multi-workbench-panel-border-dim);
-  --color-multi-git-diff-editor-background: var(--multi-git-diff-editor-background);
-  --color-multi-git-diff-header-border: var(--multi-git-diff-header-border);
-  --color-multi-workbench-toolbar-hover-wash: var(--multi-workbench-toolbar-hover-wash);
-  --color-multi-workbench-terminal-foreground: var(--multi-workbench-terminal-foreground);
-  --color-multi-terminal-border: var(--multi-terminal-border);
-  --color-multi-terminal-border-subtle: var(--multi-terminal-border-subtle);
-  --color-multi-terminal-toolbar-background: var(--multi-terminal-toolbar-background);
-  --color-multi-terminal-sidebar-background: var(--multi-terminal-sidebar-background);
-  --color-multi-terminal-hover-background: var(--multi-terminal-hover-background);
-  --color-multi-terminal-active-background: var(--multi-terminal-active-background);
-  --color-multi-terminal-foreground: var(--multi-terminal-foreground);
-  --color-multi-terminal-muted-foreground: var(--multi-terminal-muted-foreground);
+  --color-honk-sidebar: var(--honk-color-sidebar);
+  --color-honk-chat: var(--honk-color-chat);
+  --color-honk-editor: var(--honk-color-editor);
+  --color-honk-surface: var(--honk-color-surface);
+  --color-honk-elevated: var(--honk-color-elevated);
+  --color-honk-bubble: var(--honk-input-surface);
+  --color-honk-bubble-opaque: var(--honk-input-surface-opaque);
+  --color-honk-menubar: var(--honk-color-menubar);
+  --color-honk-border: var(--honk-color-border);
+  --color-honk-stroke: var(--honk-color-stroke);
+  --color-honk-stroke-strong: var(--honk-color-stroke-strong);
+  --color-honk-hover: var(--honk-color-hover);
+  --color-honk-active: var(--honk-color-active);
+  --color-honk-bg-elevated: var(--honk-bg-elevated);
+  --color-honk-bg-quinary: var(--honk-bg-quinary);
+  --color-honk-bg-quaternary: var(--honk-bg-quaternary);
+  --color-honk-bg-tertiary: var(--honk-bg-tertiary);
+  --color-honk-bg-secondary: var(--honk-bg-secondary);
+  --color-honk-bg-active: var(--honk-bg-active);
+  --color-honk-fg-primary: var(--honk-fg-primary);
+  --color-honk-fg-secondary: var(--honk-fg-secondary);
+  --color-honk-fg-tertiary: var(--honk-fg-tertiary);
+  --color-honk-fg-quaternary: var(--honk-fg-quaternary);
+  --color-honk-stroke-secondary: var(--honk-stroke-secondary);
+  --color-honk-stroke-tertiary: var(--honk-stroke-tertiary);
+  --color-honk-stroke-focused: var(--honk-stroke-focused);
+  --color-honk-stroke-primary: var(--honk-stroke-primary);
+  --color-honk-stroke-red-primary: var(--honk-stroke-red-primary);
+  --color-honk-stroke-quaternary: var(--honk-stroke-quaternary);
+  --color-honk-action: var(--honk-action);
+  --color-honk-diff-addition: var(--honk-diff-addition);
+  --color-honk-diff-deletion: var(--honk-diff-deletion);
+  --color-honk-fg-red-primary: var(--honk-fg-red-primary);
+  --color-honk-fg-green-primary: var(--honk-fg-green-primary);
+  --color-honk-icon-primary: var(--honk-icon-primary);
+  --color-honk-icon-secondary: var(--honk-icon-secondary);
+  --color-honk-icon-tertiary: var(--honk-icon-tertiary);
+  --color-honk-icon-quaternary: var(--honk-icon-quaternary);
+  --color-honk-icon-accent-primary: var(--honk-icon-accent-primary);
+  --color-honk-bg-primary: var(--honk-bg-primary);
+  --color-honk-bg-secondary-wash: var(--honk-bg-secondary-wash);
+  --color-honk-workbench-panel-border-faint: var(--honk-workbench-panel-border-faint);
+  --color-honk-workbench-panel-border-muted: var(--honk-workbench-panel-border-muted);
+  --color-honk-workbench-panel-border-soft: var(--honk-workbench-panel-border-soft);
+  --color-honk-workbench-panel-border-dim: var(--honk-workbench-panel-border-dim);
+  --color-honk-git-diff-editor-background: var(--honk-git-diff-editor-background);
+  --color-honk-git-diff-header-border: var(--honk-git-diff-header-border);
+  --color-honk-workbench-toolbar-hover-wash: var(--honk-workbench-toolbar-hover-wash);
+  --color-honk-workbench-terminal-foreground: var(--honk-workbench-terminal-foreground);
+  --color-honk-terminal-border: var(--honk-terminal-border);
+  --color-honk-terminal-border-subtle: var(--honk-terminal-border-subtle);
+  --color-honk-terminal-toolbar-background: var(--honk-terminal-toolbar-background);
+  --color-honk-terminal-sidebar-background: var(--honk-terminal-sidebar-background);
+  --color-honk-terminal-hover-background: var(--honk-terminal-hover-background);
+  --color-honk-terminal-active-background: var(--honk-terminal-active-background);
+  --color-honk-terminal-foreground: var(--honk-terminal-foreground);
+  --color-honk-terminal-muted-foreground: var(--honk-terminal-muted-foreground);
   --max-width-agent-chat: min(100%, var(--agent-window-chat-max-width, 840px));
-  --font-multi: var(--multi-font-ui);
-  --font-multi-mono: var(--multi-font-mono);
-  --shadow-multi-card: var(--multi-shadow-card);
-  --shadow-multi-popup: var(--multi-shadow-popup);
-  --shadow-multi-toolbar: var(--multi-shadow-toolbar);
-  --shadow-multi-swatch-inset: var(--multi-swatch-inset-shadow);
-  --text-caption: var(--multi-text-caption);
-  --text-caption--line-height: var(--multi-leading-caption);
-  --text-detail: var(--multi-text-detail);
-  --text-detail--line-height: var(--multi-leading-detail);
-  --text-body: var(--multi-text-body);
-  --text-body--line-height: var(--multi-leading-body);
-  --text-title: var(--multi-text-title);
-  --text-title--line-height: var(--multi-leading-title);
+  --font-honk: var(--honk-font-ui);
+  --font-honk-mono: var(--honk-font-mono);
+  --shadow-honk-card: var(--honk-shadow-card);
+  --shadow-honk-popup: var(--honk-shadow-popup);
+  --shadow-honk-toolbar: var(--honk-shadow-toolbar);
+  --shadow-honk-swatch-inset: var(--honk-swatch-inset-shadow);
+  --text-caption: var(--honk-text-caption);
+  --text-caption--line-height: var(--honk-leading-caption);
+  --text-detail: var(--honk-text-detail);
+  --text-detail--line-height: var(--honk-leading-detail);
+  --text-body: var(--honk-text-body);
+  --text-body--line-height: var(--honk-leading-body);
+  --text-title: var(--honk-text-title);
+  --text-title--line-height: var(--honk-leading-title);
   --text-conversation: var(--conversation-text-font-size);
   --text-conversation--line-height: var(--conversation-text-leading);
   --text-conversation-normalized: var(--conversation-text-font-size);
-  --text-conversation-normalized--line-height: var(--multi-leading-conversation-normalized);
-  --text-heading: var(--multi-text-heading);
-  --text-heading--line-height: var(--multi-leading-heading);
-  --text-multi-code: var(--multi-code-font-size-user, 12px);
-  --text-multi-code--line-height: calc(var(--multi-code-font-size-user, 12px) * 1.45);
-  --text-multi-xs: var(--multi-text-caption);
-  --text-multi-xs--line-height: var(--multi-leading-caption);
-  --text-multi-sm: var(--multi-text-detail);
-  --text-multi-sm--line-height: var(--multi-leading-detail);
-  --text-multi-base: var(--multi-text-body);
-  --text-multi-base--line-height: var(--multi-leading-body);
-  --text-multi-lg: var(--multi-text-title);
-  --text-multi-lg--line-height: var(--multi-leading-title);
-  --text-multi-xl: var(--multi-text-heading);
-  --text-multi-xl--line-height: var(--multi-leading-heading);
-  --text-sidebar-label: var(--multi-sidebar-label-size);
-  --text-sidebar-label--line-height: var(--multi-sidebar-label-leading);
-  --text-sidebar-subtitle: var(--multi-sidebar-subtitle-size);
-  --text-sidebar-subtitle--line-height: var(--multi-sidebar-subtitle-leading);
-  --spacing-sidebar-item: var(--multi-sidebar-item-height);
-  --spacing-sidebar-item-gap: var(--multi-sidebar-item-gap);
-  --spacing-sidebar-section-gap: var(--multi-sidebar-section-gap);
-  --spacing-sidebar-gutter: var(--multi-sidebar-gutter-inline);
-  --radius-multi: var(--multi-radius-card);
-  --radius-multi-chip: var(--multi-radius-chip);
-  --radius-multi-control: var(--multi-radius-control);
-  --radius-multi-card: var(--multi-radius-card);
-  --radius-multi-pill: var(--multi-radius-pill);
+  --text-conversation-normalized--line-height: var(--honk-leading-conversation-normalized);
+  --text-heading: var(--honk-text-heading);
+  --text-heading--line-height: var(--honk-leading-heading);
+  --text-honk-code: var(--honk-code-font-size-user, 12px);
+  --text-honk-code--line-height: calc(var(--honk-code-font-size-user, 12px) * 1.45);
+  --text-honk-xs: var(--honk-text-caption);
+  --text-honk-xs--line-height: var(--honk-leading-caption);
+  --text-honk-sm: var(--honk-text-detail);
+  --text-honk-sm--line-height: var(--honk-leading-detail);
+  --text-honk-base: var(--honk-text-body);
+  --text-honk-base--line-height: var(--honk-leading-body);
+  --text-honk-lg: var(--honk-text-title);
+  --text-honk-lg--line-height: var(--honk-leading-title);
+  --text-honk-xl: var(--honk-text-heading);
+  --text-honk-xl--line-height: var(--honk-leading-heading);
+  --text-sidebar-label: var(--honk-sidebar-label-size);
+  --text-sidebar-label--line-height: var(--honk-sidebar-label-leading);
+  --text-sidebar-subtitle: var(--honk-sidebar-subtitle-size);
+  --text-sidebar-subtitle--line-height: var(--honk-sidebar-subtitle-leading);
+  --spacing-sidebar-item: var(--honk-sidebar-item-height);
+  --spacing-sidebar-item-gap: var(--honk-sidebar-item-gap);
+  --spacing-sidebar-section-gap: var(--honk-sidebar-section-gap);
+  --spacing-sidebar-gutter: var(--honk-sidebar-gutter-inline);
+  --radius-honk: var(--honk-radius-card);
+  --radius-honk-chip: var(--honk-radius-chip);
+  --radius-honk-control: var(--honk-radius-control);
+  --radius-honk-card: var(--honk-radius-card);
+  --radius-honk-pill: var(--honk-radius-pill);
   --radius-xs: 2px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -272,13 +272,13 @@
     [role="option"],
     [role="tab"]
   ) {
-    cursor: var(--multi-button-cursor, pointer);
+    cursor: var(--honk-button-cursor, pointer);
   }
   html {
-    --multi-button-cursor: pointer;
+    --honk-button-cursor: pointer;
     background-color: var(--app-background);
   }
-  html[data-electron]:has(body[data-multi-glass-mode="true"]:not(.multi-reduce-transparency)) {
+  html[data-electron]:has(body[data-honk-glass-mode="true"]:not(.honk-reduce-transparency)) {
     background-color: transparent;
   }
   body {
@@ -292,7 +292,7 @@
   .enabled\:cursor-pointer:enabled,
   html[data-no-button-pointer] .cursor-pointer,
   html[data-no-button-pointer] .enabled\:cursor-pointer:enabled {
-    cursor: var(--multi-button-cursor, pointer);
+    cursor: var(--honk-button-cursor, pointer);
   }
 }
 
@@ -310,11 +310,11 @@
 }
 
 body {
-  font-family: var(--multi-font-ui);
-  font-size: var(--multi-ui-font-size-user, 13px);
+  font-family: var(--honk-font-ui);
+  font-size: var(--honk-ui-font-size-user, 13px);
   font-synthesis: none;
-  -webkit-font-smoothing: var(--multi-font-smoothing-webkit, antialiased);
-  -moz-osx-font-smoothing: var(--multi-font-smoothing-moz, grayscale);
+  -webkit-font-smoothing: var(--honk-font-smoothing-webkit, antialiased);
+  -moz-osx-font-smoothing: var(--honk-font-smoothing-moz, grayscale);
   margin: 0;
   padding: 0;
   min-height: 100vh;
@@ -354,8 +354,8 @@ body::after {
 
 pre,
 code {
-  font-family: var(--multi-font-mono);
-  font-size: var(--multi-code-font-size-user, 12px);
+  font-family: var(--honk-font-mono);
+  font-size: var(--honk-code-font-size-user, 12px);
 }
 
 /* Window drag region (frameless titlebar) */
@@ -419,21 +419,21 @@ code {
   box-shadow: none;
 }
 
-/* Dev: React Grab plugin toggles `html.multi-overlay-debug` */
-html.multi-overlay-debug [data-slot="tooltip-content"],
-html.multi-overlay-debug [data-slot="popover-token-menu"],
-html.multi-overlay-debug [data-slot="context-menu-popup"] {
+/* Dev: React Grab plugin toggles `html.honk-overlay-debug` */
+html.honk-overlay-debug [data-slot="tooltip-content"],
+html.honk-overlay-debug [data-slot="popover-token-menu"],
+html.honk-overlay-debug [data-slot="context-menu-popup"] {
   outline: 2px solid oklch(0.604 0.259 311.121 / 0.88);
   outline-offset: 2px;
 }
 
-html.multi-overlay-debug [data-slot="tooltip-trigger"],
-html.multi-overlay-debug [data-slot="context-menu-trigger"] {
+html.honk-overlay-debug [data-slot="tooltip-trigger"],
+html.honk-overlay-debug [data-slot="context-menu-trigger"] {
   outline: 1px dashed oklch(0.682 0.14 237.298 / 0.85);
   outline-offset: 2px;
 }
 
-html.multi-overlay-debug [data-slot="context-menu-root"] {
+html.honk-overlay-debug [data-slot="context-menu-root"] {
   outline: 1px dotted oklch(0.832 0.162 87.735 / 0.45);
   outline-offset: 1px;
 }

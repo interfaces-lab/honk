@@ -1,5 +1,5 @@
-import { type MessageId } from "@multi/contracts";
-import { Button } from "@multi/multikit/button";
+import { type MessageId } from "@honk/contracts";
+import { Button } from "@honk/multikit/button";
 import {
   IconBranch,
   IconCloudUpload,
@@ -136,7 +136,7 @@ function HumanMessageImageAttachment(props: {
   const previewSrc = useAuthenticatedImagePreviewSrc(props.image.previewUrl);
 
   return (
-    <div className="overflow-hidden rounded-multi-control border border-multi-stroke-secondary bg-(--multi-message-bubble-background)">
+    <div className="overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-(--honk-message-bubble-background)">
       {previewSrc ? (
         <Button
           type="button"
@@ -152,7 +152,7 @@ function HumanMessageImageAttachment(props: {
           <img src={previewSrc} alt={props.image.name} className="block h-8 w-full object-cover" />
         </Button>
       ) : (
-        <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-multi-fg-tertiary">
+        <div className="flex min-h-8 items-center justify-center px-2 py-1 text-center text-detail text-honk-fg-tertiary">
           {props.image.name}
         </div>
       )}
@@ -181,8 +181,8 @@ function GitAgentActionMessage(props: { action: GitAgentAction; label: string })
   const ActionIcon = getGitAgentActionIcon(props.action);
 
   return (
-    <div className="flex max-w-full min-w-0 items-center gap-1.5 font-medium text-multi-fg-primary">
-      <ActionIcon className="size-3.5 shrink-0 text-multi-icon-tertiary" aria-hidden="true" />
+    <div className="flex max-w-full min-w-0 items-center gap-1.5 font-medium text-honk-fg-primary">
+      <ActionIcon className="size-3.5 shrink-0 text-honk-icon-tertiary" aria-hidden="true" />
       <span className="min-w-0 truncate">{props.label}</span>
     </div>
   );

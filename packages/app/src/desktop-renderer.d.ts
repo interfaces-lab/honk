@@ -1,1 +1,1 @@
-export declare function mountDesktopMultiApp(): void;
+export declare function mountDesktopHonkApp(): void;

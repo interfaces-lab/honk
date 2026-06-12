@@ -24,7 +24,7 @@ function Input({
   ...props
 }: InputProps) {
   const inputClassName = cn(
-    "h-7 w-full min-w-0 rounded-[inherit] px-2 py-0 font-multi text-body outline-none placeholder:text-multi-fg-tertiary/72 [transition:background-color_5000000s_ease-in-out_0s]",
+    "h-7 w-full min-w-0 rounded-[inherit] px-2 py-0 font-honk text-body outline-none placeholder:text-honk-fg-tertiary/72 [transition:background-color_5000000s_ease-in-out_0s]",
     size === "sm" && "h-7 px-2",
     size === "lg" && "h-8 px-2.5 sm:h-8",
     props.type === "search" &&
@@ -41,7 +41,7 @@ function Input({
         className={
           cn(
             !unstyled &&
-              "relative inline-flex w-full rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-primary shadow-none transition-colors has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused/30 has-focus-visible:has-aria-invalid:border-multi-stroke-red-primary has-focus-visible:has-aria-invalid:ring-multi-stroke-red-primary/20 has-aria-invalid:border-multi-stroke-red-primary has-disabled:opacity-64",
+              "relative inline-flex w-full rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-primary shadow-none transition-colors has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused/30 has-focus-visible:has-aria-invalid:border-honk-stroke-red-primary has-focus-visible:has-aria-invalid:ring-honk-stroke-red-primary/20 has-aria-invalid:border-honk-stroke-red-primary has-disabled:opacity-64",
             className,
           ) || undefined
         }
@@ -64,7 +64,7 @@ function Input({
       className={
         cn(
           !unstyled &&
-            "relative inline-flex w-full rounded-multi-control border border-multi-stroke-tertiary bg-multi-bg-quinary text-multi-fg-primary shadow-none transition-colors has-focus-visible:border-multi-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-multi-stroke-focused/30 has-focus-visible:has-aria-invalid:border-multi-stroke-red-primary has-focus-visible:has-aria-invalid:ring-multi-stroke-red-primary/20 has-aria-invalid:border-multi-stroke-red-primary has-disabled:opacity-64",
+            "relative inline-flex w-full rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-primary shadow-none transition-colors has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused/30 has-focus-visible:has-aria-invalid:border-honk-stroke-red-primary has-focus-visible:has-aria-invalid:ring-honk-stroke-red-primary/20 has-aria-invalid:border-honk-stroke-red-primary has-disabled:opacity-64",
           className,
         ) || undefined
       }

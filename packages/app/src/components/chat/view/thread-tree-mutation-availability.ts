@@ -1,4 +1,4 @@
-import type { MessageId, OrchestrationSessionStatus } from "@multi/contracts";
+import type { MessageId, OrchestrationSessionStatus } from "@honk/contracts";
 
 export type ThreadTreeMutationBlockReason =
   | "send-in-flight"

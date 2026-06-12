@@ -1,4 +1,4 @@
-import type { AuthClientSession, AuthPairingLink } from "@multi/contracts";
+import type { AuthClientSession, AuthPairingLink } from "@honk/contracts";
 import { DateTime, Effect, Layer } from "effect";
 
 import { BootstrapCredentialServiceLive } from "./BootstrapCredentialService.ts";

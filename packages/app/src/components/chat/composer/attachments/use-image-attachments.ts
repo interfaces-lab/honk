@@ -3,7 +3,7 @@ import {
   RUNTIME_SEND_TURN_MAX_IMAGE_BYTES,
   type ScopedThreadRef,
   type ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   createElement,
   useRef,

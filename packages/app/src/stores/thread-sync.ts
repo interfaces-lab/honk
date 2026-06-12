@@ -22,7 +22,7 @@ import type {
   ThreadEntryId,
   CanonicalItemType,
   ToolLifecycleItemType,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   DEFAULT_AGENT_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
@@ -37,10 +37,10 @@ import {
   threadEntryIdForMessageId,
   ThreadTokenUsageSnapshot,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Schema } from "effect";
-import { normalizeModelSlug } from "@multi/shared/model";
-import { toJsonValue } from "@multi/shared/schema-json";
+import { normalizeModelSlug } from "@honk/shared/model";
+import { toJsonValue } from "@honk/shared/schema-json";
 import { resolveGitAgentActionFromPrompt } from "~/lib/git-agent-actions";
 import type {
   ChatMessage,
@@ -3371,7 +3371,7 @@ function contextWindowActivityForRuntimeEvent(
   if (event.type !== "context-window.updated" || !isThreadTokenUsageSnapshot(event.data)) {
     return null;
   }
-  // Mirror runtimeContextWindowActivities in @multi/runtime so the persisted copy
+  // Mirror runtimeContextWindowActivities in @honk/runtime so the persisted copy
   // replaces this live one instead of duplicating it.
   return {
     id: EventId.make(`runtime-activity:${event.id}`),

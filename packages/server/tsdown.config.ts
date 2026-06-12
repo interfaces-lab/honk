@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 function isBundledWorkspacePackage(id: string): boolean {
-  if (id.startsWith("@multi/")) {
+  if (id.startsWith("@honk/")) {
     return true;
   }
 

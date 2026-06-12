@@ -14,7 +14,7 @@ import {
   type ThreadId,
   type ThreadTurnStartBootstrap,
   type UploadChatAttachment,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 import { applyLocalThreadTurnStartRequested } from "~/stores/local-orchestration-events";
 import {
@@ -137,6 +137,7 @@ export async function coordinateTurnSend(
         sourceProposedPlan: input.sourceProposedPlan ?? null,
         clientMessageId: input.clientMessageId,
         images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
+        modelSelection: input.modelSelection,
         preparedPolicy: input.preparedPolicy,
       }).then(() => {
         runtimeSendSucceeded = true;

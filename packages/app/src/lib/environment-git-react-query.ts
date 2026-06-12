@@ -1,4 +1,4 @@
-import type { EnvironmentId, GitFileImageResult, GitFilePatchResult } from "@multi/contracts";
+import type { EnvironmentId, GitFileImageResult, GitFilePatchResult } from "@honk/contracts";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 
 import type { GitFileState } from "~/lib/ui-session-types";

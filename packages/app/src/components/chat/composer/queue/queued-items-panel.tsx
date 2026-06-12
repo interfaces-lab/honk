@@ -1,9 +1,9 @@
 import { IconArrowUp, IconChevronDownMedium, IconPencilLine, IconTrashCan } from "central-icons";
-import type { MessageId } from "@multi/contracts";
+import type { MessageId } from "@honk/contracts";
 import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";
-import { Button } from "@multi/multikit/button";
+import { Button } from "@honk/multikit/button";
 import {
   SidebarTray,
   SidebarTrayHeader,
@@ -12,7 +12,7 @@ import {
   SidebarTrayRowContent,
   SidebarTrayRowLabel,
   SidebarTrayRowStatus,
-} from "@multi/multikit/sidebar";
+} from "@honk/multikit/sidebar";
 import { cn } from "~/lib/utils";
 
 function handleQueuedItemDragEnter(event: DragEvent<HTMLElement>) {
@@ -81,7 +81,7 @@ function QueuedComposerItemRowActions(props: {
       onDoubleClick={(event) => event.stopPropagation()}
     >
       <Button
-        className="shrink-0 text-multi-fg-tertiary disabled:opacity-35"
+        className="shrink-0 text-honk-fg-tertiary disabled:opacity-35"
         size="icon-xs"
         variant="ghost"
         onClick={() => props.onBeginEdit(props.itemId)}
@@ -92,7 +92,7 @@ function QueuedComposerItemRowActions(props: {
         <IconPencilLine className="size-4 shrink-0" aria-hidden="true" />
       </Button>
       <Button
-        className="shrink-0 text-multi-fg-tertiary disabled:opacity-35"
+        className="shrink-0 text-honk-fg-tertiary disabled:opacity-35"
         size="icon-xs"
         variant="ghost"
         onClick={() => props.onSendNow(props.itemId)}
@@ -104,7 +104,7 @@ function QueuedComposerItemRowActions(props: {
         <IconArrowUp className="size-4 shrink-0" aria-hidden="true" />
       </Button>
       <Button
-        className="shrink-0 text-multi-fg-tertiary disabled:opacity-35"
+        className="shrink-0 text-honk-fg-tertiary disabled:opacity-35"
         size="icon-xs"
         variant="ghost"
         onClick={() => props.onRemove(props.itemId)}
@@ -191,7 +191,7 @@ function QueuedComposerItemRow(props: {
   return (
     <div className="relative" role="listitem" data-queued-composer-item-wrapper="">
       {showDropBefore ? (
-        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-xs bg-multi-stroke-focused" />
+        <div className="pointer-events-none absolute inset-x-2 top-0 z-[2] h-0.5 rounded-xs bg-honk-stroke-focused" />
       ) : null}
       <SidebarTrayRow
         render={<div />}
@@ -231,7 +231,7 @@ function QueuedComposerItemRow(props: {
           data-queued-composer-item-preview=""
         >
           <QueuedComposerItemThumbnails item={item} />
-          <SidebarTrayRowLabel className={cn(isEditing && "text-multi-fg-primary")}>
+          <SidebarTrayRowLabel className={cn(isEditing && "text-honk-fg-primary")}>
             {preview}
           </SidebarTrayRowLabel>
         </SidebarTrayRowContent>
@@ -248,7 +248,7 @@ function QueuedComposerItemRow(props: {
         )}
       </SidebarTrayRow>
       {showDropAfter ? (
-        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-xs bg-multi-stroke-focused" />
+        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-[2] h-0.5 rounded-xs bg-honk-stroke-focused" />
       ) : null}
     </div>
   );
@@ -400,7 +400,7 @@ export function QueuedComposerItemsPanel(
 export function QueuedComposerEditBanner(props: { onCancelEdit: () => void }) {
   return (
     <div
-      className="flex items-center justify-between gap-2 border border-b-0 border-multi-stroke-tertiary bg-(--multi-composer-queue-edit-banner-background) px-3 py-1.5 text-detail text-foreground"
+      className="flex items-center justify-between gap-2 border border-b-0 border-honk-stroke-tertiary bg-(--honk-composer-queue-edit-banner-background) px-3 py-1.5 text-detail text-foreground"
       data-queued-composer-edit-banner=""
     >
       <span className="opacity-90">{QUEUE_EDIT_BANNER_LABEL}</span>

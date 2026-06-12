@@ -4,7 +4,7 @@ import {
   GitManagerError,
   type GitManagerServiceError,
   type GitStatusResult,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { Cause } from "effect";
 import { Atom } from "effect/unstable/reactivity";
 import { useCallback, useSyncExternalStore } from "react";
@@ -61,6 +61,7 @@ const NOOP: () => void = () => undefined;
 const watchedGitStatuses = new Map<string, WatchedGitStatus>();
 const knownGitStatusKeys = new Set<string>();
 const gitStatusRefreshInFlight = new Map<string, Promise<GitStatusResult | null>>();
+const gitStatusQueuedForceRefresh = new Map<string, Promise<GitStatusResult | null>>();
 const gitStatusLastRefreshAtByKey = new Map<string, number>();
 
 const GIT_STATUS_REFRESH_DEBOUNCE_MS = 1_000;
@@ -136,6 +137,22 @@ export function refreshGitStatus(
 
   const currentInFlight = gitStatusRefreshInFlight.get(targetKey);
   if (currentInFlight) {
+    if (options?.force) {
+      const queuedForceRefresh = gitStatusQueuedForceRefresh.get(targetKey);
+      if (queuedForceRefresh) {
+        return queuedForceRefresh;
+      }
+
+      const nextForceRefresh = currentInFlight
+        .catch(() => null)
+        .then(() => refreshGitStatus(target, resolvedClient, { force: true }))
+        .finally(() => {
+          gitStatusQueuedForceRefresh.delete(targetKey);
+        });
+      gitStatusQueuedForceRefresh.set(targetKey, nextForceRefresh);
+      return nextForceRefresh;
+    }
+
     return currentInFlight;
   }
 
@@ -204,6 +221,7 @@ export function resetGitStatusStateForTests(): void {
   }
   watchedGitStatuses.clear();
   gitStatusRefreshInFlight.clear();
+  gitStatusQueuedForceRefresh.clear();
   gitStatusLastRefreshAtByKey.clear();
 
   for (const key of knownGitStatusKeys) {

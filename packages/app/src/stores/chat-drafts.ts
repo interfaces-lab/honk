@@ -6,7 +6,7 @@ import {
   type ScopedProjectRef,
   type ScopedThreadRef,
   ThreadId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   scopedProjectKey,
   scopeProjectRef,
@@ -26,7 +26,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createDebouncedJSONStorage, createMemoryStorage } from "../lib/storage";
 
-export const COMPOSER_DRAFT_STORAGE_KEY = "multi:composer-drafts:v1";
+export const COMPOSER_DRAFT_STORAGE_KEY = "honk:composer-drafts:v1";
 const COMPOSER_DRAFT_STORAGE_VERSION = 7;
 const DraftThreadEnvModeSchema = Schema.Literals(["local", "worktree"]);
 const isAgentInteractionMode = Schema.is(AgentInteractionMode);

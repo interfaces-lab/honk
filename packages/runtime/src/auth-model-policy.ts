@@ -8,7 +8,7 @@ import {
   type AgentMode,
   type AgentModelPolicy,
   type AgentThinkingLevel,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import type { Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";

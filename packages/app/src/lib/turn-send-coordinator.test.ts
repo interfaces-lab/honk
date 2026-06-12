@@ -6,10 +6,10 @@ import {
   TurnId,
   type EnvironmentApi,
   type LocalApi,
-  type MultiRuntimeApi,
-  type MultiRuntimeHostSnapshot,
+  type HonkRuntimeApi,
+  type HonkRuntimeHostSnapshot,
   type ThreadAgentRuntimeSendTurnInput,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetEnvironmentApiOverridesForTests } from "~/environment-api";
@@ -25,7 +25,7 @@ import {
 import { initialState, selectEnvironmentState, useStore } from "~/stores/thread-store";
 import { getThreadFromEnvironmentState } from "~/thread-derivation";
 import { DEFAULT_RUNTIME_MODE } from "~/types";
-import { createEmptyRuntimeHostSnapshot } from "./multi-runtime-api";
+import { createEmptyRuntimeHostSnapshot } from "./honk-runtime-api";
 import { prepareRuntimeTurnPolicy } from "./runtime-turn-dispatch";
 import {
   buildThreadTurnStartCommand,
@@ -51,9 +51,9 @@ async function notCalled(): Promise<never> {
 }
 
 function createRuntimeApi(input: {
-  snapshot: MultiRuntimeHostSnapshot;
+  snapshot: HonkRuntimeHostSnapshot;
   onSendTurn?: (turn: ThreadAgentRuntimeSendTurnInput) => void;
-}): MultiRuntimeApi {
+}): HonkRuntimeApi {
   return {
     getHostSnapshot: async () => input.snapshot,
     getPreferences: async () => input.snapshot.preferences,
@@ -70,7 +70,7 @@ function createRuntimeApi(input: {
   };
 }
 
-function createLocalApi(runtime: MultiRuntimeApi): LocalApi {
+function createLocalApi(runtime: HonkRuntimeApi): LocalApi {
   return {
     runtime,
     dialogs: {
@@ -265,7 +265,7 @@ describe("turn-send-coordinator", () => {
       ),
     });
     const api = createOrchestrationApi({ dispatchCommand });
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
 
     const result = await coordinateTurnSend(
       baseCoordinateInput({
@@ -281,6 +281,7 @@ describe("turn-send-coordinator", () => {
     expect(dispatchCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "thread.turn.start",
+        modelSelection,
         message: expect.objectContaining({
           messageId,
           text: "fix the chat",
@@ -322,7 +323,7 @@ describe("turn-send-coordinator", () => {
       nativeApi: createLocalApi(createRuntimeApi({ snapshot })),
     });
     const api = createOrchestrationApi({ dispatchCommand });
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
 
     await coordinateTurnSend(
       baseCoordinateInput({
@@ -363,7 +364,7 @@ describe("turn-send-coordinator", () => {
       nativeApi: createLocalApi(createRuntimeApi({ snapshot })),
     });
     const api = createOrchestrationApi({});
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
 
     await coordinateTurnSend(
       baseCoordinateInput({
@@ -402,12 +403,12 @@ describe("turn-send-coordinator", () => {
           sequence: 2,
           preparedWorktree: {
             branch: "wt/fix-chat",
-            worktreePath: "/tmp/project/.multi/worktrees/wt-fix-chat",
+            worktreePath: "/tmp/project/.honk/worktrees/wt-fix-chat",
           },
         };
       },
     });
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
 
     const result = await coordinateTurnSend(
       baseCoordinateInput({
@@ -433,9 +434,9 @@ describe("turn-send-coordinator", () => {
     expect(events).toEqual(["persist", "dispatch", "send"]);
     expect(result.preparedWorktree).toEqual({
       branch: "wt/fix-chat",
-      worktreePath: "/tmp/project/.multi/worktrees/wt-fix-chat",
+      worktreePath: "/tmp/project/.honk/worktrees/wt-fix-chat",
     });
-    expect(sentTurns[0]?.cwd).toBe("/tmp/project/.multi/worktrees/wt-fix-chat");
+    expect(sentTurns[0]?.cwd).toBe("/tmp/project/.honk/worktrees/wt-fix-chat");
   });
 
   it("captures dispatch failures without throwing when runtime already started", async () => {
@@ -452,7 +453,7 @@ describe("turn-send-coordinator", () => {
         throw dispatchError;
       },
     });
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
 
     const result = await coordinateTurnSend(
       baseCoordinateInput({
@@ -483,7 +484,7 @@ describe("turn-send-coordinator", () => {
         throw dispatchError;
       },
     });
-    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent" });
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
 
     await expect(
       coordinateTurnSend(

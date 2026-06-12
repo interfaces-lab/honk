@@ -15,7 +15,7 @@ import type {
   ThreadId,
   ThreadTokenUsageSnapshot,
   TurnId,
-} from "@multi/contracts";
+} from "@honk/contracts";
 import {
   AuthStorage,
   type AgentSessionEvent,
@@ -28,6 +28,7 @@ import {
   DefaultResourceLoader,
   ModelRegistry,
   SessionManager,
+  SettingsManager,
   createAgentSession,
 } from "@earendil-works/pi-coding-agent";
 import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
@@ -54,7 +55,11 @@ import {
   projectRuntimeSessionTree,
 } from "./session-tree-projection";
 
-const DEFAULT_EXCLUDED_TOOL_NAMES = ["read"] as const;
+const DEFAULT_EXCLUDED_TOOL_NAMES: readonly string[] = [];
+const PI_DEFAULT_SYSTEM_PROMPT_IDENTITY =
+  "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
+const HONK_SYSTEM_PROMPT_IDENTITY =
+  "You are Honk, an AI coding assistant. You help users by reading files, executing commands, editing code, and writing new files.";
 
 export interface ThreadAgentRuntimeIdentity {
   readonly agentRuntime: "pi";
@@ -205,23 +210,33 @@ export class ThreadAgentRuntime {
     const modelRegistry =
       options.modelRegistry ??
       ModelRegistry.create(authStorage, join(options.agentDir, "models.json"));
-    const effectiveModel = resolvePolicyModel({
-      policy: options.policy,
-      model: options.model,
-      modelRegistry,
-    });
     const interactionModeQueue = createInteractionModeQueue();
     const contextUsageSink = createBindableContextUsageSink();
+    const settingsManager = SettingsManager.create(options.cwd, options.agentDir, {
+      projectTrusted: true,
+    });
     const sessionOptions: CreateAgentSessionOptions = {
       cwd: options.cwd,
     };
     sessionOptions.agentDir = options.agentDir;
-    sessionOptions.sessionManager =
+    const sessionManager =
       options.sessionManager ??
       createThreadSessionManager(options.threadId, options.cwd, options.agentDir);
-    if (effectiveModel) sessionOptions.model = effectiveModel;
-    if (effectiveThinkingLevel) {
-      sessionOptions.thinkingLevel = effectiveThinkingLevel;
+    sessionOptions.sessionManager = sessionManager;
+    // A thread is pinned to one model: a continued session restores its own persisted
+    // model and thinking level, so the policy only seeds brand-new sessions. An explicit
+    // options.model (subagents) still wins.
+    const isNewSession = sessionManager.buildSessionContext().messages.length === 0;
+    if (isNewSession || options.model) {
+      const effectiveModel = resolvePolicyModel({
+        policy: options.policy,
+        model: options.model,
+        modelRegistry,
+      });
+      if (effectiveModel) sessionOptions.model = effectiveModel;
+      if (effectiveThinkingLevel) {
+        sessionOptions.thinkingLevel = effectiveThinkingLevel;
+      }
     }
     if (options.scopedModels) sessionOptions.scopedModels = [...options.scopedModels];
     if (options.tools) sessionOptions.tools = [...options.tools];
@@ -230,12 +245,15 @@ export class ThreadAgentRuntime {
     if (options.customTools) sessionOptions.customTools = [...options.customTools];
     if (options.resourceLoader) sessionOptions.resourceLoader = options.resourceLoader;
     sessionOptions.modelRegistry = modelRegistry;
+    sessionOptions.settingsManager = settingsManager;
     if (!options.resourceLoader) {
       const resourceLoader = new DefaultResourceLoader({
         cwd: options.cwd,
         agentDir: options.agentDir,
+        settingsManager,
         additionalExtensionPaths: [...(options.extensionPaths ?? [])],
         extensionFactories: [
+          createHonkSystemPromptIdentityExtension(),
           ...(options.extensionFactories ?? []),
           createInteractionModeExtension(interactionModeQueue),
           createContextUsageExtension(contextUsageSink),
@@ -267,14 +285,9 @@ export class ThreadAgentRuntime {
         ...(options.tools ? { allowedToolNames: options.tools } : {}),
         excludedToolNames: excludeTools,
       };
-      const resolvedPolicy = createModelPolicy(policyInput);
-      const policy = {
-        ...resolvedPolicy,
-        ...options.policy,
-        thinkingLevel: options.policy.thinkingLevel ?? resolvedPolicy.thinkingLevel,
-        allowedToolNames: resolvedPolicy.allowedToolNames,
-        excludedToolNames: resolvedPolicy.excludedToolNames,
-      };
+      // The session's (possibly restored) model is authoritative, so the stored policy
+      // reflects actual session state rather than the caller's preferences.
+      const policy = createModelPolicy(policyInput);
 
       runtime = new ThreadAgentRuntime(
         options.threadId,
@@ -489,10 +502,6 @@ export class ThreadAgentRuntime {
     if (turnId) {
       this.emit(this.createEvent("turn.interrupted", "Turn interrupted", turnId));
     }
-  }
-
-  async setModel(model: Model<string>): Promise<void> {
-    await this.session.setModel(model);
   }
 
   setThinkingLevel(level: ThinkingLevel): void {
@@ -806,13 +815,26 @@ function createThreadSessionManager(
   cwd: string,
   agentDir: string,
 ): SessionManager {
-  const sessionDir = join(agentDir, "multi-thread-sessions", encodeThreadIdForPath(threadId));
+  const sessionDir = join(agentDir, "honk-thread-sessions", encodeThreadIdForPath(threadId));
   mkdirSync(sessionDir, { recursive: true });
   return SessionManager.continueRecent(cwd, sessionDir);
 }
 
 function encodeThreadIdForPath(threadId: ThreadId): string {
   return Buffer.from(threadId, "utf8").toString("base64url");
+}
+
+function rewriteDefaultPiSystemPromptForHonk(base: string): string {
+  return base.replace(PI_DEFAULT_SYSTEM_PROMPT_IDENTITY, HONK_SYSTEM_PROMPT_IDENTITY);
+}
+
+function createHonkSystemPromptIdentityExtension(): ExtensionFactory {
+  return (pi) => {
+    pi.on("before_agent_start", (event) => {
+      const systemPrompt = rewriteDefaultPiSystemPromptForHonk(event.systemPrompt);
+      return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
+    });
+  };
 }
 
 function resolvePolicyModel(input: {
@@ -916,14 +938,14 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
       return undefined;
     case "ask":
       return [
-        "## Multi Interaction Mode: Ask",
+        "## Honk Interaction Mode: Ask",
         "Answer the user directly. Do not change files, run mutating shell commands, create commits, or perform long-running actions.",
         "Use read-only inspection only when it is needed to answer accurately.",
       ].join("\n");
     case "plan":
       return [
-        "## Multi Interaction Mode: Plan",
-        "Produce a concrete implementation plan through Multi's built-in Pi planning surface.",
+        "## Honk Interaction Mode: Plan",
+        "Produce a concrete implementation plan through Honk's built-in Pi planning surface.",
         "Research the codebase to find relevant files and review relevant docs before planning.",
         "Ask clarifying questions when requirements are ambiguous or the plan depends on missing decisions.",
         "Use the create_plan tool as the final action once the plan is ready for review.",
@@ -934,7 +956,7 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
       ].join("\n");
     case "debug":
       return [
-        "## Multi Interaction Mode: Debug",
+        "## Honk Interaction Mode: Debug",
         "Diagnose the issue first and report evidence, likely cause, and next steps.",
         "Prefer read-only inspection and safe diagnostic commands. Do not change files until the cause is clear and the user asks for a fix.",
       ].join("\n");

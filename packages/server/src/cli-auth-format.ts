@@ -1,4 +1,4 @@
-import type { AuthClientMetadata, AuthClientSession, AuthPairingLink } from "@multi/contracts";
+import type { AuthClientMetadata, AuthClientSession, AuthPairingLink } from "@honk/contracts";
 import { DateTime } from "effect";
 
 import type { IssuedBearerSession, IssuedPairingLink } from "./auth/AuthControlPlane.service.ts";

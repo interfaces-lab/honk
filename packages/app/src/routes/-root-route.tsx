@@ -70,7 +70,7 @@ export function RootRouteView() {
 
 function RootMountPerformanceMark() {
   useMountEffect(() => {
-    window.performance.mark("multi:root-mounted");
+    window.performance.mark("honk:root-mounted");
   });
 
   return null;
@@ -115,7 +115,7 @@ function CursorPreferenceDomSync(props: { readonly cursorPointerOnButtons: boole
   useMountEffect(() => {
     const root = document.documentElement;
     root.style.setProperty(
-      "--multi-button-cursor",
+      "--honk-button-cursor",
       props.cursorPointerOnButtons ? "pointer" : "default",
     );
     root.toggleAttribute("data-no-button-pointer", !props.cursorPointerOnButtons);

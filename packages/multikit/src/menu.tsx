@@ -13,30 +13,30 @@ const Menu = MenuPrimitive.Root;
 const MenuPortal = MenuPrimitive.Portal;
 
 const workbenchMenuPopupClassName =
-  "multi-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-[8px] border border-multi-stroke-tertiary bg-multi-bg-elevated font-multi text-body text-multi-fg-primary shadow-multi-popup outline-hidden backdrop-blur-xl focus:outline-hidden focus-visible:outline-hidden";
+  "honk-slash-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-[8px] border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-body text-honk-fg-primary shadow-honk-popup outline-hidden backdrop-blur-xl focus:outline-hidden focus-visible:outline-hidden";
 
 const workbenchMenuViewportClassName = "max-h-(--available-height) w-full overflow-y-auto p-1";
 
 const workbenchMenuItemClassName = cn(
-  "flex min-h-6 select-none items-center gap-1.5 rounded-[4px] px-1 py-[3px] text-body text-multi-fg-secondary outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
+  "flex min-h-6 select-none items-center gap-1.5 rounded-[4px] px-1 py-[3px] text-body text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
   interactiveControlCursorClassName,
   controlTransitionClassName,
 );
 
 const workbenchMenuIconSlotClassName =
-  "inline-flex h-4 w-4 shrink-0 items-center justify-center text-multi-fg-tertiary [&>svg]:size-3 [&>svg]:shrink-0";
+  "inline-flex h-4 w-4 shrink-0 items-center justify-center text-honk-fg-tertiary [&>svg]:size-3 [&>svg]:shrink-0";
 
-const workbenchMenuPrimaryTextClassName = "truncate text-body text-multi-fg-primary";
+const workbenchMenuPrimaryTextClassName = "truncate text-body text-honk-fg-primary";
 
-const workbenchMenuMetaTextClassName = "truncate text-detail text-multi-fg-tertiary";
+const workbenchMenuMetaTextClassName = "truncate text-detail text-honk-fg-tertiary";
 
 const workbenchMenuLabelClassName =
-  "px-1 pt-1.5 pb-0.5 font-normal text-detail text-multi-fg-tertiary first:pt-0.5";
+  "px-1 pt-1.5 pb-0.5 font-normal text-detail text-honk-fg-tertiary first:pt-0.5";
 
-const workbenchMenuSeparatorClassName = "mx-0 my-1 h-px shrink-0 bg-multi-stroke-tertiary";
+const workbenchMenuSeparatorClassName = "mx-0 my-1 h-px shrink-0 bg-honk-stroke-tertiary";
 
 const workbenchMenuRadioItemClassName = cn(
-  "grid min-h-6 select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-body text-multi-fg-secondary outline-hidden transition-colors hover:bg-multi-bg-quaternary hover:text-multi-fg-primary data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "grid min-h-6 select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-body text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   interactiveControlCursorClassName,
   controlTransitionClassName,
 );
@@ -66,7 +66,7 @@ function MenuPopup({
   anchor,
   ...props
 }: MenuPrimitive.Popup.Props & {
-  /** `workbench` = elevated multi-token menu shell (Slash-menu style geometry). */
+  /** `workbench` = elevated honk-token menu shell (Slash-menu style geometry). */
   variant?: "default" | "workbench";
   align?: MenuPrimitive.Positioner.Props["align"];
   sideOffset?: MenuPrimitive.Positioner.Props["sideOffset"];
@@ -150,20 +150,35 @@ function MenuCheckboxItem({
   children,
   checked,
   variant = "default",
+  indicatorPosition = "start",
   ...props
 }: MenuPrimitive.CheckboxItem.Props & {
   variant?: "default" | "switch" | "workbench" | "workbench-switch";
+  indicatorPosition?: "start" | "end";
 }) {
   const isSwitch = variant === "switch" || variant === "workbench-switch";
+  const workbenchIndicator = (
+    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+      <MenuPrimitive.CheckboxItemIndicator
+        className="inline-flex h-4 w-4 items-center justify-center text-honk-fg-primary data-unchecked:opacity-0 [&_svg:not([class*='size-'])]:size-3"
+        keepMounted
+      >
+        <IconCheckmark1 />
+      </MenuPrimitive.CheckboxItemIndicator>
+    </span>
+  );
   return (
     <MenuPrimitive.CheckboxItem
       checked={checked}
       className={cn(
         variant === "workbench"
-          ? workbenchMenuRadioItemClassName
+          ? cn(
+              workbenchMenuRadioItemClassName,
+              indicatorPosition === "end" && "grid-cols-[1fr_1rem]",
+            )
           : variant === "workbench-switch"
             ? cn(
-                "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-multi-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-multi-bg-tertiary data-highlighted:text-multi-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+                "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-honk-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
                 interactiveControlCursorClassName,
                 controlTransitionClassName,
               )
@@ -176,17 +191,17 @@ function MenuCheckboxItem({
       {...props}
     >
       {variant === "workbench" ? (
-        <>
-          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
-            <MenuPrimitive.CheckboxItemIndicator
-              className="inline-flex h-4 w-4 items-center justify-center text-multi-fg-primary data-unchecked:opacity-0 [&_svg:not([class*='size-'])]:size-3"
-              keepMounted
-            >
-              <IconCheckmark1 />
-            </MenuPrimitive.CheckboxItemIndicator>
-          </span>
-          <span className="min-w-0 truncate text-multi-fg-primary">{children}</span>
-        </>
+        indicatorPosition === "end" ? (
+          <>
+            <span className="min-w-0 truncate text-honk-fg-primary">{children}</span>
+            {workbenchIndicator}
+          </>
+        ) : (
+          <>
+            {workbenchIndicator}
+            <span className="min-w-0 truncate text-honk-fg-primary">{children}</span>
+          </>
+        )
       ) : isSwitch ? (
         <>
           <span className="col-start-1">{children}</span>
@@ -194,7 +209,7 @@ function MenuCheckboxItem({
             className={cn(
               "inset-shadow-[0_1px_--theme(--color-black/4%)] inline-flex h-[calc(var(--thumb-size)+2px)] w-[calc(var(--thumb-size)*2-2px)] shrink-0 items-center rounded-full p-px outline-hidden transition-[background-color,box-shadow] [--thumb-size:--spacing(4)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-checked:bg-primary data-unchecked:bg-input data-disabled:opacity-64 sm:[--thumb-size:--spacing(3)]",
               variant === "workbench-switch" &&
-                "border border-multi-stroke-tertiary data-checked:border-primary data-unchecked:bg-multi-bg-quinary",
+                "border border-honk-stroke-tertiary data-checked:border-primary data-unchecked:bg-honk-bg-quinary",
               controlTransitionClassName,
             )}
             keepMounted
@@ -239,13 +254,13 @@ function MenuRadioItem({
         <>
           <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
             <MenuPrimitive.RadioItemIndicator
-              className="inline-flex h-4 w-4 items-center justify-center text-multi-fg-primary data-unchecked:opacity-0 [&_svg:not([class*='size-'])]:size-3"
+              className="inline-flex h-4 w-4 items-center justify-center text-honk-fg-primary data-unchecked:opacity-0 [&_svg:not([class*='size-'])]:size-3"
               keepMounted
             >
               <IconCheckmark1 />
             </MenuPrimitive.RadioItemIndicator>
           </span>
-          <span className="min-w-0 truncate text-multi-fg-primary">{children}</span>
+          <span className="min-w-0 truncate text-honk-fg-primary">{children}</span>
         </>
       ) : (
         <>
@@ -309,7 +324,7 @@ function MenuShortcut({
     <kbd
       className={cn(
         variant === "workbench"
-          ? "ms-auto shrink-0 font-multi text-body font-normal tracking-normal text-multi-fg-tertiary"
+          ? "ms-auto shrink-0 font-honk text-body font-normal tracking-normal text-honk-fg-tertiary"
           : "ms-auto font-medium font-sans text-muted-foreground/72 text-xs tracking-widest",
         className,
       )}

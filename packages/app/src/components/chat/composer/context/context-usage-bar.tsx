@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
-import { Button } from "@multi/multikit/button";
-import { Popover, PopoverClose, PopoverPopup, PopoverTrigger } from "@multi/multikit/popover";
+import { Button } from "@honk/multikit/button";
+import { Popover, PopoverClose, PopoverPopup, PopoverTrigger } from "@honk/multikit/popover";
 import { IconCrossSmall } from "central-icons";
 
 import {
@@ -54,7 +54,7 @@ const CONTEXT_USAGE_COLOR_BY_CATEGORY_ID: Record<string, ContextUsageColor> = {
 function contextUsageColorValue(color: ContextUsageColor): string {
   switch (color) {
     case "gray":
-      return "var(--multi-fg-tertiary)";
+      return "var(--honk-fg-tertiary)";
     case "purple":
       return "color-mix(in oklch, var(--primary) 78%, var(--cursor-text-red-primary))";
     case "green":
@@ -139,11 +139,11 @@ function contextUsageCategories(usage: ContextWindowSnapshot): ContextUsageCateg
 function ContextUsagePopoverHeader() {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="text-body font-medium text-multi-fg-primary">Context Usage</div>
+      <div className="text-body font-medium text-honk-fg-primary">Context Usage</div>
       <PopoverClose
         type="button"
         aria-label="Close context usage"
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-multi-icon-tertiary hover:bg-multi-bg-quaternary hover:text-multi-icon-secondary"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-honk-icon-tertiary hover:bg-honk-bg-quaternary hover:text-honk-icon-secondary"
       >
         <IconCrossSmall className="size-3.5" aria-hidden />
       </PopoverClose>
@@ -165,8 +165,8 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
               size="xs"
               variant="ghost"
               className={cn(
-                "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-multi-fg-tertiary shadow-none tabular-nums",
-                "hover:bg-transparent hover:text-multi-fg-primary data-pressed:bg-transparent",
+                "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-honk-fg-tertiary shadow-none tabular-nums",
+                "hover:bg-transparent hover:text-honk-fg-primary data-pressed:bg-transparent",
               )}
               aria-label="Show context usage, no usage reported yet"
               title="No context usage reported yet"
@@ -189,7 +189,7 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
             className="flex w-[min(30rem,calc(100vw-2rem))] flex-col gap-3 p-3"
           >
             <ContextUsagePopoverHeader />
-            <div className="text-body text-multi-fg-secondary">No context usage reported yet.</div>
+            <div className="text-body text-honk-fg-secondary">No context usage reported yet.</div>
           </div>
         </PopoverPopup>
       </Popover>
@@ -218,8 +218,8 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
             size="xs"
             variant="ghost"
             className={cn(
-              "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-multi-fg-tertiary shadow-none tabular-nums",
-              "hover:bg-transparent hover:text-multi-fg-primary data-pressed:bg-transparent",
+              "h-6 shrink-0 gap-1 rounded-[4px] border-0 bg-transparent px-1 text-body text-honk-fg-tertiary shadow-none tabular-nums",
+              "hover:bg-transparent hover:text-honk-fg-primary data-pressed:bg-transparent",
             )}
             aria-label={`Show context usage, ${summaryLabel}`}
             title={summaryLabel}
@@ -243,7 +243,7 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
         >
           <ContextUsagePopoverHeader />
 
-          <div className="flex items-baseline justify-between gap-3 text-body text-multi-fg-secondary tabular-nums">
+          <div className="flex items-baseline justify-between gap-3 text-body text-honk-fg-secondary tabular-nums">
             <span>{roundedPercentage ?? "Context used"}</span>
             <span>
               {maxTokens !== null ? `${usedLabel} / ${maxLabel} Tokens` : `${usedLabel} Tokens`}
@@ -251,7 +251,7 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
           </div>
 
           <div
-            className="flex h-1.5 overflow-hidden rounded-full bg-multi-bg-secondary"
+            className="flex h-1.5 overflow-hidden rounded-full bg-honk-bg-secondary"
             role="img"
             aria-label={
               maxTokens !== null
@@ -276,7 +276,7 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
             })}
             {remainderTokens > 0 ? (
               <span
-                className="min-w-0 rounded-full bg-multi-bg-secondary"
+                className="min-w-0 rounded-full bg-honk-bg-secondary"
                 style={{ flexGrow: remainderTokens }}
                 aria-hidden
               />
@@ -298,10 +298,10 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
                     style={contextUsageColorStyle(color)}
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 truncate text-multi-fg-primary">
+                  <span className="min-w-0 flex-1 truncate text-honk-fg-primary">
                     {category.label}
                   </span>
-                  <span className="shrink-0 text-multi-fg-secondary tabular-nums">
+                  <span className="shrink-0 text-honk-fg-secondary tabular-nums">
                     {formatContextUsageTokensCompact(category.tokens)}
                   </span>
                 </li>
@@ -310,7 +310,7 @@ function ContextUsagePopover(props: { usage: ContextWindowSnapshot | null }) {
           </ul>
 
           {usage.compactsAutomatically ? (
-            <div className="text-detail text-multi-fg-tertiary">
+            <div className="text-detail text-honk-fg-tertiary">
               Automatically compacts its context when needed.
             </div>
           ) : null}
@@ -329,7 +329,7 @@ export function ComposerContextUsageBar(props: {
   return (
     <div
       data-composer-thread-status-bar=""
-      className="box-border flex min-h-6 w-full min-w-0 items-center justify-between gap-3 px-3 text-body text-multi-fg-tertiary"
+      className="box-border flex min-h-6 w-full min-w-0 items-center justify-between gap-3 px-3 text-body text-honk-fg-tertiary"
     >
       <div className="flex min-w-0 items-center gap-5 overflow-hidden">
         {props.branchName ? (

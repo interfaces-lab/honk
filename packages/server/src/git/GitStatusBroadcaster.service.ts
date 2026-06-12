@@ -7,7 +7,7 @@ import type {
   GitStatusRemoteResult,
   GitStatusResult,
   GitStatusStreamEvent,
-} from "@multi/contracts";
+} from "@honk/contracts";
 
 export interface GitStatusBroadcasterShape {
   readonly getStatus: (
@@ -28,4 +28,4 @@ export interface GitStatusBroadcasterShape {
 export class GitStatusBroadcaster extends Context.Service<
   GitStatusBroadcaster,
   GitStatusBroadcasterShape
->()("multi/git/GitStatusBroadcaster.service") {}
+>()("honk/git/GitStatusBroadcaster.service") {}
