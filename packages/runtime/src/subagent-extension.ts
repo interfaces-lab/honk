@@ -48,6 +48,12 @@ const DEFAULT_MAX_SUBAGENT_DEPTH = 2;
 // source. Throttle to ~10 Hz (trailing edge, flushed on completion) so the live tray stays responsive
 // without flooding the host. The final tool result is computed unthrottled, so nothing is lost.
 const SUBAGENT_PUBLISH_INTERVAL_MS = 100;
+// The throttle bounds publish frequency; this bounds publish size. Each live publish used to carry
+// the whole accumulated activities array, so a long run grew O(n) per tick. The renderer upserts by
+// id from every tick and retains at most 500 activities (MAX_SUBAGENT_ACTIVITIES in
+// subagent-activity-store.ts), so a live tail of the same size renders identically. The final tool
+// result stays uncapped: completed-run history must survive restarts.
+export const MAX_LIVE_SUBAGENT_ACTIVITIES = 500;
 // Cap any single progress detail we mirror into the parent. The child's full output lives in its own
 // session, and the final answer is returned as the tool result; the parent only needs a bounded
 // preview for the live tray. Assistant/reasoning text keeps its head (the message as written); command
@@ -258,6 +264,13 @@ function toolDetails(state: SubagentExecutionState): SubagentToolDetails {
     runs: state.runs.map(runSnapshot),
     activities: [...state.activities],
   };
+}
+
+export function capLiveSubagentActivities(details: SubagentToolDetails): SubagentToolDetails {
+  if (details.activities.length <= MAX_LIVE_SUBAGENT_ACTIVITIES) {
+    return details;
+  }
+  return { ...details, activities: details.activities.slice(-MAX_LIVE_SUBAGENT_ACTIVITIES) };
 }
 
 function basePayload(
@@ -774,7 +787,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
           // it actually fires, so the expensive `toolDetails` copy no longer runs per child chunk.
           const publisher = onUpdate
             ? createTrailingThrottle(() => {
-                const details = toolDetails(state);
+                const details = capLiveSubagentActivities(toolDetails(state));
                 onUpdate({
                   content: [{ type: "text", text: summarizeSubagentDetails(details) }],
                   details,
